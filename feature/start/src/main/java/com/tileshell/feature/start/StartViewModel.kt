@@ -133,6 +133,16 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { repository.reorderTiles(orderedIds) }
     }
 
+    /** Cycle the tile's size small→medium→wide→large→small (FR-3.4 resize). */
+    fun resize(id: String) {
+        viewModelScope.launch(Dispatchers.IO) { repository.cycleTileSize(id) }
+    }
+
+    /** Unpin (remove) a tile from the Start grid (FR-3.5). */
+    fun unpin(id: String) {
+        viewModelScope.launch(Dispatchers.IO) { repository.removeTile(id) }
+    }
+
     /**
      * Merge the dragged tile onto the target, forming/growing a folder (FR-3.3).
      * [survivingOrder] is the working order after the dragged tile is removed, so

@@ -3,6 +3,44 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## S15 · Resize, unpin, edit bar
+
+- **Corner controls are handled by the grid gesture, not child buttons.** The
+  unpin/resize controls render as visual chrome on the selected tile, but their
+  taps are caught by `editDragGesture` via 30 dp corner hot-zones over the
+  selected tile's rect (top-left → unpin, bottom-right → resize). This keeps all
+  edit-mode interaction in one gesture (as established in S13), and the gesture
+  consumes those events so the `emptySpaceExit` never also fires. The trade-off
+  is the hot-zones duplicate the controls' corner geometry, but the zones are
+  generous enough to cover them despite the selected tile's 1.04 scale.
+
+- **`emptySpaceExit` now ignores consumed taps.** Edit-bar buttons use
+  `clickable` (which consumes), and the corner controls are consumed by the grid
+  gesture; without an `isConsumed` check a tap on *personalize* would open the
+  sheet **and** exit edit. The empty-space exit now skips when the terminating
+  change was consumed by a descendant.
+
+- **Room rejects a `TileSize` converter on a `@Query` bind param / scalar
+  return.** A `SELECT size … : TileSize?` read and an `UPDATE … :size: TileSize`
+  bind both made Room's KSP processor fail with `MissingType`. So the resize read
+  goes through the existing `tilesOnce()` and the size is bound as its stored
+  `name` string (`updateTileSize(id, size: String)`); the enum↔string conversion
+  stays in Kotlin (`TileSize.next().name`).
+
+- **Resize reuses the S13 reflow animation; no separate size tween.** Changing a
+  tile's size just persists the new `TileSize`; the grid re-packs and the
+  surrounding tiles animate to their new slots via the existing
+  `animateIntOffsetAsState` (the resized tile's own footprint snaps). The drag
+  gesture is also re-keyed on `byId` so a mid-session resize/unpin refreshes the
+  captured tile sizes used for hit-testing (safe: `byId` never changes mid-drag).
+
+- **Personalize is a minimal stub sheet, dismissed by scrim only.** A scrim plus
+  a bottom panel naming the future options (accent/background/transparency). No
+  `BackHandler` — `:feature:start` doesn't depend on `activity-compose` and a
+  stub doesn't warrant adding it; the real sheet arrives with
+  `:feature:personalize`. Unpin keeps edit mode active (prototype-faithful); the
+  now-removed tile's stale `selectedTileId` is harmless (no placement matches).
+
 ## S14 · Merge to folder
 
 - **A merge reuses the target tile's id as the folder id.** The prototype splices

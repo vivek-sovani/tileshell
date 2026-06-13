@@ -38,6 +38,21 @@ interface LayoutDao {
     @Query("UPDATE tiles SET position = :position WHERE id = :id")
     suspend fun updateTilePosition(id: String, position: Int)
 
+    /** Set a tile's size (FR-3.4 resize). [size] is the stored [TileSize] name. */
+    @Query("UPDATE tiles SET size = :size WHERE id = :id")
+    suspend fun updateTileSize(id: String, size: String)
+
+    /**
+     * Remove a top-level tile (FR-3.5 unpin). A folder tile shares its id with
+     * its `folders` row, so deleting that row too drops the folder meta and
+     * cascades its children; for an app tile the folder delete is a no-op.
+     */
+    @Transaction
+    suspend fun removeTile(id: String) {
+        deleteTileById(id)
+        deleteFolderById(id)
+    }
+
     /**
      * Persist a new tile order (FR-3.2). Each id's `position` becomes its index
      * in [orderedIds]; applied in one transaction so the layout never observes a

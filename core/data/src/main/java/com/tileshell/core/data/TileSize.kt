@@ -12,4 +12,14 @@ enum class TileSize(val cols: Int, val rows: Int) {
     MEDIUM(2, 2),
     WIDE(4, 2),
     LARGE(4, 4),
+    ;
+
+    /**
+     * The next size in the resize cycle (FR-3.4): small → medium → wide → large
+     * → small, wrapping. Mirrors the prototype `cycleSize` order.
+     */
+    fun next(): TileSize {
+        val all = values()
+        return all[(ordinal + 1) % all.size]
+    }
 }

@@ -36,6 +36,15 @@ class LayoutRepository(
     /** Persist a new top-level tile order after an edit-mode drag (FR-3.2). */
     suspend fun reorderTiles(orderedIds: List<String>) = dao.applyOrder(orderedIds)
 
+    /** Cycle a tile through small → medium → wide → large → small (FR-3.4). */
+    suspend fun cycleTileSize(id: String) {
+        val current = dao.tilesOnce().firstOrNull { it.tile.id == id }?.tile?.size ?: return
+        dao.updateTileSize(id, current.next().name)
+    }
+
+    /** Unpin a top-level tile, removing it (and any folder meta) (FR-3.5). */
+    suspend fun removeTile(id: String) = dao.removeTile(id)
+
     /**
      * Merge the dragged tile onto the target (FR-3.3): the target becomes a
      * folder holding the de-duplicated union of both tiles' apps and the dragged

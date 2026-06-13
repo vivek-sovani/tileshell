@@ -107,6 +107,9 @@ fun StartScreen(
     val specs = remember(tiles) { tiles.map { TileSpec(it.id, it.size) } }
     val byId = remember(tiles) { tiles.associateBy { it.id } }
 
+    // Personalize stub sheet (edit bar → personalize); full sheet lands later.
+    var showPersonalize by remember { mutableStateOf(false) }
+
     val scrollState = rememberScrollState()
     // 0 = Start, 1 = App list.
     val progress = remember { Animatable(0f) }
@@ -205,6 +208,15 @@ fun StartScreen(
                         viewModel.merge(dragId, targetId, survivingOrder)
                         Toast.makeText(context, "grouped", Toast.LENGTH_SHORT).show()
                     },
+                    onResize = viewModel::resize,
+                    onUnpin = viewModel::unpin,
+                    onAdd = {
+                        viewModel.exitEdit()
+                        settleTo(1f)
+                        Toast.makeText(context, "long-press an app to pin", Toast.LENGTH_SHORT)
+                            .show()
+                    },
+                    onPersonalize = { showPersonalize = true },
                 )
             }
 
@@ -221,6 +233,9 @@ fun StartScreen(
                 )
             }
         }
+
+        // Personalize stub sheet overlay (edit bar → personalize).
+        PersonalizeStubSheet(visible = showPersonalize, onDismiss = { showPersonalize = false })
     }
 }
 
@@ -241,6 +256,10 @@ private fun StartPage(
     onExitEdit: () -> Unit,
     onReorder: (List<String>) -> Unit,
     onMerge: (dragId: String, targetId: String, survivingOrder: List<String>) -> Unit,
+    onResize: (String) -> Unit,
+    onUnpin: (String) -> Unit,
+    onAdd: () -> Unit,
+    onPersonalize: () -> Unit,
 ) {
     // Single jiggle phase shared by every tile (only composed while editing, so
     // it costs nothing on a resting Start screen). Even/odd tiles use opposite
@@ -309,6 +328,9 @@ private fun StartPage(
                 order = order,
                 byId = byId,
                 draggingId = { draggingId },
+                selectedId = { selectedTileId },
+                onUnpin = { id -> order.remove(id); onUnpin(id) },
+                onResize = onResize,
                 onLift = { id, offset -> draggingId = id; dragOffset.value = offset },
                 onDrag = { offset -> dragOffset.value = offset },
                 onReorderTo = { dragId, targetId ->
@@ -397,10 +419,11 @@ private fun StartPage(
             }
         }
 
-        // Bottom edit bar (prototype .edit-bar): slides up while editing. Only
-        // `done` is wired this session (an exit path); add/personalize land in S15.
+        // Bottom edit bar (prototype .edit-bar): slides up while editing.
         EditBar(
             visible = editMode,
+            onAdd = onAdd,
+            onPersonalize = onPersonalize,
             onDone = onExitEdit,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
@@ -471,8 +494,9 @@ private fun TileView(
 
 /**
  * Corner controls shown on the selected tile in edit mode (prototype
- * `.tile-controls`): unpin (close) top-left, resize bottom-right. Visual chrome
- * this session — their actions are wired in S15.
+ * `.tile-controls`): unpin (close) top-left, resize bottom-right. These are the
+ * visual affordance; the taps are handled by the grid's [editDragGesture] via
+ * the matching corner hot-zones (FR-3.4/3.5).
  */
 @Composable
 private fun BoxScope.TileControls() {
@@ -507,12 +531,14 @@ private fun TileControl(iconKey: String, description: String, modifier: Modifier
 
 /**
  * Bottom edit bar (prototype `.edit-bar`): add / personalize / done, sliding up
- * from below while editing. Only `done` is interactive this session; add and
- * personalize are rendered as chrome and wired in S15.
+ * from below while editing. add → app list (with a hint toast), personalize →
+ * stub sheet, done → exit edit.
  */
 @Composable
 private fun EditBar(
     visible: Boolean,
+    onAdd: () -> Unit,
+    onPersonalize: () -> Unit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -531,11 +557,50 @@ private fun EditBar(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        EditBarButton("plus", "add", enabled = false, onClick = {})
+        EditBarButton("plus", "add", enabled = true, onClick = onAdd)
         Spacer(Modifier.size(34.dp))
-        EditBarButton("settings", "personalize", enabled = false, onClick = {})
+        EditBarButton("settings", "personalize", enabled = true, onClick = onPersonalize)
         Spacer(Modifier.size(34.dp))
         EditBarButton("check", "done", enabled = true, onClick = onDone)
+    }
+}
+
+/**
+ * Placeholder personalize sheet (edit bar → personalize, FR-3.5). A scrim plus a
+ * bottom panel naming the future personalization options; the full sheet lands
+ * with `:feature:personalize`. Scrim tap dismisses.
+ */
+@Composable
+private fun PersonalizeStubSheet(visible: Boolean, onDismiss: () -> Unit) {
+    if (!visible) return
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0x99000000))
+                .clickable(onClick = onDismiss),
+        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(DarkColorTokens.sheet)
+                .navigationBarsPadding()
+                .padding(horizontal = 22.dp, vertical = 24.dp),
+        ) {
+            Text(
+                text = "personalize",
+                color = DarkColorTokens.fg,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "accent, background and tile transparency — coming soon",
+                color = DarkColorTokens.fgDim,
+                fontSize = 13.sp,
+            )
+        }
     }
 }
 
@@ -592,12 +657,14 @@ private fun Modifier.emptySpaceExit(editMode: Boolean, onExit: () -> Unit): Modi
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
             var moved = false
+            var consumed = false
             while (true) {
                 val event = awaitPointerEvent()
                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                if (change.isConsumed) consumed = true // edit-bar / control owns it
                 if ((change.position - down.position).getDistance() > slop) moved = true
                 if (!change.pressed) {
-                    if (!moved) onExit()
+                    if (!moved && !consumed) onExit()
                     break
                 }
             }
@@ -658,6 +725,9 @@ private fun Modifier.editDragGesture(
     order: List<String>,
     byId: Map<String, TileModel>,
     draggingId: () -> String?,
+    selectedId: () -> String?,
+    onUnpin: (String) -> Unit,
+    onResize: (String) -> Unit,
     onLift: (id: String, offset: IntOffset) -> Unit,
     onDrag: (offset: IntOffset) -> Unit,
     onReorderTo: (dragId: String, targetId: String) -> Unit,
@@ -669,7 +739,9 @@ private fun Modifier.editDragGesture(
     viewportHeightPx: Float,
     scrollOffsetPx: () -> Float,
     edgeZonePx: Float,
-): Modifier = pointerInput(editMode, widthPx) {
+): Modifier = pointerInput(editMode, widthPx, byId) {
+    // Re-keyed on byId so a resize/unpin mid-session refreshes the captured tile
+    // sizes; byId never changes during a drag, so an in-progress drag is safe.
     if (!editMode) return@pointerInput
     val geom = GridGeometry.of(widthPx)
     val slop = 7.dp.toPx()
@@ -679,6 +751,34 @@ private fun Modifier.editDragGesture(
 
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
+
+        // Corner controls on the selected tile (FR-3.4/3.5): a tap in the
+        // top-left zone unpins, bottom-right resizes. Handled here (not as
+        // child buttons) so the grid owns all edit interaction; the events are
+        // consumed so the empty-space-exit never also fires.
+        val sel = selectedId()
+        val selPlacement = sel?.let { id -> placementsNow().firstOrNull { it.id == id } }
+        if (selPlacement != null) {
+            val r = geom.rect(selPlacement)
+            val zone = 30.dp.toPx()
+            val inUnpin = down.position.x <= r.left + zone && down.position.y <= r.top + zone
+            val inResize = down.position.x >= r.right - zone && down.position.y >= r.bottom - zone
+            if (inUnpin || inResize) {
+                var movedCtl = false
+                while (true) {
+                    val event = awaitPointerEvent()
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    change.consume()
+                    if ((change.position - down.position).getDistance() > slop) movedCtl = true
+                    if (!change.pressed) {
+                        if (!movedCtl) if (inUnpin) onUnpin(selPlacement.id) else onResize(selPlacement.id)
+                        break
+                    }
+                }
+                return@awaitEachGesture
+            }
+        }
+
         val startId = tileAt(placementsNow(), geom, down.position)
         var lifted = false
         var moved = false
