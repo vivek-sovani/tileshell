@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        No action bar; dark window background (no white flash before Compose
+        draws); transparent system bars; draw into display cutouts.
+        enableEdgeToEdge() in MainActivity handles inset dispatch.
+    -->
+    <style name="Theme.TileShell" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/screen_bg</item>
+        <item name="android:statusBarColor">@color/transparent</item>
+        <item name="android:navigationBarColor">@color/transparent</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+</resources>

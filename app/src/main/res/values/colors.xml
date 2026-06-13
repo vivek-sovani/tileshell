@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Prototype dark theme bg token #0a0a0d (launcher/styles.css). -->
+    <color name="screen_bg">#FF0A0A0D</color>
+    <color name="ic_launcher_background">#FF0A0A0D</color>
+    <color name="transparent">#00000000</color>
+</resources>

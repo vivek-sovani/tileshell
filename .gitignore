@@ -1,0 +1,19 @@
+# Gradle
+.gradle/
+build/
+
+# Local configuration (machine-specific SDK path)
+local.properties
+
+# IDE
+.idea/
+*.iml
+.kotlin/
+
+# macOS
+.DS_Store
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# APK/AAB outputs are under build/, already ignored

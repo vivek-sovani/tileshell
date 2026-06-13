@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>TileShell — Launcher Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="launcher/styles.css" />
+</head>
+<body>
+<div id="stage">
+  <div id="device">
+    <div id="screen" data-screen-label="Home">
+      <div id="wall"></div>
+
+      <!-- status bar -->
+      <div class="statusbar">
+        <span id="sbClock">9:41</span>
+        <span class="right">
+          <span class="sig"><i></i><i></i><i></i><i></i></span>
+          <span style="font-size:11px">LTE</span>
+          <span class="batt"></span>
+        </span>
+      </div>
+
+      <div class="pages">
+        <!-- ===== HOME ===== -->
+        <section class="page" id="page-home" data-screen-label="Home grid">
+          <div class="home-scroll">
+            <div id="grid"></div>
+          </div>
+
+          <!-- edit bar -->
+          <div class="edit-bar">
+            <button id="editAdd"><svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>add</button>
+            <button id="editPersonalize"><svg class="ico" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.5 0 2-1 2-2 0-1.5 1-2 2-2h2a3 3 0 0 0 3-3c0-5-4-9-9-9z"/><circle cx="7.5" cy="11" r="1"/><circle cx="11" cy="7.5" r="1"/><circle cx="15" cy="8.5" r="1"/></svg>personalize</button>
+            <button id="editDone"><svg class="ico" viewBox="0 0 24 24"><path d="M5 12l5 5 9-11"/></svg>done</button>
+          </div>
+        </section>
+
+        <!-- ===== APP LIST ===== -->
+        <section class="page" id="page-apps" data-screen-label="App list">
+          <div class="apps-top">
+            <div class="searchbar">
+              <svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><line x1="15.5" y1="15.5" x2="20" y2="20"/></svg>
+              <input id="searchInput" type="text" placeholder="search apps" />
+            </div>
+          </div>
+          <div class="apps-scroll" id="appsScroll"></div>
+          <div class="jump" id="jumpGrid"></div>
+        </section>
+      </div>
+
+      <!-- system navigation bar -->
+      <div class="navbar" id="navbar">
+        <button class="nav-btn" id="navRecents" aria-label="running apps"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></button>
+        <button class="nav-btn" id="navHome" aria-label="home"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M6 10v10h12V10"/></svg></button>
+        <button class="nav-btn" id="navSearch" aria-label="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><line x1="15.5" y1="15.5" x2="20" y2="20"/></svg></button>
+      </div>
+
+      <!-- running apps (recents) overlay -->
+      <div class="recents-ov" id="recentsOv">
+        <div class="rtitle">running apps</div>
+        <div class="recents-row"></div>
+        <div class="rclear" id="rClear">clear all</div>
+      </div>
+
+      <!-- group / folder overlay -->
+      <div class="group-ov" id="groupOv" data-screen-label="Folder">
+        <button class="gclose" id="gClose"><svg class="ico" viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+        <div class="gtitle">folder</div>
+        <div class="ggrid"></div>
+      </div>
+
+      <!-- settings sheet -->
+      <div class="sheet-scrim" id="setScrim"></div>
+      <div class="sheet" id="setSheet" data-screen-label="Settings">
+        <div class="sheet-grip"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <h2>personalize</h2>
+          <button id="setClose" style="background:none;border:none;color:var(--fg);margin:0 18px"><svg class="ico" style="width:22px;height:22px;stroke:var(--fg);fill:none;stroke-width:2" viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+        </div>
+        <div id="setBody"></div>
+      </div>
+
+      <div class="toast" id="toast"></div>
+    </div>
+  </div>
+</div>
+
+<div class="hint">
+  <b>Tap</b> a tile to open · <b>long-press</b> to edit (then drag to move, drop a tile onto another to make a folder, use the corner handles to resize/unpin) · <b>chevron</b> → app list · in the app list <b>tap a letter</b> for the jump grid, <b>long-press</b> an app to pin.
+</div>
+
+<script src="launcher/icons.js"></script>
+<script src="launcher/data.js"></script>
+<script src="launcher/tiles.js"></script>
+<script src="launcher/screens.js"></script>
+<script src="launcher/launcher.js"></script>
+<script>
+  // live status-bar clock
+  (function(){
+    function tick(){ const d=new Date(); document.getElementById('sbClock').textContent = d.getHours()+':'+String(d.getMinutes()).padStart(2,'0'); }
+    tick(); setInterval(tick, 15000);
+  })();
+</script>
+</body>
+</html>

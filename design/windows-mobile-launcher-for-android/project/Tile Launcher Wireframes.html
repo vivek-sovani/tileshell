@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tile Launcher — Wireframes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Patrick+Hand&family=Gaegu:wght@400;700&family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper: #f4f2ec;
+    --ink: #23221e;
+    --ink-soft: #6f6d64;
+    --line: #2a2924;
+    --line-soft: #b9b6ab;
+    --accent-blue: #3a7afe;
+    --accent-purple: #6c4cf0;
+    --accent-green: #2bb673;
+    --accent-amber: #f0a92b;
+    --note: #fff3b0;
+    --note-line: #d9c352;
+    --screen-bg: #15151a;
+    --screen-ink: #f3f3f6;
+    --tile-line: rgba(255,255,255,0.55);
+    --tile-fill: rgba(255,255,255,0.06);
+    --device-frame: #0c0c10;
+    --wall: #1b2330;
+  }
+  html[data-screen="light"] {
+    --screen-bg: #e9e9ee;
+    --screen-ink: #1a1a20;
+    --tile-line: rgba(20,20,28,0.55);
+    --tile-fill: rgba(20,20,28,0.05);
+    --wall: #cdd6e2;
+  }
+  html[data-page="dark"] {
+    --paper: #16151a;
+    --ink: #ecebe5;
+    --ink-soft: #9a978d;
+    --line: #d8d6cc;
+    --line-soft: #4a483f;
+    --note: #4a431f;
+    --note-line: #b59b2f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Patrick Hand', 'Comic Sans MS', cursive;
+    transition: background .25s, color .25s;
+  }
+  /* paper grid texture */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(to right, color-mix(in srgb, var(--ink) 6%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in srgb, var(--ink) 6%, transparent) 1px, transparent 1px);
+    background-size: 28px 28px;
+    pointer-events: none;
+    z-index: 0;
+  }
+  header.top {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(6px);
+    background: color-mix(in srgb, var(--paper) 86%, transparent);
+    border-bottom: 2px solid var(--line);
+    padding: 14px 30px;
+    display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+  }
+  .brand { display: flex; flex-direction: column; line-height: 1; }
+  .brand b { font-family: 'Caveat'; font-size: 30px; font-weight: 700; letter-spacing: .3px; }
+  .brand span { font-size: 14px; color: var(--ink-soft); margin-top: 2px; }
+  .controls { display: flex; gap: 10px; margin-left: auto; flex-wrap: wrap; }
+  .ctl {
+    font-family: 'Patrick Hand'; font-size: 16px;
+    border: 2px solid var(--line); background: transparent; color: var(--ink);
+    padding: 7px 14px; cursor: pointer; border-radius: 2px;
+    box-shadow: 2px 2px 0 var(--line); transition: transform .08s, box-shadow .08s;
+  }
+  .ctl:active { transform: translate(2px,2px); box-shadow: 0 0 0 var(--line); }
+  .ctl[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+
+  main { position: relative; z-index: 1; padding: 12px 30px 90px; }
+  .intro { max-width: 860px; margin: 18px auto 8px; text-align: center; }
+  .intro h1 { font-family: 'Caveat'; font-size: 44px; margin: 6px 0; }
+  .intro p { font-size: 17px; color: var(--ink-soft); line-height: 1.5; margin: 4px 0; }
+  .legal { font-size: 14px; color: var(--ink-soft); border: 2px dashed var(--line-soft); border-radius: 4px; padding: 8px 14px; display: inline-block; margin-top: 8px; }
+
+  section.band { margin: 40px 0 10px; }
+  .band-head { display: flex; align-items: baseline; gap: 14px; border-bottom: 3px solid var(--line); padding-bottom: 6px; margin-bottom: 8px; }
+  .band-head h2 { font-family: 'Caveat'; font-size: 34px; margin: 0; }
+  .band-head .tag { font-size: 15px; color: var(--ink-soft); }
+  .band-head .num { font-family:'Gaegu'; font-weight:700; font-size: 18px; border:2px solid var(--line); width:30px; height:30px; display:grid; place-items:center; border-radius:50%; }
+
+  .row { display: flex; gap: 30px; overflow-x: auto; padding: 18px 4px 26px; align-items: flex-start; scroll-snap-type: x proximity; }
+  .row::-webkit-scrollbar { height: 10px; }
+  .row::-webkit-scrollbar-thumb { background: var(--line-soft); border-radius: 6px; }
+
+  figure.mock { margin: 0; flex: 0 0 auto; scroll-snap-align: start; display: flex; flex-direction: column; align-items: center; }
+  figure.mock figcaption { margin-top: 14px; width: 268px; text-align: center; }
+  figcaption b { font-family: 'Caveat'; font-size: 23px; display: block; }
+  figcaption span { font-size: 14.5px; color: var(--ink-soft); line-height: 1.35; display: block; margin-top: 2px; }
+
+  /* ===== Device ===== */
+  .phone {
+    width: 268px; height: 562px; background: var(--device-frame);
+    border-radius: 34px; padding: 9px; position: relative;
+    box-shadow: 0 14px 28px rgba(0,0,0,.28), 0 2px 0 rgba(0,0,0,.4);
+    transform: rotate(var(--tilt, 0deg));
+  }
+  .phone::after { /* side button */
+    content:""; position:absolute; right:-2px; top:120px; width:3px; height:54px; background:#000; border-radius:2px;
+  }
+  .screen {
+    width: 100%; height: 100%; background: var(--screen-bg); color: var(--screen-ink);
+    border-radius: 26px; overflow: hidden; position: relative;
+    display: flex; flex-direction: column;
+    transition: background .25s, color .25s;
+    font-family: 'Open Sans', 'Segoe UI', sans-serif; font-weight: 400;
+  }
+  .notch { position:absolute; top:9px; left:50%; transform:translateX(-50%); width:84px; height:18px; background:#000; border-radius:12px; z-index:6; }
+  .statusbar { height: 30px; flex: 0 0 auto; display:flex; align-items:center; justify-content:space-between; padding: 0 16px; font-size: 12.5px; opacity:.85; }
+  .statusbar .sig { display:flex; gap:3px; align-items:flex-end; }
+  .statusbar .sig i { width:3px; background: currentColor; display:block; }
+  .statusbar .sig i:nth-child(1){height:5px} .statusbar .sig i:nth-child(2){height:8px} .statusbar .sig i:nth-child(3){height:11px} .statusbar .sig i:nth-child(4){height:14px}
+  .batt { border:1.5px solid currentColor; width:20px; height:11px; border-radius:2px; position:relative; }
+  .batt::after { content:""; position:absolute; right:-3px; top:3px; width:2px; height:5px; background:currentColor; }
+  .batt::before { content:""; position:absolute; left:1px; top:1px; bottom:1px; width:11px; background:currentColor; }
+
+  .viewport { flex: 1 1 auto; overflow: hidden; position: relative; }
+
+  /* wallpaper */
+  .wall {
+    position:absolute; inset:0; z-index:0;
+    background:
+      repeating-linear-gradient(135deg, color-mix(in srgb, var(--screen-ink) 9%, transparent) 0 2px, transparent 2px 13px),
+      var(--wall);
+  }
+
+  /* ===== Tiles ===== */
+  .grid {
+    position: relative; z-index: 1;
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: var(--gap, 6px);
+    grid-auto-rows: var(--col, 57px);
+    grid-auto-flow: dense;
+    padding: var(--pad, 12px);
+    height: 100%; align-content: start;
+    overflow: hidden;
+  }
+  .tile {
+    border: 2px solid var(--tile-line);
+    background: var(--tile-fill);
+    position: relative; overflow: hidden;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    padding: 7px; min-width: 0;
+  }
+  html.flatfill .tile.live { background: var(--tfill, var(--tile-fill)); border-color: transparent; color: #fff; }
+  .tile.s1 { grid-column: span 1; grid-row: span 1; }
+  .tile.s2 { grid-column: span 2; grid-row: span 2; }
+  .tile.w4 { grid-column: span 4; grid-row: span 2; }
+  .tile.l4 { grid-column: span 4; grid-row: span 4; }
+  .tile .glyph { width: 20px; height: 20px; border: 2px solid currentColor; opacity:.8; align-self:flex-start; }
+  .tile .glyph.round { border-radius: 50%; }
+  /* WP-style monoline iconography: thin geometric outline glyphs, currentColor */
+  .ico { width:22px; height:22px; stroke: currentColor; fill:none; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; opacity:.92; flex:0 0 auto; align-self:flex-start; }
+  .tile.s1 .ico { width:20px; height:20px; }
+  .appitem .ico { width:24px; height:24px; }
+  .ico.big { width:26px; height:26px; }
+  .ico.tb { width:15px; height:15px; opacity:1; }
+  .pin .ico { width:13px; height:13px; stroke:#1a1206; opacity:1; align-self:auto; }
+  .tile .lbl { font-size: 12.5px; line-height: 1; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 400; text-transform: lowercase; }
+  .tile.s1 .lbl { font-size: 10px; }
+  .badge { position:absolute; top:5px; right:6px; min-width:18px; height:18px; padding:0 4px; border-radius:50%; background: var(--accent-amber); color:#1a1206; font-size:11px; font-weight:700; display:grid; place-items:center; font-family:'Gaegu'; }
+
+  /* live content sketches */
+  .lc { position:absolute; inset:7px; display:flex; flex-direction:column; }
+  .lc .big { font-weight:300; font-size: 34px; line-height:.95; letter-spacing:-1.2px; }
+  .lc .mid { font-size: 14px; font-weight:400; }
+  .lc .sm { font-size: 11px; opacity:.75; font-weight:400; }
+  .lc.center { justify-content:center; }
+  .lc .row2 { display:flex; gap:5px; align-items:center; }
+  .dots { display:grid; grid-template-columns: repeat(4, 1fr); gap:4px; margin-top:4px; }
+  .dots i { aspect-ratio:1; border-radius:50%; border:2px solid currentColor; opacity:.75; }
+  .bars { display:flex; gap:3px; align-items:flex-end; height:22px; }
+  .bars i { width:5px; background: currentColor; opacity:.8; }
+  .photoX { position:absolute; inset:0; background:
+      repeating-linear-gradient(45deg, color-mix(in srgb, var(--screen-ink) 16%, transparent) 0 2px, transparent 2px 9px); }
+
+  /* ===== app list ===== */
+  .applist { position:relative; z-index:1; height:100%; display:flex; flex-direction:column; padding:10px 12px; gap:8px; }
+  .searchbar { border:2px solid var(--tile-line); height:34px; display:flex; align-items:center; padding:0 10px; font-size:13px; opacity:.85; gap:8px; }
+  .searchbar .mag { width:13px; height:13px; border:2px solid currentColor; border-radius:50%; position:relative; }
+  .searchbar .mag::after { content:""; position:absolute; right:-4px; bottom:-3px; width:6px; height:2px; background:currentColor; transform:rotate(45deg); }
+  .alpha { font-weight:300; font-size:24px; letter-spacing:-.4px; text-transform:lowercase; border-bottom:none; padding-bottom:0; margin-top:6px; }
+  .appitem { display:flex; align-items:center; gap:10px; font-size:14px; }
+  .appitem .ic { width:26px; height:26px; border:2px solid var(--tile-line); flex:0 0 auto; }
+  .indexrail { position:absolute; right:6px; top:46px; bottom:10px; z-index:3; display:flex; flex-direction:column; justify-content:space-between; font-size:9px; opacity:.7; }
+  /* letter jump grid (tap a section header → pick any letter) */
+  .jumpgrid { position:relative; z-index:1; display:grid; grid-template-columns:repeat(4,1fr); gap:6px; padding:12px; align-content:start; height:100%; overflow:hidden; }
+  .jtile { aspect-ratio:1; border:2px solid var(--tile-line); display:flex; align-items:flex-end; padding:6px; font-size:22px; font-weight:300; line-height:1; text-transform:lowercase; }
+  .jtile.off { border-color:transparent; opacity:.26; }
+  .jtile.sel { background:var(--accent-amber); color:#1a1206; border-color:transparent; }
+
+  /* edit-mode chrome */
+  .selbox { outline: 3px dashed var(--accent-amber); outline-offset:-1px; }
+  .handle { position:absolute; width:16px; height:16px; border:2px solid var(--accent-amber); background: var(--screen-bg); border-radius:50%; z-index:5; }
+  .handle.br { right:-8px; bottom:-8px; }
+  .pin { position:absolute; top:-9px; left:-9px; width:22px; height:22px; border-radius:50%; background:var(--accent-amber); color:#1a1206; display:grid; place-items:center; font-size:12px; z-index:6; }
+  .sizepop { position:absolute; z-index:8; left:50%; bottom:14px; transform:translateX(-50%); background:var(--screen-bg); border:2px solid var(--screen-ink); display:flex; gap:8px; padding:8px; }
+  .sizepop .sz { display:flex; flex-direction:column; align-items:center; gap:3px; font-size:9px; }
+  .sizepop .sz b { display:block; border:2px solid var(--screen-ink); }
+  .sz .b1{width:14px;height:14px} .sz .b2{width:22px;height:22px} .sz .b3{width:30px;height:18px} .sz .b4{width:30px;height:30px}
+  .toolbar { position:absolute; left:0; right:0; bottom:0; height:46px; z-index:7; background:color-mix(in srgb, var(--screen-bg) 86%, #000); border-top:2px solid var(--tile-line); display:flex; align-items:center; justify-content:space-around; font-size:12px; }
+  .ghost { border:2px dashed var(--accent-amber) !important; background: transparent !important; opacity:.7; }
+
+  /* settings rows */
+  .settings { position:relative; z-index:1; height:100%; padding:12px; display:flex; flex-direction:column; gap:12px; overflow:hidden; }
+  .seg { display:flex; border:2px solid var(--tile-line); }
+  .seg div { flex:1; text-align:center; font-size:12px; padding:7px 0; }
+  .seg div.on { background: var(--screen-ink); color: var(--screen-bg); }
+  .swatches { display:grid; grid-template-columns: repeat(5,1fr); gap:8px; }
+  .swatches i { aspect-ratio:1; border:2px solid var(--tile-line); }
+  .swatches i.sel { outline:3px solid var(--accent-amber); outline-offset:2px; }
+  .setlabel { font-weight:300; font-size:20px; letter-spacing:-.3px; text-transform:lowercase; }
+  .slider { height:6px; background: var(--tile-fill); border:2px solid var(--tile-line); position:relative; }
+  .slider .knob { position:absolute; top:50%; width:18px; height:18px; border-radius:50%; background:var(--accent-amber); transform:translate(-50%,-50%); }
+  .swrow { display:flex; align-items:center; justify-content:space-between; font-size:13px; }
+  .toggle { width:42px; height:22px; border:2px solid var(--tile-line); border-radius:12px; position:relative; }
+  .toggle::after { content:""; position:absolute; top:1px; left:1px; width:16px; height:16px; border-radius:50%; background: var(--tile-line); }
+  .toggle.on { background: var(--accent-green); border-color: var(--accent-green); }
+  .toggle.on::after { left:auto; right:1px; background:#fff; }
+  .wallpick { display:grid; grid-template-columns: repeat(3,1fr); gap:8px; }
+  .wallpick i { aspect-ratio:.62; border:2px solid var(--tile-line); position:relative; overflow:hidden; }
+  .wallpick i.sel { outline:3px solid var(--accent-amber); outline-offset:2px; }
+  .wallpick i.addphoto { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; border-style:dashed; font-size:11px; text-transform:lowercase; }
+  .wallpick i.addphoto::before { content:none; }
+  .wallpick i.addphoto .ico { width:22px; height:22px; align-self:center; }
+  .wallpick i::before { content:""; position:absolute; inset:0; background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--screen-ink) 16%, transparent) 0 2px, transparent 2px 8px); }
+
+  /* sticky-note annotations */
+  .notes { position:relative; }
+  .note {
+    position:absolute; z-index:9; font-family:'Caveat'; font-weight:600; font-size:16.5px; line-height:1.1;
+    background: var(--note); color: var(--ink); border:1.5px solid var(--note-line);
+    padding:6px 9px; max-width:148px; box-shadow: 2px 3px 0 rgba(0,0,0,.18);
+    transform: rotate(var(--r, -2deg));
+  }
+  html.no-notes .note { display:none; }
+  .note .arrow { position:absolute; width:30px; height:2px; background: var(--note-line); }
+
+  .hint { text-align:center; font-size:14px; color:var(--ink-soft); margin-top:-6px; }
+  .hint b { font-family:'Caveat'; font-size:18px; }
+  @media (max-width:560px){ header.top{padding:12px 16px} main{padding:12px 14px 80px} }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><b>TileShell</b><span>Android launcher — wireframe exploration</span></div>
+  <div class="controls">
+    <button class="ctl" id="btnScreen" aria-pressed="false">◑ Tiles: Dark</button>
+    <button class="ctl" id="btnPage" aria-pressed="false">Paper: Light</button>
+    <button class="ctl" id="btnNotes" aria-pressed="true">✎ Notes: On</button>
+    <button class="ctl" id="btnFill" aria-pressed="false">▦ Tile fills</button>
+  </div>
+</header>
+
+<main>
+  <div class="intro">
+    <h1>An original tile launcher — mapping the space</h1>
+    <p>Glanceable live tiles, four resize sizes, recolorable tiles, transparent tiles over wallpaper, an A–Z app list, and an edit/move/pin mode. Rough on purpose — we're choosing structure, not pixels.</p>
+    <span class="legal">Original design language &mdash; not a clone of any existing OS. We borrow the <i>ideas</i> (live tiles, resize, theming), not the look.</span>
+  </div>
+
+  <!-- ================= HOME GRID ================= -->
+  <section class="band">
+    <div class="band-head"><span class="num">A</span><h2>Home tile grid</h2><span class="tag">— 4 structural directions. This is the big decision.</span></div>
+    <p class="hint"><b>Scroll sideways →</b> to compare. Toggle <b>Tile fills</b> & <b>Tiles theme</b> up top to preview color/transparency.</p>
+    <div class="row" id="rowHome"></div>
+  </section>
+
+  <!-- ================= APP LIST ================= -->
+  <section class="band">
+    <div class="band-head"><span class="num">B</span><h2>App list (A–Z)</h2><span class="tag">— the full drawer behind the tiles.</span></div>
+    <div class="row" id="rowApps"></div>
+  </section>
+
+  <!-- ================= EDIT MODE ================= -->
+  <section class="band">
+    <div class="band-head"><span class="num">C</span><h2>Edit · resize · move · pin</h2><span class="tag">— long-press a tile to enter this mode.</span></div>
+    <div class="row" id="rowEdit"></div>
+  </section>
+
+  <!-- ================= COLOR / THEME ================= -->
+  <section class="band">
+    <div class="band-head"><span class="num">D</span><h2>Tile color & theme</h2><span class="tag">— accent, per-tile color, light/dark.</span></div>
+    <div class="row" id="rowColor"></div>
+  </section>
+
+  <!-- ================= WALLPAPER / TRANSPARENCY ================= -->
+  <section class="band">
+    <div class="band-head"><span class="num">E</span><h2>Wallpaper & transparency</h2><span class="tag">— transparent tiles + “tile picture” showing wallpaper behind.</span></div>
+    <div class="row" id="rowWall"></div>
+  </section>
+</main>
+
+<script>
+/* ---------- tile data ---------- */
+const C = { blue:'#3a7afe', purple:'#6c4cf0', green:'#2bb673', amber:'#f0a92b' };
+
+/* ---------- WP-style monoline icon family (original) ---------- */
+const ICONS = {
+  phone:'<rect x="7" y="3" width="10" height="18" rx="1.5"/><line x1="7" y1="17" x2="17" y2="17"/>',
+  camera:'<rect x="3" y="7" width="18" height="13" rx="1.5"/><circle cx="12" cy="13.5" r="3.5"/><path d="M8 7l1.5-2.5h5L16 7"/>',
+  maps:'<path d="M12 21s7-6.5 7-11a7 7 0 1 0-14 0c0 4.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>',
+  store:'<path d="M5 8h14l-1 12H6L5 8z"/><path d="M9 8a3 3 0 0 1 6 0"/>',
+  settings:'<circle cx="12" cy="12" r="3.2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>',
+  files:'<path d="M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7z"/>',
+  web:'<circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><line x1="3" y1="12" x2="21" y2="12"/>',
+  note:'<rect x="5" y="3" width="14" height="18" rx="1.5"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/>',
+  bank:'<path d="M4 9l8-5 8 5"/><line x1="4" y1="9" x2="20" y2="9"/><line x1="6" y1="9" x2="6" y2="18"/><line x1="10" y1="9" x2="10" y2="18"/><line x1="14" y1="9" x2="14" y2="18"/><line x1="18" y1="9" x2="18" y2="18"/><line x1="4" y1="18" x2="20" y2="18"/>',
+  fit:'<path d="M3 12h4l2-5 3 10 2-5h7"/>',
+  pay:'<rect x="3" y="6" width="18" height="12" rx="1.5"/><line x1="3" y1="10" x2="21" y2="10"/>',
+  cast:'<rect x="4" y="5" width="16" height="12" rx="1.5"/><path d="M4 19a3 3 0 0 1 3 3M4 16a6 6 0 0 1 6 6"/>',
+  mail:'<rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M3 7l9 6 9-6"/>',
+  messages:'<path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>',
+  music:'<path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/>',
+  photos:'<rect x="3" y="5" width="18" height="14" rx="1.5"/><circle cx="8" cy="10" r="1.6"/><path d="M3 17l5-4 4 3 4-4 5 5"/>',
+  people:'<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 6a3 3 0 0 1 0 6M15 14a6 6 0 0 1 6 6"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  weather:'<circle cx="8" cy="9" r="3.2"/><path d="M6.5 18h10.5a3.2 3.2 0 0 0 0-6.4 4.8 4.8 0 0 0-9.2-1"/>',
+  calendar:'<rect x="3" y="5" width="18" height="16" rx="1.5"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="3" x2="8" y2="6"/><line x1="16" y1="3" x2="16" y2="6"/>',
+  battery:'<rect x="3" y="8" width="16" height="9" rx="1"/><line x1="21" y1="11" x2="21" y2="14"/>',
+  search:'<circle cx="11" cy="11" r="6"/><line x1="15.5" y1="15.5" x2="20" y2="20"/>',
+  pin:'<circle cx="12" cy="9" r="4"/><line x1="12" y1="13" x2="12" y2="21"/>',
+  close:'<line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>',
+  resize:'<path d="M4 10V4h6M20 14v6h-6"/><line x1="4" y1="4" x2="10" y2="10"/><line x1="20" y1="20" x2="14" y2="14"/>',
+  check:'<path d="M5 12l5 5 9-11"/>',
+  app:'<rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/>'
+};
+function icon(name, cls){ return `<svg class="ico ${cls||''}" viewBox="0 0 24 24">${ICONS[name]||ICONS.app}</svg>`; }
+function iconFor(label){ const m={phone:'phone',cam:'camera',camera:'camera',maps:'maps',store:'store',set:'settings',settings:'settings',files:'files',web:'web',browser:'web',note:'note',bank:'bank',fit:'fit',pay:'pay',cast:'cast',tv:'cast',pod:'music',mail:'mail',messages:'messages',calendar:'calendar',authenticator:'app'}; return m[(label||'').toLowerCase()]||'app'; }
+
+function tileEl(t){
+  const d = document.createElement('div');
+  d.className = 'tile ' + (t.size||'s2') + (t.live?' live':'');
+  if(t.color) d.style.setProperty('--tfill', t.color);
+  let inner = '';
+  switch(t.kind){
+    case 'clock': inner = `<div class="lc center"><div class="big" style="font-size:40px">9:41</div><div class="sm">fri 12 jun</div></div>`; break;
+    case 'weather': inner = `<div class="lc"><div class="row2"><span class="big">23°</span>${icon('weather')}</div><div class="sm">partly cloudy</div><div class="lbl" style="margin-top:auto">weather</div></div>`; break;
+    case 'calendar': inner = `<div class="lc"><div class="mid">Next ·</div><div class="mid">Standup 10:00</div><div class="sm">+2 more today</div><div class="lbl" style="margin-top:auto">Calendar</div></div>`; break;
+    case 'people': inner = `<div class="lc"><div class="dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="lbl" style="margin-top:auto">People</div></div>`; break;
+    case 'photo': inner = `<div class="photoX"></div><div class="lbl">Photos</div>`; break;
+    case 'music': inner = `<div class="lc"><div class="bars"><i style="height:8px"></i><i style="height:16px"></i><i style="height:11px"></i><i style="height:20px"></i><i style="height:6px"></i></div><div class="sm" style="margin-top:6px">Now playing</div><div class="lbl" style="margin-top:auto">Music</div></div>`; break;
+    case 'mail': inner = `<span class="badge">7</span>${icon('mail')}<div class="lbl">mail</div>`; break;
+    case 'sms': inner = `<span class="badge">3</span>${icon('messages')}<div class="lbl">messages</div>`; break;
+    case 'battery': inner = `<div class="lc"><div class="big">86%</div><div class="slider" style="margin-top:6px"><div class="knob" style="left:86%"></div></div><div class="lbl" style="margin-top:auto">Battery</div></div>`; break;
+    default:
+      inner = `${icon(iconFor(t.label))}${t.badge?`<span class="badge">${t.badge}</span>`:''}<div class="lbl">${t.label||'App'}</div>`;
+  }
+  d.innerHTML = inner;
+  return d;
+}
+
+function shell(opts={}){
+  const wrap = document.createElement('div');
+  wrap.className = 'phone';
+  wrap.style.setProperty('--tilt', (opts.tilt||0)+'deg');
+  wrap.innerHTML = `
+    <div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar">
+        <span>9:41</span>
+        <span style="display:flex;gap:6px;align-items:center">
+          <span class="sig"><i></i><i></i><i></i><i></i></span>
+          <span style="font-size:11px">LTE</span>
+          <span class="batt"></span>
+        </span>
+      </div>
+      <div class="viewport"></div>
+    </div>`;
+  return wrap;
+}
+
+function mock(opts, builder){
+  const fig = document.createElement('figure');
+  fig.className = 'mock notes';
+  fig.setAttribute('data-screen-label', opts.label||'');
+  const ph = shell(opts);
+  const vp = ph.querySelector('.viewport');
+  builder(vp);
+  (opts.notes||[]).forEach(n=>{
+    const el = document.createElement('div'); el.className='note';
+    el.style.cssText = `top:${n.t}; left:${n.l}; --r:${n.r||-2}deg; ${n.w?`max-width:${n.w}px`:''}`;
+    el.textContent = n.x; fig.appendChild(el);
+  });
+  fig.appendChild(ph);
+  const cap = document.createElement('figcaption');
+  cap.innerHTML = `<b>${opts.title}</b><span>${opts.desc}</span>`;
+  fig.appendChild(cap);
+  return fig;
+}
+
+function grid(vp, tiles, {gap=6, col=57, pad=12, wall=false}={}){
+  if(wall){ const w=document.createElement('div'); w.className='wall'; vp.appendChild(w); }
+  const g = document.createElement('div'); g.className='grid';
+  g.style.setProperty('--gap', gap+'px');
+  g.style.setProperty('--col', col+'px');
+  g.style.setProperty('--pad', pad+'px');
+  tiles.forEach(t=> g.appendChild(tileEl(t)));
+  vp.appendChild(g);
+}
+
+/* ---------- HOME: 4 approaches ---------- */
+const rowHome = document.getElementById('rowHome');
+
+// A. Dense full-bleed
+rowHome.appendChild(mock({
+  title:'A · Dense full-bleed', label:'Home A — dense',
+  desc:'Edge-to-edge, tiny gaps. Maximum tiles per glance — closest to the classic feel.',
+  notes:[{x:'no margins — tiles touch the edges',t:'40px',l:'-26px',r:-4,w:130}]
+}, vp=> grid(vp, [
+  {kind:'clock',size:'s2',live:true,color:C.blue},
+  {kind:'mail',size:'s2',live:true,color:C.purple},
+  {kind:'weather',size:'s2',live:true,color:C.green},
+  {label:'Phone',size:'s1'},{label:'Cam',size:'s1',round:true},{label:'Maps',size:'s1'},{label:'Store',size:'s1'},
+  {kind:'people',size:'w4',live:true},
+  {kind:'photo',size:'s2',live:true},
+  {label:'Set',size:'s1'},{label:'Files',size:'s1'},{label:'Web',size:'s1'},{label:'Note',size:'s1'},
+  {kind:'calendar',size:'s2',live:true,color:C.amber},
+  {label:'Bank',size:'s1'},{label:'Fit',size:'s1'},{label:'Pay',size:'s1'},{label:'Cast',size:'s1'},
+], {gap:2,col:60,pad:4})));
+
+// B. Grouped sections
+rowHome.appendChild(mock({
+  title:'B · Grouped sections', label:'Home B — grouped',
+  desc:'Tiles organised under named groups (Pinned, Comms, Media). Easier to scan, scrolls vertically.',
+  notes:[{x:'group headers you can rename / collapse',t:'58px',l:'-30px',r:-3,w:150}],tilt:0
+}, vp=>{
+  const wrap = document.createElement('div');
+  wrap.style.cssText='position:relative;z-index:1;height:100%;overflow:hidden;padding:8px 10px';
+  wrap.innerHTML = `<div class="alpha" style="border:none;margin:2px 0 4px">Pinned</div>`;
+  const g1=document.createElement('div'); g1.className='grid'; g1.style.cssText='--gap:6px;--col:50px;--pad:0;height:auto;margin-bottom:8px';
+  [{kind:'clock',size:'s2',live:true,color:C.blue},{kind:'mail',size:'s2',live:true,color:C.purple},{kind:'weather',size:'s2',live:true,color:C.green}].forEach(t=>g1.appendChild(tileEl(t)));
+  wrap.appendChild(g1);
+  wrap.insertAdjacentHTML('beforeend',`<div class="alpha" style="border:none;margin:2px 0 4px">Communication</div>`);
+  const g2=document.createElement('div'); g2.className='grid'; g2.style.cssText='--gap:6px;--col:50px;--pad:0;height:auto;margin-bottom:8px';
+  [{kind:'people',size:'w4',live:true},{kind:'sms',size:'s2',live:true,color:C.amber},{label:'Phone',size:'s2'}].forEach(t=>g2.appendChild(tileEl(t)));
+  wrap.appendChild(g2);
+  wrap.insertAdjacentHTML('beforeend',`<div class="alpha" style="border:none;margin:2px 0 4px">Media</div>`);
+  const g3=document.createElement('div'); g3.className='grid'; g3.style.cssText='--gap:6px;--col:50px;--pad:0;height:auto';
+  [{kind:'photo',size:'s2',live:true},{kind:'music',size:'s2',live:true,color:C.blue},{label:'TV',size:'s1'},{label:'Pod',size:'s1'}].forEach(t=>g3.appendChild(tileEl(t)));
+  wrap.appendChild(g3);
+  vp.appendChild(wrap);
+}));
+
+// C. Transparent tiles over wallpaper
+rowHome.appendChild(mock({
+  title:'C · Transparent over wallpaper', label:'Home C — transparent',
+  desc:'Tiles are see-through outlines; one wallpaper photo shows through all of them as a single “tile picture”.',
+  notes:[{x:'wallpaper bleeds through every tile',t:'150px',l:'-30px',r:3,w:150},{x:'toggle “Tile fills” to compare solid vs glass',t:'430px',l:'232px',r:-3,w:160}]
+}, vp=> grid(vp, [
+  {kind:'clock',size:'w4',live:true},
+  {label:'Phone',size:'s1'},{label:'Cam',size:'s1',round:true},{label:'Mail',size:'s1',badge:'7'},{label:'Web',size:'s1'},
+  {kind:'people',size:'s2',live:true},{kind:'weather',size:'s2',live:true},
+  {kind:'photo',size:'w4',live:true},
+  {label:'Set',size:'s1'},{label:'Maps',size:'s1'},{label:'Note',size:'s1'},{label:'Store',size:'s1'},
+], {gap:8,col:54,pad:12,wall:true})));
+
+// D. Tiles + quick dock
+rowHome.appendChild(mock({
+  title:'D · Grid + quick dock', label:'Home D — dock',
+  desc:'Scrolling tile grid above a fixed dock of 5 most-used apps. Familiar to Android users.',
+  notes:[{x:'persistent dock — always one tap away',t:'470px',l:'-20px',r:-3,w:140}]
+}, vp=>{
+  grid(vp, [
+    {kind:'clock',size:'s2',live:true,color:C.blue},{kind:'weather',size:'s2',live:true,color:C.green},
+    {kind:'mail',size:'s2',live:true,color:C.purple},{kind:'calendar',size:'s2',live:true,color:C.amber},
+    {kind:'people',size:'w4',live:true},
+    {label:'Maps',size:'s1'},{label:'Note',size:'s1'},{label:'Web',size:'s1'},{label:'Fit',size:'s1'},
+    {kind:'music',size:'w4',live:true},
+  ], {gap:6,col:54,pad:12});
+  const dock=document.createElement('div');
+  dock.style.cssText='position:absolute;left:0;right:0;bottom:0;height:58px;z-index:3;display:flex;align-items:center;justify-content:space-around;background:color-mix(in srgb,var(--screen-bg) 80%,#000);border-top:2px solid var(--tile-line)';
+  dock.innerHTML = ['phone','messages','camera','web','settings'].map(n=>icon(n,'big')).join('');
+  vp.appendChild(dock);
+}));
+
+/* ---------- APP LIST: 2 approaches ---------- */
+const rowApps = document.getElementById('rowApps');
+function appItems(){ return ['Authenticator','Bank','Browser','Calendar','Camera'].map(n=>`<div class="appitem">${icon(iconFor(n))}${n}</div>`).join(''); }
+
+rowApps.appendChild(mock({
+  title:'1 · Search-first list', label:'Apps — search',
+  desc:'Search pinned to top, simple A–Z stream with letter dividers.',
+  notes:[{x:'search filters as you type',t:'44px',l:'-26px',r:-3,w:130}]
+}, vp=>{
+  const w=document.createElement('div'); w.className='applist';
+  w.innerHTML = `<div class="searchbar"><span class="mag"></span>Search apps & contacts</div>
+    <div class="alpha">A</div>${appItems()}<div class="alpha">B</div>
+    <div class="appitem">${icon('bank')}Bank</div><div class="appitem">${icon('web')}Browser</div>`;
+  vp.appendChild(w);
+}));
+
+rowApps.appendChild(mock({
+  title:'2 · Alphabet jump rail', label:'Apps — rail',
+  desc:'Recent row up top + a fast A–Z index rail on the right edge for big lists.',
+  notes:[{x:'drag the rail to jump letters',t:'120px',l:'232px',r:3,w:140},{x:'“recent” row learns your habits',t:'56px',l:'-28px',r:-3,w:140}]
+}, vp=>{
+  const w=document.createElement('div'); w.className='applist';
+  w.innerHTML = `<div class="alpha" style="border:none;margin:0">Recent</div>
+    <div class="grid" style="--gap:6px;--col:40px;--pad:0;height:auto">${['phone','mail','web','music'].map(n=>`<div class="tile s1">${icon(n)}</div>`).join('')}</div>
+    <div class="alpha">A</div>${appItems()}`;
+  const rail=document.createElement('div'); rail.className='indexrail';
+  rail.innerHTML = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(c=>`<span>${c}</span>`).join('');
+  vp.appendChild(w); vp.appendChild(rail);
+}));
+
+rowApps.appendChild(mock({
+  title:'3 · Letter jump grid', label:'Apps — jump grid',
+  desc:'Tap any section header (a, b, c…) and the list zooms out to the whole alphabet. Tap a letter to jump; dimmed letters have no apps.',
+  notes:[{x:'tap a section letter to open this',t:'46px',l:'-28px',r:-3,w:140},{x:'dimmed = no apps under it',t:'430px',l:'232px',r:3,w:130}]
+}, vp=>{
+  const active = new Set(['a','b','c','d','e','g','j','m','n','p','s','t','w','y']);
+  const w=document.createElement('div'); w.className='jumpgrid';
+  const letters = ['#'].concat('abcdefghijklmnopqrstuvwxyz'.split(''));
+  w.innerHTML = letters.map(function(c){
+    if(c==='#') return `<div class="jtile off">#</div>`;
+    const cls = c==='c' ? ' sel' : (active.has(c)?'':' off');
+    return `<div class="jtile${cls}">${c}</div>`;
+  }).join('');
+  vp.appendChild(w);
+}));
+
+/* ---------- EDIT MODE ---------- */
+const rowEdit = document.getElementById('rowEdit');
+rowEdit.appendChild(mock({
+  title:'Resize a tile', label:'Edit — resize',
+  desc:'Selected tile gets a dashed outline, a corner drag handle, and a size popover: small · medium · wide · large.',
+  notes:[{x:'4 sizes — drag handle OR tap a size',t:'380px',l:'-30px',r:-3,w:150}]
+}, vp=>{
+  grid(vp, [
+    {kind:'clock',size:'s2',live:true,color:C.blue},{kind:'weather',size:'s2',live:true,color:C.green},
+    {kind:'mail',size:'s2',live:true,color:C.purple},{kind:'calendar',size:'s2',live:true,color:C.amber},
+    {kind:'people',size:'w4',live:true},
+  ], {gap:6,col:54,pad:12});
+  const sel = vp.querySelectorAll('.tile')[4]; sel.classList.add('selbox');
+  sel.insertAdjacentHTML('beforeend',`<span class="handle br"></span><span class="pin">${icon('pin','pinico')}</span>`);
+  const pop=document.createElement('div'); pop.className='sizepop';
+  pop.innerHTML = `<div class="sz"><b class="b1"></b>S</div><div class="sz"><b class="b2"></b>M</div><div class="sz"><b class="b3"></b>Wide</div><div class="sz"><b class="b4"></b>Large</div>`;
+  vp.appendChild(pop);
+}));
+
+rowEdit.appendChild(mock({
+  title:'Move & rearrange', label:'Edit — move',
+  desc:'Tiles lift and a dashed ghost shows the drop slot; others reflow around it. Unpin from the toolbar.',
+  notes:[{x:'ghost slot shows where it lands',t:'150px',l:'232px',r:3,w:140}]
+}, vp=>{
+  grid(vp, [
+    {kind:'clock',size:'s2',live:true,color:C.blue},{kind:'weather',size:'s2',live:true,color:C.green},
+    {label:'',size:'s2'},{kind:'mail',size:'s2',live:true,color:C.purple},
+    {kind:'music',size:'w4',live:true},{kind:'photo',size:'s2',live:true},
+  ], {gap:6,col:54,pad:12});
+  const tiles = vp.querySelectorAll('.tile');
+  tiles[2].classList.add('ghost');
+  const drag = tiles[3]; drag.style.transform='translate(-14px,-14px) rotate(-3deg)'; drag.style.boxShadow='0 8px 16px rgba(0,0,0,.5)'; drag.style.zIndex='4';
+  const tb=document.createElement('div'); tb.className='toolbar';
+  tb.innerHTML=`<span style="display:flex;align-items:center;gap:5px">${icon('close','tb')} unpin</span><span style="display:flex;align-items:center;gap:5px">${icon('resize','tb')} resize</span><span style="display:flex;align-items:center;gap:5px">${icon('check','tb')} done</span>`;
+  vp.appendChild(tb);
+}));
+
+/* ---------- COLOR / THEME ---------- */
+const rowColor = document.getElementById('rowColor');
+rowColor.appendChild(mock({
+  title:'Accent & light/dark', label:'Settings — theme',
+  desc:'One accent drives the whole shell; segmented light/dark; preview tile updates live.',
+}, vp=>{
+  const w=document.createElement('div'); w.className='settings';
+  w.innerHTML = `
+    <div class="setlabel">Theme</div>
+    <div class="seg"><div class="on">Dark</div><div>Light</div></div>
+    <div class="setlabel">Accent colour</div>
+    <div class="swatches"><i class="sel" style="background:#3a7afe"></i><i style="background:#6c4cf0"></i><i style="background:#2bb673"></i><i style="background:#f0a92b"></i><i style="background:#e8533f"></i></div>
+    <div class="setlabel">Preview</div>
+    <div class="grid" style="--gap:6px;--col:50px;--pad:0;height:auto">${''}</div>`;
+  vp.appendChild(w);
+  const pg = w.querySelector('.grid');
+  [{kind:'clock',size:'s2',live:true,color:C.blue},{kind:'mail',size:'s2',live:true,color:C.blue}].forEach(t=>pg.appendChild(tileEl(t)));
+}));
+
+rowColor.appendChild(mock({
+  title:'Per-tile colour', label:'Settings — per tile',
+  desc:'Override any single tile’s colour independent of the accent. Long-press → Colour.',
+  notes:[{x:'each tile can break from the accent',t:'250px',l:'232px',r:3,w:140}]
+}, vp=>{
+  const w=document.createElement('div'); w.className='settings';
+  w.innerHTML = `<div class="setlabel">Tile: Weather</div>
+    <div class="grid" style="--gap:6px;--col:54px;--pad:0;height:auto"></div>
+    <div class="setlabel" style="margin-top:6px">Tile colour</div>
+    <div class="swatches"><i style="background:#3a7afe"></i><i style="background:#6c4cf0"></i><i class="sel" style="background:#2bb673"></i><i style="background:#f0a92b"></i><i style="background:#e8533f"></i></div>
+    <div class="swrow" style="margin-top:6px">Match wallpaper colour <span class="toggle"></span></div>
+    <div class="swrow">Transparent tile <span class="toggle on"></span></div>`;
+  vp.appendChild(w);
+  const pg=w.querySelector('.grid'); pg.appendChild(tileEl({kind:'weather',size:'s2',live:true,color:C.green}));
+}));
+
+/* ---------- WALLPAPER / TRANSPARENCY ---------- */
+const rowWall = document.getElementById('rowWall');
+rowWall.appendChild(mock({
+  title:'Wallpaper & transparency', label:'Settings — wallpaper',
+  desc:'Pick a wallpaper, set tile transparency with a slider; live preview of the “tile picture” effect.',
+  notes:[{x:'browse gallery / camera roll for a photo',t:'150px',l:'-30px',r:-3,w:150},{x:'slider 0 → 100% see-through',t:'430px',l:'232px',r:3,w:140}]
+}, vp=>{
+  const w=document.createElement('div'); w.className='settings'; w.style.gap='9px';
+  w.innerHTML = `<div class="setlabel">wallpaper source</div>
+    <div class="seg"><div>colour</div><div class="on">photo</div><div>slideshow</div></div>
+    <div class="setlabel">choose photo</div>
+    <div class="wallpick">
+      <i class="addphoto">${icon('camera')}<span>add</span></i>
+      <i class="sel"></i><i></i>
+    </div>
+    <div class="setlabel">tile transparency</div>
+    <div class="slider"><div class="knob" style="left:62%"></div></div>
+    <div class="swrow">single photo behind all tiles <span class="toggle on"></span></div>
+    <div class="swrow">blur wallpaper <span class="toggle"></span></div>`;
+  vp.appendChild(w);
+}));
+
+rowWall.appendChild(mock({
+  title:'Tile-picture live preview', label:'Settings — preview',
+  desc:'Full-screen preview while you drag the transparency slider — wallpaper photo reads through the tile gaps.',
+  notes:[{x:'this is the look users came for',t:'470px',l:'232px',r:3,w:130}]
+}, vp=> grid(vp, [
+  {kind:'clock',size:'w4',live:true},
+  {kind:'people',size:'s2',live:true},{kind:'weather',size:'s2',live:true},
+  {label:'Phone',size:'s1'},{label:'Cam',size:'s1',round:true},{label:'Mail',size:'s1',badge:'7'},{label:'Web',size:'s1'},
+  {kind:'photo',size:'w4',live:true},
+], {gap:8,col:54,pad:12,wall:true})));
+
+/* ---------- controls ---------- */
+const html = document.documentElement;
+function setBtn(id, on, on1, off){ const b=document.getElementById(id); b.setAttribute('aria-pressed',on); b.textContent=on?on1:off; }
+document.getElementById('btnScreen').onclick = e=>{ const on = html.getAttribute('data-screen')==='light'; html.setAttribute('data-screen', on?'dark':'light'); setBtn('btnScreen', !on?false:true,'◑ Tiles: Light','◑ Tiles: Dark'); };
+document.getElementById('btnPage').onclick = e=>{ const on = html.getAttribute('data-page')==='dark'; html.setAttribute('data-page', on?'light':'dark'); setBtn('btnPage', !on,'Paper: Dark','Paper: Light'); };
+document.getElementById('btnNotes').onclick = e=>{ html.classList.toggle('no-notes'); const on=!html.classList.contains('no-notes'); setBtn('btnNotes',on,'✎ Notes: On','✎ Notes: Off'); };
+document.getElementById('btnFill').onclick = e=>{ html.classList.toggle('flatfill'); const on=html.classList.contains('flatfill'); setBtn('btnFill',on,'▦ Tile fills: On','▦ Tile fills'); };
+html.setAttribute('data-screen','dark');
+</script>
+</body>
+</html>
