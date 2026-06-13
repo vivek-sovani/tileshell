@@ -3,6 +3,20 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## S10 · Search + jump grid
+
+- **The `#` jump cell is a real, tappable section.** The prototype's `buildJump`
+  forces the `#` cell `off` (`c!=='#' && have.has(c)`) because its demo apps get
+  a digit header (e.g. "9 → 9"), never `#`. TileShell instead buckets every
+  non-letter app under a single `#` section (`AppEntry.letter`), so `#` is a
+  genuine jump target — its cell lights up as accent and scrolls there whenever
+  such apps exist, matching how our headers actually group. Letters absent from
+  the (filtered) list stay dimmed and dismiss the grid on tap, as in the
+  prototype.
+- **Jump grid reflects the filtered list.** `availableLetters`/scroll targets are
+  computed from the currently displayed (post-search) apps rather than the full
+  catalogue, so a jump always lands on a visible header even while filtering.
+
 ## S9 · Alphabetical app list
 
 - **App-list rows show the real app icon, not a monoline glyph.** The
