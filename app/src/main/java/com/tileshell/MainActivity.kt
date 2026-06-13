@@ -7,30 +7,17 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.sp
 import com.tileshell.feature.system.DefaultLauncher
-
-// Prototype theme tokens (design/.../launcher/styles.css): --bg / --fg, dark.
-private val ScreenBg = Color(0xFF0A0A0D)
-private val ScreenFg = Color(0xFFF6F6F8)
 
 /**
  * TileShell home-screen host. Declared in the manifest as a HOME/DEFAULT
  * launcher activity (singleTask), drawn edge-to-edge with transparent system
- * bars. For S1 it shows a placeholder dark screen and, on first run, prompts
- * the user to make TileShell the default launcher.
+ * bars. On first run it prompts the user to make TileShell the default
+ * launcher. S2 shows a temporary app-catalogue debug screen (the real Start
+ * screen arrives in S6).
  */
 class MainActivity : ComponentActivity() {
 
@@ -41,7 +28,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             DefaultLauncherPromptOnFirstRun()
-            PlaceholderHome()
+            DebugAppListScreen()
         }
     }
 }
@@ -68,30 +55,4 @@ private fun DefaultLauncherPromptOnFirstRun() {
             }
         }
     }
-}
-
-@Composable
-private fun PlaceholderHome() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(ScreenBg),
-        contentAlignment = Alignment.Center,
-    ) {
-        // WP-style thin lowercase wordmark, per the prototype's heading style
-        // (font-weight 200, letter-spacing -1px).
-        Text(
-            text = "tileshell",
-            color = ScreenFg,
-            fontSize = 34.sp,
-            fontWeight = FontWeight.ExtraLight,
-            letterSpacing = (-1).sp,
-        )
-    }
-}
-
-@Preview(widthDp = 393, heightDp = 856)
-@Composable
-private fun PlaceholderHomePreview() {
-    PlaceholderHome()
 }

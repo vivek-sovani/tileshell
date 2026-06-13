@@ -36,6 +36,6 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
-- Last completed session: S1 — project scaffold (Gradle KTS + version catalog, 8 modules, Compose), MainActivity as HOME/DEFAULT (singleTask, edge-to-edge, transparent bars), placeholder dark screen, LAUNCHER `<queries>`, RoleManager first-run default-launcher prompt (`:feature:system` DefaultLauncher). Verified on emulator: installs, offered as Home choice, Home button returns to it.
-- Next session: S2 · App catalogue repository
-- Known issues: pre-Q (API 26–28) default-launcher prompt falls back to Settings ACTION_HOME_SETTINGS; isDefault uses RoleManager on Q+, resolveActivity heuristic below.
+- Last completed session: S2 — `:core:data` AppCatalogRepository. Enumerates launcher activities via `LauncherApps.getActivityList` (no QUERY_ALL_PACKAGES), exposes `Flow<List<AppEntry>>` (packageName, activityName, label, letter) sorted case-insensitively with package+activity tie-breakers. `LauncherApps.Callback` refreshes the flow on install/uninstall/update. Pure sort/letter logic in `AppCatalog` with 7 JUnit tests. Temporary `DebugAppListScreen` in `:app` (shown by MainActivity, replaces S1 placeholder; PlaceholderHome removed). Verified on emulator: lists 19 real apps, count drops to 18 on Chrome uninstall and back to 19 on reinstall — live, no restart.
+- Next session: S3 · Dense-packing grid spike
+- Known issues: pre-Q (API 26–28) default-launcher prompt falls back to Settings ACTION_HOME_SETTINGS; isDefault uses RoleManager on Q+, resolveActivity heuristic below. `DebugAppListScreen` is temporary scaffolding for S2 and is replaced by the real Start screen in S6.
