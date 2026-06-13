@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tileshell.core.data.TileSize
 
 // The 14 accent colours (CLAUDE.md / design/.../launcher/data.js).
 private val ACCENTS = listOf(

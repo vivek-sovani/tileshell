@@ -1,0 +1,84 @@
+package com.tileshell.core.data.seed
+
+import com.tileshell.core.data.TileSize
+
+/**
+ * How a prototype role id is resolved to an installed app. String action /
+ * category values are used (not Android constants) so this table stays pure
+ * and unit-testable; the Android resolver turns them into intents.
+ */
+sealed interface RoleQuery {
+    /** `Intent(ACTION_MAIN).addCategory(category)` — resolves a launcher app. */
+    data class Category(val category: String) : RoleQuery
+
+    /** `Intent(action)` with optional data URI — resolves an action handler. */
+    data class Action(val action: String, val dataUri: String? = null) : RoleQuery
+
+    /** The user's default SMS app (Telephony.Sms.getDefaultSmsPackage). */
+    data object DefaultSms : RoleQuery
+}
+
+/** A default-layout entry, ported from `DEFAULT_TILES` in data.js. */
+data class DefaultTile(
+    val id: String,
+    val size: TileSize,
+    val colorId: String,
+    val app: String? = null,
+    val isGroup: Boolean = false,
+    val name: String? = null,
+    val children: List<String> = emptyList(),
+)
+
+object DefaultLayout {
+
+    /**
+     * Role → resolution strategy. Roles with no standard Android equivalent
+     * (weather, notes, bank, …) return null and their tiles are skipped.
+     */
+    fun roleFor(appId: String): RoleQuery? = when (appId) {
+        "clock" -> RoleQuery.Action("android.intent.action.SHOW_ALARMS")
+        "phone" -> RoleQuery.Action("android.intent.action.DIAL")
+        "camera" -> RoleQuery.Action("android.media.action.STILL_IMAGE_CAMERA")
+        "messages" -> RoleQuery.DefaultSms
+        "settings" -> RoleQuery.Action("android.settings.SETTINGS")
+        "people", "contacts" -> RoleQuery.Category("android.intent.category.APP_CONTACTS")
+        "mail" -> RoleQuery.Category("android.intent.category.APP_EMAIL")
+        "calendar" -> RoleQuery.Category("android.intent.category.APP_CALENDAR")
+        "photos" -> RoleQuery.Category("android.intent.category.APP_GALLERY")
+        "music" -> RoleQuery.Category("android.intent.category.APP_MUSIC")
+        "maps" -> RoleQuery.Category("android.intent.category.APP_MAPS")
+        "store" -> RoleQuery.Category("android.intent.category.APP_MARKET")
+        "browser" -> RoleQuery.Category("android.intent.category.APP_BROWSER")
+        "fitness" -> RoleQuery.Category("android.intent.category.APP_FITNESS")
+        "files" -> RoleQuery.Category("android.intent.category.APP_FILES")
+        "calc" -> RoleQuery.Category("android.intent.category.APP_CALCULATOR")
+        else -> null
+    }
+
+    /** The default Start layout, ordered, from `window.DEFAULT_TILES()` in data.js. */
+    val DEFAULT_TILES: List<DefaultTile> = listOf(
+        DefaultTile("t-clock", TileSize.WIDE, "cobalt", app = "clock"),
+        DefaultTile("t-phone", TileSize.MEDIUM, "green", app = "phone"),
+        DefaultTile("t-camera", TileSize.MEDIUM, "slate", app = "camera"),
+        DefaultTile("t-people", TileSize.MEDIUM, "teal", app = "people"),
+        DefaultTile("t-weather", TileSize.MEDIUM, "cyan", app = "weather"),
+        DefaultTile("t-mail", TileSize.MEDIUM, "purple", app = "mail"),
+        DefaultTile("t-msg", TileSize.MEDIUM, "amber", app = "messages"),
+        DefaultTile("t-cal", TileSize.WIDE, "magenta", app = "calendar"),
+        DefaultTile("t-photos", TileSize.LARGE, "cyan", app = "photos"),
+        DefaultTile("t-music", TileSize.WIDE, "orange", app = "music"),
+        DefaultTile(
+            "g-social", TileSize.MEDIUM, "magenta", isGroup = true, name = "social",
+            children = listOf("contacts", "mail", "messages", "people"),
+        ),
+        DefaultTile("t-maps", TileSize.SMALL, "green", app = "maps"),
+        DefaultTile("t-store", TileSize.SMALL, "cobalt", app = "store"),
+        DefaultTile("t-settings", TileSize.SMALL, "slate", app = "settings"),
+        DefaultTile("t-browser", TileSize.SMALL, "blue", app = "browser"),
+        DefaultTile("t-notes", TileSize.SMALL, "amber", app = "notes"),
+        DefaultTile("t-fitness", TileSize.SMALL, "lime", app = "fitness"),
+        DefaultTile("t-bank", TileSize.MEDIUM, "green", app = "bank"),
+        DefaultTile("t-files", TileSize.SMALL, "amber", app = "files"),
+        DefaultTile("t-calc", TileSize.SMALL, "steel", app = "calc"),
+    )
+}

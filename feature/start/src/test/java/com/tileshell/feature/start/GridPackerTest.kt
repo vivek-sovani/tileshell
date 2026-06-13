@@ -1,5 +1,6 @@
 package com.tileshell.feature.start
 
+import com.tileshell.core.data.TileSize
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

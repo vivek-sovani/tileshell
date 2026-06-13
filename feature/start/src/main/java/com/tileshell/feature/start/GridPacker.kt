@@ -1,15 +1,6 @@
 package com.tileshell.feature.start
 
-/**
- * Tile footprints on the 4-column grid (CLAUDE.md normative values):
- * small 1×1, medium 2×2, wide 4×2, large 4×4.
- */
-enum class TileSize(val cols: Int, val rows: Int) {
-    SMALL(1, 1),
-    MEDIUM(2, 2),
-    WIDE(4, 2),
-    LARGE(4, 4),
-}
+import com.tileshell.core.data.TileSize
 
 /** A tile to be placed, in display order. */
 data class TileSpec(val id: String, val size: TileSize)
