@@ -12,9 +12,11 @@ import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.TileModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -38,6 +40,25 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Emitted when the user presses Home while already on Start. */
     private val _homeRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val homeRequests: SharedFlow<Unit> = _homeRequests
+
+    /** True once the App-list page is the committed page. */
+    private val _isAppList = MutableStateFlow(false)
+    val isAppList: StateFlow<Boolean> = _isAppList.asStateFlow()
+
+    /**
+     * Whether the Start⇄App-list swipe is allowed. Flipped off by edit mode
+     * (S12) and open overlays (S16) once those land; always on for now.
+     */
+    private val _swipeEnabled = MutableStateFlow(true)
+    val swipeEnabled: StateFlow<Boolean> = _swipeEnabled.asStateFlow()
+
+    fun setAppList(value: Boolean) {
+        _isAppList.value = value
+    }
+
+    fun setSwipeEnabled(value: Boolean) {
+        _swipeEnabled.value = value
+    }
 
     /** Removes tiles whose app was uninstalled while we were running. */
     private val packageCallback = object : LauncherApps.Callback() {

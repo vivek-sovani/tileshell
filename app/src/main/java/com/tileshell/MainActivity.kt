@@ -34,12 +34,14 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        // Back on Start is a no-op (WP behaviour). When edit/overlays land
-        // (S12/S16) they will be closed here before consuming the gesture.
+        // Back returns from the App-list page to Start; on Start it is a no-op
+        // (WP behaviour). Edit/overlay close hooks land here in S12/S16.
         onBackPressedDispatcher.addCallback(
             this,
             object : OnBackPressedCallback(true) {
-                override fun handleOnBackPressed() = Unit
+                override fun handleOnBackPressed() {
+                    if (startViewModel.isAppList.value) startViewModel.goHome()
+                }
             },
         )
 

@@ -5,9 +5,15 @@ import android.content.Context
 import android.content.pm.LauncherApps
 import android.os.Process
 import android.widget.Toast
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,9 +32,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -37,17 +47,23 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.TileSize
+import com.tileshell.core.design.DarkColorTokens
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.Wallpapers
 import com.tileshell.core.design.tiltOnPress
 import com.tileshell.core.design.wallpaperBackground
+import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 /**
- * The real Start screen: persisted tiles packed by the dense packer, rendered
- * as monoline glyphs on accent fills with lowercase lower-left labels (icon
- * only on small), over the aurora wallpaper. Tapping an app tile launches it
- * via LauncherApps. Insets follow FR-1 (status bar at top, room at the bottom).
+ * The real Start screen and its App-list page, joined by the finger-following
+ * pager (FR-6). Start renders persisted tiles packed by the dense packer as
+ * monoline glyphs on accent fills with lowercase lower-left labels (icon only
+ * on small), over the aurora wallpaper. Swiping left brings in the App-list
+ * page (placeholder until S9): Start parallaxes −22% and fades to 0.4, the
+ * page commits past 50%, otherwise springs back. Tapping an app tile launches
+ * it via LauncherApps. Insets follow FR-1.
  */
 @Composable
 fun StartScreen(
@@ -55,22 +71,119 @@ fun StartScreen(
     viewModel: StartViewModel = viewModel(),
 ) {
     val tiles by viewModel.tiles.collectAsStateWithLifecycle()
+    val swipeEnabled by viewModel.swipeEnabled.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     val specs = remember(tiles) { tiles.map { TileSpec(it.id, it.size) } }
     val byId = remember(tiles) { tiles.associateBy { it.id } }
 
     val scrollState = rememberScrollState()
-    // Home press (delivered via the ViewModel) scrolls Start back to the top.
-    LaunchedEffect(Unit) {
-        viewModel.homeRequests.collect { scrollState.animateScrollTo(0) }
+    // 0 = Start, 1 = App list.
+    val progress = remember { Animatable(0f) }
+    val settleSpec = spring<Float>(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+
+    fun settleTo(target: Float) {
+        scope.launch {
+            progress.animateTo(target, settleSpec)
+            viewModel.setAppList(target >= 0.5f)
+        }
     }
 
-    Box(
+    // Home press collapses to Start and scrolls the grid to the top.
+    LaunchedEffect(Unit) {
+        viewModel.homeRequests.collect {
+            viewModel.setAppList(false)
+            scope.launch { progress.animateTo(0f, settleSpec) }
+            scrollState.animateScrollTo(0)
+        }
+    }
+
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .wallpaperBackground(Wallpapers.Aurora),
     ) {
+        val widthPx = constraints.maxWidth.toFloat()
+
+        // Horizontal pager gesture. Detection runs in the Initial pass so a
+        // dominant horizontal drag is claimed before the vertical grid scroll
+        // (a child) can consume it; vertical drags pass straight through.
+        val pager = Modifier.pointerInput(swipeEnabled, widthPx) {
+            if (!swipeEnabled) return@pointerInput
+            val slop = 12.dp.toPx()
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                val base = progress.value
+                var horizontal = false
+                var decided = false
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    val dx = change.position.x - down.position.x
+                    val dy = change.position.y - down.position.y
+                    if (!decided) {
+                        if (abs(dx) > slop && abs(dx) > abs(dy) * 1.2f) {
+                            decided = true
+                            horizontal = true
+                        } else if (abs(dy) > slop) {
+                            decided = true // vertical → leave it to the grid scroll
+                        }
+                    }
+                    if (horizontal) {
+                        change.consume()
+                        val target = (base - dx / widthPx).coerceIn(0f, 1f)
+                        scope.launch { progress.snapTo(target) }
+                    }
+                    if (!change.pressed) break
+                }
+                if (horizontal) settleTo(if (progress.value >= 0.5f) 1f else 0f)
+            }
+        }
+
+        Box(modifier = Modifier.fillMaxSize().then(pager)) {
+            // Start page: parallaxes left and fades as the app list comes in.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        translationX = -0.22f * widthPx * progress.value
+                        alpha = 1f - 0.6f * progress.value
+                    },
+            ) {
+                StartPage(
+                    specs = specs,
+                    byId = byId,
+                    scrollState = scrollState,
+                    chevronVisible = swipeEnabled,
+                    onTile = { onTileClick(context, it) },
+                    onChevron = { settleTo(1f) },
+                )
+            }
+
+            // App-list page: slides in from the right.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { translationX = widthPx * (1f - progress.value) }
+                    .background(DarkColorTokens.bg),
+            ) {
+                AppListPlaceholder()
+            }
+        }
+    }
+}
+
+@Composable
+private fun StartPage(
+    specs: List<TileSpec>,
+    byId: Map<String, TileModel>,
+    scrollState: androidx.compose.foundation.ScrollState,
+    chevronVisible: Boolean,
+    onTile: (TileModel) -> Unit,
+    onChevron: () -> Unit,
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -80,11 +193,64 @@ fun StartScreen(
         ) {
             DenseTileGrid(tiles = specs, modifier = Modifier.fillMaxWidth()) { spec ->
                 byId[spec.id]?.let { model ->
-                    TileView(model) { onTileClick(context, model) }
+                    TileView(model) { onTile(model) }
                 }
             }
             // FR-1 bottom breathing room (prototype home-scroll padding-bottom:74px).
             Spacer(Modifier.height(74.dp))
+        }
+
+        // App-list affordance (prototype .allapps-btn): hidden in edit mode.
+        if (chevronVisible) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .navigationBarsPadding()
+                    .padding(end = 14.dp, bottom = 26.dp)
+                    .size(40.dp)
+                    .clickable(onClick = onChevron),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = TileIcons["chevron"],
+                    contentDescription = "open app list",
+                    tint = Color.White.copy(alpha = 0.72f),
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppListPlaceholder() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        // Faux search bar (real search lands in S10).
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(38.dp)
+                .background(DarkColorTokens.chip)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = TileIcons["search"],
+                contentDescription = null,
+                tint = DarkColorTokens.fgDim,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.size(9.dp))
+            Text("search apps", color = DarkColorTokens.fgDim, fontSize = 14.sp)
+        }
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("app list — S9", color = DarkColorTokens.fgDim, fontSize = 14.sp)
         }
     }
 }
