@@ -3,6 +3,18 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## S9 · Alphabetical app list
+
+- **App-list rows show the real app icon, not a monoline glyph.** The
+  prototype renders each app-list row as an accent square with the app's
+  monoline `ic` glyph, but that only works for its curated demo set — arbitrary
+  installed apps have no TileShell glyph. Rows therefore show the real launcher
+  icon (loaded via `PackageManager.getActivityIcon` off the main thread,
+  `produceState`) on top of the accent square, which is kept as the backing so
+  transparent icons still read as a tile. The generic "app" glyph is the
+  fallback when an icon fails to load. Start-screen tiles are unaffected (they
+  keep monoline glyphs).
+
 ## S5 · Room schema + seeder
 
 - **`TileSize` canonical home is `:core:data`.** S3 defined `TileSize` in

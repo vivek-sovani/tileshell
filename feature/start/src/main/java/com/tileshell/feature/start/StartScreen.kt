@@ -1,9 +1,6 @@
 package com.tileshell.feature.start
 
-import android.content.ComponentName
 import android.content.Context
-import android.content.pm.LauncherApps
-import android.os.Process
 import android.widget.Toast
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -45,8 +42,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.tileshell.core.data.AppLauncher
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.TileSize
+import com.tileshell.feature.applist.AppListScreen
 import com.tileshell.core.design.DarkColorTokens
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
@@ -168,7 +167,7 @@ fun StartScreen(
                     .graphicsLayer { translationX = widthPx * (1f - progress.value) }
                     .background(DarkColorTokens.bg),
             ) {
-                AppListPlaceholder()
+                AppListScreen(modifier = Modifier.fillMaxSize())
             }
         }
     }
@@ -218,39 +217,6 @@ private fun StartPage(
                     modifier = Modifier.size(28.dp),
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun AppListPlaceholder() {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-    ) {
-        // Faux search bar (real search lands in S10).
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(38.dp)
-                .background(DarkColorTokens.chip)
-                .padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = TileIcons["search"],
-                contentDescription = null,
-                tint = DarkColorTokens.fgDim,
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(Modifier.size(9.dp))
-            Text("search apps", color = DarkColorTokens.fgDim, fontSize = 14.sp)
-        }
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("app list — S9", color = DarkColorTokens.fgDim, fontSize = 14.sp)
         }
     }
 }
@@ -345,7 +311,7 @@ private fun TileLabel(text: String) {
 private fun onTileClick(context: Context, tile: TileModel) {
     when (tile) {
         is TileModel.App ->
-            if (!launchApp(context, tile.packageName, tile.activityName)) {
+            if (!AppLauncher.launch(context, tile.packageName, tile.activityName)) {
                 Toast.makeText(
                     context,
                     "couldn't open ${tile.label ?: "app"}",
@@ -355,18 +321,4 @@ private fun onTileClick(context: Context, tile: TileModel) {
         // Folder overlay arrives in S16; tapping is inert for now.
         is TileModel.Folder -> Unit
     }
-}
-
-/** Launch an app's main activity via LauncherApps; false if it can't be started. */
-private fun launchApp(context: Context, packageName: String, activityName: String): Boolean = try {
-    val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
-    launcherApps.startMainActivity(
-        ComponentName(packageName, activityName),
-        Process.myUserHandle(),
-        null,
-        null,
-    )
-    true
-} catch (e: Exception) {
-    false
 }
