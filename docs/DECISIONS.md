@@ -3,6 +3,20 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## S11 · Pin from app list
+
+- **A pinned app's "default colour" is derived deterministically from its
+  package.** The prototype pins in each app's authored `col` (data.js), falling
+  back to blue. Real Android apps declare no WP tile colour, so rather than pin
+  everything blue, `TileColors.defaultIdFor` folds the package name into one of
+  the 14 palette ids — the same app always pins to the same colour, giving a
+  varied board while staying stable across sessions.
+- **"Already on start" is checked against top-level app tiles only.** Matching
+  the prototype's `tiles.some(t=>t.app===appId)`, the de-dupe (`appTileCount`)
+  looks at pinned/seeded app tiles by package, not folder children — an app that
+  only lives inside a folder can still be pinned as its own tile. New tiles
+  append at `MAX(position)+1`; the dense packer places them.
+
 ## S10 · Search + jump grid
 
 - **The `#` jump cell is a real, tappable section.** The prototype's `buildJump`

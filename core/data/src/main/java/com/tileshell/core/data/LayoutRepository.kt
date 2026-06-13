@@ -33,6 +33,31 @@ class LayoutRepository(
     /** Remove all tiles/folder memberships for an uninstalled package (FR-5). */
     suspend fun removeApp(packageName: String) = dao.removeApp(packageName)
 
+    /**
+     * Pin an app from the app list (FR-5) as a medium tile in the app's default
+     * colour, appended to the end of the grid. No-op (returns
+     * [PinResult.ALREADY_ON_START]) if a tile for the package already exists.
+     */
+    suspend fun pinApp(app: AppEntry): PinResult {
+        if (dao.appTileCount(app.packageName) > 0) return PinResult.ALREADY_ON_START
+        dao.insertTiles(
+            listOf(
+                TileEntity(
+                    id = "pin-${app.packageName}-${System.currentTimeMillis()}",
+                    position = dao.maxPosition() + 1,
+                    size = TileSize.MEDIUM,
+                    colorId = TileColors.defaultIdFor(app.packageName),
+                    type = TileEntity.TYPE_APP,
+                    packageName = app.packageName,
+                    activityName = app.activityName,
+                    label = app.label,
+                    iconKey = null,
+                ),
+            ),
+        )
+        return PinResult.PINNED
+    }
+
     /** Seed the default layout iff the grid is empty. Safe to call repeatedly. */
     suspend fun seedIfEmpty() {
         if (dao.tileCount() > 0) return

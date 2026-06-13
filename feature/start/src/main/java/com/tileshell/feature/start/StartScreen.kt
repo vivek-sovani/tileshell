@@ -167,7 +167,10 @@ fun StartScreen(
                     .graphicsLayer { translationX = widthPx * (1f - progress.value) }
                     .background(DarkColorTokens.bg),
             ) {
-                AppListScreen(modifier = Modifier.fillMaxSize())
+                AppListScreen(
+                    modifier = Modifier.fillMaxSize(),
+                    onPinned = { settleTo(0f) },
+                )
             }
         }
     }

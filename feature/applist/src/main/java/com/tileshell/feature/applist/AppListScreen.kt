@@ -1,12 +1,16 @@
 package com.tileshell.feature.applist
 
 import android.content.ComponentName
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,11 +33,13 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +47,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -52,12 +59,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.AppLauncher
+import com.tileshell.core.data.PinResult
 import com.tileshell.core.design.DarkColorTokens
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Jump-grid cells: "#" bucket then a–z, matching the prototype's order. */
 private val JUMP_LETTERS: List<String> = listOf("#") + ('a'..'z').map(Char::toString)
@@ -79,6 +88,7 @@ private val JUMP_LETTERS: List<String> = listOf("#") + ('a'..'z').map(Char::toSt
 @Composable
 fun AppListScreen(
     modifier: Modifier = Modifier,
+    onPinned: () -> Unit = {},
     viewModel: AppListViewModel = viewModel(),
 ) {
     val apps by viewModel.filteredApps.collectAsStateWithLifecycle()
@@ -89,6 +99,19 @@ fun AppListScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var jumpOpen by remember { mutableStateOf(false) }
+
+    // Pinning a row toasts and, on success, returns to Start (FR-5).
+    val onPinnedState = rememberUpdatedState(onPinned)
+    LaunchedEffect(viewModel) {
+        viewModel.pinned.collect { (result, label) ->
+            val message = when (result) {
+                PinResult.PINNED -> "pinned $label"
+                PinResult.ALREADY_ON_START -> "already on start"
+            }
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            if (result == PinResult.PINNED) onPinnedState.value()
+        }
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
@@ -113,9 +136,12 @@ fun AppListScreen(
                     ) { index, app ->
                         val newSection = index == 0 || apps[index - 1].letter != app.letter
                         if (newSection) LetterHeader(app.letter, accent) { jumpOpen = true }
-                        AppRow(app, accent) {
-                            AppLauncher.launch(context, app.packageName, app.activityName)
-                        }
+                        AppRow(
+                            app = app,
+                            accent = accent,
+                            onTap = { AppLauncher.launch(context, app.packageName, app.activityName) },
+                            onPin = { viewModel.pin(app) },
+                        )
                     }
                 }
             }
@@ -179,11 +205,11 @@ private fun LetterHeader(letter: String, accent: Color, onClick: () -> Unit) {
 }
 
 @Composable
-private fun AppRow(app: AppEntry, accent: Color, onClick: () -> Unit) {
+private fun AppRow(app: AppEntry, accent: Color, onTap: () -> Unit, onPin: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .tapOrLongPress(onTap = onTap, onLongPress = onPin)
             .padding(horizontal = 18.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -260,6 +286,40 @@ private fun JumpGrid(
         }
     }
 }
+
+/**
+ * Tap-to-launch plus a 450 ms long-press that cancels if the finger moves more
+ * than 7 px (CLAUDE.md normative; prototype `screens.js` app-list pin). Does not
+ * consume the down, so vertical list scrolling still wins on a drag.
+ */
+private fun Modifier.tapOrLongPress(onTap: () -> Unit, onLongPress: () -> Unit): Modifier =
+    pointerInput(onTap, onLongPress) {
+        val slop = 7.dp.toPx()
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            // true = released early (tap), false = moved past slop (cancel),
+            // null = 450 ms elapsed still pressed (long-press fired).
+            val outcome = withTimeoutOrNull(450L) {
+                while (true) {
+                    val event = awaitPointerEvent()
+                    val change = event.changes.firstOrNull { it.id == down.id }
+                    if (change == null || !change.pressed) return@withTimeoutOrNull true
+                    if ((change.position - down.position).getDistance() > slop) {
+                        return@withTimeoutOrNull false
+                    }
+                }
+                @Suppress("UNREACHABLE_CODE") false
+            }
+            when (outcome) {
+                null -> {
+                    onLongPress()
+                    waitForUpOrCancellation() // swallow the rest of the press
+                }
+                true -> onTap()
+                false -> Unit // dragged → leave it to the scroll container
+            }
+        }
+    }
 
 /** Loads an app's launcher icon off the main thread, as an [ImageBitmap]. */
 @Composable

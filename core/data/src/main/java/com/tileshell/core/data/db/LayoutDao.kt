@@ -21,6 +21,14 @@ interface LayoutDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTiles(tiles: List<TileEntity>)
 
+    /** Count app tiles already pinned for a package (pin de-dupe, FR-5). */
+    @Query("SELECT COUNT(*) FROM tiles WHERE type = 'app' AND packageName = :packageName")
+    suspend fun appTileCount(packageName: String): Int
+
+    /** Highest grid position, or -1 when empty — new tiles append after it. */
+    @Query("SELECT COALESCE(MAX(position), -1) FROM tiles")
+    suspend fun maxPosition(): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertFolders(folders: List<FolderEntity>)
 
