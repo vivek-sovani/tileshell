@@ -29,6 +29,20 @@ interface LayoutDao {
     @Query("SELECT COALESCE(MAX(position), -1) FROM tiles")
     suspend fun maxPosition(): Int
 
+    /** Set a single tile's grid position (used by the edit-mode reorder). */
+    @Query("UPDATE tiles SET position = :position WHERE id = :id")
+    suspend fun updateTilePosition(id: String, position: Int)
+
+    /**
+     * Persist a new tile order (FR-3.2). Each id's `position` becomes its index
+     * in [orderedIds]; applied in one transaction so the layout never observes a
+     * half-renumbered grid.
+     */
+    @Transaction
+    suspend fun applyOrder(orderedIds: List<String>) {
+        orderedIds.forEachIndexed { index, id -> updateTilePosition(id, index) }
+    }
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertFolders(folders: List<FolderEntity>)
 

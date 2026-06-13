@@ -33,6 +33,9 @@ class LayoutRepository(
     /** Remove all tiles/folder memberships for an uninstalled package (FR-5). */
     suspend fun removeApp(packageName: String) = dao.removeApp(packageName)
 
+    /** Persist a new top-level tile order after an edit-mode drag (FR-3.2). */
+    suspend fun reorderTiles(orderedIds: List<String>) = dao.applyOrder(orderedIds)
+
     /**
      * Pin an app from the app list (FR-5) as a medium tile in the app's default
      * colour, appended to the end of the grid. No-op (returns

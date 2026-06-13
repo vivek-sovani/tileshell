@@ -7,6 +7,7 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntOffsetAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
@@ -15,6 +16,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,12 +25,15 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -37,20 +42,29 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tileshell.core.data.AppLauncher
@@ -113,12 +127,15 @@ fun StartScreen(
         }
     }
 
+    val density = LocalDensity.current
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .wallpaperBackground(Wallpapers.Aurora),
     ) {
         val widthPx = constraints.maxWidth.toFloat()
+        val viewportHeightPx = constraints.maxHeight.toFloat()
+        val statusBarTopPx = WindowInsets.statusBars.getTop(density).toFloat()
 
         // Horizontal pager gesture. Detection runs in the Initial pass so a
         // dominant horizontal drag is claimed before the vertical grid scroll
@@ -172,6 +189,9 @@ fun StartScreen(
                     chevronVisible = swipeEnabled,
                     editMode = editMode,
                     selectedTileId = selectedTileId,
+                    widthPx = widthPx,
+                    viewportHeightPx = viewportHeightPx,
+                    statusBarTopPx = statusBarTopPx,
                     onTile = { onTileClick(context, it) },
                     onChevron = { settleTo(1f) },
                     onEnterEdit = { id ->
@@ -179,6 +199,7 @@ fun StartScreen(
                         viewModel.enterEdit(id)
                     },
                     onExitEdit = viewModel::exitEdit,
+                    onReorder = viewModel::reorder,
                 )
             }
 
@@ -206,15 +227,60 @@ private fun StartPage(
     chevronVisible: Boolean,
     editMode: Boolean,
     selectedTileId: String?,
+    widthPx: Float,
+    viewportHeightPx: Float,
+    statusBarTopPx: Float,
     onTile: (TileModel) -> Unit,
     onChevron: () -> Unit,
     onEnterEdit: (String) -> Unit,
     onExitEdit: () -> Unit,
+    onReorder: (List<String>) -> Unit,
 ) {
     // Single jiggle phase shared by every tile (only composed while editing, so
     // it costs nothing on a resting Start screen). Even/odd tiles use opposite
     // signs so the grid shimmers like WP edit mode.
     val jigglePhase = rememberJigglePhase(editMode)
+    val density = LocalDensity.current
+
+    // Working order driving the grid. Mirrors the persisted order except during
+    // a drag, when reorder mutates it live (the drop persists the result).
+    val order = remember { mutableStateListOf<String>() }
+    var draggingId by remember { mutableStateOf<String?>(null) }
+    val dragOffset = remember { mutableStateOf(IntOffset.Zero) }
+    // Reconcile the working order with the persisted layout: keep the existing
+    // relative order of surviving ids, drop removed ones, append new ones in
+    // persisted order. This preserves a just-dropped reorder (the async DB write
+    // lands the same order, so no flicker) while still absorbing pins/uninstalls.
+    LaunchedEffect(specs) {
+        if (draggingId != null) return@LaunchedEffect
+        val ids = specs.map { it.id }
+        val merged = if (order.isEmpty()) {
+            ids
+        } else {
+            val present = ids.toHashSet()
+            val kept = order.filter { it in present }
+            val keptSet = kept.toHashSet()
+            kept + ids.filter { it !in keptSet }
+        }
+        if (merged != order.toList()) {
+            order.clear()
+            order.addAll(merged)
+        }
+    }
+    val displaySpecs = order.mapNotNull { id -> byId[id]?.let { TileSpec(id, it.size) } }
+
+    // Auto-scroll while a drag hovers near the top/bottom viewport edge (FR-3.2).
+    var autoScroll by remember { mutableStateOf(0) } // -1 up, 0 off, +1 down
+    LaunchedEffect(autoScroll) {
+        if (autoScroll == 0) return@LaunchedEffect
+        val speed = with(density) { 8.dp.toPx() }
+        while (true) {
+            val delta = autoScroll * speed
+            val consumed = scrollState.scrollBy(delta)
+            if (consumed == 0f) break // hit an edge
+            withFrameNanos { }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -229,16 +295,59 @@ private fun StartPage(
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-            DenseTileGrid(tiles = specs, modifier = Modifier.fillMaxWidth()) { spec ->
-                byId[spec.id]?.let { model ->
-                    val index = specs.indexOfFirst { it.id == spec.id }
+            val editDrag = Modifier.editDragGesture(
+                editMode = editMode,
+                widthPx = widthPx,
+                order = order,
+                byId = byId,
+                draggingId = { draggingId },
+                onLift = { id, offset -> draggingId = id; dragOffset.value = offset },
+                onDrag = { offset -> dragOffset.value = offset },
+                onReorderTo = { dragId, targetId ->
+                    val next = reorderTiles(order.toList(), dragId, targetId)
+                    if (next != order.toList()) {
+                        order.clear()
+                        order.addAll(next)
+                    }
+                },
+                onAutoScroll = { dir -> autoScroll = dir },
+                onDrop = {
+                    autoScroll = 0
+                    onReorder(order.toList())
+                    draggingId = null
+                },
+                onTapExit = onExitEdit,
+                contentTopPx = statusBarTopPx,
+                viewportHeightPx = viewportHeightPx,
+                scrollOffsetPx = { scrollState.value.toFloat() },
+                edgeZonePx = with(density) { 64.dp.toPx() },
+            )
+
+            DenseTileGrid(
+                tiles = displaySpecs,
+                modifier = Modifier.fillMaxWidth().then(editDrag),
+            ) { spec, slot, sizePx ->
+                val model = byId[spec.id] ?: return@DenseTileGrid
+                val dragging = spec.id == draggingId
+                val slotState = animateIntOffsetAsState(slot, label = "slot")
+                val index = displaySpecs.indexOfFirst { it.id == spec.id }
+                Box(
+                    modifier = Modifier
+                        .offset { if (dragging) dragOffset.value else slotState.value }
+                        .zIndex(if (dragging) 10f else 0f)
+                        .size(
+                            with(density) { sizePx.width.toDp() },
+                            with(density) { sizePx.height.toDp() },
+                        ),
+                ) {
                     TileView(
                         tile = model,
                         index = index,
                         editMode = editMode,
                         selected = editMode && model.id == selectedTileId,
+                        dragging = dragging,
                         jigglePhase = jigglePhase,
-                        onTap = { if (editMode) onExitEdit() else onTile(model) },
+                        onTap = { if (!editMode) onTile(model) },
                         onLongPress = { if (!editMode) onEnterEdit(model.id) },
                     )
                 }
@@ -284,21 +393,27 @@ private fun TileView(
     index: Int,
     editMode: Boolean,
     selected: Boolean,
+    dragging: Boolean,
     jigglePhase: Float,
     onTap: () -> Unit,
     onLongPress: () -> Unit,
 ) {
     // Edit chrome (prototype CSS): non-selected tiles dim to .45, the selected
     // tile scales to 1.04, and editing tiles jiggle (±.5°, alternating phase).
+    // A dragged tile lifts: scales up with a shadow and ignores dim/jiggle.
     val alpha by animateFloatAsState(
-        targetValue = if (editMode && !selected) 0.45f else 1f,
+        targetValue = if (editMode && !selected && !dragging) 0.45f else 1f,
         label = "tileAlpha",
     )
     val scale by animateFloatAsState(
-        targetValue = if (selected) 1.04f else 1f,
+        targetValue = if (dragging) 1.08f else if (selected) 1.04f else 1f,
         label = "tileScale",
     )
-    val rotation = if (editMode) (if (index % 2 == 0) jigglePhase else -jigglePhase) else 0f
+    val elevation by animateFloatAsState(
+        targetValue = if (dragging) 1f else 0f,
+        label = "tileElevation",
+    )
+    val rotation = if (editMode && !dragging) (if (index % 2 == 0) jigglePhase else -jigglePhase) else 0f
 
     Box(
         modifier = Modifier
@@ -308,11 +423,17 @@ private fun TileView(
                 scaleX = scale
                 scaleY = scale
                 rotationZ = rotation
+                shadowElevation = elevation * 18.dp.toPx()
             }
             // The press-tilt effect (S7) is replaced by the jiggle while editing.
             .then(if (editMode) Modifier else Modifier.tiltOnPress())
             .background(TileAccents.forId(tile.colorId))
-            .tileGesture(editMode, onTap = onTap, onLongPress = onLongPress),
+            // Out of edit mode the tile owns tap-to-launch / long-press-to-edit;
+            // in edit mode the grid-level drag gesture owns all interaction.
+            .then(
+                if (editMode) Modifier
+                else Modifier.tileGesture(onTap = onTap, onLongPress = onLongPress),
+            ),
     ) {
         when (tile) {
             is TileModel.App -> AppTileContent(tile)
@@ -458,51 +579,129 @@ private fun Modifier.emptySpaceExit(editMode: Boolean, onExit: () -> Unit): Modi
     }
 
 /**
- * Per-tile tap / long-press gesture (FR-3.1). Out of edit mode: a release within
- * 7 px is a tap; holding 430 ms fires the long-press (enter edit). In edit mode:
- * any in-place tap fires [onTap] (the caller exits edit) and the long-press is
- * inert. Never consumes the down, so vertical grid scrolling still wins on drags.
+ * Per-tile tap / long-press gesture for the *non-edit* Start screen (FR-3.1):
+ * a release within 7 px is a tap (launch); holding 430 ms fires the long-press
+ * (enter edit). Never consumes the down, so vertical grid scrolling still wins
+ * on drags. (Edit-mode interaction is handled by [editDragGesture].)
  */
 private fun Modifier.tileGesture(
-    editMode: Boolean,
     onTap: () -> Unit,
     onLongPress: () -> Unit,
-): Modifier = pointerInput(editMode) {
+): Modifier = pointerInput(onTap, onLongPress) {
     val slop = 7.dp.toPx()
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
-        if (editMode) {
-            var moved = false
+        // true = released early (tap), false = moved past slop (let scroll win),
+        // null = 430 ms elapsed still pressed (long-press → enter edit).
+        val outcome = withTimeoutOrNull(430L) {
             while (true) {
                 val event = awaitPointerEvent()
-                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                if ((change.position - down.position).getDistance() > slop) moved = true
-                if (!change.pressed) {
-                    if (!moved) onTap()
-                    break
+                val change = event.changes.firstOrNull { it.id == down.id }
+                if (change == null || !change.pressed) return@withTimeoutOrNull true
+                if ((change.position - down.position).getDistance() > slop) {
+                    return@withTimeoutOrNull false
                 }
             }
-        } else {
-            // true = released early (tap), false = moved past slop (let scroll win),
-            // null = 430 ms elapsed still pressed (long-press → enter edit).
-            val outcome = withTimeoutOrNull(430L) {
-                while (true) {
-                    val event = awaitPointerEvent()
-                    val change = event.changes.firstOrNull { it.id == down.id }
-                    if (change == null || !change.pressed) return@withTimeoutOrNull true
-                    if ((change.position - down.position).getDistance() > slop) {
-                        return@withTimeoutOrNull false
-                    }
-                }
-                @Suppress("UNREACHABLE_CODE") false
+            @Suppress("UNREACHABLE_CODE") false
+        }
+        when (outcome) {
+            null -> {
+                onLongPress()
+                waitForUpOrCancellation()
             }
-            when (outcome) {
-                null -> {
-                    onLongPress()
-                    waitForUpOrCancellation()
+            true -> onTap()
+            false -> Unit
+        }
+    }
+}
+
+/**
+ * Edit-mode drag-to-reorder gesture (FR-3.2), attached to the whole grid so it
+ * can lift any tile. Pointer positions are grid-local, matching [GridGeometry].
+ *
+ * Down on a tile, then a >7 px move, lifts it ([onLift]); thereafter the tile
+ * follows the finger ([onDrag]) and, when the finger hovers the edge zone of
+ * another tile, that tile's slot is taken over ([onReorderTo]) — the centre
+ * 22–78% is left alone (reserved for the S14 merge). Near a viewport edge the
+ * grid auto-scrolls ([onAutoScroll]). A release after dragging persists the
+ * order ([onDrop]); an in-place tap that lifted nothing exits edit ([onTapExit]).
+ */
+private fun Modifier.editDragGesture(
+    editMode: Boolean,
+    widthPx: Float,
+    order: List<String>,
+    byId: Map<String, TileModel>,
+    draggingId: () -> String?,
+    onLift: (id: String, offset: IntOffset) -> Unit,
+    onDrag: (offset: IntOffset) -> Unit,
+    onReorderTo: (dragId: String, targetId: String) -> Unit,
+    onAutoScroll: (dir: Int) -> Unit,
+    onDrop: () -> Unit,
+    onTapExit: () -> Unit,
+    contentTopPx: Float,
+    viewportHeightPx: Float,
+    scrollOffsetPx: () -> Float,
+    edgeZonePx: Float,
+): Modifier = pointerInput(editMode, widthPx) {
+    if (!editMode) return@pointerInput
+    val geom = GridGeometry.of(widthPx)
+    val slop = 7.dp.toPx()
+
+    fun placementsNow(): List<TilePlacement> =
+        GridPacker.pack(order.mapNotNull { id -> byId[id]?.let { TileSpec(id, it.size) } })
+
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        val startId = tileAt(placementsNow(), geom, down.position)
+        var lifted = false
+        var moved = false
+        var grab = Offset.Zero
+        var lastTarget: String? = null
+
+        while (true) {
+            val event = awaitPointerEvent()
+            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+            val pos = change.position
+            if (!moved && (pos - down.position).getDistance() > slop) moved = true
+
+            if (startId != null && !lifted && moved) {
+                lifted = true
+                val r = geom.rect(placementsNow().first { it.id == startId })
+                grab = down.position - r.topLeft
+                onLift(startId, (pos - grab).round())
+            }
+
+            if (lifted) {
+                change.consume()
+                onDrag((pos - grab).round())
+
+                // Reorder when hovering the edge zone of another tile.
+                val target = placementsNow().firstOrNull {
+                    it.id != startId && geom.rect(it).contains(pos)
                 }
-                true -> onTap()
-                false -> Unit
+                if (target == null) {
+                    lastTarget = null
+                } else if (inMergeZone(geom.rect(target), pos)) {
+                    lastTarget = null // centre reserved for merge (S14)
+                } else if (target.id != lastTarget) {
+                    lastTarget = target.id
+                    startId?.let { onReorderTo(it, target.id) }
+                }
+
+                // Auto-scroll near the viewport edges.
+                val fingerViewportY = (contentTopPx + pos.y) - scrollOffsetPx()
+                onAutoScroll(
+                    when {
+                        fingerViewportY < edgeZonePx -> -1
+                        fingerViewportY > viewportHeightPx - edgeZonePx -> 1
+                        else -> 0
+                    },
+                )
+            }
+
+            if (!change.pressed) {
+                if (lifted || draggingId() != null) onDrop() else if (!moved) onTapExit()
+                break
             }
         }
     }

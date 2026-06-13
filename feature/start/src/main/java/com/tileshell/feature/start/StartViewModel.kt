@@ -128,6 +128,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         _homeRequests.tryEmit(Unit)
     }
 
+    /** Persist a new tile order after an edit-mode drag-to-reorder (FR-3.2). */
+    fun reorder(orderedIds: List<String>) {
+        viewModelScope.launch(Dispatchers.IO) { repository.reorderTiles(orderedIds) }
+    }
+
     private fun prunePackage(packageName: String) {
         viewModelScope.launch(Dispatchers.IO) { repository.removeApp(packageName) }
     }

@@ -3,6 +3,51 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## S13 · Drag to reorder
+
+- **The dragged tile follows the finger; the prototype only reflows.** The
+  prototype's edit drag just splices the array and lets CSS reflow — the tile
+  never tracks the cursor and has no scale. FR-3.2 (the session prompt) asks for
+  "lift with scale/shadow, follow finger", which is the real WP behaviour, so
+  S13 goes beyond the prototype: the lifted tile detaches to a finger-anchored
+  offset (1.08 scale + shadow, raised z) while the rest re-flow live.
+
+- **`DenseTileGrid` was inverted from a custom `Layout` to a sized `Box` of
+  self-offsetting children.** To finger-follow one tile while animating the
+  others, each tile needs its own positionable offset. The grid now computes
+  every tile's slot via the shared [GridGeometry] and hands `(slot, sizePx)` to
+  the caller, which applies `Modifier.offset { … }` — an `animateIntOffsetAsState`
+  slot for resting tiles, the live drag offset for the dragged one. `key(p.id)`
+  wraps each tile so per-tile animation state survives a re-flow. Visual spacing
+  is unchanged (identical unit/gap/side/top math, now in `GridGeometry`).
+
+- **Hit-testing is synchronous geometry, not `onGloballyPositioned`.** The drag
+  gesture is attached to the whole grid, so pointer positions are already
+  grid-local; it re-packs the current working order with `GridPacker` and tests
+  the finger against `GridGeometry` rects each move. Deterministic and lag-free
+  during fast drags (no async layout callbacks), and the same geometry the grid
+  renders with, so they can't disagree.
+
+- **Reorder only in the edge zone; centre is reserved.** Hovering the inner
+  22–78% of a tile (`inMergeZone`) suppresses reorder, leaving that gesture for
+  the S14 folder merge. Outside it, the tile takes over the target's slot, with a
+  `lastTarget` guard so crossing one tile reorders once (prototype behaviour).
+
+- **Working order is a separate `SnapshotStateList`, reconciled not reset.** The
+  grid renders a local `order` that the drag mutates live; the drop persists it
+  via `LayoutDao.applyOrder` (one transaction renumbering `position`). The
+  re-sync from the persisted flow *preserves* the existing relative order of
+  surviving ids (appending pins, dropping uninstalls) rather than overwriting —
+  so the async DB write after a drop lands the same order with no snap-back
+  flicker.
+
+- **Auto-scroll is a state-driven frame loop.** The gesture sets a −1/0/+1
+  direction from the finger's viewport-Y (mapping content→viewport via the
+  status-bar inset + `scrollState.value`); a `LaunchedEffect` scrolls one step
+  per frame until it leaves the edge zone or `scrollBy` reports the edge. While
+  the finger is stationary at an edge, reorder catches up on the next move
+  (acceptable per the SESSION-PLAN's auto-scroll fallback note).
+
 ## S12 · Edit mode entry/exit + chrome
 
 - **Tile corner controls and add/personalize are visual chrome only this
