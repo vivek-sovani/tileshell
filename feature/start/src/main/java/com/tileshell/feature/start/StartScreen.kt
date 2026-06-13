@@ -3,13 +3,22 @@ package com.tileshell.feature.start
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -34,9 +43,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -53,6 +64,7 @@ import com.tileshell.core.design.Wallpapers
 import com.tileshell.core.design.tiltOnPress
 import com.tileshell.core.design.wallpaperBackground
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 
 /**
@@ -71,8 +83,11 @@ fun StartScreen(
 ) {
     val tiles by viewModel.tiles.collectAsStateWithLifecycle()
     val swipeEnabled by viewModel.swipeEnabled.collectAsStateWithLifecycle()
+    val editMode by viewModel.editMode.collectAsStateWithLifecycle()
+    val selectedTileId by viewModel.selectedTileId.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val haptics = LocalHapticFeedback.current
 
     val specs = remember(tiles) { tiles.map { TileSpec(it.id, it.size) } }
     val byId = remember(tiles) { tiles.associateBy { it.id } }
@@ -155,8 +170,15 @@ fun StartScreen(
                     byId = byId,
                     scrollState = scrollState,
                     chevronVisible = swipeEnabled,
+                    editMode = editMode,
+                    selectedTileId = selectedTileId,
                     onTile = { onTileClick(context, it) },
                     onChevron = { settleTo(1f) },
+                    onEnterEdit = { id ->
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        viewModel.enterEdit(id)
+                    },
+                    onExitEdit = viewModel::exitEdit,
                 )
             }
 
@@ -182,10 +204,24 @@ private fun StartPage(
     byId: Map<String, TileModel>,
     scrollState: androidx.compose.foundation.ScrollState,
     chevronVisible: Boolean,
+    editMode: Boolean,
+    selectedTileId: String?,
     onTile: (TileModel) -> Unit,
     onChevron: () -> Unit,
+    onEnterEdit: (String) -> Unit,
+    onExitEdit: () -> Unit,
 ) {
-    Box(modifier = Modifier.fillMaxSize()) {
+    // Single jiggle phase shared by every tile (only composed while editing, so
+    // it costs nothing on a resting Start screen). Even/odd tiles use opposite
+    // signs so the grid shimmers like WP edit mode.
+    val jigglePhase = rememberJigglePhase(editMode)
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            // Tapping empty space in edit mode exits (prototype onDown).
+            .emptySpaceExit(editMode, onExitEdit),
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -195,11 +231,21 @@ private fun StartPage(
         ) {
             DenseTileGrid(tiles = specs, modifier = Modifier.fillMaxWidth()) { spec ->
                 byId[spec.id]?.let { model ->
-                    TileView(model) { onTile(model) }
+                    val index = specs.indexOfFirst { it.id == spec.id }
+                    TileView(
+                        tile = model,
+                        index = index,
+                        editMode = editMode,
+                        selected = editMode && model.id == selectedTileId,
+                        jigglePhase = jigglePhase,
+                        onTap = { if (editMode) onExitEdit() else onTile(model) },
+                        onLongPress = { if (!editMode) onEnterEdit(model.id) },
+                    )
                 }
             }
-            // FR-1 bottom breathing room (prototype home-scroll padding-bottom:74px).
-            Spacer(Modifier.height(74.dp))
+            // FR-1 bottom breathing room (prototype home-scroll padding-bottom:74px;
+            // grows to clear the edit bar while editing, like .home-scroll padding).
+            Spacer(Modifier.height(if (editMode) 130.dp else 74.dp))
         }
 
         // App-list affordance (prototype .allapps-btn): hidden in edit mode.
@@ -221,21 +267,243 @@ private fun StartPage(
                 )
             }
         }
+
+        // Bottom edit bar (prototype .edit-bar): slides up while editing. Only
+        // `done` is wired this session (an exit path); add/personalize land in S15.
+        EditBar(
+            visible = editMode,
+            onDone = onExitEdit,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 }
 
 @Composable
-private fun TileView(tile: TileModel, onClick: () -> Unit) {
+private fun TileView(
+    tile: TileModel,
+    index: Int,
+    editMode: Boolean,
+    selected: Boolean,
+    jigglePhase: Float,
+    onTap: () -> Unit,
+    onLongPress: () -> Unit,
+) {
+    // Edit chrome (prototype CSS): non-selected tiles dim to .45, the selected
+    // tile scales to 1.04, and editing tiles jiggle (±.5°, alternating phase).
+    val alpha by animateFloatAsState(
+        targetValue = if (editMode && !selected) 0.45f else 1f,
+        label = "tileAlpha",
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1.04f else 1f,
+        label = "tileScale",
+    )
+    val rotation = if (editMode) (if (index % 2 == 0) jigglePhase else -jigglePhase) else 0f
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .tiltOnPress()
+            .graphicsLayer {
+                this.alpha = alpha
+                scaleX = scale
+                scaleY = scale
+                rotationZ = rotation
+            }
+            // The press-tilt effect (S7) is replaced by the jiggle while editing.
+            .then(if (editMode) Modifier else Modifier.tiltOnPress())
             .background(TileAccents.forId(tile.colorId))
-            .clickable(onClick = onClick),
+            .tileGesture(editMode, onTap = onTap, onLongPress = onLongPress),
     ) {
         when (tile) {
             is TileModel.App -> AppTileContent(tile)
             is TileModel.Folder -> FolderTileContent(tile)
+        }
+        if (selected) TileControls()
+    }
+}
+
+/**
+ * Corner controls shown on the selected tile in edit mode (prototype
+ * `.tile-controls`): unpin (close) top-left, resize bottom-right. Visual chrome
+ * this session — their actions are wired in S15.
+ */
+@Composable
+private fun BoxScope.TileControls() {
+    TileControl(
+        iconKey = "close",
+        description = "unpin",
+        modifier = Modifier.align(Alignment.TopStart),
+    )
+    TileControl(
+        iconKey = "resize",
+        description = "resize",
+        modifier = Modifier.align(Alignment.BottomEnd),
+    )
+}
+
+@Composable
+private fun TileControl(iconKey: String, description: String, modifier: Modifier) {
+    Box(
+        modifier = modifier
+            .size(26.dp)
+            .background(DarkColorTokens.fg),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = TileIcons[iconKey],
+            contentDescription = description,
+            tint = DarkColorTokens.bg,
+            modifier = Modifier.size(15.dp),
+        )
+    }
+}
+
+/**
+ * Bottom edit bar (prototype `.edit-bar`): add / personalize / done, sliding up
+ * from below while editing. Only `done` is interactive this session; add and
+ * personalize are rendered as chrome and wired in S15.
+ */
+@Composable
+private fun EditBar(
+    visible: Boolean,
+    onDone: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val offset by animateFloatAsState(
+        targetValue = if (visible) 0f else 1f,
+        animationSpec = tween(260),
+        label = "editBarOffset",
+    )
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .graphicsLayer { translationY = size.height * offset }
+            .background(DarkColorTokens.sheet)
+            .navigationBarsPadding()
+            .height(60.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        EditBarButton("plus", "add", enabled = false, onClick = {})
+        Spacer(Modifier.size(34.dp))
+        EditBarButton("settings", "personalize", enabled = false, onClick = {})
+        Spacer(Modifier.size(34.dp))
+        EditBarButton("check", "done", enabled = true, onClick = onDone)
+    }
+}
+
+@Composable
+private fun EditBarButton(
+    iconKey: String,
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .let { if (enabled) it.clickable(onClick = onClick) else it }
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            imageVector = TileIcons[iconKey],
+            contentDescription = label,
+            tint = DarkColorTokens.fg,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.height(3.dp))
+        Text(text = label, color = DarkColorTokens.fg, fontSize = 13.sp)
+    }
+}
+
+/**
+ * Single shared jiggle phase (±.5°) for edit mode. Returns 0 — and composes no
+ * animation — while not editing, so the resting Start screen never animates.
+ */
+@Composable
+private fun rememberJigglePhase(editMode: Boolean): Float {
+    if (!editMode) return 0f
+    val transition = rememberInfiniteTransition(label = "jiggle")
+    val phase by transition.animateFloat(
+        initialValue = -0.5f,
+        targetValue = 0.5f,
+        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+        label = "jigglePhase",
+    )
+    return phase
+}
+
+/**
+ * Exits edit mode when [editMode] is on and the user taps empty space (a tap
+ * that does not move past the 7 px slop). Non-consuming and inactive otherwise,
+ * so it never interferes with launching or scrolling.
+ */
+private fun Modifier.emptySpaceExit(editMode: Boolean, onExit: () -> Unit): Modifier =
+    pointerInput(editMode) {
+        if (!editMode) return@pointerInput
+        val slop = 7.dp.toPx()
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            var moved = false
+            while (true) {
+                val event = awaitPointerEvent()
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                if ((change.position - down.position).getDistance() > slop) moved = true
+                if (!change.pressed) {
+                    if (!moved) onExit()
+                    break
+                }
+            }
+        }
+    }
+
+/**
+ * Per-tile tap / long-press gesture (FR-3.1). Out of edit mode: a release within
+ * 7 px is a tap; holding 430 ms fires the long-press (enter edit). In edit mode:
+ * any in-place tap fires [onTap] (the caller exits edit) and the long-press is
+ * inert. Never consumes the down, so vertical grid scrolling still wins on drags.
+ */
+private fun Modifier.tileGesture(
+    editMode: Boolean,
+    onTap: () -> Unit,
+    onLongPress: () -> Unit,
+): Modifier = pointerInput(editMode) {
+    val slop = 7.dp.toPx()
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        if (editMode) {
+            var moved = false
+            while (true) {
+                val event = awaitPointerEvent()
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                if ((change.position - down.position).getDistance() > slop) moved = true
+                if (!change.pressed) {
+                    if (!moved) onTap()
+                    break
+                }
+            }
+        } else {
+            // true = released early (tap), false = moved past slop (let scroll win),
+            // null = 430 ms elapsed still pressed (long-press → enter edit).
+            val outcome = withTimeoutOrNull(430L) {
+                while (true) {
+                    val event = awaitPointerEvent()
+                    val change = event.changes.firstOrNull { it.id == down.id }
+                    if (change == null || !change.pressed) return@withTimeoutOrNull true
+                    if ((change.position - down.position).getDistance() > slop) {
+                        return@withTimeoutOrNull false
+                    }
+                }
+                @Suppress("UNREACHABLE_CODE") false
+            }
+            when (outcome) {
+                null -> {
+                    onLongPress()
+                    waitForUpOrCancellation()
+                }
+                true -> onTap()
+                false -> Unit
+            }
         }
     }
 }

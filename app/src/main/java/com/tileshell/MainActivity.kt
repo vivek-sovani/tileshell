@@ -34,13 +34,17 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        // Back returns from the App-list page to Start; on Start it is a no-op
-        // (WP behaviour). Edit/overlay close hooks land here in S12/S16.
+        // Back leaves edit mode first, then returns from the App-list page to
+        // Start; on a plain Start screen it is a no-op (WP behaviour). Overlay
+        // close hooks land here in S16.
         onBackPressedDispatcher.addCallback(
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
-                    if (startViewModel.isAppList.value) startViewModel.goHome()
+                    when {
+                        startViewModel.editMode.value -> startViewModel.exitEdit()
+                        startViewModel.isAppList.value -> startViewModel.goHome()
+                    }
                 }
             },
         )

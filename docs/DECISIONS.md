@@ -3,6 +3,40 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## S12 · Edit mode entry/exit + chrome
+
+- **Tile corner controls and add/personalize are visual chrome only this
+  session.** The prototype renders unpin (close, top-left) and resize (bottom-
+  right) on the selected tile, and add/personalize/done in the bottom edit bar.
+  Their *actions* (unpin removes a tile, resize cycles size, add → app list,
+  personalize → sheet) are explicitly SESSION-PLAN S15 work and need repository
+  mutators that don't exist yet. S12 therefore renders all of them but wires
+  only `done` → `exitEdit` (an FR-3.1 exit path). The non-wired buttons carry no
+  `clickable` (rendered, inert) rather than a no-op stub, so there are no dead
+  handlers to remove in S15.
+
+- **Edit mode state lives in `StartViewModel`, not local Compose state.** Home
+  (`onNewIntent`/`goHome`) and Back (`MainActivity` back callback) both need to
+  read and clear it, and entering edit must flip the existing `swipeEnabled`
+  flag that gates the pager. Keeping `editMode`/`selectedTileId` as `StateFlow`
+  on the VM lets all three call sites share one source of truth; `enterEdit`/
+  `exitEdit` also own the swipe toggle.
+
+- **Selection is fixed at entry (prototype-faithful).** The prototype only sets
+  the selected tile via the long-press that enters edit; once editing, a plain
+  tap on any tile (or empty space) exits rather than re-selecting. S12 mirrors
+  this — re-selection/drag is S13. The long-press timer is only armed out of
+  edit mode.
+
+- **Jiggle uses one shared phase, composed only while editing.** Rather than a
+  per-tile infinite animation, a single `rememberInfiniteTransition` drives a
+  ±.5° phase that even/odd tiles apply with opposite sign (approximating the CSS
+  `nth-child(2n)` −.45s delay). It is gated behind `if (!editMode) return 0f`,
+  so a resting Start screen runs no animation frames. The press-tilt effect
+  (S7) is suppressed while editing. This is the "live-animation pause hook":
+  real live tiles aren't wired into Start yet, so pausing them is a genuine
+  no-op for now.
+
 ## S11 · Pin from app list
 
 - **A pinned app's "default colour" is derived deterministically from its

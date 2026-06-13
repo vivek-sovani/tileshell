@@ -47,10 +47,18 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Whether the Start⇄App-list swipe is allowed. Flipped off by edit mode
-     * (S12) and open overlays (S16) once those land; always on for now.
+     * and by open overlays (S16) once those land.
      */
     private val _swipeEnabled = MutableStateFlow(true)
     val swipeEnabled: StateFlow<Boolean> = _swipeEnabled.asStateFlow()
+
+    /** True while the Start grid is in tile-edit mode (FR-3.1). */
+    private val _editMode = MutableStateFlow(false)
+    val editMode: StateFlow<Boolean> = _editMode.asStateFlow()
+
+    /** The tile currently selected for editing (shows corner controls), if any. */
+    private val _selectedTileId = MutableStateFlow<String?>(null)
+    val selectedTileId: StateFlow<String?> = _selectedTileId.asStateFlow()
 
     fun setAppList(value: Boolean) {
         _isAppList.value = value
@@ -58,6 +66,29 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setSwipeEnabled(value: Boolean) {
         _swipeEnabled.value = value
+    }
+
+    /**
+     * Enter edit mode with [tileId] selected (FR-3.1, fired by the 430 ms tile
+     * long-press). Disables the pager swipe and pauses live-tile animations
+     * (the latter is a no-op until `:feature:livetiles` is wired into Start).
+     */
+    fun enterEdit(tileId: String) {
+        _selectedTileId.value = tileId
+        _editMode.value = true
+        _swipeEnabled.value = false
+    }
+
+    /**
+     * Leave edit mode via any exit path (done, empty-space tap, plain tile tap,
+     * Home or Back). Re-enables the swipe and resumes live-tile animations
+     * (no-op for now). Safe to call when not editing.
+     */
+    fun exitEdit() {
+        if (!_editMode.value) return
+        _editMode.value = false
+        _selectedTileId.value = null
+        _swipeEnabled.value = true
     }
 
     /** Removes tiles whose app was uninstalled while we were running. */
@@ -89,10 +120,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Home pressed on Start: closes overlays/edit (none yet — wired in S12/S16)
-     * and asks the screen to scroll back to the top.
+     * Home pressed on Start: leaves edit mode (FR-3.1), closes overlays (S16)
+     * and asks the screen to collapse the pager and scroll back to the top.
      */
     fun goHome() {
+        exitEdit()
         _homeRequests.tryEmit(Unit)
     }
 
