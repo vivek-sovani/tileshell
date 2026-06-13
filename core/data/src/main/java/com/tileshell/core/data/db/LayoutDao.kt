@@ -63,6 +63,10 @@ interface LayoutDao {
         orderedIds.forEachIndexed { index, id -> updateTilePosition(id, index) }
     }
 
+    /** Rename a folder (FR-4 folder overlay rename). */
+    @Query("UPDATE folders SET name = :name WHERE id = :id")
+    suspend fun updateFolderName(id: String, name: String)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertFolders(folders: List<FolderEntity>)
 

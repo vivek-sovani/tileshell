@@ -17,6 +17,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
@@ -37,6 +38,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -51,8 +55,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -60,7 +68,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
@@ -69,6 +80,7 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tileshell.core.data.AppLauncher
+import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.TileSize
 import com.tileshell.feature.applist.AppListScreen
@@ -100,12 +112,24 @@ fun StartScreen(
     val swipeEnabled by viewModel.swipeEnabled.collectAsStateWithLifecycle()
     val editMode by viewModel.editMode.collectAsStateWithLifecycle()
     val selectedTileId by viewModel.selectedTileId.collectAsStateWithLifecycle()
+    val openFolderId by viewModel.openFolderId.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
 
     val specs = remember(tiles) { tiles.map { TileSpec(it.id, it.size) } }
     val byId = remember(tiles) { tiles.associateBy { it.id } }
+
+    // The open folder's model (null closes the overlay; also self-closes if the
+    // folder is removed or emptied while open).
+    val openFolder = remember(tiles, openFolderId) {
+        tiles.firstOrNull { it.id == openFolderId } as? TileModel.Folder
+    }
+    // If the folder vanished while open (e.g. an uninstall dissolved it), fully
+    // close so the swipe is re-enabled rather than left stuck off.
+    LaunchedEffect(openFolderId, openFolder) {
+        if (openFolderId != null && openFolder == null) viewModel.closeFolder()
+    }
 
     // Personalize stub sheet (edit bar → personalize); full sheet lands later.
     var showPersonalize by remember { mutableStateOf(false) }
@@ -176,7 +200,10 @@ fun StartScreen(
             }
         }
 
-        Box(modifier = Modifier.fillMaxSize().then(pager)) {
+        // Blur the Start surface behind the folder overlay (prototype
+        // backdrop-filter; real blur only takes effect API 31+, harmless below).
+        val behindBlur = if (openFolder != null) 14.dp else 0.dp
+        Box(modifier = Modifier.fillMaxSize().blur(behindBlur).then(pager)) {
             // Start page: parallaxes left and fades as the app list comes in.
             Box(
                 modifier = Modifier
@@ -196,7 +223,12 @@ fun StartScreen(
                     widthPx = widthPx,
                     viewportHeightPx = viewportHeightPx,
                     statusBarTopPx = statusBarTopPx,
-                    onTile = { onTileClick(context, it) },
+                    onTile = { tile ->
+                        when (tile) {
+                            is TileModel.App -> onTileClick(context, tile)
+                            is TileModel.Folder -> viewModel.openFolder(tile.id)
+                        }
+                    },
                     onChevron = { settleTo(1f) },
                     onEnterEdit = { id ->
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -236,6 +268,23 @@ fun StartScreen(
 
         // Personalize stub sheet overlay (edit bar → personalize).
         PersonalizeStubSheet(visible = showPersonalize, onDismiss = { showPersonalize = false })
+
+        // Full-screen folder overlay (FR-4).
+        FolderOverlay(
+            folder = openFolder,
+            onClose = viewModel::closeFolder,
+            onLaunchChild = { child ->
+                if (!AppLauncher.launch(context, child.packageName, child.activityName)) {
+                    Toast.makeText(
+                        context,
+                        "couldn't open ${child.label ?: "app"}",
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+                viewModel.closeFolder()
+            },
+            onRename = { name -> openFolder?.let { viewModel.renameFolder(it.id, name) } },
+        )
     }
 }
 
@@ -563,6 +612,144 @@ private fun EditBar(
         Spacer(Modifier.size(34.dp))
         EditBarButton("check", "done", enabled = true, onClick = onDone)
     }
+}
+
+/**
+ * Full-screen folder overlay (FR-4): a translucent scrim over the blurred Start
+ * screen, a close button, the lowercase folder title, and a grid of medium child
+ * tiles. Tapping a child launches it and dismisses; tapping the scrim dismisses;
+ * long-pressing the title renames it (persisted). Renders nothing when [folder]
+ * is null (closed, or the folder was removed/emptied while open).
+ */
+@Composable
+private fun FolderOverlay(
+    folder: TileModel.Folder?,
+    onClose: () -> Unit,
+    onLaunchChild: (FolderChild) -> Unit,
+    onRename: (String) -> Unit,
+) {
+    if (folder == null) return
+    val density = LocalDensity.current
+    var renaming by remember { mutableStateOf(false) }
+
+    val childSpecs = remember(folder.children) {
+        folder.children.map { TileSpec(it.packageName + "/" + it.activityName, TileSize.MEDIUM) }
+    }
+    val childById = remember(folder.children) {
+        folder.children.associateBy { it.packageName + "/" + it.activityName }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            // Scrim (prototype rgba(8,8,12,.55)); tap to dismiss.
+            .background(Color(0x8C08080C))
+            .pointerInput(Unit) { detectTapGestures { onClose() } },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding(),
+        ) {
+            // Close button, top-right.
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 6.dp, end = 14.dp)
+                        .size(34.dp)
+                        .pointerInput(Unit) { detectTapGestures { onClose() } },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = TileIcons["close"],
+                        contentDescription = "close folder",
+                        tint = DarkColorTokens.fg,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+
+            // Title (long-press to rename) or the inline rename editor.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 30.dp, bottom = 18.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (renaming) {
+                    FolderTitleEditor(
+                        initial = folder.name,
+                        onCommit = { name -> onRename(name); renaming = false },
+                    )
+                } else {
+                    Text(
+                        text = folder.name.lowercase(),
+                        color = DarkColorTokens.fg,
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.Thin,
+                        modifier = Modifier.pointerInput(folder.id) {
+                            detectTapGestures(onLongPress = { renaming = true })
+                        },
+                    )
+                }
+            }
+
+            // Grid of medium child tiles (2 per row on the 4-column grid).
+            DenseTileGrid(tiles = childSpecs, modifier = Modifier.fillMaxWidth()) { spec, slot, sizePx ->
+                val child = childById[spec.id] ?: return@DenseTileGrid
+                val appModel = TileModel.App(
+                    id = spec.id,
+                    position = 0,
+                    size = TileSize.MEDIUM,
+                    colorId = folder.colorId,
+                    packageName = child.packageName,
+                    activityName = child.activityName,
+                    label = child.label,
+                    iconKey = child.iconKey,
+                )
+                Box(
+                    modifier = Modifier
+                        .offset { slot }
+                        .size(
+                            with(density) { sizePx.width.toDp() },
+                            with(density) { sizePx.height.toDp() },
+                        )
+                        .background(TileAccents.forId(folder.colorId))
+                        .pointerInput(spec.id) { detectTapGestures { onLaunchChild(child) } },
+                ) {
+                    AppTileContent(appModel)
+                }
+            }
+        }
+    }
+}
+
+/** Inline, auto-focused rename field for the folder title (FR-4). */
+@Composable
+private fun FolderTitleEditor(initial: String, onCommit: (String) -> Unit) {
+    var draft by remember { mutableStateOf(initial) }
+    val focus = remember { FocusRequester() }
+    BasicTextField(
+        value = draft,
+        onValueChange = { draft = it },
+        singleLine = true,
+        textStyle = TextStyle(
+            color = DarkColorTokens.fg,
+            fontSize = 30.sp,
+            fontWeight = FontWeight.Thin,
+            textAlign = TextAlign.Center,
+        ),
+        cursorBrush = SolidColor(DarkColorTokens.fg),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { onCommit(draft) }),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 40.dp)
+            .focusRequester(focus),
+    )
+    LaunchedEffect(Unit) { focus.requestFocus() }
 }
 
 /**

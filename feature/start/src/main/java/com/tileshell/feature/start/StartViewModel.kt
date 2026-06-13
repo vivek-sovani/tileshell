@@ -60,6 +60,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedTileId = MutableStateFlow<String?>(null)
     val selectedTileId: StateFlow<String?> = _selectedTileId.asStateFlow()
 
+    /** The id of the folder whose full-screen overlay is open (FR-4), or null. */
+    private val _openFolderId = MutableStateFlow<String?>(null)
+    val openFolderId: StateFlow<String?> = _openFolderId.asStateFlow()
+
     fun setAppList(value: Boolean) {
         _isAppList.value = value
     }
@@ -120,10 +124,34 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Home pressed on Start: leaves edit mode (FR-3.1), closes overlays (S16)
-     * and asks the screen to collapse the pager and scroll back to the top.
+     * Open the full-screen overlay for a folder tile (FR-4). Disables the pager
+     * swipe while it is up.
+     */
+    fun openFolder(id: String) {
+        _openFolderId.value = id
+        _swipeEnabled.value = false
+    }
+
+    /** Close the folder overlay and re-enable the swipe. Safe when none is open. */
+    fun closeFolder() {
+        if (_openFolderId.value == null) return
+        _openFolderId.value = null
+        _swipeEnabled.value = true
+    }
+
+    /** Rename the open folder (FR-4). Blank/whitespace names are ignored. */
+    fun renameFolder(id: String, name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) { repository.renameFolder(id, trimmed) }
+    }
+
+    /**
+     * Home pressed on Start: closes the folder overlay (FR-4), leaves edit mode
+     * (FR-3.1) and asks the screen to collapse the pager and scroll to the top.
      */
     fun goHome() {
+        closeFolder()
         exitEdit()
         _homeRequests.tryEmit(Unit)
     }

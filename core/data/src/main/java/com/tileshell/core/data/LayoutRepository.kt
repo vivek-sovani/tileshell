@@ -45,6 +45,9 @@ class LayoutRepository(
     /** Unpin a top-level tile, removing it (and any folder meta) (FR-3.5). */
     suspend fun removeTile(id: String) = dao.removeTile(id)
 
+    /** Rename a folder (FR-4). Blank names are ignored by the caller. */
+    suspend fun renameFolder(id: String, name: String) = dao.updateFolderName(id, name)
+
     /**
      * Merge the dragged tile onto the target (FR-3.3): the target becomes a
      * folder holding the de-duplicated union of both tiles' apps and the dragged

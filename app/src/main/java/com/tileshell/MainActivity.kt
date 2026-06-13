@@ -34,14 +34,15 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        // Back leaves edit mode first, then returns from the App-list page to
-        // Start; on a plain Start screen it is a no-op (WP behaviour). Overlay
-        // close hooks land here in S16.
+        // Back closes the folder overlay first, then leaves edit mode, then
+        // returns from the App-list page to Start; on a plain Start screen it is
+        // a no-op (WP behaviour).
         onBackPressedDispatcher.addCallback(
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
                     when {
+                        startViewModel.openFolderId.value != null -> startViewModel.closeFolder()
                         startViewModel.editMode.value -> startViewModel.exitEdit()
                         startViewModel.isAppList.value -> startViewModel.goHome()
                     }

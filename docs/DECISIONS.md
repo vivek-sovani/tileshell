@@ -3,6 +3,39 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## S16 · Folder overlay + rename
+
+- **Children render as medium tiles, per the session prompt, not the prototype's
+  1×1 cells.** The prototype's `.ggrid` lays children out as unit (1×1) cells
+  with an icon + name; the SESSION-PLAN says "grid of medium child tiles", which
+  is authoritative. Children are rendered as `MEDIUM` tiles through the existing
+  `DenseTileGrid` + `AppTileContent` (2 per row on the 4-column grid), so they
+  match Start tiles exactly. All children take the *folder's* `colorId` (the
+  prototype paints them with the single global accent; we have no global accent
+  yet, so the folder's colour is the WP-faithful stand-in).
+
+- **Rename is new (the prototype has none).** FR-4 asks for it, so long-pressing
+  the title swaps it for an auto-focused inline `BasicTextField` (same thin/30sp
+  style); IME **Done** commits via `LayoutDao.updateFolderName`. Blank/whitespace
+  names are ignored (the title keeps its prior value). Tapping the scrim or a
+  child while renaming cancels (discards the draft) — acceptable with no
+  prototype reference.
+
+- **Backdrop blur is applied to the Start surface, not the scrim.** Compose has
+  no `backdrop-filter`, so the prototype's `blur(14px)` is reproduced by
+  `Modifier.blur(14.dp)` on the Start content behind the overlay (the overlay is
+  a sibling above it, so it stays sharp). `Modifier.blur` only takes effect on
+  API 31+; below that it is a no-op and the translucent scrim alone dims the
+  background — an accepted approximation (cf. the wallpaper radial note).
+
+- **Dismissal: scrim tap, close button, Back and Home.** The scrim uses
+  `detectTapGestures`; child tiles and the close button consume their taps so
+  they don't also dismiss. Back closes the folder before edit/app-list;
+  `goHome` (Home press / `onNewIntent`) closes it too. Opening sets
+  `swipeEnabled = false`; a guard effect also fully closes (re-enabling the
+  swipe) if the folder is dissolved by an uninstall while open. No pure logic
+  here, so no new unit tests.
+
 ## S15 · Resize, unpin, edit bar
 
 - **Corner controls are handled by the grid gesture, not child buttons.** The
