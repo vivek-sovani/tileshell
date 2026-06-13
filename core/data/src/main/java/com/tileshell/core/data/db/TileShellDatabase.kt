@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
@@ -14,7 +15,7 @@ import androidx.room.migration.Migration
         FolderChildEntity::class,
         AppCacheEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -25,8 +26,16 @@ abstract class TileShellDatabase : RoomDatabase() {
     companion object {
         private const val NAME = "tileshell.db"
 
-        /** Versioned migrations, added as the schema evolves past v1. */
-        val MIGRATIONS: Array<Migration> = emptyArray()
+        /** v1→v2: add the monoline icon-glyph key to tiles and folder children. */
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tiles ADD COLUMN iconKey TEXT")
+                db.execSQL("ALTER TABLE folder_children ADD COLUMN iconKey TEXT")
+            }
+        }
+
+        /** Versioned migrations, added as the schema evolves. */
+        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2)
 
         @Volatile
         private var instance: TileShellDatabase? = null

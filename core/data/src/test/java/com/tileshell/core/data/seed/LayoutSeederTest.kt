@@ -57,7 +57,7 @@ class LayoutSeederTest {
         val seeded = seeder.seed(resolver = resolverFor("mail", "messages"))
         val folder = seeded.filterIsInstance<SeededTile.Folder>().single()
         assertEquals("social", folder.name)
-        assertEquals(listOf("com.mail", "com.messages"), folder.children.map { it.packageName })
+        assertEquals(listOf("com.mail", "com.messages"), folder.children.map { it.component.packageName })
     }
 
     @Test
@@ -90,6 +90,21 @@ class LayoutSeederTest {
         assertEquals("cobalt", clock.colorId)
         assertEquals(TileSize.SMALL, calc.size)
         assertEquals("steel", calc.colorId)
+    }
+
+    @Test
+    fun `app tiles carry the monoline glyph key, remapping browser and notes`() {
+        val seeded = seeder.seed(resolver = resolverFor("clock", "browser"))
+        val apps = seeded.filterIsInstance<SeededTile.App>().associateBy { it.id }
+        assertEquals("clock", apps.getValue("t-clock").iconKey)
+        assertEquals("web", apps.getValue("t-browser").iconKey) // browser → web glyph
+    }
+
+    @Test
+    fun `folder children carry glyph keys`() {
+        val folder = seeder.seed(resolver = resolverFor("mail", "messages"))
+            .filterIsInstance<SeededTile.Folder>().single()
+        assertEquals(listOf("mail", "messages"), folder.children.map { it.iconKey })
     }
 
     @Test

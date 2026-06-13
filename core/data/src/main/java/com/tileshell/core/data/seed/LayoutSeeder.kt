@@ -2,6 +2,9 @@ package com.tileshell.core.data.seed
 
 import com.tileshell.core.data.TileSize
 
+/** A resolved folder child paired with its monoline glyph key. */
+data class SeededChild(val component: ResolvedComponent, val iconKey: String)
+
 /** A seeded tile, ready to be written to Room. */
 sealed interface SeededTile {
     val id: String
@@ -15,6 +18,7 @@ sealed interface SeededTile {
         override val size: TileSize,
         override val colorId: String,
         val component: ResolvedComponent,
+        val iconKey: String,
     ) : SeededTile
 
     data class Folder(
@@ -23,7 +27,7 @@ sealed interface SeededTile {
         override val size: TileSize,
         override val colorId: String,
         val name: String,
-        val children: List<ResolvedComponent>,
+        val children: List<SeededChild>,
     ) : SeededTile
 }
 
@@ -46,8 +50,12 @@ class LayoutSeeder {
         for (tile in defaults) {
             if (tile.isGroup) {
                 val children = tile.children
-                    .mapNotNull { DefaultLayout.roleFor(it)?.let(resolver::resolve) }
-                    .distinctBy { it.packageName + "/" + it.activityName }
+                    .mapNotNull { childId ->
+                        DefaultLayout.roleFor(childId)?.let(resolver::resolve)?.let { resolved ->
+                            SeededChild(resolved, DefaultLayout.iconFor(childId))
+                        }
+                    }
+                    .distinctBy { it.component.packageName + "/" + it.component.activityName }
                 if (children.isEmpty()) continue
                 out += SeededTile.Folder(
                     id = tile.id,
@@ -58,7 +66,8 @@ class LayoutSeeder {
                     children = children,
                 )
             } else {
-                val role = tile.app?.let(DefaultLayout::roleFor) ?: continue
+                val appId = tile.app ?: continue
+                val role = DefaultLayout.roleFor(appId) ?: continue
                 val component = resolver.resolve(role) ?: continue
                 out += SeededTile.App(
                     id = tile.id,
@@ -66,6 +75,7 @@ class LayoutSeeder {
                     size = tile.size,
                     colorId = tile.colorId,
                     component = component,
+                    iconKey = DefaultLayout.iconFor(appId),
                 )
             }
         }

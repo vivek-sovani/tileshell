@@ -11,6 +11,17 @@ class GridPackerTest {
     private fun specs(vararg sizes: TileSize) =
         sizes.mapIndexed { i, s -> TileSpec("t$i", s) }
 
+    /** Deterministic mixed-size set: smalls broken up by mediums, the odd wide/large. */
+    private fun demoTiles(count: Int): List<TileSpec> = List(count) { i ->
+        val size = when {
+            i % 17 == 5 -> TileSize.LARGE
+            i % 7 == 3 -> TileSize.WIDE
+            i % 3 == 0 -> TileSize.MEDIUM
+            else -> TileSize.SMALL
+        }
+        TileSpec(id = "t$i", size = size)
+    }
+
     private fun TilePlacement.at() = Triple(id, col, row)
 
     // ---- basic packing + gap back-fill ----------------------------------

@@ -10,15 +10,15 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
-import com.tileshell.feature.start.GridSpikeScreen
+import com.tileshell.feature.start.StartScreen
 import com.tileshell.feature.system.DefaultLauncher
 
 /**
  * TileShell home-screen host. Declared in the manifest as a HOME/DEFAULT
  * launcher activity (singleTask), drawn edge-to-edge with transparent system
  * bars. On first run it prompts the user to make TileShell the default
- * launcher. S3 shows the dense-packing grid spike (60 dummy tiles); the S2
- * catalogue debug screen and the real Start screen arrive/return in S6.
+ * launcher, then shows the real Start screen (persisted tiles over the aurora
+ * wallpaper).
  */
 class MainActivity : ComponentActivity() {
 
@@ -29,7 +29,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             DefaultLauncherPromptOnFirstRun()
-            GridSpikeScreen()
+            StartScreen()
         }
     }
 }

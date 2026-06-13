@@ -55,6 +55,17 @@ object DefaultLayout {
         else -> null
     }
 
+    /**
+     * Monoline glyph key (TileIcons in :core:design) for a prototype role id,
+     * from the `ic` field of `window.APPS` in data.js. Identity for most ids;
+     * the two that differ are mapped explicitly.
+     */
+    fun iconFor(appId: String): String = when (appId) {
+        "browser" -> "web"
+        "notes" -> "note"
+        else -> appId
+    }
+
     /** The default Start layout, ordered, from `window.DEFAULT_TILES()` in data.js. */
     val DEFAULT_TILES: List<DefaultTile> = listOf(
         DefaultTile("t-clock", TileSize.WIDE, "cobalt", app = "clock"),

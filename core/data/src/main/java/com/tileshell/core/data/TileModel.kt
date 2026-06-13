@@ -5,6 +5,7 @@ data class FolderChild(
     val packageName: String,
     val activityName: String,
     val label: String?,
+    val iconKey: String? = null,
 )
 
 /**
@@ -26,6 +27,7 @@ sealed interface TileModel {
         val packageName: String,
         val activityName: String,
         val label: String?,
+        val iconKey: String? = null,
     ) : TileModel
 
     data class Folder(

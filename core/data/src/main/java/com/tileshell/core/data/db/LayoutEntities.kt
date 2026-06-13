@@ -25,6 +25,7 @@ data class TileEntity(
     val packageName: String? = null,
     val activityName: String? = null,
     val label: String? = null,
+    val iconKey: String? = null,
     val folderId: String? = null,
 ) {
     companion object {
@@ -60,6 +61,7 @@ data class FolderChildEntity(
     val packageName: String,
     val activityName: String,
     val label: String? = null,
+    val iconKey: String? = null,
 )
 
 /**

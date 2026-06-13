@@ -50,6 +50,7 @@ class LayoutRepository(
                     packageName = tile.component.packageName,
                     activityName = tile.component.activityName,
                     label = tile.component.label,
+                    iconKey = tile.iconKey,
                 )
 
                 is SeededTile.Folder -> {
@@ -66,9 +67,10 @@ class LayoutRepository(
                         childRows += FolderChildEntity(
                             folderId = tile.id,
                             position = index,
-                            packageName = child.packageName,
-                            activityName = child.activityName,
-                            label = child.label,
+                            packageName = child.component.packageName,
+                            activityName = child.component.activityName,
+                            label = child.component.label,
+                            iconKey = child.iconKey,
                         )
                     }
                 }
@@ -89,7 +91,7 @@ class LayoutRepository(
                 name = row.folder.folder.name,
                 children = row.folder.children
                     .sortedBy { it.position }
-                    .map { FolderChild(it.packageName, it.activityName, it.label) },
+                    .map { FolderChild(it.packageName, it.activityName, it.label, it.iconKey) },
             )
         } else {
             TileModel.App(
@@ -100,6 +102,7 @@ class LayoutRepository(
                 packageName = t.packageName.orEmpty(),
                 activityName = t.activityName.orEmpty(),
                 label = t.label,
+                iconKey = t.iconKey,
             )
         }
     }
