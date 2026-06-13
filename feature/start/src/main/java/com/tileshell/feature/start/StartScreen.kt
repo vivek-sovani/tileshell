@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -39,6 +40,7 @@ import com.tileshell.core.data.TileSize
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.Wallpapers
+import com.tileshell.core.design.tiltOnPress
 import com.tileshell.core.design.wallpaperBackground
 
 /**
@@ -58,6 +60,12 @@ fun StartScreen(
     val specs = remember(tiles) { tiles.map { TileSpec(it.id, it.size) } }
     val byId = remember(tiles) { tiles.associateBy { it.id } }
 
+    val scrollState = rememberScrollState()
+    // Home press (delivered via the ViewModel) scrolls Start back to the top.
+    LaunchedEffect(Unit) {
+        viewModel.homeRequests.collect { scrollState.animateScrollTo(0) }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -66,7 +74,7 @@ fun StartScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
@@ -86,6 +94,7 @@ private fun TileView(tile: TileModel, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .tiltOnPress()
             .background(TileAccents.forId(tile.colorId))
             .clickable(onClick = onClick),
     ) {

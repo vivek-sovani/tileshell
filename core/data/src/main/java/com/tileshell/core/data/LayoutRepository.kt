@@ -30,6 +30,9 @@ class LayoutRepository(
     val tiles: Flow<List<TileModel>> =
         dao.observeTiles().map { rows -> rows.map(::toModel) }
 
+    /** Remove all tiles/folder memberships for an uninstalled package (FR-5). */
+    suspend fun removeApp(packageName: String) = dao.removeApp(packageName)
+
     /** Seed the default layout iff the grid is empty. Safe to call repeatedly. */
     suspend fun seedIfEmpty() {
         if (dao.tileCount() > 0) return

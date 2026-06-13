@@ -51,6 +51,32 @@ interface LayoutDao {
         insertFolderChildren(children)
     }
 
+    // ---- uninstall removal (FR-5) ---------------------------------------
+
+    @Query("DELETE FROM tiles WHERE packageName = :packageName")
+    suspend fun deleteTilesByPackage(packageName: String)
+
+    @Query("DELETE FROM folder_children WHERE packageName = :packageName")
+    suspend fun deleteFolderChildrenByPackage(packageName: String)
+
+    @Query("DELETE FROM tiles WHERE type = 'folder' AND folderId NOT IN (SELECT folderId FROM folder_children)")
+    suspend fun deleteEmptyFolderTiles()
+
+    @Query("DELETE FROM folders WHERE id NOT IN (SELECT folderId FROM folder_children)")
+    suspend fun deleteEmptyFolders()
+
+    /**
+     * Remove every trace of an uninstalled package: its app tiles and folder
+     * memberships, then any folder left empty (its tile + meta).
+     */
+    @Transaction
+    suspend fun removeApp(packageName: String) {
+        deleteTilesByPackage(packageName)
+        deleteFolderChildrenByPackage(packageName)
+        deleteEmptyFolderTiles()
+        deleteEmptyFolders()
+    }
+
     // ---- app cache ------------------------------------------------------
 
     @Upsert
