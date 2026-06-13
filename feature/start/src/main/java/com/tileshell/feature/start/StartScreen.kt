@@ -13,6 +13,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -200,6 +201,10 @@ fun StartScreen(
                     },
                     onExitEdit = viewModel::exitEdit,
                     onReorder = viewModel::reorder,
+                    onMerge = { dragId, targetId, survivingOrder ->
+                        viewModel.merge(dragId, targetId, survivingOrder)
+                        Toast.makeText(context, "grouped", Toast.LENGTH_SHORT).show()
+                    },
                 )
             }
 
@@ -235,6 +240,7 @@ private fun StartPage(
     onEnterEdit: (String) -> Unit,
     onExitEdit: () -> Unit,
     onReorder: (List<String>) -> Unit,
+    onMerge: (dragId: String, targetId: String, survivingOrder: List<String>) -> Unit,
 ) {
     // Single jiggle phase shared by every tile (only composed while editing, so
     // it costs nothing on a resting Start screen). Even/odd tiles use opposite
@@ -247,6 +253,8 @@ private fun StartPage(
     val order = remember { mutableStateListOf<String>() }
     var draggingId by remember { mutableStateOf<String?>(null) }
     val dragOffset = remember { mutableStateOf(IntOffset.Zero) }
+    // Tile currently highlighted as a merge target (finger in its centre zone).
+    var mergeTargetId by remember { mutableStateOf<String?>(null) }
     // Reconcile the working order with the persisted layout: keep the existing
     // relative order of surviving ids, drop removed ones, append new ones in
     // persisted order. This preserves a just-dropped reorder (the async DB write
@@ -310,11 +318,22 @@ private fun StartPage(
                         order.addAll(next)
                     }
                 },
+                onMergeTarget = { id -> mergeTargetId = id },
                 onAutoScroll = { dir -> autoScroll = dir },
-                onDrop = {
+                onDrop = { merge ->
                     autoScroll = 0
-                    onReorder(order.toList())
+                    val drag = draggingId
+                    if (merge != null && drag != null) {
+                        // Optimistically drop the dragged tile; the merge write
+                        // rewrites the target into a folder once it lands. The
+                        // surviving order (drag removed) is persisted with it.
+                        order.remove(drag)
+                        onMerge(drag, merge, order.toList())
+                    } else {
+                        onReorder(order.toList())
+                    }
                     draggingId = null
+                    mergeTargetId = null
                 },
                 onTapExit = onExitEdit,
                 contentTopPx = statusBarTopPx,
@@ -346,6 +365,7 @@ private fun StartPage(
                         editMode = editMode,
                         selected = editMode && model.id == selectedTileId,
                         dragging = dragging,
+                        mergeTarget = model.id == mergeTargetId,
                         jigglePhase = jigglePhase,
                         onTap = { if (!editMode) onTile(model) },
                         onLongPress = { if (!editMode) onEnterEdit(model.id) },
@@ -394,15 +414,17 @@ private fun TileView(
     editMode: Boolean,
     selected: Boolean,
     dragging: Boolean,
+    mergeTarget: Boolean,
     jigglePhase: Float,
     onTap: () -> Unit,
     onLongPress: () -> Unit,
 ) {
     // Edit chrome (prototype CSS): non-selected tiles dim to .45, the selected
     // tile scales to 1.04, and editing tiles jiggle (±.5°, alternating phase).
-    // A dragged tile lifts: scales up with a shadow and ignores dim/jiggle.
+    // A dragged tile lifts: scales up with a shadow and ignores dim/jiggle. A
+    // merge target stays full-opacity and gets a highlight outline.
     val alpha by animateFloatAsState(
-        targetValue = if (editMode && !selected && !dragging) 0.45f else 1f,
+        targetValue = if (editMode && !selected && !dragging && !mergeTarget) 0.45f else 1f,
         label = "tileAlpha",
     )
     val scale by animateFloatAsState(
@@ -428,6 +450,10 @@ private fun TileView(
             // The press-tilt effect (S7) is replaced by the jiggle while editing.
             .then(if (editMode) Modifier else Modifier.tiltOnPress())
             .background(TileAccents.forId(tile.colorId))
+            // Merge-target highlight (prototype .merge-target: 3px inset outline).
+            .then(
+                if (mergeTarget) Modifier.border(3.dp, DarkColorTokens.fg) else Modifier,
+            )
             // Out of edit mode the tile owns tap-to-launch / long-press-to-edit;
             // in edit mode the grid-level drag gesture owns all interaction.
             .then(
@@ -635,8 +661,9 @@ private fun Modifier.editDragGesture(
     onLift: (id: String, offset: IntOffset) -> Unit,
     onDrag: (offset: IntOffset) -> Unit,
     onReorderTo: (dragId: String, targetId: String) -> Unit,
+    onMergeTarget: (targetId: String?) -> Unit,
     onAutoScroll: (dir: Int) -> Unit,
-    onDrop: () -> Unit,
+    onDrop: (mergeTargetId: String?) -> Unit,
     onTapExit: () -> Unit,
     contentTopPx: Float,
     viewportHeightPx: Float,
@@ -657,6 +684,7 @@ private fun Modifier.editDragGesture(
         var moved = false
         var grab = Offset.Zero
         var lastTarget: String? = null
+        var mergeId: String? = null
 
         while (true) {
             val event = awaitPointerEvent()
@@ -675,17 +703,23 @@ private fun Modifier.editDragGesture(
                 change.consume()
                 onDrag((pos - grab).round())
 
-                // Reorder when hovering the edge zone of another tile.
+                // Hovering another tile's centre 22–78% marks it as a merge
+                // target (FR-3.3); the edge zone reorders instead (FR-3.2).
                 val target = placementsNow().firstOrNull {
                     it.id != startId && geom.rect(it).contains(pos)
                 }
                 if (target == null) {
                     lastTarget = null
+                    if (mergeId != null) { mergeId = null; onMergeTarget(null) }
                 } else if (inMergeZone(geom.rect(target), pos)) {
-                    lastTarget = null // centre reserved for merge (S14)
-                } else if (target.id != lastTarget) {
-                    lastTarget = target.id
-                    startId?.let { onReorderTo(it, target.id) }
+                    lastTarget = null
+                    if (mergeId != target.id) { mergeId = target.id; onMergeTarget(target.id) }
+                } else {
+                    if (mergeId != null) { mergeId = null; onMergeTarget(null) }
+                    if (target.id != lastTarget) {
+                        lastTarget = target.id
+                        startId?.let { onReorderTo(it, target.id) }
+                    }
                 }
 
                 // Auto-scroll near the viewport edges.
@@ -700,7 +734,7 @@ private fun Modifier.editDragGesture(
             }
 
             if (!change.pressed) {
-                if (lifted || draggingId() != null) onDrop() else if (!moved) onTapExit()
+                if (lifted || draggingId() != null) onDrop(mergeId) else if (!moved) onTapExit()
                 break
             }
         }

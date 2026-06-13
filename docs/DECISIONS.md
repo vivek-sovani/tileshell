@@ -3,6 +3,39 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## S14 · Merge to folder
+
+- **A merge reuses the target tile's id as the folder id.** The prototype splices
+  a brand-new `g-<timestamp>` group into the target's slot. Our schema convention
+  (DECISIONS S5) is that a folder tile and its `folders` row share one id, so
+  `computeMerge` instead makes the *target tile's own id* the folder id — for an
+  app→folder promotion the app tile is rewritten in place as a folder tile, and
+  for an existing folder the id is already its folder id. So `MergeResult.folderId`
+  is always `target.id`, and no id generator is needed.
+
+- **De-duplication is by component (`packageName/activityName`), not package.**
+  The prototype dedups by app id (its ids are packages). Real apps are identified
+  by their launcher component, so two activities of the same package stay
+  distinct. Union order is target's apps first, then the dragged tile's, matching
+  the prototype.
+
+- **The merge persists the surviving reorder, in one transaction.** Dragging onto
+  a centre zone first crosses other tiles' edge zones, incurring incidental
+  reorders in the working order. To keep the persisted layout matching what the
+  user sees (and to mirror the prototype, which mutates one shared array for both
+  reorder and merge), `applyMerge` renumbers the surviving tiles to the working
+  order *after* writing the folder and dropping the dragged tile — all inside the
+  same `@Transaction`. The folder tile reuses the target's id, so it is part of
+  that renumber.
+
+- **The 4-icon folder face already existed (S6); only targeting/highlight is new.**
+  `FolderTileContent` has rendered a 2×2 mini-grid of the first four child glyphs
+  since S6, so S14 added no new face. The merge-target highlight is the prototype
+  `.merge-target` 3 px inset outline (`Modifier.border`), and the target is held
+  at full opacity (exempt from the .45 edit-mode dim) so it reads as the drop
+  destination. The "grouped" toast fires optimistically on drop, like the
+  prototype's synchronous `toast('grouped')`.
+
 ## S13 · Drag to reorder
 
 - **The dragged tile follows the finger; the prototype only reflows.** The

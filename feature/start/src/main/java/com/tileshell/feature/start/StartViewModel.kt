@@ -133,6 +133,17 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { repository.reorderTiles(orderedIds) }
     }
 
+    /**
+     * Merge the dragged tile onto the target, forming/growing a folder (FR-3.3).
+     * [survivingOrder] is the working order after the dragged tile is removed, so
+     * any reorder incurred during the drag is persisted with the merge.
+     */
+    fun merge(dragId: String, targetId: String, survivingOrder: List<String>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.mergeTiles(dragId, targetId, survivingOrder)
+        }
+    }
+
     private fun prunePackage(packageName: String) {
         viewModelScope.launch(Dispatchers.IO) { repository.removeApp(packageName) }
     }

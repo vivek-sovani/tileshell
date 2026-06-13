@@ -37,6 +37,44 @@ class LayoutRepository(
     suspend fun reorderTiles(orderedIds: List<String>) = dao.applyOrder(orderedIds)
 
     /**
+     * Merge the dragged tile onto the target (FR-3.3): the target becomes a
+     * folder holding the de-duplicated union of both tiles' apps and the dragged
+     * tile is removed. No-op if either id is missing or they are the same tile.
+     */
+    suspend fun mergeTiles(dragId: String, targetId: String, survivingOrder: List<String>) {
+        if (dragId == targetId) return
+        val tiles = dao.tilesOnce().map(::toModel)
+        val drag = tiles.firstOrNull { it.id == dragId } ?: return
+        val target = tiles.firstOrNull { it.id == targetId } ?: return
+
+        val result = computeMerge(drag, target)
+        val folderTile = TileEntity(
+            id = target.id,
+            position = target.position,
+            size = result.size,
+            colorId = result.colorId,
+            type = TileEntity.TYPE_FOLDER,
+            folderId = result.folderId,
+        )
+        val folder = FolderEntity(id = result.folderId, name = result.name)
+        val children = result.children.mapIndexed { index, child ->
+            FolderChildEntity(
+                folderId = result.folderId,
+                position = index,
+                packageName = child.packageName,
+                activityName = child.activityName,
+                label = child.label,
+                iconKey = child.iconKey,
+            )
+        }
+        val dragFolderId = if (drag is TileModel.Folder) drag.id else null
+        // Persist only ids that still exist as top-level tiles, in the given order.
+        val existing = tiles.mapTo(HashSet()) { it.id }
+        val ordered = survivingOrder.filter { it != dragId && it in existing }
+        dao.applyMerge(folderTile, folder, children, dragId, dragFolderId, ordered)
+    }
+
+    /**
      * Pin an app from the app list (FR-5) as a medium tile in the app's default
      * colour, appended to the end of the grid. No-op (returns
      * [PinResult.ALREADY_ON_START]) if a tile for the package already exists.

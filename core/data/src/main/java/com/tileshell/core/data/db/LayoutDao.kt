@@ -15,6 +15,11 @@ interface LayoutDao {
     @Query("SELECT * FROM tiles ORDER BY position")
     fun observeTiles(): Flow<List<TileWithFolder>>
 
+    /** One-shot snapshot of the tiles (with folders), for merge computation. */
+    @Transaction
+    @Query("SELECT * FROM tiles ORDER BY position")
+    suspend fun tilesOnce(): List<TileWithFolder>
+
     @Query("SELECT COUNT(*) FROM tiles")
     suspend fun tileCount(): Int
 
@@ -71,6 +76,44 @@ interface LayoutDao {
         insertFolders(folders)
         insertTiles(tiles)
         insertFolderChildren(children)
+    }
+
+    // ---- merge to folder (FR-3.3) ---------------------------------------
+
+    @Query("DELETE FROM folder_children WHERE folderId = :folderId")
+    suspend fun deleteFolderChildren(folderId: String)
+
+    @Query("DELETE FROM tiles WHERE id = :id")
+    suspend fun deleteTileById(id: String)
+
+    @Query("DELETE FROM folders WHERE id = :id")
+    suspend fun deleteFolderById(id: String)
+
+    /**
+     * Apply a merge (FR-3.3) in one transaction: rewrite the target tile as a
+     * [folderTile] backed by [folder], replace its children with [children]
+     * (the de-duplicated union), then drop the dragged tile — and, when it was
+     * itself a folder ([dragFolderId] non-null), its folder meta (children
+     * cascade). Folders are written before children so the FK is satisfied.
+     */
+    @Transaction
+    suspend fun applyMerge(
+        folderTile: TileEntity,
+        folder: FolderEntity,
+        children: List<FolderChildEntity>,
+        dragTileId: String,
+        dragFolderId: String?,
+        survivingOrder: List<String>,
+    ) {
+        insertFolders(listOf(folder))
+        insertTiles(listOf(folderTile))
+        deleteFolderChildren(folder.id)
+        insertFolderChildren(children)
+        deleteTileById(dragTileId)
+        if (dragFolderId != null) deleteFolderById(dragFolderId)
+        // Renumber the survivors so any reorder incurred on the way to the merge
+        // target is persisted alongside it (the dragged tile is now gone).
+        survivingOrder.forEachIndexed { index, id -> updateTilePosition(id, index) }
     }
 
     // ---- uninstall removal (FR-5) ---------------------------------------
