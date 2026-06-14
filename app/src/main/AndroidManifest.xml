@@ -6,6 +6,15 @@
         avoid QUERY_ALL_PACKAGES and instead declare visibility into the set
         of activities that handle the LAUNCHER category.
     -->
+    <!--
+        Opt-in live-tile data (FR-2.x). Both are dangerous permissions requested
+        at runtime by the weather / calendar tiles; when denied those tiles
+        degrade to a static glyph. Coarse (not fine) location is enough for a
+        city-level forecast.
+    -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />

@@ -90,8 +90,10 @@ import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.TileSize
 import com.tileshell.feature.applist.AppListScreen
+import com.tileshell.feature.livetiles.CalendarTileFace
 import com.tileshell.feature.livetiles.ClockTileFace
 import com.tileshell.feature.livetiles.LiveFace
+import com.tileshell.feature.livetiles.WeatherTileFace
 import com.tileshell.feature.livetiles.rememberFlipState
 import com.tileshell.feature.livetiles.rememberLiveTilesActive
 import com.tileshell.feature.personalize.PersonalizeSheet
@@ -1146,7 +1148,10 @@ private fun AppTileContent(
     liveActive: Boolean = false,
 ) {
     // Live faces replace the static glyph at medium+ (FR-2). Small tiles and
-    // apps with no live face fall through to the icon/label below.
+    // apps with no live face fall through to the static glyph; weather/calendar
+    // also fall back to it when their opt-in permission is denied or no data is
+    // cached (the live composables call the slot).
+    val staticGlyph = @Composable { StaticTileGlyph(tile) }
     when (LiveFace.forIconKey(tile.iconKey, tile.size)) {
         LiveFace.CLOCK -> {
             ClockTileFace(
@@ -1157,8 +1162,32 @@ private fun AppTileContent(
             )
             return
         }
+        LiveFace.WEATHER -> {
+            WeatherTileFace(
+                size = tile.size,
+                flipped = flipped,
+                fallback = staticGlyph,
+                modifier = Modifier.fillMaxSize(),
+            )
+            return
+        }
+        LiveFace.CALENDAR -> {
+            CalendarTileFace(
+                flipped = flipped,
+                active = liveActive,
+                fallback = staticGlyph,
+                modifier = Modifier.fillMaxSize(),
+            )
+            return
+        }
         null -> Unit
     }
+    staticGlyph()
+}
+
+/** The non-live tile face: the monoline glyph, with a label above small size. */
+@Composable
+private fun StaticTileGlyph(tile: TileModel.App) {
     if (tile.size == TileSize.SMALL) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Icon(

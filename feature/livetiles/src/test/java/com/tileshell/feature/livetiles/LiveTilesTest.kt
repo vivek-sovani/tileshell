@@ -28,8 +28,22 @@ class LiveFaceTest {
     }
 
     @Test
-    fun `clock face flips`() {
+    fun `weather and calendar icons resolve at medium and up`() {
+        assertEquals(LiveFace.WEATHER, LiveFace.forIconKey("weather", TileSize.MEDIUM))
+        assertEquals(LiveFace.CALENDAR, LiveFace.forIconKey("calendar", TileSize.LARGE))
+    }
+
+    @Test
+    fun `weather and calendar are static at small`() {
+        assertNull(LiveFace.forIconKey("weather", TileSize.SMALL))
+        assertNull(LiveFace.forIconKey("calendar", TileSize.SMALL))
+    }
+
+    @Test
+    fun `clock weather and calendar all flip`() {
         assertTrue(LiveFace.CLOCK.flips)
+        assertTrue(LiveFace.WEATHER.flips)
+        assertTrue(LiveFace.CALENDAR.flips)
     }
 }
 

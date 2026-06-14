@@ -426,3 +426,59 @@ rule 4. Newest first.
   pure `clockFace(...)` fn (24-hour, unpadded hours, lowercase full weekday/month)
   ported from the prototype `clockNow()`, unit-tested; `alarm` is a static
   placeholder until an alarm provider lands.
+
+## S21 — weather + calendar tiles (FR-2)
+
+- **Live data lives in `:feature:livetiles`, not `:core:data`.** Weather and
+  calendar sources sit beside the clock in the live-tiles feature module rather
+  than behind a `:core:data` repository. They are tile-specific, Compose-driven,
+  and need Android providers (CalendarContract, LocationManager, WorkManager); a
+  thin core repository would add indirection without reuse. Pure formatters and
+  codecs are still extracted and unit-tested.
+
+- **Permission-agnostic face mapping; degrade in the composable.**
+  `LiveFace.forIconKey` keeps mapping by icon key only (`weather`→WEATHER,
+  `calendar`→CALENDAR, both flippable). The opt-in check happens in the tile
+  composable: `WeatherTileFace`/`CalendarTileFace` take a `fallback` slot and
+  render the static glyph (passed down from `AppTileContent`) when the permission
+  is denied or no data is available. This keeps the `TileIcons` dependency in
+  `:feature:start` and the mapping pure/testable.
+
+- **One-shot opt-in, the WP way.** `rememberOptInPermission` requests the tile's
+  permission once on first composition (coarse location for weather, READ_CALENDAR
+  for calendar) — the tile asks for exactly what it shows. The ask is remembered
+  (`rememberSaveable`) so it is not re-raised; a denial leaves the tile static
+  until a later process re-asks. A dedicated re-prompt / settings entry is a later
+  pass.
+
+- **Pluggable weather provider + offline sample.** `WeatherProvider` is a
+  `fun interface`; a real build swaps in a network implementation without touching
+  the worker/cache/tile. Until then `SampleWeatherProvider` returns the prototype
+  forecast (23°, partly cloudy, 26/17, "rain by 6pm · 40%") so the tile is
+  demonstrable on-device — but only once a `WeatherQuery` resolves, so opt-in is
+  still enforced.
+
+- **WorkManager refresh, lazily scheduled.** `WeatherRefreshWorker` is a
+  `CoroutineWorker` enqueued as a unique 30-min periodic job (KEEP) plus an
+  immediate one-off, scheduled from `WeatherTileFace` only when a weather tile
+  appears — no weather tile, no background work. It resolves a query via
+  `resolveWeatherQuery` (granted coarse location → manual-city fallback → null =
+  skip, tile stays static), fetches, and writes `WeatherCache`. Location is a
+  best-effort `LocationManager.getLastKnownLocation` over enabled providers (no
+  Play Services); fetch failures `Result.retry()`.
+
+- **Weather cache = own DataStore + flat codec.** `WeatherCache` is a typed
+  DataStore (`weather_cache.pb`) using a tolerant `key=value` `WeatherCacheCodec`,
+  mirroring `SettingsCodec` (S17). It holds the last snapshot (null = no data yet,
+  tile static) and the `manualCity` fallback. The city is kept here (not in
+  `LauncherSettings`) so the feature is self-contained; a city-entry UI is
+  deferred — without location grant or a set city the tile stays static, which is
+  the faithful opt-in behaviour.
+
+- **Calendar via CalendarContract.Instances, polled while active.**
+  `queryUpcomingEvents` reads the next two events (title/begin/end) in a 36-hour
+  window; `CalendarTileFace` re-queries every 5 min while the live gate is active
+  (rolls finished meetings off) and stops when paused. Front = next event, back =
+  the following one. `eventTimeLine`/`calendarEvent` are pure (24-hour start +
+  compact `30m`/`1h`/`1h 30m` duration; all-day/open-ended drop the duration),
+  unit-tested.
