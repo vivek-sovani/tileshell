@@ -1,5 +1,6 @@
 package com.tileshell.feature.start
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
@@ -47,12 +48,14 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.Image
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -67,8 +70,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -118,8 +124,11 @@ import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.Wallpapers
 import com.tileshell.core.design.colorTokens
 import com.tileshell.core.design.tiltOnPress
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import androidx.core.graphics.drawable.toBitmap
 import kotlin.math.abs
 
 /**
@@ -1389,26 +1398,80 @@ private fun AppTileContent(
 /** The non-live tile face: the monoline glyph, with a label above small size. */
 @Composable
 private fun StaticTileGlyph(tile: TileModel.App) {
-    if (tile.size == TileSize.SMALL) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    val useAppIcon = !TileIcons.hasIcon(tile.iconKey)
+    val appIcon = if (useAppIcon) rememberTileAppIcon(tile.packageName, tile.activityName) else null
+
+    @Composable
+    fun TileIconContent(monolineSize: Int) {
+        if (useAppIcon && appIcon != null) {
+            Image(
+                bitmap = appIcon,
+                contentDescription = tile.label,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(monolineSize.dp),
+            )
+        } else {
             Icon(
                 imageVector = TileIcons[tile.iconKey],
                 contentDescription = tile.label,
                 tint = Color.White,
-                modifier = Modifier.size(30.dp),
+                modifier = Modifier.size(monolineSize.dp),
             )
+        }
+    }
+
+    if (tile.size == TileSize.SMALL) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            TileIconContent(30)
         }
     } else {
         Column(modifier = Modifier.fillMaxSize().padding(11.dp)) {
-            Icon(
-                imageVector = TileIcons[tile.iconKey],
-                contentDescription = tile.label,
-                tint = Color.White,
-                modifier = Modifier.size(34.dp),
-            )
+            TileIconContent(34)
             Spacer(Modifier.weight(1f))
             TileLabel(tile.label.orEmpty())
         }
+    }
+}
+
+@Composable
+private fun rememberTileAppIcon(packageName: String, activityName: String): ImageBitmap? {
+    val context = LocalContext.current
+    return produceState<ImageBitmap?>(null, packageName, activityName) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                context.packageManager
+                    .getActivityIcon(ComponentName(packageName, activityName))
+                    .toBitmap(width = 96, height = 96)
+                    .asImageBitmap()
+            }.getOrNull()
+        }
+    }.value
+}
+
+@Composable
+private fun FolderChildIcon(child: FolderChild?) {
+    // Always call rememberTileAppIcon so the composable call count is stable
+    // regardless of whether child is null or has a WP icon.
+    val pkg = child?.packageName.orEmpty()
+    val act = child?.activityName.orEmpty()
+    val appIcon = rememberTileAppIcon(pkg, act)
+    val useAppIcon = child != null && !TileIcons.hasIcon(child.iconKey)
+
+    if (child == null) return
+    if (useAppIcon && appIcon != null) {
+        Image(
+            bitmap = appIcon,
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.size(18.dp),
+        )
+    } else {
+        Icon(
+            imageVector = TileIcons[child.iconKey],
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(18.dp),
+        )
     }
 }
 
@@ -1429,14 +1492,7 @@ private fun FolderTileContent(tile: TileModel.Folder) {
                                 .background(Color(0x2E000000)),
                             contentAlignment = Alignment.Center,
                         ) {
-                            if (child != null) {
-                                Icon(
-                                    imageVector = TileIcons[child.iconKey],
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            }
+                            FolderChildIcon(child)
                         }
                     }
                 }

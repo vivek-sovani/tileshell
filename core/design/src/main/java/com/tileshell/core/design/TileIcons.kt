@@ -27,6 +27,9 @@ object TileIcons {
     /** All icons keyed by the prototype `ic` name. */
     val byName: Map<String, ImageVector> by lazy { build() }
 
+    /** True when [name] has a real WP-style monoline icon (not the generic "app" fallback). */
+    fun hasIcon(name: String?): Boolean = name != null && byName.containsKey(name)
+
     /** Icon for a name, falling back to the generic "app" glyph. */
     operator fun get(name: String?): ImageVector =
         byName[name] ?: byName.getValue("app")
