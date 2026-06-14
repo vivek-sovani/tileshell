@@ -25,6 +25,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -40,25 +44,39 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.design.TileAccents
+import com.tileshell.core.design.TileIcons
+import com.tileshell.core.design.WallpaperGradient
+import com.tileshell.core.design.Wallpapers
 import com.tileshell.core.design.colorTokens
+import com.tileshell.core.design.wallpaperBackground
 
 /**
  * The personalize bottom sheet (FR-7): a slide-up panel over a fading scrim with
- * a grip, a lowercase "personalize" title, a dark/light segmented toggle and the
- * 14 accent swatches (prototype `buildSettings`). Stateless — it renders the
- * passed [dark]/[accentId] and reports changes via the callbacks, so the host
+ * a grip, a lowercase "personalize" title and the full prototype `buildSettings`
+ * groups — dark/light segmented toggle, 14 accent swatches, transparent-tiles +
+ * blur-wallpaper toggles, a tile-transparency slider, the wallpaper row (custom
+ * photo + 6 bundled gradients) and a reset-start-layout action. Stateless — it
+ * renders the passed values and reports changes via the callbacks, so the host
  * persists them and feeds the new values straight back, re-skinning live.
- *
- * Transparency, blur, wallpaper and layout-reset groups from the prototype land
- * in later sessions; this sheet covers theme + accent only.
  */
 @Composable
 fun PersonalizeSheet(
     visible: Boolean,
     dark: Boolean,
     accentId: String,
+    glass: Boolean,
+    transparency: Float,
+    blur: Boolean,
+    wallpaperId: String,
+    customWallpaper: Boolean,
     onThemeChange: (dark: Boolean) -> Unit,
     onAccentChange: (id: String) -> Unit,
+    onGlassChange: (Boolean) -> Unit,
+    onTransparencyChange: (Float) -> Unit,
+    onBlurChange: (Boolean) -> Unit,
+    onWallpaperChange: (id: String) -> Unit,
+    onPickCustomWallpaper: () -> Unit,
+    onResetLayout: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -160,8 +178,155 @@ fun PersonalizeSheet(
                     }
                 }
             }
+
+            // ---- transparent tiles / blur wallpaper ----
+            Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 18.dp)) {
+                ToggleRow("transparent tiles", on = glass, accent = accent, tokens, onGlassChange)
+                Spacer(Modifier.height(14.dp))
+                ToggleRow("blur wallpaper", on = blur, accent = accent, tokens, onBlurChange)
+            }
+
+            // ---- tile transparency ----
+            SettingGroup(label = "tile transparency", tokens.fgDim) {
+                Slider(
+                    value = transparency,
+                    onValueChange = onTransparencyChange,
+                    colors = SliderDefaults.colors(
+                        thumbColor = accent,
+                        activeTrackColor = accent,
+                        inactiveTrackColor = tokens.tileLine,
+                    ),
+                )
+            }
+
+            // ---- wallpaper ----
+            SettingGroup(label = "wallpaper", tokens.fgDim) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PhotoButton(tokens = tokens, onClick = onPickCustomWallpaper, modifier = Modifier.weight(1f))
+                    Wallpapers.all.take(3).forEach { wp ->
+                        WallpaperCell(
+                            wallpaper = wp,
+                            selected = !customWallpaper && wp.id == wallpaperId,
+                            ring = tokens.fg,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onWallpaperChange(wp.id) },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Wallpapers.all.drop(3).forEach { wp ->
+                        WallpaperCell(
+                            wallpaper = wp,
+                            selected = !customWallpaper && wp.id == wallpaperId,
+                            ring = tokens.fg,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onWallpaperChange(wp.id) },
+                        )
+                    }
+                    // Keep the bottom row's cells the same width as the top row's.
+                    repeat(1) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+
+            // ---- layout ----
+            SettingGroup(label = "layout", tokens.fgDim) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onResetLayout)
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(text = "reset start layout", color = tokens.fg, fontSize = 14.sp)
+                    Spacer(Modifier.weight(1f))
+                    Text(text = "↺", color = tokens.fgDim, fontSize = 16.sp)
+                }
+            }
         }
     }
+}
+
+/** A pill toggle row (prototype `.toggle-row` + `.tg`). */
+@Composable
+private fun ToggleRow(
+    label: String,
+    on: Boolean,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+    onChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onChange(!on) },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = label, color = tokens.fg, fontSize = 14.sp)
+        Spacer(Modifier.weight(1f))
+        Box(
+            modifier = Modifier
+                .width(40.dp)
+                .height(22.dp)
+                .clip(RoundedCornerShape(11.dp))
+                .background(if (on) accent else tokens.tileLine),
+            contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 3.dp)
+                    .size(16.dp)
+                    .clip(CircleShape)
+                    .background(Color.White),
+            )
+        }
+    }
+}
+
+/** The "pick a photo" cell that opens the system picker (prototype `.w.add`). */
+@Composable
+private fun PhotoButton(
+    tokens: com.tileshell.core.design.ColorTokens,
+    onClick: () -> Unit,
+    modifier: Modifier,
+) {
+    Column(
+        modifier = modifier
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(4.dp))
+            .border(1.dp, tokens.tileLine, RoundedCornerShape(4.dp))
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            imageVector = TileIcons["image"],
+            contentDescription = "pick a photo",
+            tint = tokens.fg,
+            modifier = Modifier.size(22.dp),
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(text = "photo", color = tokens.fgDim, fontSize = 11.sp)
+    }
+}
+
+/** One bundled-wallpaper preview cell (prototype `.wallrow .w`). */
+@Composable
+private fun WallpaperCell(
+    wallpaper: WallpaperGradient,
+    selected: Boolean,
+    ring: Color,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .aspectRatio(1f)
+            .then(if (selected) Modifier.border(2.5.dp, ring).padding(4.dp) else Modifier)
+            .clip(RoundedCornerShape(4.dp))
+            .wallpaperBackground(wallpaper)
+            .clickable(onClick = onClick),
+    )
 }
 
 /** A labelled settings group (prototype .set-group / .set-label). */

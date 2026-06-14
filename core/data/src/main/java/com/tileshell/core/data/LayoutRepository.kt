@@ -114,6 +114,16 @@ class LayoutRepository(
     /** Seed the default layout iff the grid is empty. Safe to call repeatedly. */
     suspend fun seedIfEmpty() {
         if (dao.tileCount() > 0) return
+        writeDefaultLayout()
+    }
+
+    /**
+     * Reset the Start grid to the WP default layout (FR-7 reset), discarding the
+     * user's tiles/folders. Always overwrites (unlike [seedIfEmpty]).
+     */
+    suspend fun resetLayout() = writeDefaultLayout()
+
+    private suspend fun writeDefaultLayout() {
         val seeded = seeder.seed(DefaultLayout.DEFAULT_TILES, resolver)
 
         val tileRows = ArrayList<TileEntity>(seeded.size)

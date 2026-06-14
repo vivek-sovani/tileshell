@@ -319,3 +319,41 @@ rule 4. Newest first.
 - **Migration scaffolding.** Database is version 1 with `exportSchema=true`
   (schema JSON under `core/data/schemas/`). `TileShellDatabase.MIGRATIONS` is an
   empty array wired into the builder, ready for future versioned migrations.
+
+## S18 — Glass, blur, wallpapers (FR-7)
+
+- **Custom wallpaper picker: `ACTION_OPEN_DOCUMENT`, not the photo picker.**
+  The spec calls for a *persistable* custom-wallpaper URI so the photo survives a
+  reboot. `ActivityResultContracts.PickVisualMedia` (the system photo picker)
+  returns URIs whose read grant is session-scoped and **cannot** be persisted via
+  `takePersistableUriPermission`. `OpenDocument(arrayOf("image/*"))` is still a
+  system picker UI but yields a SAF URI that we persist (best-effort `runCatching`
+  around the grant). The URI string is stored in `LauncherSettings.customWallpaperUri`.
+
+- **Blur-wallpaper effect.** Prototype `#screen.blur #wall { filter: blur(18px)
+  saturate(1.1); transform: scale(1.12) }`. We apply `Modifier.blur(18.dp)` +
+  `graphicsLayer` scale 1.12 to the wallpaper layer when blur is on. `blur()` is
+  a RenderEffect → no-op below API 31 (same caveat as the folder overlay). The
+  `saturate(1.1)` is applied as a `ColorMatrix` colour filter only to the **custom
+  photo** (where it's perceptible); the bundled mesh gradients are left unfiltered
+  (saturating a flat-ish gradient reads identically, and `drawBehind` gradients
+  have no cheap colour-filter hook).
+
+- **Glass tiles keep their per-tile colour identity.** In glass mode the Start
+  tile background becomes `Glass.fill(dark, transparency)` with an inset
+  `glassLine` hairline (prototype `#screen.glass .tile`). Per S11, Start tiles keep
+  their own `colorId` rather than the global accent, so the small-tile accent dot
+  (`#screen.glass .tile.small .accentdot`) uses `TileAccents.forId(tile.colorId)`,
+  not the chrome accent. Glass is applied to the main Start grid only; the folder
+  overlay tiles stay solid-accent (separate surface, contained scope).
+
+- **Reset layout** re-seeds the WP default via a new `LayoutRepository.resetLayout()`
+  that always calls `replaceLayout` (vs `seedIfEmpty` which no-ops on a non-empty
+  grid); both share a private `writeDefaultLayout`. The toast fires immediately
+  (prototype behaviour) even though the DB write is async.
+
+- **Settings codec growth.** `LauncherSettings` gained `glass`, `transparency`,
+  `blur`, `wallpaperId`, `customWallpaperUri`. The flat `key=value` codec takes the
+  value to end-of-line, so a content URI containing `=` round-trips. Tolerance:
+  transparency is clamped to 0..1 (bad floats keep the default); an empty
+  `customWallpaper=` decodes to null; an empty `wallpaper=` keeps the default.

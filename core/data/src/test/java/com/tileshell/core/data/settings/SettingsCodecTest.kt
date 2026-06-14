@@ -8,9 +8,43 @@ import org.junit.Test
 class SettingsCodecTest {
 
     @Test
-    fun `round-trips both fields`() {
-        val settings = LauncherSettings(dark = false, accentId = "magenta")
+    fun `round-trips all fields`() {
+        val settings = LauncherSettings(
+            dark = false,
+            accentId = "magenta",
+            glass = false,
+            transparency = 0.3f,
+            blur = true,
+            wallpaperId = "ocean",
+            customWallpaperUri = "content://media/external/images/42",
+        )
         assertEquals(settings, SettingsCodec.decode(SettingsCodec.encode(settings)))
+    }
+
+    @Test
+    fun `transparency out of range is clamped`() {
+        assertEquals(1f, SettingsCodec.decode("transparency=4.0").transparency, 0f)
+        assertEquals(0f, SettingsCodec.decode("transparency=-2.0").transparency, 0f)
+    }
+
+    @Test
+    fun `bad transparency keeps the default`() {
+        assertEquals(
+            LauncherSettings().transparency,
+            SettingsCodec.decode("transparency=loads").transparency,
+            0f,
+        )
+    }
+
+    @Test
+    fun `empty custom wallpaper decodes to null`() {
+        assertEquals(null, SettingsCodec.decode("customWallpaper=").customWallpaperUri)
+    }
+
+    @Test
+    fun `custom wallpaper uri with equals signs round-trips`() {
+        val uri = "content://x/y?id=7&w=1"
+        assertEquals(uri, SettingsCodec.decode("customWallpaper=$uri").customWallpaperUri)
     }
 
     @Test

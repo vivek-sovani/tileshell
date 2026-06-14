@@ -173,6 +173,36 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setAccent(accentId) }
     }
 
+    /** Toggle transparent-tile ("glass") mode (FR-7). */
+    fun setGlass(glass: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setGlass(glass) }
+    }
+
+    /** Set the tile-transparency slider value 0..1 (FR-7). */
+    fun setTransparency(transparency: Float) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setTransparency(transparency) }
+    }
+
+    /** Toggle the blur-wallpaper effect (FR-7). */
+    fun setBlur(blur: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setBlur(blur) }
+    }
+
+    /** Select a bundled gradient wallpaper, clearing any custom photo (FR-7). */
+    fun setWallpaper(wallpaperId: String) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setWallpaper(wallpaperId) }
+    }
+
+    /** Persist a user-picked custom wallpaper URI (FR-7). */
+    fun setCustomWallpaper(uri: String) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setCustomWallpaper(uri) }
+    }
+
+    /** Reset the Start grid to the WP default layout (FR-7). */
+    fun resetLayout() {
+        viewModelScope.launch(Dispatchers.IO) { repository.resetLayout() }
+    }
+
     /** Rename the open folder (FR-4). Blank/whitespace names are ignored. */
     fun renameFolder(id: String, name: String) {
         val trimmed = name.trim()

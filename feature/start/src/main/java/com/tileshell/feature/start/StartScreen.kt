@@ -1,7 +1,10 @@
 package com.tileshell.feature.start
 
 import android.content.Context
+import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -38,6 +41,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -87,6 +91,7 @@ import com.tileshell.core.data.TileSize
 import com.tileshell.feature.applist.AppListScreen
 import com.tileshell.feature.personalize.PersonalizeSheet
 import com.tileshell.core.design.DarkColorTokens
+import com.tileshell.core.design.Glass
 import com.tileshell.core.design.LocalAccent
 import com.tileshell.core.design.LocalColorTokens
 import com.tileshell.core.design.TileAccents
@@ -94,7 +99,6 @@ import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.Wallpapers
 import com.tileshell.core.design.colorTokens
 import com.tileshell.core.design.tiltOnPress
-import com.tileshell.core.design.wallpaperBackground
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
@@ -142,6 +146,26 @@ fun StartScreen(
     // chrome (sheet, edit bar, app list) re-skins live when personalization changes.
     val tokens = colorTokens(settings.dark)
     val accent = TileAccents.forId(settings.accentId)
+    val wallpaper = Wallpapers.forId(settings.wallpaperId)
+    // Transparent-tile fill at the current slider (FR-7); null when glass is off.
+    val glassFill = if (settings.glass) Glass.fill(settings.dark, settings.transparency) else null
+
+    // System photo picker for a custom wallpaper. OpenDocument (not the photo
+    // picker) so we can take a persistable read grant — required to reload the
+    // photo after a reboot (see docs/DECISIONS.md S18).
+    val wallpaperPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+            viewModel.setCustomWallpaper(uri.toString())
+        }
+    }
 
     val scrollState = rememberScrollState()
     // 0 = Start, 1 = App list.
@@ -169,14 +193,18 @@ fun StartScreen(
         LocalColorTokens provides tokens,
         LocalAccent provides accent,
     ) {
-    BoxWithConstraints(
-        modifier = modifier
-            .fillMaxSize()
-            .wallpaperBackground(Wallpapers.Aurora),
-    ) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val widthPx = constraints.maxWidth.toFloat()
         val viewportHeightPx = constraints.maxHeight.toFloat()
         val statusBarTopPx = WindowInsets.statusBars.getTop(density).toFloat()
+
+        // Wallpaper layer (FR-7): selected gradient or custom photo, optionally
+        // blurred. Drawn first so all content sits above it.
+        WallpaperBackground(
+            gradient = wallpaper,
+            customWallpaperUri = settings.customWallpaperUri,
+            blur = settings.blur,
+        )
 
         // Horizontal pager gesture. Detection runs in the Initial pass so a
         // dominant horizontal drag is claimed before the vertical grid scroll
@@ -233,6 +261,8 @@ fun StartScreen(
                     chevronVisible = swipeEnabled,
                     editMode = editMode,
                     selectedTileId = selectedTileId,
+                    glassFill = glassFill,
+                    glassLine = tokens.glassLine,
                     widthPx = widthPx,
                     viewportHeightPx = viewportHeightPx,
                     statusBarTopPx = statusBarTopPx,
@@ -284,8 +314,22 @@ fun StartScreen(
             visible = personalizeOpen,
             dark = settings.dark,
             accentId = settings.accentId,
+            glass = settings.glass,
+            transparency = settings.transparency,
+            blur = settings.blur,
+            wallpaperId = settings.wallpaperId,
+            customWallpaper = settings.customWallpaperUri != null,
             onThemeChange = viewModel::setTheme,
             onAccentChange = viewModel::setAccent,
+            onGlassChange = viewModel::setGlass,
+            onTransparencyChange = viewModel::setTransparency,
+            onBlurChange = viewModel::setBlur,
+            onWallpaperChange = viewModel::setWallpaper,
+            onPickCustomWallpaper = { wallpaperPicker.launch(arrayOf("image/*")) },
+            onResetLayout = {
+                viewModel.resetLayout()
+                Toast.makeText(context, "layout reset", Toast.LENGTH_SHORT).show()
+            },
             onDismiss = viewModel::closePersonalize,
         )
 
@@ -317,6 +361,8 @@ private fun StartPage(
     chevronVisible: Boolean,
     editMode: Boolean,
     selectedTileId: String?,
+    glassFill: Color?,
+    glassLine: Color,
     widthPx: Float,
     viewportHeightPx: Float,
     statusBarTopPx: Float,
@@ -465,6 +511,8 @@ private fun StartPage(
                         selected = editMode && model.id == selectedTileId,
                         dragging = dragging,
                         mergeTarget = model.id == mergeTargetId,
+                        glassFill = glassFill,
+                        glassLine = glassLine,
                         jigglePhase = jigglePhase,
                         onTap = { if (!editMode) onTile(model) },
                         onLongPress = { if (!editMode) onEnterEdit(model.id) },
@@ -515,6 +563,8 @@ private fun TileView(
     selected: Boolean,
     dragging: Boolean,
     mergeTarget: Boolean,
+    glassFill: Color?,
+    glassLine: Color,
     jigglePhase: Float,
     onTap: () -> Unit,
     onLongPress: () -> Unit,
@@ -549,7 +599,10 @@ private fun TileView(
             }
             // The press-tilt effect (S7) is replaced by the jiggle while editing.
             .then(if (editMode) Modifier else Modifier.tiltOnPress())
-            .background(TileAccents.forId(tile.colorId))
+            // Glass mode (FR-7): translucent fill + inset hairline replaces the
+            // accent background; otherwise the per-tile accent colour.
+            .background(glassFill ?: TileAccents.forId(tile.colorId))
+            .then(if (glassFill != null) Modifier.border(1.dp, glassLine) else Modifier)
             // Merge-target highlight (prototype .merge-target: 3px inset outline).
             .then(
                 if (mergeTarget) Modifier.border(3.dp, DarkColorTokens.fg) else Modifier,
@@ -564,6 +617,18 @@ private fun TileView(
         when (tile) {
             is TileModel.App -> AppTileContent(tile)
             is TileModel.Folder -> FolderTileContent(tile)
+        }
+        // Glass small tiles lose their colour fill, so a top-right accent dot
+        // keeps the tile's colour identity (prototype `#screen.glass .tile.small
+        // .accentdot`). Larger glass tiles show the icon/label instead.
+        if (glassFill != null && tile.size == TileSize.SMALL) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .size(8.dp)
+                    .background(TileAccents.forId(tile.colorId), CircleShape),
+            )
         }
         if (selected) TileControls()
     }

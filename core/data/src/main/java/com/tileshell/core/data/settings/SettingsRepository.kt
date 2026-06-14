@@ -51,6 +51,31 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(accentId = accentId) }
     }
 
+    /** Toggle transparent-tile ("glass") mode (FR-7). */
+    suspend fun setGlass(glass: Boolean) {
+        store.updateData { it.copy(glass = glass) }
+    }
+
+    /** Set the tile-transparency slider value; clamped to 0..1. */
+    suspend fun setTransparency(transparency: Float) {
+        store.updateData { it.copy(transparency = transparency.coerceIn(0f, 1f)) }
+    }
+
+    /** Toggle the blur-wallpaper effect (FR-7). */
+    suspend fun setBlur(blur: Boolean) {
+        store.updateData { it.copy(blur = blur) }
+    }
+
+    /** Select a bundled gradient wallpaper, clearing any custom photo. */
+    suspend fun setWallpaper(wallpaperId: String) {
+        store.updateData { it.copy(wallpaperId = wallpaperId, customWallpaperUri = null) }
+    }
+
+    /** Set a user-picked custom wallpaper (a persisted content URI string). */
+    suspend fun setCustomWallpaper(uri: String) {
+        store.updateData { it.copy(customWallpaperUri = uri) }
+    }
+
     companion object {
         fun create(context: Context): SettingsRepository =
             SettingsRepository(context.applicationContext.settingsDataStore)
