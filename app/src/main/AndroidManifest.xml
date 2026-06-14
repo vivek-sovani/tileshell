@@ -35,6 +35,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.TileShell">
 
+        <!-- Lets the Macrobenchmark/baseline-profile tooling capture profileable
+             traces from non-debuggable (release/benchmark) builds (S26). -->
+        <profileable android:shell="true" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

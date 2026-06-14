@@ -76,6 +76,17 @@ fun inMergeZone(rect: Rect, point: Offset): Boolean {
 }
 
 /**
+ * Whether the hovered tile [rect] should be (or stay) the folder-merge target as
+ * the finger sits at [point]. Entering a merge still needs the normative inner
+ * 22–78% centre ([inMergeZone]); but once a tile *is* the target
+ * ([alreadyTarget]), anywhere inside it keeps the merge — a sticky zone so small
+ * wobbles out of the exact centre don't drop a folder-merge mid-drag (FR-3.3).
+ * [point] is assumed already inside [rect] (the caller hit-tests first).
+ */
+fun heldAsMergeTarget(rect: Rect, point: Offset, alreadyTarget: Boolean): Boolean =
+    alreadyTarget || inMergeZone(rect, point)
+
+/**
  * Move [dragId] to sit where [targetId] currently is (FR-3.2). Mirrors the
  * prototype reorder (`reorder()` in launcher.js): splice the dragged id out,
  * then re-insert it at the target's *original* index — so a forward drag lands

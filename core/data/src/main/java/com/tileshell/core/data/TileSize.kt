@@ -18,11 +18,13 @@ enum class TileSize(val cols: Int, val rows: Int) {
     ;
 
     /**
-     * The next size in the resize cycle (FR-3.4): small → medium → wide → small,
-     * wrapping. Mirrors the prototype `cycleSize` order (minus the dropped large).
+     * The next size in the resize cycle (FR-3.4): medium → small → wide → medium,
+     * wrapping. A tap on a tile's resize control walks this order; medium is the
+     * default landing size, so the cycle starts and returns there.
      */
-    fun next(): TileSize {
-        val all = values()
-        return all[(ordinal + 1) % all.size]
+    fun next(): TileSize = when (this) {
+        MEDIUM -> SMALL
+        SMALL -> WIDE
+        WIDE -> MEDIUM
     }
 }

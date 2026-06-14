@@ -20,26 +20,14 @@ data class CalendarFace(val next: CalendarEvent?, val following: CalendarEvent?)
 
 /**
  * Today's date as shown on the calendar tile's base face: a lowercase [weekday],
- * the [day] of the month, the lowercase [month], and the current [time] in
- * 12-hour AM/PM form. Always available (no permission needed), so the calendar
- * tile shows the date and time even with no events.
+ * the [day] of the month, and the lowercase [month]. Always available (no
+ * permission needed), so the calendar tile shows the date even with no events.
  */
 data class CalendarToday(
     val weekday: String,
     val day: Int,
     val month: String,
-    val time: String,
 )
-
-/**
- * Formats a 24-hour [hour24]/[minute] as a 12-hour clock with an AM/PM suffix,
- * e.g. `2:30 PM`, `12:05 AM`. Pure for unit testing.
- */
-fun formatClock12(hour24: Int, minute: Int): String {
-    val h12 = (hour24 % 12).let { if (it == 0) 12 else it }
-    val suffix = if (hour24 < 12) "AM" else "PM"
-    return "$h12:${minute.toString().padStart(2, '0')} $suffix"
-}
 
 private val CALENDAR_WEEKDAYS = listOf(
     "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
@@ -51,22 +39,18 @@ private val CALENDAR_MONTHS = listOf(
 
 /**
  * Builds a [CalendarToday] from calendar fields. Pure (no `Calendar.getInstance()`)
- * so the lowercase weekday/month + AM/PM time formatting is unit-testable.
- * [dayOfWeek] is Calendar's 1=Sunday convention; [month0] is 0-based (0=January);
- * [hour24]/[minute] are the current wall-clock time.
+ * so the lowercase weekday/month formatting is unit-testable. [dayOfWeek] is
+ * Calendar's 1=Sunday convention; [month0] is 0-based (0=January).
  */
 fun calendarToday(
     dayOfWeek: Int,
     dayOfMonth: Int,
     month0: Int,
-    hour24: Int,
-    minute: Int,
 ): CalendarToday =
     CalendarToday(
         weekday = CALENDAR_WEEKDAYS[dayOfWeek - 1],
         day = dayOfMonth,
         month = CALENDAR_MONTHS[month0],
-        time = formatClock12(hour24, minute),
     )
 
 /**

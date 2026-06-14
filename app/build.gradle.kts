@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    // Consumes the baseline profile produced by :macrobenchmark (S26).
+    alias(libs.plugins.baselineprofile)
 }
 
 android {
@@ -25,6 +27,10 @@ android {
             )
         }
     }
+    // The baseline-profile plugin auto-creates the `benchmarkRelease` (the
+    // non-debuggable, profileable, debug-signed target the Macrobenchmark runs
+    // against) and `nonMinifiedRelease` (profile generation) variants from
+    // `release`, so no manual benchmark build type is needed here (S26).
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -62,6 +68,11 @@ dependencies {
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material3)
     debugImplementation(libs.androidx.compose.ui.tooling)
+    // Installs the bundled baseline profile on first run (S26).
+    implementation(libs.androidx.profileinstaller)
 
     testImplementation(libs.junit)
+
+    // The baseline profile artifact consumed at build time.
+    baselineProfile(project(":macrobenchmark"))
 }

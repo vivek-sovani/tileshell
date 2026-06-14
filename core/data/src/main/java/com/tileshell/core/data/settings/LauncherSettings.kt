@@ -7,8 +7,9 @@ import com.tileshell.core.data.TileColors
  * it can be serialized by [SettingsCodec] and unit-tested without Android.
  *
  * @property dark dark theme when true, light when false (prototype `state.theme`)
- * @property accentId one of the 14 [TileColors] ids — the global accent
- *   (`state.accent`) used by app-list/chrome; Start tiles keep their own colours.
+ * @property accentId one of the 14 [TileColors] ids — the single global accent
+ *   (`state.accent`) used by app-list/chrome *and* every Start tile (one uniform
+ *   tile colour across the Start screen, default blue; per-tile colourId ignored).
  * @property glass transparent-tile ("glass") mode on/off (`state.glass`)
  * @property transparency tile-transparency slider 0..1 feeding the alpha formula
  *   (`state.transparency`); only meaningful while [glass] is on.

@@ -324,6 +324,7 @@ fun StartScreen(
                     editMode = editMode,
                     liveSuspended = liveSuspended,
                     selectedTileId = selectedTileId,
+                    accent = accent,
                     glassFill = glassFill,
                     glassLine = tokens.glassLine,
                     darkTheme = settings.dark,
@@ -342,6 +343,9 @@ fun StartScreen(
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         viewModel.enterEdit(id)
                     },
+                    // In-edit tap on another tile switches the selection (no
+                    // long-press haptic — it's a light tap, not a fresh lift).
+                    onSelectTile = viewModel::enterEdit,
                     onExitEdit = viewModel::exitEdit,
                     onReorder = viewModel::reorder,
                     onMerge = { dragId, targetId, survivingOrder ->
@@ -411,6 +415,7 @@ fun StartScreen(
         // Full-screen folder overlay (FR-4).
         FolderOverlay(
             folder = openFolder,
+            accent = accent,
             onClose = viewModel::closeFolder,
             onLaunchChild = { child ->
                 if (!AppLauncher.launch(context, child.packageName, child.activityName)) {
@@ -445,6 +450,7 @@ private fun StartPage(
     editMode: Boolean,
     liveSuspended: Boolean,
     selectedTileId: String?,
+    accent: Color,
     glassFill: Color?,
     glassLine: Color,
     darkTheme: Boolean,
@@ -455,6 +461,7 @@ private fun StartPage(
     onTile: (TileModel) -> Unit,
     onChevron: () -> Unit,
     onEnterEdit: (String) -> Unit,
+    onSelectTile: (String) -> Unit,
     onExitEdit: () -> Unit,
     onReorder: (List<String>) -> Unit,
     onMerge: (dragId: String, targetId: String, survivingOrder: List<String>) -> Unit,
@@ -581,6 +588,7 @@ private fun StartPage(
                     draggingId = null
                     mergeTargetId = null
                 },
+                onSelect = onSelectTile,
                 onTapExit = onExitEdit,
                 contentTopPx = statusBarTopPx,
                 viewportHeightPx = viewportHeightPx,
@@ -612,6 +620,7 @@ private fun StartPage(
                         selected = editMode && model.id == selectedTileId,
                         dragging = dragging,
                         mergeTarget = model.id == mergeTargetId,
+                        accent = accent,
                         glassFill = glassFill,
                         glassLine = glassLine,
                         jigglePhase = jigglePhase,
@@ -669,6 +678,7 @@ private fun TileView(
     selected: Boolean,
     dragging: Boolean,
     mergeTarget: Boolean,
+    accent: Color,
     glassFill: Color?,
     glassLine: Color,
     jigglePhase: Float,
@@ -710,8 +720,10 @@ private fun TileView(
             // The press-tilt effect (S7) is replaced by the jiggle while editing.
             .then(if (editMode) Modifier else Modifier.tiltOnPress())
             // Glass mode (FR-7): translucent fill + inset hairline replaces the
-            // accent background; otherwise the per-tile accent colour.
-            .background(glassFill ?: TileAccents.forId(tile.colorId))
+            // accent background; otherwise the single global accent (one tile
+            // colour across the whole Start screen, default blue — the per-tile
+            // colourId is ignored, recolour via the personalize accent swatch).
+            .background(glassFill ?: accent)
             .then(if (glassFill != null) Modifier.border(1.dp, glassLine) else Modifier)
             // Merge-target highlight (prototype .merge-target: 3px inset outline).
             .then(
@@ -737,7 +749,7 @@ private fun TileView(
                     .align(Alignment.TopEnd)
                     .padding(8.dp)
                     .size(8.dp)
-                    .background(TileAccents.forId(tile.colorId), CircleShape),
+                    .background(accent, CircleShape),
             )
         }
         // Per-app notification badge (FR-1.2). Top-right pill, count from the
@@ -875,6 +887,7 @@ private fun EditBar(
 @Composable
 private fun FolderOverlay(
     folder: TileModel.Folder?,
+    accent: Color,
     onClose: () -> Unit,
     onLaunchChild: (FolderChild) -> Unit,
     onRename: (String) -> Unit,
@@ -1000,7 +1013,7 @@ private fun FolderOverlay(
                             with(density) { sizePx.width.toDp() },
                             with(density) { sizePx.height.toDp() },
                         )
-                        .background(TileAccents.forId(folder.colorId))
+                        .background(accent)
                         // Quick tap launches the child.
                         .pointerInput(spec.id) {
                             detectTapGestures { onLaunchChild(child) }
@@ -1189,14 +1202,16 @@ private fun Modifier.editDragGesture(
     onMergeTarget: (targetId: String?) -> Unit,
     onAutoScroll: (dir: Int) -> Unit,
     onDrop: (mergeTargetId: String?) -> Unit,
+    onSelect: (String) -> Unit,
     onTapExit: () -> Unit,
     contentTopPx: Float,
     viewportHeightPx: Float,
     scrollOffsetPx: () -> Float,
     edgeZonePx: Float,
-): Modifier = pointerInput(editMode, widthPx, byId) {
+): Modifier = pointerInput(editMode, widthPx, byId, selectedId()) {
     // Re-keyed on byId so a resize/unpin mid-session refreshes the captured tile
-    // sizes; byId never changes during a drag, so an in-progress drag is safe.
+    // sizes, and on the selected id so an in-edit selection switch refreshes the
+    // corner-control target; neither changes mid-drag, so a live drag is safe.
     if (!editMode) return@pointerInput
     val geom = GridGeometry.of(widthPx)
     val slop = 7.dp.toPx()
@@ -1275,10 +1290,15 @@ private fun Modifier.editDragGesture(
                 // (the dragged tile is parked at the end) and highlights it.
                 // Otherwise the live, dragged-included layout drives the reorder,
                 // so the gap keeps following the finger.
-                val mergeHovered = startId?.let { drag ->
-                    othersPacked(drag)
-                        .firstOrNull { geom.rect(it).contains(pos) }
-                        ?.takeIf { inMergeZone(geom.rect(it), pos) }
+                // The other tile (if any) directly under the finger, then whether
+                // it should be the merge target. Entering needs the 22–78% centre;
+                // staying only needs the finger to remain on the same tile (sticky)
+                // so a near-centre wobble doesn't drop the merge into a reorder.
+                val hovered = startId?.let { drag ->
+                    othersPacked(drag).firstOrNull { geom.rect(it).contains(pos) }
+                }
+                val mergeHovered = hovered?.takeIf {
+                    heldAsMergeTarget(geom.rect(it), pos, alreadyTarget = it.id == mergeId)
                 }
 
                 if (mergeHovered != null && startId != null) {
@@ -1313,7 +1333,16 @@ private fun Modifier.editDragGesture(
             }
 
             if (!change.pressed) {
-                if (lifted || draggingId() != null) onDrop(mergeId) else if (!moved) onTapExit()
+                when {
+                    lifted || draggingId() != null -> onDrop(mergeId)
+                    moved -> Unit
+                    // A tap on another tile switches which tile is being edited
+                    // (its corner controls move to it); a tap on open space (no
+                    // tile hit) exits edit mode. Tapping the already-selected tile
+                    // keeps it selected — only open space leaves edit.
+                    startId != null -> if (startId != selectedId()) onSelect(startId)
+                    else -> onTapExit()
+                }
                 break
             }
         }

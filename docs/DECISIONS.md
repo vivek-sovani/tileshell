@@ -717,3 +717,91 @@ rule 4. Newest first.
   the following one. `eventTimeLine`/`calendarEvent` are pure (24-hour start +
   compact `30m`/`1h`/`1h 30m` duration; all-day/open-ended drop the duration),
   unit-tested.
+
+## Post-S24 follow-up — resize cycle, edit selection, clock fidelity
+
+- **Resize cycle is medium → small → wide → medium** (`TileSize.next`), per a user
+  directive — medium is the default landing size, so the cycle starts and returns
+  there. This intentionally departs from the prototype's small→medium→wide order;
+  the prototype set never had a "default = medium" anchor. Unit test updated.
+
+- **Edit-mode tap: another tile switches selection; open space exits.** In
+  `editDragGesture`, a tap (no lift/move) that lands on a tile other than the
+  selected one now re-selects that tile (its corner controls move to it) via
+  `enterEdit`; a tap on open space — or on empty area inside the grid — exits edit.
+  Tapping the already-selected tile keeps it selected (only open space leaves
+  edit). The `pointerInput` is now re-keyed on the selected id too, so the
+  corner-control hit-test refreshes when selection switches mid-edit. Matches WP
+  Start edit behaviour.
+
+- **Clock time reverted to the normative 64/42 px + non-clipping line box.** The
+  S24 "bigger clock" bump (84/54) made the time vanish on device: the prototype's
+  `.lc .xl { line-height:.9 }` lets the tall weight-200 glyphs overflow the line
+  box harmlessly in CSS, but Compose crops them, and the larger size pushed the
+  crop past the glyphs. Restored the prototype sizes (`styles.css`: wide 64 /
+  medium 42) and added `LineHeightStyle(trim = None)` so the full glyph is always
+  painted regardless of the tight line height.
+
+## Post-S24 follow-up — single tile colour, sticky merge, calendar date-only
+
+- **One tile colour across Start (the global accent, default blue).** Start tiles
+  no longer render their per-tile `colorId`; `TileView`/folder children now fill
+  with `settings.accentId` (default `blue`), so the whole Start screen is one
+  uniform colour, recolourable from the personalize accent swatch. The 14-colour
+  palette and each tile's stored `colorId` are retained (data unchanged) — only
+  the Start render ignores them. Departs from the prototype's multicolour default
+  by user request.
+
+- **Folder-merge target is sticky once entered.** Dragging a tile onto another to
+  group them was unreliable: the normative merge zone is the inner 22–78% of the
+  target, and a small finger wobble out of that band dropped the merge into a
+  reorder. New pure `heldAsMergeTarget(rect, point, alreadyTarget)` keeps the
+  22–78% *entry* rule but, once a tile is the target, holds it as long as the
+  finger stays anywhere on that tile — so a near-centre wobble no longer breaks a
+  folder-merge mid-drag. Unit-tested (`MergeZoneTest`).
+
+- **Calendar tile shows the date only (time removed).** Per user request the base
+  face dropped the `· h:mm AM/PM` suffix; `CalendarToday.time`, the `hour24/minute`
+  params on `calendarToday(...)`, and `formatClock12` were removed (with their
+  tests). The per-minute tick is kept so the date rolls over after midnight
+  (re-assigning an equal `CalendarToday` is a no-op for recomposition).
+
+## S26 — performance: baseline profile, macrobenchmark, recomposition audit
+
+- **New `:macrobenchmark` module (`com.android.test` + `androidx.baselineprofile`).**
+  `targetProjectPath = :app`, self-instrumenting. Three journeys: `StartupBenchmark`
+  (cold `StartupTimingMetric`, None vs Partial compilation), `ScrollBenchmark`
+  (`FrameTimingMetric` over deliberate grid drags), `BaselineProfileGenerator`
+  (`includeInStartupProfile = true`). `:app` applies the baseline-profile plugin +
+  `profileinstaller`, declares `<profileable android:shell="true"/>`, and consumes
+  `baselineProfile(project(":macrobenchmark"))`. The plugin's managed
+  `benchmarkRelease`/`nonMinifiedRelease` variants are the measurement/generation
+  targets — no hand-rolled benchmark build type (an earlier attempt with one
+  matched the unsigned `release` and failed to install).
+
+- **Results (Pixel 6 emulator, API 34 — directional, not authoritative).** Cold
+  start `timeToInitialDisplay` median ≈ 260 ms with the baseline profile / ≈ 264 ms
+  without — well under the spec §3 800 ms budget. A real generated baseline profile
+  ships in `app/src/release/generated/baselineProfiles/` (≈18.9k rules, ≈1.3k
+  TileShell-specific). Scroll benchmark runs and captures frames (~314/run); the
+  emulator's incomplete GPU frame timing yields no `frameDurationCpuMs` percentiles,
+  so authoritative jank numbers need a physical device. Macrobenchmark's `EMULATOR`
+  error is suppressed via the `androidx.benchmark.suppressErrors` arg at run time
+  (not baked in), keeping the harness honest for device runs.
+
+- **Recomposition audit → Compose stability config.** `compose_stability.conf`
+  (wired into every Compose module from the root `subprojects` block via
+  `composeCompiler.stabilityConfigurationFile`) marks the read-only `:core:data`
+  models (`TileModel`/`FolderChild`/`TileSize`/`LauncherSettings`) and the standard
+  `List`/`Map`/`Set` interfaces as stable. The compiler report confirms the effect:
+  `TileView`/`AppTileContent`/`StartPage` are now `restartable skippable`,
+  `TileModel` resolves as a `stable` parameter, and `NotificationSnapshot` /
+  `NowPlaying` / `ConversationPreview` (Map/collection-bearing) are now `stable`, so
+  tiles no longer over-recompose per scroll/flip frame.
+
+- **Bitmap downsampling audit (no change needed).** All decode sites already run
+  off the main thread (`produceState` + `Dispatchers.IO`) and downsample: photos
+  via the unit-tested power-of-two `sampleSizeFor` (≤400 px shorter side), the
+  people mosaic size-aware (300/120 px), app icons rasterised at 96 px. Memory
+  budget is respected; a wide photos tile is slightly soft at 400 px (quality, not
+  perf) — left as-is.

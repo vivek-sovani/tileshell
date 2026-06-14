@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -17,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.TileSize
@@ -110,8 +112,12 @@ private val FaceText = Color.White
 
 @Composable
 private fun ClockFront(face: ClockFace, size: TileSize) {
+    // Prototype `.lc .xl` (styles.css): 64px wide / 42px medium, weight 200,
+    // line-height .9, letter-spacing -2px. CSS lets the tall glyphs overflow the
+    // .9 line box harmlessly; Compose would crop them (the time vanished at the
+    // earlier inflated size), so trim = None keeps the full glyph painted.
     val big = size == TileSize.WIDE
-    val timeSize = if (big) 84.sp else 54.sp
+    val timeSize = if (big) 64.sp else 42.sp
     Column(
         modifier = Modifier.fillMaxSize().padding(11.dp),
         verticalArrangement = Arrangement.Center,
@@ -125,6 +131,12 @@ private fun ClockFront(face: ClockFace, size: TileSize) {
             fontWeight = FontWeight.ExtraLight,
             letterSpacing = (-2).sp,
             maxLines = 1,
+            style = LocalTextStyle.current.copy(
+                lineHeightStyle = LineHeightStyle(
+                    alignment = LineHeightStyle.Alignment.Center,
+                    trim = LineHeightStyle.Trim.None,
+                ),
+            ),
         )
         Spacer(Modifier.height(4.dp))
         Text(text = face.weekday, color = FaceText, fontSize = 15.sp, maxLines = 1)

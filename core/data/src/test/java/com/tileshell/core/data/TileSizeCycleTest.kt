@@ -7,16 +7,16 @@ import org.junit.Test
 class TileSizeCycleTest {
 
     @Test
-    fun cyclesSmallMediumWideAndWraps() {
-        assertEquals(TileSize.MEDIUM, TileSize.SMALL.next())
-        assertEquals(TileSize.WIDE, TileSize.MEDIUM.next())
-        assertEquals(TileSize.SMALL, TileSize.WIDE.next()) // wraps (large dropped)
+    fun cyclesMediumSmallWideAndWraps() {
+        assertEquals(TileSize.SMALL, TileSize.MEDIUM.next())
+        assertEquals(TileSize.WIDE, TileSize.SMALL.next())
+        assertEquals(TileSize.MEDIUM, TileSize.WIDE.next()) // wraps back to medium
     }
 
     @Test
     fun threeStepsReturnToStart() {
-        var size = TileSize.SMALL
+        var size = TileSize.MEDIUM
         repeat(3) { size = size.next() }
-        assertEquals(TileSize.SMALL, size)
+        assertEquals(TileSize.MEDIUM, size)
     }
 }
