@@ -49,34 +49,41 @@ fun NotificationTileFace(
     val snapshot by NotificationCenter.snapshot.collectAsState()
     val preview = snapshot.conversationFor(packageName) ?: return fallback()
 
-    Column(
-        modifier = modifier.fillMaxSize().padding(11.dp),
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            NotificationAvatar(preview.sender)
-            if (preview.sender.isNotBlank()) {
-                Spacer(Modifier.width(8.dp))
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(11.dp),
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                NotificationAvatar(preview.sender)
+                if (preview.sender.isNotBlank()) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = preview.sender,
+                        color = FaceText,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            if (preview.snippet.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
                 Text(
-                    text = preview.sender,
-                    color = FaceText,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
+                    text = preview.snippet,
+                    color = FaceText.copy(alpha = 0.82f),
+                    fontSize = 13.sp,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
         }
-        if (preview.snippet.isNotEmpty()) {
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = preview.snippet,
-                color = FaceText.copy(alpha = 0.82f),
-                fontSize = 13.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+        // The app's own icon in the top-left corner (the count badge sits top-right).
+        AppIconCorner(
+            packageName = packageName,
+            modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+        )
     }
 }
 

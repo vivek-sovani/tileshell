@@ -48,12 +48,19 @@ fun ConversationTileFace(
     val preview = snapshot.conversationFor(packageName) ?: return fallback()
 
     val countWord = if (kind == LiveFace.MESSAGES) "new" else "unread"
-    FlipTile(
-        flipped = flipped,
-        modifier = modifier.fillMaxSize(),
-        front = { ConversationFront(preview) },
-        back = { ConversationBack(preview.count, countWord) },
-    )
+    Box(modifier = modifier.fillMaxSize()) {
+        FlipTile(
+            flipped = flipped,
+            modifier = Modifier.fillMaxSize(),
+            front = { ConversationFront(preview) },
+            back = { ConversationBack(preview.count, countWord) },
+        )
+        // The mail/messages app's own icon in the top-left corner.
+        AppIconCorner(
+            packageName = packageName,
+            modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+        )
+    }
 }
 
 @Composable

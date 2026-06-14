@@ -36,6 +36,8 @@ private fun currentCalendarToday(): CalendarToday {
         dayOfWeek = c.get(Calendar.DAY_OF_WEEK),
         dayOfMonth = c.get(Calendar.DAY_OF_MONTH),
         month0 = c.get(Calendar.MONTH),
+        hour24 = c.get(Calendar.HOUR_OF_DAY),
+        minute = c.get(Calendar.MINUTE),
     )
 }
 
@@ -60,11 +62,13 @@ fun CalendarTileFace(
 
     var today by remember { mutableStateOf(currentCalendarToday()) }
     var face by remember { mutableStateOf<CalendarFace?>(null) }
+    // Tick the date/time on the minute boundary while active (the face shows the
+    // current AM/PM time, so refreshing every 5 min would lag).
     LaunchedEffect(active) {
         if (!active) return@LaunchedEffect
         while (true) {
             today = currentCalendarToday()
-            delay(REFRESH_MS)
+            delay(60_000L - (System.currentTimeMillis() % 60_000L))
         }
     }
     LaunchedEffect(granted, active) {
@@ -111,11 +115,13 @@ private fun CalendarDateColumn(today: CalendarToday, size: TileSize) {
             letterSpacing = (-2).sp,
             maxLines = 1,
         )
+        // Month + current time in AM/PM, e.g. "june · 2:30 PM".
         Text(
-            text = today.month,
+            text = "${today.month} · ${today.time}",
             color = FaceText.copy(alpha = 0.82f),
             fontSize = 13.sp,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
         Spacer(Modifier.weight(1f))
         Text(text = "calendar", color = FaceText.copy(alpha = 0.82f), fontSize = 12.sp, maxLines = 1)

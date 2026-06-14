@@ -48,6 +48,23 @@ rule 4. Newest first.
   plain static grid with zero crashes. No code gaps found — each face already routed
   through a fallback slot; music and the generic face were built to the same contract.
 
+## S24 follow-up — app icon on notification tiles + calendar AM/PM time
+
+- **App icon in the notification tile's top-left corner.** A live notification tile
+  (mail/messages `ConversationTileFace` and the generic `NotificationTileFace`) now
+  draws the posting app's launcher icon small (18 dp) in the top-left corner, so the
+  tile still identifies its app — the count badge already sits top-right. New
+  `rememberAppIconBitmap(packageName)` decodes `PackageManager.getApplicationIcon`
+  off-thread (the package is visible via the LAUNCHER `<queries>` entry); `AppIconCorner`
+  renders nothing until it loads / if it can't resolve. The faces wrap their content
+  in a `Box` so the icon overlays both flip sides.
+- **Calendar tile shows the AM/PM time alongside the date.** The date face's third
+  line is now `"<month> · <h:mm AM/PM>"` (e.g. `june · 2:30 PM`). Pure `formatClock12`
+  (12-hour, padded minutes, midnight/noon → 12) is unit-tested and folded into
+  `calendarToday(...)`. Because the face now shows a live clock time, its refresh loop
+  ticks on the **minute boundary** (like the clock tile) instead of every 5 min;
+  events still poll every 5 min.
+
 ## S24 follow-up — drop large size + photos-only people tile
 
 - **Large (4×4) tile size removed.** `TileSize` now has only SMALL/MEDIUM/WIDE; the
