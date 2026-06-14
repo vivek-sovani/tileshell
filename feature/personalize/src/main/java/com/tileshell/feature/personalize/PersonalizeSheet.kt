@@ -77,6 +77,8 @@ fun PersonalizeSheet(
     onWallpaperChange: (id: String) -> Unit,
     onPickCustomWallpaper: () -> Unit,
     onResetLayout: () -> Unit,
+    photosSelected: Int,
+    onPickPhotos: () -> Unit,
     notificationsEnabled: Boolean,
     onNotificationAccess: () -> Unit,
     onDismiss: () -> Unit,
@@ -243,6 +245,25 @@ fun PersonalizeSheet(
                     Text(text = "reset start layout", color = tokens.fg, fontSize = 14.sp)
                     Spacer(Modifier.weight(1f))
                     Text(text = "↺", color = tokens.fgDim, fontSize = 16.sp)
+                }
+            }
+
+            // ---- live photos (FR-2 photos tile) ----
+            SettingGroup(label = "live photos", tokens.fgDim) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onPickPhotos)
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(text = "choose photos", color = tokens.fg, fontSize = 14.sp)
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        text = if (photosSelected > 0) "$photosSelected selected ›" else "pick ›",
+                        color = if (photosSelected > 0) accent else tokens.fgDim,
+                        fontSize = 13.sp,
+                    )
                 }
             }
 

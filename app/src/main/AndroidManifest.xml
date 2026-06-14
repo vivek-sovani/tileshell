@@ -14,6 +14,8 @@
     -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- People tile (FR-2): contact names + thumbnails for the avatar mosaic. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
 
     <queries>
         <intent>

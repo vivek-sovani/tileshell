@@ -8,14 +8,15 @@ import kotlin.random.Random
  * key (the prototype `app.live` field — see `data.js` / `tiles.js`).
  *
  * Phase 5 lands these incrementally: S20 implements [CLOCK]; S21 adds [WEATHER]
- * and [CALENDAR]; S22 adds [MAIL] and [MESSAGES]; people/photos/music join later.
- * Until then an unmapped icon key resolves to `null` and the tile renders as a
- * static glyph.
+ * and [CALENDAR]; S22 adds [MAIL] and [MESSAGES]; S23 adds [PEOPLE] and [PHOTOS];
+ * music joins later. Until then an unmapped icon key resolves to `null` and the
+ * tile renders as a static glyph.
  *
- * [WEATHER], [CALENDAR], [MAIL] and [MESSAGES] carry opt-in data (coarse location
- * / calendar read / notification access); the face composables fall back to the
- * static glyph when the permission is denied or no data is available — the
- * mapping here stays permission-agnostic.
+ * [WEATHER], [CALENDAR], [MAIL], [MESSAGES] and [PEOPLE] carry opt-in data
+ * (coarse location / calendar read / notification access / contacts), and
+ * [PHOTOS] needs a picked selection; the face composables fall back to the static
+ * glyph when the permission is denied or no data is available — the mapping here
+ * stays permission-agnostic.
  *
  * @property flips whether the face has a back side that the flip scheduler may
  *   turn to. Photos (a cross-fade slideshow) never flip; the clock does.
@@ -26,6 +27,8 @@ enum class LiveFace(val flips: Boolean) {
     CALENDAR(flips = true),
     MAIL(flips = true),
     MESSAGES(flips = true),
+    PEOPLE(flips = true),
+    PHOTOS(flips = false),
     ;
 
     companion object {
@@ -42,6 +45,8 @@ enum class LiveFace(val flips: Boolean) {
                 "calendar" -> CALENDAR
                 "mail" -> MAIL
                 "messages" -> MESSAGES
+                "people" -> PEOPLE
+                "photos" -> PHOTOS
                 else -> null
             }
         }

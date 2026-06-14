@@ -427,6 +427,41 @@ rule 4. Newest first.
   ported from the prototype `clockNow()`, unit-tested; `alarm` is a static
   placeholder until an alarm provider lands.
 
+## S23 — people + photos tiles (FR-2)
+
+- **People mosaic = contacts opt-in, single-cell cross-fade.** `PeopleTileFace`
+  asks for `READ_CONTACTS` once (`rememberOptInPermission`, like calendar), then
+  `queryContacts` reads up to 12 distinct contacts (display name + thumbnail) from
+  `ContactsContract.Contacts`. The grid is 2×2 at medium / 4×2 at wide+large
+  (prototype `cols = big?4:2, rows = 2`). While the live gate is active, a gated
+  loop swaps **one random cell to a random contact every 2.1 s** (prototype
+  `peopleStep`), rendered as a per-cell `Crossfade(tween 300)` (the prototype's
+  `.av` opacity transition; the scale-bounce is dropped as a cosmetic detail). The
+  back face is one large avatar + "<first> posted". Denied / no contacts → static
+  glyph. `mosaicCells` (cycles contacts to fill every cell) and `colorFor`
+  (deterministic initials tint) are pure + unit-tested.
+
+- **Photos tile = picked selection, cross-fade, never flips.** `LiveFace.PHOTOS`
+  is the only `flips = false` face, so it is excluded from the flip scheduler
+  (`liveIds`) and ignores `flipped` — it is the prototype `data-noflip` face.
+  `PhotosTileFace` reads `PhotosStore` (own DataStore `photos_tile.pb`, newline
+  URI codec mirroring WeatherCache) and cross-fades through the photos every 3.0 s
+  (`Crossfade(tween 800)`, prototype `slideshowStep` / `.photoslab` .8 s opacity)
+  while active. Bottom-left shadowed "photos" label. No photos picked → static
+  glyph.
+
+- **Photos picked via OpenMultipleDocuments, persistable grant.** Consistent with
+  the S18 wallpaper decision: the personalize sheet gains a "live photos · choose
+  photos" row launching `OpenMultipleDocuments` (not the photo picker) so each URI
+  takes a persistable read grant and the slideshow survives a reboot; the URIs are
+  written to `PhotosStore`. An individual revoked/deleted URI just shows the tile's
+  accent fill for that step.
+
+- **Tile-sized down-sampled decode.** `rememberTileBitmap` decodes a content URI
+  off-thread, down-sampled (`sampleSizeFor`, unit-tested power-of-two) to ~400 px
+  (photos) / 120–300 px (avatars) so full-res images don't blow the bitmap budget
+  in a small tile. Mirrors the wallpaper decode but bounded.
+
 ## S22 — notification listener: badges + mail/messages (FR-1.2 / FR-2)
 
 - **One `NotificationListenerService`, snapshot rebuilt from scratch.**

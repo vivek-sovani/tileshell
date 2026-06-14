@@ -17,3 +17,6 @@ local.properties
 .claude/settings.local.json
 
 # APK/AAB outputs are under build/, already ignored
+
+# Word lock/temp files
+~$*

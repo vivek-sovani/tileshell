@@ -98,6 +98,10 @@ import com.tileshell.feature.livetiles.LiveFace
 import com.tileshell.feature.livetiles.NotificationAccess
 import com.tileshell.feature.livetiles.NotificationCenter
 import com.tileshell.feature.livetiles.NotificationSnapshot
+import com.tileshell.feature.livetiles.PeopleTileFace
+import com.tileshell.feature.livetiles.PhotosData
+import com.tileshell.feature.livetiles.PhotosStore
+import com.tileshell.feature.livetiles.PhotosTileFace
 import com.tileshell.feature.livetiles.WeatherTileFace
 import com.tileshell.feature.livetiles.rememberFlipState
 import com.tileshell.feature.livetiles.rememberLiveTilesActive
@@ -181,6 +185,28 @@ fun StartScreen(
                 )
             }
             viewModel.setCustomWallpaper(uri.toString())
+        }
+    }
+
+    // Photos tile selection (FR-2). OpenMultipleDocuments (not the photo picker)
+    // for the same reason as the wallpaper: a persistable read grant so the
+    // slideshow survives a reboot (DECISIONS S18/S23).
+    val photosStore = remember(context) { PhotosStore.create(context) }
+    val photosCount = photosStore.data.collectAsStateWithLifecycle(initialValue = PhotosData())
+        .value.uris.size
+    val photosPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            uris.forEach { uri ->
+                runCatching {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    )
+                }
+            }
+            scope.launch { photosStore.setUris(uris.map { it.toString() }) }
         }
     }
 
@@ -354,6 +380,8 @@ fun StartScreen(
                 viewModel.resetLayout()
                 Toast.makeText(context, "layout reset", Toast.LENGTH_SHORT).show()
             },
+            photosSelected = photosCount,
+            onPickPhotos = { photosPicker.launch(arrayOf("image/*")) },
             notificationsEnabled = notificationAccess,
             onNotificationAccess = {
                 runCatching { context.startActivity(NotificationAccess.settingsIntent()) }
@@ -1258,6 +1286,24 @@ private fun AppTileContent(
                 kind = face,
                 packageName = tile.packageName,
                 flipped = flipped,
+                fallback = staticGlyph,
+                modifier = Modifier.fillMaxSize(),
+            )
+            return
+        }
+        LiveFace.PEOPLE -> {
+            PeopleTileFace(
+                size = tile.size,
+                flipped = flipped,
+                active = liveActive,
+                fallback = staticGlyph,
+                modifier = Modifier.fillMaxSize(),
+            )
+            return
+        }
+        LiveFace.PHOTOS -> {
+            PhotosTileFace(
+                active = liveActive,
                 fallback = staticGlyph,
                 modifier = Modifier.fillMaxSize(),
             )
