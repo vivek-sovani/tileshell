@@ -51,6 +51,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -89,6 +90,10 @@ import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.TileSize
 import com.tileshell.feature.applist.AppListScreen
+import com.tileshell.feature.livetiles.ClockTileFace
+import com.tileshell.feature.livetiles.LiveFace
+import com.tileshell.feature.livetiles.rememberFlipState
+import com.tileshell.feature.livetiles.rememberLiveTilesActive
 import com.tileshell.feature.personalize.PersonalizeSheet
 import com.tileshell.core.design.DarkColorTokens
 import com.tileshell.core.design.Glass
@@ -170,6 +175,10 @@ fun StartScreen(
     val scrollState = rememberScrollState()
     // 0 = Start, 1 = App list.
     val progress = remember { Animatable(0f) }
+    // Live tiles pause when Start is no longer the foreground surface: the app
+    // list has taken over (>50% across), or an overlay sits above it (FR-2 gating).
+    val appListShown by remember { derivedStateOf { progress.value >= 0.5f } }
+    val liveSuspended = appListShown || openFolder != null || personalizeOpen
     val settleSpec = spring<Float>(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
 
     fun settleTo(target: Float) {
@@ -260,6 +269,7 @@ fun StartScreen(
                     scrollState = scrollState,
                     chevronVisible = swipeEnabled,
                     editMode = editMode,
+                    liveSuspended = liveSuspended,
                     selectedTileId = selectedTileId,
                     glassFill = glassFill,
                     glassLine = tokens.glassLine,
@@ -365,6 +375,7 @@ private fun StartPage(
     scrollState: androidx.compose.foundation.ScrollState,
     chevronVisible: Boolean,
     editMode: Boolean,
+    liveSuspended: Boolean,
     selectedTileId: String?,
     glassFill: Color?,
     glassLine: Color,
@@ -416,6 +427,18 @@ private fun StartPage(
         }
     }
     val displaySpecs = order.mapNotNull { id -> byId[id]?.let { TileSpec(id, it.size) } }
+
+    // Live tiles (FR-2). The flip scheduler turns one of the visible flippable
+    // tiles every ~2.6 s, paused whenever live tiles are gated off (edit mode,
+    // off-screen, screen off, battery saver, animations off).
+    val liveActive = rememberLiveTilesActive(suspended = editMode || liveSuspended)
+    val liveIds = remember(displaySpecs, byId) {
+        displaySpecs.mapNotNull { spec ->
+            val model = byId[spec.id] as? TileModel.App ?: return@mapNotNull null
+            spec.id.takeIf { LiveFace.forIconKey(model.iconKey, model.size)?.flips == true }
+        }
+    }
+    val flipState = rememberFlipState(liveIds, active = liveActive)
 
     // Auto-scroll while a drag hovers near the top/bottom viewport edge (FR-3.2).
     var autoScroll by remember { mutableStateOf(0) } // -1 up, 0 off, +1 down
@@ -519,6 +542,8 @@ private fun StartPage(
                         glassFill = glassFill,
                         glassLine = glassLine,
                         jigglePhase = jigglePhase,
+                        flipped = flipState.isFlipped(model.id),
+                        liveActive = liveActive,
                         onTap = { if (!editMode) onTile(model) },
                         onLongPress = { if (!editMode) onEnterEdit(model.id) },
                     )
@@ -571,6 +596,8 @@ private fun TileView(
     glassFill: Color?,
     glassLine: Color,
     jigglePhase: Float,
+    flipped: Boolean,
+    liveActive: Boolean,
     onTap: () -> Unit,
     onLongPress: () -> Unit,
 ) {
@@ -620,7 +647,7 @@ private fun TileView(
             ),
     ) {
         when (tile) {
-            is TileModel.App -> AppTileContent(tile)
+            is TileModel.App -> AppTileContent(tile, flipped = flipped, liveActive = liveActive)
             is TileModel.Folder -> FolderTileContent(tile)
         }
         // Glass small tiles lose their colour fill, so a top-right accent dot
@@ -1113,7 +1140,25 @@ private fun Modifier.editDragGesture(
 }
 
 @Composable
-private fun AppTileContent(tile: TileModel.App) {
+private fun AppTileContent(
+    tile: TileModel.App,
+    flipped: Boolean = false,
+    liveActive: Boolean = false,
+) {
+    // Live faces replace the static glyph at medium+ (FR-2). Small tiles and
+    // apps with no live face fall through to the icon/label below.
+    when (LiveFace.forIconKey(tile.iconKey, tile.size)) {
+        LiveFace.CLOCK -> {
+            ClockTileFace(
+                size = tile.size,
+                flipped = flipped,
+                active = liveActive,
+                modifier = Modifier.fillMaxSize(),
+            )
+            return
+        }
+        null -> Unit
+    }
     if (tile.size == TileSize.SMALL) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Icon(

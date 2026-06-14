@@ -29,6 +29,7 @@ android {
 dependencies {
     implementation(project(":core:data"))
     implementation(project(":core:design"))
+    implementation(project(":feature:livetiles"))
     implementation(project(":feature:applist"))
     implementation(project(":feature:personalize"))
 

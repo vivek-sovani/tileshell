@@ -394,3 +394,35 @@ rule 4. Newest first.
 
 - **Restore checklist.** `docs/RESTORE-CHECKLIST.md` captures the manual
   kill/reboot/corruption verification steps (executed on device, not in CI).
+
+## S20 — flip engine + clock tile
+
+- **Real 3D flip over the prototype's slide.** The HTML prototype fakes the live
+  flip with a vertical `translateY(-100%)` (its CSS comment notes 3D backface was
+  unreliable in the browser). Compose handles real 3D, so `FlipTile` does an
+  X-axis `rotationX` 0°→180° with a shallow `cameraDistance`, swapping faces at
+  the 90° midpoint (back counter-rotated to read upright). This is closer to the
+  actual Windows Phone tile flip while keeping the prototype's 500 ms /
+  `cubic-bezier(.5,.05,.2,1)` timing.
+
+- **Live faces keyed off the icon key.** There is no `live` column on the tile
+  model; `LiveFace.forIconKey(iconKey, size)` maps a tile's monoline icon key to
+  its live face (the prototype's `app.live`), returning null for small tiles and
+  unmapped keys so they stay static. S20 implements `CLOCK` only; weather/calendar
+  (S21) and the notification faces (S22) extend the same enum.
+
+- **Flip scheduler = gated coroutine.** `rememberFlipState(liveIds, active)` runs
+  the prototype's `setInterval(flipOne, 2600)` as a `LaunchedEffect` loop that
+  toggles one random flippable tile every 2.6 s. It only runs while `active`;
+  `rememberLiveTilesActive(suspended)` ANDs the caller's suspend flag (edit mode,
+  app-list shown >50%, open folder/personalize) with three live system signals —
+  lifecycle resumed, battery saver off, animator duration scale ≠ 0. Pausing
+  freezes the shown faces; they resume turning on return. Ids scrolled out of
+  `liveIds` are pruned so flip state doesn't leak back.
+
+- **Clock tick aligned to the minute.** `ClockTileFace` recomputes its `ClockFace`
+  on each minute boundary (`delay(60_000 - now % 60_000)`) while active, so a
+  paused launcher does no per-minute work and refreshes on resume. Formatting is a
+  pure `clockFace(...)` fn (24-hour, unpadded hours, lowercase full weekday/month)
+  ported from the prototype `clockNow()`, unit-tested; `alarm` is a static
+  placeholder until an alarm provider lands.
