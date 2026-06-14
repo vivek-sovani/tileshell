@@ -357,3 +357,40 @@ rule 4. Newest first.
   value to end-of-line, so a content URI containing `=` round-trips. Tolerance:
   transparency is clamped to 0..1 (bad floats keep the default); an empty
   `customWallpaper=` decodes to null; an empty `wallpaper=` keeps the default.
+
+## S19 — Persistence hardening + first run
+
+- **Serialized layout writes.** All Start-layout mutations (reorder, resize,
+  unpin, merge, rename, reset, uninstall-prune) now run on
+  `Dispatchers.IO.limitedParallelism(1)` in `StartViewModel`, so committed edits
+  apply in call order and never interleave one another's `@Transaction`. Settings
+  writes stay on plain `Dispatchers.IO` — Proto/DataStore already serializes them.
+
+- **Debounced reorder.** Reorder commits route through a `MutableSharedFlow`
+  (`DROP_OLDEST`) `.debounce(120 ms)` so a flurry of drops coalesces into a single
+  transactional write of the freshest order. 120 ms is small enough to be
+  invisible; other edits (resize/unpin/merge) write immediately.
+
+- **Corruption → default-layout fallback.** `TileShellDatabase.build()` adds
+  `fallbackToDestructiveMigration()` (schema-version mismatch / downgrade recreates
+  rather than crashes) and force-opens `openHelper.readableDatabase` at startup so
+  on-disk corruption surfaces immediately; a `SQLiteException` the framework's
+  handler can't recover from triggers an explicit `deleteDatabase` + rebuild. The
+  DB always comes up — empty if wiped — and `seedIfEmpty()` re-seeds the WP
+  default. Settings live in a separate DataStore file, unaffected.
+
+- **First-run hint overlay.** New `FirstRunHint` composable in `:feature:start`
+  shows the prototype's `.hint` text verbatim (same bolded spans) as a one-time
+  bottom card over Start, dismissed by tap. A `first_run_hint_shown` flag in the
+  existing `tileshell.prefs` SharedPreferences keeps it from returning. Layered
+  above all Start content so it reads on a fresh install.
+
+- **Default-launcher prompt polish.** `MainActivity` now early-returns when
+  TileShell already holds the HOME role (never prompts even if we never recorded
+  asking — e.g. set default from system settings), records the ask *before*
+  launching (a process death mid-dialog can't cause a re-prompt), and wraps the
+  `launcher.launch` in `runCatching`. Decline is still respected — never an
+  automatic re-prompt.
+
+- **Restore checklist.** `docs/RESTORE-CHECKLIST.md` captures the manual
+  kill/reboot/corruption verification steps (executed on device, not in CI).

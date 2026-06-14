@@ -1,6 +1,7 @@
 package com.tileshell.core.data.db
 
 import android.content.Context
+import android.database.sqlite.SQLiteException
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -45,9 +46,32 @@ abstract class TileShellDatabase : RoomDatabase() {
                 instance ?: build(context.applicationContext).also { instance = it }
             }
 
-        private fun build(context: Context): TileShellDatabase =
-            Room.databaseBuilder(context, TileShellDatabase::class.java, NAME)
-                .addMigrations(*MIGRATIONS)
-                .build()
+        /**
+         * Open the database, recovering to an empty file if it is corrupt
+         * (S19 hardening). A schema-version mismatch with no migration path (a
+         * downgrade, or a DB left by an incompatible build) recreates the file
+         * via [fallbackToDestructiveMigration]; the file is force-opened here so
+         * on-disk corruption surfaces at startup rather than on the first random
+         * query, and a corruption the framework's handler cannot recover from is
+         * wiped and rebuilt. Either way the DB comes up empty and the seeder
+         * ([LayoutRepository.seedIfEmpty]) re-fills the WP default layout.
+         */
+        private fun build(context: Context): TileShellDatabase {
+            fun open(): TileShellDatabase =
+                Room.databaseBuilder(context, TileShellDatabase::class.java, NAME)
+                    .addMigrations(*MIGRATIONS)
+                    .fallbackToDestructiveMigration()
+                    .build()
+
+            val db = open()
+            return try {
+                db.openHelper.readableDatabase // force-open: corruption fails here, not later
+                db
+            } catch (e: SQLiteException) {
+                db.close()
+                context.deleteDatabase(NAME)
+                open()
+            }
+        }
     }
 }

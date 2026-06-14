@@ -349,6 +349,11 @@ fun StartScreen(
             },
             onRename = { name -> openFolder?.let { viewModel.renameFolder(it.id, name) } },
         )
+
+        // First-run hint (S19): one-time prototype hint card over Start. Sits
+        // above all other layers so it reads on a fresh install; self-hides once
+        // seen.
+        FirstRunHint()
     }
     }
 }

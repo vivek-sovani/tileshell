@@ -13,14 +13,17 @@ import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.core.data.settings.SettingsRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Drives the Start screen: exposes the persisted layout as a [StateFlow], seeds
@@ -33,6 +36,13 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val settingsRepository = SettingsRepository.create(application)
     private val launcherApps =
         application.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
+
+    // All layout mutations run on a single-thread context so committed edits are
+    // serialized — they apply in call order and never interleave with one
+    // another's transaction (S19 persistence hardening). The DAO ops are already
+    // each a @Transaction; this guarantees ordering across them.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val writeContext = Dispatchers.IO.limitedParallelism(1)
 
     val tiles: StateFlow<List<TileModel>> = repository.tiles.stateIn(
         scope = viewModelScope,
@@ -50,6 +60,14 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Emitted when the user presses Home while already on Start. */
     private val _homeRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val homeRequests: SharedFlow<Unit> = _homeRequests
+
+    // Reorder commits are debounced (S19): a flurry of drops coalesces into one
+    // transactional write of the latest order. Buffered + DROP_OLDEST so a burst
+    // never suspends the caller, and the freshest order always wins.
+    private val reorderRequests = MutableSharedFlow<List<String>>(
+        extraBufferCapacity = 8,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST,
+    )
 
     /** True once the App-list page is the committed page. */
     private val _isAppList = MutableStateFlow(false)
@@ -132,8 +150,14 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         ) = Unit
     }
 
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
+    private val debouncedReorders = reorderRequests.debounce(REORDER_DEBOUNCE_MS)
+
     init {
-        viewModelScope.launch(Dispatchers.IO) { repository.seedIfEmpty() }
+        viewModelScope.launch(writeContext) { repository.seedIfEmpty() }
+        viewModelScope.launch(writeContext) {
+            debouncedReorders.collect { repository.reorderTiles(it) }
+        }
         launcherApps.registerCallback(packageCallback, Handler(Looper.getMainLooper()))
     }
 
@@ -200,14 +224,14 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Reset the Start grid to the WP default layout (FR-7). */
     fun resetLayout() {
-        viewModelScope.launch(Dispatchers.IO) { repository.resetLayout() }
+        viewModelScope.launch(writeContext) { repository.resetLayout() }
     }
 
     /** Rename the open folder (FR-4). Blank/whitespace names are ignored. */
     fun renameFolder(id: String, name: String) {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return
-        viewModelScope.launch(Dispatchers.IO) { repository.renameFolder(id, trimmed) }
+        viewModelScope.launch(writeContext) { repository.renameFolder(id, trimmed) }
     }
 
     /**
@@ -221,19 +245,22 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         _homeRequests.tryEmit(Unit)
     }
 
-    /** Persist a new tile order after an edit-mode drag-to-reorder (FR-3.2). */
+    /**
+     * Persist a new tile order after an edit-mode drag-to-reorder (FR-3.2). The
+     * write is debounced ([debouncedReorders]) so rapid commits coalesce.
+     */
     fun reorder(orderedIds: List<String>) {
-        viewModelScope.launch(Dispatchers.IO) { repository.reorderTiles(orderedIds) }
+        reorderRequests.tryEmit(orderedIds)
     }
 
     /** Cycle the tile's size small→medium→wide→large→small (FR-3.4 resize). */
     fun resize(id: String) {
-        viewModelScope.launch(Dispatchers.IO) { repository.cycleTileSize(id) }
+        viewModelScope.launch(writeContext) { repository.cycleTileSize(id) }
     }
 
     /** Unpin (remove) a tile from the Start grid (FR-3.5). */
     fun unpin(id: String) {
-        viewModelScope.launch(Dispatchers.IO) { repository.removeTile(id) }
+        viewModelScope.launch(writeContext) { repository.removeTile(id) }
     }
 
     /**
@@ -242,16 +269,21 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      * any reorder incurred during the drag is persisted with the merge.
      */
     fun merge(dragId: String, targetId: String, survivingOrder: List<String>) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(writeContext) {
             repository.mergeTiles(dragId, targetId, survivingOrder)
         }
     }
 
     private fun prunePackage(packageName: String) {
-        viewModelScope.launch(Dispatchers.IO) { repository.removeApp(packageName) }
+        viewModelScope.launch(writeContext) { repository.removeApp(packageName) }
     }
 
     override fun onCleared() {
         launcherApps.unregisterCallback(packageCallback)
+    }
+
+    private companion object {
+        /** Coalesce window for reorder commits (small enough to be invisible). */
+        const val REORDER_DEBOUNCE_MS = 120L
     }
 }

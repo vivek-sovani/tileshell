@@ -82,12 +82,15 @@ private fun DefaultLauncherPromptOnFirstRun() {
 
     LaunchedEffect(Unit) {
         val prefs = context.getSharedPreferences("tileshell.prefs", Context.MODE_PRIVATE)
+        // Re-check the role every launch: already default → never prompt (even if
+        // we never recorded asking, e.g. the user set us default from system
+        // settings). Otherwise ask exactly once and respect a decline.
+        if (DefaultLauncher.isDefault(context)) return@LaunchedEffect
         if (prefs.getBoolean("asked_default_launcher", false)) return@LaunchedEffect
-        if (!DefaultLauncher.isDefault(context)) {
-            DefaultLauncher.createPromptIntent(context)?.let { intent ->
-                prefs.edit().putBoolean("asked_default_launcher", true).apply()
-                launcher.launch(intent)
-            }
-        }
+        val intent = DefaultLauncher.createPromptIntent(context) ?: return@LaunchedEffect
+        // Record the ask before launching so a process death mid-dialog can't
+        // make us re-prompt; only flip it when a prompt actually fires.
+        prefs.edit().putBoolean("asked_default_launcher", true).apply()
+        runCatching { launcher.launch(intent) }
     }
 }
