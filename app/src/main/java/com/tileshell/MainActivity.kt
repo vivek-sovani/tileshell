@@ -1,5 +1,6 @@
 package com.tileshell
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -12,7 +13,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import com.tileshell.feature.livetiles.WeatherRefreshWorker
 import com.tileshell.feature.start.StartScreen
 import com.tileshell.feature.start.StartViewModel
 import com.tileshell.feature.system.DefaultLauncher
@@ -53,6 +60,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             DefaultLauncherPromptOnFirstRun()
+            RequestRuntimePermissionsOnStart()
             StartScreen(viewModel = startViewModel)
         }
     }
@@ -92,5 +100,40 @@ private fun DefaultLauncherPromptOnFirstRun() {
         // make us re-prompt; only flip it when a prompt actually fires.
         prefs.edit().putBoolean("asked_default_launcher", true).apply()
         runCatching { launcher.launch(intent) }
+    }
+}
+
+/**
+ * Requests all runtime permissions TileShell needs (calendar, location, contacts)
+ * upfront on app start so the user is asked once in a single system dialog rather
+ * than separately when each live tile first appears. The one-shot guard uses
+ * [rememberSaveable] so it fires once per process; Android handles permanent
+ * denial silently (no dialog shown). When location is granted the weather worker
+ * is kicked immediately so the weather tile can show data on the first open.
+ */
+@Composable
+private fun RequestRuntimePermissionsOnStart() {
+    val context = LocalContext.current
+    var asked by rememberSaveable { mutableStateOf(false) }
+
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { results ->
+        if (results[Manifest.permission.ACCESS_COARSE_LOCATION] == true) {
+            WeatherRefreshWorker.refreshNow(context)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (!asked) {
+            asked = true
+            launcher.launch(
+                arrayOf(
+                    Manifest.permission.READ_CONTACTS,
+                    Manifest.permission.READ_CALENDAR,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                ),
+            )
+        }
     }
 }

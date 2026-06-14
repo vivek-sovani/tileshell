@@ -40,11 +40,10 @@ fun WeatherTileFace(
 ) {
     val context = LocalContext.current
     LaunchedEffect(Unit) { WeatherRefreshWorker.ensureScheduled(context) }
-    // Opt-in: request coarse location; refresh immediately once it is granted.
-    rememberOptInPermission(
-        permission = Manifest.permission.ACCESS_COARSE_LOCATION,
-        onGranted = { WeatherRefreshWorker.refreshNow(context) },
-    )
+    val locationGranted = rememberPermissionGranted(Manifest.permission.ACCESS_COARSE_LOCATION)
+    LaunchedEffect(locationGranted) {
+        if (locationGranted) WeatherRefreshWorker.refreshNow(context)
+    }
 
     val cache = remember(context) { WeatherCache.create(context) }
     val snapshot = cache.data.collectAsState(initial = WeatherCacheData()).value.snapshot

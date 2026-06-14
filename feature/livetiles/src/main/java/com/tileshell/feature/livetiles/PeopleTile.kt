@@ -55,7 +55,7 @@ fun PeopleTileFace(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val granted = rememberOptInPermission(Manifest.permission.READ_CONTACTS)
+    val granted = rememberPermissionGranted(Manifest.permission.READ_CONTACTS)
 
     var people by remember { mutableStateOf<List<Person>>(emptyList()) }
     LaunchedEffect(granted) {

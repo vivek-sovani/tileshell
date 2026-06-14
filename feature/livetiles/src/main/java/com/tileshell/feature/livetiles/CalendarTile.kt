@@ -43,7 +43,7 @@ fun CalendarTileFace(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val granted = rememberOptInPermission(Manifest.permission.READ_CALENDAR)
+    val granted = rememberPermissionGranted(Manifest.permission.READ_CALENDAR)
 
     var face by remember { mutableStateOf<CalendarFace?>(null) }
     LaunchedEffect(granted, active) {
