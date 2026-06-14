@@ -77,6 +77,8 @@ fun PersonalizeSheet(
     onWallpaperChange: (id: String) -> Unit,
     onPickCustomWallpaper: () -> Unit,
     onResetLayout: () -> Unit,
+    notificationsEnabled: Boolean,
+    onNotificationAccess: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -241,6 +243,25 @@ fun PersonalizeSheet(
                     Text(text = "reset start layout", color = tokens.fg, fontSize = 14.sp)
                     Spacer(Modifier.weight(1f))
                     Text(text = "↺", color = tokens.fgDim, fontSize = 16.sp)
+                }
+            }
+
+            // ---- notifications (FR-1.2 / FR-2 opt-in) ----
+            SettingGroup(label = "notifications", tokens.fgDim) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onNotificationAccess)
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(text = "badges & live mail", color = tokens.fg, fontSize = 14.sp)
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        text = if (notificationsEnabled) "on ›" else "allow access ›",
+                        color = if (notificationsEnabled) accent else tokens.fgDim,
+                        fontSize = 13.sp,
+                    )
                 }
             }
         }

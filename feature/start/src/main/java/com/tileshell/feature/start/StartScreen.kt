@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -92,10 +93,15 @@ import com.tileshell.core.data.TileSize
 import com.tileshell.feature.applist.AppListScreen
 import com.tileshell.feature.livetiles.CalendarTileFace
 import com.tileshell.feature.livetiles.ClockTileFace
+import com.tileshell.feature.livetiles.ConversationTileFace
 import com.tileshell.feature.livetiles.LiveFace
+import com.tileshell.feature.livetiles.NotificationAccess
+import com.tileshell.feature.livetiles.NotificationCenter
+import com.tileshell.feature.livetiles.NotificationSnapshot
 import com.tileshell.feature.livetiles.WeatherTileFace
 import com.tileshell.feature.livetiles.rememberFlipState
 import com.tileshell.feature.livetiles.rememberLiveTilesActive
+import com.tileshell.feature.livetiles.rememberNotificationAccess
 import com.tileshell.feature.personalize.PersonalizeSheet
 import com.tileshell.core.design.DarkColorTokens
 import com.tileshell.core.design.Glass
@@ -131,6 +137,10 @@ fun StartScreen(
     val openFolderId by viewModel.openFolderId.collectAsStateWithLifecycle()
     val personalizeOpen by viewModel.personalizeOpen.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    // Live notification state (FR-1.2 badges, FR-2 mail/messages). Empty until the
+    // user enables notification access, which keeps every tile static / un-badged.
+    val notifications by NotificationCenter.snapshot.collectAsStateWithLifecycle()
+    val notificationAccess = rememberNotificationAccess()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
@@ -275,6 +285,8 @@ fun StartScreen(
                     selectedTileId = selectedTileId,
                     glassFill = glassFill,
                     glassLine = tokens.glassLine,
+                    darkTheme = settings.dark,
+                    notifications = notifications,
                     widthPx = widthPx,
                     viewportHeightPx = viewportHeightPx,
                     statusBarTopPx = statusBarTopPx,
@@ -342,6 +354,14 @@ fun StartScreen(
                 viewModel.resetLayout()
                 Toast.makeText(context, "layout reset", Toast.LENGTH_SHORT).show()
             },
+            notificationsEnabled = notificationAccess,
+            onNotificationAccess = {
+                runCatching { context.startActivity(NotificationAccess.settingsIntent()) }
+                    .onFailure {
+                        Toast.makeText(context, "open settings to allow access", Toast.LENGTH_SHORT)
+                            .show()
+                    }
+            },
             onDismiss = viewModel::closePersonalize,
         )
 
@@ -381,6 +401,8 @@ private fun StartPage(
     selectedTileId: String?,
     glassFill: Color?,
     glassLine: Color,
+    darkTheme: Boolean,
+    notifications: NotificationSnapshot,
     widthPx: Float,
     viewportHeightPx: Float,
     statusBarTopPx: Float,
@@ -546,6 +568,9 @@ private fun StartPage(
                         jigglePhase = jigglePhase,
                         flipped = flipState.isFlipped(model.id),
                         liveActive = liveActive,
+                        badgeCount = (model as? TileModel.App)
+                            ?.let { notifications.badgeFor(it.packageName) } ?: 0,
+                        darkTheme = darkTheme,
                         onTap = { if (!editMode) onTile(model) },
                         onLongPress = { if (!editMode) onEnterEdit(model.id) },
                     )
@@ -600,6 +625,8 @@ private fun TileView(
     jigglePhase: Float,
     flipped: Boolean,
     liveActive: Boolean,
+    badgeCount: Int,
+    darkTheme: Boolean,
     onTap: () -> Unit,
     onLongPress: () -> Unit,
 ) {
@@ -664,7 +691,52 @@ private fun TileView(
                     .background(TileAccents.forId(tile.colorId), CircleShape),
             )
         }
+        // Per-app notification badge (FR-1.2). Top-right pill, count from the
+        // notification listener; sized down on small tiles (prototype .badge).
+        if (badgeCount > 0) {
+            NotificationBadge(
+                count = badgeCount,
+                dark = darkTheme,
+                small = tile.size == TileSize.SMALL,
+                modifier = Modifier.align(Alignment.TopEnd),
+            )
+        }
         if (selected) TileControls()
+    }
+}
+
+/**
+ * The prototype `.badge`: a rounded count pill in the tile's top-right corner.
+ * White on dark themes, inverted on light (`#screen.light .badge`). Shrinks on
+ * small tiles. Counts over 99 read "99+" so the pill keeps its shape.
+ */
+@Composable
+private fun NotificationBadge(
+    count: Int,
+    dark: Boolean,
+    small: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val bg = if (dark) Color.White else Color(0xFF111111)
+    val fg = if (dark) Color(0xFF111111) else Color.White
+    val diameter = if (small) 18.dp else 22.dp
+    val inset = if (small) 5.dp else 8.dp
+    Box(
+        modifier = modifier
+            .padding(top = inset, end = inset)
+            .defaultMinSize(minWidth = diameter, minHeight = diameter)
+            .height(diameter)
+            .background(bg, CircleShape)
+            .padding(horizontal = 5.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = if (count > 99) "99+" else count.toString(),
+            color = fg,
+            fontSize = if (small) 11.sp else 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+        )
     }
 }
 
@@ -1152,7 +1224,8 @@ private fun AppTileContent(
     // also fall back to it when their opt-in permission is denied or no data is
     // cached (the live composables call the slot).
     val staticGlyph = @Composable { StaticTileGlyph(tile) }
-    when (LiveFace.forIconKey(tile.iconKey, tile.size)) {
+    val face = LiveFace.forIconKey(tile.iconKey, tile.size)
+    when (face) {
         LiveFace.CLOCK -> {
             ClockTileFace(
                 size = tile.size,
@@ -1175,6 +1248,16 @@ private fun AppTileContent(
             CalendarTileFace(
                 flipped = flipped,
                 active = liveActive,
+                fallback = staticGlyph,
+                modifier = Modifier.fillMaxSize(),
+            )
+            return
+        }
+        LiveFace.MAIL, LiveFace.MESSAGES -> {
+            ConversationTileFace(
+                kind = face,
+                packageName = tile.packageName,
+                flipped = flipped,
                 fallback = staticGlyph,
                 modifier = Modifier.fillMaxSize(),
             )

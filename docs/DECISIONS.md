@@ -427,6 +427,54 @@ rule 4. Newest first.
   ported from the prototype `clockNow()`, unit-tested; `alarm` is a static
   placeholder until an alarm provider lands.
 
+## S22 — notification listener: badges + mail/messages (FR-1.2 / FR-2)
+
+- **One `NotificationListenerService`, snapshot rebuilt from scratch.**
+  `TileNotificationListenerService` (declared in the `:feature:livetiles` library
+  manifest so it merges into `:app` automatically) recomputes the whole picture
+  from `getActiveNotifications()` on every connect/post/removal rather than
+  diffing — cheap, and self-correcting if a callback is missed. It maps each
+  `StatusBarNotification` to a framework-free `NotificationItem` and calls the
+  pure `summarizeNotifications`, which is unit-tested.
+
+- **Aggregation rules.** Ongoing (`!isClearable`) and group-summary
+  (`FLAG_GROUP_SUMMARY`) rows are dropped, so a 3-message thread counts as 3 (not
+  4) and music/navigation never badge. The badge count is the number of remaining
+  notifications per package (FR-1.2); the mail/messages preview is the newest of
+  them (title = sender, text = snippet, count = unread).
+
+- **Live state is an in-memory singleton, not a repository.**
+  `NotificationCenter` is a process-wide `StateFlow<NotificationSnapshot>` the
+  service publishes to and the Start grid (badges) + conversation tiles (previews)
+  collect. Notification state is ephemeral — rebuilt whenever the listener
+  (re)binds — so there is nothing to persist (unlike weather's DataStore cache).
+
+- **Faces bind to the tile's own package, not a resolved default app.** The
+  mail/messages tiles read `NotificationCenter.conversationFor(tile.packageName)`
+  rather than resolving the system default mail/SMS app — the pinned tile already
+  *is* that app, so this is both simpler and correct. `LiveFace` gains `MAIL`
+  (icon key `mail`) and `MESSAGES` (`messages`), both flippable; the back face
+  shows the count with "unread" / "new" wording per the prototype.
+
+- **Opt-in = settings deep-link, re-checked on resume.** Listener access is not a
+  runtime permission, so the personalize sheet gains a "notifications" row
+  ("badges & live mail") that deep-links to
+  `Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS`. `rememberNotificationAccess`
+  re-checks `getEnabledListenerPackages` on every `ON_RESUME` so the toggle label
+  flips the moment the user returns. Until granted the snapshot stays empty —
+  every tile is un-badged and the mail/messages faces fall back to the static
+  glyph, which is exactly the graceful opt-out.
+
+- **Reconnect.** `onListenerDisconnected` clears the snapshot (immediate degrade)
+  and best-effort `requestRebind`s; `onListenerConnected` republishes. Revoking
+  access disconnects permanently — the opt-out path.
+
+- **Badges only on app tiles.** Folder tiles don't aggregate child badges this
+  session (the WP-faithful default shows badges on app tiles); the per-package
+  count is keyed off `TileModel.App.packageName`. The badge pill follows the
+  prototype `.badge` (22dp / 18dp on small, white-on-dark, inverted on light,
+  ">99" caps to "99+").
+
 ## S21 — weather + calendar tiles (FR-2)
 
 - **Live data lives in `:feature:livetiles`, not `:core:data`.** Weather and

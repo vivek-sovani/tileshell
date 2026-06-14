@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+
+        <!--
+            Opt-in notification listener (FR-1.2 badges, FR-2 mail/messages
+            faces). Declared in the live-tiles library so the service travels
+            with the module; merges into the app manifest. The user must enable
+            it under system "Notification access" (deep-linked from personalize);
+            until then it never binds and every tile stays static / un-badged.
+        -->
+        <service
+            android:name=".TileNotificationListenerService"
+            android:exported="true"
+            android:label="@string/notification_listener_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+    </application>
+
+</manifest>

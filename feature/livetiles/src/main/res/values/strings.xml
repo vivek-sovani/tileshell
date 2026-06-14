@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shown in the system "Notification access" list for the listener service. -->
+    <string name="notification_listener_label">TileShell live tiles</string>
+</resources>

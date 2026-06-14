@@ -8,13 +8,14 @@ import kotlin.random.Random
  * key (the prototype `app.live` field — see `data.js` / `tiles.js`).
  *
  * Phase 5 lands these incrementally: S20 implements [CLOCK]; S21 adds [WEATHER]
- * and [CALENDAR]; mail/messages/people/photos/music (S22+) join later. Until
- * then an unmapped icon key resolves to `null` and the tile renders as a static
- * glyph.
+ * and [CALENDAR]; S22 adds [MAIL] and [MESSAGES]; people/photos/music join later.
+ * Until then an unmapped icon key resolves to `null` and the tile renders as a
+ * static glyph.
  *
- * [WEATHER] and [CALENDAR] carry opt-in data (coarse location / calendar read);
- * the face composables fall back to the static glyph when the permission is
- * denied or no data is cached — the mapping here stays permission-agnostic.
+ * [WEATHER], [CALENDAR], [MAIL] and [MESSAGES] carry opt-in data (coarse location
+ * / calendar read / notification access); the face composables fall back to the
+ * static glyph when the permission is denied or no data is available — the
+ * mapping here stays permission-agnostic.
  *
  * @property flips whether the face has a back side that the flip scheduler may
  *   turn to. Photos (a cross-fade slideshow) never flip; the clock does.
@@ -23,6 +24,8 @@ enum class LiveFace(val flips: Boolean) {
     CLOCK(flips = true),
     WEATHER(flips = true),
     CALENDAR(flips = true),
+    MAIL(flips = true),
+    MESSAGES(flips = true),
     ;
 
     companion object {
@@ -37,6 +40,8 @@ enum class LiveFace(val flips: Boolean) {
                 "clock" -> CLOCK
                 "weather" -> WEATHER
                 "calendar" -> CALENDAR
+                "mail" -> MAIL
+                "messages" -> MESSAGES
                 else -> null
             }
         }
