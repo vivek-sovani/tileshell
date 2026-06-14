@@ -18,17 +18,23 @@ class LayoutSeederTest {
     }
 
     @Test
-    fun `only resolvable app tiles are seeded, in order, with contiguous positions`() {
+    fun `resolvable and live-only app tiles are seeded, in order, with contiguous positions`() {
         val seeded = seeder.seed(resolver = resolverFor("clock", "phone", "settings"))
 
+        // clock/phone/settings resolve; weather/calendar seed as liveOnly; the rest
+        // (camera, people, mail, …) drop out. Declared order is preserved.
         val apps = seeded.filterIsInstance<SeededTile.App>()
-        assertEquals(listOf("t-clock", "t-phone", "t-settings"), apps.map { it.id })
-        assertEquals(listOf(0, 1, 2), seeded.map { it.position })
+        assertEquals(
+            listOf("t-clock", "t-phone", "t-weather", "t-cal", "t-settings"),
+            apps.map { it.id },
+        )
+        assertEquals(listOf(0, 1, 2, 3, 4), seeded.map { it.position })
     }
 
     @Test
-    fun `roleless tiles (weather, notes, bank) are skipped`() {
-        // Resolve everything that HAS a role; weather/notes/bank have none.
+    fun `roleless non-live tiles (notes, bank) are skipped`() {
+        // Resolve everything that HAS a role; notes/bank have none and are not
+        // liveOnly, so they drop out.
         val withRole = DefaultLayout.DEFAULT_TILES
             .flatMap { if (it.isGroup) it.children else listOfNotNull(it.app) }
             .distinct()
@@ -36,17 +42,41 @@ class LayoutSeederTest {
         val seeded = seeder.seed(resolver = resolverFor(*withRole.toTypedArray()))
 
         val ids = seeded.map { it.id }
-        assertTrue("weather skipped", "t-weather" !in ids)
         assertTrue("notes skipped", "t-notes" !in ids)
         assertTrue("bank skipped", "t-bank" !in ids)
         assertTrue("clock kept", "t-clock" in ids)
     }
 
     @Test
+    fun `self-contained live tiles seed even when no app resolves`() {
+        // weather has no role; calendar's role yields nothing here. Both are
+        // liveOnly, so they seed with a blank, inert launch target.
+        val seeded = seeder.seed(resolver = resolverFor("clock"))
+        val apps = seeded.filterIsInstance<SeededTile.App>().associateBy { it.id }
+
+        assertTrue("weather seeded", "t-weather" in apps.keys)
+        assertTrue("calendar seeded", "t-cal" in apps.keys)
+        assertEquals("", apps.getValue("t-weather").component.packageName)
+        assertEquals("weather", apps.getValue("t-weather").iconKey)
+        assertEquals("calendar", apps.getValue("t-cal").iconKey)
+    }
+
+    @Test
+    fun `live tile uses its resolved app when one exists`() {
+        // calendar resolves here, so it keeps a real launch target.
+        val seeded = seeder.seed(resolver = resolverFor("calendar"))
+        val cal = seeded.filterIsInstance<SeededTile.App>().single { it.id == "t-cal" }
+        assertEquals("com.calendar", cal.component.packageName)
+    }
+
+    @Test
     fun `app whose role has no installed match is skipped`() {
-        // phone resolves; clock's role yields nothing from this resolver.
+        // phone resolves; clock's role yields nothing from this resolver, so it
+        // drops out. The liveOnly weather/calendar tiles still seed (blank target).
         val seeded = seeder.seed(resolver = resolverFor("phone"))
-        assertEquals(listOf("t-phone"), seeded.map { it.id })
+        val ids = seeded.map { it.id }
+        assertTrue("phone kept", "t-phone" in ids)
+        assertTrue("clock skipped (role unresolved, not liveOnly)", "t-clock" !in ids)
     }
 
     @Test

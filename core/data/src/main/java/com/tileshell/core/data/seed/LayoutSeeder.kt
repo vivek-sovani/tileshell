@@ -34,10 +34,12 @@ sealed interface SeededTile {
 /**
  * Maps the default layout to installed apps (first-run seeding).
  *
- * App tiles whose role has no mapping or no installed match are skipped.
- * Folders keep only resolvable, de-duplicated children and are dropped if none
- * resolve. Surviving tiles get contiguous positions so dense packing is
- * unaffected by the gaps. Pure given a [RoleResolver] — unit-tested.
+ * App tiles whose role has no mapping or no installed match are skipped — except
+ * `liveOnly` tiles (weather, calendar), whose live face is self-contained: those
+ * always seed, taking a resolved launch target when one exists and a blank, inert
+ * one otherwise. Folders keep only resolvable, de-duplicated children and are
+ * dropped if none resolve. Surviving tiles get contiguous positions so dense
+ * packing is unaffected by the gaps. Pure given a [RoleResolver] — unit-tested.
  */
 class LayoutSeeder {
 
@@ -67,8 +69,9 @@ class LayoutSeeder {
                 )
             } else {
                 val appId = tile.app ?: continue
-                val role = DefaultLayout.roleFor(appId) ?: continue
-                val component = resolver.resolve(role) ?: continue
+                val resolved = DefaultLayout.roleFor(appId)?.let(resolver::resolve)
+                val component = resolved
+                    ?: if (tile.liveOnly) selfContainedComponent(appId) else continue
                 out += SeededTile.App(
                     id = tile.id,
                     position = position++,
@@ -81,4 +84,12 @@ class LayoutSeeder {
         }
         return out
     }
+
+    /**
+     * The launch target for a self-contained live tile with no resolvable app: a
+     * blank component. The live face renders from its own provider; tapping is
+     * inert (the UI skips a blank package rather than launching it).
+     */
+    private fun selfContainedComponent(appId: String): ResolvedComponent =
+        ResolvedComponent(packageName = "", activityName = "", label = appId)
 }

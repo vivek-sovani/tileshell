@@ -95,9 +95,11 @@ import com.tileshell.feature.livetiles.CalendarTileFace
 import com.tileshell.feature.livetiles.ClockTileFace
 import com.tileshell.feature.livetiles.ConversationTileFace
 import com.tileshell.feature.livetiles.LiveFace
+import com.tileshell.feature.livetiles.MusicTileFace
 import com.tileshell.feature.livetiles.NotificationAccess
 import com.tileshell.feature.livetiles.NotificationCenter
 import com.tileshell.feature.livetiles.NotificationSnapshot
+import com.tileshell.feature.livetiles.NotificationTileFace
 import com.tileshell.feature.livetiles.PeopleTileFace
 import com.tileshell.feature.livetiles.PhotosData
 import com.tileshell.feature.livetiles.PhotosStore
@@ -1309,7 +1311,29 @@ private fun AppTileContent(
             )
             return
         }
-        null -> Unit
+        LiveFace.MUSIC -> {
+            MusicTileFace(
+                flipped = flipped,
+                active = liveActive,
+                fallback = staticGlyph,
+                modifier = Modifier.fillMaxSize(),
+            )
+            return
+        }
+        null -> {
+            // No dedicated live face: any app tile still goes live when its own
+            // package has an active notification (FR-2.3 — notification tiles for
+            // all other apps). Small tiles stay static (the badge carries the
+            // count); medium+ show the latest notification, else the static glyph.
+            if (tile.size != TileSize.SMALL) {
+                NotificationTileFace(
+                    packageName = tile.packageName,
+                    fallback = staticGlyph,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                return
+            }
+        }
     }
     staticGlyph()
 }
@@ -1389,7 +1413,11 @@ private fun TileLabel(text: String) {
 private fun onTileClick(context: Context, tile: TileModel) {
     when (tile) {
         is TileModel.App ->
-            if (!AppLauncher.launch(context, tile.packageName, tile.activityName)) {
+            // Self-contained live tiles (weather/calendar with no resolved app)
+            // carry a blank launch target — tapping is inert, not an error toast.
+            if (tile.packageName.isNotBlank() &&
+                !AppLauncher.launch(context, tile.packageName, tile.activityName)
+            ) {
                 Toast.makeText(
                     context,
                     "couldn't open ${tile.label ?: "app"}",

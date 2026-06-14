@@ -3,6 +3,51 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## S24 — music tile + degradation matrix (FR-2.3, feature complete)
+
+- **Music face reads the active media session, not a notification.** `MusicTileFace`
+  uses `MediaSessionManager.getActiveSessions(component)` with our notification-
+  listener `ComponentName` as the access token — the same grant that powers
+  badges/faces, so the tile needs no new permission. It prefers a `STATE_PLAYING`
+  controller, else the first (priority-ordered) one. A `DisposableEffect` registers
+  `OnActiveSessionsChangedListener`; because metadata/playback changes *within* a
+  session don't fire that callback, a light `LaunchedEffect` poll (2 s, gated on
+  `active`) keeps the face current. Every manager call is `runCatching`-guarded, so
+  denied access surfaces as a null face → `fallback` (static glyph), never a crash.
+  `nowPlayingFrom(title, artist, state)` is pure + unit-tested (trim, placeholder
+  title, playing = playing|buffering, null when no title and no artist). Front = EQ
+  bars + title/artist; back = "paused / tap to resume" (prototype `liveFace('music')`).
+- **EQ bars are gated, not an infinite transition.** Five bars step to fresh random
+  levels every 240 ms via a `LaunchedEffect` that runs only while `active && playing`
+  and settles flat otherwise — so an idle/off-screen launcher does no per-frame EQ
+  work (consistent with the other gated live loops). Smoothed with a 180 ms
+  `animateFloatAsState` per bar.
+- **Notification live tiles for *all* apps.** `NotificationTileFace` generalises the
+  mail/messages face to every app tile with no dedicated live face: medium+ tiles
+  whose package has an active notification show the newest sender + snippet (reading
+  the same `NotificationCenter` snapshot), falling back to the static glyph when the
+  app has nothing pending or access is off. It does **not** flip — the per-app badge
+  already carries the count and a generic tile isn't registered with the flip
+  scheduler (its icon key maps to no `LiveFace`) — and it isn't gated by `liveActive`
+  (content shouldn't pause). Wired in `AppTileContent`'s `face == null` branch for
+  size ≠ small; small tiles keep the badge only.
+- **Weather + calendar always seed (liveOnly).** Their live faces are self-contained
+  (WeatherProvider / CalendarContract), so they shouldn't be gated on resolving an
+  external launcher app — yet `roleFor("weather")` is null and `APP_CALENDAR` may not
+  resolve, so before S24 they were skipped at first run. `DefaultTile.liveOnly`
+  marks them; the seeder seeds a liveOnly tile even when its role doesn't resolve,
+  using a **blank, inert launch component** (the live face renders from its provider).
+  A resolvable role is still preferred when present (tapping opens the app); a blank
+  package makes `onTileClick` a no-op rather than an error toast.
+- **Degradation matrix (FR-2.3) verified.** With every permission denied / access off:
+  clock renders (no permission to deny); weather (no location/city), calendar (no
+  READ_CALENDAR), people (no READ_CONTACTS), photos (no selection), mail/messages and
+  the generic notification face (no listener access), and music (no media access) all
+  return their `fallback` static glyph; badges read an empty snapshot → none. All
+  provider/manager calls are `runCatching`-guarded, so the all-denied path produces a
+  plain static grid with zero crashes. No code gaps found — each face already routed
+  through a fallback slot; music and the generic face were built to the same contract.
+
 ## S17 · Personalize sheet: theme + accent
 
 - **"Proto DataStore" honoured as a typed `Serializer`, not the protobuf

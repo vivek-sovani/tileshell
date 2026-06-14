@@ -9,8 +9,9 @@ import kotlin.random.Random
  *
  * Phase 5 lands these incrementally: S20 implements [CLOCK]; S21 adds [WEATHER]
  * and [CALENDAR]; S22 adds [MAIL] and [MESSAGES]; S23 adds [PEOPLE] and [PHOTOS];
- * music joins later. Until then an unmapped icon key resolves to `null` and the
- * tile renders as a static glyph.
+ * S24 adds [MUSIC]. An unmapped icon key resolves to `null`; that tile renders a
+ * static glyph unless its app has an active notification, in which case the Start
+ * grid overlays the generic notification face (see `NotificationTileFace`).
  *
  * [WEATHER], [CALENDAR], [MAIL], [MESSAGES] and [PEOPLE] carry opt-in data
  * (coarse location / calendar read / notification access / contacts), and
@@ -29,6 +30,7 @@ enum class LiveFace(val flips: Boolean) {
     MESSAGES(flips = true),
     PEOPLE(flips = true),
     PHOTOS(flips = false),
+    MUSIC(flips = true),
     ;
 
     companion object {
@@ -47,6 +49,7 @@ enum class LiveFace(val flips: Boolean) {
                 "messages" -> MESSAGES
                 "people" -> PEOPLE
                 "photos" -> PHOTOS
+                "music" -> MUSIC
                 else -> null
             }
         }

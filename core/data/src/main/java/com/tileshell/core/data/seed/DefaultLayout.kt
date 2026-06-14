@@ -18,7 +18,15 @@ sealed interface RoleQuery {
     data object DefaultSms : RoleQuery
 }
 
-/** A default-layout entry, ported from `DEFAULT_TILES` in data.js. */
+/**
+ * A default-layout entry, ported from `DEFAULT_TILES` in data.js.
+ *
+ * @property liveOnly a self-contained live tile (weather, calendar) whose content
+ *   comes from a provider/content-resolver, not a launched app. These seed even
+ *   when no app resolves their role — the live face still renders — so they always
+ *   appear on first run. A resolvable role is still used when present (so tapping
+ *   opens the matching app); otherwise the tile gets a blank, inert launch target.
+ */
 data class DefaultTile(
     val id: String,
     val size: TileSize,
@@ -27,6 +35,7 @@ data class DefaultTile(
     val isGroup: Boolean = false,
     val name: String? = null,
     val children: List<String> = emptyList(),
+    val liveOnly: Boolean = false,
 )
 
 object DefaultLayout {
@@ -72,10 +81,10 @@ object DefaultLayout {
         DefaultTile("t-phone", TileSize.MEDIUM, "green", app = "phone"),
         DefaultTile("t-camera", TileSize.MEDIUM, "slate", app = "camera"),
         DefaultTile("t-people", TileSize.MEDIUM, "teal", app = "people"),
-        DefaultTile("t-weather", TileSize.MEDIUM, "cyan", app = "weather"),
+        DefaultTile("t-weather", TileSize.MEDIUM, "cyan", app = "weather", liveOnly = true),
         DefaultTile("t-mail", TileSize.MEDIUM, "purple", app = "mail"),
         DefaultTile("t-msg", TileSize.MEDIUM, "amber", app = "messages"),
-        DefaultTile("t-cal", TileSize.WIDE, "magenta", app = "calendar"),
+        DefaultTile("t-cal", TileSize.WIDE, "magenta", app = "calendar", liveOnly = true),
         DefaultTile("t-photos", TileSize.LARGE, "cyan", app = "photos"),
         DefaultTile("t-music", TileSize.WIDE, "orange", app = "music"),
         DefaultTile(
