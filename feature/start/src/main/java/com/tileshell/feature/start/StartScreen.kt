@@ -389,6 +389,13 @@ private fun StartPage(
                         order.addAll(next)
                     }
                 },
+                onMergeMode = { dragId ->
+                    // Park the dragged tile at the end so the other tiles settle
+                    // into their natural slots beneath the floating tile.
+                    if (order.lastOrNull() != dragId && order.remove(dragId)) {
+                        order.add(dragId)
+                    }
+                },
                 onMergeTarget = { id -> mergeTargetId = id },
                 onAutoScroll = { dir -> autoScroll = dir },
                 onDrop = { merge ->
@@ -918,6 +925,7 @@ private fun Modifier.editDragGesture(
     onLift: (id: String, offset: IntOffset) -> Unit,
     onDrag: (offset: IntOffset) -> Unit,
     onReorderTo: (dragId: String, targetId: String) -> Unit,
+    onMergeMode: (dragId: String) -> Unit,
     onMergeTarget: (targetId: String?) -> Unit,
     onAutoScroll: (dir: Int) -> Unit,
     onDrop: (mergeTargetId: String?) -> Unit,
@@ -935,6 +943,16 @@ private fun Modifier.editDragGesture(
 
     fun placementsNow(): List<TilePlacement> =
         GridPacker.pack(order.mapNotNull { id -> byId[id]?.let { TileSpec(id, it.size) } })
+
+    // The other tiles packed *without* [exclude] (the dragged tile). Because a
+    // drag only ever moves the dragged tile within the order, this layout is
+    // invariant for the whole gesture — so a merge target never slips out from
+    // under the finger the way it does in the dragged-included layout.
+    fun othersPacked(exclude: String): List<TilePlacement> =
+        GridPacker.pack(
+            order.filter { it != exclude }
+                .mapNotNull { id -> byId[id]?.let { TileSpec(id, it.size) } },
+        )
 
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
@@ -990,20 +1008,34 @@ private fun Modifier.editDragGesture(
                 change.consume()
                 onDrag((pos - grab).round())
 
-                // Hovering another tile's centre 22–78% marks it as a merge
-                // target (FR-3.3); the edge zone reorders instead (FR-3.2).
-                val target = placementsNow().firstOrNull {
-                    it.id != startId && geom.rect(it).contains(pos)
+                // Merge (FR-3.3) vs reorder (FR-3.2). Merge is detected against
+                // the OTHER tiles packed without the dragged tile — a layout that
+                // stays put — so hovering a tile's centre 22–78% reliably catches
+                // it. Entering a merge target settles the others under the finger
+                // (the dragged tile is parked at the end) and highlights it.
+                // Otherwise the live, dragged-included layout drives the reorder,
+                // so the gap keeps following the finger.
+                val mergeHovered = startId?.let { drag ->
+                    othersPacked(drag)
+                        .firstOrNull { geom.rect(it).contains(pos) }
+                        ?.takeIf { inMergeZone(geom.rect(it), pos) }
                 }
-                if (target == null) {
+
+                if (mergeHovered != null && startId != null) {
                     lastTarget = null
-                    if (mergeId != null) { mergeId = null; onMergeTarget(null) }
-                } else if (inMergeZone(geom.rect(target), pos)) {
-                    lastTarget = null
-                    if (mergeId != target.id) { mergeId = target.id; onMergeTarget(target.id) }
+                    if (mergeId != mergeHovered.id) {
+                        mergeId = mergeHovered.id
+                        onMergeTarget(mergeHovered.id)
+                        onMergeMode(startId)
+                    }
                 } else {
                     if (mergeId != null) { mergeId = null; onMergeTarget(null) }
-                    if (target.id != lastTarget) {
+                    val target = placementsNow().firstOrNull {
+                        it.id != startId && geom.rect(it).contains(pos)
+                    }
+                    if (target == null) {
+                        lastTarget = null
+                    } else if (target.id != lastTarget) {
                         lastTarget = target.id
                         startId?.let { onReorderTo(it, target.id) }
                     }

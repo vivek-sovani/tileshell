@@ -36,6 +36,27 @@ rule 4. Newest first.
   swipe) if the folder is dissolved by an uninstall while open. No pure logic
   here, so no new unit tests.
 
+## S14 fix · Drag-to-merge was unreachable
+
+- **Merge targets are hit-tested against the layout packed *without* the dragged
+  tile.** Emulator verification of S16 surfaced a bug: dragging a tile onto
+  another's centre never created a folder — it reordered. Cause: merge used the
+  live, dragged-included packing (`placementsNow()`), so as the finger crossed a
+  target's edge a reorder fired that relocated the dragged tile's own slot under
+  the finger; that slot is excluded from the hit-test (`it.id != startId`), so
+  the centre/merge zone was never detected and the target physically slid away.
+  Fix: merge detection now runs against `othersPacked(dragged)` — the other tiles
+  packed with the dragged tile removed — which is **invariant** for the whole
+  drag (a drag only ever moves the dragged tile within the order, never reorders
+  the others). So targets stay put and the centre zone is reachable. Reorder
+  still uses the live packing so the gap keeps following the finger.
+- **Entering a merge target settles the others under the finger.** When a merge
+  target is hovered, the dragged tile is parked at the end of the order
+  (`onMergeMode`), so the other tiles render in their natural slots (a tile at
+  the end doesn't perturb the dense packing of those before it) and the
+  highlighted target sits exactly under the floating tile. Leaving the merge zone
+  re-inserts the dragged tile at the finger and the gap-reflow resumes.
+
 ## S15 · Resize, unpin, edit bar
 
 - **Corner controls are handled by the grid gesture, not child buttons.** The
