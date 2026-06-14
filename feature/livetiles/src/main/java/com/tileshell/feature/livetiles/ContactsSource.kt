@@ -6,11 +6,11 @@ import androidx.compose.ui.graphics.Color
 import kotlin.math.abs
 
 /**
- * One contact shown in the people mosaic (FR-2 people tile): a [name] and an
- * optional [photoUri] (the contact's thumbnail). When there is no photo the tile
- * draws an initials avatar tinted by [colorFor].
+ * One contact shown in the people mosaic (FR-2 people tile): a [name] and the
+ * contact's [photoUri] thumbnail. The mosaic shows *only* contacts that have a
+ * profile photo (no initials avatars), so [photoUri] is always present here.
  */
-data class Person(val name: String, val photoUri: String?)
+data class Person(val name: String, val photoUri: String)
 
 /**
  * A small stable palette for initials avatars (no Microsoft assets; WP-ish
@@ -31,11 +31,12 @@ fun colorFor(name: String): Color {
 }
 
 /**
- * Reads up to [limit] contacts (display name + thumbnail) from the system
- * provider for the people tile. Caller must hold READ_CONTACTS — this throws
- * SecurityException otherwise, so guard the call. Contacts without a display name
- * are skipped; an empty result degrades the tile to static. Distinct by name so a
- * contact split across raw accounts only fills one cell.
+ * Reads up to [limit] contacts that have a profile photo (display name +
+ * thumbnail) from the system provider for the people tile. Caller must hold
+ * READ_CONTACTS — this throws SecurityException otherwise, so guard the call.
+ * Contacts without a display name *or without a photo* are skipped (the mosaic
+ * shows photos only); an empty result degrades the tile to static. Distinct by
+ * name so a contact split across raw accounts only fills one cell.
  */
 fun queryContacts(context: Context, limit: Int = 12): List<Person> {
     val projection = arrayOf(
@@ -46,14 +47,15 @@ fun queryContacts(context: Context, limit: Int = 12): List<Person> {
     context.contentResolver.query(
         ContactsContract.Contacts.CONTENT_URI,
         projection,
-        "${ContactsContract.Contacts.DISPLAY_NAME_PRIMARY} IS NOT NULL",
+        "${ContactsContract.Contacts.DISPLAY_NAME_PRIMARY} IS NOT NULL " +
+            "AND ${ContactsContract.Contacts.PHOTO_THUMBNAIL_URI} IS NOT NULL",
         null,
         "${ContactsContract.Contacts.DISPLAY_NAME_PRIMARY} ASC",
     )?.use { cursor ->
         while (cursor.moveToNext() && people.size < limit) {
             val name = cursor.getString(0)?.trim().orEmpty()
             if (name.isEmpty()) continue
-            val photo = cursor.getString(1)?.ifBlank { null }
+            val photo = cursor.getString(1)?.ifBlank { null } ?: continue
             people.getOrPut(name) { Person(name, photo) }
         }
     }

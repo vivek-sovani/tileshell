@@ -13,7 +13,6 @@ class LiveFaceTest {
     fun `clock icon at medium and up resolves to clock face`() {
         assertEquals(LiveFace.CLOCK, LiveFace.forIconKey("clock", TileSize.MEDIUM))
         assertEquals(LiveFace.CLOCK, LiveFace.forIconKey("clock", TileSize.WIDE))
-        assertEquals(LiveFace.CLOCK, LiveFace.forIconKey("clock", TileSize.LARGE))
     }
 
     @Test
@@ -24,13 +23,13 @@ class LiveFaceTest {
     @Test
     fun `unmapped icon keys stay static`() {
         assertNull(LiveFace.forIconKey("phone", TileSize.MEDIUM))
-        assertNull(LiveFace.forIconKey(null, TileSize.LARGE))
+        assertNull(LiveFace.forIconKey(null, TileSize.WIDE))
     }
 
     @Test
     fun `weather and calendar icons resolve at medium and up`() {
         assertEquals(LiveFace.WEATHER, LiveFace.forIconKey("weather", TileSize.MEDIUM))
-        assertEquals(LiveFace.CALENDAR, LiveFace.forIconKey("calendar", TileSize.LARGE))
+        assertEquals(LiveFace.CALENDAR, LiveFace.forIconKey("calendar", TileSize.WIDE))
     }
 
     @Test

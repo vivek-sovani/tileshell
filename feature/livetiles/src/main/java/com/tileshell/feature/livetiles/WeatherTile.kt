@@ -60,7 +60,7 @@ fun WeatherTileFace(
 
 @Composable
 private fun WeatherFront(snapshot: WeatherSnapshot, size: TileSize) {
-    val big = size == TileSize.WIDE || size == TileSize.LARGE
+    val big = size == TileSize.WIDE
     val tempSize = if (big) 60.sp else 40.sp
     val place = snapshot.place.ifBlank { "weather" }
     Column(

@@ -25,7 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,11 +39,12 @@ private const val CELL_REFRESH_MS = 2_100L
 
 /**
  * The live people tile (FR-2). Asks for READ_CONTACTS once (opt-in), then shows a
- * mosaic of contact avatars — 2×2 at medium, 4×2 at wide/large (prototype
- * `liveFace('people')`). While [active], one random cell cross-fades to a
+ * randomly-selected mosaic of contact *profile photos* — 2×2 at medium, 4×2 at
+ * wide (prototype `liveFace('people')`). Only contacts that have a photo are used
+ * (no initials avatars). While [active], one random cell cross-fades to a
  * different contact every ~2.1 s (the prototype `peopleStep`). The back face is a
- * single large avatar with "<name> posted". When the permission is denied or
- * there are no contacts it renders [fallback] (the static glyph).
+ * single large photo with "<name> posted". When the permission is denied or no
+ * contact has a photo it renders [fallback] (the static glyph).
  */
 @Composable
 fun PeopleTileFace(
@@ -65,13 +65,15 @@ fun PeopleTileFace(
     }
     if (!granted || people.isEmpty()) return fallback()
 
-    val big = size == TileSize.WIDE || size == TileSize.LARGE
+    val big = size == TileSize.WIDE
     val cols = if (big) 4 else 2
     val rows = 2
     val cellCount = cols * rows
 
+    // Random initial arrangement (the user asked for a random selection); the
+    // refresh loop below keeps swapping random cells.
     val cells = remember(people, cellCount) {
-        mutableStateListOf<Person>().apply { addAll(mosaicCells(people, cellCount)) }
+        mutableStateListOf<Person>().apply { addAll(mosaicCells(people.shuffled(), cellCount)) }
     }
     LaunchedEffect(active, people, cellCount) {
         if (!active || people.size < 2) return@LaunchedEffect
@@ -134,31 +136,22 @@ private fun PeopleBack(person: Person) {
     }
 }
 
-/** One avatar cell: the contact photo cropped to fill, or initials on a tint. */
+/**
+ * One avatar cell: the contact photo cropped to fill. While the photo decodes (or
+ * if its URI is briefly unreadable) the cell shows a plain colour tint — never
+ * initials, per the photos-only requirement.
+ */
 @Composable
 private fun Avatar(person: Person, big: Boolean) {
-    val photo = person.photoUri
-    if (photo != null) {
-        val bitmap = rememberTileBitmap(photo, targetPx = if (big) 300 else 120)
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap,
-                contentDescription = person.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-            return
-        }
-    }
-    Box(
-        modifier = Modifier.fillMaxSize().background(colorFor(person.name)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = initials(person.name),
-            color = FaceText,
-            fontSize = if (big) 30.sp else 14.sp,
-            fontWeight = FontWeight.SemiBold,
+    val bitmap = rememberTileBitmap(person.photoUri, targetPx = if (big) 300 else 120)
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap,
+            contentDescription = person.name,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
         )
+    } else {
+        Box(modifier = Modifier.fillMaxSize().background(colorFor(person.name)))
     }
 }

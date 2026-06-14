@@ -8,7 +8,7 @@ import org.junit.Test
 
 class MosaicCellsTest {
 
-    private fun people(n: Int) = List(n) { Person("Person $it", null) }
+    private fun people(n: Int) = List(n) { Person("Person $it", "content://photo/$it") }
 
     @Test
     fun `fills every cell when there are enough contacts`() {

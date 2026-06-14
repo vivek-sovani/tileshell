@@ -14,7 +14,6 @@ class MusicMappingTest {
     fun `music icon key maps to the music face at medium and up`() {
         assertEquals(LiveFace.MUSIC, LiveFace.forIconKey("music", TileSize.MEDIUM))
         assertEquals(LiveFace.MUSIC, LiveFace.forIconKey("music", TileSize.WIDE))
-        assertEquals(LiveFace.MUSIC, LiveFace.forIconKey("music", TileSize.LARGE))
     }
 
     @Test

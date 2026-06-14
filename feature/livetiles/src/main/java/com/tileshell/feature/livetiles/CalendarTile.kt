@@ -96,7 +96,7 @@ fun CalendarTileFace(
 
 @Composable
 private fun CalendarDateColumn(today: CalendarToday, size: TileSize) {
-    val big = size == TileSize.WIDE || size == TileSize.LARGE
+    val big = size == TileSize.WIDE
     Column(
         modifier = Modifier.fillMaxSize().padding(11.dp),
         verticalArrangement = Arrangement.Center,

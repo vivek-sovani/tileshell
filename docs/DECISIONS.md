@@ -48,6 +48,23 @@ rule 4. Newest first.
   plain static grid with zero crashes. No code gaps found — each face already routed
   through a fallback slot; music and the generic face were built to the same contract.
 
+## S24 follow-up — drop large size + photos-only people tile
+
+- **Large (4×4) tile size removed.** `TileSize` now has only SMALL/MEDIUM/WIDE; the
+  resize cycle is small → medium → wide → small. The default photos tile drops from
+  LARGE to WIDE. The enum value is gone rather than merely hidden — a legacy `LARGE`
+  row decodes to MEDIUM via the Room converter's tolerant `getOrDefault`, so old
+  installs degrade gracefully without a migration. The packer is size-agnostic
+  (consumes `cols`/`rows`), so removing the value needed no packer change; the 4×4
+  packing test was dropped.
+- **People tile shows profile photos only, randomly.** Per request the mosaic no
+  longer draws initials: `queryContacts` filters to contacts that *have* a
+  `PHOTO_THUMBNAIL_URI` (selection + skip), `Person.photoUri` is now non-null, and
+  the initial mosaic is a `shuffled()` random selection (the 2.1 s refresh already
+  swaps random cells). The avatar renders the photo cropped to fill; while it decodes
+  or if the URI is briefly unreadable it shows a plain colour tint — never initials.
+  Degrades to the static glyph when no contact has a photo.
+
 ## S24 follow-up — live, location-specific weather (FR-2)
 
 - **Open-Meteo, no API key, no SDK.** Real forecasts come from `OpenMeteoWeatherProvider`

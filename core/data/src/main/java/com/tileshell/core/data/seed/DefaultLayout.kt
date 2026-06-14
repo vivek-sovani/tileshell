@@ -91,7 +91,7 @@ object DefaultLayout {
         DefaultTile("t-mail", TileSize.MEDIUM, "purple", app = "mail"),
         DefaultTile("t-msg", TileSize.MEDIUM, "amber", app = "messages"),
         DefaultTile("t-cal", TileSize.WIDE, "magenta", app = "calendar", liveOnly = true),
-        DefaultTile("t-photos", TileSize.LARGE, "cyan", app = "photos"),
+        DefaultTile("t-photos", TileSize.WIDE, "cyan", app = "photos"),
         DefaultTile("t-music", TileSize.WIDE, "orange", app = "music"),
         DefaultTile(
             "g-social", TileSize.MEDIUM, "magenta", isGroup = true, name = "social",

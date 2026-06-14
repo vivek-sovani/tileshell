@@ -11,10 +11,9 @@ class GridPackerTest {
     private fun specs(vararg sizes: TileSize) =
         sizes.mapIndexed { i, s -> TileSpec("t$i", s) }
 
-    /** Deterministic mixed-size set: smalls broken up by mediums, the odd wide/large. */
+    /** Deterministic mixed-size set: smalls broken up by mediums, the odd wide. */
     private fun demoTiles(count: Int): List<TileSpec> = List(count) { i ->
         val size = when {
-            i % 17 == 5 -> TileSize.LARGE
             i % 7 == 3 -> TileSize.WIDE
             i % 3 == 0 -> TileSize.MEDIUM
             else -> TileSize.SMALL
@@ -61,7 +60,7 @@ class GridPackerTest {
         assertEquals("t2" to (1 to 0), p[2].id to (p[2].col to p[2].row))
     }
 
-    // ---- wide / large row spans -----------------------------------------
+    // ---- wide row spans -------------------------------------------------
 
     @Test
     fun `wide spans all four columns and two rows`() {
@@ -74,11 +73,11 @@ class GridPackerTest {
     }
 
     @Test
-    fun `large spans four columns and four rows then small drops below`() {
-        val p = GridPacker.pack(specs(TileSize.LARGE, TileSize.SMALL))
-        assertEquals(0 to 0, p[0].col to p[0].row)
-        assertEquals(0 to 4, p[1].col to p[1].row) // first free cell under the large
-        assertEquals(5, GridPacker.rowCount(p))
+    fun `wide drops below a small then a later small back-fills its band`() {
+        val p = GridPacker.pack(specs(TileSize.WIDE, TileSize.SMALL))
+        assertEquals(0 to 0, p[0].col to p[0].row) // wide takes the top band
+        assertEquals(0 to 2, p[1].col to p[1].row) // small drops below the wide
+        assertEquals(3, GridPacker.rowCount(p))
     }
 
     @Test
@@ -94,7 +93,7 @@ class GridPackerTest {
     fun `packing is deterministic for identical input`() {
         val input = specs(
             TileSize.MEDIUM, TileSize.SMALL, TileSize.WIDE,
-            TileSize.LARGE, TileSize.SMALL, TileSize.MEDIUM,
+            TileSize.WIDE, TileSize.SMALL, TileSize.MEDIUM,
         )
         assertEquals(GridPacker.pack(input), GridPacker.pack(input))
     }

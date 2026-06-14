@@ -110,7 +110,7 @@ private val FaceText = Color.White
 
 @Composable
 private fun ClockFront(face: ClockFace, size: TileSize) {
-    val big = size == TileSize.WIDE || size == TileSize.LARGE
+    val big = size == TileSize.WIDE
     val timeSize = if (big) 64.sp else 42.sp
     Column(
         modifier = Modifier.fillMaxSize().padding(11.dp),
