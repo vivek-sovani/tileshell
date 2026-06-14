@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
+import com.tileshell.core.data.TileSize
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -167,17 +168,46 @@ interface LayoutDao {
     )
 
     /**
-     * Remove one app from a folder (FR-4). [folderId] is the folder tile's own id
-     * (DECISIONS S5). After dropping the matching child:
+     * Pull one app out of a folder back onto Start (FR-4). [folderId] is the folder
+     * tile's own id (DECISIONS S5). The removed app is re-pinned as a fresh app tile
+     * ([newTileId], [newTileColorId]) appended to the end of the grid — taking an app
+     * out of a folder returns it to Start rather than deleting it. The folder is then
+     * collapsed:
      *  - **≥2 left** → renumber the survivors and keep the folder;
-     *  - **exactly 1 left** → dissolve: rewrite the folder tile as a plain app
-     *    tile for the survivor (keeping its slot/size/colour) and drop the folder
-     *    meta (its leftover child row cascades away);
+     *  - **exactly 1 left** → dissolve: rewrite the folder tile as a plain app tile
+     *    for the survivor (keeping its slot/size/colour) and drop the folder meta
+     *    (its leftover child row cascades away);
      *  - **none left** → drop the folder tile and its meta entirely.
      */
     @Transaction
-    suspend fun removeFolderChild(folderId: String, packageName: String, activityName: String) {
+    suspend fun removeFolderChild(
+        folderId: String,
+        packageName: String,
+        activityName: String,
+        newTileId: String,
+        newTileColorId: String,
+    ) {
+        val removed = folderChildrenOnce(folderId)
+            .firstOrNull { it.packageName == packageName && it.activityName == activityName }
         deleteFolderChildComponent(folderId, packageName, activityName)
+        // Re-pin the pulled-out app as a top-level Start tile (parallels pinApp).
+        if (removed != null) {
+            insertTiles(
+                listOf(
+                    TileEntity(
+                        id = newTileId,
+                        position = maxPosition() + 1,
+                        size = TileSize.MEDIUM,
+                        colorId = newTileColorId,
+                        type = TileEntity.TYPE_APP,
+                        packageName = removed.packageName,
+                        activityName = removed.activityName,
+                        label = removed.label,
+                        iconKey = removed.iconKey,
+                    ),
+                ),
+            )
+        }
         val remaining = folderChildrenOnce(folderId)
         when {
             remaining.size >= 2 ->

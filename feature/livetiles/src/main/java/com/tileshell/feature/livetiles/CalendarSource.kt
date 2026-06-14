@@ -19,6 +19,33 @@ data class CalendarEvent(val title: String, val timeLine: String)
 data class CalendarFace(val next: CalendarEvent?, val following: CalendarEvent?)
 
 /**
+ * Today's date as shown on the calendar tile's base face: a lowercase [weekday],
+ * the [day] of the month, and the lowercase [month]. Always available (no
+ * permission needed), so the calendar tile shows the date even with no events.
+ */
+data class CalendarToday(val weekday: String, val day: Int, val month: String)
+
+private val CALENDAR_WEEKDAYS = listOf(
+    "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
+)
+private val CALENDAR_MONTHS = listOf(
+    "january", "february", "march", "april", "may", "june",
+    "july", "august", "september", "october", "november", "december",
+)
+
+/**
+ * Builds a [CalendarToday] from calendar fields. Pure (no `Calendar.getInstance()`)
+ * so the lowercase weekday/month formatting is unit-testable. [dayOfWeek] is
+ * Calendar's 1=Sunday convention; [month0] is 0-based (0=January).
+ */
+fun calendarToday(dayOfWeek: Int, dayOfMonth: Int, month0: Int): CalendarToday =
+    CalendarToday(
+        weekday = CALENDAR_WEEKDAYS[dayOfWeek - 1],
+        day = dayOfMonth,
+        month = CALENDAR_MONTHS[month0],
+    )
+
+/**
  * The prototype's event time line: 24-hour `h:mm` start plus a compact duration
  * (`30m`, `1h`, `1h 30m`). Pure so it is unit-testable. A non-positive or
  * absurdly long [durationMin] drops the duration (all-day / open-ended events).

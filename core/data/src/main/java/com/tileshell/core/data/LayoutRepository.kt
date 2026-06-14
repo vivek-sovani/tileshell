@@ -49,12 +49,19 @@ class LayoutRepository(
     suspend fun renameFolder(id: String, name: String) = dao.updateFolderName(id, name)
 
     /**
-     * Remove one app from a folder (FR-4). The folder dissolves to a plain tile
-     * when a single app is left, or disappears when none remain (see
+     * Pull one app out of a folder back onto Start (FR-4). The app is re-pinned as
+     * a fresh tile at the end of the grid; the folder dissolves to a plain tile when
+     * a single app is left, or disappears when none remain (see
      * [LayoutDao.removeFolderChild]). [folderId] is the folder tile's own id.
      */
     suspend fun removeFolderChild(folderId: String, child: FolderChild) =
-        dao.removeFolderChild(folderId, child.packageName, child.activityName)
+        dao.removeFolderChild(
+            folderId = folderId,
+            packageName = child.packageName,
+            activityName = child.activityName,
+            newTileId = "pin-${child.packageName}-${System.currentTimeMillis()}",
+            newTileColorId = TileColors.defaultIdFor(child.packageName),
+        )
 
     /**
      * Merge the dragged tile onto the target (FR-3.3): the target becomes a

@@ -3,6 +3,7 @@ package com.tileshell.feature.start
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -21,6 +22,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -130,6 +132,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.core.graphics.drawable.toBitmap
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * The real Start screen and its App-list page, joined by the finger-following
@@ -419,7 +422,7 @@ fun StartScreen(
                 viewModel.closeFolder()
             },
             onRename = { name -> openFolder?.let { viewModel.renameFolder(it.id, name) } },
-            onRemoveChild = { child ->
+            onPullOut = { child ->
                 openFolder?.let { viewModel.removeFolderChild(it.id, child) }
             },
         )
@@ -859,11 +862,11 @@ private fun EditBar(
  * Full-screen folder overlay (FR-4): a translucent scrim over the blurred Start
  * screen, a close button, the lowercase folder title, and a grid of medium child
  * tiles. Tapping a child launches it and dismisses; tapping the scrim dismisses;
- * long-pressing the title renames it (persisted). Long-pressing a child enters
- * edit mode (children jiggle, each shows an unpin × control); tapping × removes
- * that app from the folder ([onRemoveChild]) — the folder dissolves to a plain
- * tile when one app is left and the overlay then self-closes. Renders nothing
- * when [folder] is null (closed, or the folder was removed/emptied while open).
+ * long-pressing the title renames it (persisted). Long-press-dragging a child and
+ * releasing it away from its slot pulls that app out of the folder back onto Start
+ * ([onPullOut]) — the folder dissolves to a plain tile when one app is left and the
+ * overlay then self-closes. Renders nothing when [folder] is null (closed, or the
+ * folder was removed/emptied while open).
  */
 @Composable
 private fun FolderOverlay(
@@ -871,18 +874,11 @@ private fun FolderOverlay(
     onClose: () -> Unit,
     onLaunchChild: (FolderChild) -> Unit,
     onRename: (String) -> Unit,
-    onRemoveChild: (FolderChild) -> Unit,
+    onPullOut: (FolderChild) -> Unit,
 ) {
     if (folder == null) return
     val density = LocalDensity.current
     var renaming by remember { mutableStateOf(false) }
-    var editing by remember { mutableStateOf(false) }
-    // Leaving edit mode when the folder changes identity keeps the × controls from
-    // lingering after a dissolve/close.
-    LaunchedEffect(folder.id) { editing = false }
-    val jigglePhase = rememberJigglePhase(editing)
-    // The close button and scrim first exit edit mode, then dismiss the overlay.
-    val dismiss = { if (editing) editing = false else onClose() }
 
     val childSpecs = remember(folder.children) {
         folder.children.map { TileSpec(it.packageName + "/" + it.activityName, TileSize.MEDIUM) }
@@ -894,9 +890,9 @@ private fun FolderOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            // Scrim (prototype rgba(8,8,12,.55)); tap to dismiss (or exit edit).
+            // Scrim (prototype rgba(8,8,12,.55)); tap to dismiss.
             .background(Color(0x8C08080C))
-            .pointerInput(editing) { detectTapGestures { dismiss() } },
+            .pointerInput(Unit) { detectTapGestures { onClose() } },
     ) {
         Column(
             modifier = Modifier
@@ -911,12 +907,12 @@ private fun FolderOverlay(
                         .align(Alignment.TopEnd)
                         .padding(top = 6.dp, end = 14.dp)
                         .size(34.dp)
-                        .pointerInput(editing) { detectTapGestures { dismiss() } },
+                        .pointerInput(Unit) { detectTapGestures { onClose() } },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         imageVector = TileIcons["close"],
-                        contentDescription = if (editing) "done editing folder" else "close folder",
+                        contentDescription = "close folder",
                         tint = DarkColorTokens.fg,
                         modifier = Modifier.size(22.dp),
                     )
@@ -948,10 +944,22 @@ private fun FolderOverlay(
                 }
             }
 
-            // Grid of medium child tiles (2 per row on the 4-column grid).
+            // Hint: how to take an app out of the folder.
+            Text(
+                text = "drag a tile out to remove it from the folder",
+                color = DarkColorTokens.fg.copy(alpha = 0.6f),
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 14.dp),
+                textAlign = TextAlign.Center,
+            )
+
+            // Grid of medium child tiles (2 per row on the 4-column grid). Long-
+            // press-drag a child and release it away from its slot to pull that app
+            // out of the folder back onto Start (FR-4); a quick tap launches it.
             DenseTileGrid(tiles = childSpecs, modifier = Modifier.fillMaxWidth()) { spec, slot, sizePx ->
                 val child = childById[spec.id] ?: return@DenseTileGrid
-                val childIndex = childSpecs.indexOfFirst { it.id == spec.id }
                 val appModel = TileModel.App(
                     id = spec.id,
                     position = 0,
@@ -962,50 +970,58 @@ private fun FolderOverlay(
                     label = child.label,
                     iconKey = child.iconKey,
                 )
-                val rotation = if (editing) {
-                    if (childIndex % 2 == 0) jigglePhase else -jigglePhase
-                } else {
-                    0f
-                }
+                // A drag past ~70% of a tile counts as "pulled out of the folder".
+                val pullThreshold = sizePx.height * 0.7f
+                var dragOffset by remember(spec.id) { mutableStateOf(Offset.Zero) }
+                var dragging by remember(spec.id) { mutableStateOf(false) }
+                val pulledOut = dragging && dragOffset.getDistance() > pullThreshold
                 Box(
                     modifier = Modifier
-                        .offset { slot }
-                        .graphicsLayer { rotationZ = rotation }
+                        .offset {
+                            IntOffset(
+                                slot.x + dragOffset.x.roundToInt(),
+                                slot.y + dragOffset.y.roundToInt(),
+                            )
+                        }
+                        .zIndex(if (dragging) 5f else 0f)
+                        .graphicsLayer {
+                            val s = if (dragging) 1.06f else 1f
+                            scaleX = s
+                            scaleY = s
+                            // Fade as the tile crosses the pull-out threshold.
+                            alpha = if (pulledOut) 0.55f else 1f
+                            shadowElevation = if (dragging) 16.dp.toPx() else 0f
+                        }
                         .size(
                             with(density) { sizePx.width.toDp() },
                             with(density) { sizePx.height.toDp() },
                         )
                         .background(TileAccents.forId(folder.colorId))
-                        // Tap launches when not editing; long-press enters edit mode.
-                        .pointerInput(spec.id, editing) {
-                            detectTapGestures(
-                                onTap = { if (!editing) onLaunchChild(child) },
-                                onLongPress = { editing = true },
+                        // Quick tap launches the child.
+                        .pointerInput(spec.id) {
+                            detectTapGestures { onLaunchChild(child) }
+                        }
+                        // Long-press-drag pulls the child out of the folder.
+                        .pointerInput(spec.id, pullThreshold) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = { dragging = true },
+                                onDrag = { change, amount ->
+                                    change.consume()
+                                    dragOffset += amount
+                                },
+                                onDragEnd = {
+                                    if (dragOffset.getDistance() > pullThreshold) onPullOut(child)
+                                    dragOffset = Offset.Zero
+                                    dragging = false
+                                },
+                                onDragCancel = {
+                                    dragOffset = Offset.Zero
+                                    dragging = false
+                                },
                             )
                         },
                 ) {
                     AppTileContent(appModel)
-                    // Unpin control (prototype .tc-pin) — only while editing.
-                    if (editing) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(6.dp)
-                                .size(22.dp)
-                                .background(Color(0xCC1A1A22), CircleShape)
-                                .pointerInput(spec.id) {
-                                    detectTapGestures { onRemoveChild(child) }
-                                },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                imageVector = TileIcons["close"],
-                                contentDescription = "remove ${child.label ?: "app"} from folder",
-                                tint = Color.White,
-                                modifier = Modifier.size(13.dp),
-                            )
-                        }
-                    }
                 }
             }
         }
@@ -1333,6 +1349,7 @@ private fun AppTileContent(
         }
         LiveFace.CALENDAR -> {
             CalendarTileFace(
+                size = tile.size,
                 flipped = flipped,
                 active = liveActive,
                 fallback = staticGlyph,
@@ -1516,19 +1533,39 @@ private fun TileLabel(text: String) {
 
 private fun onTileClick(context: Context, tile: TileModel) {
     when (tile) {
-        is TileModel.App ->
-            // Self-contained live tiles (weather/calendar with no resolved app)
-            // carry a blank launch target — tapping is inert, not an error toast.
-            if (tile.packageName.isNotBlank() &&
-                !AppLauncher.launch(context, tile.packageName, tile.activityName)
-            ) {
-                Toast.makeText(
-                    context,
-                    "couldn't open ${tile.label ?: "app"}",
-                    Toast.LENGTH_SHORT,
-                ).show()
+        is TileModel.App -> {
+            if (tile.packageName.isNotBlank()) {
+                if (!AppLauncher.launch(context, tile.packageName, tile.activityName)) {
+                    Toast.makeText(
+                        context,
+                        "couldn't open ${tile.label ?: "app"}",
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            } else {
+                // Self-contained live tiles (weather/calendar) seeded with no
+                // resolved app: fall back to a content intent for the live feature
+                // (e.g. open the device calendar). Inert if there's no handler.
+                launchLiveTileFallback(context, tile.iconKey)
             }
+        }
         // Folder overlay arrives in S16; tapping is inert for now.
         is TileModel.Folder -> Unit
     }
+}
+
+/**
+ * Opens the system app behind a self-contained live tile that seeded without a
+ * resolved launch component. Calendar maps to the calendar provider's VIEW intent
+ * (the default calendar app); other live tiles have no standard target and stay
+ * inert. Best-effort — a missing handler is swallowed rather than toasted.
+ */
+private fun launchLiveTileFallback(context: Context, iconKey: String?) {
+    val intent = when (iconKey) {
+        "calendar" -> Intent(Intent.ACTION_VIEW)
+            .setData(Uri.parse("content://com.android.calendar/time"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        else -> return
+    }
+    runCatching { context.startActivity(intent) }
 }

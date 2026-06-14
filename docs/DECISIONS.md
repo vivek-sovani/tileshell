@@ -48,25 +48,36 @@ rule 4. Newest first.
   plain static grid with zero crashes. No code gaps found — each face already routed
   through a fallback slot; music and the generic face were built to the same contract.
 
-## S24 follow-up — remove an app from a folder (FR-4)
+## S24 follow-up — drag an app out of a folder + calendar fixes (FR-4 / FR-2)
 
-- **Long-press inside the folder = edit mode, × removes the child.** The prototype
-  folder overlay only launches; WP10 lets you pull apps out, so the overlay gains a
-  local `editing` state: long-pressing a child jiggles the children (reusing
-  `rememberJigglePhase`) and shows an unpin × on each (prototype `.tc-pin`). Tapping
-  × calls `onRemoveChild`; tapping a child while editing is inert (launch is gated on
-  `!editing`); the close button / scrim first leave edit mode, then dismiss.
-- **Folder dissolves at one app, vanishes at none.** `LayoutDao.removeFolderChild`
-  (one `@Transaction`, parallel to `applyMerge`) drops the matching `folder_children`
-  row, then: ≥2 left → renumber and keep the folder; exactly 1 left → rewrite the
-  folder tile in place as a plain app tile for the survivor (keep slot/size/colour)
-  and drop the folder meta (the leftover child row cascades); 0 left → delete the
-  tile + meta. A folder is only a folder with ≥2 apps, matching the merge rule that
-  forms one. `folderId` is the folder tile's own id (DECISIONS S5), so no extra
-  lookup. When the folder dissolves/empties, the existing self-close effect closes
-  the overlay (its `TileModel.Folder` is gone). No schema change — only new queries;
-  the transaction (like `applyMerge`) is data-layer, so only the pure pieces stay
-  unit-tested.
+- **Pull-out is a drag gesture and re-pins onto Start.** First pass used an edit-mode
+  × that *deleted* the child; the WP-faithful behaviour (and the user's ask) is to
+  drag the app out back onto Start. The folder overlay child now takes a
+  `detectDragGesturesAfterLongPress`: long-press lifts the tile (scale + shadow), and
+  releasing it more than ~70 % of a tile away from its slot calls `onPullOut`; a quick
+  tap still launches. The pulled app is **re-pinned** as a fresh Start tile (appended,
+  parallel to `pinApp`) — taking it out of the folder returns it to Start rather than
+  deleting it. A one-line hint sits under the folder title.
+- **`removeFolderChild` re-pins, then collapses.** `LayoutDao.removeFolderChild` (one
+  `@Transaction`) now inserts a new top-level app tile for the removed child
+  (`newTileId`/`newTileColorId` computed in the repository, like `pinApp`) before
+  collapsing the folder: ≥2 left → renumber & keep; exactly 1 left → dissolve the
+  folder tile in place to the survivor's app tile (drop folder meta, leftover child
+  cascades); 0 left → delete tile + meta. `folderId` is the folder tile's own id
+  (DECISIONS S5). On dissolve/empty the existing self-close effect closes the overlay.
+  No schema change — only new queries.
+- **Calendar opens the device calendar.** The liveOnly calendar tile was seeding with
+  a blank launch target because `APP_CALENDAR` is often undeclared. `roleFor("calendar")`
+  now resolves via `ACTION_VIEW content://com.android.calendar/time` (the default
+  calendar provider, reliably one handler); the resolver still launches that package's
+  main entry. As a belt-and-braces fallback, `onTileClick` fires the same VIEW intent
+  for a blank-package tile whose icon key is `calendar`, so tapping always opens a
+  calendar when one exists.
+- **Calendar tile always shows today's date.** Previously it degraded to a bare glyph
+  with no permission / no events. `CalendarTileFace` now renders a date face (lowercase
+  weekday, large day number, month) as the always-available base — no permission needed
+  — and flips to the next event only when READ_CALENDAR is granted and one exists. Pure,
+  unit-tested `calendarToday(dayOfWeek, dayOfMonth, month0)`.
 
 ## S17 · Personalize sheet: theme + accent
 

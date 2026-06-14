@@ -37,4 +37,21 @@ class CalendarFormatTest {
         val event = calendarEvent("  ", beginMillis = 0L, endMillis = 60_000L)
         assertEquals("(untitled)", event.title)
     }
+
+    @Test
+    fun `today formats lowercase weekday and month with the day number`() {
+        // Sunday (Calendar.DAY_OF_WEEK = 1), 14 June (month0 = 5).
+        val today = calendarToday(dayOfWeek = 1, dayOfMonth = 14, month0 = 5)
+        assertEquals("sunday", today.weekday)
+        assertEquals(14, today.day)
+        assertEquals("june", today.month)
+    }
+
+    @Test
+    fun `today maps the last weekday and month`() {
+        // Saturday (7), 31 December (month0 = 11).
+        val today = calendarToday(dayOfWeek = 7, dayOfMonth = 31, month0 = 11)
+        assertEquals("saturday", today.weekday)
+        assertEquals("december", today.month)
+    }
 }

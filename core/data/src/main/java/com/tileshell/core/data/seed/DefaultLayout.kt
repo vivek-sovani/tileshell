@@ -52,7 +52,13 @@ object DefaultLayout {
         "settings" -> RoleQuery.Action("android.settings.SETTINGS")
         "people", "contacts" -> RoleQuery.Category("android.intent.category.APP_CONTACTS")
         "mail" -> RoleQuery.Category("android.intent.category.APP_EMAIL")
-        "calendar" -> RoleQuery.Category("android.intent.category.APP_CALENDAR")
+        // VIEW on the calendar provider resolves the default calendar app on most
+        // devices (more reliable than the APP_CALENDAR launcher category, which is
+        // often undeclared); the resolver still launches that package's main entry.
+        "calendar" -> RoleQuery.Action(
+            "android.intent.action.VIEW",
+            "content://com.android.calendar/time",
+        )
         "photos" -> RoleQuery.Category("android.intent.category.APP_GALLERY")
         "music" -> RoleQuery.Category("android.intent.category.APP_MUSIC")
         "maps" -> RoleQuery.Category("android.intent.category.APP_MAPS")

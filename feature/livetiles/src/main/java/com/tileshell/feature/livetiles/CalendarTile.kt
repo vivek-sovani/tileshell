@@ -21,22 +21,35 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tileshell.core.data.TileSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import java.util.Calendar
 
 private val FaceText = Color.White
 private const val REFRESH_MS = 5 * 60_000L
 
+private fun currentCalendarToday(): CalendarToday {
+    val c = Calendar.getInstance()
+    return calendarToday(
+        dayOfWeek = c.get(Calendar.DAY_OF_WEEK),
+        dayOfMonth = c.get(Calendar.DAY_OF_MONTH),
+        month0 = c.get(Calendar.MONTH),
+    )
+}
+
 /**
- * The live calendar tile (FR-2). Asks for READ_CALENDAR once (opt-in) and, while
- * [active], polls the provider for the next two upcoming events, re-querying
- * every few minutes so a started/finished meeting rolls off. The front shows the
- * next event, the back the following one. When the permission is denied or there
- * is nothing coming up it renders [fallback] (the static glyph).
+ * The live calendar tile (FR-2). The base face always shows today's date (no
+ * permission needed), so the tile is useful even with no calendar access. When
+ * READ_CALENDAR is granted and there is an upcoming event, the tile flips to show
+ * it — polled every few minutes while [active] so a started/finished meeting rolls
+ * off. [fallback] is kept for parity, but the date face means the calendar tile
+ * never degrades to a bare glyph.
  */
 @Composable
 fun CalendarTileFace(
+    size: TileSize,
     flipped: Boolean,
     active: Boolean,
     fallback: @Composable () -> Unit,
@@ -45,7 +58,15 @@ fun CalendarTileFace(
     val context = LocalContext.current
     val granted = rememberPermissionGranted(Manifest.permission.READ_CALENDAR)
 
+    var today by remember { mutableStateOf(currentCalendarToday()) }
     var face by remember { mutableStateOf<CalendarFace?>(null) }
+    LaunchedEffect(active) {
+        if (!active) return@LaunchedEffect
+        while (true) {
+            today = currentCalendarToday()
+            delay(REFRESH_MS)
+        }
+    }
     LaunchedEffect(granted, active) {
         if (!granted || !active) return@LaunchedEffect
         while (true) {
@@ -56,21 +77,49 @@ fun CalendarTileFace(
         }
     }
 
-    val next = face?.next ?: return fallback()
+    val next = face?.next
 
     FlipTile(
         flipped = flipped,
         modifier = modifier.fillMaxSize(),
-        front = { CalendarFaceColumn(heading = "next", event = next) },
+        // Front: today's date. Back: the next event when one exists, else the date.
+        front = { CalendarDateColumn(today, size) },
         back = {
-            val following = face?.following
-            if (following != null) {
-                CalendarFaceColumn(heading = "later", event = following)
-            } else {
+            if (next != null) {
                 CalendarFaceColumn(heading = "next", event = next)
+            } else {
+                CalendarDateColumn(today, size)
             }
         },
     )
+}
+
+@Composable
+private fun CalendarDateColumn(today: CalendarToday, size: TileSize) {
+    val big = size == TileSize.WIDE || size == TileSize.LARGE
+    Column(
+        modifier = Modifier.fillMaxSize().padding(11.dp),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(text = today.weekday, color = FaceText, fontSize = 14.sp, maxLines = 1)
+        Text(
+            text = today.day.toString(),
+            color = FaceText,
+            fontSize = if (big) 60.sp else 44.sp,
+            lineHeight = if (big) 60.sp else 44.sp,
+            fontWeight = FontWeight.ExtraLight,
+            letterSpacing = (-2).sp,
+            maxLines = 1,
+        )
+        Text(
+            text = today.month,
+            color = FaceText.copy(alpha = 0.82f),
+            fontSize = 13.sp,
+            maxLines = 1,
+        )
+        Spacer(Modifier.weight(1f))
+        Text(text = "calendar", color = FaceText.copy(alpha = 0.82f), fontSize = 12.sp, maxLines = 1)
+    }
 }
 
 @Composable
