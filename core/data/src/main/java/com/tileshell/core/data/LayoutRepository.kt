@@ -95,9 +95,37 @@ class LayoutRepository(
     }
 
     /**
+     * Built lazily on first pin: maps every resolved default-role package to its
+     * designed WP icon key. Covers both standalone tiles and folder children so
+     * pinning calendar/mail/phone/etc. gets the designed glyph rather than the
+     * real app icon. Resolution is one-shot per process; role changes on the
+     * device are rare enough that stale values are acceptable.
+     */
+    private val roleIconKeyMap: Map<String, String> by lazy {
+        buildMap {
+            for (tile in DefaultLayout.DEFAULT_TILES) {
+                if (tile.isGroup) {
+                    for (childId in tile.children) {
+                        val role = DefaultLayout.roleFor(childId) ?: continue
+                        val pkg = resolver.resolve(role)?.packageName ?: continue
+                        put(pkg, DefaultLayout.iconFor(childId))
+                    }
+                } else {
+                    val appId = tile.app ?: continue
+                    val role = DefaultLayout.roleFor(appId) ?: continue
+                    val pkg = resolver.resolve(role)?.packageName ?: continue
+                    put(pkg, DefaultLayout.iconFor(appId))
+                }
+            }
+        }
+    }
+
+    /**
      * Pin an app from the app list (FR-5) as a medium tile in the app's default
      * colour, appended to the end of the grid. No-op (returns
      * [PinResult.ALREADY_ON_START]) if a tile for the package already exists.
+     * Apps that match a default role (phone, mail, calendar, etc.) get their
+     * designed WP icon key; all others default to null and show the real app icon.
      */
     suspend fun pinApp(app: AppEntry): PinResult {
         if (dao.appTileCount(app.packageName) > 0) return PinResult.ALREADY_ON_START
@@ -112,7 +140,7 @@ class LayoutRepository(
                     packageName = app.packageName,
                     activityName = app.activityName,
                     label = app.label,
-                    iconKey = null,
+                    iconKey = roleIconKeyMap[app.packageName],
                 ),
             ),
         )
