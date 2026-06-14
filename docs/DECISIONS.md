@@ -48,6 +48,26 @@ rule 4. Newest first.
   plain static grid with zero crashes. No code gaps found — each face already routed
   through a fallback slot; music and the generic face were built to the same contract.
 
+## S24 follow-up — now-playing on music app tiles + bigger clock + distinct people
+
+- **Any music app tile shows its own now-playing (Apple Music, YT Music, …).** A new
+  process-wide `MediaCenter` (StateFlow of package → `NowPlaying`) is published by a
+  single `MediaSessionsEffect` mounted on Start (one `MediaSessionManager` listener +
+  light poll, replacing the per-tile listener). `MusicTileFace` reads it and takes an
+  optional `packageName`: the dedicated music tile passes null (shows whatever is
+  playing, prototype behaviour); a generic app tile passes its own package. The
+  `face == null` branch now falls through **now-playing (for this package) →
+  notification → static glyph**, so a pinned music app surfaces its track, a chat/mail
+  app surfaces its notification, and everything else stays static. One shared listener
+  avoids N per-tile binder polls.
+- **Bigger clock.** The clock tile's time scales up to 84 sp on wide / 54 sp on medium
+  (was 64/42) for a more WP-like oversized clock.
+- **People mosaic never repeats a photo.** The refresh now rotates in a contact that is
+  *not already on screen* (swap a random cell with a random off-screen contact) and is
+  disabled when there are ≤ cellCount contacts (nothing new to show), so the same photo
+  no longer appears in multiple cells. The initial arrangement was already a distinct
+  shuffled subset.
+
 ## S24 follow-up — app icon on notification tiles + calendar AM/PM time
 
 - **App icon in the notification tile's top-left corner.** A live notification tile

@@ -70,17 +70,21 @@ fun PeopleTileFace(
     val rows = 2
     val cellCount = cols * rows
 
-    // Random initial arrangement (the user asked for a random selection); the
-    // refresh loop below keeps swapping random cells.
+    // Random initial arrangement of distinct contacts (the user asked for a random
+    // selection with no repeats).
     val cells = remember(people, cellCount) {
         mutableStateListOf<Person>().apply { addAll(mosaicCells(people.shuffled(), cellCount)) }
     }
+    // Rotate in a contact that is not already on screen, so the mosaic never shows
+    // the same photo twice. Only meaningful when there are more contacts than cells
+    // (otherwise every contact is already shown and there is nothing to swap in).
     LaunchedEffect(active, people, cellCount) {
-        if (!active || people.size < 2) return@LaunchedEffect
+        if (!active || people.size <= cellCount) return@LaunchedEffect
         while (true) {
             delay(CELL_REFRESH_MS)
-            val i = Random.nextInt(cells.size)
-            cells[i] = people[Random.nextInt(people.size)]
+            val offscreen = people.filter { it !in cells }
+            if (offscreen.isEmpty()) continue
+            cells[Random.nextInt(cells.size)] = offscreen[Random.nextInt(offscreen.size)]
         }
     }
 

@@ -103,6 +103,7 @@ import com.tileshell.feature.livetiles.CalendarTileFace
 import com.tileshell.feature.livetiles.ClockTileFace
 import com.tileshell.feature.livetiles.ConversationTileFace
 import com.tileshell.feature.livetiles.LiveFace
+import com.tileshell.feature.livetiles.MediaSessionsEffect
 import com.tileshell.feature.livetiles.MusicTileFace
 import com.tileshell.feature.livetiles.NotificationAccess
 import com.tileshell.feature.livetiles.NotificationCenter
@@ -501,6 +502,9 @@ private fun StartPage(
     // tiles every ~2.6 s, paused whenever live tiles are gated off (edit mode,
     // off-screen, screen off, battery saver, animations off).
     val liveActive = rememberLiveTilesActive(suspended = editMode || liveSuspended)
+    // Publish active media sessions into MediaCenter so the music tile and any
+    // music-app tile (Apple Music, YT Music, …) can show their now-playing track.
+    MediaSessionsEffect(active = liveActive)
     val liveIds = remember(displaySpecs, byId) {
         displaySpecs.mapNotNull { spec ->
             val model = byId[spec.id] as? TileModel.App ?: return@mapNotNull null
@@ -1395,14 +1399,23 @@ private fun AppTileContent(
             return
         }
         null -> {
-            // No dedicated live face: any app tile still goes live when its own
-            // package has an active notification (FR-2.3 — notification tiles for
-            // all other apps). Small tiles stay static (the badge carries the
-            // count); medium+ show the latest notification, else the static glyph.
+            // No dedicated live face: a medium+ app tile goes live when its own
+            // package is playing media (a music app like Apple Music / YT Music
+            // shows its now-playing track) — else when it has an active
+            // notification (FR-2.3). Small tiles stay static (the badge carries the
+            // count). Fall through: now-playing → notification → static glyph.
             if (tile.size != TileSize.SMALL) {
-                NotificationTileFace(
+                MusicTileFace(
+                    flipped = flipped,
+                    active = liveActive,
                     packageName = tile.packageName,
-                    fallback = staticGlyph,
+                    fallback = {
+                        NotificationTileFace(
+                            packageName = tile.packageName,
+                            fallback = staticGlyph,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    },
                     modifier = Modifier.fillMaxSize(),
                 )
                 return

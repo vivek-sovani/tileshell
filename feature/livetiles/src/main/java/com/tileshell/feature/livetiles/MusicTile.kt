@@ -3,7 +3,6 @@ package com.tileshell.feature.livetiles
 import android.content.ComponentName
 import android.content.Context
 import android.media.MediaMetadata
-import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import androidx.compose.animation.core.animateFloatAsState
@@ -24,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +38,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlin.random.Random
 
 private val FaceText = Color.White
@@ -76,59 +79,72 @@ fun nowPlayingFrom(title: String?, artist: String?, state: Int): NowPlaying? {
 }
 
 /**
- * Reads the current track from the highest-priority active media session. Returns
- * `null` when notification access is off (the platform throws), when no app holds
- * a session, or when the session carries no metadata. The notification-listener
- * [ComponentName] is the access token — the same grant that powers badges/faces,
- * so the music tile needs no extra permission.
+ * Builds the now-playing track for every active media session, keyed by the
+ * owning package (highest-priority session per package wins; sessions with no
+ * metadata are skipped). Returns empty when notification access is off (the
+ * platform throws) or nothing is playing. The notification-listener [ComponentName]
+ * is the access token — the same grant that powers badges/faces, so this needs no
+ * extra permission.
  */
-private fun readNowPlaying(manager: MediaSessionManager, component: ComponentName): NowPlaying? {
+private fun nowPlayingMap(
+    manager: MediaSessionManager,
+    component: ComponentName,
+): Map<String, NowPlaying> {
     val controllers = runCatching { manager.getActiveSessions(component) }.getOrNull().orEmpty()
-    if (controllers.isEmpty()) return null
-    // Prefer a controller that is actually playing; else fall back to the first
-    // (getActiveSessions is already priority-ordered).
-    val controller = controllers.firstOrNull {
-        it.playbackState?.state == PlaybackState.STATE_PLAYING
-    } ?: controllers.first()
-    val md = controller.metadata
-    val title = md?.getString(MediaMetadata.METADATA_KEY_TITLE)
-    val artist = md?.getString(MediaMetadata.METADATA_KEY_ARTIST)
-        ?: md?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
-    val state = controller.playbackState?.state ?: PlaybackState.STATE_NONE
-    return nowPlayingFrom(title, artist, state)
+    val out = LinkedHashMap<String, NowPlaying>()
+    for (controller in controllers) {
+        val pkg = controller.packageName ?: continue
+        if (out.containsKey(pkg)) continue // keep the highest-priority session per app
+        val md = controller.metadata
+        val title = md?.getString(MediaMetadata.METADATA_KEY_TITLE)
+        val artist = md?.getString(MediaMetadata.METADATA_KEY_ARTIST)
+            ?: md?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
+        val state = controller.playbackState?.state ?: PlaybackState.STATE_NONE
+        val np = nowPlayingFrom(title, artist, state) ?: continue
+        out[pkg] = np
+    }
+    return out
 }
 
 /**
- * The live music tile (FR-2.3). Bound to the active media session via
- * [MediaSessionManager]: the front shows animated EQ bars with the track title +
- * artist (prototype `liveFace('music')`); the back is the "paused / tap to resume"
- * state. The EQ bars animate only while the track is playing and the live gate is
- * [active]. When there is no media session or notification access is denied it
- * renders [fallback] (the static glyph), so the tile degrades gracefully.
+ * Process-wide now-playing state, keyed by package, published by
+ * [MediaSessionsEffect] and read by every music-capable tile (the dedicated music
+ * tile and any app tile bound to its own package, e.g. Apple Music / YT Music).
+ * One shared listener instead of one per tile. Empty when notification access is
+ * off or nothing is playing.
+ */
+object MediaCenter {
+    private val _nowPlaying = MutableStateFlow<Map<String, NowPlaying>>(emptyMap())
+    val nowPlaying: StateFlow<Map<String, NowPlaying>> = _nowPlaying.asStateFlow()
+
+    fun publish(map: Map<String, NowPlaying>) {
+        _nowPlaying.value = map
+    }
+
+    fun clear() {
+        _nowPlaying.value = emptyMap()
+    }
+}
+
+/**
+ * Binds the active media sessions into [MediaCenter] for the whole Start screen
+ * (call once). A single [MediaSessionManager] listener catches session add/remove;
+ * a light poll while [active] catches in-session track/playback changes that don't
+ * fire the callback. All calls are guarded — denied access publishes an empty map,
+ * so every music tile degrades rather than crashing.
  */
 @Composable
-fun MusicTileFace(
-    flipped: Boolean,
-    active: Boolean,
-    fallback: @Composable () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+fun MediaSessionsEffect(active: Boolean) {
     val context = LocalContext.current
-    var nowPlaying by remember { mutableStateOf<NowPlaying?>(null) }
-
-    // Subscribe to session changes and poll periodically while active (track /
-    // playback-state changes within a session don't fire the sessions-changed
-    // callback, so a light poll keeps the face current). All MediaSessionManager
-    // calls are guarded — denied access surfaces as a null face, not a crash.
     DisposableEffect(context) {
         val manager = context.getSystemService(Context.MEDIA_SESSION_SERVICE)
             as? MediaSessionManager
         val component = ComponentName(context, TileNotificationListenerService::class.java)
         if (manager == null) {
-            nowPlaying = null
+            MediaCenter.clear()
             return@DisposableEffect onDispose { }
         }
-        val refresh = { nowPlaying = readNowPlaying(manager, component) }
+        val refresh = { MediaCenter.publish(nowPlayingMap(manager, component)) }
         val listener = MediaSessionManager.OnActiveSessionsChangedListener { refresh() }
         val registered = runCatching {
             manager.addOnActiveSessionsChangedListener(listener, component)
@@ -138,19 +154,42 @@ fun MusicTileFace(
             if (registered) runCatching { manager.removeOnActiveSessionsChangedListener(listener) }
         }
     }
-
     LaunchedEffect(active, context) {
         if (!active) return@LaunchedEffect
         val manager = context.getSystemService(Context.MEDIA_SESSION_SERVICE)
             as? MediaSessionManager ?: return@LaunchedEffect
         val component = ComponentName(context, TileNotificationListenerService::class.java)
         while (true) {
-            nowPlaying = readNowPlaying(manager, component)
+            MediaCenter.publish(nowPlayingMap(manager, component))
             delay(POLL_MS)
         }
     }
+}
 
-    val np = nowPlaying ?: return fallback()
+/**
+ * The live music tile (FR-2.3): front = animated EQ bars + track title/artist
+ * (prototype `liveFace('music')`), back = "paused / tap to resume". Reads
+ * [MediaCenter]. When [packageName] is set the tile shows *that app's* now-playing
+ * (so an Apple Music / YT Music app tile shows its own song); when null it shows
+ * whatever is currently playing (the dedicated music tile). EQ bars animate only
+ * while playing and the live gate is [active]. With no matching session it renders
+ * [fallback].
+ */
+@Composable
+fun MusicTileFace(
+    flipped: Boolean,
+    active: Boolean,
+    fallback: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    packageName: String? = null,
+) {
+    val media by MediaCenter.nowPlaying.collectAsState()
+    val np = if (packageName != null) {
+        media[packageName]
+    } else {
+        media.values.firstOrNull { it.playing } ?: media.values.firstOrNull()
+    }
+    np ?: return fallback()
 
     FlipTile(
         flipped = flipped,
