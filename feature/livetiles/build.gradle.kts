@@ -45,4 +45,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(libs.junit)
+    // Real org.json for unit tests (the android.jar stub throws); exercises the
+    // Open-Meteo weather parsers.
+    testImplementation("org.json:json:20240303")
 }

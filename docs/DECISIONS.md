@@ -48,6 +48,28 @@ rule 4. Newest first.
   plain static grid with zero crashes. No code gaps found — each face already routed
   through a fallback slot; music and the generic face were built to the same contract.
 
+## S24 follow-up — live, location-specific weather (FR-2)
+
+- **Open-Meteo, no API key, no SDK.** Real forecasts come from `OpenMeteoWeatherProvider`
+  via `HttpURLConnection` + `org.json` (no Retrofit/OkHttp dependency, keeping the
+  module lean). It fetches current temp + WMO `weather_code` + today's max/min +
+  precip-probability for the resolved coordinates. Pure parsers
+  (`parseOpenMeteoForecast`, `parseOpenMeteoGeocode`, `weatherCodeToCondition`,
+  `weatherDetail`) are unit-tested with the real `org.json` (added as a
+  `testImplementation` since the android.jar stub throws). `httpGet` is injected so
+  the provider's logic is testable without network. New `INTERNET` permission.
+- **Location label via Android `Geocoder`.** A coarse fix is reverse-geocoded
+  (locality → sub-admin → admin area) on the worker thread to label the tile
+  ("Pune"), falling back to "current location"; a typed city is forward-geocoded by
+  Open-Meteo (canonical name + coords). The label is shown on both tile faces — the
+  prototype shows no place, but the user asked for it. `SampleWeatherProvider` is kept
+  only for previews/offline; the worker now uses the network provider and retries on
+  failure (keeping the last cached snapshot) rather than showing fake data.
+- **Tap opens weather.** Weather has no standard launcher intent, so a blank-package
+  weather tile opens a weather web search (`google.com/search?q=weather`) — handled
+  in-app by the Google app where present, else the browser — mirroring the calendar
+  tap fallback.
+
 ## S24 follow-up — drag an app out of a folder + calendar fixes (FR-4 / FR-2)
 
 - **Pull-out is a drag gesture and re-pins onto Start.** First pass used an edit-mode

@@ -1557,15 +1557,18 @@ private fun onTileClick(context: Context, tile: TileModel) {
 /**
  * Opens the system app behind a self-contained live tile that seeded without a
  * resolved launch component. Calendar maps to the calendar provider's VIEW intent
- * (the default calendar app); other live tiles have no standard target and stay
- * inert. Best-effort — a missing handler is swallowed rather than toasted.
+ * (the default calendar app); weather has no standard launcher intent, so it opens
+ * a weather web search (handled in-app by the Google app where present, else the
+ * browser). Other live tiles have no target and stay inert. Best-effort — a missing
+ * handler is swallowed rather than toasted.
  */
 private fun launchLiveTileFallback(context: Context, iconKey: String?) {
     val intent = when (iconKey) {
         "calendar" -> Intent(Intent.ACTION_VIEW)
             .setData(Uri.parse("content://com.android.calendar/time"))
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        "weather" -> Intent(Intent.ACTION_VIEW)
+            .setData(Uri.parse("https://www.google.com/search?q=weather"))
         else -> return
-    }
+    }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     runCatching { context.startActivity(intent) }
 }

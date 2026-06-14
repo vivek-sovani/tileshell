@@ -16,6 +16,9 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- People tile (FR-2): contact names + thumbnails for the avatar mosaic. -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Weather tile (FR-2): fetch a live, location-specific forecast from the
+         no-API-key Open-Meteo service. -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <queries>
         <intent>

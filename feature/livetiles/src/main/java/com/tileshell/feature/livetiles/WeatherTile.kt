@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.TileSize
@@ -61,10 +62,21 @@ fun WeatherTileFace(
 private fun WeatherFront(snapshot: WeatherSnapshot, size: TileSize) {
     val big = size == TileSize.WIDE || size == TileSize.LARGE
     val tempSize = if (big) 60.sp else 40.sp
+    val place = snapshot.place.ifBlank { "weather" }
     Column(
         modifier = Modifier.fillMaxSize().padding(11.dp),
         verticalArrangement = Arrangement.Center,
     ) {
+        // Location name (prototype shows none; the user asked for it).
+        Text(
+            text = place,
+            color = FaceText,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(2.dp))
         Text(
             text = tempLabel(snapshot.tempC),
             color = FaceText,
@@ -76,8 +88,6 @@ private fun WeatherFront(snapshot: WeatherSnapshot, size: TileSize) {
         )
         Spacer(Modifier.height(4.dp))
         Text(text = snapshot.condition, color = FaceText, fontSize = 13.sp, maxLines = 1)
-        Spacer(Modifier.weight(1f))
-        Text(text = "weather", color = FaceText.copy(alpha = 0.82f), fontSize = 12.sp, maxLines = 1)
     }
 }
 
@@ -87,7 +97,13 @@ private fun WeatherBack(snapshot: WeatherSnapshot) {
         modifier = Modifier.fillMaxSize().padding(11.dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(text = "today", color = FaceText.copy(alpha = 0.9f), fontSize = 13.sp, maxLines = 1)
+        Text(
+            text = snapshot.place.ifBlank { "today" },
+            color = FaceText.copy(alpha = 0.9f),
+            fontSize = 13.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
         Spacer(Modifier.height(6.dp))
         Text(
             text = highLowLabel(snapshot.highC, snapshot.lowC),

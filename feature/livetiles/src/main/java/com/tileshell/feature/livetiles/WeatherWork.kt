@@ -3,6 +3,7 @@ package com.tileshell.feature.livetiles
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.location.Geocoder
 import android.location.LocationManager
 import androidx.core.content.ContextCompat
 import androidx.work.CoroutineWorker
@@ -11,6 +12,9 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkerParameters
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
@@ -34,15 +38,18 @@ fun resolveWeatherQuery(
  * query can be resolved (location denied and no city set) it succeeds without
  * touching the cache, so the tile stays static. Network failures retry.
  *
- * The provider is the offline [SampleWeatherProvider] for now; a real build
- * supplies a network provider via a custom WorkerFactory (DECISIONS S21).
+ * Forecasts come from the live, no-API-key [OpenMeteoWeatherProvider]; the place
+ * label for a coarse fix is reverse-geocoded with Android's [Geocoder]. A failed
+ * fetch retries and the tile keeps its last good snapshot (DECISIONS S21).
  */
 class WeatherRefreshWorker(
     context: Context,
     params: WorkerParameters,
 ) : CoroutineWorker(context, params) {
 
-    private val provider: WeatherProvider = SampleWeatherProvider
+    private val provider: WeatherProvider = OpenMeteoWeatherProvider(
+        reverseGeocode = { lat, lon -> reverseGeocodePlace(applicationContext, lat, lon) },
+    )
 
     override suspend fun doWork(): Result {
         val cache = WeatherCache.create(applicationContext)
@@ -76,6 +83,24 @@ class WeatherRefreshWorker(
     }
 
     companion object {
+        /**
+         * Best-effort place label for a coarse fix via Android's [Geocoder]
+         * (locality → sub-admin → admin area). Returns null when geocoding is
+         * unavailable or yields nothing — the provider then labels it "current
+         * location". The deprecated synchronous overload is fine on a worker thread.
+         */
+        @Suppress("DEPRECATION")
+        suspend fun reverseGeocodePlace(context: Context, lat: Double, lon: Double): String? =
+            withContext(Dispatchers.IO) {
+                if (!Geocoder.isPresent()) return@withContext null
+                runCatching {
+                    Geocoder(context, Locale.getDefault())
+                        .getFromLocation(lat, lon, 1)
+                        ?.firstOrNull()
+                        ?.let { it.locality ?: it.subAdminArea ?: it.adminArea }
+                }.getOrNull()
+            }
+
         private const val UNIQUE_PERIODIC = "tileshell_weather_refresh"
         private const val UNIQUE_NOW = "tileshell_weather_refresh_now"
 

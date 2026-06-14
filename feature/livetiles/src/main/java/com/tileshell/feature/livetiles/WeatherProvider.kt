@@ -32,21 +32,19 @@ data class WeatherSnapshot(
 )
 
 /**
- * The pluggable seam (FR-2 "via a pluggable provider interface"): a real build
- * swaps in a network-backed implementation behind this interface — the worker,
- * cache and tile never change. Returns `null` when the lookup fails so the tile
- * keeps its last cache (or degrades to static).
+ * The pluggable seam (FR-2 "via a pluggable provider interface"). The live build
+ * uses the network-backed [OpenMeteoWeatherProvider]; this interface keeps the
+ * worker/cache/tile decoupled from the source. Returns `null` when the lookup
+ * fails so the tile keeps its last cache (or degrades to static).
  */
 fun interface WeatherProvider {
     suspend fun fetch(query: WeatherQuery): WeatherSnapshot?
 }
 
 /**
- * Offline stand-in used until a network provider is wired in. Returns the
- * prototype's sample forecast (tiles.js `liveFace('weather')`) so the tile is
- * demonstrable on a device without an API key; it still honours opt-in because
- * the worker only calls a provider once it has a [WeatherQuery]. See DECISIONS
- * S21.
+ * Offline stand-in (the prototype's fixed forecast, tiles.js `liveFace('weather')`).
+ * Superseded by [OpenMeteoWeatherProvider] for the live tile; retained for previews
+ * and offline manual testing. See DECISIONS S21.
  */
 object SampleWeatherProvider : WeatherProvider {
     override suspend fun fetch(query: WeatherQuery): WeatherSnapshot {
