@@ -60,8 +60,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.AppLauncher
 import com.tileshell.core.data.PinResult
-import com.tileshell.core.design.DarkColorTokens
-import com.tileshell.core.design.TileAccents
+import com.tileshell.core.design.LocalAccent
+import com.tileshell.core.design.LocalColorTokens
 import com.tileshell.core.design.TileIcons
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -93,7 +93,7 @@ fun AppListScreen(
 ) {
     val apps by viewModel.filteredApps.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
-    val accent = TileAccents.Blue // theme accent arrives in S17
+    val accent = LocalAccent.current // global accent (FR-7, S17)
     val context = LocalContext.current
 
     val listState = rememberLazyListState()
@@ -120,7 +120,7 @@ fun AppListScreen(
             if (apps.isEmpty() && query.isNotBlank()) {
                 Text(
                     "no apps found",
-                    color = DarkColorTokens.fgDim,
+                    color = LocalColorTokens.current.fgDim,
                     fontSize = 14.sp,
                     modifier = Modifier.padding(start = 18.dp, top = 30.dp),
                 )
@@ -169,22 +169,22 @@ private fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
             .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp)
             .fillMaxWidth()
             .height(38.dp)
-            .background(DarkColorTokens.chip)
+            .background(LocalColorTokens.current.chip)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(TileIcons["search"], null, tint = DarkColorTokens.fgDim, modifier = Modifier.size(16.dp))
+        Icon(TileIcons["search"], null, tint = LocalColorTokens.current.fgDim, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(9.dp))
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
             if (query.isEmpty()) {
-                Text("search apps", color = DarkColorTokens.fgDim, fontSize = 14.sp)
+                Text("search apps", color = LocalColorTokens.current.fgDim, fontSize = 14.sp)
             }
             BasicTextField(
                 value = query,
                 onValueChange = onQueryChange,
                 singleLine = true,
-                textStyle = TextStyle(color = DarkColorTokens.fg, fontSize = 14.sp),
-                cursorBrush = SolidColor(DarkColorTokens.fg),
+                textStyle = TextStyle(color = LocalColorTokens.current.fg, fontSize = 14.sp),
+                cursorBrush = SolidColor(LocalColorTokens.current.fg),
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -230,7 +230,7 @@ private fun AppRow(app: AppEntry, accent: Color, onTap: () -> Unit, onPin: () ->
             }
         }
         Spacer(Modifier.width(14.dp))
-        Text(app.label, color = DarkColorTokens.fg, fontSize = 16.sp)
+        Text(app.label, color = LocalColorTokens.current.fg, fontSize = 16.sp)
     }
 }
 
@@ -249,7 +249,7 @@ private fun JumpGrid(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkColorTokens.bg)
+            .background(LocalColorTokens.current.bg)
             .statusBarsPadding()
             .navigationBarsPadding()
             .padding(18.dp),
@@ -274,7 +274,7 @@ private fun JumpGrid(
                     ) {
                         Text(
                             text = letter,
-                            color = if (has) Color.White else DarkColorTokens.fgDim.copy(alpha = 0.3f),
+                            color = if (has) Color.White else LocalColorTokens.current.fgDim.copy(alpha = 0.3f),
                             fontSize = 26.sp,
                             fontWeight = FontWeight.ExtraLight,
                         )

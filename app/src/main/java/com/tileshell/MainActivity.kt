@@ -34,14 +34,15 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        // Back closes the folder overlay first, then leaves edit mode, then
-        // returns from the App-list page to Start; on a plain Start screen it is
-        // a no-op (WP behaviour).
+        // Back closes the personalize sheet first, then the folder overlay, then
+        // leaves edit mode, then returns from the App-list page to Start; on a
+        // plain Start screen it is a no-op (WP behaviour).
         onBackPressedDispatcher.addCallback(
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
                     when {
+                        startViewModel.personalizeOpen.value -> startViewModel.closePersonalize()
                         startViewModel.openFolderId.value != null -> startViewModel.closeFolder()
                         startViewModel.editMode.value -> startViewModel.exitEdit()
                         startViewModel.isAppList.value -> startViewModel.goHome()

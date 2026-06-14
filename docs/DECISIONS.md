@@ -3,6 +3,48 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## S17 · Personalize sheet: theme + accent
+
+- **"Proto DataStore" honoured as a typed `Serializer`, not the protobuf
+  toolchain.** CLAUDE.md mandates Proto DataStore for settings. Adding the
+  protobuf-gradle plugin + `.proto` codegen for a two-field schema is
+  disproportionate, so `LauncherSettings` is a flat Kotlin data class persisted
+  through a typed `DataStore<LauncherSettings>` with a hand-written
+  `SettingsSerializer` over a tiny `key=value` text codec (`SettingsCodec`). This
+  keeps the architectural intent — typed schema, transactional `updateData`,
+  `Flow`-backed live reads — without protobuf weight, and the codec is pure
+  Kotlin so its round-trip/tolerance is JVM-unit-tested (org.json would have
+  needed Robolectric). A new/corrupt store reads as defaults.
+
+- **Accent is a *global chrome* accent; it does not recolour Start tiles.** The
+  prototype renderer paints every tile with the single `state.accent` (per-tile
+  `color` is vestigial). Our port deliberately kept per-tile colours since S2/S11
+  ("rather than a wall of identical blue tiles"), so changing the accent here
+  recolours only the accent chrome — app-list row tiles, letter headers, the jump
+  grid and the segmented toggle — threaded via a new `LocalAccent`. Start tiles
+  keep `TileAccents.forId(colorId)`. The live feedback for an accent change is
+  therefore the seg highlight + selected-swatch ring in the open sheet and the
+  app list, not the Start grid.
+
+- **Theme applies live via `LocalColorTokens`, but the wallpaper is theme-
+  independent (matching the prototype's separate `wall` state).** A new
+  `staticCompositionLocalOf` carries the active `ColorTokens`, provided at the
+  Start root from the persisted `dark` flag; the sheet, edit bar and app list
+  read it and re-skin the instant the toggle flips. The Aurora wallpaper and the
+  solid-accent Start tiles stay as-is across themes (tiles are white-on-accent,
+  theme-agnostic), so light theme is visible on the chrome surfaces rather than
+  the grid — faithful to the prototype, where `.light` only retints token-driven
+  surfaces over the same wallpaper. The folder overlay keeps its light-on-dark
+  scrim colours regardless of theme (it always sits over a dark blurred Start).
+
+- **Sheet lives in `:feature:personalize` (its first real source).** The empty
+  module finally gets its purpose: a stateless `PersonalizeSheet(visible, dark,
+  accentId, callbacks)` depending only on `:core:design`. `:feature:start` owns
+  the open/close state (`StartViewModel.personalizeOpen`, so Back/Home close it
+  before the folder/edit/app-list) and feeds persisted values straight back in.
+  Only the theme + accent groups are built; transparency/blur/wallpaper/layout
+  groups from the prototype `buildSettings` are deferred to later sessions.
+
 ## S16 · Folder overlay + rename
 
 - **Children render as medium tiles, per the session prompt, not the prototype's

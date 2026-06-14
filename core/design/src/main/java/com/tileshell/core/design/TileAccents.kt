@@ -29,6 +29,15 @@ object TileAccents {
         Lime, Green, Teal, Cyan, Steel, Mauve, Slate,
     )
 
+    /** The 14 colour ids in palette order (parallel to [all]). */
+    val ids: List<String> = listOf(
+        "blue", "cobalt", "purple", "magenta", "red", "orange", "amber",
+        "lime", "green", "teal", "cyan", "steel", "mauve", "slate",
+    )
+
+    /** (id, colour) pairs in palette order — drives the personalize swatches. */
+    val swatches: List<Pair<String, Color>> = ids.zip(all)
+
     /** Lookup by the prototype colour id. */
     val byId: Map<String, Color> = mapOf(
         "blue" to Blue, "cobalt" to Cobalt, "purple" to Purple, "magenta" to Magenta,

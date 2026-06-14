@@ -10,6 +10,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.TileModel
+import com.tileshell.core.data.settings.LauncherSettings
+import com.tileshell.core.data.settings.SettingsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +30,7 @@ import kotlinx.coroutines.launch
 class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = LayoutRepository.create(application)
+    private val settingsRepository = SettingsRepository.create(application)
     private val launcherApps =
         application.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
 
@@ -35,6 +38,13 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList(),
+    )
+
+    /** Persisted personalization (theme + accent), applied live (FR-7). */
+    val settings: StateFlow<LauncherSettings> = settingsRepository.settings.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = LauncherSettings(),
     )
 
     /** Emitted when the user presses Home while already on Start. */
@@ -63,6 +73,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** The id of the folder whose full-screen overlay is open (FR-4), or null. */
     private val _openFolderId = MutableStateFlow<String?>(null)
     val openFolderId: StateFlow<String?> = _openFolderId.asStateFlow()
+
+    /** True while the personalize sheet is open (edit bar → personalize, FR-7). */
+    private val _personalizeOpen = MutableStateFlow(false)
+    val personalizeOpen: StateFlow<Boolean> = _personalizeOpen.asStateFlow()
 
     fun setAppList(value: Boolean) {
         _isAppList.value = value
@@ -139,6 +153,26 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         _swipeEnabled.value = true
     }
 
+    /** Open the personalize sheet (FR-7). Reachable from the edit bar. */
+    fun openPersonalize() {
+        _personalizeOpen.value = true
+    }
+
+    /** Close the personalize sheet. Safe when none is open. */
+    fun closePersonalize() {
+        _personalizeOpen.value = false
+    }
+
+    /** Switch theme (FR-7); persisted and applied live. */
+    fun setTheme(dark: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setDark(dark) }
+    }
+
+    /** Set the global accent colour (FR-7); persisted and applied live. */
+    fun setAccent(accentId: String) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setAccent(accentId) }
+    }
+
     /** Rename the open folder (FR-4). Blank/whitespace names are ignored. */
     fun renameFolder(id: String, name: String) {
         val trimmed = name.trim()
@@ -151,6 +185,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      * (FR-3.1) and asks the screen to collapse the pager and scroll to the top.
      */
     fun goHome() {
+        closePersonalize()
         closeFolder()
         exitEdit()
         _homeRequests.tryEmit(Unit)

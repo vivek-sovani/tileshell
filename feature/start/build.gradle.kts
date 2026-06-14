@@ -30,6 +30,7 @@ dependencies {
     implementation(project(":core:data"))
     implementation(project(":core:design"))
     implementation(project(":feature:applist"))
+    implementation(project(":feature:personalize"))
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.lifecycle.runtime.compose)

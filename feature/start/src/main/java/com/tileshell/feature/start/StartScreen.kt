@@ -45,6 +45,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -84,10 +85,14 @@ import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.TileSize
 import com.tileshell.feature.applist.AppListScreen
+import com.tileshell.feature.personalize.PersonalizeSheet
 import com.tileshell.core.design.DarkColorTokens
+import com.tileshell.core.design.LocalAccent
+import com.tileshell.core.design.LocalColorTokens
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.Wallpapers
+import com.tileshell.core.design.colorTokens
 import com.tileshell.core.design.tiltOnPress
 import com.tileshell.core.design.wallpaperBackground
 import kotlinx.coroutines.launch
@@ -113,6 +118,8 @@ fun StartScreen(
     val editMode by viewModel.editMode.collectAsStateWithLifecycle()
     val selectedTileId by viewModel.selectedTileId.collectAsStateWithLifecycle()
     val openFolderId by viewModel.openFolderId.collectAsStateWithLifecycle()
+    val personalizeOpen by viewModel.personalizeOpen.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
@@ -131,8 +138,10 @@ fun StartScreen(
         if (openFolderId != null && openFolder == null) viewModel.closeFolder()
     }
 
-    // Personalize stub sheet (edit bar → personalize); full sheet lands later.
-    var showPersonalize by remember { mutableStateOf(false) }
+    // Active theme tokens + global accent (FR-7), provided down the tree so the
+    // chrome (sheet, edit bar, app list) re-skins live when personalization changes.
+    val tokens = colorTokens(settings.dark)
+    val accent = TileAccents.forId(settings.accentId)
 
     val scrollState = rememberScrollState()
     // 0 = Start, 1 = App list.
@@ -156,6 +165,10 @@ fun StartScreen(
     }
 
     val density = LocalDensity.current
+    CompositionLocalProvider(
+        LocalColorTokens provides tokens,
+        LocalAccent provides accent,
+    ) {
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
@@ -248,7 +261,7 @@ fun StartScreen(
                         Toast.makeText(context, "long-press an app to pin", Toast.LENGTH_SHORT)
                             .show()
                     },
-                    onPersonalize = { showPersonalize = true },
+                    onPersonalize = viewModel::openPersonalize,
                 )
             }
 
@@ -257,7 +270,7 @@ fun StartScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer { translationX = widthPx * (1f - progress.value) }
-                    .background(DarkColorTokens.bg),
+                    .background(LocalColorTokens.current.bg),
             ) {
                 AppListScreen(
                     modifier = Modifier.fillMaxSize(),
@@ -266,8 +279,15 @@ fun StartScreen(
             }
         }
 
-        // Personalize stub sheet overlay (edit bar → personalize).
-        PersonalizeStubSheet(visible = showPersonalize, onDismiss = { showPersonalize = false })
+        // Personalize sheet overlay (edit bar → personalize, FR-7).
+        PersonalizeSheet(
+            visible = personalizeOpen,
+            dark = settings.dark,
+            accentId = settings.accentId,
+            onThemeChange = viewModel::setTheme,
+            onAccentChange = viewModel::setAccent,
+            onDismiss = viewModel::closePersonalize,
+        )
 
         // Full-screen folder overlay (FR-4).
         FolderOverlay(
@@ -285,6 +305,7 @@ fun StartScreen(
             },
             onRename = { name -> openFolder?.let { viewModel.renameFolder(it.id, name) } },
         )
+    }
     }
 }
 
@@ -607,7 +628,7 @@ private fun EditBar(
         modifier = modifier
             .fillMaxWidth()
             .graphicsLayer { translationY = size.height * offset }
-            .background(DarkColorTokens.sheet)
+            .background(LocalColorTokens.current.sheet)
             .navigationBarsPadding()
             .height(60.dp),
         horizontalArrangement = Arrangement.Center,
@@ -759,45 +780,6 @@ private fun FolderTitleEditor(initial: String, onCommit: (String) -> Unit) {
     LaunchedEffect(Unit) { focus.requestFocus() }
 }
 
-/**
- * Placeholder personalize sheet (edit bar → personalize, FR-3.5). A scrim plus a
- * bottom panel naming the future personalization options; the full sheet lands
- * with `:feature:personalize`. Scrim tap dismisses.
- */
-@Composable
-private fun PersonalizeStubSheet(visible: Boolean, onDismiss: () -> Unit) {
-    if (!visible) return
-    Box(modifier = Modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0x99000000))
-                .clickable(onClick = onDismiss),
-        )
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .background(DarkColorTokens.sheet)
-                .navigationBarsPadding()
-                .padding(horizontal = 22.dp, vertical = 24.dp),
-        ) {
-            Text(
-                text = "personalize",
-                color = DarkColorTokens.fg,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Medium,
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "accent, background and tile transparency — coming soon",
-                color = DarkColorTokens.fgDim,
-                fontSize = 13.sp,
-            )
-        }
-    }
-}
-
 @Composable
 private fun EditBarButton(
     iconKey: String,
@@ -814,11 +796,11 @@ private fun EditBarButton(
         Icon(
             imageVector = TileIcons[iconKey],
             contentDescription = label,
-            tint = DarkColorTokens.fg,
+            tint = LocalColorTokens.current.fg,
             modifier = Modifier.size(20.dp),
         )
         Spacer(Modifier.height(3.dp))
-        Text(text = label, color = DarkColorTokens.fg, fontSize = 13.sp)
+        Text(text = label, color = LocalColorTokens.current.fg, fontSize = 13.sp)
     }
 }
 
