@@ -135,6 +135,73 @@ interface LayoutDao {
         survivingOrder.forEachIndexed { index, id -> updateTilePosition(id, index) }
     }
 
+    // ---- remove one app from a folder (FR-4) ----------------------------
+
+    @Query(
+        "DELETE FROM folder_children WHERE folderId = :folderId " +
+            "AND packageName = :packageName AND activityName = :activityName",
+    )
+    suspend fun deleteFolderChildComponent(
+        folderId: String,
+        packageName: String,
+        activityName: String,
+    )
+
+    @Query("SELECT * FROM folder_children WHERE folderId = :folderId ORDER BY position")
+    suspend fun folderChildrenOnce(folderId: String): List<FolderChildEntity>
+
+    @Query("UPDATE folder_children SET position = :position WHERE rowId = :rowId")
+    suspend fun updateFolderChildPosition(rowId: Long, position: Int)
+
+    @Query(
+        "UPDATE tiles SET type = '" + TileEntity.TYPE_APP + "', packageName = :packageName, " +
+            "activityName = :activityName, label = :label, iconKey = :iconKey, folderId = NULL " +
+            "WHERE id = :id",
+    )
+    suspend fun convertFolderTileToApp(
+        id: String,
+        packageName: String,
+        activityName: String,
+        label: String?,
+        iconKey: String?,
+    )
+
+    /**
+     * Remove one app from a folder (FR-4). [folderId] is the folder tile's own id
+     * (DECISIONS S5). After dropping the matching child:
+     *  - **≥2 left** → renumber the survivors and keep the folder;
+     *  - **exactly 1 left** → dissolve: rewrite the folder tile as a plain app
+     *    tile for the survivor (keeping its slot/size/colour) and drop the folder
+     *    meta (its leftover child row cascades away);
+     *  - **none left** → drop the folder tile and its meta entirely.
+     */
+    @Transaction
+    suspend fun removeFolderChild(folderId: String, packageName: String, activityName: String) {
+        deleteFolderChildComponent(folderId, packageName, activityName)
+        val remaining = folderChildrenOnce(folderId)
+        when {
+            remaining.size >= 2 ->
+                remaining.forEachIndexed { index, child ->
+                    updateFolderChildPosition(child.rowId, index)
+                }
+            remaining.size == 1 -> {
+                val survivor = remaining.first()
+                convertFolderTileToApp(
+                    id = folderId,
+                    packageName = survivor.packageName,
+                    activityName = survivor.activityName,
+                    label = survivor.label,
+                    iconKey = survivor.iconKey,
+                )
+                deleteFolderById(folderId) // cascade removes the survivor's child row
+            }
+            else -> {
+                deleteTileById(folderId)
+                deleteFolderById(folderId)
+            }
+        }
+    }
+
     // ---- uninstall removal (FR-5) ---------------------------------------
 
     @Query("DELETE FROM tiles WHERE packageName = :packageName")

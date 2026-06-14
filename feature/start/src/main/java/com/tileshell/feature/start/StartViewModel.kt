@@ -9,6 +9,7 @@ import android.os.UserHandle
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tileshell.core.data.LayoutRepository
+import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.core.data.settings.SettingsRepository
@@ -232,6 +233,15 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return
         viewModelScope.launch(writeContext) { repository.renameFolder(id, trimmed) }
+    }
+
+    /**
+     * Remove one app from a folder (FR-4). The folder dissolves to a plain tile
+     * when a single app remains (the overlay then self-closes as the folder model
+     * disappears) and vanishes when empty.
+     */
+    fun removeFolderChild(folderId: String, child: FolderChild) {
+        viewModelScope.launch(writeContext) { repository.removeFolderChild(folderId, child) }
     }
 
     /**

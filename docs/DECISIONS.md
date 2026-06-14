@@ -48,6 +48,26 @@ rule 4. Newest first.
   plain static grid with zero crashes. No code gaps found — each face already routed
   through a fallback slot; music and the generic face were built to the same contract.
 
+## S24 follow-up — remove an app from a folder (FR-4)
+
+- **Long-press inside the folder = edit mode, × removes the child.** The prototype
+  folder overlay only launches; WP10 lets you pull apps out, so the overlay gains a
+  local `editing` state: long-pressing a child jiggles the children (reusing
+  `rememberJigglePhase`) and shows an unpin × on each (prototype `.tc-pin`). Tapping
+  × calls `onRemoveChild`; tapping a child while editing is inert (launch is gated on
+  `!editing`); the close button / scrim first leave edit mode, then dismiss.
+- **Folder dissolves at one app, vanishes at none.** `LayoutDao.removeFolderChild`
+  (one `@Transaction`, parallel to `applyMerge`) drops the matching `folder_children`
+  row, then: ≥2 left → renumber and keep the folder; exactly 1 left → rewrite the
+  folder tile in place as a plain app tile for the survivor (keep slot/size/colour)
+  and drop the folder meta (the leftover child row cascades); 0 left → delete the
+  tile + meta. A folder is only a folder with ≥2 apps, matching the merge rule that
+  forms one. `folderId` is the folder tile's own id (DECISIONS S5), so no extra
+  lookup. When the folder dissolves/empties, the existing self-close effect closes
+  the overlay (its `TileModel.Folder` is gone). No schema change — only new queries;
+  the transaction (like `applyMerge`) is data-layer, so only the pure pieces stay
+  unit-tested.
+
 ## S17 · Personalize sheet: theme + accent
 
 - **"Proto DataStore" honoured as a typed `Serializer`, not the protobuf

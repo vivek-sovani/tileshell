@@ -410,6 +410,9 @@ fun StartScreen(
                 viewModel.closeFolder()
             },
             onRename = { name -> openFolder?.let { viewModel.renameFolder(it.id, name) } },
+            onRemoveChild = { child ->
+                openFolder?.let { viewModel.removeFolderChild(it.id, child) }
+            },
         )
 
         // First-run hint (S19): one-time prototype hint card over Start. Sits
@@ -847,8 +850,11 @@ private fun EditBar(
  * Full-screen folder overlay (FR-4): a translucent scrim over the blurred Start
  * screen, a close button, the lowercase folder title, and a grid of medium child
  * tiles. Tapping a child launches it and dismisses; tapping the scrim dismisses;
- * long-pressing the title renames it (persisted). Renders nothing when [folder]
- * is null (closed, or the folder was removed/emptied while open).
+ * long-pressing the title renames it (persisted). Long-pressing a child enters
+ * edit mode (children jiggle, each shows an unpin × control); tapping × removes
+ * that app from the folder ([onRemoveChild]) — the folder dissolves to a plain
+ * tile when one app is left and the overlay then self-closes. Renders nothing
+ * when [folder] is null (closed, or the folder was removed/emptied while open).
  */
 @Composable
 private fun FolderOverlay(
@@ -856,10 +862,18 @@ private fun FolderOverlay(
     onClose: () -> Unit,
     onLaunchChild: (FolderChild) -> Unit,
     onRename: (String) -> Unit,
+    onRemoveChild: (FolderChild) -> Unit,
 ) {
     if (folder == null) return
     val density = LocalDensity.current
     var renaming by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(false) }
+    // Leaving edit mode when the folder changes identity keeps the × controls from
+    // lingering after a dissolve/close.
+    LaunchedEffect(folder.id) { editing = false }
+    val jigglePhase = rememberJigglePhase(editing)
+    // The close button and scrim first exit edit mode, then dismiss the overlay.
+    val dismiss = { if (editing) editing = false else onClose() }
 
     val childSpecs = remember(folder.children) {
         folder.children.map { TileSpec(it.packageName + "/" + it.activityName, TileSize.MEDIUM) }
@@ -871,9 +885,9 @@ private fun FolderOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            // Scrim (prototype rgba(8,8,12,.55)); tap to dismiss.
+            // Scrim (prototype rgba(8,8,12,.55)); tap to dismiss (or exit edit).
             .background(Color(0x8C08080C))
-            .pointerInput(Unit) { detectTapGestures { onClose() } },
+            .pointerInput(editing) { detectTapGestures { dismiss() } },
     ) {
         Column(
             modifier = Modifier
@@ -888,12 +902,12 @@ private fun FolderOverlay(
                         .align(Alignment.TopEnd)
                         .padding(top = 6.dp, end = 14.dp)
                         .size(34.dp)
-                        .pointerInput(Unit) { detectTapGestures { onClose() } },
+                        .pointerInput(editing) { detectTapGestures { dismiss() } },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         imageVector = TileIcons["close"],
-                        contentDescription = "close folder",
+                        contentDescription = if (editing) "done editing folder" else "close folder",
                         tint = DarkColorTokens.fg,
                         modifier = Modifier.size(22.dp),
                     )
@@ -928,6 +942,7 @@ private fun FolderOverlay(
             // Grid of medium child tiles (2 per row on the 4-column grid).
             DenseTileGrid(tiles = childSpecs, modifier = Modifier.fillMaxWidth()) { spec, slot, sizePx ->
                 val child = childById[spec.id] ?: return@DenseTileGrid
+                val childIndex = childSpecs.indexOfFirst { it.id == spec.id }
                 val appModel = TileModel.App(
                     id = spec.id,
                     position = 0,
@@ -938,17 +953,50 @@ private fun FolderOverlay(
                     label = child.label,
                     iconKey = child.iconKey,
                 )
+                val rotation = if (editing) {
+                    if (childIndex % 2 == 0) jigglePhase else -jigglePhase
+                } else {
+                    0f
+                }
                 Box(
                     modifier = Modifier
                         .offset { slot }
+                        .graphicsLayer { rotationZ = rotation }
                         .size(
                             with(density) { sizePx.width.toDp() },
                             with(density) { sizePx.height.toDp() },
                         )
                         .background(TileAccents.forId(folder.colorId))
-                        .pointerInput(spec.id) { detectTapGestures { onLaunchChild(child) } },
+                        // Tap launches when not editing; long-press enters edit mode.
+                        .pointerInput(spec.id, editing) {
+                            detectTapGestures(
+                                onTap = { if (!editing) onLaunchChild(child) },
+                                onLongPress = { editing = true },
+                            )
+                        },
                 ) {
                     AppTileContent(appModel)
+                    // Unpin control (prototype .tc-pin) — only while editing.
+                    if (editing) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(6.dp)
+                                .size(22.dp)
+                                .background(Color(0xCC1A1A22), CircleShape)
+                                .pointerInput(spec.id) {
+                                    detectTapGestures { onRemoveChild(child) }
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = TileIcons["close"],
+                                contentDescription = "remove ${child.label ?: "app"} from folder",
+                                tint = Color.White,
+                                modifier = Modifier.size(13.dp),
+                            )
+                        }
+                    }
                 }
             }
         }

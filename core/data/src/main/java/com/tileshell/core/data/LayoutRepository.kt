@@ -49,6 +49,14 @@ class LayoutRepository(
     suspend fun renameFolder(id: String, name: String) = dao.updateFolderName(id, name)
 
     /**
+     * Remove one app from a folder (FR-4). The folder dissolves to a plain tile
+     * when a single app is left, or disappears when none remain (see
+     * [LayoutDao.removeFolderChild]). [folderId] is the folder tile's own id.
+     */
+    suspend fun removeFolderChild(folderId: String, child: FolderChild) =
+        dao.removeFolderChild(folderId, child.packageName, child.activityName)
+
+    /**
      * Merge the dragged tile onto the target (FR-3.3): the target becomes a
      * folder holding the de-duplicated union of both tiles' apps and the dragged
      * tile is removed. No-op if either id is missing or they are the same tile.
