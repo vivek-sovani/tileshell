@@ -184,23 +184,32 @@ fun MusicTileFace(
     packageName: String? = null,
 ) {
     val media by MediaCenter.nowPlaying.collectAsState()
-    val np = if (packageName != null) {
-        media[packageName]
+    // The package whose now-playing this tile shows: the bound app for a music-app
+    // tile (Apple Music / YT Music), else the source of the playing session for the
+    // generic music tile — so its launcher icon can sit in the corner either way.
+    val iconPackage: String?
+    val np: NowPlaying?
+    if (packageName != null) {
+        iconPackage = packageName
+        np = media[packageName]
     } else {
-        media.values.firstOrNull { it.playing } ?: media.values.firstOrNull()
+        val entry = media.entries.firstOrNull { it.value.playing } ?: media.entries.firstOrNull()
+        iconPackage = entry?.key
+        np = entry?.value
     }
     np ?: return fallback()
 
     FlipTile(
         flipped = flipped,
         modifier = modifier.fillMaxSize(),
-        front = { MusicFront(np, animate = active && np.playing) },
-        back = { MusicBack() },
+        front = { MusicFront(np, animate = active && np.playing, packageName = iconPackage) },
+        back = { MusicBack(packageName = iconPackage) },
     )
 }
 
 @Composable
-private fun MusicFront(np: NowPlaying, animate: Boolean) {
+private fun MusicFront(np: NowPlaying, animate: Boolean, packageName: String?) {
+    Box(modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier.fillMaxSize().padding(11.dp),
         verticalArrangement = Arrangement.Center,
@@ -227,17 +236,33 @@ private fun MusicFront(np: NowPlaying, animate: Boolean) {
         Spacer(Modifier.weight(1f))
         Text(text = "music", color = FaceText.copy(alpha = 0.82f), fontSize = 12.sp, maxLines = 1)
     }
+        // The playing app's own launcher icon, top-left (matches notification tiles).
+        if (packageName != null) {
+            AppIconCorner(
+                packageName = packageName,
+                modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+            )
+        }
+    }
 }
 
 @Composable
-private fun MusicBack() {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(11.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(text = "paused", color = FaceText, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-        Text(text = "tap to resume", color = FaceText.copy(alpha = 0.82f), fontSize = 12.sp)
+private fun MusicBack(packageName: String?) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(11.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(text = "paused", color = FaceText, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            Text(text = "tap to resume", color = FaceText.copy(alpha = 0.82f), fontSize = 12.sp)
+        }
+        if (packageName != null) {
+            AppIconCorner(
+                packageName = packageName,
+                modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+            )
+        }
     }
 }
 

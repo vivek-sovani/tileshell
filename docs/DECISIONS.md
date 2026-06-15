@@ -865,3 +865,13 @@ rule 4. Newest first.
   recurses into `AnyOf`; tests updated.
 - **Note:** `seedIfEmpty()` does not re-seed a populated grid, so existing installs
   must reset the layout (personalize → reset) or clear data to gain the clock tile.
+
+## Post-S27 fix — app icon on the music now-playing face
+
+- **The music tile now draws the playing app's launcher icon top-left**, matching
+  the notification/conversation tiles. `MusicFront`/`MusicBack` are wrapped in a Box
+  with `AppIconCorner` at `TopStart`. The icon's package is the tile's bound package
+  for a music-app tile (Apple Music / YT Music), or the package of the active
+  playing session for the generic music tile — so the source app is always
+  identified while now-playing/paused is shown. (Calendar confirmed correct as-is —
+  it keeps the date front + next-schedule back, no icon change requested.)
