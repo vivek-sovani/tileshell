@@ -895,3 +895,20 @@ rule 4. Newest first.
   chevron at the bottom-right (a 48dp target, hidden in edit mode like the chevron);
   tapping it opens the personalize sheet (`openPersonalize`) directly — previously
   only reachable via edit mode → edit bar.
+
+## Post-S27 feature — transport controls on the music now-playing tile
+
+- **The music live tile now has prev / play-pause / next buttons** under the
+  track/artist while now-playing. `MediaCenter` keeps the live `MediaController`
+  map alongside the published `NowPlaying` map (refreshed by `MediaSessionsEffect`)
+  and exposes guarded `togglePlayPause` / `skipToNext` / `skipToPrevious` keyed by
+  package (the bound app for a music-app tile, else the playing session for the
+  generic music tile). New monoline `play`/`pause`/`prev`/`next` glyphs in
+  `TileIcons` (`:feature:livetiles` now depends on `:core:design`).
+- **Tap routing:** the buttons are `clickable(enabled = active)` so they're inert
+  in edit mode (drag/select still works) and consume the tap when active;
+  `tileGesture` now bails when a child consumed the pointer, so pressing a control
+  doesn't also launch the app.
+- **Known limitation:** the tile is a single `clearAndSetSemantics` node (S27), so
+  the control buttons aren't individually exposed to TalkBack — a follow-up could
+  add them as tile custom actions.

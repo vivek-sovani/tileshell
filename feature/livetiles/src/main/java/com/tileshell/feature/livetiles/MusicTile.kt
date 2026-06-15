@@ -3,11 +3,13 @@ package com.tileshell.feature.livetiles
 import android.content.ComponentName
 import android.content.Context
 import android.media.MediaMetadata
+import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,9 +19,13 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import com.tileshell.core.design.TileIcons
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -86,24 +92,26 @@ fun nowPlayingFrom(title: String?, artist: String?, state: Int): NowPlaying? {
  * is the access token — the same grant that powers badges/faces, so this needs no
  * extra permission.
  */
-private fun nowPlayingMap(
+private fun buildMediaState(
     manager: MediaSessionManager,
     component: ComponentName,
-): Map<String, NowPlaying> {
+): Pair<Map<String, NowPlaying>, Map<String, MediaController>> {
     val controllers = runCatching { manager.getActiveSessions(component) }.getOrNull().orEmpty()
-    val out = LinkedHashMap<String, NowPlaying>()
+    val np = LinkedHashMap<String, NowPlaying>()
+    val ctrls = LinkedHashMap<String, MediaController>()
     for (controller in controllers) {
         val pkg = controller.packageName ?: continue
-        if (out.containsKey(pkg)) continue // keep the highest-priority session per app
+        if (np.containsKey(pkg)) continue // keep the highest-priority session per app
         val md = controller.metadata
         val title = md?.getString(MediaMetadata.METADATA_KEY_TITLE)
         val artist = md?.getString(MediaMetadata.METADATA_KEY_ARTIST)
             ?: md?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
         val state = controller.playbackState?.state ?: PlaybackState.STATE_NONE
-        val np = nowPlayingFrom(title, artist, state) ?: continue
-        out[pkg] = np
+        val now = nowPlayingFrom(title, artist, state) ?: continue
+        np[pkg] = now
+        ctrls[pkg] = controller
     }
-    return out
+    return np to ctrls
 }
 
 /**
@@ -117,12 +125,44 @@ object MediaCenter {
     private val _nowPlaying = MutableStateFlow<Map<String, NowPlaying>>(emptyMap())
     val nowPlaying: StateFlow<Map<String, NowPlaying>> = _nowPlaying.asStateFlow()
 
-    fun publish(map: Map<String, NowPlaying>) {
+    // The live controllers behind [nowPlaying], for the tile's transport buttons.
+    // Refreshed on every publish; commands are guarded so a stale controller no-ops.
+    @Volatile
+    private var controllers: Map<String, MediaController> = emptyMap()
+
+    fun publish(map: Map<String, NowPlaying>, controllers: Map<String, MediaController>) {
         _nowPlaying.value = map
+        this.controllers = controllers
     }
 
     fun clear() {
         _nowPlaying.value = emptyMap()
+        controllers = emptyMap()
+    }
+
+    private fun controllerFor(packageName: String?): MediaController? = when {
+        packageName != null -> controllers[packageName]
+        else -> controllers.entries
+            .firstOrNull { it.value.playbackState?.state == PlaybackState.STATE_PLAYING }
+            ?.value ?: controllers.values.firstOrNull()
+    }
+
+    /** Toggle play/pause on the session for [packageName] (or the playing one). */
+    fun togglePlayPause(packageName: String?) {
+        val controller = controllerFor(packageName) ?: return
+        runCatching {
+            val playing = controller.playbackState?.state == PlaybackState.STATE_PLAYING
+            if (playing) controller.transportControls.pause()
+            else controller.transportControls.play()
+        }
+    }
+
+    fun skipToNext(packageName: String?) {
+        runCatching { controllerFor(packageName)?.transportControls?.skipToNext() }
+    }
+
+    fun skipToPrevious(packageName: String?) {
+        runCatching { controllerFor(packageName)?.transportControls?.skipToPrevious() }
     }
 }
 
@@ -144,7 +184,10 @@ fun MediaSessionsEffect(active: Boolean) {
             MediaCenter.clear()
             return@DisposableEffect onDispose { }
         }
-        val refresh = { MediaCenter.publish(nowPlayingMap(manager, component)) }
+        val refresh = {
+            val (np, ctrls) = buildMediaState(manager, component)
+            MediaCenter.publish(np, ctrls)
+        }
         val listener = MediaSessionManager.OnActiveSessionsChangedListener { refresh() }
         val registered = runCatching {
             manager.addOnActiveSessionsChangedListener(listener, component)
@@ -160,7 +203,8 @@ fun MediaSessionsEffect(active: Boolean) {
             as? MediaSessionManager ?: return@LaunchedEffect
         val component = ComponentName(context, TileNotificationListenerService::class.java)
         while (true) {
-            MediaCenter.publish(nowPlayingMap(manager, component))
+            val (np, ctrls) = buildMediaState(manager, component)
+            MediaCenter.publish(np, ctrls)
             delay(POLL_MS)
         }
     }
@@ -202,40 +246,59 @@ fun MusicTileFace(
     FlipTile(
         flipped = flipped,
         modifier = modifier.fillMaxSize(),
-        front = { MusicFront(np, animate = active && np.playing, packageName = iconPackage) },
+        front = {
+            MusicFront(
+                np,
+                animate = active && np.playing,
+                interactive = active,
+                packageName = iconPackage,
+            )
+        },
         back = { MusicBack(packageName = iconPackage) },
     )
 }
 
 @Composable
-private fun MusicFront(np: NowPlaying, animate: Boolean, packageName: String?) {
+private fun MusicFront(
+    np: NowPlaying,
+    animate: Boolean,
+    interactive: Boolean,
+    packageName: String?,
+) {
     Box(modifier = Modifier.fillMaxSize()) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(11.dp),
-        verticalArrangement = Arrangement.Center,
-    ) {
-        EqBars(animate = animate)
-        Spacer(Modifier.height(7.dp))
-        Text(
-            text = np.title,
-            color = FaceText,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        if (np.artist.isNotEmpty()) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(11.dp),
+            verticalArrangement = Arrangement.Center,
+        ) {
+            EqBars(animate = animate)
+            Spacer(Modifier.height(7.dp))
             Text(
-                text = np.artist,
-                color = FaceText.copy(alpha = 0.82f),
-                fontSize = 13.sp,
+                text = np.title,
+                color = FaceText,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            if (np.artist.isNotEmpty()) {
+                Text(
+                    text = np.artist,
+                    color = FaceText.copy(alpha = 0.82f),
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            // Transport controls — clickable only while the live gate is active
+            // (so edit-mode drag/select isn't intercepted); they consume the tap,
+            // so the tile doesn't also launch the app.
+            MusicControls(
+                playing = np.playing,
+                enabled = interactive && packageName != null,
+                packageName = packageName,
+            )
         }
-        Spacer(Modifier.weight(1f))
-        Text(text = "music", color = FaceText.copy(alpha = 0.82f), fontSize = 12.sp, maxLines = 1)
-    }
         // The playing app's own launcher icon, top-left (matches notification tiles).
         if (packageName != null) {
             AppIconCorner(
@@ -243,6 +306,45 @@ private fun MusicFront(np: NowPlaying, animate: Boolean, packageName: String?) {
                 modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
             )
         }
+    }
+}
+
+@Composable
+private fun MusicControls(playing: Boolean, enabled: Boolean, packageName: String?) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        ControlButton("prev", "previous", enabled) { MediaCenter.skipToPrevious(packageName) }
+        ControlButton(
+            iconKey = if (playing) "pause" else "play",
+            description = if (playing) "pause" else "play",
+            enabled = enabled,
+        ) { MediaCenter.togglePlayPause(packageName) }
+        ControlButton("next", "next", enabled) { MediaCenter.skipToNext(packageName) }
+    }
+}
+
+@Composable
+private fun ControlButton(
+    iconKey: String,
+    description: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = TileIcons[iconKey],
+            contentDescription = description,
+            tint = FaceText,
+            modifier = Modifier.size(22.dp),
+        )
     }
 }
 

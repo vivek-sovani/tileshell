@@ -28,6 +28,7 @@ android {
 
 dependencies {
     implementation(project(":core:data"))
+    implementation(project(":core:design")) // TileIcons for the media-control buttons
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.core.ktx)

@@ -1293,6 +1293,9 @@ private fun Modifier.tileGesture(
             while (true) {
                 val event = awaitPointerEvent()
                 val change = event.changes.firstOrNull { it.id == down.id }
+                // A child handled it (e.g. a music tile's transport button): don't
+                // also launch or enter edit.
+                if (change != null && change.isConsumed) return@withTimeoutOrNull false
                 if (change == null || !change.pressed) return@withTimeoutOrNull true
                 if ((change.position - down.position).getDistance() > slop) {
                     return@withTimeoutOrNull false

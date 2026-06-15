@@ -169,6 +169,24 @@ object TileIcons {
             p(circle(16.5, 16.0, 2.5)),
         ))
 
+        // Media transport controls (S-followup: music live-tile play/prev/next).
+        put("play", vector("play", p("M9 7l8 5-8 5z")))
+
+        put("pause", vector("pause",
+            p(line(9.5, 7.0, 9.5, 17.0)),
+            p(line(14.5, 7.0, 14.5, 17.0)),
+        ))
+
+        put("prev", vector("prev",
+            p(line(8.0, 7.0, 8.0, 17.0)),
+            p("M17 7l-7 5 7 5z"),
+        ))
+
+        put("next", vector("next",
+            p("M7 7l7 5-7 5z"),
+            p(line(16.0, 7.0, 16.0, 17.0)),
+        ))
+
         put("photos", vector("photos",
             p(rect(3.0, 5.0, 18.0, 14.0, 1.5)),
             p(circle(8.0, 10.0, 1.6)),
