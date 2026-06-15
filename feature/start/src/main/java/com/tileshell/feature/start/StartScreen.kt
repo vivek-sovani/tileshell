@@ -2,6 +2,7 @@ package com.tileshell.feature.start
 
 import android.content.ComponentName
 import android.content.Context
+import android.provider.Settings
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -34,6 +35,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -83,6 +85,14 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -544,7 +554,9 @@ private fun StartPage(
                 .fillMaxSize()
                 .verticalScroll(scrollState)
                 .statusBarsPadding()
-                .navigationBarsPadding(),
+                .navigationBarsPadding()
+                // Keep tiles clear of a display cutout (e.g. a landscape notch).
+                .displayCutoutPadding(),
         ) {
             val editDrag = Modifier.editDragGesture(
                 editMode = editMode,
@@ -629,8 +641,26 @@ private fun StartPage(
                         badgeCount = (model as? TileModel.App)
                             ?.let { notifications.badgeFor(it.packageName) } ?: 0,
                         darkTheme = darkTheme,
+                        canMoveBack = order.indexOf(model.id) > 0,
+                        canMoveForward = order.indexOf(model.id) in 0 until order.size - 1,
                         onTap = { if (!editMode) onTile(model) },
                         onLongPress = { if (!editMode) onEnterEdit(model.id) },
+                        onResize = { onResize(model.id) },
+                        onUnpin = { order.remove(model.id); onUnpin(model.id) },
+                        onSelect = { onSelectTile(model.id) },
+                        onExitEdit = onExitEdit,
+                        onMove = { dir ->
+                            val i = order.indexOf(model.id)
+                            val j = i + dir
+                            if (i >= 0 && j in order.indices) {
+                                val next = reorderTiles(order.toList(), model.id, order[j])
+                                if (next != order.toList()) {
+                                    order.clear()
+                                    order.addAll(next)
+                                    onReorder(next)
+                                }
+                            }
+                        },
                     )
                 }
             }
@@ -646,7 +676,8 @@ private fun StartPage(
                     .align(Alignment.BottomEnd)
                     .navigationBarsPadding()
                     .padding(end = 14.dp, bottom = 26.dp)
-                    .size(40.dp)
+                    // 48dp min touch target (a11y) — icon stays 28dp inside.
+                    .size(48.dp)
                     .clickable(onClick = onChevron),
                 contentAlignment = Alignment.Center,
             ) {
@@ -670,6 +701,39 @@ private fun StartPage(
     }
 }
 
+/**
+ * The spoken label for a tile: the app/folder name, any unread count, and — while
+ * editing — the current size and selection, so a TalkBack user knows the state
+ * before invoking resize/move.
+ */
+internal fun tileAccessibilityLabel(
+    tile: TileModel,
+    badgeCount: Int,
+    editMode: Boolean,
+    selected: Boolean,
+): String = buildString {
+    when (tile) {
+        is TileModel.App -> {
+            append(tile.label ?: tile.iconKey ?: "app")
+            if (badgeCount > 0) append(", $badgeCount new")
+        }
+        is TileModel.Folder -> {
+            append(tile.name)
+            append(" folder, ${tile.children.size} ")
+            append(if (tile.children.size == 1) "app" else "apps")
+        }
+    }
+    if (editMode) {
+        val size = when (tile.size) {
+            TileSize.SMALL -> "small"
+            TileSize.MEDIUM -> "medium"
+            TileSize.WIDE -> "wide"
+        }
+        append(", $size tile")
+        if (selected) append(", selected")
+    }
+}
+
 @Composable
 private fun TileView(
     tile: TileModel,
@@ -686,9 +750,22 @@ private fun TileView(
     liveActive: Boolean,
     badgeCount: Int,
     darkTheme: Boolean,
+    canMoveBack: Boolean,
+    canMoveForward: Boolean,
     onTap: () -> Unit,
     onLongPress: () -> Unit,
+    onResize: () -> Unit,
+    onUnpin: () -> Unit,
+    onSelect: () -> Unit,
+    onExitEdit: () -> Unit,
+    onMove: (direction: Int) -> Unit,
 ) {
+    // TalkBack reads the whole tile as one node: the app/folder name plus state,
+    // with the launch/edit operations exposed as semantic actions (the visual
+    // drag/corner-control flow is sighted-only, so screen-reader users drive the
+    // exact same ViewModel calls through these custom actions instead).
+    val a11yLabel = tileAccessibilityLabel(tile, badgeCount, editMode, selected)
+
     // Edit chrome (prototype CSS): non-selected tiles dim to .45, the selected
     // tile scales to 1.04, and editing tiles jiggle (±.5°, alternating phase).
     // A dragged tile lifts: scales up with a shadow and ignores dim/jiggle. A
@@ -734,7 +811,34 @@ private fun TileView(
             .then(
                 if (editMode) Modifier
                 else Modifier.tileGesture(onTap = onTap, onLongPress = onLongPress),
-            ),
+            )
+            // Accessibility: collapse the tile to a single labelled button and
+            // expose its operations as actions (TalkBack), replacing the inert
+            // descendant icon/label/live-face semantics.
+            .clearAndSetSemantics {
+                contentDescription = a11yLabel
+                role = Role.Button
+                if (editMode) {
+                    onClick(label = "select") { onSelect(); true }
+                    customActions = buildList {
+                        add(CustomAccessibilityAction("resize") { onResize(); true })
+                        add(CustomAccessibilityAction("unpin") { onUnpin(); true })
+                        if (canMoveBack) {
+                            add(CustomAccessibilityAction("move back") { onMove(-1); true })
+                        }
+                        if (canMoveForward) {
+                            add(CustomAccessibilityAction("move forward") { onMove(1); true })
+                        }
+                        add(CustomAccessibilityAction("done editing") { onExitEdit(); true })
+                    }
+                } else {
+                    val verb = if (tile is TileModel.Folder) "open" else "launch"
+                    onClick(label = verb) { onTap(); true }
+                    customActions = listOf(
+                        CustomAccessibilityAction("customize") { onLongPress(); true },
+                    )
+                }
+            },
     ) {
         when (tile) {
             is TileModel.App -> AppTileContent(tile, flipped = flipped, liveActive = liveActive)
@@ -923,8 +1027,10 @@ private fun FolderOverlay(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(top = 6.dp, end = 14.dp)
-                        .size(34.dp)
-                        .pointerInput(Unit) { detectTapGestures { onClose() } },
+                        // 48dp min touch target (a11y); a real clickable so
+                        // TalkBack focuses and activates it (was a raw pointerInput).
+                        .size(48.dp)
+                        .clickable(onClick = onClose, role = Role.Button),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -1081,8 +1187,11 @@ private fun EditBarButton(
     Column(
         modifier = Modifier
             .let { if (enabled) it.clickable(onClick = onClick) else it }
+            // 48dp min touch target (a11y) for the add/personalize/done controls.
+            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
             .padding(horizontal = 6.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
         Icon(
             imageVector = TileIcons[iconKey],
@@ -1097,11 +1206,22 @@ private fun EditBarButton(
 
 /**
  * Single shared jiggle phase (±.5°) for edit mode. Returns 0 — and composes no
- * animation — while not editing, so the resting Start screen never animates.
+ * animation — while not editing, so the resting Start screen never animates. Also
+ * returns 0 when the system has animations turned off ("remove animations" a11y
+ * setting / battery saver), so the grid sits still for motion-sensitive users.
  */
 @Composable
 private fun rememberJigglePhase(editMode: Boolean): Float {
     if (!editMode) return 0f
+    val context = LocalContext.current
+    val animationsOff = remember(editMode) {
+        Settings.Global.getFloat(
+            context.contentResolver,
+            Settings.Global.ANIMATOR_DURATION_SCALE,
+            1f,
+        ) == 0f
+    }
+    if (animationsOff) return 0f
     val transition = rememberInfiniteTransition(label = "jiggle")
     val phase by transition.animateFloat(
         initialValue = -0.5f,

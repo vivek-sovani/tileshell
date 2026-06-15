@@ -805,3 +805,45 @@ rule 4. Newest first.
   people mosaic size-aware (300/120 px), app icons rasterised at 96 px. Memory
   budget is respected; a wide photos tile is slightly soft at 400 px (quality, not
   perf) — left as-is.
+
+## S27 — accessibility + compatibility (release candidate, tag v0.9)
+
+- **TalkBack: tiles are single labelled buttons with action menus.** Each tile uses
+  `clearAndSetSemantics` (collapsing the inert icon/label/live-face descendants)
+  to expose `contentDescription` = app/folder name + unread count, `Role.Button`,
+  and `onClick` = launch/open. In edit mode the label gains the current size +
+  selection ("Phone, medium tile, selected") and the drag-only operations become
+  `CustomAccessibilityAction`s: resize, unpin, move back/forward (gated on
+  position), done editing; activating a tile selects it. A non-edit "customize"
+  action enters edit. The sighted drag/corner-control flow is untouched — these are
+  the parallel screen-reader path. Verified via the on-device a11y node dump.
+
+- **App list launch + pin via semantics.** `AppRow` (a raw `tapOrLongPress`) now
+  also carries `clearAndSetSemantics`: launch on activate, "pin to start" as a
+  custom action (the long-press-to-pin gesture is otherwise unreachable).
+
+- **48dp touch targets.** App-list chevron 40→48, folder close 34→48 (and switched
+  from a raw `pointerInput` to a real `clickable`+`Role.Button` so TalkBack can
+  focus/activate it), edit-bar buttons get `defaultMinSize(48,48)`. The 26dp
+  in-tile corner controls stay (sighted micro-affordance) — their accessible
+  equivalent is the custom-action menu above.
+
+- **Animations-off.** Compose's `animate*AsState`/`tween` already honour the system
+  animator scale via `MotionDurationScale`, and flips are gated by
+  `rememberLiveTilesActive` (which observes it). The one continuous animation —
+  the edit-mode jiggle — is now explicitly gated: `rememberJigglePhase` returns 0
+  when `ANIMATOR_DURATION_SCALE == 0`, so the grid is still for motion-sensitive
+  users / battery saver. Verified the app launches and runs with animations off.
+
+- **Display cutouts.** `displayCutoutPadding()` added to the Start scroll column and
+  the app-list column so tiles/content clear a landscape notch. (3-button nav is
+  already handled by the existing `navigationBarsPadding`; edge-to-edge via
+  `enableEdgeToEdge`.) Font scale verified to 1.3× — fixed-dp tiles hold, `sp`
+  labels scale, `maxLines = 1` prevents reflow.
+
+- **RTL.** Standard layouts (app rows, edit bar, personalize, folder, tile labels)
+  mirror automatically via Compose `LayoutDirection`, and directional padding uses
+  `start`/`end`. The dense 4-column Start grid keeps a fixed left-to-right packing
+  (it positions tiles by absolute pixel offset, and the drag hit-testing assumes
+  it) — a deliberate constraint, matching the WP Start screen's anchored grid;
+  full column mirroring is intentionally out of scope.

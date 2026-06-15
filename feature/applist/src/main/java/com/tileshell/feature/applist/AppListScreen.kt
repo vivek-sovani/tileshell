@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -50,6 +51,13 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -114,7 +122,9 @@ fun AppListScreen(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+        Column(
+            modifier = Modifier.fillMaxSize().statusBarsPadding().displayCutoutPadding(),
+        ) {
             SearchBar(query = query, onQueryChange = viewModel::setQuery)
 
             if (apps.isEmpty() && query.isNotBlank()) {
@@ -210,6 +220,16 @@ private fun AppRow(app: AppEntry, accent: Color, onTap: () -> Unit, onPin: () ->
         modifier = Modifier
             .fillMaxWidth()
             .tapOrLongPress(onTap = onTap, onLongPress = onPin)
+            // TalkBack: launch on activate, pin-to-Start as a custom action
+            // (the sighted long-press-to-pin gesture isn't reachable otherwise).
+            .clearAndSetSemantics {
+                contentDescription = app.label
+                role = Role.Button
+                onClick(label = "launch") { onTap(); true }
+                customActions = listOf(
+                    CustomAccessibilityAction("pin to start") { onPin(); true },
+                )
+            }
             .padding(horizontal = 18.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
