@@ -76,6 +76,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(customWallpaperUri = uri) }
     }
 
+    /** Toggle "wallpaper behind tiles" mode (the dark screen + show-through tiles). */
+    suspend fun setTiledWallpaper(on: Boolean) {
+        store.updateData { it.copy(tiledWallpaper = on) }
+    }
+
     companion object {
         fun create(context: Context): SettingsRepository =
             SettingsRepository(context.applicationContext.settingsDataStore)

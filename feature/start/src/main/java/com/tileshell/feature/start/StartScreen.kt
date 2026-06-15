@@ -137,6 +137,7 @@ import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.Wallpapers
 import com.tileshell.core.design.colorTokens
 import com.tileshell.core.design.tiltOnPress
+import com.tileshell.core.design.wallpaperWindow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -144,6 +145,12 @@ import kotlinx.coroutines.withTimeoutOrNull
 import androidx.core.graphics.drawable.toBitmap
 import kotlin.math.abs
 import kotlin.math.roundToInt
+
+/** Flat dark screen behind "wallpaper behind tiles" mode (keeps gaps/borders dark). */
+private val TiledScreenDark = Color(0xFF0A0A0D)
+
+/** Hairline between show-through tiles so each reads as a distinct window. */
+private val TiledTileBorder = Color(0x66000000)
 
 /**
  * The real Start screen and its App-list page, joined by the finger-following
@@ -195,6 +202,16 @@ fun StartScreen(
     val wallpaper = Wallpapers.forId(settings.wallpaperId)
     // Transparent-tile fill at the current slider (FR-7); null when glass is off.
     val glassFill = if (settings.glass) Glass.fill(settings.dark, settings.transparency) else null
+    // "Wallpaper behind tiles" mode: the screen goes dark and the wallpaper shows
+    // only through the tiles. Decode the custom photo here (when set) so the tiles
+    // can window into it; a bundled gradient is drawn directly by the window modifier.
+    val tiledWallpaper = settings.tiledWallpaper
+    val tiledPhoto =
+        if (tiledWallpaper && settings.customWallpaperUri != null) {
+            rememberWallpaperBitmap(settings.customWallpaperUri!!)
+        } else {
+            null
+        }
 
     // System photo picker for a custom wallpaper. OpenDocument (not the photo
     // picker) so we can take a persistable read grant — required to reload the
@@ -271,12 +288,18 @@ fun StartScreen(
         val statusBarTopPx = WindowInsets.statusBars.getTop(density).toFloat()
 
         // Wallpaper layer (FR-7): selected gradient or custom photo, optionally
-        // blurred. Drawn first so all content sits above it.
-        WallpaperBackground(
-            gradient = wallpaper,
-            customWallpaperUri = settings.customWallpaperUri,
-            blur = settings.blur,
-        )
+        // blurred. Drawn first so all content sits above it. In "wallpaper behind
+        // tiles" mode the screen instead goes flat dark — the wallpaper shows only
+        // through the tiles, keeping every gap/border dark.
+        if (tiledWallpaper) {
+            Box(modifier = Modifier.fillMaxSize().background(TiledScreenDark))
+        } else {
+            WallpaperBackground(
+                gradient = wallpaper,
+                customWallpaperUri = settings.customWallpaperUri,
+                blur = settings.blur,
+            )
+        }
 
         // Horizontal pager gesture. Detection runs in the Initial pass so a
         // dominant horizontal drag is claimed before the vertical grid scroll
@@ -337,6 +360,9 @@ fun StartScreen(
                     accent = accent,
                     glassFill = glassFill,
                     glassLine = tokens.glassLine,
+                    tiledWallpaper = tiledWallpaper,
+                    wallpaper = wallpaper,
+                    wallpaperPhoto = tiledPhoto,
                     darkTheme = settings.dark,
                     notifications = notifications,
                     widthPx = widthPx,
@@ -398,6 +424,8 @@ fun StartScreen(
             blur = settings.blur,
             wallpaperId = settings.wallpaperId,
             customWallpaper = settings.customWallpaperUri != null,
+            tiledWallpaper = settings.tiledWallpaper,
+            onTiledWallpaperChange = viewModel::setTiledWallpaper,
             onThemeChange = viewModel::setTheme,
             onAccentChange = viewModel::setAccent,
             onGlassChange = viewModel::setGlass,
@@ -463,6 +491,9 @@ private fun StartPage(
     accent: Color,
     glassFill: Color?,
     glassLine: Color,
+    tiledWallpaper: Boolean,
+    wallpaper: com.tileshell.core.design.WallpaperGradient,
+    wallpaperPhoto: ImageBitmap?,
     darkTheme: Boolean,
     notifications: NotificationSnapshot,
     widthPx: Float,
@@ -635,6 +666,15 @@ private fun StartPage(
                         accent = accent,
                         glassFill = glassFill,
                         glassLine = glassLine,
+                        tiledWallpaper = tiledWallpaper,
+                        wallpaper = wallpaper,
+                        wallpaperPhoto = wallpaperPhoto,
+                        // Tile's window onto the screen-anchored wallpaper: its grid
+                        // slot origin against the full viewport canvas.
+                        tileOriginX = slot.x.toFloat(),
+                        tileOriginY = slot.y.toFloat(),
+                        fullWidth = widthPx,
+                        fullHeight = viewportHeightPx,
                         jigglePhase = jigglePhase,
                         flipped = flipState.isFlipped(model.id),
                         liveActive = liveActive,
@@ -761,6 +801,13 @@ private fun TileView(
     accent: Color,
     glassFill: Color?,
     glassLine: Color,
+    tiledWallpaper: Boolean,
+    wallpaper: com.tileshell.core.design.WallpaperGradient,
+    wallpaperPhoto: ImageBitmap?,
+    tileOriginX: Float,
+    tileOriginY: Float,
+    fullWidth: Float,
+    fullHeight: Float,
     jigglePhase: Float,
     flipped: Boolean,
     liveActive: Boolean,
@@ -812,12 +859,40 @@ private fun TileView(
             }
             // The press-tilt effect (S7) is replaced by the jiggle while editing.
             .then(if (editMode) Modifier else Modifier.tiltOnPress())
-            // Glass mode (FR-7): translucent fill + inset hairline replaces the
-            // accent background; otherwise the single global accent (one tile
-            // colour across the whole Start screen, default blue — the per-tile
-            // colourId is ignored, recolour via the personalize accent swatch).
-            .background(glassFill ?: accent)
-            .then(if (glassFill != null) Modifier.border(1.dp, glassLine) else Modifier)
+            // Tile fill, in priority order:
+            //  • "wallpaper behind tiles" → a window onto the screen-anchored
+            //    wallpaper (custom photo if set, else the bundled gradient), with a
+            //    dark hairline so the tiles read as distinct windows.
+            //  • glass (FR-7) → translucent fill + inset hairline.
+            //  • otherwise the single global accent (one tile colour across Start,
+            //    default blue — the per-tile colourId is ignored).
+            .then(
+                when {
+                    tiledWallpaper && wallpaperPhoto != null -> Modifier.photoWindow(
+                        image = wallpaperPhoto,
+                        originX = tileOriginX,
+                        originY = tileOriginY,
+                        fullWidth = fullWidth,
+                        fullHeight = fullHeight,
+                        darkBase = TiledScreenDark,
+                    )
+                    tiledWallpaper -> Modifier.wallpaperWindow(
+                        wallpaper = wallpaper,
+                        originX = tileOriginX,
+                        originY = tileOriginY,
+                        fullWidth = fullWidth,
+                        fullHeight = fullHeight,
+                    )
+                    else -> Modifier.background(glassFill ?: accent)
+                },
+            )
+            .then(
+                when {
+                    tiledWallpaper -> Modifier.border(1.dp, TiledTileBorder)
+                    glassFill != null -> Modifier.border(1.dp, glassLine)
+                    else -> Modifier
+                },
+            )
             // Merge-target highlight (prototype .merge-target: 3px inset outline).
             .then(
                 if (mergeTarget) Modifier.border(3.dp, DarkColorTokens.fg) else Modifier,
@@ -863,7 +938,7 @@ private fun TileView(
         // Glass small tiles lose their colour fill, so a top-right accent dot
         // keeps the tile's colour identity (prototype `#screen.glass .tile.small
         // .accentdot`). Larger glass tiles show the icon/label instead.
-        if (glassFill != null && tile.size == TileSize.SMALL) {
+        if (glassFill != null && !tiledWallpaper && tile.size == TileSize.SMALL) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)

@@ -223,6 +223,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setCustomWallpaper(uri) }
     }
 
+    /** Toggle "wallpaper behind tiles" mode (dark screen, show-through tiles). */
+    fun setTiledWallpaper(on: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setTiledWallpaper(on) }
+    }
+
     /** Reset the Start grid to the WP default layout (FR-7). */
     fun resetLayout() {
         viewModelScope.launch(writeContext) { repository.resetLayout() }

@@ -932,3 +932,28 @@ rule 4. Newest first.
   through to a plain launch. Group-summary keys are cleared too so the whole group
   empties; ongoing (music/nav) notifications are excluded, so they never clear and
   the tile launches normally. Pure `tileNotificationActions` unit-tested.
+
+## Post-S27 feature — "wallpaper behind tiles" (show-through) mode
+
+- **New personalize toggle "wallpaper behind tiles"** (in the transparent/blur
+  group). The prototype has no such mode, so this is a WP-faithful addition: the
+  classic Windows Phone photo-background look where the wallpaper is visible only
+  *through* the tiles and everything else stays dark.
+- **Setting** `LauncherSettings.tiledWallpaper` (codec key `tiledWallpaper`, default
+  false; round-trip unit-tested), `SettingsRepository.setTiledWallpaper` /
+  `StartViewModel.setTiledWallpaper`.
+- **Rendering.** When on, the full-screen `WallpaperBackground` is replaced by a flat
+  dark fill (`#0A0A0D`) so all gaps/borders stay dark. Each tile then draws the
+  wallpaper as a *window* onto a screen-anchored canvas: `wallpaperWindow`
+  (`:core:design`, gradient — radial centres shifted by −tileOrigin) or `photoWindow`
+  (`:feature:start`, custom photo — cover-scaled then translated/clipped), both keyed
+  off the tile's grid `slot` origin against `widthPx × viewportHeightPx`. Adjacent
+  tiles continue the same image, so the grid reads as windows onto one photo. A 1 px
+  `#66000000` hairline separates the windows. The custom photo bitmap is decoded once
+  at the Start level (`rememberWallpaperBitmap` made public) and shared.
+- **Precedence/decisions:** tiled-wallpaper wins over glass for the tile fill (they're
+  alternative looks); the glass small-tile accent dot is suppressed in tiled mode. The
+  window is anchored to **grid** coordinates (not absolute screen), so it doesn't
+  parallax on scroll — simpler and still continuous; tiles scrolled well past one
+  screenful fall back to the dark base. Gradient anchoring ignores the status-bar
+  offset (invisible on a soft gradient).

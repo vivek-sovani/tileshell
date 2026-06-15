@@ -17,6 +17,7 @@ class SettingsCodecTest {
             blur = true,
             wallpaperId = "ocean",
             customWallpaperUri = "content://media/external/images/42",
+            tiledWallpaper = true,
         )
         assertEquals(settings, SettingsCodec.decode(SettingsCodec.encode(settings)))
     }

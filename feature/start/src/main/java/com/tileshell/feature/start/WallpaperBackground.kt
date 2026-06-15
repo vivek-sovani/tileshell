@@ -10,10 +10,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -22,6 +28,7 @@ import com.tileshell.core.design.WallpaperGradient
 import com.tileshell.core.design.wallpaperBackground
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.math.max
 
 /**
  * The full-screen wallpaper layer behind Start (FR-7). Renders either the
@@ -71,11 +78,49 @@ private fun saturation(value: Float): ColorMatrix =
     ColorMatrix().apply { setToSaturation(value) }
 
 /**
+ * Paints [image] as a *window* onto a screen-anchored canvas for "wallpaper behind
+ * tiles" mode (FR-7 follow-up): the photo is cover-scaled to fill a virtual
+ * [fullWidth]×[fullHeight] rectangle anchored at (−[originX], −[originY]) relative
+ * to this node, then clipped to the node's bounds — so every tile shows its slice of
+ * one continuous photo. [darkBase] fills first, so any tile beyond the photo stays
+ * dark rather than empty.
+ */
+fun Modifier.photoWindow(
+    image: ImageBitmap,
+    originX: Float,
+    originY: Float,
+    fullWidth: Float,
+    fullHeight: Float,
+    darkBase: Color,
+): Modifier = drawBehind {
+    drawRect(darkBase)
+    val imgW = image.width.toFloat()
+    val imgH = image.height.toFloat()
+    if (imgW <= 0f || imgH <= 0f) return@drawBehind
+    // Cover-scale the photo over the full canvas, centred, then offset into this
+    // tile's local space and clip.
+    val scale = max(fullWidth / imgW, fullHeight / imgH)
+    val dstW = imgW * scale
+    val dstH = imgH * scale
+    val left = (fullWidth - dstW) / 2f - originX
+    val top = (fullHeight - dstH) / 2f - originY
+    clipRect {
+        translate(left = left, top = top) {
+            scale(scale, pivot = Offset.Zero) {
+                drawImage(image)
+            }
+        }
+    }
+}
+
+/**
  * Decodes the content URI off the main thread, re-loading only when the URI
- * changes. Returns null while loading or if the URI can't be read.
+ * changes. Returns null while loading or if the URI can't be read. Public so the
+ * Start screen can share one decoded bitmap between the full-screen background and
+ * the per-tile windows of "wallpaper behind tiles" mode.
  */
 @Composable
-private fun rememberWallpaperBitmap(uri: String): ImageBitmap? {
+fun rememberWallpaperBitmap(uri: String): ImageBitmap? {
     val context = LocalContext.current
     val image by produceState<ImageBitmap?>(initialValue = null, uri) {
         value = withContext(Dispatchers.IO) {

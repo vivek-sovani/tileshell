@@ -18,6 +18,9 @@ import com.tileshell.core.data.TileColors
  *   ignored while [customWallpaperUri] is set.
  * @property customWallpaperUri persisted content URI of a user-picked photo
  *   (`state.customWall`), or null for a bundled gradient.
+ * @property tiledWallpaper "wallpaper behind tiles" mode: the screen goes dark and
+ *   the wallpaper shows only *through* the tiles (each tile a window onto the same
+ *   screen-anchored image), so all gaps/borders stay dark. WP photo-background look.
  */
 data class LauncherSettings(
     val dark: Boolean = true,
@@ -27,6 +30,7 @@ data class LauncherSettings(
     val blur: Boolean = false,
     val wallpaperId: String = "aurora",
     val customWallpaperUri: String? = null,
+    val tiledWallpaper: Boolean = false,
 )
 
 /**
@@ -46,7 +50,8 @@ object SettingsCodec {
         append("transparency=").append(settings.transparency).append('\n')
         append("blur=").append(settings.blur).append('\n')
         append("wallpaper=").append(settings.wallpaperId).append('\n')
-        append("customWallpaper=").append(settings.customWallpaperUri.orEmpty())
+        append("customWallpaper=").append(settings.customWallpaperUri.orEmpty()).append('\n')
+        append("tiledWallpaper=").append(settings.tiledWallpaper)
     }
 
     fun decode(text: String): LauncherSettings {
@@ -58,6 +63,7 @@ object SettingsCodec {
         var blur = d.blur
         var wallpaperId = d.wallpaperId
         var customWallpaperUri = d.customWallpaperUri
+        var tiledWallpaper = d.tiledWallpaper
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
             if (sep <= 0) return@forEach
@@ -71,6 +77,7 @@ object SettingsCodec {
                 "blur" -> blur = value.toBooleanStrictOrNull() ?: blur
                 "wallpaper" -> if (value.isNotEmpty()) wallpaperId = value
                 "customWallpaper" -> customWallpaperUri = value.ifEmpty { null }
+                "tiledWallpaper" -> tiledWallpaper = value.toBooleanStrictOrNull() ?: tiledWallpaper
             }
         }
         return LauncherSettings(
@@ -81,6 +88,7 @@ object SettingsCodec {
             blur = blur,
             wallpaperId = wallpaperId,
             customWallpaperUri = customWallpaperUri,
+            tiledWallpaper = tiledWallpaper,
         )
     }
 }

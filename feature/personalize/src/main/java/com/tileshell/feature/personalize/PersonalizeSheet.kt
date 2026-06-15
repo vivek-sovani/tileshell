@@ -69,6 +69,8 @@ fun PersonalizeSheet(
     blur: Boolean,
     wallpaperId: String,
     customWallpaper: Boolean,
+    tiledWallpaper: Boolean,
+    onTiledWallpaperChange: (Boolean) -> Unit,
     onThemeChange: (dark: Boolean) -> Unit,
     onAccentChange: (id: String) -> Unit,
     onGlassChange: (Boolean) -> Unit,
@@ -188,6 +190,9 @@ fun PersonalizeSheet(
                 ToggleRow("transparent tiles", on = glass, accent = accent, tokens, onGlassChange)
                 Spacer(Modifier.height(14.dp))
                 ToggleRow("blur wallpaper", on = blur, accent = accent, tokens, onBlurChange)
+                Spacer(Modifier.height(14.dp))
+                // Show-through mode: dark screen, wallpaper visible only behind tiles.
+                ToggleRow("wallpaper behind tiles", on = tiledWallpaper, accent = accent, tokens, onTiledWallpaperChange)
             }
 
             // ---- tile transparency ----

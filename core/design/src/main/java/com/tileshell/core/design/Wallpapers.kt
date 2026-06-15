@@ -119,3 +119,39 @@ fun Modifier.wallpaperBackground(wallpaper: WallpaperGradient): Modifier = drawB
         )
     }
 }
+
+/**
+ * Paints [wallpaper] as a *window* onto a larger, screen-anchored canvas: the
+ * gradient is laid out over a virtual [fullWidth]×[fullHeight] rectangle whose
+ * top-left sits at (−[originX], −[originY]) relative to this node, then clipped to
+ * the node's bounds. Used by "wallpaper behind tiles" mode (FR-7 follow-up): every
+ * tile draws the same screen-anchored wallpaper offset by its own position, so the
+ * tiles read as windows onto one continuous image while the gaps stay dark.
+ */
+fun Modifier.wallpaperWindow(
+    wallpaper: WallpaperGradient,
+    originX: Float,
+    originY: Float,
+    fullWidth: Float,
+    fullHeight: Float,
+): Modifier = drawBehind {
+    drawRect(wallpaper.base)
+    wallpaper.layers.forEach { layer ->
+        val radius = (layer.radiusPct * fullWidth).coerceAtLeast(0.01f)
+        drawRect(
+            brush = Brush.radialGradient(
+                colorStops = arrayOf(
+                    0f to layer.color,
+                    layer.fade.coerceIn(0.01f, 1f) to Color.Transparent,
+                ),
+                // Same centre as the full-screen wallpaper, shifted into this tile's
+                // local space — so adjacent tiles continue the gradient seamlessly.
+                center = Offset(
+                    layer.cx * fullWidth - originX,
+                    layer.cy * fullHeight - originY,
+                ),
+                radius = radius,
+            ),
+        )
+    }
+}
