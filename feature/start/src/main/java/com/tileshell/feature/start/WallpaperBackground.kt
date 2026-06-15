@@ -80,30 +80,30 @@ private fun saturation(value: Float): ColorMatrix =
 /**
  * Paints [image] as a *window* onto a screen-anchored canvas for "wallpaper behind
  * tiles" mode (FR-7 follow-up): the photo is cover-scaled to fill a virtual
- * [fullWidth]×[fullHeight] rectangle anchored at (−[originX], −[originY]) relative
- * to this node, then clipped to the node's bounds — so every tile shows its slice of
- * one continuous photo. [darkBase] fills first, so any tile beyond the photo stays
- * dark rather than empty.
+ * [fullWidth]×[fullHeight] rectangle (the screen) and this tile shows the slice at
+ * its current screen [origin]. [origin] is read in the draw phase, so the photo stays
+ * fixed to the screen while the tiles scroll over it (WP parallax). [darkBase] fills
+ * first, so any tile beyond the photo stays dark rather than empty.
  */
 fun Modifier.photoWindow(
     image: ImageBitmap,
-    originX: Float,
-    originY: Float,
     fullWidth: Float,
     fullHeight: Float,
     darkBase: Color,
+    origin: () -> Offset,
 ): Modifier = drawBehind {
     drawRect(darkBase)
     val imgW = image.width.toFloat()
     val imgH = image.height.toFloat()
     if (imgW <= 0f || imgH <= 0f) return@drawBehind
+    val o = origin()
     // Cover-scale the photo over the full canvas, centred, then offset into this
     // tile's local space and clip.
     val scale = max(fullWidth / imgW, fullHeight / imgH)
     val dstW = imgW * scale
     val dstH = imgH * scale
-    val left = (fullWidth - dstW) / 2f - originX
-    val top = (fullHeight - dstH) / 2f - originY
+    val left = (fullWidth - dstW) / 2f - o.x
+    val top = (fullHeight - dstH) / 2f - o.y
     clipRect {
         translate(left = left, top = top) {
             scale(scale, pivot = Offset.Zero) {

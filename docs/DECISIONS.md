@@ -957,3 +957,24 @@ rule 4. Newest first.
   parallax on scroll — simpler and still continuous; tiles scrolled well past one
   screenful fall back to the dark base. Gradient anchoring ignores the status-bar
   offset (invisible on a soft gradient).
+
+## Post-S27 follow-up fixes — notification open / uninstall / wallpaper parallax
+
+- **Notification tile tap now reliably opens the app.** `openAndClear` was sending
+  the notification's `contentIntent` with a bare `send()`, which can silently no-op
+  on Android 12+ (notification trampolines / background-activity-launch). It now
+  takes the foreground launcher `Context` and, on API 34+, sends with
+  `ActivityOptions.setPendingIntentBackgroundActivityStartMode(MODE_…_ALLOWED)` so the
+  target activity actually comes forward. When the content intent is null or fails,
+  the caller still falls back to `AppLauncher.launch` — so a tap always opens the app
+  *and* clears that app's notifications.
+- **App-list "uninstall" made robust.** The single `ACTION_DELETE` intent (silently
+  swallowed on failure) is replaced by a try-list: `ACTION_UNINSTALL_PACKAGE` (via
+  `Uri.fromParts("package", …)`) then `ACTION_DELETE`, with a failure toast if neither
+  resolves.
+- **"Wallpaper behind tiles" now parallaxes correctly.** The window origin was the
+  tile's static grid slot, so the wallpaper scrolled *with* the tiles. The window
+  modifiers (`wallpaperWindow`/`photoWindow`) now take an `origin: () -> Offset` lambda
+  read in the draw phase; the Start grid feeds each tile its live on-screen position
+  (`statusBarTop + slot.y − scrollState.value`). The wallpaper is now fixed to the
+  screen and the tiles move over it, revealing different slices as the grid scrolls.

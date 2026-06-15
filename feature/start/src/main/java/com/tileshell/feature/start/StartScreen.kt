@@ -669,10 +669,16 @@ private fun StartPage(
                         tiledWallpaper = tiledWallpaper,
                         wallpaper = wallpaper,
                         wallpaperPhoto = wallpaperPhoto,
-                        // Tile's window onto the screen-anchored wallpaper: its grid
-                        // slot origin against the full viewport canvas.
-                        tileOriginX = slot.x.toFloat(),
-                        tileOriginY = slot.y.toFloat(),
+                        // This tile's window onto the screen-fixed wallpaper: its live
+                        // on-screen top-left (grid slot minus the scroll offset, below
+                        // the status bar). Read in the draw phase, so the wallpaper
+                        // stays put while the tiles scroll over it.
+                        wallpaperOrigin = {
+                            Offset(
+                                slot.x.toFloat(),
+                                statusBarTopPx + slot.y.toFloat() - scrollState.value.toFloat(),
+                            )
+                        },
                         fullWidth = widthPx,
                         fullHeight = viewportHeightPx,
                         jigglePhase = jigglePhase,
@@ -804,8 +810,7 @@ private fun TileView(
     tiledWallpaper: Boolean,
     wallpaper: com.tileshell.core.design.WallpaperGradient,
     wallpaperPhoto: ImageBitmap?,
-    tileOriginX: Float,
-    tileOriginY: Float,
+    wallpaperOrigin: () -> Offset,
     fullWidth: Float,
     fullHeight: Float,
     jigglePhase: Float,
@@ -870,18 +875,16 @@ private fun TileView(
                 when {
                     tiledWallpaper && wallpaperPhoto != null -> Modifier.photoWindow(
                         image = wallpaperPhoto,
-                        originX = tileOriginX,
-                        originY = tileOriginY,
                         fullWidth = fullWidth,
                         fullHeight = fullHeight,
                         darkBase = TiledScreenDark,
+                        origin = wallpaperOrigin,
                     )
                     tiledWallpaper -> Modifier.wallpaperWindow(
                         wallpaper = wallpaper,
-                        originX = tileOriginX,
-                        originY = tileOriginY,
                         fullWidth = fullWidth,
                         fullHeight = fullHeight,
+                        origin = wallpaperOrigin,
                     )
                     else -> Modifier.background(glassFill ?: accent)
                 },
@@ -1795,7 +1798,7 @@ private fun onTileClick(context: Context, tile: TileModel) {
                 // face), tapping opens that notification inside the app and clears
                 // the app's notifications. Falls through to a normal launch when the
                 // app has nothing pending or the notification had no content intent.
-                if (NotificationCenter.openAndClear(tile.packageName)) return
+                if (NotificationCenter.openAndClear(context, tile.packageName)) return
                 if (!AppLauncher.launch(context, tile.packageName, tile.activityName)) {
                     Toast.makeText(
                         context,

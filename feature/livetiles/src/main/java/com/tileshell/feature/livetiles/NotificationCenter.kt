@@ -1,6 +1,9 @@
 package com.tileshell.feature.livetiles
 
+import android.app.ActivityOptions
 import android.app.PendingIntent
+import android.content.Context
+import android.os.Build
 import android.service.notification.NotificationListenerService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -130,17 +133,21 @@ object NotificationCenter {
 
     /**
      * Tapping a live notification tile: if [packageName] currently has
-     * notifications, clears them and opens the newest one's content intent (so the
-     * user lands on the relevant screen in the app). Returns true when a content
-     * intent was launched — the caller then skips its normal app launch. Returns
-     * false when the package has no notifications, or had only intent-less ones
-     * (now cleared), so the caller falls back to a plain launch.
+     * notifications, opens the newest one's content intent (so the user lands on the
+     * relevant screen in the app) and clears that app's notifications. Returns true
+     * when the content intent was launched — the caller then skips its normal app
+     * launch. Returns false when the package has no notifications, or had only
+     * intent-less / un-launchable ones (now cleared), so the caller falls back to a
+     * plain app launch — guaranteeing the app still opens on tap.
+     *
+     * [context] is the (foreground) launcher activity; the content intent is sent
+     * through it with background-activity-start allowed (API 34+) so notification
+     * "trampolines" actually bring the target activity forward instead of silently
+     * no-op'ing.
      */
-    fun openAndClear(packageName: String): Boolean {
+    fun openAndClear(context: Context, packageName: String): Boolean {
         val action = actions[packageName] ?: return false
-        val opened = action.contentIntent?.let { intent ->
-            runCatching { intent.send(); true }.getOrDefault(false)
-        } ?: false
+        val opened = action.contentIntent?.let { intent -> sendContentIntent(context, intent) } ?: false
         listener?.let { service ->
             if (action.keys.isNotEmpty()) {
                 runCatching { service.cancelNotifications(action.keys.toTypedArray()) }
@@ -148,6 +155,19 @@ object NotificationCenter {
         }
         return opened
     }
+
+    private fun sendContentIntent(context: Context, intent: PendingIntent): Boolean = runCatching {
+        if (Build.VERSION.SDK_INT >= 34) {
+            val options = ActivityOptions.makeBasic()
+                .setPendingIntentBackgroundActivityStartMode(
+                    ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED,
+                )
+            intent.send(context, 0, null, null, null, null, options.toBundle())
+        } else {
+            intent.send()
+        }
+        true
+    }.getOrDefault(false)
 
     /** Drops everything — used when the listener disconnects / access is revoked. */
     fun clear() {

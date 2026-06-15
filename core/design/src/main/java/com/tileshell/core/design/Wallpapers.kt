@@ -121,20 +121,21 @@ fun Modifier.wallpaperBackground(wallpaper: WallpaperGradient): Modifier = drawB
 }
 
 /**
- * Paints [wallpaper] as a *window* onto a larger, screen-anchored canvas: the
- * gradient is laid out over a virtual [fullWidth]×[fullHeight] rectangle whose
- * top-left sits at (−[originX], −[originY]) relative to this node, then clipped to
- * the node's bounds. Used by "wallpaper behind tiles" mode (FR-7 follow-up): every
- * tile draws the same screen-anchored wallpaper offset by its own position, so the
- * tiles read as windows onto one continuous image while the gaps stay dark.
+ * Paints [wallpaper] as a *window* onto a screen-anchored canvas: the gradient is
+ * laid out over a virtual [fullWidth]×[fullHeight] rectangle (the screen) and this
+ * tile shows the slice at its current screen [origin]. [origin] is a lambda read in
+ * the draw phase, so as the grid scrolls the tile's screen position changes and the
+ * wallpaper stays put while the tiles move over it (WP parallax). Used by "wallpaper
+ * behind tiles" mode (FR-7 follow-up); adjacent tiles continue one continuous image
+ * and the gaps stay dark.
  */
 fun Modifier.wallpaperWindow(
     wallpaper: WallpaperGradient,
-    originX: Float,
-    originY: Float,
     fullWidth: Float,
     fullHeight: Float,
+    origin: () -> Offset,
 ): Modifier = drawBehind {
+    val o = origin()
     drawRect(wallpaper.base)
     wallpaper.layers.forEach { layer ->
         val radius = (layer.radiusPct * fullWidth).coerceAtLeast(0.01f)
@@ -144,11 +145,11 @@ fun Modifier.wallpaperWindow(
                     0f to layer.color,
                     layer.fade.coerceIn(0.01f, 1f) to Color.Transparent,
                 ),
-                // Same centre as the full-screen wallpaper, shifted into this tile's
-                // local space — so adjacent tiles continue the gradient seamlessly.
+                // Screen-space centre shifted into this tile's local space, so the
+                // gradient is continuous across tiles and fixed to the screen.
                 center = Offset(
-                    layer.cx * fullWidth - originX,
-                    layer.cy * fullHeight - originY,
+                    layer.cx * fullWidth - o.x,
+                    layer.cy * fullHeight - o.y,
                 ),
                 radius = radius,
             ),
