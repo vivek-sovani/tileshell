@@ -19,6 +19,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -46,13 +47,16 @@ fun ConversationTileFace(
 ) {
     val snapshot by NotificationCenter.snapshot.collectAsState()
     val preview = snapshot.conversationFor(packageName) ?: return fallback()
+    // The notification's image (shared photo / sender avatar), shown behind the text.
+    val images by NotificationCenter.images.collectAsState()
+    val image = images[packageName]?.asImageBitmap()
 
     val countWord = if (kind == LiveFace.MESSAGES) "new" else "unread"
     Box(modifier = modifier.fillMaxSize()) {
         FlipTile(
             flipped = flipped,
             modifier = Modifier.fillMaxSize(),
-            front = { ConversationFront(preview) },
+            front = { TileImageBackground(image) { ConversationFront(preview) } },
             back = { ConversationBack(preview.count, countWord) },
         )
         // The mail/messages app's own icon in the top-left corner.

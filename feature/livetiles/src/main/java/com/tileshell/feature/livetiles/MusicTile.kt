@@ -2,6 +2,7 @@ package com.tileshell.feature.livetiles
 
 import android.content.ComponentName
 import android.content.Context
+import android.graphics.Bitmap
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
@@ -38,6 +39,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -95,10 +98,11 @@ fun nowPlayingFrom(title: String?, artist: String?, state: Int): NowPlaying? {
 private fun buildMediaState(
     manager: MediaSessionManager,
     component: ComponentName,
-): Pair<Map<String, NowPlaying>, Map<String, MediaController>> {
+): MediaState {
     val controllers = runCatching { manager.getActiveSessions(component) }.getOrNull().orEmpty()
     val np = LinkedHashMap<String, NowPlaying>()
     val ctrls = LinkedHashMap<String, MediaController>()
+    val art = LinkedHashMap<String, Bitmap>()
     for (controller in controllers) {
         val pkg = controller.packageName ?: continue
         if (np.containsKey(pkg)) continue // keep the highest-priority session per app
@@ -110,9 +114,22 @@ private fun buildMediaState(
         val now = nowPlayingFrom(title, artist, state) ?: continue
         np[pkg] = now
         ctrls[pkg] = controller
+        // Album cover art (FR-2.3): prefer the full album art, then the smaller
+        // display/art bitmaps; null when the session carries no artwork.
+        val cover = md?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+            ?: md?.getBitmap(MediaMetadata.METADATA_KEY_ART)
+            ?: md?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+        if (cover != null) art[pkg] = cover
     }
-    return np to ctrls
+    return MediaState(np, ctrls, art)
 }
+
+/** Per-package now-playing, live controllers and album art from the sessions. */
+private data class MediaState(
+    val now: Map<String, NowPlaying>,
+    val controllers: Map<String, MediaController>,
+    val artwork: Map<String, Bitmap>,
+)
 
 /**
  * Process-wide now-playing state, keyed by package, published by
@@ -125,18 +142,29 @@ object MediaCenter {
     private val _nowPlaying = MutableStateFlow<Map<String, NowPlaying>>(emptyMap())
     val nowPlaying: StateFlow<Map<String, NowPlaying>> = _nowPlaying.asStateFlow()
 
+    // Per-package album cover art, shown behind the music tile face (FR-2.3). A
+    // separate flow from [nowPlaying] since bitmaps are framework objects.
+    private val _artwork = MutableStateFlow<Map<String, Bitmap>>(emptyMap())
+    val artwork: StateFlow<Map<String, Bitmap>> = _artwork.asStateFlow()
+
     // The live controllers behind [nowPlaying], for the tile's transport buttons.
     // Refreshed on every publish; commands are guarded so a stale controller no-ops.
     @Volatile
     private var controllers: Map<String, MediaController> = emptyMap()
 
-    fun publish(map: Map<String, NowPlaying>, controllers: Map<String, MediaController>) {
+    fun publish(
+        map: Map<String, NowPlaying>,
+        controllers: Map<String, MediaController>,
+        artwork: Map<String, Bitmap>,
+    ) {
         _nowPlaying.value = map
         this.controllers = controllers
+        _artwork.value = artwork
     }
 
     fun clear() {
         _nowPlaying.value = emptyMap()
+        _artwork.value = emptyMap()
         controllers = emptyMap()
     }
 
@@ -185,8 +213,8 @@ fun MediaSessionsEffect(active: Boolean) {
             return@DisposableEffect onDispose { }
         }
         val refresh = {
-            val (np, ctrls) = buildMediaState(manager, component)
-            MediaCenter.publish(np, ctrls)
+            val state = buildMediaState(manager, component)
+            MediaCenter.publish(state.now, state.controllers, state.artwork)
         }
         val listener = MediaSessionManager.OnActiveSessionsChangedListener { refresh() }
         val registered = runCatching {
@@ -203,8 +231,8 @@ fun MediaSessionsEffect(active: Boolean) {
             as? MediaSessionManager ?: return@LaunchedEffect
         val component = ComponentName(context, TileNotificationListenerService::class.java)
         while (true) {
-            val (np, ctrls) = buildMediaState(manager, component)
-            MediaCenter.publish(np, ctrls)
+            val state = buildMediaState(manager, component)
+            MediaCenter.publish(state.now, state.controllers, state.artwork)
             delay(POLL_MS)
         }
     }
@@ -228,6 +256,7 @@ fun MusicTileFace(
     packageName: String? = null,
 ) {
     val media by MediaCenter.nowPlaying.collectAsState()
+    val artworkMap by MediaCenter.artwork.collectAsState()
     // The package whose now-playing this tile shows: the bound app for a music-app
     // tile (Apple Music / YT Music), else the source of the playing session for the
     // generic music tile — so its launcher icon can sit in the corner either way.
@@ -242,6 +271,7 @@ fun MusicTileFace(
         np = entry?.value
     }
     np ?: return fallback()
+    val art = iconPackage?.let { artworkMap[it] }?.asImageBitmap()
 
     FlipTile(
         flipped = flipped,
@@ -252,9 +282,10 @@ fun MusicTileFace(
                 animate = active && np.playing,
                 interactive = active,
                 packageName = iconPackage,
+                art = art,
             )
         },
-        back = { MusicBack(packageName = iconPackage) },
+        back = { MusicBack(packageName = iconPackage, art = art) },
     )
 }
 
@@ -264,7 +295,9 @@ private fun MusicFront(
     animate: Boolean,
     interactive: Boolean,
     packageName: String?,
+    art: ImageBitmap?,
 ) {
+    TileImageBackground(art, modifier = Modifier.fillMaxSize()) {
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.fillMaxSize().padding(11.dp),
@@ -306,6 +339,7 @@ private fun MusicFront(
                 modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
             )
         }
+    }
     }
 }
 
@@ -349,21 +383,23 @@ private fun ControlButton(
 }
 
 @Composable
-private fun MusicBack(packageName: String?) {
-    Box(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(11.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(text = "paused", color = FaceText, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-            Text(text = "tap to resume", color = FaceText.copy(alpha = 0.82f), fontSize = 12.sp)
-        }
-        if (packageName != null) {
-            AppIconCorner(
-                packageName = packageName,
-                modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
-            )
+private fun MusicBack(packageName: String?, art: ImageBitmap?) {
+    TileImageBackground(art, modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(11.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(text = "paused", color = FaceText, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                Text(text = "tap to resume", color = FaceText.copy(alpha = 0.82f), fontSize = 12.sp)
+            }
+            if (packageName != null) {
+                AppIconCorner(
+                    packageName = packageName,
+                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+                )
+            }
         }
     }
 }

@@ -3,6 +3,7 @@ package com.tileshell.feature.livetiles
 import android.app.ActivityOptions
 import android.app.PendingIntent
 import android.content.Context
+import android.graphics.Bitmap
 import android.os.Build
 import android.service.notification.NotificationListenerService
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -105,6 +106,13 @@ object NotificationCenter {
     private val _snapshot = MutableStateFlow(NotificationSnapshot.EMPTY)
     val snapshot: StateFlow<NotificationSnapshot> = _snapshot.asStateFlow()
 
+    // The newest notification's image per package (big-picture photo or large-icon
+    // contact photo), shown alongside the text on the live face (FR-2). A separate
+    // flow from the pure snapshot since bitmaps are framework objects; empty when
+    // access is off / no notification carries an image.
+    private val _images = MutableStateFlow<Map<String, Bitmap>>(emptyMap())
+    val images: StateFlow<Map<String, Bitmap>> = _images.asStateFlow()
+
     // Per-package tap actions (content intent + keys to clear), and the connected
     // listener used to cancel them. Read imperatively on a tile tap rather than via
     // StateFlow — these carry framework objects and must not drive recomposition.
@@ -119,6 +127,11 @@ object NotificationCenter {
     /** Publishes the latest per-package tap actions (called alongside [publish]). */
     fun publishActions(actions: Map<String, TileNotificationAction>) {
         this.actions = actions
+    }
+
+    /** Publishes the latest per-package notification images (alongside [publish]). */
+    fun publishImages(images: Map<String, Bitmap>) {
+        _images.value = images
     }
 
     /** Registers the connected listener so tile taps can cancel notifications. */
@@ -173,6 +186,7 @@ object NotificationCenter {
     fun clear() {
         _snapshot.value = NotificationSnapshot.EMPTY
         actions = emptyMap()
+        _images.value = emptyMap()
     }
 }
 

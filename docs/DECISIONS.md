@@ -978,3 +978,28 @@ rule 4. Newest first.
   read in the draw phase; the Start grid feeds each tile its live on-screen position
   (`statusBarTop + slot.y − scrollState.value`). The wallpaper is now fixed to the
   screen and the tiles move over it, revealing different slices as the grid scrolls.
+
+## Post-S27 feature — notification image + album art on live faces
+
+- **Notification images on mail/messages + generic notification tiles.** The listener
+  service now extracts the newest notification's image per package — the big-picture
+  style photo (`EXTRA_PICTURE`) if present, else the large icon (contact photo) via
+  `getLargeIcon().loadDrawable().toBitmap()` — into a parallel `NotificationCenter.images`
+  `StateFlow<Map<String, Bitmap>>` (kept out of the pure, unit-tested
+  `NotificationSnapshot`). `ConversationTileFace` and `NotificationTileFace` render it
+  behind the sender/snippet via a shared `TileImageBackground` (cropped image + a
+  top-light/bottom-heavy vertical scrim so the white text stays legible). No image →
+  unchanged accent face.
+- **Album art on the music tile.** `buildMediaState` also pulls the session's album art
+  (`METADATA_KEY_ALBUM_ART` → `_ART` → `_DISPLAY_ICON`) into a new `MediaCenter.artwork`
+  `StateFlow`; `MusicTileFace` shows it behind both the now-playing and paused faces via
+  the same `TileImageBackground`, so EQ bars / title / artist / transport controls sit
+  over the cover.
+- **Why parallel flows, not the data classes:** `NotificationSnapshot` and `NowPlaying`
+  stay framework-free/unit-testable; the `Bitmap`s ride separate volatile/StateFlow
+  channels, mirroring the existing `TileNotificationAction` / `MediaController` split.
+- **Known limits:** image extraction (incl. `loadDrawable`) runs on the listener
+  callback thread on each notification change — fine for infrequent posts, not cached
+  across refreshes. Big-picture bitmaps are held at full size (bounded by the notifier);
+  no downsampling. A contact-photo large icon shown full-bleed behind text reads as a
+  zoomed background under the scrim (acceptable; matches the WP photo-tile look).

@@ -2,8 +2,11 @@ package com.tileshell.feature.livetiles
 
 import android.app.Notification
 import android.content.ComponentName
+import android.content.Context
+import android.graphics.Bitmap
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import androidx.core.graphics.drawable.toBitmap
 
 /**
  * Mirrors the device's active notifications into [NotificationCenter] (FR-1.2
@@ -45,7 +48,36 @@ class TileNotificationListenerService : NotificationListenerService() {
         NotificationCenter.publish(summarizeNotifications(active.mapNotNull { it.toItem() }))
         // Parallel tap-action map: how each package's tile opens + clears on tap.
         NotificationCenter.publishActions(tileNotificationActions(active.map { it.toActionRow() }))
+        // Parallel image map: the newest notification's picture / contact photo per
+        // package, shown alongside the text on the live face.
+        NotificationCenter.publishImages(notificationImages(active))
     }
+
+    /** Newest dismissable notification's image per package (null entries dropped). */
+    private fun notificationImages(active: Array<out StatusBarNotification>): Map<String, Bitmap> =
+        active
+            .filter {
+                it.isClearable &&
+                    ((it.notification?.flags ?: 0) and Notification.FLAG_GROUP_SUMMARY) == 0
+            }
+            .groupBy { it.packageName }
+            .mapNotNull { (pkg, list) ->
+                val newest = list.maxByOrNull { it.postTime } ?: return@mapNotNull null
+                newest.extractImage(this)?.let { pkg to it }
+            }
+            .toMap()
+}
+
+/**
+ * Pulls a displayable image out of a notification: the big-picture style photo
+ * (a shared image) if present, else the large icon (typically the sender's contact
+ * photo), rasterised to a bitmap. Returns null for plain text-only notifications.
+ */
+private fun StatusBarNotification.extractImage(context: Context): Bitmap? {
+    val n = notification ?: return null
+    (n.extras?.get(Notification.EXTRA_PICTURE) as? Bitmap)?.let { return it }
+    val icon = n.getLargeIcon() ?: return null
+    return runCatching { icon.loadDrawable(context)?.toBitmap() }.getOrNull()
 }
 
 private fun StatusBarNotification.toItem(): NotificationItem? {
