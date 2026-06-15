@@ -49,14 +49,16 @@ class LayoutSeederTest {
 
     @Test
     fun `self-contained live tiles seed even when no app resolves`() {
-        // weather has no role; calendar's role yields nothing here. Both are
-        // liveOnly, so they seed with a blank, inert launch target.
-        val seeded = seeder.seed(resolver = resolverFor("clock"))
+        // Nothing resolves. clock, weather and calendar are liveOnly, so all three
+        // seed with a blank, inert launch target and keep their live glyph key.
+        val seeded = seeder.seed(resolver = RoleResolver { null })
         val apps = seeded.filterIsInstance<SeededTile.App>().associateBy { it.id }
 
+        assertTrue("clock seeded", "t-clock" in apps.keys)
         assertTrue("weather seeded", "t-weather" in apps.keys)
         assertTrue("calendar seeded", "t-cal" in apps.keys)
-        assertEquals("", apps.getValue("t-weather").component.packageName)
+        assertEquals("", apps.getValue("t-clock").component.packageName)
+        assertEquals("clock", apps.getValue("t-clock").iconKey)
         assertEquals("weather", apps.getValue("t-weather").iconKey)
         assertEquals("calendar", apps.getValue("t-cal").iconKey)
     }
@@ -70,13 +72,14 @@ class LayoutSeederTest {
     }
 
     @Test
-    fun `app whose role has no installed match is skipped`() {
-        // phone resolves; clock's role yields nothing from this resolver, so it
-        // drops out. The liveOnly weather/calendar tiles still seed (blank target).
+    fun `non-live app whose role has no installed match is skipped`() {
+        // phone resolves; camera's role yields nothing and camera is not liveOnly,
+        // so it drops out. The liveOnly clock/weather/calendar tiles still seed.
         val seeded = seeder.seed(resolver = resolverFor("phone"))
         val ids = seeded.map { it.id }
         assertTrue("phone kept", "t-phone" in ids)
-        assertTrue("clock skipped (role unresolved, not liveOnly)", "t-clock" !in ids)
+        assertTrue("camera skipped (role unresolved, not liveOnly)", "t-camera" !in ids)
+        assertTrue("clock seeded (liveOnly)", "t-clock" in ids)
     }
 
     @Test
@@ -139,7 +142,16 @@ class LayoutSeederTest {
 
     @Test
     fun `role table maps known roles and rejects unknown ones`() {
-        assertEquals(RoleQuery.Action("android.intent.action.SHOW_ALARMS"), DefaultLayout.roleFor("clock"))
+        assertEquals(
+            RoleQuery.AnyOf(
+                listOf(
+                    RoleQuery.Action("android.intent.action.SHOW_ALARMS"),
+                    RoleQuery.Action("android.intent.action.SET_ALARM"),
+                    RoleQuery.Action("android.intent.action.SHOW_TIMERS"),
+                ),
+            ),
+            DefaultLayout.roleFor("clock"),
+        )
         assertEquals(RoleQuery.DefaultSms, DefaultLayout.roleFor("messages"))
         assertEquals(RoleQuery.Category("android.intent.category.APP_CALCULATOR"), DefaultLayout.roleFor("calc"))
         assertEquals(null, DefaultLayout.roleFor("weather"))

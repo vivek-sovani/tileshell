@@ -41,6 +41,8 @@ class AndroidRoleResolver(context: Context) : RoleResolver {
                 }
                 resolvePackage(intent)
             }
+            // First sub-query that resolves to a launchable app wins.
+            is RoleQuery.AnyOf -> return query.queries.firstNotNullOfOrNull { resolve(it) }
         } ?: return null
 
         return launcherComponentOf(packageName)

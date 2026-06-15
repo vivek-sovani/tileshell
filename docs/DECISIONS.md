@@ -847,3 +847,21 @@ rule 4. Newest first.
   (it positions tiles by absolute pixel offset, and the drag hit-testing assumes
   it) — a deliberate constraint, matching the WP Start screen's anchored grid;
   full column mirroring is intentionally out of scope.
+
+## Post-S27 fix — clock tile always seeds (live clock)
+
+- **`t-clock` is now `liveOnly`.** The clock face is self-contained (it shows the
+  system time with no app), so — like weather/calendar — the clock tile now seeds
+  on first run *regardless of whether its role resolves*. Previously it depended on
+  `roleFor("clock")` (SHOW_ALARMS) resolving; on devices whose clock app doesn't
+  export that action the tile was silently dropped from the default layout, and the
+  same unresolved role left the clock package out of `roleIconKeyMap` so pinning the
+  clock app got `iconKey = null` (static glyph, no live clock). Marking it liveOnly
+  fixes the missing tile and renders the live clock with a blank, inert launch
+  target when no clock app resolves (tap opens the clock app when one does).
+- **Clock role resolution hardened with `RoleQuery.AnyOf`.** Clock now resolves via
+  SHOW_ALARMS → SET_ALARM → SHOW_TIMERS (first match wins), widening device coverage
+  so tap-to-open and the pinned-clock live glyph work on more devices. The resolver
+  recurses into `AnyOf`; tests updated.
+- **Note:** `seedIfEmpty()` does not re-seed a populated grid, so existing installs
+  must reset the layout (personalize → reset) or clear data to gain the clock tile.

@@ -16,16 +16,23 @@ sealed interface RoleQuery {
 
     /** The user's default SMS app (Telephony.Sms.getDefaultSmsPackage). */
     data object DefaultSms : RoleQuery
+
+    /**
+     * Try each query in order; the first that resolves wins. Lets a role tolerate
+     * device variation — e.g. clock apps that expose `SET_ALARM` but not the more
+     * common `SHOW_ALARMS`.
+     */
+    data class AnyOf(val queries: List<RoleQuery>) : RoleQuery
 }
 
 /**
  * A default-layout entry, ported from `DEFAULT_TILES` in data.js.
  *
- * @property liveOnly a self-contained live tile (weather, calendar) whose content
- *   comes from a provider/content-resolver, not a launched app. These seed even
- *   when no app resolves their role — the live face still renders — so they always
- *   appear on first run. A resolvable role is still used when present (so tapping
- *   opens the matching app); otherwise the tile gets a blank, inert launch target.
+ * @property liveOnly a self-contained live tile (clock, weather, calendar) whose
+ *   content comes from a provider/the system clock, not a launched app. These seed
+ *   even when no app resolves their role — the live face still renders — so they
+ *   always appear on first run. A resolvable role is still used when present (so
+ *   tapping opens the matching app); otherwise the tile gets a blank, inert target.
  */
 data class DefaultTile(
     val id: String,
@@ -45,7 +52,18 @@ object DefaultLayout {
      * (weather, notes, bank, …) return null and their tiles are skipped.
      */
     fun roleFor(appId: String): RoleQuery? = when (appId) {
-        "clock" -> RoleQuery.Action("android.intent.action.SHOW_ALARMS")
+        // Clock apps vary in which alarm action they export; try the common ones
+        // in order so the tile resolves a launch target (and pinning the clock app
+        // gets the live-clock glyph) on as many devices as possible. The tile is
+        // liveOnly regardless, so it always seeds with the live face even if none
+        // of these resolve.
+        "clock" -> RoleQuery.AnyOf(
+            listOf(
+                RoleQuery.Action("android.intent.action.SHOW_ALARMS"),
+                RoleQuery.Action("android.intent.action.SET_ALARM"),
+                RoleQuery.Action("android.intent.action.SHOW_TIMERS"),
+            ),
+        )
         "phone" -> RoleQuery.Action("android.intent.action.DIAL")
         "camera" -> RoleQuery.Action("android.media.action.STILL_IMAGE_CAMERA")
         "messages" -> RoleQuery.DefaultSms
@@ -83,7 +101,7 @@ object DefaultLayout {
 
     /** The default Start layout, ordered, from `window.DEFAULT_TILES()` in data.js. */
     val DEFAULT_TILES: List<DefaultTile> = listOf(
-        DefaultTile("t-clock", TileSize.WIDE, "cobalt", app = "clock"),
+        DefaultTile("t-clock", TileSize.WIDE, "cobalt", app = "clock", liveOnly = true),
         DefaultTile("t-phone", TileSize.MEDIUM, "green", app = "phone"),
         DefaultTile("t-camera", TileSize.MEDIUM, "slate", app = "camera"),
         DefaultTile("t-people", TileSize.MEDIUM, "teal", app = "people"),
