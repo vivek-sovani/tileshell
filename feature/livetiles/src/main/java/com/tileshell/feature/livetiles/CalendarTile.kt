@@ -2,6 +2,7 @@ package com.tileshell.feature.livetiles
 
 import android.Manifest
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -95,6 +97,34 @@ fun CalendarTileFace(
             }
         },
     )
+}
+
+/**
+ * The compact calendar face for a small (1×1) tile: just today's day number (e.g.
+ * "15"), centred. Refreshes on the minute boundary while [active] so it rolls over
+ * after midnight; never flips (small tiles stay out of the flip scheduler). Shows
+ * the date with no permission needed.
+ */
+@Composable
+fun CalendarSmallFace(active: Boolean, modifier: Modifier = Modifier) {
+    var today by remember { mutableStateOf(currentCalendarToday()) }
+    LaunchedEffect(active) {
+        if (!active) return@LaunchedEffect
+        while (true) {
+            today = currentCalendarToday()
+            delay(60_000L - (System.currentTimeMillis() % 60_000L))
+        }
+    }
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(
+            text = today.day.toString(),
+            color = FaceText,
+            fontSize = 34.sp,
+            fontWeight = FontWeight.ExtraLight,
+            letterSpacing = (-1).sp,
+            maxLines = 1,
+        )
+    }
 }
 
 @Composable

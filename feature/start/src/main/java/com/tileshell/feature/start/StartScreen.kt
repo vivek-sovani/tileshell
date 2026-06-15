@@ -109,7 +109,9 @@ import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.TileSize
 import com.tileshell.feature.applist.AppListScreen
+import com.tileshell.feature.livetiles.CalendarSmallFace
 import com.tileshell.feature.livetiles.CalendarTileFace
+import com.tileshell.feature.livetiles.ClockSmallFace
 import com.tileshell.feature.livetiles.ClockTileFace
 import com.tileshell.feature.livetiles.ConversationTileFace
 import com.tileshell.feature.livetiles.LiveFace
@@ -1021,17 +1023,17 @@ private fun BoxScope.TileControls() {
 
 @Composable
 private fun TileControl(iconKey: String, description: String, modifier: Modifier) {
+    // No background chip — the close/resize glyphs sit directly on the tile's own
+    // fill, tinted white like the tile's icon/label.
     Box(
-        modifier = modifier
-            .size(26.dp)
-            .background(DarkColorTokens.fg),
+        modifier = modifier.size(26.dp),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             imageVector = TileIcons[iconKey],
             contentDescription = description,
-            tint = DarkColorTokens.bg,
-            modifier = Modifier.size(15.dp),
+            tint = Color.White,
+            modifier = Modifier.size(18.dp),
         )
     }
 }
@@ -1577,6 +1579,16 @@ private fun AppTileContent(
     // also fall back to it when their opt-in permission is denied or no data is
     // cached (the live composables call the slot).
     val staticGlyph = @Composable { StaticTileGlyph(tile) }
+
+    // Small (1×1) clock / calendar tiles get a compact non-flipping live face —
+    // the time, and today's day number — instead of the static glyph.
+    if (tile.size == TileSize.SMALL) {
+        when (tile.iconKey) {
+            "clock" -> { ClockSmallFace(active = liveActive, modifier = Modifier.fillMaxSize()); return }
+            "calendar" -> { CalendarSmallFace(active = liveActive, modifier = Modifier.fillMaxSize()); return }
+        }
+    }
+
     val face = LiveFace.forIconKey(tile.iconKey, tile.size)
     when (face) {
         LiveFace.CLOCK -> {

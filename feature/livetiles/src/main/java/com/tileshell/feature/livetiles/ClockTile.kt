@@ -1,6 +1,7 @@
 package com.tileshell.feature.livetiles
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -109,6 +110,33 @@ fun ClockTileFace(
 }
 
 private val FaceText = Color.White
+
+/**
+ * The compact clock face for a small (1×1) tile: just the time, centred, at a size
+ * that fits the tiny tile. Ticks on the minute boundary while [active]; never flips
+ * (small tiles stay out of the flip scheduler).
+ */
+@Composable
+fun ClockSmallFace(active: Boolean, modifier: Modifier = Modifier) {
+    var face by remember { mutableStateOf(currentClockFace()) }
+    LaunchedEffect(active) {
+        if (!active) return@LaunchedEffect
+        while (true) {
+            face = currentClockFace()
+            delay(60_000L - (System.currentTimeMillis() % 60_000L))
+        }
+    }
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(
+            text = face.hm,
+            color = FaceText,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.ExtraLight,
+            letterSpacing = (-1).sp,
+            maxLines = 1,
+        )
+    }
+}
 
 @Composable
 private fun ClockFront(face: ClockFace, size: TileSize) {
