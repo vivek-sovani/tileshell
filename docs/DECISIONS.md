@@ -912,3 +912,23 @@ rule 4. Newest first.
 - **Known limitation:** the tile is a single `clearAndSetSemantics` node (S27), so
   the control buttons aren't individually exposed to TalkBack — a follow-up could
   add them as tile custom actions.
+
+## Post-S27 feature — app-list context menu + tap-to-open notification tiles
+
+- **App-list long-press now opens a context menu** (`DropdownMenu`) with "pin to
+  start" and "uninstall", replacing the direct long-press-to-pin. Uninstall fires
+  the system `ACTION_DELETE` dialog (`package:` uri, no special permission); the
+  catalog updates live on removal via the existing package observer. The TalkBack
+  custom actions on `AppRow` gain a matching "uninstall" alongside "pin to start".
+- **Tapping a tile that's showing a notification opens that notification and clears
+  the app's notifications.** The listener service publishes a parallel per-package
+  `TileNotificationAction` map (newest dismissable notification's `contentIntent` +
+  every dismissable key for the package) to `NotificationCenter` alongside the pure
+  snapshot, and registers itself so `cancelNotifications(keys)` works. `onTileClick`
+  calls `NotificationCenter.openAndClear(pkg)`: it sends the content intent (jumping
+  into the relevant in-app screen) and cancels the package's notifications; returns
+  true (caller skips its normal launch) only when an intent was sent, so a tile with
+  no pending notifications — or only intent-less ones (now cleared) — still falls
+  through to a plain launch. Group-summary keys are cleared too so the whole group
+  empties; ongoing (music/nav) notifications are excluded, so they never clear and
+  the tile launches normally. Pure `tileNotificationActions` unit-tested.

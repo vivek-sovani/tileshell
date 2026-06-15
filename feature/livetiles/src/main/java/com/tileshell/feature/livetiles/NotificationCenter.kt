@@ -1,5 +1,7 @@
 package com.tileshell.feature.livetiles
 
+import android.app.PendingIntent
+import android.service.notification.NotificationListenerService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,6 +35,18 @@ data class ConversationPreview(
     val sender: String,
     val snippet: String,
     val count: Int,
+)
+
+/**
+ * What a tile does when its live notification is tapped: open the newest
+ * notification's [contentIntent] (jumping straight to the relevant screen inside
+ * the app) and clear that app's notifications by cancelling [keys]. Holds live
+ * framework objects, so it is kept out of the pure [summarizeNotifications] path
+ * and the recomposition-driving [NotificationSnapshot].
+ */
+data class TileNotificationAction(
+    val contentIntent: PendingIntent?,
+    val keys: List<String>,
 )
 
 /**
@@ -88,15 +102,91 @@ object NotificationCenter {
     private val _snapshot = MutableStateFlow(NotificationSnapshot.EMPTY)
     val snapshot: StateFlow<NotificationSnapshot> = _snapshot.asStateFlow()
 
+    // Per-package tap actions (content intent + keys to clear), and the connected
+    // listener used to cancel them. Read imperatively on a tile tap rather than via
+    // StateFlow — these carry framework objects and must not drive recomposition.
+    // @Volatile so the listener thread's writes are visible to the UI thread's reads.
+    @Volatile private var actions: Map<String, TileNotificationAction> = emptyMap()
+    @Volatile private var listener: NotificationListenerService? = null
+
     fun publish(snapshot: NotificationSnapshot) {
         _snapshot.value = snapshot
+    }
+
+    /** Publishes the latest per-package tap actions (called alongside [publish]). */
+    fun publishActions(actions: Map<String, TileNotificationAction>) {
+        this.actions = actions
+    }
+
+    /** Registers the connected listener so tile taps can cancel notifications. */
+    fun bindListener(service: NotificationListenerService) {
+        listener = service
+    }
+
+    /** Drops the listener if it is the one currently bound (on disconnect). */
+    fun unbindListener(service: NotificationListenerService) {
+        if (listener === service) listener = null
+    }
+
+    /**
+     * Tapping a live notification tile: if [packageName] currently has
+     * notifications, clears them and opens the newest one's content intent (so the
+     * user lands on the relevant screen in the app). Returns true when a content
+     * intent was launched — the caller then skips its normal app launch. Returns
+     * false when the package has no notifications, or had only intent-less ones
+     * (now cleared), so the caller falls back to a plain launch.
+     */
+    fun openAndClear(packageName: String): Boolean {
+        val action = actions[packageName] ?: return false
+        val opened = action.contentIntent?.let { intent ->
+            runCatching { intent.send(); true }.getOrDefault(false)
+        } ?: false
+        listener?.let { service ->
+            if (action.keys.isNotEmpty()) {
+                runCatching { service.cancelNotifications(action.keys.toTypedArray()) }
+            }
+        }
+        return opened
     }
 
     /** Drops everything — used when the listener disconnects / access is revoked. */
     fun clear() {
         _snapshot.value = NotificationSnapshot.EMPTY
+        actions = emptyMap()
     }
 }
+
+/**
+ * Reduces active notifications to the per-package [TileNotificationAction] map: the
+ * newest dismissable notification's content intent and every dismissable key for
+ * that package. Group-summary rows are dropped from the preview pick (they mirror
+ * children) but their keys are still cleared so cancelling empties the whole group.
+ */
+fun tileNotificationActions(
+    rows: List<NotificationActionRow>,
+): Map<String, TileNotificationAction> {
+    val clearable = rows.filter { it.isClearable }
+    if (clearable.isEmpty()) return emptyMap()
+    return clearable.groupBy { it.packageName }.mapValues { (_, list) ->
+        val newest = list.filterNot { it.isGroupSummary }.maxByOrNull { it.postTime }
+            ?: list.maxByOrNull { it.postTime }
+            ?: list.first()
+        TileNotificationAction(
+            contentIntent = newest.contentIntent,
+            keys = list.map { it.key },
+        )
+    }
+}
+
+/** A notification reduced to the fields [tileNotificationActions] needs. */
+data class NotificationActionRow(
+    val packageName: String,
+    val key: String,
+    val contentIntent: PendingIntent?,
+    val isClearable: Boolean,
+    val isGroupSummary: Boolean,
+    val postTime: Long,
+)
 
 /**
  * Initials for a sender avatar (prototype `initials(name)`): the first letter of

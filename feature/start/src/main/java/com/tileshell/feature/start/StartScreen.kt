@@ -1716,6 +1716,11 @@ private fun onTileClick(context: Context, tile: TileModel) {
     when (tile) {
         is TileModel.App -> {
             if (tile.packageName.isNotBlank()) {
+                // If the tile is currently showing a notification (badge / live
+                // face), tapping opens that notification inside the app and clears
+                // the app's notifications. Falls through to a normal launch when the
+                // app has nothing pending or the notification had no content intent.
+                if (NotificationCenter.openAndClear(tile.packageName)) return
                 if (!AppLauncher.launch(context, tile.packageName, tile.activityName)) {
                     Toast.makeText(
                         context,

@@ -1,6 +1,9 @@
 package com.tileshell.feature.applist
 
 import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -32,6 +35,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -152,6 +157,7 @@ fun AppListScreen(
                                 app = app,
                                 onTap = { AppLauncher.launch(context, app.packageName, app.activityName) },
                                 onPin = { viewModel.pin(app) },
+                                onUninstall = { uninstallApp(context, app.packageName) },
                             )
                         }
                     }
@@ -165,6 +171,7 @@ fun AppListScreen(
                             app = app,
                             onTap = { AppLauncher.launch(context, app.packageName, app.activityName) },
                             onPin = { viewModel.pin(app) },
+                            onUninstall = { uninstallApp(context, app.packageName) },
                         )
                     }
                 }
@@ -244,48 +251,81 @@ private fun LetterHeader(letter: String, accent: Color, onClick: () -> Unit) {
 }
 
 @Composable
-private fun AppRow(app: AppEntry, onTap: () -> Unit, onPin: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .tapOrLongPress(onTap = onTap, onLongPress = onPin)
-            // TalkBack: launch on activate, pin-to-Start as a custom action
-            // (the sighted long-press-to-pin gesture isn't reachable otherwise).
-            .clearAndSetSemantics {
-                contentDescription = app.label
-                role = Role.Button
-                onClick(label = "launch") { onTap(); true }
-                customActions = listOf(
-                    CustomAccessibilityAction("pin to start") { onPin(); true },
-                )
-            }
-            .padding(horizontal = 18.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier.size(44.dp),
-            contentAlignment = Alignment.Center,
+private fun AppRow(
+    app: AppEntry,
+    onTap: () -> Unit,
+    onPin: () -> Unit,
+    onUninstall: () -> Unit,
+) {
+    // Long-press opens a WP-style context menu: pin the app to Start, or uninstall
+    // it (the system uninstall dialog). A quick tap still launches.
+    var menuOpen by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .tapOrLongPress(onTap = onTap, onLongPress = { menuOpen = true })
+                // TalkBack: launch on activate, with pin / uninstall as custom
+                // actions (the sighted long-press menu isn't reachable otherwise).
+                .clearAndSetSemantics {
+                    contentDescription = app.label
+                    role = Role.Button
+                    onClick(label = "launch") { onTap(); true }
+                    customActions = listOf(
+                        CustomAccessibilityAction("pin to start") { onPin(); true },
+                        CustomAccessibilityAction("uninstall") { onUninstall(); true },
+                    )
+                }
+                .padding(horizontal = 18.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            val icon = rememberAppIcon(app.packageName, app.activityName)
-            if (icon != null) {
-                Image(
-                    bitmap = icon,
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(40.dp),
-                )
-            } else {
-                // No real icon: the monoline glyph on the list background (no square).
-                Icon(
-                    TileIcons["app"], null,
-                    tint = LocalColorTokens.current.fg,
-                    modifier = Modifier.size(28.dp),
-                )
+            Box(
+                modifier = Modifier.size(44.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                val icon = rememberAppIcon(app.packageName, app.activityName)
+                if (icon != null) {
+                    Image(
+                        bitmap = icon,
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.size(40.dp),
+                    )
+                } else {
+                    // No real icon: the monoline glyph on the list background (no square).
+                    Icon(
+                        TileIcons["app"], null,
+                        tint = LocalColorTokens.current.fg,
+                        modifier = Modifier.size(28.dp),
+                    )
+                }
             }
+            Spacer(Modifier.width(14.dp))
+            Text(app.label, color = LocalColorTokens.current.fg, fontSize = 16.sp)
         }
-        Spacer(Modifier.width(14.dp))
-        Text(app.label, color = LocalColorTokens.current.fg, fontSize = 16.sp)
+
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(
+                text = { Text("pin to start") },
+                onClick = { menuOpen = false; onPin() },
+            )
+            DropdownMenuItem(
+                text = { Text("uninstall") },
+                onClick = { menuOpen = false; onUninstall() },
+            )
+        }
     }
+}
+
+/**
+ * Launches the system uninstall dialog for [packageName] (no special permission —
+ * the user confirms in the platform UI). The catalog updates live on removal via
+ * the existing package-change observer.
+ */
+private fun uninstallApp(context: Context, packageName: String) {
+    val intent = Intent(Intent.ACTION_DELETE, Uri.parse("package:$packageName"))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { context.startActivity(intent) }
 }
 
 /**

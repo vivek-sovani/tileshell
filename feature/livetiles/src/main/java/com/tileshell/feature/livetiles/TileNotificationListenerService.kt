@@ -22,10 +22,14 @@ import android.service.notification.StatusBarNotification
 class TileNotificationListenerService : NotificationListenerService() {
 
     override fun onListenerConnected() {
+        // Register so a tile tap can route through to cancelling this app's
+        // notifications (FR-2 tap-to-open + clear).
+        NotificationCenter.bindListener(this)
         refresh()
     }
 
     override fun onListenerDisconnected() {
+        NotificationCenter.unbindListener(this)
         NotificationCenter.clear()
         // Best-effort rebind; a no-op (and harmless) if access was actually revoked.
         runCatching { requestRebind(ComponentName(this, javaClass)) }
@@ -37,10 +41,10 @@ class TileNotificationListenerService : NotificationListenerService() {
 
     private fun refresh() {
         // activeNotifications throws if the listener is not connected — guard it.
-        val items = runCatching { activeNotifications }.getOrNull()
-            ?.mapNotNull { it.toItem() }
-            .orEmpty()
-        NotificationCenter.publish(summarizeNotifications(items))
+        val active = runCatching { activeNotifications }.getOrNull().orEmpty()
+        NotificationCenter.publish(summarizeNotifications(active.mapNotNull { it.toItem() }))
+        // Parallel tap-action map: how each package's tile opens + clears on tap.
+        NotificationCenter.publishActions(tileNotificationActions(active.map { it.toActionRow() }))
     }
 }
 
@@ -55,3 +59,13 @@ private fun StatusBarNotification.toItem(): NotificationItem? {
         postTime = postTime,
     )
 }
+
+private fun StatusBarNotification.toActionRow(): NotificationActionRow =
+    NotificationActionRow(
+        packageName = packageName,
+        key = key,
+        contentIntent = notification?.contentIntent,
+        isClearable = isClearable,
+        isGroupSummary = ((notification?.flags ?: 0) and Notification.FLAG_GROUP_SUMMARY) != 0,
+        postTime = postTime,
+    )

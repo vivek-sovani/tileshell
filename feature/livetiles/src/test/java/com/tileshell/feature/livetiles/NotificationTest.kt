@@ -76,6 +76,49 @@ class NotificationSummaryTest {
     }
 }
 
+class TileNotificationActionsTest {
+
+    private fun row(
+        pkg: String,
+        key: String,
+        clearable: Boolean = true,
+        summary: Boolean = false,
+        postTime: Long = 0L,
+    ) = NotificationActionRow(pkg, key, contentIntent = null, clearable, summary, postTime)
+
+    @Test
+    fun `keys cover every dismissable notification for the package`() {
+        val actions = tileNotificationActions(
+            listOf(
+                row("mail", "m1", postTime = 100),
+                row("mail", "m2", postTime = 200),
+                row("messages", "x1"),
+            ),
+        )
+        assertEquals(listOf("m1", "m2"), actions.getValue("mail").keys)
+        assertEquals(listOf("x1"), actions.getValue("messages").keys)
+    }
+
+    @Test
+    fun `ongoing notifications produce no tap action`() {
+        val actions = tileNotificationActions(listOf(row("music", "track", clearable = false)))
+        assertNull(actions["music"])
+        assertTrue(tileNotificationActions(emptyList()).isEmpty())
+    }
+
+    @Test
+    fun `group summary keys are still cleared`() {
+        val actions = tileNotificationActions(
+            listOf(
+                row("mail", "summary", summary = true, postTime = 300),
+                row("mail", "real", postTime = 100),
+            ),
+        )
+        // Both keys clear (so the whole group empties)...
+        assertEquals(setOf("summary", "real"), actions.getValue("mail").keys.toSet())
+    }
+}
+
 class InitialsTest {
 
     @Test
