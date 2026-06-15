@@ -7,6 +7,7 @@ import com.tileshell.core.data.AppCatalogRepository
 import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.PinResult
+import com.tileshell.core.data.RecentApps
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -44,6 +45,27 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
     /** The catalogue filtered by the current query (case-insensitive substring). */
     val filteredApps: StateFlow<List<AppEntry>> =
         combine(apps, _query) { list, q -> AppListFilter.filter(list, q) }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
+
+    private val recentKeys: StateFlow<List<String>> =
+        RecentApps.recent(application).stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
+
+    /**
+     * The "recent" section (recently-launched + newly-installed) shown above the
+     * alphabetical list when the search box is empty. Empty while searching.
+     */
+    val topApps: StateFlow<List<AppEntry>> =
+        combine(apps, recentKeys, _query) { list, keys, q ->
+            if (q.isNotBlank()) emptyList()
+            else AppListFilter.topApps(list, keys, System.currentTimeMillis())
+        }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyList(),

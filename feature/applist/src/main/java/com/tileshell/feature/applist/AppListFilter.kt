@@ -20,4 +20,33 @@ object AppListFilter {
     /** Section letters present in [apps] (uppercase A–Z, or "#"). */
     fun availableLetters(apps: List<AppEntry>): Set<String> =
         apps.mapTo(mutableSetOf()) { it.letter }
+
+    /** Apps installed within [NEW_WINDOW_MS] of [nowMillis]. */
+    private const val NEW_WINDOW_MS = 7L * 24 * 60 * 60 * 1000 // 7 days
+    private const val MAX_RECENT = 5
+    private const val MAX_NEW = 5
+
+    /**
+     * The "recent" section shown at the top of the app list when not searching:
+     * the up-to-[MAX_RECENT] most-recently-launched apps (ordered by [recentKeys],
+     * most-recent first), followed by up-to-[MAX_NEW] newly-installed apps
+     * (installed within the last week of [nowMillis], newest first) that aren't
+     * already in the recent set. De-duplicated; only apps still in [apps] are kept.
+     * Pure, so the ordering/windowing is unit-testable.
+     */
+    fun topApps(
+        apps: List<AppEntry>,
+        recentKeys: List<String>,
+        nowMillis: Long,
+    ): List<AppEntry> {
+        val byKey = apps.associateBy { it.key }
+        val recent = recentKeys.mapNotNull { byKey[it] }.take(MAX_RECENT)
+        val recentKeySet = recent.mapTo(mutableSetOf()) { it.key }
+        val newlyInstalled = apps
+            .filter { it.firstInstallTime > 0 && nowMillis - it.firstInstallTime <= NEW_WINDOW_MS }
+            .filter { it.key !in recentKeySet }
+            .sortedByDescending { it.firstInstallTime }
+            .take(MAX_NEW)
+        return recent + newlyInstalled
+    }
 }

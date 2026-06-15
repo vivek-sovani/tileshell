@@ -875,3 +875,23 @@ rule 4. Newest first.
   playing session for the generic music tile — so the source app is always
   identified while now-playing/paused is shown. (Calendar confirmed correct as-is —
   it keeps the date front + next-schedule back, no icon change requested.)
+
+## Post-S27 — app list cleanup + recents, Start settings button
+
+- **App-list rows drop the accent square.** `AppRow` renders the app's real
+  launcher icon (40dp) directly on the list background — icon + name only, no
+  backing block; apps with no resolvable icon fall back to the monoline "app"
+  glyph. The `accent` param was removed from `AppRow`.
+- **"recent" section at the top of the app list.** Above the alphabetical list (and
+  only when the search box is empty) a "recent" header lists the up-to-5
+  most-recently-launched apps followed by up-to-5 newly-installed apps (first
+  install within 7 days), de-duplicated, recents-first. Pure `AppListFilter.topApps`
+  (unit-tested) builds it. Recents are tracked without a usage-access permission by
+  a process-wide `RecentApps` DataStore (`recent_apps.pb`, capped at 12) recorded at
+  the single `AppLauncher.launch` choke point, so Start tiles, folder children and
+  app-list taps all count. `AppEntry` gained `firstInstallTime` (from
+  `LauncherActivityInfo`). The jump-grid scroll offsets past the recent rows.
+- **Settings button on Start.** A settings (gear) icon sits just below the app-list
+  chevron at the bottom-right (a 48dp target, hidden in edit mode like the chevron);
+  tapping it opens the personalize sheet (`openPersonalize`) directly — previously
+  only reachable via edit mode → edit bar.

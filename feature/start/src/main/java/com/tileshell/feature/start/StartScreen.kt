@@ -669,24 +669,40 @@ private fun StartPage(
             Spacer(Modifier.height(if (editMode) 130.dp else 74.dp))
         }
 
-        // App-list affordance (prototype .allapps-btn): hidden in edit mode.
+        // App-list affordance (prototype .allapps-btn) with a settings button just
+        // below it; both hidden in edit mode (personalize is on the edit bar there).
         if (chevronVisible) {
-            Box(
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .navigationBarsPadding()
-                    .padding(end = 14.dp, bottom = 26.dp)
-                    // 48dp min touch target (a11y) — icon stays 28dp inside.
-                    .size(48.dp)
-                    .clickable(onClick = onChevron),
-                contentAlignment = Alignment.Center,
+                    .padding(end = 14.dp, bottom = 26.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                Icon(
-                    imageVector = TileIcons["chevron"],
-                    contentDescription = "open app list",
-                    tint = Color.White.copy(alpha = 0.72f),
-                    modifier = Modifier.size(28.dp),
-                )
+                // 48dp min touch targets (a11y) — icons stay smaller inside.
+                Box(
+                    modifier = Modifier.size(48.dp).clickable(onClick = onChevron),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = TileIcons["chevron"],
+                        contentDescription = "open app list",
+                        tint = Color.White.copy(alpha = 0.72f),
+                        modifier = Modifier.size(28.dp),
+                    )
+                }
+                Box(
+                    modifier = Modifier.size(48.dp).clickable(onClick = onPersonalize),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = TileIcons["settings"],
+                        contentDescription = "settings",
+                        tint = Color.White.copy(alpha = 0.72f),
+                        modifier = Modifier.size(26.dp),
+                    )
+                }
             }
         }
 

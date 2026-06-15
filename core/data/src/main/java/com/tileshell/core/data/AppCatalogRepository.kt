@@ -79,6 +79,7 @@ class AppCatalogRepository(context: Context) {
                 packageName = info.componentName.packageName,
                 activityName = info.componentName.className,
                 label = info.label?.toString().orEmpty(),
+                firstInstallTime = runCatching { info.firstInstallTime }.getOrDefault(0L),
             )
         }
         return AppCatalog.sorted(entries)

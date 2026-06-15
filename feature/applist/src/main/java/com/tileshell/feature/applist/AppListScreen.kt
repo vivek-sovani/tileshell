@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicTextField
@@ -89,9 +90,10 @@ private val JUMP_LETTERS: List<String> = listOf("#") + ('a'..'z').map(Char::toSt
  * jump grid — a 4-column board of "#" + a–z where present letters are accent
  * tiles that scroll to their section (prototype `screens.js` buildJump/jumpTo).
  *
- * Rows show the app's real icon rather than the prototype's monoline glyph,
- * since arbitrary installed apps have no TileShell glyph (see docs/DECISIONS.md
- * S9); the accent square is kept as the backing.
+ * Rows show the app's real icon (no backing square) rather than the prototype's
+ * monoline glyph, since arbitrary installed apps have no TileShell glyph (see
+ * docs/DECISIONS.md S9); apps with no resolvable icon fall back to the monoline
+ * "app" glyph on the list background.
  */
 @Composable
 fun AppListScreen(
@@ -100,6 +102,7 @@ fun AppListScreen(
     viewModel: AppListViewModel = viewModel(),
 ) {
     val apps by viewModel.filteredApps.collectAsStateWithLifecycle()
+    val topApps by viewModel.topApps.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
     val accent = LocalAccent.current // global accent (FR-7, S17)
     val context = LocalContext.current
@@ -140,15 +143,26 @@ fun AppListScreen(
                     modifier = Modifier.fillMaxSize().navigationBarsPadding(),
                     contentPadding = PaddingValues(bottom = 24.dp),
                 ) {
+                    // "recent" section (recently-launched + newly-installed), only
+                    // when not searching; sits above the alphabetical list.
+                    if (topApps.isNotEmpty()) {
+                        item(key = "recent-header") { SectionHeader("recent", accent) }
+                        items(topApps, key = { "recent/${it.key}" }) { app ->
+                            AppRow(
+                                app = app,
+                                onTap = { AppLauncher.launch(context, app.packageName, app.activityName) },
+                                onPin = { viewModel.pin(app) },
+                            )
+                        }
+                    }
                     itemsIndexed(
                         items = apps,
-                        key = { _, app -> "${app.packageName}/${app.activityName}" },
+                        key = { _, app -> app.key },
                     ) { index, app ->
                         val newSection = index == 0 || apps[index - 1].letter != app.letter
                         if (newSection) LetterHeader(app.letter, accent) { jumpOpen = true }
                         AppRow(
                             app = app,
-                            accent = accent,
                             onTap = { AppLauncher.launch(context, app.packageName, app.activityName) },
                             onPin = { viewModel.pin(app) },
                         )
@@ -164,7 +178,10 @@ fun AppListScreen(
                 onPick = { letter ->
                     jumpOpen = false
                     val target = apps.indexOfFirst { it.letter == letter }
-                    if (target >= 0) scope.launch { listState.scrollToItem(target) }
+                    // Leading lazy items before the alphabetical list: the recent
+                    // header + its rows (present only when not searching).
+                    val lead = if (topApps.isNotEmpty()) 1 + topApps.size else 0
+                    if (target >= 0) scope.launch { listState.scrollToItem(lead + target) }
                 },
                 onDismiss = { jumpOpen = false },
             )
@@ -201,6 +218,18 @@ private fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
     }
 }
 
+/** A non-clickable section label (e.g. "recent"), styled like a letter header. */
+@Composable
+private fun SectionHeader(text: String, accent: Color) {
+    Text(
+        text = text.lowercase(),
+        color = accent,
+        fontSize = 30.sp,
+        fontWeight = FontWeight.ExtraLight,
+        modifier = Modifier.padding(start = 18.dp, top = 14.dp, bottom = 4.dp),
+    )
+}
+
 @Composable
 private fun LetterHeader(letter: String, accent: Color, onClick: () -> Unit) {
     Text(
@@ -215,7 +244,7 @@ private fun LetterHeader(letter: String, accent: Color, onClick: () -> Unit) {
 }
 
 @Composable
-private fun AppRow(app: AppEntry, accent: Color, onTap: () -> Unit, onPin: () -> Unit) {
+private fun AppRow(app: AppEntry, onTap: () -> Unit, onPin: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -234,7 +263,7 @@ private fun AppRow(app: AppEntry, accent: Color, onTap: () -> Unit, onPin: () ->
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            modifier = Modifier.size(44.dp).background(accent),
+            modifier = Modifier.size(44.dp),
             contentAlignment = Alignment.Center,
         ) {
             val icon = rememberAppIcon(app.packageName, app.activityName)
@@ -243,10 +272,15 @@ private fun AppRow(app: AppEntry, accent: Color, onTap: () -> Unit, onPin: () ->
                     bitmap = icon,
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(30.dp),
+                    modifier = Modifier.size(40.dp),
                 )
             } else {
-                Icon(TileIcons["app"], null, tint = Color.White, modifier = Modifier.size(26.dp))
+                // No real icon: the monoline glyph on the list background (no square).
+                Icon(
+                    TileIcons["app"], null,
+                    tint = LocalColorTokens.current.fg,
+                    modifier = Modifier.size(28.dp),
+                )
             }
         }
         Spacer(Modifier.width(14.dp))

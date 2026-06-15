@@ -21,6 +21,8 @@ object AppLauncher {
             null,
             null,
         )
+        // Track the launch for the app list's "recent" section (fire-and-forget).
+        RecentApps.record(context, packageName, activityName)
         true
     } catch (e: Exception) {
         false
