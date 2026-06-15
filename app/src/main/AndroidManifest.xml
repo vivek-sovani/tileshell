@@ -19,11 +19,20 @@
     <!-- Weather tile (FR-2): fetch a live, location-specific forecast from the
          no-API-key Open-Meteo service. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- App-list "uninstall" context-menu action: lets the launcher ask the system
+         to uninstall a user app (the user still confirms in the platform dialog). -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
 
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <!-- Make the system uninstaller resolvable under package visibility so the
+             app-list "uninstall" action can launch it. -->
+        <intent>
+            <action android:name="android.intent.action.DELETE" />
+            <data android:scheme="package" />
         </intent>
     </queries>
 

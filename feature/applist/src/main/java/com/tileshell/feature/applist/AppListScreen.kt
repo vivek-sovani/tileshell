@@ -318,23 +318,24 @@ private fun AppRow(
 }
 
 /**
- * Launches the system uninstall dialog for [packageName] (no special permission —
- * the user confirms in the platform UI). Tries the dedicated
- * `ACTION_UNINSTALL_PACKAGE` first, then `ACTION_DELETE` as a fallback; both target
- * the same system PackageInstaller UI but availability varies by OEM/version. The
- * catalog updates live on removal via the existing package-change observer.
+ * Launches the system uninstall dialog for [packageName] (the user confirms in the
+ * platform UI). Uses `ACTION_DELETE` with a `package:` URI — the canonical, reliably
+ * supported way to ask the system PackageInstaller to uninstall; the installer is
+ * declared visible in the manifest `<queries>` so it resolves under Android 11+
+ * package-visibility. Only on an outright failure does it fall back to the
+ * deprecated `ACTION_UNINSTALL_PACKAGE`. The catalog updates live on removal via the
+ * existing package-change observer.
  */
 private fun uninstallApp(context: Context, packageName: String) {
     val uri = Uri.fromParts("package", packageName, null)
-    val candidates = listOf(
-        @Suppress("DEPRECATION")
-        Intent(Intent.ACTION_UNINSTALL_PACKAGE, uri).putExtra(Intent.EXTRA_RETURN_RESULT, false),
-        Intent(Intent.ACTION_DELETE, uri),
-    )
-    for (intent in candidates) {
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (runCatching { context.startActivity(intent) }.isSuccess) return
-    }
+    val delete = Intent(Intent.ACTION_DELETE, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (runCatching { context.startActivity(delete) }.isSuccess) return
+
+    @Suppress("DEPRECATION")
+    val uninstall = Intent(Intent.ACTION_UNINSTALL_PACKAGE, uri)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (runCatching { context.startActivity(uninstall) }.isSuccess) return
+
     Toast.makeText(context, "couldn't open uninstall", Toast.LENGTH_SHORT).show()
 }
 
