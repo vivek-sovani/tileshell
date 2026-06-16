@@ -86,6 +86,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(feedEnabled = enabled) }
     }
 
+    /** Toggle following the device dark-mode setting (vs. the manual [dark] choice). */
+    suspend fun setFollowSystemTheme(follow: Boolean) {
+        store.updateData { it.copy(followSystemTheme = follow) }
+    }
+
     companion object {
         fun create(context: Context): SettingsRepository =
             SettingsRepository(context.applicationContext.settingsDataStore)

@@ -73,6 +73,8 @@ fun PersonalizeSheet(
     onTiledWallpaperChange: (Boolean) -> Unit,
     feedEnabled: Boolean,
     onFeedEnabledChange: (Boolean) -> Unit,
+    followSystemTheme: Boolean,
+    onFollowSystemThemeChange: (Boolean) -> Unit,
     onThemeChange: (dark: Boolean) -> Unit,
     onAccentChange: (id: String) -> Unit,
     onGlassChange: (Boolean) -> Unit,
@@ -152,16 +154,30 @@ fun PersonalizeSheet(
 
             // ---- theme ----
             SettingGroup(label = "theme", tokens.fgDim) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, tokens.tileLine),
-                ) {
-                    SegCell("dark", selected = dark, accent = accent, fg = tokens.fg) {
-                        onThemeChange(true)
-                    }
-                    SegCell("light", selected = !dark, accent = accent, fg = tokens.fg) {
-                        onThemeChange(false)
+                Column {
+                    ToggleRow(
+                        "follow system",
+                        on = followSystemTheme,
+                        accent = accent,
+                        tokens,
+                        onFollowSystemThemeChange,
+                    )
+                    // The manual dark/light control only applies when not following
+                    // the device setting; hidden while "follow system" is on.
+                    if (!followSystemTheme) {
+                        Spacer(Modifier.height(14.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(1.dp, tokens.tileLine),
+                        ) {
+                            SegCell("dark", selected = dark, accent = accent, fg = tokens.fg) {
+                                onThemeChange(true)
+                            }
+                            SegCell("light", selected = !dark, accent = accent, fg = tokens.fg) {
+                                onThemeChange(false)
+                            }
+                        }
                     }
                 }
             }

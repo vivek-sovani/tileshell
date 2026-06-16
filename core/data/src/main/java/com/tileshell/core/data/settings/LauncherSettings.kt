@@ -6,7 +6,11 @@ import com.tileshell.core.data.TileColors
  * Persisted personalization (FR-7). Kept deliberately flat and framework-free so
  * it can be serialized by [SettingsCodec] and unit-tested without Android.
  *
- * @property dark dark theme when true, light when false (prototype `state.theme`)
+ * @property followSystemTheme when true (default) the active theme follows the
+ *   device dark-mode setting and [dark] is ignored for rendering; when false the
+ *   manual [dark] choice is used. The manual choice is retained either way.
+ * @property dark manual dark theme when true, light when false (prototype
+ *   `state.theme`); only applied while [followSystemTheme] is false.
  * @property accentId one of the 14 [TileColors] ids — the single global accent
  *   (`state.accent`) used by app-list/chrome *and* every Start tile (one uniform
  *   tile colour across the Start screen, default blue; per-tile colourId ignored).
@@ -26,6 +30,7 @@ import com.tileshell.core.data.TileColors
  *   Start⇄app-list and the feed surface is not composed.
  */
 data class LauncherSettings(
+    val followSystemTheme: Boolean = true,
     val dark: Boolean = true,
     val accentId: String = "blue",
     val glass: Boolean = true,
@@ -48,6 +53,7 @@ data class LauncherSettings(
 object SettingsCodec {
 
     fun encode(settings: LauncherSettings): String = buildString {
+        append("followSystemTheme=").append(settings.followSystemTheme).append('\n')
         append("dark=").append(settings.dark).append('\n')
         append("accent=").append(settings.accentId).append('\n')
         append("glass=").append(settings.glass).append('\n')
@@ -61,6 +67,7 @@ object SettingsCodec {
 
     fun decode(text: String): LauncherSettings {
         val d = LauncherSettings()
+        var followSystemTheme = d.followSystemTheme
         var dark = d.dark
         var accentId = d.accentId
         var glass = d.glass
@@ -76,6 +83,7 @@ object SettingsCodec {
             val key = line.substring(0, sep).trim()
             val value = line.substring(sep + 1).trim()
             when (key) {
+                "followSystemTheme" -> followSystemTheme = value.toBooleanStrictOrNull() ?: followSystemTheme
                 "dark" -> dark = value.toBooleanStrictOrNull() ?: dark
                 "accent" -> if (value in TileColors.IDS) accentId = value
                 "glass" -> glass = value.toBooleanStrictOrNull() ?: glass
@@ -88,6 +96,7 @@ object SettingsCodec {
             }
         }
         return LauncherSettings(
+            followSystemTheme = followSystemTheme,
             dark = dark,
             accentId = accentId,
             glass = glass,

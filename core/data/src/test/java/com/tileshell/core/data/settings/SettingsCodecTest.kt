@@ -10,6 +10,7 @@ class SettingsCodecTest {
     @Test
     fun `round-trips all fields`() {
         val settings = LauncherSettings(
+            followSystemTheme = false,
             dark = false,
             accentId = "magenta",
             glass = false,
@@ -26,6 +27,15 @@ class SettingsCodecTest {
     @Test
     fun `bad feedEnabled keeps the default`() {
         assertEquals(LauncherSettings().feedEnabled, SettingsCodec.decode("feedEnabled=nope").feedEnabled)
+    }
+
+    @Test
+    fun `followSystemTheme decodes and bad value keeps default`() {
+        assertEquals(false, SettingsCodec.decode("followSystemTheme=false").followSystemTheme)
+        assertEquals(
+            LauncherSettings().followSystemTheme,
+            SettingsCodec.decode("followSystemTheme=sometimes").followSystemTheme,
+        )
     }
 
     @Test

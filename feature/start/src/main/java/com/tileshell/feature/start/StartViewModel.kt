@@ -189,6 +189,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Switch theme (FR-7); persisted and applied live. */
+    fun setFollowSystemTheme(follow: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setFollowSystemTheme(follow) }
+    }
+
     fun setTheme(dark: Boolean) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setDark(dark) }
     }

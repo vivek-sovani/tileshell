@@ -21,6 +21,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -202,13 +203,18 @@ fun StartScreen(
         if (openFolderId != null && openFolder == null) viewModel.closeFolder()
     }
 
+    // Effective theme: follow the device dark-mode setting unless the user opted
+    // into a manual choice. Used everywhere the chrome is skinned so the whole
+    // tree re-composes when either the system setting or the preference changes.
+    val dark = if (settings.followSystemTheme) isSystemInDarkTheme() else settings.dark
+
     // Active theme tokens + global accent (FR-7), provided down the tree so the
     // chrome (sheet, edit bar, app list) re-skins live when personalization changes.
-    val tokens = colorTokens(settings.dark)
+    val tokens = colorTokens(dark)
     val accent = TileAccents.forId(settings.accentId)
     val wallpaper = Wallpapers.forId(settings.wallpaperId)
     // Transparent-tile fill at the current slider (FR-7); null when glass is off.
-    val glassFill = if (settings.glass) Glass.fill(settings.dark, settings.transparency) else null
+    val glassFill = if (settings.glass) Glass.fill(dark, settings.transparency) else null
     // "Wallpaper behind tiles" mode: the screen goes dark and the wallpaper shows
     // only through the tiles. Decode the custom photo here (when set) so the tiles
     // can window into it; a bundled gradient is drawn directly by the window modifier.
@@ -384,7 +390,7 @@ fun StartScreen(
                     tiledWallpaper = tiledWallpaper,
                     wallpaper = wallpaper,
                     wallpaperPhoto = tiledPhoto,
-                    darkTheme = settings.dark,
+                    darkTheme = dark,
                     notifications = notifications,
                     widthPx = widthPx,
                     viewportHeightPx = viewportHeightPx,
@@ -459,7 +465,9 @@ fun StartScreen(
         // Personalize sheet overlay (edit bar → personalize, FR-7).
         PersonalizeSheet(
             visible = personalizeOpen,
-            dark = settings.dark,
+            dark = dark,
+            followSystemTheme = settings.followSystemTheme,
+            onFollowSystemThemeChange = viewModel::setFollowSystemTheme,
             accentId = settings.accentId,
             glass = settings.glass,
             transparency = settings.transparency,

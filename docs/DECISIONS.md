@@ -1053,3 +1053,21 @@ stock and anything needing a network source are deferred to the RSS/market engin
 - **Opt-out.** `feedEnabled` (default on) in the settings DataStore + a "left feed page"
   toggle in personalize; turning it off clamps the pager to Start⇄apps and slides back to
   Start if it was showing.
+
+## Follow device dark-mode setting
+
+The launcher now follows the **system dark-mode** setting by default via a new
+`followSystemTheme` flag (default **true**) in `LauncherSettings`.
+
+- **Effective theme** is computed once in `StartScreen`:
+  `val dark = if (settings.followSystemTheme) isSystemInDarkTheme() else settings.dark`,
+  then threaded everywhere the chrome is skinned (`colorTokens`, `Glass.fill`, the
+  `darkTheme`/`dark` pass-downs to `StartPage` and `PersonalizeSheet`). Because it reads
+  the Compose `isSystemInDarkTheme()`, the whole tree re-composes when the device toggles
+  light/dark.
+- **Manual choice retained.** The old `dark` boolean still persists the user's manual
+  light/dark pick and is used only while `followSystemTheme` is false — so toggling
+  "follow system" off restores their previous explicit choice rather than a default.
+- **Personalize UI.** The theme group gains a "follow system" toggle; the manual
+  dark/light segmented control is hidden while it is on.
+- Codec round-trips `followSystemTheme` (tolerant: bad value → default); unit-tested.
