@@ -360,22 +360,6 @@ fun StartScreen(
         // backdrop-filter; real blur only takes effect API 31+, harmless below).
         val behindBlur = if (openFolder != null) 14.dp else 0.dp
         Box(modifier = Modifier.fillMaxSize().blur(behindBlur).then(pager)) {
-            // Feed page (left): slides in from the left edge as the user swipes
-            // right. Drawn behind Start so Start's fade reveals it. Only composed
-            // when enabled (FR-7); off-screen otherwise (translationX < -width).
-            if (feedEnabled) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { translationX = widthPx * (-1f - progress.value) },
-                ) {
-                    FeedPage(
-                        accent = accent,
-                        statusBarTopPx = statusBarTopPx,
-                        onSearch = { query -> launchWebSearch(context, query) },
-                    )
-                }
-            }
             // Start page: parallaxes (±22%) and fades as a side page comes in.
             Box(
                 modifier = Modifier
@@ -447,6 +431,25 @@ fun StartScreen(
                     modifier = Modifier.fillMaxSize(),
                     onPinned = { settleTo(0f) },
                 )
+            }
+
+            // Feed page (left): an independent, opaque screen that slides in over
+            // Start from the left edge as the user swipes right (mirrors the app
+            // list). Drawn on top with its own background so Start never shows
+            // through it. Only composed when enabled (FR-7); off-screen otherwise.
+            if (feedEnabled) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { translationX = widthPx * (-1f - progress.value) }
+                        .background(LocalColorTokens.current.bg),
+                ) {
+                    FeedPage(
+                        accent = accent,
+                        statusBarTopPx = statusBarTopPx,
+                        onSearch = { query -> launchWebSearch(context, query) },
+                    )
+                }
             }
         }
 

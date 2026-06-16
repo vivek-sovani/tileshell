@@ -1004,21 +1004,24 @@ rule 4. Newest first.
   no downsampling. A contact-photo large icon shown full-bleed behind text reads as a
   zoomed background under the scrim (acceptable; matches the WP photo-tile look).
 
-## Left feed page — Session A (static cards)
+## Left feed page — Session A (real-data cards only)
 
-A third pager page to the **left** of Start (swipe right), faithful to the standalone
-prototype's `Feed` module (`design`-style Discover feed). Reached by swiping right;
-Start is still the HOME page.
+A third pager page to the **left** of Start (swipe right), an independent info screen
+inspired by the standalone prototype's `Feed` module. Reached by swiping right; Start is
+still the HOME page. This session shows **only cards backed by real data** — news/sport/
+stock and anything needing a network source are deferred to the RSS/market engine (S29).
 
 - **Pager model.** Reused the existing finger-following pager rather than a new
   component: `progress` now ranges `-1 (feed) … 0 (start) … +1 (apps)`. Commit uses the
   prototype's **0.28** net-travel threshold via a pure, unit-tested `pagerCommitTarget`
   (replacing the old absolute `>= 0.5` test); the gesture's lower bound is clamped to 0
   when the feed is disabled. The app-list side is byte-for-byte unchanged.
-- **Parallax/fade.** Start now parallaxes **±22%** symmetrically (`-0.22·w·progress`
-  already works for both signs) and fades by `abs(progress)`; the feed page slides in
-  from the left (`w·(-1 - progress)`), drawn *behind* Start so the fade reveals it. WP
-  choice — keeps both swipe directions feeling identical.
+- **Independent opaque screen.** The feed is an opaque page drawn *on top* of Start (its
+  own `bg` background), sliding in from the left (`w·(-1 - progress)`) — mirroring the
+  app-list page — so Start never shows through it. (An earlier behind-Start version let
+  Start's faded tiles bleed over the feed and read as a translucent "glance" overlay that
+  was hard to read.) Start still parallaxes **±22%** symmetrically and fades by
+  `abs(progress)` underneath, visible only at the uncovered trailing edge mid-swipe.
 - **No new module.** The feed UI lives in `:feature:start` (`feed/` package), not a new
   `:feature:feed` module — staying within the fixed module list (CLAUDE.md). The feed is
   a Start surface (a pager page), like the app-list page is hosted here. If the RSS
@@ -1032,9 +1035,10 @@ Start is still the HOME page.
 - **Weather hourly strip adapted.** The provider has no hourly series, so the card shows
   a **now / high / low** stat strip + the precip detail line instead of fabricated hourly
   temps. Hourly deferred until the provider exposes it.
-- **Static placeholders (until S29 RSS):** discover articles, the sport score card, and
-  the stock watchlist (seeded with Indian indices — Sensex / Nifty 50 / Nifty Bank).
-  Tapping an article toasts that live articles arrive with RSS feeds.
+- **No sample content.** Discover articles, the sport score card, and the stock watchlist
+  were dropped from this session — showing fabricated headlines/scores/index values
+  contradicts "real data only." They return in S29 wired to live sources (RSS for news;
+  Moneycontrol / ET markets for the watchlist, defaulting to Indian indices).
 - **Search pill → Google.** Typed query fires `ACTION_WEB_SEARCH` (Quick Search Box /
   Google app), falling back to a browser `google.com/search?q=` view; both guarded. Pure
   `googleSearchUrl` unit-tested.
