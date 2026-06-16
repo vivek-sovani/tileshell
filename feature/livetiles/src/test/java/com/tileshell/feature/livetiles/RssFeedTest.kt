@@ -86,6 +86,23 @@ class RssFeedTest {
     }
 
     @Test
+    fun `cricinfo style media-content upgrades http to https`() {
+        val feed = """
+            <rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
+              <channel>
+                <title>Cric</title>
+                <item>
+                  <title>Match preview</title>
+                  <link>https://e.com/m</link>
+                  <media:content medium="image" url="http://p.imgci.com/db/x.jpg" width="1400"/>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+        assertEquals("https://p.imgci.com/db/x.jpg", parseFeed(feed, "Cric").single().imageUrl)
+    }
+
+    @Test
     fun `malformed xml yields empty list`() {
         assertEquals(emptyList<FeedArticle>(), parseFeed("not xml <<<", "x"))
     }

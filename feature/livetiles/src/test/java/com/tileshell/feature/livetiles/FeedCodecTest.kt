@@ -10,8 +10,8 @@ class FeedCodecTest {
     fun `round-trips sources and articles`() {
         val data = FeedData(
             sources = listOf(
-                FeedSource("https://a.com/rss", "A News", enabled = true),
-                FeedSource("https://b.com/rss", "B News", enabled = false),
+                FeedSource("https://a.com/rss", "A News", "nation", enabled = true),
+                FeedSource("https://b.com/rss", "B News", "custom", enabled = false),
             ),
             articles = listOf(
                 FeedArticle("Title one", "https://a.com/1", "A News", "tech", "https://a.com/1.jpg", 1234L),

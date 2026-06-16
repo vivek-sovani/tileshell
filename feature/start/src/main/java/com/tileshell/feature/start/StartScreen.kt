@@ -135,6 +135,9 @@ import com.tileshell.feature.livetiles.WeatherTileFace
 import com.tileshell.feature.livetiles.rememberFlipState
 import com.tileshell.feature.livetiles.rememberLiveTilesActive
 import com.tileshell.feature.livetiles.rememberNotificationAccess
+import com.tileshell.feature.livetiles.CUSTOM_CATEGORY
+import com.tileshell.feature.livetiles.FEED_CATEGORIES
+import com.tileshell.feature.personalize.FeedCategoryItem
 import com.tileshell.feature.personalize.FeedSourceItem
 import com.tileshell.feature.personalize.PersonalizeSheet
 import com.tileshell.core.design.DarkColorTokens
@@ -460,6 +463,10 @@ fun StartScreen(
                         onWeatherDetails = { query -> launchWebSearch(context, query) },
                         onAddSchedule = { launchAddEvent(context) },
                         onOpenArticle = { link -> launchUrl(context, link) },
+                        onRefresh = {
+                            viewModel.refreshFeeds()
+                            Toast.makeText(context, "refreshing news", Toast.LENGTH_SHORT).show()
+                        },
                     )
                 }
             }
@@ -481,8 +488,13 @@ fun StartScreen(
             onTiledWallpaperChange = viewModel::setTiledWallpaper,
             feedEnabled = settings.feedEnabled,
             onFeedEnabledChange = viewModel::setFeedEnabled,
-            feeds = feedSources.map { FeedSourceItem(it.url, it.name, it.enabled) },
-            onToggleFeed = viewModel::setFeedSourceEnabled,
+            feedCategories = FEED_CATEGORIES.map { cat ->
+                FeedCategoryItem(cat, enabled = feedSources.any { it.category == cat && it.enabled })
+            },
+            onToggleCategory = viewModel::setFeedCategoryEnabled,
+            customFeeds = feedSources
+                .filter { it.category == CUSTOM_CATEGORY }
+                .map { FeedSourceItem(it.url, it.name, it.enabled) },
             onRemoveFeed = viewModel::removeFeedSource,
             onAddFeed = viewModel::addFeedSource,
             onThemeChange = viewModel::setTheme,

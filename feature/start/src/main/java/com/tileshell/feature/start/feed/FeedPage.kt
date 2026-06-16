@@ -79,6 +79,7 @@ import java.util.Calendar
  * @param onWeatherDetails opens fuller weather for the given place query.
  * @param onAddSchedule opens the calendar app's add-event screen.
  * @param onOpenArticle opens a tapped article's link in the browser.
+ * @param onRefresh forces a manual news refresh.
  */
 @Composable
 fun FeedPage(
@@ -88,6 +89,7 @@ fun FeedPage(
     onWeatherDetails: (String) -> Unit,
     onAddSchedule: () -> Unit,
     onOpenArticle: (String) -> Unit,
+    onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val tokens = LocalColorTokens.current
@@ -154,7 +156,7 @@ fun FeedPage(
             onClick = { onWeatherDetails(("weather " + (snapshot?.place ?: "")).trim()) },
         )
 
-        SectionHeader("today", accent = accent, tokens = tokens, onAdd = onAddSchedule)
+        SectionHeader("today", actionText = "add", accent = accent, tokens = tokens, showPlus = true, onAction = onAddSchedule)
         AgendaCard(agenda = agenda, granted = calGranted, accent = accent, tokens = tokens)
 
         if (nowPlaying != null) {
@@ -167,7 +169,7 @@ fun FeedPage(
             )
         }
 
-        SectionLabel("discover", tokens.fgDim)
+        SectionHeader("discover", actionText = "refresh", accent = accent, tokens = tokens, onAction = onRefresh)
         val articles = feedData.articles
         if (articles.isEmpty()) {
             GCard(tokens) {
@@ -265,13 +267,19 @@ private fun SectionLabel(text: String, color: Color) {
     Text(text, color = color, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp, top = 6.dp))
 }
 
-/** A section label with a trailing "+ add" action (used by the today/schedule header). */
+/**
+ * A section label with a trailing text action (e.g. "+ add" on the today header,
+ * "refresh" on the discover header). The leading plus glyph shows only when
+ * [showPlus] is set.
+ */
 @Composable
 private fun SectionHeader(
     text: String,
+    actionText: String,
     accent: Color,
     tokens: com.tileshell.core.design.ColorTokens,
-    onAdd: () -> Unit,
+    showPlus: Boolean = false,
+    onAction: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
@@ -282,17 +290,19 @@ private fun SectionHeader(
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(12.dp))
-                .clickable(onClick = onAdd)
+                .clickable(onClick = onAction)
                 .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Canvas(modifier = Modifier.size(14.dp)) {
-                val s = size.width
-                drawLine(accent, Offset(s / 2f, s * 0.1f), Offset(s / 2f, s * 0.9f), strokeWidth = s * 0.12f, cap = StrokeCap.Round)
-                drawLine(accent, Offset(s * 0.1f, s / 2f), Offset(s * 0.9f, s / 2f), strokeWidth = s * 0.12f, cap = StrokeCap.Round)
+            if (showPlus) {
+                Canvas(modifier = Modifier.size(14.dp)) {
+                    val s = size.width
+                    drawLine(accent, Offset(s / 2f, s * 0.1f), Offset(s / 2f, s * 0.9f), strokeWidth = s * 0.12f, cap = StrokeCap.Round)
+                    drawLine(accent, Offset(s * 0.1f, s / 2f), Offset(s * 0.9f, s / 2f), strokeWidth = s * 0.12f, cap = StrokeCap.Round)
+                }
+                Spacer(Modifier.width(4.dp))
             }
-            Spacer(Modifier.width(4.dp))
-            Text("add", color = accent, fontSize = 13.sp)
+            Text(actionText, color = accent, fontSize = 13.sp)
         }
     }
 }

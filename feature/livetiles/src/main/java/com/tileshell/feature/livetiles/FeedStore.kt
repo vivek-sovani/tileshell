@@ -35,7 +35,8 @@ object FeedCodec {
     fun encode(data: FeedData): String = buildString {
         data.sources.forEach { s ->
             append("S").append(TAB).append(if (s.enabled) "1" else "0")
-                .append(TAB).append(clean(s.url)).append(TAB).append(clean(s.name)).append('\n')
+                .append(TAB).append(clean(s.url)).append(TAB).append(clean(s.name))
+                .append(TAB).append(clean(s.category)).append('\n')
         }
         data.articles.forEach { a ->
             append("A").append(TAB).append(clean(a.title)).append(TAB).append(clean(a.link))
@@ -53,7 +54,13 @@ object FeedCodec {
             val f = line.split(TAB)
             when (f.getOrNull(0)) {
                 "S" -> if (f.size >= 4 && f[2].isNotEmpty()) {
-                    sources.add(FeedSource(url = f[2], name = f[3], enabled = f[1] == "1"))
+                    val url = f[2]
+                    // Backfill the category for sources stored before categories
+                    // existed (match a known default by url, else "custom").
+                    val category = f.getOrNull(4)?.takeIf { it.isNotEmpty() }
+                        ?: DEFAULT_FEED_SOURCES.firstOrNull { it.url == url }?.category
+                        ?: CUSTOM_CATEGORY
+                    sources.add(FeedSource(url = url, name = f[3], category = category, enabled = f[1] == "1"))
                 }
                 "A" -> if (f.size >= 7 && f[1].isNotEmpty()) {
                     articles.add(
@@ -121,6 +128,13 @@ class FeedStore(private val store: DataStore<FeedData>) {
     suspend fun setEnabled(url: String, enabled: Boolean) {
         store.updateData {
             it.copy(sources = it.sources.map { s -> if (s.url == url) s.copy(enabled = enabled) else s })
+        }
+    }
+
+    /** Enable/disable every feed in [category] at once (the category toggle). */
+    suspend fun setCategoryEnabled(category: String, enabled: Boolean) {
+        store.updateData {
+            it.copy(sources = it.sources.map { s -> if (s.category == category) s.copy(enabled = enabled) else s })
         }
     }
 

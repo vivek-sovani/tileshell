@@ -1147,3 +1147,24 @@ Follow-up fixes after on-device testing of the feed.
   (2) the remote loader follows http↔https redirects manually (HttpURLConnection refuses
   cross-protocol auto-redirects, which many image CDNs use) and sends a browser-like
   User-Agent + Accept. Items genuinely without any image still render as text-only cards.
+
+## Cricinfo images, manual refresh, news categories
+
+Follow-ups after testing.
+
+- **ESPNcricinfo (and other cleartext) images now load.** The cricinfo feed gives the
+  image as `media:content medium="image" url="http://p.imgci.com/…"` — Android blocks
+  cleartext `http://`, so it failed. `normalizeImageUrl` now upgrades `http://` → `https://`
+  (those hosts serve https; verified `p.imgci.com` returns 200) and `imageOf` also reads
+  the non-standard `<coverImages>` element cricinfo provides. No global cleartext opt-in.
+- **Manual refresh.** The discover section header has a "refresh" action →
+  `FeedRefreshWorker.refreshNow` (`StartViewModel.refreshFeeds`), toasting "refreshing
+  news". `SectionHeader` generalised to a text action with an optional leading plus (today
+  = "+ add", discover = "refresh").
+- **Category selection.** `FeedSource` gained a `category`; `DEFAULT_FEED_SOURCES` is now a
+  verified, category-tagged India set across `FEED_CATEGORIES` (nation, state,
+  entertainment, cricket, sports, tech, business, food) with a sensible subset enabled by
+  default. Personalize's "news categories" group shows a toggle per category (enables/
+  disables all its feeds via `FeedStore.setCategoryEnabled`) plus the custom-URL add and a
+  custom-feeds remove list. The codec persists `category` and backfills it by url-match for
+  pre-category stored feeds. Custom feeds use `CUSTOM_CATEGORY`.

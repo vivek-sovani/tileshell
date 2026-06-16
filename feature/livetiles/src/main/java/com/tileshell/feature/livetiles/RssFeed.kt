@@ -21,32 +21,50 @@ data class FeedArticle(
 )
 
 /**
- * A subscribed news feed: its [url], a display [name], and whether it is currently
+ * A subscribed news feed: its [url], a display [name], the [category] it belongs to
+ * (for category-level selection in personalize), and whether it is currently
  * [enabled]. Disabled feeds are kept (so the toggle is reversible) but skipped on
- * refresh.
+ * refresh. User-added feeds use the [CUSTOM_CATEGORY].
  */
 data class FeedSource(
     val url: String,
     val name: String,
+    val category: String = CUSTOM_CATEGORY,
     val enabled: Boolean = true,
 )
 
+const val CUSTOM_CATEGORY = "custom"
+
 /**
- * The India-specific default feeds (the user's chosen seed set). Free RSS/Atom, no
- * API key. The refresh worker tolerates a dead feed (skips it, keeps the rest), so
- * a stale URL degrades gracefully.
+ * Selectable news categories, in display order (the user toggles whole categories in
+ * personalize). [CUSTOM_CATEGORY] is handled separately (per-feed add/remove).
+ */
+val FEED_CATEGORIES: List<String> = listOf(
+    "nation", "state", "entertainment", "cricket", "sports", "tech", "business", "food",
+)
+
+/**
+ * The India-specific default feeds, tagged by [FEED_CATEGORIES]. Free RSS/Atom, no
+ * API key, all verified reachable. The refresh worker tolerates a dead feed (skips
+ * it, keeps the rest). A sensible subset is enabled out of the box; the rest are
+ * opt-in via the category toggles.
  */
 val DEFAULT_FEED_SOURCES: List<FeedSource> = listOf(
-    FeedSource("https://www.thehindu.com/news/national/feeder/default.rss", "The Hindu"),
-    FeedSource("https://feeds.feedburner.com/ndtvnews-top-stories", "NDTV"),
-    FeedSource("https://indianexpress.com/feed/", "Indian Express"),
-    FeedSource("https://feeds.feedburner.com/gadgets360-latest", "Gadgets 360"),
-    FeedSource("https://timesofindia.indiatimes.com/rssfeeds/66949542.cms", "TOI Tech"),
-    FeedSource("https://www.espncricinfo.com/rss/content/story/feeds/0.xml", "ESPNcricinfo"),
-    FeedSource("https://feeds.feedburner.com/ndtvsports-latest", "NDTV Sports"),
-    FeedSource("https://www.moneycontrol.com/rss/latestnews.xml", "Moneycontrol"),
-    FeedSource("https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms", "ET Markets"),
-    FeedSource("https://feeds.feedburner.com/ndtvcooks-latest", "NDTV Food"),
+    FeedSource("https://www.thehindu.com/news/national/feeder/default.rss", "The Hindu", "nation", enabled = true),
+    FeedSource("https://feeds.feedburner.com/ndtvnews-top-stories", "NDTV", "nation", enabled = true),
+    FeedSource("https://indianexpress.com/feed/", "Indian Express", "nation", enabled = true),
+    FeedSource("https://www.thehindu.com/news/states/feeder/default.rss", "The Hindu · States", "state", enabled = false),
+    FeedSource("https://feeds.feedburner.com/ndtvmovies-latest", "NDTV Movies", "entertainment", enabled = true),
+    FeedSource("https://timesofindia.indiatimes.com/rssfeeds/1081479906.cms", "TOI Entertainment", "entertainment", enabled = true),
+    FeedSource("https://www.espncricinfo.com/rss/content/story/feeds/0.xml", "ESPNcricinfo", "cricket", enabled = true),
+    FeedSource("https://timesofindia.indiatimes.com/rssfeeds/54829575.cms", "TOI Cricket", "cricket", enabled = true),
+    FeedSource("https://feeds.feedburner.com/ndtvsports-latest", "NDTV Sports", "sports", enabled = true),
+    FeedSource("https://timesofindia.indiatimes.com/rssfeeds/4719148.cms", "TOI Sports", "sports", enabled = false),
+    FeedSource("https://feeds.feedburner.com/gadgets360-latest", "Gadgets 360", "tech", enabled = true),
+    FeedSource("https://timesofindia.indiatimes.com/rssfeeds/66949542.cms", "TOI Tech", "tech", enabled = false),
+    FeedSource("https://www.moneycontrol.com/rss/latestnews.xml", "Moneycontrol", "business", enabled = false),
+    FeedSource("https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms", "ET Markets", "business", enabled = false),
+    FeedSource("https://feeds.feedburner.com/ndtvcooks-latest", "NDTV Food", "food", enabled = false),
 )
 
 private val RSS_DATE_FORMATS = listOf(
@@ -194,6 +212,10 @@ private fun imageOf(item: Element): String? {
     (itunes.item(0) as? Element)?.getAttribute("href")?.takeIf { it.isNotEmpty() }
         ?.let { return normalizeImageUrl(it) }
 
+    // ESPNcricinfo and some Indian feeds carry the image as a <coverImages> element.
+    childText(item, "coverImages")?.takeIf { it.startsWith("http") || it.startsWith("//") }
+        ?.let { return normalizeImageUrl(it) }
+
     val html = listOf("content:encoded", "description", "content")
         .joinToString(" ") { childText(item, it).orEmpty() }
     return Regex("<img[^>]+(?:src|data-src)=[\"']([^\"']+)[\"']").find(html)
@@ -201,9 +223,17 @@ private fun imageOf(item: Element): String? {
         ?.let { normalizeImageUrl(it) }
 }
 
-/** Fixes protocol-relative (`//host/x.jpg`) image URLs so they load. */
-private fun normalizeImageUrl(url: String): String =
-    if (url.startsWith("//")) "https:$url" else url
+/**
+ * Normalises an image URL so it actually loads on Android: protocol-relative
+ * `//host` → https, and **cleartext `http://` → `https://`** (Android blocks
+ * cleartext by default, and the image hosts that use it — e.g. ESPNcricinfo's
+ * `p.imgci.com` — also serve https).
+ */
+private fun normalizeImageUrl(url: String): String = when {
+    url.startsWith("//") -> "https:$url"
+    url.startsWith("http://") -> "https://" + url.substring("http://".length)
+    else -> url
+}
 
 /** Text of the first direct-or-descendant child element named [name]. */
 private fun childText(parent: Element, name: String): String? {

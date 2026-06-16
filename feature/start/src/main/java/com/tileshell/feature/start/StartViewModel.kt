@@ -273,6 +273,19 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Enable/disable a whole news category; enabling triggers a refresh. */
+    fun setFeedCategoryEnabled(category: String, enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            feedStore.setCategoryEnabled(category, enabled)
+            if (enabled) FeedRefreshWorker.refreshNow(getApplication())
+        }
+    }
+
+    /** Force a manual news refresh (the feed's refresh action). */
+    fun refreshFeeds() {
+        FeedRefreshWorker.refreshNow(getApplication())
+    }
+
     /** Reset the Start grid to the WP default layout (FR-7). */
     fun resetLayout() {
         viewModelScope.launch(writeContext) { repository.resetLayout() }
