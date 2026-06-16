@@ -1071,3 +1071,22 @@ The launcher now follows the **system dark-mode** setting by default via a new
 - **Personalize UI.** The theme group gains a "follow system" toggle; the manual
   dark/light segmented control is hidden while it is on.
 - Codec round-trips `followSystemTheme` (tolerant: bad value → default); unit-tested.
+
+## Now-playing transport controls on the feed
+
+The feed's now-playing card gained **previous / play-pause / next** controls.
+
+- **Reused, not duplicated.** Extracted the music tile's private control row into a public
+  `MediaTransportControls(playing, packageName, tint, enabled)` in `:feature:livetiles`
+  (the tile now delegates to it); the feed card renders the same row tinted `tokens.fg`.
+  `ControlButton` gained a `tint` param so the icons match the host surface.
+- **Right session.** The card now keeps the `MediaCenter.nowPlaying` map *entry* (package
+  key + value), so the controls drive that package's session via the existing
+  `MediaCenter.togglePlayPause/skipToNext/skipToPrevious`. Play-pause icon reflects
+  `playing`.
+- **Works on the feed even though live tiles are gated there.** `MediaSessionsEffect`'s
+  `DisposableEffect` keeps the session listener registered and `MediaCenter` (incl.
+  controllers) published regardless of the `active` flag — only the 2 s poll is gated — and
+  it lives on the always-composed `StartPage`. So the feed's controls function; the only
+  cost is that a mid-track change not signalled by the session-changed listener won't
+  refresh the title until Start is foreground again (acceptable, matches existing gating).

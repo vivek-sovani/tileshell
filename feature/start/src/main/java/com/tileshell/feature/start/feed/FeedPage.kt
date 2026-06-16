@@ -51,6 +51,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tileshell.core.design.LocalColorTokens
 import com.tileshell.feature.livetiles.CalendarFace
 import com.tileshell.feature.livetiles.MediaCenter
+import com.tileshell.feature.livetiles.MediaTransportControls
 import com.tileshell.feature.livetiles.NowPlaying
 import com.tileshell.feature.livetiles.WeatherCache
 import com.tileshell.feature.livetiles.WeatherCacheData
@@ -90,9 +91,12 @@ fun FeedPage(
     val weather by weatherCache.data.collectAsStateWithLifecycle(initialValue = WeatherCacheData())
     val snapshot = weather.snapshot
 
-    // Now-playing (reuse MediaCenter): prefer a playing session, else any.
+    // Now-playing (reuse MediaCenter): prefer a playing session, else any. Keep the
+    // package key so the card's transport controls drive the right session.
     val media by MediaCenter.nowPlaying.collectAsStateWithLifecycle()
-    val nowPlaying: NowPlaying? = media.values.firstOrNull { it.playing } ?: media.values.firstOrNull()
+    val mediaEntry = media.entries.firstOrNull { it.value.playing } ?: media.entries.firstOrNull()
+    val nowPlaying: NowPlaying? = mediaEntry?.value
+    val nowPlayingPackage: String? = mediaEntry?.key
 
     // Today's agenda (reuse the calendar query); empty until READ_CALENDAR is granted.
     val calGranted = rememberPermissionGranted(Manifest.permission.READ_CALENDAR)
@@ -139,7 +143,12 @@ fun FeedPage(
         AgendaCard(agenda = agenda, granted = calGranted, accent = accent, tokens = tokens)
 
         if (nowPlaying != null) {
-            NowPlayingCard(nowPlaying = nowPlaying, accent = accent, tokens = tokens)
+            NowPlayingCard(
+                nowPlaying = nowPlaying,
+                packageName = nowPlayingPackage,
+                accent = accent,
+                tokens = tokens,
+            )
         }
 
         // News (discover), sport scores and a live stock watchlist arrive with the
@@ -368,6 +377,7 @@ private fun AgendaCard(
 @Composable
 private fun NowPlayingCard(
     nowPlaying: NowPlaying,
+    packageName: String?,
     accent: Color,
     tokens: com.tileshell.core.design.ColorTokens,
 ) {
@@ -385,16 +395,31 @@ private fun NowPlayingCard(
                 }
             }
             Spacer(Modifier.width(12.dp))
-            Column {
-                Text("now playing", color = tokens.fg, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    listOf(nowPlaying.title, nowPlaying.artist).filter { it.isNotBlank() }.joinToString(" · "),
-                    color = tokens.fgDim,
-                    fontSize = 11.sp,
+                    nowPlaying.title.ifBlank { "now playing" },
+                    color = tokens.fg,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (nowPlaying.artist.isNotBlank()) {
+                    Text(
+                        nowPlaying.artist,
+                        color = tokens.fgDim,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
+            Spacer(Modifier.width(8.dp))
+            MediaTransportControls(
+                playing = nowPlaying.playing,
+                packageName = packageName,
+                tint = tokens.fg,
+            )
         }
     }
 }

@@ -345,17 +345,40 @@ private fun MusicFront(
 
 @Composable
 private fun MusicControls(playing: Boolean, enabled: Boolean, packageName: String?) {
+    MediaTransportControls(
+        playing = playing,
+        packageName = packageName,
+        tint = FaceText,
+        enabled = enabled,
+    )
+}
+
+/**
+ * Previous / play-pause / next transport row driving the [MediaCenter] session for
+ * [packageName] (or the active one when null). Reusable across the music tile and
+ * the feed's now-playing card; [tint] colours the icons for the host surface.
+ */
+@Composable
+fun MediaTransportControls(
+    playing: Boolean,
+    packageName: String?,
+    tint: Color,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
     Row(
+        modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        ControlButton("prev", "previous", enabled) { MediaCenter.skipToPrevious(packageName) }
+        ControlButton("prev", "previous", enabled, tint) { MediaCenter.skipToPrevious(packageName) }
         ControlButton(
             iconKey = if (playing) "pause" else "play",
             description = if (playing) "pause" else "play",
             enabled = enabled,
+            tint = tint,
         ) { MediaCenter.togglePlayPause(packageName) }
-        ControlButton("next", "next", enabled) { MediaCenter.skipToNext(packageName) }
+        ControlButton("next", "next", enabled, tint) { MediaCenter.skipToNext(packageName) }
     }
 }
 
@@ -364,6 +387,7 @@ private fun ControlButton(
     iconKey: String,
     description: String,
     enabled: Boolean,
+    tint: Color,
     onClick: () -> Unit,
 ) {
     Box(
@@ -376,7 +400,7 @@ private fun ControlButton(
         Icon(
             imageVector = TileIcons[iconKey],
             contentDescription = description,
-            tint = FaceText,
+            tint = tint,
             modifier = Modifier.size(22.dp),
         )
     }
