@@ -21,6 +21,9 @@ import com.tileshell.core.data.TileColors
  * @property tiledWallpaper "wallpaper behind tiles" mode: the screen goes dark and
  *   the wallpaper shows only *through* the tiles (each tile a window onto the same
  *   screen-anchored image), so all gaps/borders stay dark. WP photo-background look.
+ * @property feedEnabled whether the left "feed" page (the 3rd pager page reached by
+ *   swiping right from Start) is present. Default on; when off the pager clamps to
+ *   Start⇄app-list and the feed surface is not composed.
  */
 data class LauncherSettings(
     val dark: Boolean = true,
@@ -31,6 +34,7 @@ data class LauncherSettings(
     val wallpaperId: String = "aurora",
     val customWallpaperUri: String? = null,
     val tiledWallpaper: Boolean = false,
+    val feedEnabled: Boolean = true,
 )
 
 /**
@@ -51,7 +55,8 @@ object SettingsCodec {
         append("blur=").append(settings.blur).append('\n')
         append("wallpaper=").append(settings.wallpaperId).append('\n')
         append("customWallpaper=").append(settings.customWallpaperUri.orEmpty()).append('\n')
-        append("tiledWallpaper=").append(settings.tiledWallpaper)
+        append("tiledWallpaper=").append(settings.tiledWallpaper).append('\n')
+        append("feedEnabled=").append(settings.feedEnabled)
     }
 
     fun decode(text: String): LauncherSettings {
@@ -64,6 +69,7 @@ object SettingsCodec {
         var wallpaperId = d.wallpaperId
         var customWallpaperUri = d.customWallpaperUri
         var tiledWallpaper = d.tiledWallpaper
+        var feedEnabled = d.feedEnabled
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
             if (sep <= 0) return@forEach
@@ -78,6 +84,7 @@ object SettingsCodec {
                 "wallpaper" -> if (value.isNotEmpty()) wallpaperId = value
                 "customWallpaper" -> customWallpaperUri = value.ifEmpty { null }
                 "tiledWallpaper" -> tiledWallpaper = value.toBooleanStrictOrNull() ?: tiledWallpaper
+                "feedEnabled" -> feedEnabled = value.toBooleanStrictOrNull() ?: feedEnabled
             }
         }
         return LauncherSettings(
@@ -89,6 +96,7 @@ object SettingsCodec {
             wallpaperId = wallpaperId,
             customWallpaperUri = customWallpaperUri,
             tiledWallpaper = tiledWallpaper,
+            feedEnabled = feedEnabled,
         )
     }
 }

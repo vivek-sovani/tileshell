@@ -228,6 +228,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setTiledWallpaper(on) }
     }
 
+    /** Toggle the left "feed" page (the 3rd pager page reached by swiping right). */
+    fun setFeedEnabled(enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setFeedEnabled(enabled) }
+    }
+
     /** Reset the Start grid to the WP default layout (FR-7). */
     fun resetLayout() {
         viewModelScope.launch(writeContext) { repository.resetLayout() }

@@ -3,6 +3,7 @@ package com.tileshell.feature.start
 import android.content.ComponentName
 import android.content.Context
 import android.provider.Settings
+import android.app.SearchManager
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -119,6 +120,9 @@ import com.tileshell.feature.livetiles.MediaSessionsEffect
 import com.tileshell.feature.livetiles.MusicTileFace
 import com.tileshell.feature.livetiles.NotificationAccess
 import com.tileshell.feature.livetiles.NotificationCenter
+import com.tileshell.feature.start.feed.FeedPage
+import com.tileshell.feature.start.feed.googleSearchUrl
+import com.tileshell.feature.start.feed.pagerCommitTarget
 import com.tileshell.feature.livetiles.NotificationSnapshot
 import com.tileshell.feature.livetiles.NotificationTileFace
 import com.tileshell.feature.livetiles.PeopleTileFace
@@ -255,12 +259,16 @@ fun StartScreen(
     }
 
     val scrollState = rememberScrollState()
-    // 0 = Start, 1 = App list.
+    // Pager position: -1 = feed (left), 0 = Start, +1 = app list (right). The feed
+    // page is the swipe-right surface; it is only reachable when enabled (FR-7).
+    val feedEnabled = settings.feedEnabled
     val progress = remember { Animatable(0f) }
     // Live tiles pause when Start is no longer the foreground surface: the app
-    // list has taken over (>50% across), or an overlay sits above it (FR-2 gating).
+    // list (>50% right) or the feed (>50% left) has taken over, or an overlay
+    // sits above it (FR-2 gating).
     val appListShown by remember { derivedStateOf { progress.value >= 0.5f } }
-    val liveSuspended = appListShown || openFolder != null || personalizeOpen
+    val feedShown by remember { derivedStateOf { progress.value <= -0.5f } }
+    val liveSuspended = appListShown || feedShown || openFolder != null || personalizeOpen
     val settleSpec = spring<Float>(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
 
     fun settleTo(target: Float) {
@@ -268,6 +276,12 @@ fun StartScreen(
             progress.animateTo(target, settleSpec)
             viewModel.setAppList(target >= 0.5f)
         }
+    }
+
+    // If the feed page is turned off in personalize while it is showing, slide
+    // back to Start so the pager never rests on a now-absent page.
+    LaunchedEffect(feedEnabled) {
+        if (!feedEnabled && progress.value < 0f) progress.animateTo(0f, settleSpec)
     }
 
     // Home press collapses to Start and scrolls the grid to the top.
@@ -306,7 +320,7 @@ fun StartScreen(
         // Horizontal pager gesture. Detection runs in the Initial pass so a
         // dominant horizontal drag is claimed before the vertical grid scroll
         // (a child) can consume it; vertical drags pass straight through.
-        val pager = Modifier.pointerInput(swipeEnabled, widthPx) {
+        val pager = Modifier.pointerInput(swipeEnabled, widthPx, feedEnabled) {
             if (!swipeEnabled) return@pointerInput
             val slop = 12.dp.toPx()
             awaitEachGesture {
@@ -329,12 +343,16 @@ fun StartScreen(
                     }
                     if (horizontal) {
                         change.consume()
-                        val target = (base - dx / widthPx).coerceIn(0f, 1f)
+                        val lower = if (feedEnabled) -1f else 0f
+                        val target = (base - dx / widthPx).coerceIn(lower, 1f)
                         scope.launch { progress.snapTo(target) }
                     }
                     if (!change.pressed) break
                 }
-                if (horizontal) settleTo(if (progress.value >= 0.5f) 1f else 0f)
+                if (horizontal) {
+                    val lower = if (feedEnabled) -1f else 0f
+                    settleTo(pagerCommitTarget(base, progress.value).coerceAtLeast(lower))
+                }
             }
         }
 
@@ -342,13 +360,29 @@ fun StartScreen(
         // backdrop-filter; real blur only takes effect API 31+, harmless below).
         val behindBlur = if (openFolder != null) 14.dp else 0.dp
         Box(modifier = Modifier.fillMaxSize().blur(behindBlur).then(pager)) {
-            // Start page: parallaxes left and fades as the app list comes in.
+            // Feed page (left): slides in from the left edge as the user swipes
+            // right. Drawn behind Start so Start's fade reveals it. Only composed
+            // when enabled (FR-7); off-screen otherwise (translationX < -width).
+            if (feedEnabled) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { translationX = widthPx * (-1f - progress.value) },
+                ) {
+                    FeedPage(
+                        accent = accent,
+                        statusBarTopPx = statusBarTopPx,
+                        onSearch = { query -> launchWebSearch(context, query) },
+                    )
+                }
+            }
+            // Start page: parallaxes (±22%) and fades as a side page comes in.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
                         translationX = -0.22f * widthPx * progress.value
-                        alpha = 1f - 0.6f * progress.value
+                        alpha = 1f - 0.6f * abs(progress.value)
                     },
             ) {
                 StartPage(
@@ -428,6 +462,8 @@ fun StartScreen(
             customWallpaper = settings.customWallpaperUri != null,
             tiledWallpaper = settings.tiledWallpaper,
             onTiledWallpaperChange = viewModel::setTiledWallpaper,
+            feedEnabled = settings.feedEnabled,
+            onFeedEnabledChange = viewModel::setFeedEnabled,
             onThemeChange = viewModel::setTheme,
             onAccentChange = viewModel::setAccent,
             onGlassChange = viewModel::setGlass,
@@ -1800,6 +1836,24 @@ private fun TileLabel(text: String) {
         fontWeight = FontWeight.Normal,
         maxLines = 1,
     )
+}
+
+/**
+ * Runs the feed search pill's query (FR-7): hands it to the Google app via
+ * `ACTION_WEB_SEARCH` (the Quick Search Box / Google app picks it up), falling
+ * back to a browser `google.com/search` view when nothing handles the search
+ * action. Best-effort — both attempts are guarded so a missing handler is silent.
+ */
+private fun launchWebSearch(context: Context, query: String) {
+    val trimmed = query.trim()
+    if (trimmed.isEmpty()) return
+    val search = Intent(Intent.ACTION_WEB_SEARCH)
+        .putExtra(SearchManager.QUERY, trimmed)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (runCatching { context.startActivity(search) }.isSuccess) return
+    val browser = Intent(Intent.ACTION_VIEW, Uri.parse(googleSearchUrl(trimmed)))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { context.startActivity(browser) }
 }
 
 private fun onTileClick(context: Context, tile: TileModel) {

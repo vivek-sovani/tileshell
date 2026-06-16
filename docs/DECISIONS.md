@@ -1003,3 +1003,41 @@ rule 4. Newest first.
   across refreshes. Big-picture bitmaps are held at full size (bounded by the notifier);
   no downsampling. A contact-photo large icon shown full-bleed behind text reads as a
   zoomed background under the scrim (acceptable; matches the WP photo-tile look).
+
+## Left feed page — Session A (static cards)
+
+A third pager page to the **left** of Start (swipe right), faithful to the standalone
+prototype's `Feed` module (`design`-style Discover feed). Reached by swiping right;
+Start is still the HOME page.
+
+- **Pager model.** Reused the existing finger-following pager rather than a new
+  component: `progress` now ranges `-1 (feed) … 0 (start) … +1 (apps)`. Commit uses the
+  prototype's **0.28** net-travel threshold via a pure, unit-tested `pagerCommitTarget`
+  (replacing the old absolute `>= 0.5` test); the gesture's lower bound is clamped to 0
+  when the feed is disabled. The app-list side is byte-for-byte unchanged.
+- **Parallax/fade.** Start now parallaxes **±22%** symmetrically (`-0.22·w·progress`
+  already works for both signs) and fades by `abs(progress)`; the feed page slides in
+  from the left (`w·(-1 - progress)`), drawn *behind* Start so the fade reveals it. WP
+  choice — keeps both swipe directions feeling identical.
+- **No new module.** The feed UI lives in `:feature:start` (`feed/` package), not a new
+  `:feature:feed` module — staying within the fixed module list (CLAUDE.md). The feed is
+  a Start surface (a pager page), like the app-list page is hosted here. If the RSS
+  engine (S29) grows, extract then.
+- **Real Google Discover is intentionally NOT used.** Third-party launchers are not on
+  Google's overlay allowlist; the only way to host the real `-1` feed is a sideloaded
+  patched Google app. We render our own feed from data we already hold instead.
+- **Live cards reuse existing sources, zero new plumbing:** weather card ← `WeatherCache`;
+  today's agenda ← `queryUpcomingEvents` (READ_CALENDAR, already requested); now-playing ←
+  `MediaCenter` (card hidden when nothing is playing).
+- **Weather hourly strip adapted.** The provider has no hourly series, so the card shows
+  a **now / high / low** stat strip + the precip detail line instead of fabricated hourly
+  temps. Hourly deferred until the provider exposes it.
+- **Static placeholders (until S29 RSS):** discover articles, the sport score card, and
+  the stock watchlist (seeded with Indian indices — Sensex / Nifty 50 / Nifty Bank).
+  Tapping an article toasts that live articles arrive with RSS feeds.
+- **Search pill → Google.** Typed query fires `ACTION_WEB_SEARCH` (Quick Search Box /
+  Google app), falling back to a browser `google.com/search?q=` view; both guarded. Pure
+  `googleSearchUrl` unit-tested.
+- **Opt-out.** `feedEnabled` (default on) in the settings DataStore + a "left feed page"
+  toggle in personalize; turning it off clamps the pager to Start⇄apps and slides back to
+  Start if it was showing.

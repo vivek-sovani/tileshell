@@ -18,8 +18,14 @@ class SettingsCodecTest {
             wallpaperId = "ocean",
             customWallpaperUri = "content://media/external/images/42",
             tiledWallpaper = true,
+            feedEnabled = false,
         )
         assertEquals(settings, SettingsCodec.decode(SettingsCodec.encode(settings)))
+    }
+
+    @Test
+    fun `bad feedEnabled keeps the default`() {
+        assertEquals(LauncherSettings().feedEnabled, SettingsCodec.decode("feedEnabled=nope").feedEnabled)
     }
 
     @Test

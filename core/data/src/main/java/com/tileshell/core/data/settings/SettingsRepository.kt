@@ -81,6 +81,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(tiledWallpaper = on) }
     }
 
+    /** Toggle the left "feed" page (the 3rd pager page reached by swiping right). */
+    suspend fun setFeedEnabled(enabled: Boolean) {
+        store.updateData { it.copy(feedEnabled = enabled) }
+    }
+
     companion object {
         fun create(context: Context): SettingsRepository =
             SettingsRepository(context.applicationContext.settingsDataStore)

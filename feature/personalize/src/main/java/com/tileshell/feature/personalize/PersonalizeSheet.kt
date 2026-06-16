@@ -71,6 +71,8 @@ fun PersonalizeSheet(
     customWallpaper: Boolean,
     tiledWallpaper: Boolean,
     onTiledWallpaperChange: (Boolean) -> Unit,
+    feedEnabled: Boolean,
+    onFeedEnabledChange: (Boolean) -> Unit,
     onThemeChange: (dark: Boolean) -> Unit,
     onAccentChange: (id: String) -> Unit,
     onGlassChange: (Boolean) -> Unit,
@@ -193,6 +195,9 @@ fun PersonalizeSheet(
                 Spacer(Modifier.height(14.dp))
                 // Show-through mode: dark screen, wallpaper visible only behind tiles.
                 ToggleRow("wallpaper behind tiles", on = tiledWallpaper, accent = accent, tokens, onTiledWallpaperChange)
+                Spacer(Modifier.height(14.dp))
+                // The left "feed" page (swipe right from Start).
+                ToggleRow("left feed page", on = feedEnabled, accent = accent, tokens, onFeedEnabledChange)
             }
 
             // ---- tile transparency ----
