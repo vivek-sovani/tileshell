@@ -146,9 +146,13 @@ class FeedStore(private val store: DataStore<FeedData>) {
      */
     suspend fun reconcileDefaults() {
         store.updateData { current ->
-            val present = current.sources.mapTo(HashSet()) { it.url }
+            // Drop former-default feeds removed in a newer version, then add any
+            // current defaults not yet present (by url).
+            val kept = current.sources.filterNot { it.url in DEPRECATED_FEED_URLS }
+            val present = kept.mapTo(HashSet()) { it.url }
             val missing = DEFAULT_FEED_SOURCES.filterNot { it.url in present }
-            if (missing.isEmpty()) current else current.copy(sources = current.sources + missing)
+            val next = kept + missing
+            if (next == current.sources) current else current.copy(sources = next)
         }
     }
 

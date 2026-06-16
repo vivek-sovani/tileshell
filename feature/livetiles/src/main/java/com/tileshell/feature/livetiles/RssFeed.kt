@@ -36,6 +36,18 @@ data class FeedSource(
 const val CUSTOM_CATEGORY = "custom"
 
 /**
+ * Default feeds removed in a newer version. `reconcileDefaults` drops these from
+ * existing installs (DataStore keeps the first-seen list, so a dropped default
+ * would otherwise linger). Only ever list *former defaults* here — never a URL a
+ * user might add themselves.
+ */
+val DEPRECATED_FEED_URLS: Set<String> = setOf(
+    "https://indianexpress.com/feed/",
+    "https://timesofindia.indiatimes.com/rssfeeds/-2128932452.cms", // generic "TOI City"
+    "https://feeds.feedburner.com/ndtvnews-cities-news", // generic "NDTV Cities"
+)
+
+/**
  * Selectable news categories, in display order (the user toggles whole categories in
  * personalize). [CUSTOM_CATEGORY] is handled separately (per-feed add/remove).
  */
@@ -52,11 +64,14 @@ val FEED_CATEGORIES: List<String> = listOf(
 val DEFAULT_FEED_SOURCES: List<FeedSource> = listOf(
     FeedSource("https://www.thehindu.com/news/national/feeder/default.rss", "The Hindu", "nation", enabled = true),
     FeedSource("https://feeds.feedburner.com/ndtvnews-top-stories", "NDTV", "nation", enabled = true),
-    FeedSource("https://indianexpress.com/feed/", "Indian Express", "nation", enabled = true),
+    FeedSource("https://timesofindia.indiatimes.com/rssfeedstopstories.cms", "TOI Top Stories", "nation", enabled = true),
+    FeedSource("https://timesofindia.indiatimes.com/rssfeeds/-2128821991.cms", "TOI Pune", "state", enabled = false),
+    FeedSource("https://timesofindia.indiatimes.com/rssfeeds/-2128838597.cms", "TOI Mumbai", "state", enabled = false),
+    FeedSource("https://timesofindia.indiatimes.com/rssfeeds/442002.cms", "TOI Nagpur", "state", enabled = false),
+    FeedSource("https://timesofindia.indiatimes.com/rssfeeds/-2128839596.cms", "TOI Delhi", "state", enabled = false),
+    FeedSource("https://timesofindia.indiatimes.com/rssfeeds/-2128833038.cms", "TOI Bengaluru", "state", enabled = false),
     FeedSource("https://www.thehindu.com/news/cities/feeder/default.rss", "The Hindu · Cities", "state", enabled = false),
     FeedSource("https://www.thehindu.com/news/states/feeder/default.rss", "The Hindu · States", "state", enabled = false),
-    FeedSource("https://timesofindia.indiatimes.com/rssfeeds/-2128932452.cms", "TOI City", "state", enabled = false),
-    FeedSource("https://feeds.feedburner.com/ndtvnews-cities-news", "NDTV Cities", "state", enabled = false),
     FeedSource("https://feeds.feedburner.com/ndtvmovies-latest", "NDTV Movies", "entertainment", enabled = true),
     FeedSource("https://timesofindia.indiatimes.com/rssfeeds/1081479906.cms", "TOI Entertainment", "entertainment", enabled = true),
     FeedSource("https://www.espncricinfo.com/rss/content/story/feeds/0.xml", "ESPNcricinfo", "cricket", enabled = true),
