@@ -234,19 +234,6 @@ fun PersonalizeSheet(
                 ToggleRow("left feed page", on = feedEnabled, accent = accent, tokens, onFeedEnabledChange)
             }
 
-            // ---- news feeds (left feed discover section) ----
-            SettingGroup(label = "news feeds", tokens.fgDim) {
-                FeedsManager(
-                    feeds = feeds,
-                    accent = accent,
-                    tokens = tokens,
-                    onToggleFeed = onToggleFeed,
-                    onToggleCategory = onToggleCategory,
-                    onRemove = onRemoveFeed,
-                    onAdd = onAddFeed,
-                )
-            }
-
             // ---- live tiles (re-add a deleted clock/weather/calendar tile) ----
             SettingGroup(label = "live tiles", tokens.fgDim) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -384,6 +371,19 @@ fun PersonalizeSheet(
                     )
                 }
             }
+
+            // ---- news feeds (left feed discover section) — kept last ----
+            SettingGroup(label = "news feeds", tokens.fgDim) {
+                FeedsManager(
+                    feeds = feeds,
+                    accent = accent,
+                    tokens = tokens,
+                    onToggleFeed = onToggleFeed,
+                    onToggleCategory = onToggleCategory,
+                    onRemove = onRemoveFeed,
+                    onAdd = onAddFeed,
+                )
+            }
         }
     }
 }
@@ -392,7 +392,7 @@ fun PersonalizeSheet(
 // treated as user-added "custom" feeds.
 private val FEED_CATEGORY_LABELS = linkedMapOf(
     "nation" to "national news",
-    "state" to "state news",
+    "state" to "local news",
     "entertainment" to "entertainment",
     "cricket" to "cricket",
     "sports" to "sports",
@@ -425,22 +425,24 @@ private fun FeedsManager(
             ToggleRow(label = label, on = anyOn, accent = accent, tokens = tokens) {
                 onToggleCategory(category, it)
             }
-            // Individual feeds in this category (indented, lighter).
-            inCategory.forEach { feed ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        feed.name,
-                        color = if (feed.enabled) tokens.fg else tokens.fgDim,
-                        fontSize = 13.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TogglePill(on = feed.enabled, accent = accent, tokens = tokens) {
-                        onToggleFeed(feed.url, !feed.enabled)
+            // Individual feeds expand for selection only while the category is on.
+            if (anyOn) {
+                inCategory.forEach { feed ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(start = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            feed.name,
+                            color = if (feed.enabled) tokens.fg else tokens.fgDim,
+                            fontSize = 13.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TogglePill(on = feed.enabled, accent = accent, tokens = tokens) {
+                            onToggleFeed(feed.url, !feed.enabled)
+                        }
                     }
                 }
             }
