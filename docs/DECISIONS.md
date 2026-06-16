@@ -1192,3 +1192,27 @@ Three follow-ups.
   / + calendar buttons. Deterministic — independent of role resolution.
 - **Android settings from personalize.** A "system" group with an "android settings" row
   opens `Settings.ACTION_SETTINGS`.
+
+## Feed: reliable now-playing, accent cards, Google News, chips
+
+Five feed follow-ups.
+
+- **Now-playing reliable on the feed.** Per-app `MediaController.Callback`s proved
+  unreliable on some players (artwork/play-state stale), and the Start media poll is gated
+  off on the feed. Added a public `refreshMediaSessions(context)`; `FeedPage` polls it every
+  1.5 s **while the feed is the foreground page** (`active`), so play/pause icon + album art
+  + track stay current. Callbacks remain as a secondary signal for the tile.
+- **Accent live-data cards.** The "your data" blocks — weather, today's schedule, now-playing
+  — are now accent-filled with white text (WP live-tile look), grouping them apart from the
+  neutral search pill and news cards. Agenda event bars and the now-playing art placeholder
+  switch to white/translucent-white so they read on the accent. Discover/news cards stay on
+  the neutral sheet.
+- **Google News consolidator.** Added Google News India (`news.google.com/rss?...IN:en`) as
+  an enabled national feed — an aggregator across outlets. (Its items are text-only; Google
+  News RSS carries no images. MSN has no clean public RSS, so Google News is the practical
+  consolidator.)
+- **News section only when the feed page is on.** The personalize "news feeds" group renders
+  only while `feedEnabled` — no point managing feeds with the page off.
+- **Fewer toggles → chips.** Per-feed selection under an expanded category is now a `FlowRow`
+  of tappable chips (filled = selected) instead of a toggle pill per row, which was getting
+  noisy (local alone has 7 feeds). Category headers stay toggle rows.

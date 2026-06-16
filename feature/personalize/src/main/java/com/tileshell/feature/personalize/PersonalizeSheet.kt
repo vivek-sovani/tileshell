@@ -10,6 +10,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -372,17 +373,20 @@ fun PersonalizeSheet(
                 }
             }
 
-            // ---- news feeds (left feed discover section) — kept last ----
-            SettingGroup(label = "news feeds", tokens.fgDim) {
-                FeedsManager(
-                    feeds = feeds,
-                    accent = accent,
-                    tokens = tokens,
-                    onToggleFeed = onToggleFeed,
-                    onToggleCategory = onToggleCategory,
-                    onRemove = onRemoveFeed,
-                    onAdd = onAddFeed,
-                )
+            // ---- news feeds (left feed discover section) — kept last; only
+            // relevant when the feed page itself is on ----
+            if (feedEnabled) {
+                SettingGroup(label = "news feeds", tokens.fgDim) {
+                    FeedsManager(
+                        feeds = feeds,
+                        accent = accent,
+                        tokens = tokens,
+                        onToggleFeed = onToggleFeed,
+                        onToggleCategory = onToggleCategory,
+                        onRemove = onRemoveFeed,
+                        onAdd = onAddFeed,
+                    )
+                }
             }
         }
     }
@@ -407,6 +411,7 @@ private val FEED_CATEGORY_LABELS = linkedMapOf(
  * can be picked. Custom (user-added) feeds get a remove action, plus a field to add
  * a custom RSS/Atom URL. Wired to the host's FeedStore.
  */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun FeedsManager(
     feeds: List<FeedSourceItem>,
@@ -425,22 +430,16 @@ private fun FeedsManager(
             ToggleRow(label = label, on = anyOn, accent = accent, tokens = tokens) {
                 onToggleCategory(category, it)
             }
-            // Individual feeds expand for selection only while the category is on.
+            // Individual feeds expand for selection only while the category is on,
+            // shown as tappable chips (filled = selected) to keep it compact.
             if (anyOn) {
-                inCategory.forEach { feed ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(start = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            feed.name,
-                            color = if (feed.enabled) tokens.fg else tokens.fgDim,
-                            fontSize = 13.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f),
-                        )
-                        TogglePill(on = feed.enabled, accent = accent, tokens = tokens) {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth().padding(start = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    inCategory.forEach { feed ->
+                        FeedChip(feed.name, feed.enabled, accent, tokens) {
                             onToggleFeed(feed.url, !feed.enabled)
                         }
                     }
@@ -515,6 +514,33 @@ private fun FeedsManager(
                     .padding(horizontal = 10.dp, vertical = 8.dp),
             )
         }
+    }
+}
+
+/** A compact selectable chip (filled = on) used for per-feed selection. */
+@Composable
+private fun FeedChip(
+    label: String,
+    on: Boolean,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .then(
+                if (on) Modifier.background(accent)
+                else Modifier.border(1.dp, tokens.tileLine, RoundedCornerShape(16.dp)),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Text(
+            label,
+            color = if (on) Color.White else tokens.fgDim,
+            fontSize = 13.sp,
+        )
     }
 }
 

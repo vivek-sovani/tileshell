@@ -464,6 +464,7 @@ fun StartScreen(
                             viewModel.refreshFeeds()
                             Toast.makeText(context, "refreshing news", Toast.LENGTH_SHORT).show()
                         },
+                        active = feedShown,
                     )
                 }
             }

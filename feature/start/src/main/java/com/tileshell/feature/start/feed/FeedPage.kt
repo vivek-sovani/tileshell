@@ -59,6 +59,7 @@ import com.tileshell.feature.livetiles.feedAgo
 import com.tileshell.feature.livetiles.MediaCenter
 import com.tileshell.feature.livetiles.MediaTransportControls
 import com.tileshell.feature.livetiles.NowPlaying
+import com.tileshell.feature.livetiles.refreshMediaSessions
 import com.tileshell.feature.livetiles.WeatherCache
 import com.tileshell.feature.livetiles.WeatherCacheData
 import com.tileshell.feature.livetiles.queryUpcomingEvents
@@ -80,6 +81,9 @@ import java.util.Calendar
  * @param onAddSchedule opens the calendar app's add-event screen.
  * @param onOpenArticle opens a tapped article's link in the browser.
  * @param onRefresh forces a manual news refresh.
+ * @param active whether the feed is the foreground page — drives a light media
+ *   poll so now-playing (art + play state) stays fresh here, since this surface
+ *   sits outside the live-tile gate and per-app media callbacks are unreliable.
  */
 @Composable
 fun FeedPage(
@@ -90,6 +94,7 @@ fun FeedPage(
     onAddSchedule: () -> Unit,
     onOpenArticle: (String) -> Unit,
     onRefresh: () -> Unit,
+    active: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val tokens = LocalColorTokens.current
@@ -108,6 +113,15 @@ fun FeedPage(
     val mediaEntry = media.entries.firstOrNull { it.value.playing } ?: media.entries.firstOrNull()
     val nowPlaying: NowPlaying? = mediaEntry?.value
     val nowPlayingPackage: String? = mediaEntry?.key
+    // Poll media while the feed is foreground so play/pause + artwork stay current
+    // (the Start poll is gated off here; player callbacks aren't always reliable).
+    LaunchedEffect(active) {
+        if (!active) return@LaunchedEffect
+        while (true) {
+            refreshMediaSessions(context)
+            delay(1_500L)
+        }
+    }
 
     // News (discover): live articles fetched by FeedRefreshWorker from the user's
     // subscribed RSS feeds. Schedule the worker while the feed page is composed.
@@ -152,12 +166,12 @@ fun FeedPage(
         SectionLabel("weather", tokens.fgDim)
         WeatherCard(
             snapshot = snapshot,
-            tokens = tokens,
+            accent = accent,
             onClick = { onWeatherDetails(("weather " + (snapshot?.place ?: "")).trim()) },
         )
 
         SectionHeader("today", actionText = "add", accent = accent, tokens = tokens, showPlus = true, onAction = onAddSchedule)
-        AgendaCard(agenda = agenda, granted = calGranted, accent = accent, tokens = tokens)
+        AgendaCard(agenda = agenda, granted = calGranted, accent = accent)
 
         if (nowPlaying != null) {
             NowPlayingCard(
@@ -165,7 +179,6 @@ fun FeedPage(
                 packageName = nowPlayingPackage,
                 art = nowPlayingPackage?.let { artwork[it] },
                 accent = accent,
-                tokens = tokens,
             )
         }
 
@@ -322,19 +335,39 @@ private fun GCard(
     ) { content() }
 }
 
+// White text on the accent-filled "your data" cards (WP live-tile look).
+private val OnAccent = Color.White
+private val OnAccentDim = Color.White.copy(alpha = 0.78f)
+
+/** Accent-filled card (weather/today/now-playing) — the WP live-tile colour block. */
+@Composable
+private fun AccentCard(
+    accent: Color,
+    onClick: (() -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .background(accent),
+    ) { content() }
+}
+
 @Composable
 private fun WeatherCard(
     snapshot: com.tileshell.feature.livetiles.WeatherSnapshot?,
-    tokens: com.tileshell.core.design.ColorTokens,
+    accent: Color,
     onClick: () -> Unit,
 ) {
-    GCard(tokens, onClick = onClick) {
+    AccentCard(accent, onClick = onClick) {
         Column(modifier = Modifier.padding(16.dp)) {
             if (snapshot == null) {
-                Text("weather unavailable", color = tokens.fg, fontSize = 16.sp)
+                Text("weather unavailable", color = OnAccent, fontSize = 16.sp)
                 Text(
                     "set a location or allow location access",
-                    color = tokens.fgDim,
+                    color = OnAccentDim,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(top = 3.dp),
                 )
@@ -346,36 +379,32 @@ private fun WeatherCard(
                 verticalAlignment = Alignment.Top,
             ) {
                 Column {
-                    Text(
-                        snapshot.place.ifEmpty { "your location" },
-                        color = tokens.fg,
-                        fontSize = 18.sp,
-                    )
-                    Text(snapshot.condition, color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 3.dp))
+                    Text(snapshot.place.ifEmpty { "your location" }, color = OnAccent, fontSize = 18.sp)
+                    Text(snapshot.condition, color = OnAccentDim, fontSize = 13.sp, modifier = Modifier.padding(top = 3.dp))
                 }
-                Text("${snapshot.tempC}°", color = tokens.fg, fontSize = 42.sp, fontWeight = FontWeight.Thin)
+                Text("${snapshot.tempC}°", color = OnAccent, fontSize = 42.sp, fontWeight = FontWeight.Thin)
             }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                StatCol("now", "${snapshot.tempC}°", tokens)
-                StatCol("high", "${snapshot.highC}°", tokens)
-                StatCol("low", "${snapshot.lowC}°", tokens)
+                StatCol("now", "${snapshot.tempC}°")
+                StatCol("high", "${snapshot.highC}°")
+                StatCol("low", "${snapshot.lowC}°")
             }
             if (snapshot.detail.isNotEmpty()) {
-                Text(snapshot.detail, color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
+                Text(snapshot.detail, color = OnAccentDim, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
             }
         }
     }
 }
 
 @Composable
-private fun StatCol(label: String, value: String, tokens: com.tileshell.core.design.ColorTokens) {
+private fun StatCol(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, color = tokens.fgDim, fontSize = 12.sp)
+        Text(label, color = OnAccentDim, fontSize = 12.sp)
         Spacer(Modifier.height(6.dp))
-        Text(value, color = tokens.fg, fontSize = 14.sp)
+        Text(value, color = OnAccent, fontSize = 14.sp)
     }
 }
 
@@ -384,14 +413,13 @@ private fun AgendaCard(
     agenda: CalendarFace,
     granted: Boolean,
     accent: Color,
-    tokens: com.tileshell.core.design.ColorTokens,
 ) {
-    GCard(tokens) {
+    AccentCard(accent) {
         Column(modifier = Modifier.padding(16.dp)) {
             val events = listOfNotNull(agenda.next, agenda.following)
             when {
-                !granted -> Text("allow calendar to see your day", color = tokens.fgDim, fontSize = 14.sp)
-                events.isEmpty() -> Text("nothing on your calendar today", color = tokens.fgDim, fontSize = 14.sp)
+                !granted -> Text("allow calendar to see your day", color = OnAccentDim, fontSize = 14.sp)
+                events.isEmpty() -> Text("nothing on your calendar today", color = OnAccentDim, fontSize = 14.sp)
                 else -> events.forEachIndexed { i, e ->
                     if (i > 0) Spacer(Modifier.height(12.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -400,12 +428,12 @@ private fun AgendaCard(
                                 .width(3.dp)
                                 .height(34.dp)
                                 .clip(RoundedCornerShape(2.dp))
-                                .background(accent),
+                                .background(OnAccent),
                         )
                         Spacer(Modifier.width(12.dp))
                         Column {
-                            Text(e.title.ifEmpty { "(busy)" }, color = tokens.fg, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(e.timeLine, color = tokens.fgDim, fontSize = 11.sp)
+                            Text(e.title.ifEmpty { "(busy)" }, color = OnAccent, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(e.timeLine, color = OnAccentDim, fontSize = 11.sp)
                         }
                     }
                 }
@@ -420,12 +448,14 @@ private fun NowPlayingCard(
     packageName: String?,
     art: android.graphics.Bitmap?,
     accent: Color,
-    tokens: com.tileshell.core.design.ColorTokens,
 ) {
-    GCard(tokens) {
+    AccentCard(accent) {
         Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp)).background(accent),
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.White.copy(alpha = 0.18f)),
                 contentAlignment = Alignment.Center,
             ) {
                 if (art != null) {
@@ -448,7 +478,7 @@ private fun NowPlayingCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     nowPlaying.title.ifBlank { "now playing" },
-                    color = tokens.fg,
+                    color = OnAccent,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
@@ -457,7 +487,7 @@ private fun NowPlayingCard(
                 if (nowPlaying.artist.isNotBlank()) {
                     Text(
                         nowPlaying.artist,
-                        color = tokens.fgDim,
+                        color = OnAccentDim,
                         fontSize = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -468,7 +498,7 @@ private fun NowPlayingCard(
             MediaTransportControls(
                 playing = nowPlaying.playing,
                 packageName = packageName,
-                tint = tokens.fg,
+                tint = OnAccent,
             )
         }
     }

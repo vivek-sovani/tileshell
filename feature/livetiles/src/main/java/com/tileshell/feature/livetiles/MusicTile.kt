@@ -268,6 +268,22 @@ fun MediaSessionsEffect(active: Boolean) {
 }
 
 /**
+ * One-shot rebuild + publish of the media snapshot. Lets a surface that shows
+ * now-playing but sits outside the live-tile gate (the feed page) keep itself
+ * fresh by polling, since per-app `MediaController.Callback`s are unreliable on
+ * some players. Guarded — a denied/absent manager just no-ops.
+ */
+fun refreshMediaSessions(context: Context) {
+    val manager = context.getSystemService(Context.MEDIA_SESSION_SERVICE)
+        as? MediaSessionManager ?: return
+    val component = ComponentName(context, TileNotificationListenerService::class.java)
+    runCatching {
+        val state = buildMediaState(manager, component)
+        MediaCenter.publish(state.now, state.controllers, state.artwork)
+    }
+}
+
+/**
  * The live music tile (FR-2.3): front = animated EQ bars + track title/artist
  * (prototype `liveFace('music')`), back = "paused / tap to resume". Reads
  * [MediaCenter]. When [packageName] is set the tile shows *that app's* now-playing

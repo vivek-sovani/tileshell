@@ -62,6 +62,7 @@ val FEED_CATEGORIES: List<String> = listOf(
  * opt-in via the category toggles.
  */
 val DEFAULT_FEED_SOURCES: List<FeedSource> = listOf(
+    FeedSource("https://news.google.com/rss?hl=en-IN&gl=IN&ceid=IN:en", "Google News", "nation", enabled = true),
     FeedSource("https://www.thehindu.com/news/national/feeder/default.rss", "The Hindu", "nation", enabled = true),
     FeedSource("https://feeds.feedburner.com/ndtvnews-top-stories", "NDTV", "nation", enabled = true),
     FeedSource("https://timesofindia.indiatimes.com/rssfeedstopstories.cms", "TOI Top Stories", "nation", enabled = true),
