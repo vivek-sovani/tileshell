@@ -28,6 +28,18 @@ fun feedGlanceDate(calendar: Calendar): GlanceDate {
 }
 
 /**
+ * The glance row's clock in 12-hour `h:mm am/pm` form (unpadded hour, zero-padded
+ * minutes, lowercase suffix to match the launcher's lowercase styling).
+ */
+fun feedClock12(calendar: Calendar): String {
+    val hour24 = calendar.get(Calendar.HOUR_OF_DAY)
+    val minute = calendar.get(Calendar.MINUTE)
+    val hour12 = (hour24 % 12).let { if (it == 0) 12 else it }
+    val suffix = if (hour24 < 12) "am" else "pm"
+    return "$hour12:${minute.toString().padStart(2, '0')} $suffix"
+}
+
+/**
  * The pager page to settle to after a horizontal drag, given the [base] page the
  * gesture started on and the live [pos] at release. Pages are ordered
  * `feed = -1, start = 0, apps = +1`; a net travel past 0.28 of a page width

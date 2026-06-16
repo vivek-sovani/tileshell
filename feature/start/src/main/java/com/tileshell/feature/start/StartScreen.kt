@@ -6,6 +6,7 @@ import android.provider.Settings
 import android.app.SearchManager
 import android.content.Intent
 import android.net.Uri
+import android.provider.CalendarContract
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -448,6 +449,8 @@ fun StartScreen(
                         accent = accent,
                         statusBarTopPx = statusBarTopPx,
                         onSearch = { query -> launchWebSearch(context, query) },
+                        onWeatherDetails = { query -> launchWebSearch(context, query) },
+                        onAddSchedule = { launchAddEvent(context) },
                     )
                 }
             }
@@ -1857,6 +1860,19 @@ private fun launchWebSearch(context: Context, query: String) {
     val browser = Intent(Intent.ACTION_VIEW, Uri.parse(googleSearchUrl(trimmed)))
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     runCatching { context.startActivity(browser) }
+}
+
+/**
+ * Opens the calendar app's add-event screen (`ACTION_INSERT` on the events URI)
+ * so the user can add a schedule straight from the feed. Best-effort: toasts when
+ * no calendar app handles it.
+ */
+private fun launchAddEvent(context: Context) {
+    val intent = Intent(Intent.ACTION_INSERT)
+        .setData(CalendarContract.Events.CONTENT_URI)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (runCatching { context.startActivity(intent) }.isSuccess) return
+    Toast.makeText(context, "no calendar app to add an event", Toast.LENGTH_SHORT).show()
 }
 
 private fun onTileClick(context: Context, tile: TileModel) {

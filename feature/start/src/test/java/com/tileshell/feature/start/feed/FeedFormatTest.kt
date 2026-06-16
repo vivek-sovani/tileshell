@@ -18,6 +18,14 @@ class FeedFormatTest {
     }
 
     @Test
+    fun `clock formats 12-hour with lowercase suffix`() {
+        assertEquals("9:05 am", feedClock12(GregorianCalendar(2026, Calendar.JUNE, 16, 9, 5)))
+        assertEquals("12:00 pm", feedClock12(GregorianCalendar(2026, Calendar.JUNE, 16, 12, 0)))
+        assertEquals("12:30 am", feedClock12(GregorianCalendar(2026, Calendar.JUNE, 16, 0, 30)))
+        assertEquals("11:59 pm", feedClock12(GregorianCalendar(2026, Calendar.JUNE, 16, 23, 59)))
+    }
+
+    @Test
     fun `commit advances one page past the 0_28 threshold`() {
         assertEquals(1f, pagerCommitTarget(base = 0f, pos = 0.4f), 0f)   // toward apps
         assertEquals(-1f, pagerCommitTarget(base = 0f, pos = -0.4f), 0f) // toward feed

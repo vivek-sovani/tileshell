@@ -1032,6 +1032,14 @@ stock and anything needing a network source are deferred to the RSS/market engin
 - **Live cards reuse existing sources, zero new plumbing:** weather card ← `WeatherCache`;
   today's agenda ← `queryUpcomingEvents` (READ_CALENDAR, already requested); now-playing ←
   `MediaCenter` (card hidden when nothing is playing).
+- **Glance row = date + live clock.** The right side shows a live 12-hour `h:mm am/pm`
+  clock (pure, unit-tested `feedClock12`), not the weather temp — the temp already lives
+  on the weather card. The row re-reads on the minute boundary while composed.
+- **Weather card opens fuller detail.** Tapping it runs a `weather <place>` Google search
+  (same path as the weather tile's tap fallback) via the shared `launchWebSearch`.
+- **Add a schedule from the feed.** The "today" section header carries a `+ add` action
+  that opens the calendar app's add-event screen (`ACTION_INSERT` on
+  `CalendarContract.Events.CONTENT_URI`); toasts when no calendar app handles it.
 - **Weather hourly strip adapted.** The provider has no hourly series, so the card shows
   a **now / high / low** stat strip + the precip detail line instead of fabricated hourly
   temps. Hourly deferred until the provider exposes it.

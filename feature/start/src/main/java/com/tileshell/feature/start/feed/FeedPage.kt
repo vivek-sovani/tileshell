@@ -3,6 +3,7 @@ package com.tileshell.feature.start.feed
 import android.Manifest
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,24 +57,28 @@ import com.tileshell.feature.livetiles.WeatherCacheData
 import com.tileshell.feature.livetiles.queryUpcomingEvents
 import com.tileshell.feature.livetiles.rememberPermissionGranted
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.util.Calendar
 
 /**
  * The left "feed" page (the 3rd pager page, reached by swiping right from Start).
- * A Discover-style scroll faithful to the standalone prototype's `Feed` module:
- * search pill → glance row → weather → today → discover (articles, sport, stocks)
- * → footer. The live cards reuse existing sources — [WeatherCache], [MediaCenter]
- * and the calendar query — so this page adds no new data plumbing; the discover
- * articles + sport/stock are static placeholders until the RSS engine (S29).
+ * An independent info screen: search pill → glance row (date + live clock) →
+ * weather → today's schedule → now-playing. The live cards reuse existing
+ * sources — [WeatherCache], [MediaCenter] and the calendar query — so this page
+ * adds no new data plumbing. News / market data arrive with the RSS engine (S29).
  *
  * @param onSearch fires the user's typed query at Google (the host owns the intent).
+ * @param onWeatherDetails opens fuller weather for the given place query.
+ * @param onAddSchedule opens the calendar app's add-event screen.
  */
 @Composable
 fun FeedPage(
     accent: Color,
     statusBarTopPx: Float,
     onSearch: (String) -> Unit,
+    onWeatherDetails: (String) -> Unit,
+    onAddSchedule: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val tokens = LocalColorTokens.current
@@ -97,7 +102,18 @@ fun FeedPage(
         else CalendarFace(null, null)
     }
 
-    val glance = remember { feedGlanceDate(Calendar.getInstance()) }
+    // Live clock + date, re-read on each minute boundary (cheap; only while the
+    // page is composed, i.e. the feed is enabled).
+    var now by remember { mutableStateOf(Calendar.getInstance()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = Calendar.getInstance()
+            val secondsToMinute = 60 - now.get(Calendar.SECOND)
+            delay(secondsToMinute.coerceAtLeast(1) * 1000L)
+        }
+    }
+    val glance = feedGlanceDate(now)
+    val clock = feedClock12(now)
     val topPad = with(density) { statusBarTopPx.toDp() } + 8.dp
 
     Column(
@@ -110,12 +126,16 @@ fun FeedPage(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         SearchPill(accent = accent, tokens = tokens, onSearch = onSearch)
-        GlanceRow(glance = glance, tempC = snapshot?.tempC, tokens = tokens)
+        GlanceRow(glance = glance, clock = clock, tokens = tokens)
 
         SectionLabel("weather", tokens.fgDim)
-        WeatherCard(snapshot = snapshot, tokens = tokens)
+        WeatherCard(
+            snapshot = snapshot,
+            tokens = tokens,
+            onClick = { onWeatherDetails(("weather " + (snapshot?.place ?: "")).trim()) },
+        )
 
-        SectionLabel("today", tokens.fgDim)
+        SectionHeader("today", accent = accent, tokens = tokens, onAdd = onAddSchedule)
         AgendaCard(agenda = agenda, granted = calGranted, accent = accent, tokens = tokens)
 
         if (nowPlaying != null) {
@@ -187,7 +207,7 @@ private fun SearchPill(
 }
 
 @Composable
-private fun GlanceRow(glance: GlanceDate, tempC: Int?, tokens: com.tileshell.core.design.ColorTokens) {
+private fun GlanceRow(glance: GlanceDate, clock: String, tokens: com.tileshell.core.design.ColorTokens) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -197,12 +217,7 @@ private fun GlanceRow(glance: GlanceDate, tempC: Int?, tokens: com.tileshell.cor
             Text(glance.weekday, color = tokens.fg, fontSize = 22.sp, fontWeight = FontWeight.Light)
             Text(glance.sub, color = tokens.fgDim, fontSize = 13.sp)
         }
-        Text(
-            tempC?.let { "$it°" } ?: "—",
-            color = tokens.fg,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Light,
-        )
+        Text(clock, color = tokens.fg, fontSize = 22.sp, fontWeight = FontWeight.Light)
     }
 }
 
@@ -211,12 +226,49 @@ private fun SectionLabel(text: String, color: Color) {
     Text(text, color = color, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp, top = 6.dp))
 }
 
+/** A section label with a trailing "+ add" action (used by the today/schedule header). */
 @Composable
-private fun GCard(tokens: com.tileshell.core.design.ColorTokens, content: @Composable () -> Unit) {
+private fun SectionHeader(
+    text: String,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+    onAdd: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(text, color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp))
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(onClick = onAdd)
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Canvas(modifier = Modifier.size(14.dp)) {
+                val s = size.width
+                drawLine(accent, Offset(s / 2f, s * 0.1f), Offset(s / 2f, s * 0.9f), strokeWidth = s * 0.12f, cap = StrokeCap.Round)
+                drawLine(accent, Offset(s * 0.1f, s / 2f), Offset(s * 0.9f, s / 2f), strokeWidth = s * 0.12f, cap = StrokeCap.Round)
+            }
+            Spacer(Modifier.width(4.dp))
+            Text("add", color = accent, fontSize = 13.sp)
+        }
+    }
+}
+
+@Composable
+private fun GCard(
+    tokens: com.tileshell.core.design.ColorTokens,
+    onClick: (() -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .background(tokens.sheet),
     ) { content() }
 }
@@ -225,8 +277,9 @@ private fun GCard(tokens: com.tileshell.core.design.ColorTokens, content: @Compo
 private fun WeatherCard(
     snapshot: com.tileshell.feature.livetiles.WeatherSnapshot?,
     tokens: com.tileshell.core.design.ColorTokens,
+    onClick: () -> Unit,
 ) {
-    GCard(tokens) {
+    GCard(tokens, onClick = onClick) {
         Column(modifier = Modifier.padding(16.dp)) {
             if (snapshot == null) {
                 Text("weather unavailable", color = tokens.fg, fontSize = 16.sp)
