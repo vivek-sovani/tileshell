@@ -13,6 +13,10 @@ import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.core.data.settings.SettingsRepository
+import com.tileshell.feature.livetiles.DEFAULT_FEED_SOURCES
+import com.tileshell.feature.livetiles.FeedRefreshWorker
+import com.tileshell.feature.livetiles.FeedSource
+import com.tileshell.feature.livetiles.FeedStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -22,6 +26,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -35,6 +40,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = LayoutRepository.create(application)
     private val settingsRepository = SettingsRepository.create(application)
+    private val feedStore = FeedStore.create(application)
     private val launcherApps =
         application.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
 
@@ -57,6 +63,15 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = LauncherSettings(),
     )
+
+    /** The user's subscribed news feeds (left feed discover section). */
+    val feedSources: StateFlow<List<FeedSource>> = feedStore.data
+        .map { it.sources }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = DEFAULT_FEED_SOURCES,
+        )
 
     /** Emitted when the user presses Home while already on Start. */
     private val _homeRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -235,6 +250,27 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Toggle the left "feed" page (the 3rd pager page reached by swiping right). */
     fun setFeedEnabled(enabled: Boolean) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setFeedEnabled(enabled) }
+    }
+
+    /** Subscribe a custom RSS/Atom feed and refresh so its articles appear soon. */
+    fun addFeedSource(url: String, name: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            feedStore.addSource(url, name)
+            FeedRefreshWorker.refreshNow(getApplication())
+        }
+    }
+
+    /** Remove a subscribed feed. */
+    fun removeFeedSource(url: String) {
+        viewModelScope.launch(Dispatchers.IO) { feedStore.removeSource(url) }
+    }
+
+    /** Enable/disable a subscribed feed; re-enabling triggers a refresh. */
+    fun setFeedSourceEnabled(url: String, enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            feedStore.setEnabled(url, enabled)
+            if (enabled) FeedRefreshWorker.refreshNow(getApplication())
+        }
     }
 
     /** Reset the Start grid to the WP default layout (FR-7). */

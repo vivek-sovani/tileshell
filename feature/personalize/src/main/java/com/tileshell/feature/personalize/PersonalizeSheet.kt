@@ -24,6 +24,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
@@ -32,15 +35,20 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.design.TileAccents
@@ -59,6 +67,9 @@ import com.tileshell.core.design.wallpaperBackground
  * renders the passed values and reports changes via the callbacks, so the host
  * persists them and feeds the new values straight back, re-skinning live.
  */
+/** A subscribed news feed shown in the feeds-management list (framework-free). */
+data class FeedSourceItem(val url: String, val name: String, val enabled: Boolean)
+
 @Composable
 fun PersonalizeSheet(
     visible: Boolean,
@@ -73,6 +84,10 @@ fun PersonalizeSheet(
     onTiledWallpaperChange: (Boolean) -> Unit,
     feedEnabled: Boolean,
     onFeedEnabledChange: (Boolean) -> Unit,
+    feeds: List<FeedSourceItem>,
+    onToggleFeed: (url: String, enabled: Boolean) -> Unit,
+    onRemoveFeed: (url: String) -> Unit,
+    onAddFeed: (url: String, name: String) -> Unit,
     followSystemTheme: Boolean,
     onFollowSystemThemeChange: (Boolean) -> Unit,
     onThemeChange: (dark: Boolean) -> Unit,
@@ -216,6 +231,18 @@ fun PersonalizeSheet(
                 ToggleRow("left feed page", on = feedEnabled, accent = accent, tokens, onFeedEnabledChange)
             }
 
+            // ---- news feeds (left feed discover section) ----
+            SettingGroup(label = "news feeds", tokens.fgDim) {
+                FeedsManager(
+                    feeds = feeds,
+                    accent = accent,
+                    tokens = tokens,
+                    onToggle = onToggleFeed,
+                    onRemove = onRemoveFeed,
+                    onAdd = onAddFeed,
+                )
+            }
+
             // ---- tile transparency ----
             SettingGroup(label = "tile transparency", tokens.fgDim) {
                 Slider(
@@ -312,6 +339,113 @@ fun PersonalizeSheet(
                 }
             }
         }
+    }
+}
+
+/**
+ * News-feeds management: each subscribed feed with an enable toggle and a remove
+ * action, plus a field to add a custom RSS/Atom URL. Wired to the host's FeedStore.
+ */
+@Composable
+private fun FeedsManager(
+    feeds: List<FeedSourceItem>,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+    onToggle: (String, Boolean) -> Unit,
+    onRemove: (String) -> Unit,
+    onAdd: (String, String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        feeds.forEach { feed ->
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    feed.name,
+                    color = if (feed.enabled) tokens.fg else tokens.fgDim,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    "remove",
+                    color = tokens.fgDim,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onRemove(feed.url) }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                TogglePill(on = feed.enabled, accent = accent, tokens = tokens) {
+                    onToggle(feed.url, !feed.enabled)
+                }
+            }
+        }
+
+        var url by remember { mutableStateOf("") }
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .border(1.dp, tokens.tileLine, RoundedCornerShape(10.dp))
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                BasicTextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    singleLine = true,
+                    textStyle = TextStyle(color = tokens.fg, fontSize = 14.sp),
+                    cursorBrush = SolidColor(accent),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = {
+                        if (url.isNotBlank()) { onAdd(url, ""); url = "" }
+                    }),
+                    decorationBox = { inner ->
+                        if (url.isEmpty()) Text("add feed url", color = tokens.fgDim, fontSize = 14.sp)
+                        inner()
+                    },
+                )
+            }
+            Text(
+                "add",
+                color = accent,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { if (url.isNotBlank()) { onAdd(url, ""); url = "" } }
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+            )
+        }
+    }
+}
+
+/** The standalone pill toggle (the switch part of [ToggleRow]). */
+@Composable
+private fun TogglePill(
+    on: Boolean,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .width(40.dp)
+            .height(22.dp)
+            .clip(RoundedCornerShape(11.dp))
+            .background(if (on) accent else tokens.tileLine)
+            .clickable(onClick = onClick),
+        contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 3.dp)
+                .size(16.dp)
+                .clip(CircleShape)
+                .background(Color.White),
+        )
     }
 }
 

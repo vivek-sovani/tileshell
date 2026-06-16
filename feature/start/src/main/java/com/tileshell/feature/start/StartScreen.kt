@@ -135,6 +135,7 @@ import com.tileshell.feature.livetiles.WeatherTileFace
 import com.tileshell.feature.livetiles.rememberFlipState
 import com.tileshell.feature.livetiles.rememberLiveTilesActive
 import com.tileshell.feature.livetiles.rememberNotificationAccess
+import com.tileshell.feature.personalize.FeedSourceItem
 import com.tileshell.feature.personalize.PersonalizeSheet
 import com.tileshell.core.design.DarkColorTokens
 import com.tileshell.core.design.Glass
@@ -181,6 +182,7 @@ fun StartScreen(
     val openFolderId by viewModel.openFolderId.collectAsStateWithLifecycle()
     val personalizeOpen by viewModel.personalizeOpen.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val feedSources by viewModel.feedSources.collectAsStateWithLifecycle()
     // Live notification state (FR-1.2 badges, FR-2 mail/messages). Empty until the
     // user enables notification access, which keeps every tile static / un-badged.
     val notifications by NotificationCenter.snapshot.collectAsStateWithLifecycle()
@@ -457,6 +459,7 @@ fun StartScreen(
                         onSearch = { query -> launchWebSearch(context, query) },
                         onWeatherDetails = { query -> launchWebSearch(context, query) },
                         onAddSchedule = { launchAddEvent(context) },
+                        onOpenArticle = { link -> launchUrl(context, link) },
                     )
                 }
             }
@@ -478,6 +481,10 @@ fun StartScreen(
             onTiledWallpaperChange = viewModel::setTiledWallpaper,
             feedEnabled = settings.feedEnabled,
             onFeedEnabledChange = viewModel::setFeedEnabled,
+            feeds = feedSources.map { FeedSourceItem(it.url, it.name, it.enabled) },
+            onToggleFeed = viewModel::setFeedSourceEnabled,
+            onRemoveFeed = viewModel::removeFeedSource,
+            onAddFeed = viewModel::addFeedSource,
             onThemeChange = viewModel::setTheme,
             onAccentChange = viewModel::setAccent,
             onGlassChange = viewModel::setGlass,
@@ -1875,6 +1882,14 @@ private fun launchWebSearch(context: Context, query: String) {
  * so the user can add a schedule straight from the feed. Best-effort: toasts when
  * no calendar app handles it.
  */
+/** Opens an article [url] in the browser. Best-effort; toasts when no handler. */
+private fun launchUrl(context: Context, url: String) {
+    if (url.isBlank()) return
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (runCatching { context.startActivity(intent) }.isSuccess) return
+    Toast.makeText(context, "couldn't open the article", Toast.LENGTH_SHORT).show()
+}
+
 private fun launchAddEvent(context: Context) {
     val intent = Intent(Intent.ACTION_INSERT)
         .setData(CalendarContract.Events.CONTENT_URI)

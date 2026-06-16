@@ -1090,3 +1090,38 @@ The feed's now-playing card gained **previous / play-pause / next** controls.
   it lives on the always-composed `StartPage`. So the feed's controls function; the only
   cost is that a mid-track change not signalled by the session-changed listener won't
   refresh the title until Start is foreground again (acceptable, matches existing gating).
+
+## Live RSS news engine — Session B
+
+The feed's "discover" section is now backed by **live RSS/Atom news**, replacing the
+removed sample cards. Built in `:feature:livetiles` (alongside weather: provider/worker/
+cache/pure-parser precedent), consumed by the feed page in `:feature:start`.
+
+- **Pure parser.** `parseFeed(xml, sourceName)` handles RSS 2.0 and Atom via namespace-
+  unaware `javax.xml` DOM (so `media:content`/`media:thumbnail` match by literal prefixed
+  tag), extracting title, link (RSS text / Atom `href`), source (channel title), category
+  tag, image (media/enclosure/inline `<img>`), and published time. Helpers `parseFeedDate`
+  (RFC-822 + RFC-3339), `stripHtml`, `feedAgo` (now/Xm/Xh/Xd) are pure + unit-tested. A
+  broken feed yields an empty list.
+- **Store + defaults.** `FeedStore` (own `news_feed.pb` DataStore) holds the subscribed
+  `FeedSource`s and the cached articles via a tolerant tab-delimited `FeedCodec`. Seeded
+  with the chosen India feeds (`DEFAULT_FEED_SOURCES`: The Hindu, NDTV, Indian Express,
+  Gadgets 360, TOI Tech, ESPNcricinfo, NDTV Sports, Moneycontrol, ET Markets, NDTV Food).
+- **Worker.** `FeedRefreshWorker` (30-min periodic + immediate one-off, `ensureScheduled`/
+  `refreshNow`, scheduled from the feed page) fetches each enabled feed over
+  `HttpURLConnection`, parses, and `mergeFeedArticles` (dedupe by link, newest-first, cap
+  40). A dead feed is skipped; retry only when *every* fetch failed (keeps last good cache).
+- **UI.** Live `ArticleCard`s (thumbnail, source, title, tag, time-ago); tap opens the link
+  in the browser (`ACTION_VIEW`). Remote thumbnails load via a tiny `rememberRemoteImage`
+  (HttpURLConnection + BitmapFactory, downsampled, process-wide `LruCache`) — no image
+  library. Empty cache → "no articles yet" card.
+- **Management.** Personalize gains a "news feeds" group: per-feed enable toggle + remove,
+  and an add-URL field. Wired through `StartViewModel` (`feedSources` StateFlow +
+  add/remove/enable) to `FeedStore`; editing triggers an immediate refresh.
+- **Stock watchlist intentionally NOT built.** Moneycontrol/ET RSS are *news* feeds, not
+  quote feeds — real index values (Sensex/Nifty) need a quotes API with its own ToS/key.
+  Per "no fabricated data," those feeds appear as market *news* in discover and the numeric
+  watchlist is deferred until a real quotes source is chosen.
+- **Known limits.** Article images are remote (network) and uncached across process death;
+  no per-article read state; the 30-min cadence + immediate refresh on open/edit; feeds with
+  TLS/redirect quirks may fail silently (skipped). No OPML import.

@@ -50,6 +50,11 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tileshell.core.design.LocalColorTokens
 import com.tileshell.feature.livetiles.CalendarFace
+import com.tileshell.feature.livetiles.FeedArticle
+import com.tileshell.feature.livetiles.FeedData
+import com.tileshell.feature.livetiles.FeedRefreshWorker
+import com.tileshell.feature.livetiles.FeedStore
+import com.tileshell.feature.livetiles.feedAgo
 import com.tileshell.feature.livetiles.MediaCenter
 import com.tileshell.feature.livetiles.MediaTransportControls
 import com.tileshell.feature.livetiles.NowPlaying
@@ -72,6 +77,7 @@ import java.util.Calendar
  * @param onSearch fires the user's typed query at Google (the host owns the intent).
  * @param onWeatherDetails opens fuller weather for the given place query.
  * @param onAddSchedule opens the calendar app's add-event screen.
+ * @param onOpenArticle opens a tapped article's link in the browser.
  */
 @Composable
 fun FeedPage(
@@ -80,6 +86,7 @@ fun FeedPage(
     onSearch: (String) -> Unit,
     onWeatherDetails: (String) -> Unit,
     onAddSchedule: () -> Unit,
+    onOpenArticle: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val tokens = LocalColorTokens.current
@@ -97,6 +104,12 @@ fun FeedPage(
     val mediaEntry = media.entries.firstOrNull { it.value.playing } ?: media.entries.firstOrNull()
     val nowPlaying: NowPlaying? = mediaEntry?.value
     val nowPlayingPackage: String? = mediaEntry?.key
+
+    // News (discover): live articles fetched by FeedRefreshWorker from the user's
+    // subscribed RSS feeds. Schedule the worker while the feed page is composed.
+    val feedStore = remember(context) { FeedStore.create(context) }
+    val feedData by feedStore.data.collectAsStateWithLifecycle(initialValue = FeedData())
+    LaunchedEffect(Unit) { FeedRefreshWorker.ensureScheduled(context) }
 
     // Today's agenda (reuse the calendar query); empty until READ_CALENDAR is granted.
     val calGranted = rememberPermissionGranted(Manifest.permission.READ_CALENDAR)
@@ -151,9 +164,23 @@ fun FeedPage(
             )
         }
 
-        // News (discover), sport scores and a live stock watchlist arrive with the
-        // RSS / market-data engine (S29). Until then this page shows only cards
-        // backed by real data — no sample content.
+        SectionLabel("discover", tokens.fgDim)
+        val articles = feedData.articles
+        if (articles.isEmpty()) {
+            GCard(tokens) {
+                Text(
+                    "no articles yet — pull in news feeds from personalize",
+                    color = tokens.fgDim,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(16.dp),
+                )
+            }
+        } else {
+            val nowMs = now.timeInMillis
+            articles.forEach { article ->
+                ArticleCard(article, nowMs, accent, tokens) { onOpenArticle(article.link) }
+            }
+        }
     }
 }
 
@@ -420,6 +447,82 @@ private fun NowPlayingCard(
                 packageName = packageName,
                 tint = tokens.fg,
             )
+        }
+    }
+}
+
+@Composable
+private fun ArticleCard(
+    article: FeedArticle,
+    nowMs: Long,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+    onClick: () -> Unit,
+) {
+    val image = rememberRemoteImage(article.imageUrl)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(tokens.sheet)
+            .clickable(onClick = onClick),
+    ) {
+        Column {
+            if (article.imageUrl != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(150.dp)
+                        .background(accent.copy(alpha = 0.25f)),
+                ) {
+                    if (image != null) {
+                        androidx.compose.foundation.Image(
+                            bitmap = image,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        )
+                    }
+                    Text(
+                        article.tag,
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        modifier = Modifier
+                            .padding(12.dp)
+                            .align(Alignment.BottomStart)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0x80000000))
+                            .padding(horizontal = 9.dp, vertical = 4.dp),
+                    )
+                }
+            }
+            Column(modifier = Modifier.padding(start = 15.dp, end = 15.dp, top = 13.dp, bottom = 11.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(14.dp).clip(CircleShape).background(accent))
+                    Spacer(Modifier.width(7.dp))
+                    Text(
+                        article.source,
+                        color = tokens.fgDim,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Text(
+                    article.title,
+                    color = tokens.fg,
+                    fontSize = 17.sp,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 7.dp, bottom = 10.dp),
+                )
+                Text(
+                    if (article.imageUrl == null) "${article.tag} · ${feedAgo(article.publishedAtMillis, nowMs)}"
+                    else feedAgo(article.publishedAtMillis, nowMs),
+                    color = tokens.fgDim,
+                    fontSize = 12.sp,
+                )
+            }
         }
     }
 }
