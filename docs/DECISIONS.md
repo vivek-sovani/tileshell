@@ -1125,3 +1125,25 @@ cache/pure-parser precedent), consumed by the feed page in `:feature:start`.
 - **Known limits.** Article images are remote (network) and uncached across process death;
   no per-article read state; the 30-min cadence + immediate refresh on open/edit; feeds with
   TLS/redirect quirks may fail silently (skipped). No OPML import.
+
+## Now-playing live updates, album art, wider news images
+
+Follow-up fixes after on-device testing of the feed.
+
+- **Event-driven media updates (fixes stale play icon + track name on the feed).** The
+  play/pause icon didn't flip and prev/next kept the old title because the 2 s poll is
+  gated off on the feed and the session-changed listener only fires on session add/remove
+  — not on playback-state or metadata changes. `MediaSessionsEffect` now registers a
+  `MediaController.Callback` per active controller (`onPlaybackStateChanged` /
+  `onMetadataChanged` → republish; `onSessionDestroyed` → rebind), re-bound whenever the
+  session set changes. Updates are now event-driven everywhere (feed and tile); the poll
+  stays as a gated fallback.
+- **Album art on the feed now-playing card.** The leading 44 dp box shows the session's
+  cover from `MediaCenter.artwork` (already populated by `buildMediaState`), falling back
+  to the accent + play glyph when a session carries no artwork.
+- **More news thumbnails resolve.** Two gaps fixed: (1) `imageOf` now also reads
+  `itunes:image`, scans `content:encoded` (not just description), accepts lazy `data-src`,
+  skips non-image `media:content`, and normalises protocol-relative `//host` URLs;
+  (2) the remote loader follows http↔https redirects manually (HttpURLConnection refuses
+  cross-protocol auto-redirects, which many image CDNs use) and sends a browser-like
+  User-Agent + Accept. Items genuinely without any image still render as text-only cards.

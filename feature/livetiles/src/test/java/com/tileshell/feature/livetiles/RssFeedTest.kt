@@ -69,6 +69,23 @@ class RssFeedTest {
     }
 
     @Test
+    fun `image falls back to content-encoded img and normalises protocol-relative`() {
+        val feed = """
+            <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+              <channel>
+                <title>C</title>
+                <item>
+                  <title>Has inline image</title>
+                  <link>https://e.com/x</link>
+                  <content:encoded><![CDATA[<p>hi</p><img src="//cdn.e.com/p.jpg"/>]]></content:encoded>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+        assertEquals("https://cdn.e.com/p.jpg", parseFeed(feed, "C").single().imageUrl)
+    }
+
+    @Test
     fun `malformed xml yields empty list`() {
         assertEquals(emptyList<FeedArticle>(), parseFeed("not xml <<<", "x"))
     }

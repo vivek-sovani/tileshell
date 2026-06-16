@@ -164,13 +164,21 @@ private fun linkOf(item: Element): String {
     return ""
 }
 
-/** First image URL from media:content / media:thumbnail / enclosure / inline img. */
+/**
+ * First image URL for an item, trying the common feed conventions in order:
+ * media:content / media:thumbnail (incl. inside media:group), an image enclosure,
+ * itunes:image, then an `<img>` (or lazy `data-src`) inside the HTML body
+ * (content:encoded / description / content). Returns null when none is present.
+ */
 private fun imageOf(item: Element): String? {
     listOf("media:content", "media:thumbnail").forEach { tag ->
         val nodes = item.getElementsByTagName(tag)
         for (i in 0 until nodes.length) {
-            val url = (nodes.item(i) as? Element)?.getAttribute("url")
-            if (!url.isNullOrEmpty()) return url
+            val el = nodes.item(i) as? Element ?: continue
+            val type = el.getAttribute("type")
+            if (type.isNotEmpty() && !type.startsWith("image")) continue // skip video/audio media
+            val url = el.getAttribute("url")
+            if (url.isNotEmpty()) return normalizeImageUrl(url)
         }
     }
     val enclosures = item.getElementsByTagName("enclosure")
@@ -178,11 +186,24 @@ private fun imageOf(item: Element): String? {
         val el = enclosures.item(i) as? Element ?: continue
         val type = el.getAttribute("type")
         val url = el.getAttribute("url")
-        if (url.isNotEmpty() && (type.isNullOrEmpty() || type.startsWith("image"))) return url
+        if (url.isNotEmpty() && (type.isNullOrEmpty() || type.startsWith("image"))) {
+            return normalizeImageUrl(url)
+        }
     }
-    val html = childText(item, "description").orEmpty() + childText(item, "content").orEmpty()
-    return Regex("<img[^>]+src=[\"']([^\"']+)[\"']").find(html)?.groupValues?.getOrNull(1)
+    val itunes = item.getElementsByTagName("itunes:image")
+    (itunes.item(0) as? Element)?.getAttribute("href")?.takeIf { it.isNotEmpty() }
+        ?.let { return normalizeImageUrl(it) }
+
+    val html = listOf("content:encoded", "description", "content")
+        .joinToString(" ") { childText(item, it).orEmpty() }
+    return Regex("<img[^>]+(?:src|data-src)=[\"']([^\"']+)[\"']").find(html)
+        ?.groupValues?.getOrNull(1)
+        ?.let { normalizeImageUrl(it) }
 }
+
+/** Fixes protocol-relative (`//host/x.jpg`) image URLs so they load. */
+private fun normalizeImageUrl(url: String): String =
+    if (url.startsWith("//")) "https:$url" else url
 
 /** Text of the first direct-or-descendant child element named [name]. */
 private fun childText(parent: Element, name: String): String? {

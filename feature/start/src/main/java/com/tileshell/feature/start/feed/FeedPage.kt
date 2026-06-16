@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -101,6 +102,7 @@ fun FeedPage(
     // Now-playing (reuse MediaCenter): prefer a playing session, else any. Keep the
     // package key so the card's transport controls drive the right session.
     val media by MediaCenter.nowPlaying.collectAsStateWithLifecycle()
+    val artwork by MediaCenter.artwork.collectAsStateWithLifecycle()
     val mediaEntry = media.entries.firstOrNull { it.value.playing } ?: media.entries.firstOrNull()
     val nowPlaying: NowPlaying? = mediaEntry?.value
     val nowPlayingPackage: String? = mediaEntry?.key
@@ -159,6 +161,7 @@ fun FeedPage(
             NowPlayingCard(
                 nowPlaying = nowPlaying,
                 packageName = nowPlayingPackage,
+                art = nowPlayingPackage?.let { artwork[it] },
                 accent = accent,
                 tokens = tokens,
             )
@@ -405,20 +408,30 @@ private fun AgendaCard(
 private fun NowPlayingCard(
     nowPlaying: NowPlaying,
     packageName: String?,
+    art: android.graphics.Bitmap?,
     accent: Color,
     tokens: com.tileshell.core.design.ColorTokens,
 ) {
     GCard(tokens) {
         Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                modifier = Modifier.size(34.dp).clip(RoundedCornerShape(8.dp)).background(accent),
+                modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp)).background(accent),
                 contentAlignment = Alignment.Center,
             ) {
-                Canvas(modifier = Modifier.size(14.dp)) {
-                    val p = Path().apply {
-                        moveTo(0f, 0f); lineTo(0f, size.height); lineTo(size.width, size.height / 2f); close()
+                if (art != null) {
+                    androidx.compose.foundation.Image(
+                        bitmap = art.asImageBitmap(),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    )
+                } else {
+                    Canvas(modifier = Modifier.size(16.dp)) {
+                        val p = Path().apply {
+                            moveTo(0f, 0f); lineTo(0f, size.height); lineTo(size.width, size.height / 2f); close()
+                        }
+                        drawPath(p, Color.White)
                     }
-                    drawPath(p, Color.White)
                 }
             }
             Spacer(Modifier.width(12.dp))

@@ -7,6 +7,8 @@ import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -212,16 +214,43 @@ fun MediaSessionsEffect(active: Boolean) {
             MediaCenter.clear()
             return@DisposableEffect onDispose { }
         }
-        val refresh = {
+        val handler = Handler(Looper.getMainLooper())
+        // Per-controller callbacks give live play/pause + track-change updates even
+        // when the poll is gated off (e.g. on the feed page) — the session-changed
+        // listener alone only fires on session add/remove, not playback/metadata.
+        val perController = mutableListOf<Pair<MediaController, MediaController.Callback>>()
+
+        // Republish the snapshot without re-binding callbacks (playback/metadata tick).
+        val publishNow = {
             val state = buildMediaState(manager, component)
             MediaCenter.publish(state.now, state.controllers, state.artwork)
         }
-        val listener = MediaSessionManager.OnActiveSessionsChangedListener { refresh() }
+        // Re-read the session set, publish, and (re)register a callback on each
+        // controller. Called on first run and whenever the session set changes.
+        lateinit var rebind: () -> Unit
+        rebind = {
+            perController.forEach { (c, cb) -> runCatching { c.unregisterCallback(cb) } }
+            perController.clear()
+            val state = buildMediaState(manager, component)
+            MediaCenter.publish(state.now, state.controllers, state.artwork)
+            state.controllers.values.forEach { controller ->
+                val cb = object : MediaController.Callback() {
+                    override fun onPlaybackStateChanged(s: PlaybackState?) = publishNow()
+                    override fun onMetadataChanged(m: MediaMetadata?) = publishNow()
+                    override fun onSessionDestroyed() = rebind()
+                }
+                runCatching { controller.registerCallback(cb, handler) }
+                perController.add(controller to cb)
+            }
+        }
+        val listener = MediaSessionManager.OnActiveSessionsChangedListener { rebind() }
         val registered = runCatching {
             manager.addOnActiveSessionsChangedListener(listener, component)
         }.isSuccess
-        refresh()
+        rebind()
         onDispose {
+            perController.forEach { (c, cb) -> runCatching { c.unregisterCallback(cb) } }
+            perController.clear()
             if (registered) runCatching { manager.removeOnActiveSessionsChangedListener(listener) }
         }
     }
