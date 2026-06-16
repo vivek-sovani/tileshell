@@ -171,6 +171,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch(writeContext) { repository.seedIfEmpty() }
+        // Pull in any news feeds/categories added in a newer app version (DataStore
+        // keeps the first-seen list, so new defaults like state/entertainment need
+        // an explicit reconcile to appear in existing installs).
+        viewModelScope.launch(Dispatchers.IO) { feedStore.reconcileDefaults() }
         viewModelScope.launch(writeContext) {
             debouncedReorders.collect { repository.reorderTiles(it) }
         }
@@ -265,20 +269,25 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { feedStore.removeSource(url) }
     }
 
-    /** Enable/disable a subscribed feed; re-enabling triggers a refresh. */
+    /** Enable/disable a subscribed feed; refreshes so the discover list rebuilds. */
     fun setFeedSourceEnabled(url: String, enabled: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             feedStore.setEnabled(url, enabled)
-            if (enabled) FeedRefreshWorker.refreshNow(getApplication())
+            FeedRefreshWorker.refreshNow(getApplication())
         }
     }
 
-    /** Enable/disable a whole news category; enabling triggers a refresh. */
+    /** Enable/disable a whole news category; refreshes so the discover list rebuilds. */
     fun setFeedCategoryEnabled(category: String, enabled: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             feedStore.setCategoryEnabled(category, enabled)
-            if (enabled) FeedRefreshWorker.refreshNow(getApplication())
+            FeedRefreshWorker.refreshNow(getApplication())
         }
+    }
+
+    /** Re-add a deleted default live tile (clock/weather/calendar) to the grid. */
+    fun addLiveTile(appId: String) {
+        viewModelScope.launch(writeContext) { repository.addDefaultTile(appId) }
     }
 
     /** Force a manual news refresh (the feed's refresh action). */

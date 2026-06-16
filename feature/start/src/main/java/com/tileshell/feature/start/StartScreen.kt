@@ -135,9 +135,6 @@ import com.tileshell.feature.livetiles.WeatherTileFace
 import com.tileshell.feature.livetiles.rememberFlipState
 import com.tileshell.feature.livetiles.rememberLiveTilesActive
 import com.tileshell.feature.livetiles.rememberNotificationAccess
-import com.tileshell.feature.livetiles.CUSTOM_CATEGORY
-import com.tileshell.feature.livetiles.FEED_CATEGORIES
-import com.tileshell.feature.personalize.FeedCategoryItem
 import com.tileshell.feature.personalize.FeedSourceItem
 import com.tileshell.feature.personalize.PersonalizeSheet
 import com.tileshell.core.design.DarkColorTokens
@@ -488,15 +485,22 @@ fun StartScreen(
             onTiledWallpaperChange = viewModel::setTiledWallpaper,
             feedEnabled = settings.feedEnabled,
             onFeedEnabledChange = viewModel::setFeedEnabled,
-            feedCategories = FEED_CATEGORIES.map { cat ->
-                FeedCategoryItem(cat, enabled = feedSources.any { it.category == cat && it.enabled })
-            },
+            feeds = feedSources.map { FeedSourceItem(it.url, it.name, it.category, it.enabled) },
+            onToggleFeed = viewModel::setFeedSourceEnabled,
             onToggleCategory = viewModel::setFeedCategoryEnabled,
-            customFeeds = feedSources
-                .filter { it.category == CUSTOM_CATEGORY }
-                .map { FeedSourceItem(it.url, it.name, it.enabled) },
             onRemoveFeed = viewModel::removeFeedSource,
             onAddFeed = viewModel::addFeedSource,
+            onAddLiveTile = { appId ->
+                viewModel.addLiveTile(appId)
+                Toast.makeText(context, "added $appId tile", Toast.LENGTH_SHORT).show()
+            },
+            onSystemSettings = {
+                runCatching {
+                    context.startActivity(
+                        Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }
+            },
             onThemeChange = viewModel::setTheme,
             onAccentChange = viewModel::setAccent,
             onGlassChange = viewModel::setGlass,

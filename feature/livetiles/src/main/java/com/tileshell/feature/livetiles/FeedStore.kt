@@ -138,6 +138,20 @@ class FeedStore(private val store: DataStore<FeedData>) {
         }
     }
 
+    /**
+     * Adds any [DEFAULT_FEED_SOURCES] not already present (by url) so default feeds
+     * introduced in a newer version appear in existing installs (DataStore keeps the
+     * first-seen list and never picks up new defaults on its own). Existing feeds —
+     * including the user's enable/disable choices and custom feeds — are untouched.
+     */
+    suspend fun reconcileDefaults() {
+        store.updateData { current ->
+            val present = current.sources.mapTo(HashSet()) { it.url }
+            val missing = DEFAULT_FEED_SOURCES.filterNot { it.url in present }
+            if (missing.isEmpty()) current else current.copy(sources = current.sources + missing)
+        }
+    }
+
     companion object {
         fun create(context: Context): FeedStore =
             FeedStore(context.applicationContext.feedDataStore)

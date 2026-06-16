@@ -1168,3 +1168,27 @@ Follow-ups after testing.
   disables all its feeds via `FeedStore.setCategoryEnabled`) plus the custom-URL add and a
   custom-feeds remove list. The codec persists `category` and backfills it by url-match for
   pre-category stored feeds. Custom feeds use `CUSTOM_CATEGORY`.
+
+## Feed category fixes, live-tile restore, system settings
+
+Three follow-ups.
+
+- **State/entertainment toggles "not working" → missing feeds, now reconciled.** The
+  cause wasn't the toggle: DataStore keeps the first-seen source list, so feeds added in a
+  later version (the `state` Hindu-States feed, the newer `entertainment` feeds) never
+  appeared in existing installs — toggling a category with no stored feeds did nothing.
+  `FeedStore.reconcileDefaults()` (run on ViewModel init) adds any `DEFAULT_FEED_SOURCES`
+  missing by url, leaving the user's enable/disable choices and custom feeds intact.
+- **Per-feed selection + reliable refresh.** The personalize "news feeds" group now lists
+  feeds **grouped under each category**: the category header toggles all its feeds, and each
+  feed has its own toggle to pick individual sources. Every toggle (feed or category, on or
+  off) now triggers `refreshNow`, and the worker **clears the cache when no feed is enabled**,
+  so the discover list reflects changes promptly instead of keeping stale cached articles.
+- **Re-add deleted live tiles (clock/weather/calendar).** Pinning the clock app only gets the
+  live face when the alarm-action role resolves on the device; when it doesn't (or the tile
+  was deleted), there was no recovery. `LayoutRepository.addDefaultTile(appId)` re-seeds a
+  single default liveOnly tile (designed size/colour/icon key, seeder-resolved or blank
+  target) appended to the grid; personalize's new "live tiles" group has + clock / + weather
+  / + calendar buttons. Deterministic — independent of role resolution.
+- **Android settings from personalize.** A "system" group with an "android settings" row
+  opens `Settings.ACTION_SETTINGS`.

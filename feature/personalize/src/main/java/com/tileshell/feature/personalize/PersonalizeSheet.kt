@@ -67,11 +67,8 @@ import com.tileshell.core.design.wallpaperBackground
  * renders the passed values and reports changes via the callbacks, so the host
  * persists them and feeds the new values straight back, re-skinning live.
  */
-/** A subscribed custom news feed shown in the feeds-management list (framework-free). */
-data class FeedSourceItem(val url: String, val name: String, val enabled: Boolean)
-
-/** A selectable news category and whether it is currently on (framework-free). */
-data class FeedCategoryItem(val category: String, val enabled: Boolean)
+/** A subscribed news feed shown in the feeds-management list (framework-free). */
+data class FeedSourceItem(val url: String, val name: String, val category: String, val enabled: Boolean)
 
 @Composable
 fun PersonalizeSheet(
@@ -87,11 +84,13 @@ fun PersonalizeSheet(
     onTiledWallpaperChange: (Boolean) -> Unit,
     feedEnabled: Boolean,
     onFeedEnabledChange: (Boolean) -> Unit,
-    feedCategories: List<FeedCategoryItem>,
+    feeds: List<FeedSourceItem>,
+    onToggleFeed: (url: String, enabled: Boolean) -> Unit,
     onToggleCategory: (category: String, enabled: Boolean) -> Unit,
-    customFeeds: List<FeedSourceItem>,
     onRemoveFeed: (url: String) -> Unit,
     onAddFeed: (url: String, name: String) -> Unit,
+    onAddLiveTile: (appId: String) -> Unit,
+    onSystemSettings: () -> Unit,
     followSystemTheme: Boolean,
     onFollowSystemThemeChange: (Boolean) -> Unit,
     onThemeChange: (dark: Boolean) -> Unit,
@@ -236,16 +235,58 @@ fun PersonalizeSheet(
             }
 
             // ---- news feeds (left feed discover section) ----
-            SettingGroup(label = "news categories", tokens.fgDim) {
+            SettingGroup(label = "news feeds", tokens.fgDim) {
                 FeedsManager(
-                    categories = feedCategories,
-                    customFeeds = customFeeds,
+                    feeds = feeds,
                     accent = accent,
                     tokens = tokens,
+                    onToggleFeed = onToggleFeed,
                     onToggleCategory = onToggleCategory,
                     onRemove = onRemoveFeed,
                     onAdd = onAddFeed,
                 )
+            }
+
+            // ---- live tiles (re-add a deleted clock/weather/calendar tile) ----
+            SettingGroup(label = "live tiles", tokens.fgDim) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "re-add a deleted live tile to the start screen",
+                        color = tokens.fgDim,
+                        fontSize = 13.sp,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("clock" to "clock", "weather" to "weather", "calendar" to "calendar")
+                            .forEach { (appId, label) ->
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .border(1.dp, tokens.tileLine, RoundedCornerShape(10.dp))
+                                        .clickable { onAddLiveTile(appId) }
+                                        .padding(vertical = 10.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text("+ $label", color = accent, fontSize = 13.sp)
+                                }
+                            }
+                    }
+                }
+            }
+
+            // ---- system ----
+            SettingGroup(label = "system", tokens.fgDim) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onSystemSettings)
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(text = "android settings", color = tokens.fg, fontSize = 14.sp)
+                    Spacer(Modifier.weight(1f))
+                    Text(text = "open ›", color = accent, fontSize = 13.sp)
+                }
             }
 
             // ---- tile transparency ----
@@ -347,7 +388,9 @@ fun PersonalizeSheet(
     }
 }
 
-private val FEED_CATEGORY_LABELS = mapOf(
+// Display order + labels for the known categories; feeds in other categories are
+// treated as user-added "custom" feeds.
+private val FEED_CATEGORY_LABELS = linkedMapOf(
     "nation" to "national news",
     "state" to "state news",
     "entertainment" to "entertainment",
@@ -359,37 +402,58 @@ private val FEED_CATEGORY_LABELS = mapOf(
 )
 
 /**
- * News management: a toggle per selectable category (enabling/disabling all its
- * feeds at once), the list of user-added custom feeds with a remove action, and a
- * field to add a custom RSS/Atom URL. Wired to the host's FeedStore.
+ * News management: feeds grouped under each category. The category header toggles
+ * all its feeds at once; each feed below has its own toggle so individual sources
+ * can be picked. Custom (user-added) feeds get a remove action, plus a field to add
+ * a custom RSS/Atom URL. Wired to the host's FeedStore.
  */
 @Composable
 private fun FeedsManager(
-    categories: List<FeedCategoryItem>,
-    customFeeds: List<FeedSourceItem>,
+    feeds: List<FeedSourceItem>,
     accent: Color,
     tokens: com.tileshell.core.design.ColorTokens,
+    onToggleFeed: (String, Boolean) -> Unit,
     onToggleCategory: (String, Boolean) -> Unit,
     onRemove: (String) -> Unit,
     onAdd: (String, String) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        categories.forEach { cat ->
-            ToggleRow(
-                label = FEED_CATEGORY_LABELS[cat.category] ?: cat.category,
-                on = cat.enabled,
-                accent = accent,
-                tokens = tokens,
-            ) { onToggleCategory(cat.category, it) }
+        FEED_CATEGORY_LABELS.forEach { (category, label) ->
+            val inCategory = feeds.filter { it.category == category }
+            if (inCategory.isEmpty()) return@forEach
+            val anyOn = inCategory.any { it.enabled }
+            ToggleRow(label = label, on = anyOn, accent = accent, tokens = tokens) {
+                onToggleCategory(category, it)
+            }
+            // Individual feeds in this category (indented, lighter).
+            inCategory.forEach { feed ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        feed.name,
+                        color = if (feed.enabled) tokens.fg else tokens.fgDim,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TogglePill(on = feed.enabled, accent = accent, tokens = tokens) {
+                        onToggleFeed(feed.url, !feed.enabled)
+                    }
+                }
+            }
         }
 
+        val customFeeds = feeds.filter { it.category !in FEED_CATEGORY_LABELS }
         if (customFeeds.isNotEmpty()) {
             Text("custom feeds", color = tokens.fgDim, fontSize = 12.sp)
             customFeeds.forEach { feed ->
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         feed.name,
-                        color = tokens.fg,
+                        color = if (feed.enabled) tokens.fg else tokens.fgDim,
                         fontSize = 14.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -404,6 +468,10 @@ private fun FeedsManager(
                             .clickable { onRemove(feed.url) }
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                     )
+                    Spacer(Modifier.width(6.dp))
+                    TogglePill(on = feed.enabled, accent = accent, tokens = tokens) {
+                        onToggleFeed(feed.url, !feed.enabled)
+                    }
                 }
             }
         }

@@ -47,7 +47,11 @@ class FeedRefreshWorker(
     override suspend fun doWork(): Result {
         val store = FeedStore.create(applicationContext)
         val sources = store.read().sources.filter { it.enabled }
-        if (sources.isEmpty()) return Result.success()
+        // No enabled feeds → clear the cache so disabled content stops showing.
+        if (sources.isEmpty()) {
+            store.setArticles(emptyList())
+            return Result.success()
+        }
 
         var anySucceeded = false
         val perFeed = sources.map { source ->

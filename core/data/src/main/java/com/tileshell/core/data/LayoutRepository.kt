@@ -154,6 +154,37 @@ class LayoutRepository(
         return PinResult.PINNED
     }
 
+    /**
+     * Re-add a single default live tile (e.g. clock/weather/calendar that was
+     * deleted) by [appId], appended to the grid with its designed size/colour/icon
+     * key and the seeder's resolved launch target (blank for the self-contained
+     * liveOnly tiles). Returns false when there is no such default tile or it can't
+     * be seeded (a non-liveOnly role that doesn't resolve on this device).
+     */
+    suspend fun addDefaultTile(appId: String): Boolean {
+        val template = DefaultLayout.DEFAULT_TILES
+            .firstOrNull { !it.isGroup && it.app == appId } ?: return false
+        val seeded = seeder.seed(listOf(template), resolver)
+            .filterIsInstance<SeededTile.App>()
+            .firstOrNull() ?: return false
+        dao.insertTiles(
+            listOf(
+                TileEntity(
+                    id = "live-$appId-${System.currentTimeMillis()}",
+                    position = dao.maxPosition() + 1,
+                    size = seeded.size,
+                    colorId = seeded.colorId,
+                    type = TileEntity.TYPE_APP,
+                    packageName = seeded.component.packageName,
+                    activityName = seeded.component.activityName,
+                    label = seeded.component.label,
+                    iconKey = seeded.iconKey,
+                ),
+            ),
+        )
+        return true
+    }
+
     /** Seed the default layout iff the grid is empty. Safe to call repeatedly. */
     suspend fun seedIfEmpty() {
         if (dao.tileCount() > 0) return
