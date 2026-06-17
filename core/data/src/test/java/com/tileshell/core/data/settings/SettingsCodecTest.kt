@@ -96,4 +96,25 @@ class SettingsCodecTest {
             assertEquals(id, SettingsCodec.decode("accent=$id").accentId)
         }
     }
+
+    @Test
+    fun `wallpaper alignment round-trips`() {
+        val s = LauncherSettings(wallpaperAlignX = 0.25f, wallpaperAlignY = 0.75f)
+        val decoded = SettingsCodec.decode(SettingsCodec.encode(s))
+        assertEquals(0.25f, decoded.wallpaperAlignX, 0.0001f)
+        assertEquals(0.75f, decoded.wallpaperAlignY, 0.0001f)
+    }
+
+    @Test
+    fun `wallpaper alignment out of range is clamped`() {
+        assertEquals(1f, SettingsCodec.decode("wallAlignX=2.5").wallpaperAlignX, 0f)
+        assertEquals(0f, SettingsCodec.decode("wallAlignY=-1.0").wallpaperAlignY, 0f)
+    }
+
+    @Test
+    fun `missing wallpaper alignment defaults to centre`() {
+        val d = SettingsCodec.decode("")
+        assertEquals(0.5f, d.wallpaperAlignX, 0f)
+        assertEquals(0.5f, d.wallpaperAlignY, 0f)
+    }
 }

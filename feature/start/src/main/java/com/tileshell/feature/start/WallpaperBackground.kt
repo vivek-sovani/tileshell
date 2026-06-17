@@ -1,5 +1,6 @@
 package com.tileshell.feature.start
 
+import android.content.Context
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.foundation.Image
@@ -9,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -36,15 +38,18 @@ import kotlin.math.max
  * applies the blur-wallpaper effect from the prototype CSS
  * (`#screen.blur #wall { filter: blur(18px) saturate(1.1); transform: scale(1.12) }`)
  * when [blur] is on. Blur is a no-op below API 31 (matching the folder overlay).
+ * [alignX]/[alignY] (0..1) control which part of a custom photo is visible when the
+ * image is cropped to fill the screen (0 = left/top edge, 0.5 = centred, 1 = right/bottom).
  */
 @Composable
 fun WallpaperBackground(
     gradient: WallpaperGradient,
     customWallpaperUri: String?,
     blur: Boolean,
+    alignX: Float = 0.5f,
+    alignY: Float = 0.5f,
     modifier: Modifier = Modifier,
 ) {
-    // Blur/scale/saturate are tied together in the prototype's `.blur #wall` rule.
     val layer = modifier
         .fillMaxSize()
         .graphicsLayer {
@@ -62,7 +67,7 @@ fun WallpaperBackground(
                 bitmap = image,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                // saturate(1.1) from the blur filter — only visible on photos.
+                alignment = BiasAlignment(alignX * 2f - 1f, alignY * 2f - 1f),
                 colorFilter = if (blur) ColorFilter.colorMatrix(saturation(1.1f)) else null,
                 modifier = layer,
             )
@@ -84,6 +89,8 @@ private fun saturation(value: Float): ColorMatrix =
  * its current screen [origin]. [origin] is read in the draw phase, so the photo stays
  * fixed to the screen while the tiles scroll over it (WP parallax). [darkBase] fills
  * first, so any tile beyond the photo stays dark rather than empty.
+ * [alignX]/[alignY] shift the photo's position within the screen rectangle (same
+ * semantics as [WallpaperBackground]): 0 = left/top edge, 0.5 = centred, 1 = right/bottom.
  */
 fun Modifier.photoWindow(
     image: ImageBitmap,
@@ -91,19 +98,21 @@ fun Modifier.photoWindow(
     fullHeight: Float,
     darkBase: Color,
     origin: () -> Offset,
+    alignX: Float = 0.5f,
+    alignY: Float = 0.5f,
 ): Modifier = drawBehind {
     drawRect(darkBase)
     val imgW = image.width.toFloat()
     val imgH = image.height.toFloat()
     if (imgW <= 0f || imgH <= 0f) return@drawBehind
     val o = origin()
-    // Cover-scale the photo over the full canvas, centred, then offset into this
-    // tile's local space and clip.
     val scale = max(fullWidth / imgW, fullHeight / imgH)
     val dstW = imgW * scale
     val dstH = imgH * scale
-    val left = (fullWidth - dstW) / 2f - o.x
-    val top = (fullHeight - dstH) / 2f - o.y
+    // alignX/Y in [0,1] map into the photo's overflow space: 0 = left/top edge
+    // visible, 0.5 = centred (the original behaviour), 1 = right/bottom edge.
+    val left = alignX * (fullWidth - dstW) - o.x
+    val top  = alignY * (fullHeight - dstH) - o.y
     clipRect {
         translate(left = left, top = top) {
             scale(scale, pivot = Offset.Zero) {
@@ -114,22 +123,47 @@ fun Modifier.photoWindow(
 }
 
 /**
- * Decodes the content URI off the main thread, re-loading only when the URI
- * changes. Returns null while loading or if the URI can't be read. Public so the
- * Start screen can share one decoded bitmap between the full-screen background and
- * the per-tile windows of "wallpaper behind tiles" mode.
+ * Decodes the content URI off the main thread, down-sampled so a large camera
+ * photo (12–50 MP) doesn't load as a full-resolution bitmap and cause GC
+ * pressure / flickering. Targets the shorter decoded side at ≥ 1 080 px (enough
+ * to fill any current phone screen without visible quality loss). Returns null
+ * while loading or if the URI can't be read. Reloads only when the URI changes.
  */
 @Composable
 fun rememberWallpaperBitmap(uri: String): ImageBitmap? {
     val context = LocalContext.current
     val image by produceState<ImageBitmap?>(initialValue = null, uri) {
-        value = withContext(Dispatchers.IO) {
-            runCatching {
-                context.contentResolver.openInputStream(Uri.parse(uri))?.use { stream ->
-                    BitmapFactory.decodeStream(stream)?.asImageBitmap()
-                }
-            }.getOrNull()
-        }
+        value = withContext(Dispatchers.IO) { decodeWallpaper(context, uri) }
     }
     return image
+}
+
+private fun decodeWallpaper(context: Context, uri: String): ImageBitmap? = runCatching {
+    val parsed = Uri.parse(uri)
+    // First pass: read dimensions without allocating pixels.
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    context.contentResolver.openInputStream(parsed)?.use {
+        BitmapFactory.decodeStream(it, null, bounds)
+    }
+    val opts = BitmapFactory.Options().apply {
+        inSampleSize = wallpaperSampleSize(bounds.outWidth, bounds.outHeight)
+    }
+    // Second pass: decode at the computed sample size.
+    context.contentResolver.openInputStream(parsed)?.use { stream ->
+        BitmapFactory.decodeStream(stream, null, opts)?.asImageBitmap()
+    }
+}.getOrNull()
+
+/**
+ * Largest power-of-two sample size that keeps the shorter decoded side ≥ 1 080 px,
+ * matching a 1080p phone's shorter portrait dimension. A 12 MP photo (4 032 × 3 024)
+ * decodes at 2×  →  2 016 × 1 512 (~12 MB); a 50 MP photo (8 064 × 6 048) decodes
+ * at 4×  →  2 016 × 1 512 as well — a massive reduction from the raw bitmap sizes.
+ */
+internal fun wallpaperSampleSize(width: Int, height: Int): Int {
+    val shorter = minOf(width, height)
+    if (shorter <= 0) return 1
+    var sample = 1
+    while (shorter / (sample * 2) >= 1080) sample *= 2
+    return sample
 }

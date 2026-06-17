@@ -228,6 +228,10 @@ fun StartScreen(
             null
         }
 
+    // URI of a just-picked wallpaper photo waiting for the user to crop/position it.
+    // Set by the picker callback; cleared when the crop overlay is confirmed or cancelled.
+    var pendingWallpaperCropUri by remember { mutableStateOf<String?>(null) }
+
     // System photo picker for a custom wallpaper. OpenDocument (not the photo
     // picker) so we can take a persistable read grant — required to reload the
     // photo after a reboot (see docs/DECISIONS.md S18).
@@ -241,7 +245,9 @@ fun StartScreen(
                     Intent.FLAG_GRANT_READ_URI_PERMISSION,
                 )
             }
-            viewModel.setCustomWallpaper(uri.toString())
+            // Don't save yet — show the crop overlay first so the user can position
+            // the photo before it becomes the live wallpaper.
+            pendingWallpaperCropUri = uri.toString()
         }
     }
 
@@ -323,6 +329,8 @@ fun StartScreen(
                 gradient = wallpaper,
                 customWallpaperUri = settings.customWallpaperUri,
                 blur = settings.blur,
+                alignX = settings.wallpaperAlignX,
+                alignY = settings.wallpaperAlignY,
             )
         }
 
@@ -392,6 +400,8 @@ fun StartScreen(
                     tiledWallpaper = tiledWallpaper,
                     wallpaper = wallpaper,
                     wallpaperPhoto = tiledPhoto,
+                    wallpaperAlignX = settings.wallpaperAlignX,
+                    wallpaperAlignY = settings.wallpaperAlignY,
                     darkTheme = dark,
                     notifications = notifications,
                     widthPx = widthPx,
@@ -551,6 +561,20 @@ fun StartScreen(
         // above all other layers so it reads on a fresh install; self-hides once
         // seen.
         FirstRunHint()
+
+        // Wallpaper crop overlay: shown immediately after the user picks a photo so
+        // they can drag to position the image before it becomes the live wallpaper.
+        val cropUri = pendingWallpaperCropUri
+        if (cropUri != null) {
+            WallpaperCropOverlay(
+                uri = cropUri,
+                onConfirm = { alignX, alignY ->
+                    viewModel.setCustomWallpaper(cropUri, alignX, alignY)
+                    pendingWallpaperCropUri = null
+                },
+                onCancel = { pendingWallpaperCropUri = null },
+            )
+        }
     }
     }
 }
@@ -570,6 +594,8 @@ private fun StartPage(
     tiledWallpaper: Boolean,
     wallpaper: com.tileshell.core.design.WallpaperGradient,
     wallpaperPhoto: ImageBitmap?,
+    wallpaperAlignX: Float,
+    wallpaperAlignY: Float,
     darkTheme: Boolean,
     notifications: NotificationSnapshot,
     widthPx: Float,
@@ -745,6 +771,8 @@ private fun StartPage(
                         tiledWallpaper = tiledWallpaper,
                         wallpaper = wallpaper,
                         wallpaperPhoto = wallpaperPhoto,
+                        wallpaperAlignX = wallpaperAlignX,
+                        wallpaperAlignY = wallpaperAlignY,
                         // This tile's window onto the screen-fixed wallpaper: its live
                         // on-screen top-left (grid slot minus the scroll offset, below
                         // the status bar). Read in the draw phase, so the wallpaper
@@ -886,6 +914,8 @@ private fun TileView(
     tiledWallpaper: Boolean,
     wallpaper: com.tileshell.core.design.WallpaperGradient,
     wallpaperPhoto: ImageBitmap?,
+    wallpaperAlignX: Float,
+    wallpaperAlignY: Float,
     wallpaperOrigin: () -> Offset,
     fullWidth: Float,
     fullHeight: Float,
@@ -955,6 +985,8 @@ private fun TileView(
                         fullHeight = fullHeight,
                         darkBase = TiledScreenDark,
                         origin = wallpaperOrigin,
+                        alignX = wallpaperAlignX,
+                        alignY = wallpaperAlignY,
                     )
                     tiledWallpaper -> Modifier.wallpaperWindow(
                         wallpaper = wallpaper,
@@ -1430,7 +1462,7 @@ private fun Modifier.emptySpaceExit(editMode: Boolean, onExit: () -> Unit): Modi
 
 /**
  * Per-tile tap / long-press gesture for the *non-edit* Start screen (FR-3.1):
- * a release within 7 px is a tap (launch); holding 430 ms fires the long-press
+ * a release within 7 px is a tap (launch); holding 600 ms fires the long-press
  * (enter edit). Never consumes the down, so vertical grid scrolling still wins
  * on drags. (Edit-mode interaction is handled by [editDragGesture].)
  */
@@ -1442,8 +1474,8 @@ private fun Modifier.tileGesture(
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
         // true = released early (tap), false = moved past slop (let scroll win),
-        // null = 430 ms elapsed still pressed (long-press → enter edit).
-        val outcome = withTimeoutOrNull(430L) {
+        // null = 600 ms elapsed still pressed (long-press → enter edit).
+        val outcome = withTimeoutOrNull(600L) {
             while (true) {
                 val event = awaitPointerEvent()
                 val change = event.changes.firstOrNull { it.id == down.id }

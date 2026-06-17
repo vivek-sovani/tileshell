@@ -28,6 +28,10 @@ import com.tileshell.core.data.TileColors
  * @property feedEnabled whether the left "feed" page (the 3rd pager page reached by
  *   swiping right from Start) is present. Default on; when off the pager clamps to
  *   Start⇄app-list and the feed surface is not composed.
+ * @property wallpaperAlignX horizontal focal point for the custom wallpaper photo
+ *   [0..1]: 0 = left edge visible, 0.5 = centred, 1 = right edge visible. Only
+ *   meaningful while [customWallpaperUri] is set; ignored for bundled gradients.
+ * @property wallpaperAlignY vertical focal point, same 0..1 scale.
  */
 data class LauncherSettings(
     val followSystemTheme: Boolean = true,
@@ -40,6 +44,8 @@ data class LauncherSettings(
     val customWallpaperUri: String? = null,
     val tiledWallpaper: Boolean = false,
     val feedEnabled: Boolean = true,
+    val wallpaperAlignX: Float = 0.5f,
+    val wallpaperAlignY: Float = 0.5f,
 )
 
 /**
@@ -62,7 +68,9 @@ object SettingsCodec {
         append("wallpaper=").append(settings.wallpaperId).append('\n')
         append("customWallpaper=").append(settings.customWallpaperUri.orEmpty()).append('\n')
         append("tiledWallpaper=").append(settings.tiledWallpaper).append('\n')
-        append("feedEnabled=").append(settings.feedEnabled)
+        append("feedEnabled=").append(settings.feedEnabled).append('\n')
+        append("wallAlignX=").append(settings.wallpaperAlignX).append('\n')
+        append("wallAlignY=").append(settings.wallpaperAlignY)
     }
 
     fun decode(text: String): LauncherSettings {
@@ -77,6 +85,8 @@ object SettingsCodec {
         var customWallpaperUri = d.customWallpaperUri
         var tiledWallpaper = d.tiledWallpaper
         var feedEnabled = d.feedEnabled
+        var wallpaperAlignX = d.wallpaperAlignX
+        var wallpaperAlignY = d.wallpaperAlignY
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
             if (sep <= 0) return@forEach
@@ -93,6 +103,8 @@ object SettingsCodec {
                 "customWallpaper" -> customWallpaperUri = value.ifEmpty { null }
                 "tiledWallpaper" -> tiledWallpaper = value.toBooleanStrictOrNull() ?: tiledWallpaper
                 "feedEnabled" -> feedEnabled = value.toBooleanStrictOrNull() ?: feedEnabled
+                "wallAlignX" -> value.toFloatOrNull()?.let { wallpaperAlignX = it.coerceIn(0f, 1f) }
+                "wallAlignY" -> value.toFloatOrNull()?.let { wallpaperAlignY = it.coerceIn(0f, 1f) }
             }
         }
         return LauncherSettings(
@@ -106,6 +118,8 @@ object SettingsCodec {
             customWallpaperUri = customWallpaperUri,
             tiledWallpaper = tiledWallpaper,
             feedEnabled = feedEnabled,
+            wallpaperAlignX = wallpaperAlignX,
+            wallpaperAlignY = wallpaperAlignY,
         )
     }
 }

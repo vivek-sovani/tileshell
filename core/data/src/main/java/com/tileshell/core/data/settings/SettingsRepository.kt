@@ -66,14 +66,29 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(blur = blur) }
     }
 
-    /** Select a bundled gradient wallpaper, clearing any custom photo. */
+    /** Select a bundled gradient wallpaper, clearing any custom photo and resetting crop. */
     suspend fun setWallpaper(wallpaperId: String) {
-        store.updateData { it.copy(wallpaperId = wallpaperId, customWallpaperUri = null) }
+        store.updateData {
+            it.copy(wallpaperId = wallpaperId, customWallpaperUri = null,
+                wallpaperAlignX = 0.5f, wallpaperAlignY = 0.5f)
+        }
     }
 
-    /** Set a user-picked custom wallpaper (a persisted content URI string). */
-    suspend fun setCustomWallpaper(uri: String) {
-        store.updateData { it.copy(customWallpaperUri = uri) }
+    /** Set a user-picked custom wallpaper with its focal-point alignment (FR-7). */
+    suspend fun setCustomWallpaper(uri: String, alignX: Float = 0.5f, alignY: Float = 0.5f) {
+        store.updateData {
+            it.copy(customWallpaperUri = uri,
+                wallpaperAlignX = alignX.coerceIn(0f, 1f),
+                wallpaperAlignY = alignY.coerceIn(0f, 1f))
+        }
+    }
+
+    /** Update the focal-point alignment of the current custom wallpaper. */
+    suspend fun setWallpaperAlignment(alignX: Float, alignY: Float) {
+        store.updateData {
+            it.copy(wallpaperAlignX = alignX.coerceIn(0f, 1f),
+                wallpaperAlignY = alignY.coerceIn(0f, 1f))
+        }
     }
 
     /** Toggle "wallpaper behind tiles" mode (the dark screen + show-through tiles). */

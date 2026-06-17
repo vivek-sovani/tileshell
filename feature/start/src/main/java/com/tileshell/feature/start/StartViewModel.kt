@@ -241,9 +241,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setWallpaper(wallpaperId) }
     }
 
-    /** Persist a user-picked custom wallpaper URI (FR-7). */
-    fun setCustomWallpaper(uri: String) {
-        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setCustomWallpaper(uri) }
+    /** Persist a user-picked custom wallpaper URI and its crop alignment (FR-7). */
+    fun setCustomWallpaper(uri: String, alignX: Float = 0.5f, alignY: Float = 0.5f) {
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsRepository.setCustomWallpaper(uri, alignX, alignY)
+        }
     }
 
     /** Toggle "wallpaper behind tiles" mode (dark screen, show-through tiles). */
