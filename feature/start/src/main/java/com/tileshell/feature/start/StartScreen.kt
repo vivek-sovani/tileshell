@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.tileshell.feature.start
 
 import android.content.ComponentName
@@ -24,6 +26,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -718,16 +721,7 @@ private fun StartPage(
         modifier = Modifier
             .fillMaxSize()
             // Tapping empty space in edit mode exits (prototype onDown).
-            .emptySpaceExit(editMode, onExitEdit)
-            // Double-tap empty space (not on a tile) locks the screen.
-            .emptySpaceDoubleTap(
-                editMode = editMode,
-                displaySpecs = { displaySpecs },
-                widthPx = widthPx,
-                statusBarTopPx = statusBarTopPx,
-                scrollOffsetPx = { scrollState.value.toFloat() },
-                onDoubleTap = onLockScreen,
-            ),
+            .emptySpaceExit(editMode, onExitEdit),
     ) {
         Column(
             modifier = Modifier
@@ -890,7 +884,11 @@ private fun StartPage(
                     )
                 }
                 Box(
-                    modifier = Modifier.size(48.dp).clickable(onClick = onPersonalize),
+                    modifier = Modifier.size(48.dp).combinedClickable(
+                        onClick = onPersonalize,
+                        onLongClick = onLockScreen,
+                        onLongClickLabel = "lock screen",
+                    ),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -1500,50 +1498,6 @@ private fun rememberJigglePhase(editMode: Boolean): Float {
         label = "jigglePhase",
     )
     return phase
-}
-
-/**
- * Locks the screen when the user double-taps an empty spot on Start (not on
- * a tile). Applied on the outer [fillMaxSize] Box so it covers the full Start
- * surface including the spacer below the grid. Coordinates are converted from
- * outer-Box space to grid-local space via [statusBarTopPx] + scroll offset so
- * [tileAt] correctly rejects tile positions.
- *
- * Keys: only [editMode] and [widthPx] — NOT [displaySpecs] — so the coroutine
- * is never restarted by live-tile recompositions (every ~2.6 s) which would
- * kill any in-progress gesture.
- */
-private fun Modifier.emptySpaceDoubleTap(
-    editMode: Boolean,
-    displaySpecs: () -> List<TileSpec>,
-    widthPx: Float,
-    statusBarTopPx: Float,
-    scrollOffsetPx: () -> Float,
-    onDoubleTap: () -> Unit,
-): Modifier = pointerInput(editMode, widthPx) {
-    if (editMode) return@pointerInput
-    val geom = GridGeometry.of(widthPx)
-    val slop = 40.dp.toPx()
-    val interval = 500L
-    awaitEachGesture {
-        val placements = GridPacker.pack(displaySpecs())
-        val scrollOff = scrollOffsetPx()
-        fun toGridLocal(pos: Offset) = Offset(pos.x, pos.y - statusBarTopPx + scrollOff)
-
-        val first = awaitFirstDown(requireUnconsumed = false)
-        if (tileAt(placements, geom, toGridLocal(first.position)) != null) return@awaitEachGesture
-        val upFirst = waitForUpOrCancellation() ?: return@awaitEachGesture
-        if ((upFirst.position - first.position).getDistance() > slop) return@awaitEachGesture
-
-        val second = withTimeoutOrNull(interval) {
-            awaitFirstDown(requireUnconsumed = false)
-        } ?: return@awaitEachGesture
-        if (tileAt(placements, geom, toGridLocal(second.position)) != null) return@awaitEachGesture
-        if ((second.position - first.position).getDistance() > slop) return@awaitEachGesture
-
-        onDoubleTap()
-        waitForUpOrCancellation()
-    }
 }
 
 /**
