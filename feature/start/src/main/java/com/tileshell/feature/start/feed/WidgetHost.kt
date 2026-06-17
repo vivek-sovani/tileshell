@@ -18,22 +18,37 @@ import android.view.MotionEvent
 class FeedWidgetHostView(context: Context) : AppWidgetHostView(context) {
     var onLongPress: (() -> Unit)? = null
 
+    // Set when the long-press fires; from then on we intercept the rest of the
+    // gesture so the widget's child views get a CANCEL instead of a click — i.e.
+    // a long-press enters edit mode and does NOT also launch the widget's action.
+    private var longPressed = false
+
     private val detector = GestureDetector(
         context,
         object : GestureDetector.SimpleOnGestureListener() {
             override fun onLongPress(e: MotionEvent) {
+                longPressed = true
                 onLongPress?.invoke()
             }
         },
     )
 
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) longPressed = false
         detector.onTouchEvent(ev)
-        return false
+        // Once the long-press has fired, take over the gesture (children receive
+        // CANCEL, so no tap-through launch); otherwise let children handle touches.
+        return longPressed
     }
 
     override fun onTouchEvent(ev: MotionEvent): Boolean {
         detector.onTouchEvent(ev)
+        if (longPressed) {
+            if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) {
+                longPressed = false
+            }
+            return true
+        }
         return super.onTouchEvent(ev)
     }
 }
