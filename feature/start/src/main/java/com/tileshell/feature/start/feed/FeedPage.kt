@@ -1,14 +1,22 @@
 package com.tileshell.feature.start.feed
 
 import android.Manifest
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,6 +31,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,10 +46,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
@@ -50,6 +60,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tileshell.core.design.TileIcons
+import com.tileshell.feature.personalize.FeedSourceItem
 import com.tileshell.core.design.LocalColorTokens
 import com.tileshell.feature.livetiles.CalendarFace
 import com.tileshell.feature.livetiles.FeedArticle
@@ -90,6 +102,13 @@ import java.util.Calendar
 fun FeedPage(
     accent: Color,
     statusBarTopPx: Float,
+    feedEnabled: Boolean,
+    onFeedEnabledChange: (Boolean) -> Unit,
+    feeds: List<FeedSourceItem>,
+    onToggleFeed: (url: String, enabled: Boolean) -> Unit,
+    onToggleCategory: (category: String, enabled: Boolean) -> Unit,
+    onRemoveFeed: (url: String) -> Unit,
+    onAddFeed: (url: String, name: String) -> Unit,
     onSearch: (String) -> Unit,
     onWeatherDetails: (String) -> Unit,
     onAddSchedule: () -> Unit,
@@ -153,17 +172,28 @@ fun FeedPage(
     val topPad = with(density) { statusBarTopPx.toDp() } + 8.dp
 
     var tab by rememberSaveable { mutableStateOf(FeedTab.GLANCE) }
+    var feedSettingsOpen by rememberSaveable { mutableStateOf(false) }
 
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .background(tokens.bg)
+            .background(tokens.bg),
+    ) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
             .padding(start = 14.dp, end = 14.dp, top = topPad),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         SearchPill(accent = accent, tokens = tokens, onSearch = onSearch)
         GlanceRow(glance = glance, clock = clock, tokens = tokens)
-        FeedTabs(selected = tab, accent = accent, tokens = tokens, onSelect = { tab = it })
+        FeedTabs(
+            selected = tab,
+            accent = accent,
+            tokens = tokens,
+            onSelect = { tab = it },
+            onSettings = { feedSettingsOpen = true },
+        )
 
         // Tab content scrolls independently below the persistent header.
         Column(
@@ -205,7 +235,7 @@ fun FeedPage(
                     if (articles.isEmpty()) {
                         GCard(tokens) {
                             Text(
-                                "no articles yet — pull in news feeds from personalize",
+                                "no articles yet — add news feeds via feed settings ⚙",
                                 color = tokens.fgDim,
                                 fontSize = 14.sp,
                                 modifier = Modifier.padding(16.dp),
@@ -221,19 +251,40 @@ fun FeedPage(
             }
         }
     }
+
+    // Feed settings sheet — slides up over the page when the ⚙ icon is tapped.
+    FeedSettingsSheet(
+        visible = feedSettingsOpen,
+        accent = accent,
+        tokens = tokens,
+        feedEnabled = feedEnabled,
+        onFeedEnabledChange = onFeedEnabledChange,
+        feeds = feeds,
+        onToggleFeed = onToggleFeed,
+        onToggleCategory = onToggleCategory,
+        onRemoveFeed = onRemoveFeed,
+        onAddFeed = onAddFeed,
+        onDismiss = { feedSettingsOpen = false },
+    )
+    }  // Box
 }
 
 private enum class FeedTab { GLANCE, NEWS }
 
-/** Two-segment tab selector (glance | news) for the feed. */
+/** Two-segment tab selector (glance | news) with a trailing settings icon. */
 @Composable
 private fun FeedTabs(
     selected: FeedTab,
     accent: Color,
     tokens: com.tileshell.core.design.ColorTokens,
     onSelect: (FeedTab) -> Unit,
+    onSettings: () -> Unit,
 ) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         FeedTab.values().forEach { t ->
             val on = t == selected
             Column(
@@ -258,6 +309,26 @@ private fun FeedTabs(
                         .background(if (on) accent else Color.Transparent),
                 )
             }
+        }
+        Spacer(Modifier.weight(1f))
+        // Settings gear — opens FeedSettingsSheet.
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onSettings,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = TileIcons["settings"],
+                contentDescription = "feed settings",
+                tint = tokens.fgDim,
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }
@@ -636,6 +707,340 @@ private fun ArticleCard(
                     fontSize = 12.sp,
                 )
             }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Feed settings sheet
+// ---------------------------------------------------------------------------
+
+private val FEED_CATEGORY_LABELS = linkedMapOf(
+    "nation" to "national news",
+    "state" to "local news",
+    "entertainment" to "entertainment",
+    "cricket" to "cricket",
+    "sports" to "sports",
+    "tech" to "technology",
+    "business" to "business",
+    "food" to "food",
+)
+
+/**
+ * Slide-up bottom sheet with news/feed settings: toggle the feed page on/off and
+ * manage subscribed RSS categories + custom feed URLs. Mirrors the PersonalizeSheet
+ * animation (300 ms cubic-bezier) and visual language (grip, lowercase title, token
+ * colours) so the two sheets feel like the same system.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FeedSettingsSheet(
+    visible: Boolean,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+    feedEnabled: Boolean,
+    onFeedEnabledChange: (Boolean) -> Unit,
+    feeds: List<FeedSourceItem>,
+    onToggleFeed: (url: String, enabled: Boolean) -> Unit,
+    onToggleCategory: (category: String, enabled: Boolean) -> Unit,
+    onRemoveFeed: (url: String) -> Unit,
+    onAddFeed: (url: String, name: String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val progress by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(300, easing = CubicBezierEasing(0.22f, 0.61f, 0.36f, 1f)),
+        label = "feedSheetProgress",
+    )
+    if (!visible && progress == 0f) return
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Scrim.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.5f * progress))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss,
+                ),
+        )
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .fillMaxHeight(0.82f)
+                .graphicsLayer { translationY = size.height * (1f - progress) }
+                .background(tokens.sheet)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {},
+                )
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .padding(bottom = 24.dp),
+        ) {
+            // Grip.
+            Box(
+                modifier = Modifier
+                    .padding(top = 10.dp, bottom = 4.dp)
+                    .align(Alignment.CenterHorizontally)
+                    .width(40.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(tokens.fgDim.copy(alpha = 0.5f)),
+            )
+            Text(
+                text = "news settings",
+                color = tokens.fg,
+                fontSize = 30.sp,
+                fontWeight = FontWeight.W200,
+                letterSpacing = (-1).sp,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 14.dp),
+            )
+
+            // Toggle: show feed page.
+            Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
+                FeedSettingToggle(
+                    label = "show feed page",
+                    on = feedEnabled,
+                    accent = accent,
+                    tokens = tokens,
+                    onChange = onFeedEnabledChange,
+                )
+            }
+
+            // Feed sources section.
+            FeedSheetGroup(label = "news feeds", labelColor = tokens.fgDim) {
+                FeedsManager(
+                    feeds = feeds,
+                    accent = accent,
+                    tokens = tokens,
+                    onToggleFeed = onToggleFeed,
+                    onToggleCategory = onToggleCategory,
+                    onRemove = onRemoveFeed,
+                    onAdd = onAddFeed,
+                )
+            }
+        }
+    }
+}
+
+/** A section group in the feed settings sheet. */
+@Composable
+private fun FeedSheetGroup(
+    label: String,
+    labelColor: Color,
+    content: @Composable () -> Unit,
+) {
+    Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 18.dp)) {
+        Text(
+            text = label,
+            color = labelColor,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(bottom = 10.dp),
+        )
+        content()
+    }
+}
+
+/** A simple pill-toggle row for use inside the feed settings sheet. */
+@Composable
+private fun FeedSettingToggle(
+    label: String,
+    on: Boolean,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+    onChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onChange(!on) }
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = label, color = tokens.fg, fontSize = 14.sp)
+        Spacer(Modifier.weight(1f))
+        Box(
+            modifier = Modifier
+                .width(40.dp)
+                .height(22.dp)
+                .clip(RoundedCornerShape(11.dp))
+                .background(if (on) accent else tokens.tileLine),
+            contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 3.dp)
+                    .size(16.dp)
+                    .clip(CircleShape)
+                    .background(Color.White),
+            )
+        }
+    }
+}
+
+/** Pill toggle used for individual feed items within categories. */
+@Composable
+private fun FeedItemPill(
+    on: Boolean,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .width(40.dp)
+            .height(22.dp)
+            .clip(RoundedCornerShape(11.dp))
+            .background(if (on) accent else tokens.tileLine)
+            .clickable(onClick = onClick),
+        contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 3.dp)
+                .size(16.dp)
+                .clip(CircleShape)
+                .background(Color.White),
+        )
+    }
+}
+
+/** Selectable chip for per-feed source selection. */
+@Composable
+private fun FeedSourceChip(
+    label: String,
+    on: Boolean,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .then(
+                if (on) Modifier.background(accent)
+                else Modifier.border(1.dp, tokens.tileLine, RoundedCornerShape(16.dp)),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Text(label, color = if (on) Color.White else tokens.fgDim, fontSize = 13.sp)
+    }
+}
+
+/**
+ * Category-grouped feed management: toggle categories and individual sources,
+ * manage custom URLs. Identical in function to the version previously hosted in
+ * PersonalizeSheet; now lives here alongside the news content it configures.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FeedsManager(
+    feeds: List<FeedSourceItem>,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+    onToggleFeed: (String, Boolean) -> Unit,
+    onToggleCategory: (String, Boolean) -> Unit,
+    onRemove: (String) -> Unit,
+    onAdd: (String, String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        FEED_CATEGORY_LABELS.forEach { (category, label) ->
+            val inCategory = feeds.filter { it.category == category }
+            if (inCategory.isEmpty()) return@forEach
+            val anyOn = inCategory.any { it.enabled }
+            FeedSettingToggle(label = label, on = anyOn, accent = accent, tokens = tokens) {
+                onToggleCategory(category, it)
+            }
+            if (anyOn) {
+                FlowRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    inCategory.forEach { feed ->
+                        FeedSourceChip(feed.name, feed.enabled, accent, tokens) {
+                            onToggleFeed(feed.url, !feed.enabled)
+                        }
+                    }
+                }
+            }
+        }
+
+        val customFeeds = feeds.filter { it.category !in FEED_CATEGORY_LABELS }
+        if (customFeeds.isNotEmpty()) {
+            Text("custom feeds", color = tokens.fgDim, fontSize = 12.sp)
+            customFeeds.forEach { feed ->
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        feed.name,
+                        color = if (feed.enabled) tokens.fg else tokens.fgDim,
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        "remove",
+                        color = tokens.fgDim,
+                        fontSize = 12.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onRemove(feed.url) }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    FeedItemPill(on = feed.enabled, accent = accent, tokens = tokens) {
+                        onToggleFeed(feed.url, !feed.enabled)
+                    }
+                }
+            }
+        }
+
+        var url by remember { mutableStateOf("") }
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .border(1.dp, tokens.tileLine, RoundedCornerShape(10.dp))
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                BasicTextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    singleLine = true,
+                    textStyle = TextStyle(color = tokens.fg, fontSize = 14.sp),
+                    cursorBrush = SolidColor(accent),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = {
+                        if (url.isNotBlank()) { onAdd(url, ""); url = "" }
+                    }),
+                    decorationBox = { inner ->
+                        if (url.isEmpty()) Text("add feed url", color = tokens.fgDim, fontSize = 14.sp)
+                        inner()
+                    },
+                )
+            }
+            Text(
+                "add",
+                color = accent,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { if (url.isNotBlank()) { onAdd(url, ""); url = "" } }
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+            )
         }
     }
 }

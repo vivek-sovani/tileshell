@@ -466,6 +466,13 @@ fun StartScreen(
                     FeedPage(
                         accent = accent,
                         statusBarTopPx = statusBarTopPx,
+                        feedEnabled = settings.feedEnabled,
+                        onFeedEnabledChange = viewModel::setFeedEnabled,
+                        feeds = feedSources.map { FeedSourceItem(it.url, it.name, it.category, it.enabled) },
+                        onToggleFeed = viewModel::setFeedSourceEnabled,
+                        onToggleCategory = viewModel::setFeedCategoryEnabled,
+                        onRemoveFeed = viewModel::removeFeedSource,
+                        onAddFeed = viewModel::addFeedSource,
                         onSearch = { query -> launchWebSearch(context, query) },
                         onWeatherDetails = { query -> launchWebSearch(context, query) },
                         onAddSchedule = { launchAddEvent(context) },
@@ -495,12 +502,6 @@ fun StartScreen(
             tiledWallpaper = settings.tiledWallpaper,
             onTiledWallpaperChange = viewModel::setTiledWallpaper,
             feedEnabled = settings.feedEnabled,
-            onFeedEnabledChange = viewModel::setFeedEnabled,
-            feeds = feedSources.map { FeedSourceItem(it.url, it.name, it.category, it.enabled) },
-            onToggleFeed = viewModel::setFeedSourceEnabled,
-            onToggleCategory = viewModel::setFeedCategoryEnabled,
-            onRemoveFeed = viewModel::removeFeedSource,
-            onAddFeed = viewModel::addFeedSource,
             onAddLiveTile = { appId ->
                 viewModel.addLiveTile(appId)
                 Toast.makeText(context, "added $appId tile", Toast.LENGTH_SHORT).show()

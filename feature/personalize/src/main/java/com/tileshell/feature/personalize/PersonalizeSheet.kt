@@ -10,7 +10,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -25,9 +24,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
@@ -36,20 +32,14 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.design.TileAccents
@@ -84,12 +74,6 @@ fun PersonalizeSheet(
     tiledWallpaper: Boolean,
     onTiledWallpaperChange: (Boolean) -> Unit,
     feedEnabled: Boolean,
-    onFeedEnabledChange: (Boolean) -> Unit,
-    feeds: List<FeedSourceItem>,
-    onToggleFeed: (url: String, enabled: Boolean) -> Unit,
-    onToggleCategory: (category: String, enabled: Boolean) -> Unit,
-    onRemoveFeed: (url: String) -> Unit,
-    onAddFeed: (url: String, name: String) -> Unit,
     onAddLiveTile: (appId: String) -> Unit,
     onSystemSettings: () -> Unit,
     followSystemTheme: Boolean,
@@ -230,9 +214,6 @@ fun PersonalizeSheet(
                 Spacer(Modifier.height(14.dp))
                 // Show-through mode: dark screen, wallpaper visible only behind tiles.
                 ToggleRow("wallpaper behind tiles", on = tiledWallpaper, accent = accent, tokens, onTiledWallpaperChange)
-                Spacer(Modifier.height(14.dp))
-                // The left "feed" page (swipe right from Start).
-                ToggleRow("left feed page", on = feedEnabled, accent = accent, tokens, onFeedEnabledChange)
             }
 
             // ---- live tiles (re-add a deleted clock/weather/calendar tile) ----
@@ -372,202 +353,7 @@ fun PersonalizeSheet(
                     )
                 }
             }
-
-            // ---- news feeds (left feed discover section) — kept last; only
-            // relevant when the feed page itself is on ----
-            if (feedEnabled) {
-                SettingGroup(label = "news feeds", tokens.fgDim) {
-                    FeedsManager(
-                        feeds = feeds,
-                        accent = accent,
-                        tokens = tokens,
-                        onToggleFeed = onToggleFeed,
-                        onToggleCategory = onToggleCategory,
-                        onRemove = onRemoveFeed,
-                        onAdd = onAddFeed,
-                    )
-                }
-            }
         }
-    }
-}
-
-// Display order + labels for the known categories; feeds in other categories are
-// treated as user-added "custom" feeds.
-private val FEED_CATEGORY_LABELS = linkedMapOf(
-    "nation" to "national news",
-    "state" to "local news",
-    "entertainment" to "entertainment",
-    "cricket" to "cricket",
-    "sports" to "sports",
-    "tech" to "technology",
-    "business" to "business",
-    "food" to "food",
-)
-
-/**
- * News management: feeds grouped under each category. The category header toggles
- * all its feeds at once; each feed below has its own toggle so individual sources
- * can be picked. Custom (user-added) feeds get a remove action, plus a field to add
- * a custom RSS/Atom URL. Wired to the host's FeedStore.
- */
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-@Composable
-private fun FeedsManager(
-    feeds: List<FeedSourceItem>,
-    accent: Color,
-    tokens: com.tileshell.core.design.ColorTokens,
-    onToggleFeed: (String, Boolean) -> Unit,
-    onToggleCategory: (String, Boolean) -> Unit,
-    onRemove: (String) -> Unit,
-    onAdd: (String, String) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        FEED_CATEGORY_LABELS.forEach { (category, label) ->
-            val inCategory = feeds.filter { it.category == category }
-            if (inCategory.isEmpty()) return@forEach
-            val anyOn = inCategory.any { it.enabled }
-            ToggleRow(label = label, on = anyOn, accent = accent, tokens = tokens) {
-                onToggleCategory(category, it)
-            }
-            // Individual feeds expand for selection only while the category is on,
-            // shown as tappable chips (filled = selected) to keep it compact.
-            if (anyOn) {
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth().padding(start = 14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    inCategory.forEach { feed ->
-                        FeedChip(feed.name, feed.enabled, accent, tokens) {
-                            onToggleFeed(feed.url, !feed.enabled)
-                        }
-                    }
-                }
-            }
-        }
-
-        val customFeeds = feeds.filter { it.category !in FEED_CATEGORY_LABELS }
-        if (customFeeds.isNotEmpty()) {
-            Text("custom feeds", color = tokens.fgDim, fontSize = 12.sp)
-            customFeeds.forEach { feed ->
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        feed.name,
-                        color = if (feed.enabled) tokens.fg else tokens.fgDim,
-                        fontSize = 14.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text(
-                        "remove",
-                        color = tokens.fgDim,
-                        fontSize = 12.sp,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onRemove(feed.url) }
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    TogglePill(on = feed.enabled, accent = accent, tokens = tokens) {
-                        onToggleFeed(feed.url, !feed.enabled)
-                    }
-                }
-            }
-        }
-
-        var url by remember { mutableStateOf("") }
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .border(1.dp, tokens.tileLine, RoundedCornerShape(10.dp))
-                    .padding(horizontal = 12.dp),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                BasicTextField(
-                    value = url,
-                    onValueChange = { url = it },
-                    singleLine = true,
-                    textStyle = TextStyle(color = tokens.fg, fontSize = 14.sp),
-                    cursorBrush = SolidColor(accent),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = {
-                        if (url.isNotBlank()) { onAdd(url, ""); url = "" }
-                    }),
-                    decorationBox = { inner ->
-                        if (url.isEmpty()) Text("add feed url", color = tokens.fgDim, fontSize = 14.sp)
-                        inner()
-                    },
-                )
-            }
-            Text(
-                "add",
-                color = accent,
-                fontSize = 14.sp,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { if (url.isNotBlank()) { onAdd(url, ""); url = "" } }
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-            )
-        }
-    }
-}
-
-/** A compact selectable chip (filled = on) used for per-feed selection. */
-@Composable
-private fun FeedChip(
-    label: String,
-    on: Boolean,
-    accent: Color,
-    tokens: com.tileshell.core.design.ColorTokens,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .then(
-                if (on) Modifier.background(accent)
-                else Modifier.border(1.dp, tokens.tileLine, RoundedCornerShape(16.dp)),
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        Text(
-            label,
-            color = if (on) Color.White else tokens.fgDim,
-            fontSize = 13.sp,
-        )
-    }
-}
-
-/** The standalone pill toggle (the switch part of [ToggleRow]). */
-@Composable
-private fun TogglePill(
-    on: Boolean,
-    accent: Color,
-    tokens: com.tileshell.core.design.ColorTokens,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .width(40.dp)
-            .height(22.dp)
-            .clip(RoundedCornerShape(11.dp))
-            .background(if (on) accent else tokens.tileLine)
-            .clickable(onClick = onClick),
-        contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
-    ) {
-        Box(
-            modifier = Modifier
-                .padding(horizontal = 3.dp)
-                .size(16.dp)
-                .clip(CircleShape)
-                .background(Color.White),
-        )
     }
 }
 
