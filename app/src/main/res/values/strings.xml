@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">tileshell</string>
+    <string name="lock_accessibility_service_description">Lets TileShell lock the screen from the Start screen while keeping fingerprint unlock available.</string>
 </resources>

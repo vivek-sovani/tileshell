@@ -5,45 +5,33 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.provider.Settings
 import android.util.Log
-import android.widget.Toast
 
 private const val TAG = "TileShell.LockScreen"
 
-/**
- * Locks the screen immediately if device-admin is active, otherwise launches the
- * system activation prompt. Context must be an Activity — no FLAG_ACTIVITY_NEW_TASK
- * so the dialog launches in the same task (required on Android 14 from a HOME activity).
- */
 fun lockScreen(context: Context) {
+    // Preferred: accessibility GLOBAL_ACTION_LOCK_SCREEN — biometric unlock still works (API 28+).
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && LockAccessibilityService.lockScreen()) return
+
+    // Fallback: device admin lockNow() — requires PIN on next unlock (no biometrics).
     val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
     val admin = ComponentName(context, LockAdminReceiver::class.java)
     if (dpm.isAdminActive(admin)) {
         dpm.lockNow()
+        return
+    }
+
+    // Neither enabled — prompt user to enable the accessibility service.
+    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+    val activity = context as? Activity
+    if (activity != null) {
+        runCatching { activity.startActivity(intent) }
+            .onFailure { Log.e(TAG, "accessibility settings failed", it) }
     } else {
-        val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
-            .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin)
-            .putExtra(
-                DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                "Lets TileShell lock the screen when you long-press the settings icon on Start.",
-            )
-        val activity = context as? Activity
-        if (activity != null) {
-            // Preferred: same-task start from the Activity so Android 14 shows the dialog.
-            runCatching { activity.startActivity(intent) }
-                .onFailure { Log.e(TAG, "admin dialog failed", it) }
-        } else {
-            // Fallback (application context): needs the flag but may be silently blocked on 14+.
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            runCatching { context.startActivity(intent) }
-                .onFailure {
-                    Log.e(TAG, "admin dialog failed (app ctx)", it)
-                    Toast.makeText(
-                        context,
-                        "go to Settings → Security → Device admin apps to enable screen lock",
-                        Toast.LENGTH_LONG,
-                    ).show()
-                }
-        }
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(intent) }
+            .onFailure { Log.e(TAG, "accessibility settings failed (app ctx)", it) }
     }
 }

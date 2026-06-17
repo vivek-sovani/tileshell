@@ -48,6 +48,21 @@
              traces from non-debuggable (release/benchmark) builds (S26). -->
         <profileable android:shell="true" />
 
+        <!-- Accessibility service used to lock the screen via GLOBAL_ACTION_LOCK_SCREEN
+             (API 28+). Preserves biometric unlock unlike DevicePolicyManager.lockNow(). -->
+        <service
+            android:name=".LockAccessibilityService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/lock_accessibility_service" />
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+        </service>
+
         <!-- Device-admin receiver that grants the force-lock policy, used by
              the double-tap-to-sleep gesture on the Start screen. The user
              must activate it once via the system's device-admin prompt. -->
