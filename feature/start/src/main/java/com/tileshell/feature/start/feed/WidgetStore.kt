@@ -71,6 +71,18 @@ class WidgetStore(private val store: DataStore<WidgetData>) {
         }
     }
 
+    /** Swap [widgetId] with its neighbour, moving it up (or down) one position. */
+    suspend fun move(widgetId: Int, up: Boolean) {
+        store.updateData { data ->
+            val list = data.widgets.toMutableList()
+            val i = list.indexOfFirst { it.widgetId == widgetId }
+            val j = if (up) i - 1 else i + 1
+            if (i < 0 || j !in list.indices) return@updateData data
+            val tmp = list[i]; list[i] = list[j]; list[j] = tmp
+            data.copy(widgets = list)
+        }
+    }
+
     companion object {
         fun create(context: Context): WidgetStore =
             WidgetStore(context.applicationContext.widgetDataStore)

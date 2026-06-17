@@ -163,7 +163,7 @@ fun WidgetSection(accent: Color, tokens: ColorTokens) {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        widgets.widgets.forEach { hw ->
+        widgets.widgets.forEachIndexed { index, hw ->
             WidgetView(
                 host = host,
                 manager = manager,
@@ -171,6 +171,10 @@ fun WidgetSection(accent: Color, tokens: ColorTokens) {
                 widthDp = widthDp,
                 accent = accent,
                 tokens = tokens,
+                canMoveUp = index > 0,
+                canMoveDown = index < widgets.widgets.lastIndex,
+                onMoveUp = { scope.launch { store.move(hw.widgetId, up = true) } },
+                onMoveDown = { scope.launch { store.move(hw.widgetId, up = false) } },
                 onResize = { newH -> scope.launch { store.setHeight(hw.widgetId, newH) } },
                 onEdit = { info ->
                     val cfg = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE)
@@ -216,6 +220,10 @@ private fun WidgetView(
     widthDp: Int,
     accent: Color,
     tokens: ColorTokens,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
     onResize: (Int) -> Unit,
     onEdit: (AppWidgetProviderInfo) -> Unit,
     onRemove: () -> Unit,
@@ -263,6 +271,14 @@ private fun WidgetView(
                     .background(Color.Black.copy(alpha = 0.35f))
                     .clickable { editing = false },
             )
+            // Top-left controls: reorder up / down.
+            Row(
+                modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                if (canMoveUp) EditPill("↑", accent, onClick = onMoveUp)
+                if (canMoveDown) EditPill("↓", accent, onClick = onMoveDown)
+            }
             // Top-right controls: edit (reconfigure) + remove.
             Row(
                 modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
