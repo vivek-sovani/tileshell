@@ -12,26 +12,43 @@ import android.util.Log
 private const val TAG = "TileShell.LockScreen"
 
 fun lockScreen(context: Context) {
-    // Preferred: accessibility GLOBAL_ACTION_LOCK_SCREEN — biometric unlock still works (API 28+).
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && LockAccessibilityService.lockScreen()) return
-
-    // Fallback: device admin lockNow() — requires PIN on next unlock (no biometrics).
     val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
     val admin = ComponentName(context, LockAdminReceiver::class.java)
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        // Remove the device-admin grant if it is still active. It is no longer needed
+        // and its presence keeps the "must use PIN" secure-lock flag on some devices.
+        if (dpm.isAdminActive(admin)) runCatching { dpm.removeActiveAdmin(admin) }
+
+        if (LockAccessibilityService.lockScreen()) return
+
+        // Accessibility service not yet enabled — send the user to turn it on.
+        openSettings(context, Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        return
+    }
+
+    // API 26–27 only: fall back to device admin (biometrics won't work, but screen locks).
     if (dpm.isAdminActive(admin)) {
         dpm.lockNow()
         return
     }
+    val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
+        .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin)
+        .putExtra(
+            DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+            "Lets TileShell lock the screen when you long-press the settings icon on Start.",
+        )
+    openSettings(context, null, intent)
+}
 
-    // Neither enabled — prompt user to enable the accessibility service.
-    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+private fun openSettings(context: Context, action: String?, intent: Intent = Intent(action)) {
     val activity = context as? Activity
     if (activity != null) {
         runCatching { activity.startActivity(intent) }
-            .onFailure { Log.e(TAG, "accessibility settings failed", it) }
+            .onFailure { Log.e(TAG, "settings launch failed", it) }
     } else {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         runCatching { context.startActivity(intent) }
-            .onFailure { Log.e(TAG, "accessibility settings failed (app ctx)", it) }
+            .onFailure { Log.e(TAG, "settings launch failed (app ctx)", it) }
     }
 }
