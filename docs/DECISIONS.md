@@ -1216,3 +1216,26 @@ Five feed follow-ups.
 - **Fewer toggles → chips.** Per-feed selection under an expanded category is now a `FlowRow`
   of tappable chips (filled = selected) instead of a toggle pill per row, which was getting
   noisy (local alone has 7 feeds). Category headers stay toggle rows.
+
+## Feed tabs + Android widget host
+
+The feed page is now tabbed (**glance | news**) and the glance tab hosts a real
+Android app widget.
+
+- **Tabs.** Search pill + glance row (date/clock) stay persistent at the top; a two-
+  segment selector switches between the **glance** tab (weather, today, now-playing,
+  widget) and the **news** tab (the discover feed). Each tab scrolls independently; the
+  selected tab is `rememberSaveable`.
+- **Widget host — self-contained, no MainActivity plumbing.** `WidgetSlot` owns an
+  `AppWidgetHost` (started/stopped via `DisposableEffect` while the glance tab is composed),
+  runs the system widget picker (`ACTION_APPWIDGET_PICK`) and the optional configure
+  activity via `rememberLauncherForActivityResult` (the composition is already activity-
+  hosted, so `:app` needs no changes), persists the bound widget id in a new `WidgetStore`
+  DataStore, and renders the live `AppWidgetHostView` through `AndroidView`. Empty → an
+  "add a widget" prompt; a "change"/"remove" affordance manages it. Everything is
+  `runCatching`-guarded, and a widget whose provider was uninstalled (null info) clears
+  itself — so a device that blocks third-party widget hosting just shows the prompt.
+- Chose the `ACTION_APPWIDGET_PICK` path (system picker handles the bind for the host)
+  over manual `bindAppWidgetIdIfAllowed` + `ACTION_APPWIDGET_BIND`, since `BIND_APPWIDGET`
+  is signature-level and the launcher is the host. Added the `androidx.datastore` dep to
+  `:feature:start` for `WidgetStore`.

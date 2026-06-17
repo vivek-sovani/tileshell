@@ -29,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -151,52 +152,111 @@ fun FeedPage(
     val clock = feedClock12(now)
     val topPad = with(density) { statusBarTopPx.toDp() } + 8.dp
 
+    var tab by rememberSaveable { mutableStateOf(FeedTab.GLANCE) }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(tokens.bg)
-            .verticalScroll(rememberScrollState())
-            .padding(start = 14.dp, end = 14.dp, top = topPad, bottom = 24.dp)
-            .navigationBarsPadding(),
+            .padding(start = 14.dp, end = 14.dp, top = topPad),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         SearchPill(accent = accent, tokens = tokens, onSearch = onSearch)
         GlanceRow(glance = glance, clock = clock, tokens = tokens)
+        FeedTabs(selected = tab, accent = accent, tokens = tokens, onSelect = { tab = it })
 
-        SectionLabel("weather", tokens.fgDim)
-        WeatherCard(
-            snapshot = snapshot,
-            accent = accent,
-            onClick = { onWeatherDetails(("weather " + (snapshot?.place ?: "")).trim()) },
-        )
+        // Tab content scrolls independently below the persistent header.
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 24.dp)
+                .navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            when (tab) {
+                FeedTab.GLANCE -> {
+                    SectionLabel("weather", tokens.fgDim)
+                    WeatherCard(
+                        snapshot = snapshot,
+                        accent = accent,
+                        onClick = { onWeatherDetails(("weather " + (snapshot?.place ?: "")).trim()) },
+                    )
 
-        SectionHeader("today", actionText = "add", accent = accent, tokens = tokens, showPlus = true, onAction = onAddSchedule)
-        AgendaCard(agenda = agenda, granted = calGranted, accent = accent)
+                    SectionHeader("today", actionText = "add", accent = accent, tokens = tokens, showPlus = true, onAction = onAddSchedule)
+                    AgendaCard(agenda = agenda, granted = calGranted, accent = accent)
 
-        if (nowPlaying != null) {
-            NowPlayingCard(
-                nowPlaying = nowPlaying,
-                packageName = nowPlayingPackage,
-                art = nowPlayingPackage?.let { artwork[it] },
-                accent = accent,
-            )
-        }
+                    if (nowPlaying != null) {
+                        NowPlayingCard(
+                            nowPlaying = nowPlaying,
+                            packageName = nowPlayingPackage,
+                            art = nowPlayingPackage?.let { artwork[it] },
+                            accent = accent,
+                        )
+                    }
 
-        SectionHeader("discover", actionText = "refresh", accent = accent, tokens = tokens, onAction = onRefresh)
-        val articles = feedData.articles
-        if (articles.isEmpty()) {
-            GCard(tokens) {
-                Text(
-                    "no articles yet — pull in news feeds from personalize",
-                    color = tokens.fgDim,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(16.dp),
-                )
+                    SectionLabel("widget", tokens.fgDim)
+                    WidgetSlot(accent = accent, tokens = tokens)
+                }
+
+                FeedTab.NEWS -> {
+                    SectionHeader("discover", actionText = "refresh", accent = accent, tokens = tokens, onAction = onRefresh)
+                    val articles = feedData.articles
+                    if (articles.isEmpty()) {
+                        GCard(tokens) {
+                            Text(
+                                "no articles yet — pull in news feeds from personalize",
+                                color = tokens.fgDim,
+                                fontSize = 14.sp,
+                                modifier = Modifier.padding(16.dp),
+                            )
+                        }
+                    } else {
+                        val nowMs = now.timeInMillis
+                        articles.forEach { article ->
+                            ArticleCard(article, nowMs, accent, tokens) { onOpenArticle(article.link) }
+                        }
+                    }
+                }
             }
-        } else {
-            val nowMs = now.timeInMillis
-            articles.forEach { article ->
-                ArticleCard(article, nowMs, accent, tokens) { onOpenArticle(article.link) }
+        }
+    }
+}
+
+private enum class FeedTab { GLANCE, NEWS }
+
+/** Two-segment tab selector (glance | news) for the feed. */
+@Composable
+private fun FeedTabs(
+    selected: FeedTab,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+    onSelect: (FeedTab) -> Unit,
+) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+        FeedTab.values().forEach { t ->
+            val on = t == selected
+            Column(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onSelect(t) }
+                    .padding(vertical = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    if (t == FeedTab.GLANCE) "glance" else "news",
+                    color = if (on) accent else tokens.fgDim,
+                    fontSize = 16.sp,
+                    fontWeight = if (on) FontWeight.Medium else FontWeight.Normal,
+                )
+                Spacer(Modifier.height(3.dp))
+                Box(
+                    modifier = Modifier
+                        .height(2.dp)
+                        .width(if (on) 22.dp else 0.dp)
+                        .clip(RoundedCornerShape(1.dp))
+                        .background(if (on) accent else Color.Transparent),
+                )
             }
         }
     }
