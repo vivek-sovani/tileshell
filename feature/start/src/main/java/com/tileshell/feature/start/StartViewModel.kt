@@ -236,6 +236,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setBlur(blur) }
     }
 
+    /** Remove all wallpaper (shows the theme bg colour). */
+    fun clearWallpaper() {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.clearWallpaper() }
+    }
+
     /** Select a bundled gradient wallpaper, clearing any custom photo (FR-7). */
     fun setWallpaper(wallpaperId: String) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setWallpaper(wallpaperId) }

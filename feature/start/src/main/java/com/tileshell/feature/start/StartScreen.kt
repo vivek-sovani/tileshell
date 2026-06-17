@@ -154,6 +154,7 @@ import com.tileshell.core.design.OutfitFamily
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.Wallpapers
+import com.tileshell.core.design.Wallpapers.NONE_ID
 import com.tileshell.core.design.colorTokens
 import com.tileshell.core.design.tileGradientBrush
 import com.tileshell.core.design.tiltOnPress
@@ -225,6 +226,7 @@ fun StartScreen(
     // chrome (sheet, edit bar, app list) re-skins live when personalization changes.
     val tokens = colorTokens(dark)
     val accent = TileAccents.forId(settings.accentId)
+    val noWallpaper = settings.wallpaperId == NONE_ID && settings.customWallpaperUri == null
     val wallpaper = Wallpapers.forId(settings.wallpaperId)
     // Transparent-tile fill at the current slider (FR-7); null when glass is off.
     val glassFill = if (settings.glass) Glass.fill(dark, settings.transparency) else null
@@ -343,9 +345,12 @@ fun StartScreen(
         // Wallpaper layer (FR-7): selected gradient or custom photo, optionally
         // blurred. Drawn first so all content sits above it. In "wallpaper behind
         // tiles" mode the screen instead goes flat dark — the wallpaper shows only
-        // through the tiles, keeping every gap/border dark.
+        // through the tiles, keeping every gap/border dark. "none" skips the image
+        // layer entirely and the theme bg colour shows through.
         if (tiledWallpaper) {
             Box(modifier = Modifier.fillMaxSize().background(TiledScreenDark))
+        } else if (noWallpaper) {
+            Box(modifier = Modifier.fillMaxSize().background(tokens.bg))
         } else {
             WallpaperBackground(
                 gradient = wallpaper,
@@ -542,6 +547,7 @@ fun StartScreen(
             onBlurChange = viewModel::setBlur,
             onWallpaperChange = viewModel::setWallpaper,
             onPickCustomWallpaper = { wallpaperPicker.launch(arrayOf("image/*")) },
+            onClearWallpaper = viewModel::clearWallpaper,
             onResetLayout = {
                 viewModel.resetLayout()
                 Toast.makeText(context, "layout reset", Toast.LENGTH_SHORT).show()

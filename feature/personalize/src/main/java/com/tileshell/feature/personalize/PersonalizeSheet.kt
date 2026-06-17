@@ -48,6 +48,7 @@ import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.WallpaperGradient
 import com.tileshell.core.design.Wallpapers
+import com.tileshell.core.design.Wallpapers.NONE_ID
 import com.tileshell.core.design.colorTokens
 import com.tileshell.core.design.wallpaperBackground
 
@@ -87,6 +88,7 @@ fun PersonalizeSheet(
     onBlurChange: (Boolean) -> Unit,
     onWallpaperChange: (id: String) -> Unit,
     onPickCustomWallpaper: () -> Unit,
+    onClearWallpaper: () -> Unit,
     onResetLayout: () -> Unit,
     photosSelected: Int,
     onPickPhotos: () -> Unit,
@@ -377,8 +379,13 @@ fun PersonalizeSheet(
                             onClick = { onWallpaperChange(wp.id) },
                         )
                     }
-                    // Keep the bottom row's cells the same width as the top row's.
-                    repeat(1) { Spacer(Modifier.weight(1f)) }
+                    // "Remove wallpaper" cell fills the trailing slot in the bottom row.
+                    NoneWallpaperCell(
+                        selected = !customWallpaper && wallpaperId == NONE_ID,
+                        tokens = tokens,
+                        modifier = Modifier.weight(1f),
+                        onClick = onClearWallpaper,
+                    )
                 }
             }
 
@@ -498,6 +505,33 @@ private fun PhotoButton(
         )
         Spacer(Modifier.height(4.dp))
         Text(text = "photo", color = tokens.fgDim, fontSize = 11.sp)
+    }
+}
+
+/** "No wallpaper" cell — shows a slashed circle on the theme bg colour. */
+@Composable
+private fun NoneWallpaperCell(
+    selected: Boolean,
+    tokens: com.tileshell.core.design.ColorTokens,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .aspectRatio(1f)
+            .then(if (selected) Modifier.border(2.5.dp, tokens.fg).padding(4.dp) else Modifier)
+            .clip(RoundedCornerShape(4.dp))
+            .background(tokens.bg)
+            .border(1.dp, tokens.tileLine, RoundedCornerShape(4.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = TileIcons["close"],
+            contentDescription = "remove wallpaper",
+            tint = tokens.fgDim,
+            modifier = Modifier.size(18.dp),
+        )
     }
 }
 

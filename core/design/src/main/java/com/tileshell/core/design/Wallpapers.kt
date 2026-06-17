@@ -96,6 +96,9 @@ object Wallpapers {
     val byId: Map<String, WallpaperGradient> = all.associateBy { it.id }
 
     fun forId(id: String?): WallpaperGradient = byId[id] ?: Aurora
+
+    /** Sentinel id meaning "no wallpaper — render the theme bg colour". */
+    const val NONE_ID = "none"
 }
 
 /**

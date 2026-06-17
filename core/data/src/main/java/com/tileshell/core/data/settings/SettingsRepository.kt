@@ -91,6 +91,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         }
     }
 
+    /** Remove all wallpaper (custom photo + gradient), leaving the theme bg colour. */
+    suspend fun clearWallpaper() {
+        store.updateData { it.copy(wallpaperId = "none", customWallpaperUri = null) }
+    }
+
     /** Toggle "wallpaper behind tiles" mode (the dark screen + show-through tiles). */
     suspend fun setTiledWallpaper(on: Boolean) {
         store.updateData { it.copy(tiledWallpaper = on) }
