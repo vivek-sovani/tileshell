@@ -17,6 +17,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -54,6 +56,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tileshell.core.design.ColorTokens
 import kotlinx.coroutines.launch
@@ -263,49 +267,70 @@ private fun WidgetView(
         }
 
         if (editing) {
-            // Dim scrim over the widget; tap it to leave edit mode.
+            // Dim scrim (visual only; Popup below owns touch handling).
             Box(
                 modifier = Modifier
                     .matchParentSize()
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Color.Black.copy(alpha = 0.35f))
-                    .clickable { editing = false },
+                    .background(Color.Black.copy(alpha = 0.35f)),
             )
-            // Top-left controls: reorder up / down.
-            Row(
-                modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            // Window-level Popup anchored to this widget Box. dismissOnClickOutside
+            // fires onDismissRequest for any touch outside the widget's bounds, so
+            // tapping anywhere else on the feed page also exits edit mode.
+            Popup(
+                alignment = Alignment.TopStart,
+                onDismissRequest = { editing = false },
+                properties = PopupProperties(
+                    dismissOnClickOutside = true,
+                    dismissOnBackPress = true,
+                ),
             ) {
-                if (canMoveUp) EditPill("↑", accent, onClick = onMoveUp)
-                if (canMoveDown) EditPill("↓", accent, onClick = onMoveDown)
-            }
-            // Top-right controls: edit (reconfigure) + remove.
-            Row(
-                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                if (info.configure != null) EditPill("edit", accent) { onEdit(info) }
-                EditPill("remove", Color(0xFFD6262B)) { onRemove() }
-            }
-            // Bottom drag handle: drag up/down to resize.
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 8.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White.copy(alpha = 0.9f))
-                    .size(width = 44.dp, height = 6.dp)
-                    .pointerInput(widget.widgetId) {
-                        detectDragGestures(
-                            onDrag = { change, drag ->
-                                change.consume()
-                                liveHeight = (liveHeight + (drag.y / density)).roundToInt()
-                                    .coerceIn(WIDGET_MIN_H, WIDGET_MAX_H)
+                Box(
+                    modifier = Modifier
+                        .width(widthDp.dp)
+                        .height(liveHeight.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { editing = false },
+                ) {
+                    // Top-left controls: reorder up / down.
+                    Row(
+                        modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        if (canMoveUp) EditPill("↑", accent, onClick = onMoveUp)
+                        if (canMoveDown) EditPill("↓", accent, onClick = onMoveDown)
+                    }
+                    // Top-right controls: edit (reconfigure) + remove.
+                    Row(
+                        modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        if (info.configure != null) EditPill("edit", accent) { onEdit(info) }
+                        EditPill("remove", Color(0xFFD6262B)) { onRemove() }
+                    }
+                    // Bottom drag handle: drag up/down to resize.
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 8.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White.copy(alpha = 0.9f))
+                            .size(width = 44.dp, height = 6.dp)
+                            .pointerInput(widget.widgetId) {
+                                detectDragGestures(
+                                    onDrag = { change, drag ->
+                                        change.consume()
+                                        liveHeight = (liveHeight + (drag.y / density)).roundToInt()
+                                            .coerceIn(WIDGET_MIN_H, WIDGET_MAX_H)
+                                    },
+                                    onDragEnd = { onResize(liveHeight) },
+                                )
                             },
-                            onDragEnd = { onResize(liveHeight) },
-                        )
-                    },
-            )
+                    )
+                }
+            }
         }
     }
 }
