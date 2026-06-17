@@ -77,7 +77,7 @@ private const val WIDGET_MAX_H = 720
 fun WidgetSection(accent: Color, tokens: ColorTokens) {
     val context = LocalContext.current
     val appContext = context.applicationContext
-    val host = remember { AppWidgetHost(appContext, WIDGET_HOST_ID) }
+    val host = remember { FeedAppWidgetHost(appContext, WIDGET_HOST_ID) }
     DisposableEffect(host) {
         runCatching { host.startListening() }
         onDispose { runCatching { host.stopListening() } }
@@ -243,10 +243,10 @@ private fun WidgetView(
             AndroidView(
                 factory = { ctx ->
                     host.createView(ctx.applicationContext, widget.widgetId, info).apply {
-                        // Long-press the widget to enter edit mode (resize/remove),
-                        // mirroring the Start tiles. The host view forwards the
-                        // long-click while normal taps still reach the widget.
-                        setOnLongClickListener { editing = true; true }
+                        // Long-press the widget to enter edit mode (resize/remove/
+                        // reorder), mirroring the Start tiles. FeedWidgetHostView
+                        // detects the long-press without swallowing normal touches.
+                        (this as? FeedWidgetHostView)?.onLongPress = { editing = true }
                     }
                 },
                 update = { view ->
