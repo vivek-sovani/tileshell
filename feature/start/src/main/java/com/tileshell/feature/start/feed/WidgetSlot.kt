@@ -16,6 +16,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -59,8 +61,7 @@ import kotlin.math.roundToInt
 
 private const val WIDGET_HOST_ID = 0x54_53 // "TS"
 private const val WIDGET_MIN_H = 72
-private const val WIDGET_MAX_H = 520
-private const val WIDGET_STEP_H = 24
+private const val WIDGET_MAX_H = 720
 
 /**
  * Hosts any number of Android app widgets on the feed's glance tab. Self-contained:
@@ -94,7 +95,14 @@ fun WidgetSection(accent: Color, tokens: ColorTokens) {
     var pendingConfigureId by remember { mutableStateOf(-1) }
 
     fun commit(id: Int, provider: AppWidgetProviderInfo) {
-        val h = (provider.minHeight / density).roundToInt().coerceIn(96, 320)
+        // Start from the provider's preferred/min height; collection widgets
+        // (calendar/agenda lists) report tall sizes — don't clamp them short.
+        val preferred = if (android.os.Build.VERSION.SDK_INT >= 31 && provider.targetCellHeight > 0) {
+            provider.targetCellHeight * 60 // ~60dp per cell
+        } else {
+            (provider.minHeight / density).roundToInt()
+        }
+        val h = preferred.coerceIn(96, 480)
         scope.launch { store.add(HostedWidget(id, h)) }
     }
 
@@ -212,41 +220,76 @@ private fun WidgetView(
     onEdit: (AppWidgetProviderInfo) -> Unit,
     onRemove: () -> Unit,
 ) {
-    val context = LocalContext.current
     val info = manager.getAppWidgetInfo(widget.widgetId)
     // A widget whose provider was uninstalled returns null info — forget it.
     LaunchedEffect(widget.widgetId, info) { if (info == null) onRemove() }
     if (info == null) return
 
-    Column {
+    val density = LocalDensity.current.density
+    var editing by remember(widget.widgetId) { mutableStateOf(false) }
+    // Live height while dragging; reset to the persisted value when it changes.
+    var liveHeight by remember(widget.widgetId, widget.heightDp) { mutableStateOf(widget.heightDp) }
+
+    Box(modifier = Modifier.fillMaxWidth()) {
         key(widget.widgetId) {
             AndroidView(
-                factory = { ctx -> host.createView(ctx.applicationContext, widget.widgetId, info) },
+                factory = { ctx ->
+                    host.createView(ctx.applicationContext, widget.widgetId, info).apply {
+                        // Long-press the widget to enter edit mode (resize/remove),
+                        // mirroring the Start tiles. The host view forwards the
+                        // long-click while normal taps still reach the widget.
+                        setOnLongClickListener { editing = true; true }
+                    }
+                },
                 update = { view ->
                     runCatching {
-                        view.updateAppWidgetSize(Bundle.EMPTY, widthDp, widget.heightDp, widthDp, widget.heightDp)
+                        view.updateAppWidgetSize(Bundle.EMPTY, widthDp, liveHeight, widthDp, liveHeight)
                     }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(widget.heightDp.dp)
+                    .height(liveHeight.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(tokens.sheet),
             )
         }
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp, start = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            SlotAction("−", accent) {
-                onResize((widget.heightDp - WIDGET_STEP_H).coerceAtLeast(WIDGET_MIN_H))
+
+        if (editing) {
+            // Dim scrim over the widget; tap it to leave edit mode.
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.Black.copy(alpha = 0.35f))
+                    .clickable { editing = false },
+            )
+            // Top-right controls: edit (reconfigure) + remove.
+            Row(
+                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                if (info.configure != null) EditPill("edit", accent) { onEdit(info) }
+                EditPill("remove", Color(0xFFD6262B)) { onRemove() }
             }
-            SlotAction("+", accent) {
-                onResize((widget.heightDp + WIDGET_STEP_H).coerceAtMost(WIDGET_MAX_H))
-            }
-            if (info.configure != null) SlotAction("edit", accent) { onEdit(info) }
-            SlotAction("remove", tokens.fgDim) { onRemove() }
+            // Bottom drag handle: drag up/down to resize.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 8.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.9f))
+                    .size(width = 44.dp, height = 6.dp)
+                    .pointerInput(widget.widgetId) {
+                        detectDragGestures(
+                            onDrag = { change, drag ->
+                                change.consume()
+                                liveHeight = (liveHeight + (drag.y / density)).roundToInt()
+                                    .coerceIn(WIDGET_MIN_H, WIDGET_MAX_H)
+                            },
+                            onDragEnd = { onResize(liveHeight) },
+                        )
+                    },
+            )
         }
     }
 }
@@ -334,15 +377,16 @@ private fun WidgetPickerRow(
 }
 
 @Composable
-private fun SlotAction(label: String, color: Color, onClick: () -> Unit) {
+private fun EditPill(label: String, color: Color, onClick: () -> Unit) {
     Text(
         label,
-        color = color,
-        fontSize = 13.sp,
+        color = Color.White,
+        fontSize = 12.sp,
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(color)
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp),
     )
 }
 

@@ -1259,3 +1259,20 @@ Reworked the single-widget slot into a full multi-widget host.
   `bindAppWidgetIdIfAllowed`, falling back to `ACTION_APPWIDGET_BIND` (user-confirm) when not
   allowed, then the optional configure activity, then commit. "edit" re-runs the configure
   activity for an existing widget. All guarded; uninstalled providers self-remove.
+
+## Widgets: long-press edit, drag-resize, taller defaults
+
+Follow-up on the widget host.
+
+- **Long-press to edit (like tiles); remove inside edit.** Each `AppWidgetHostView` gets a
+  `setOnLongClickListener` (forwards the long-press while normal taps still reach the
+  widget) that opens an edit overlay: a dim scrim (tap to exit), top-right **edit**
+  (reconfigure) + **remove** pills, and a bottom **drag handle**. No always-visible
+  −/+ buttons anymore.
+- **Drag to resize.** Dragging the handle changes the height live (`detectDragGestures`,
+  consumed so the feed scroll doesn't steal it) and persists on release; range 72–720 dp.
+- **Taller defaults for calendar/collection widgets.** Initial height now uses
+  `targetCellHeight × 60` (API 31+) or the provider `minHeight`, clamped up to 480 dp (was
+  320), so agenda/calendar list widgets render fuller out of the box instead of clipped.
+  (Very long lists still rely on the widget's own internal scroll; the larger ceiling +
+  drag-resize cover the common case.)
