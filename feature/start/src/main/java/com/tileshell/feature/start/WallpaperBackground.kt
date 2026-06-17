@@ -1,7 +1,10 @@
 package com.tileshell.feature.start
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
@@ -149,9 +152,28 @@ private fun decodeWallpaper(context: Context, uri: String): ImageBitmap? = runCa
         inSampleSize = wallpaperSampleSize(bounds.outWidth, bounds.outHeight)
     }
     // Second pass: decode at the computed sample size.
-    context.contentResolver.openInputStream(parsed)?.use { stream ->
-        BitmapFactory.decodeStream(stream, null, opts)?.asImageBitmap()
+    val bitmap = context.contentResolver.openInputStream(parsed)?.use { stream ->
+        BitmapFactory.decodeStream(stream, null, opts)
+    } ?: return@runCatching null
+
+    // Third pass: read EXIF orientation so landscape photos stored rotated display correctly.
+    val orientation = context.contentResolver.openInputStream(parsed)?.use { stream ->
+        ExifInterface(stream).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+    } ?: ExifInterface.ORIENTATION_NORMAL
+    val degrees = when (orientation) {
+        ExifInterface.ORIENTATION_ROTATE_90  -> 90f
+        ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+        ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+        else -> 0f
     }
+    val rotated = if (degrees != 0f) {
+        val matrix = Matrix().apply { postRotate(degrees) }
+        Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+            .also { if (it !== bitmap) bitmap.recycle() }
+    } else {
+        bitmap
+    }
+    rotated.asImageBitmap()
 }.getOrNull()
 
 /**

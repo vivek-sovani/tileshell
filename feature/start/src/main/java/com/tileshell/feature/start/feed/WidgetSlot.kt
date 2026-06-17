@@ -246,12 +246,7 @@ private fun WidgetView(
         key(widget.widgetId) {
             AndroidView(
                 factory = { ctx ->
-                    host.createView(ctx.applicationContext, widget.widgetId, info).apply {
-                        // Long-press the widget to enter edit mode (resize/remove/
-                        // reorder), mirroring the Start tiles. FeedWidgetHostView
-                        // detects the long-press without swallowing normal touches.
-                        (this as? FeedWidgetHostView)?.onLongPress = { editing = true }
-                    }
+                    host.createView(ctx.applicationContext, widget.widgetId, info)
                 },
                 update = { view ->
                     runCatching {
@@ -263,6 +258,22 @@ private fun WidgetView(
                     .height(liveHeight.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(tokens.sheet),
+            )
+        }
+
+        // Persistent "edit" pill at top-right — tap to enter edit mode for this widget.
+        if (!editing) {
+            Text(
+                "edit",
+                color = Color.White.copy(alpha = 0.55f),
+                fontSize = 11.sp,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.Black.copy(alpha = 0.20f))
+                    .clickable { editing = true }
+                    .padding(horizontal = 9.dp, vertical = 4.dp),
             )
         }
 
