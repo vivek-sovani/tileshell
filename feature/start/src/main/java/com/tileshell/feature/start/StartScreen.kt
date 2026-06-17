@@ -186,6 +186,7 @@ private val TiledTileBorder = Color(0x66000000)
 fun StartScreen(
     modifier: Modifier = Modifier,
     viewModel: StartViewModel = viewModel(),
+    onLockScreen: () -> Unit = {},
 ) {
     val tiles by viewModel.tiles.collectAsStateWithLifecycle()
     val swipeEnabled by viewModel.swipeEnabled.collectAsStateWithLifecycle()
@@ -434,6 +435,7 @@ fun StartScreen(
                     widthPx = widthPx,
                     viewportHeightPx = viewportHeightPx,
                     statusBarTopPx = statusBarTopPx,
+                    onLockScreen = onLockScreen,
                     onTile = { tile ->
                         when (tile) {
                             is TileModel.App -> onTileClick(context, tile)
@@ -636,6 +638,7 @@ private fun StartPage(
     widthPx: Float,
     viewportHeightPx: Float,
     statusBarTopPx: Float,
+    onLockScreen: () -> Unit,
     onTile: (TileModel) -> Unit,
     onChevron: () -> Unit,
     onEnterEdit: (String) -> Unit,
@@ -776,9 +779,15 @@ private fun StartPage(
                 edgeZonePx = with(density) { 64.dp.toPx() },
             )
 
+            val doubleTapLock = Modifier.emptySpaceDoubleTap(
+                editMode = editMode,
+                displaySpecs = displaySpecs,
+                widthPx = widthPx,
+                onDoubleTap = onLockScreen,
+            )
             DenseTileGrid(
                 tiles = displaySpecs,
-                modifier = Modifier.fillMaxWidth().then(editDrag),
+                modifier = Modifier.fillMaxWidth().then(editDrag).then(doubleTapLock),
             ) { spec, slot, sizePx ->
                 val model = byId[spec.id] ?: return@DenseTileGrid
                 val dragging = spec.id == draggingId
@@ -1488,6 +1497,38 @@ private fun rememberJigglePhase(editMode: Boolean): Float {
         label = "jigglePhase",
     )
     return phase
+}
+
+/**
+ * Locks the screen when the user double-taps an empty spot in the tile grid
+ * (a spot where [tileAt] finds no tile). Inactive while [editMode] is on.
+ * Each tap must stay within a 10 px slop and both must land within 400 ms.
+ */
+private fun Modifier.emptySpaceDoubleTap(
+    editMode: Boolean,
+    displaySpecs: List<TileSpec>,
+    widthPx: Float,
+    onDoubleTap: () -> Unit,
+): Modifier = pointerInput(editMode, displaySpecs, widthPx) {
+    if (editMode) return@pointerInput
+    val placements = GridPacker.pack(displaySpecs)
+    val geom = GridGeometry.of(widthPx)
+    val slop = 10.dp.toPx()
+    val interval = 400L
+    awaitEachGesture {
+        val first = awaitFirstDown(requireUnconsumed = false)
+        val firstPos = first.position
+        if (tileAt(placements, geom, firstPos) != null) return@awaitEachGesture
+        val upFirst = waitForUpOrCancellation() ?: return@awaitEachGesture
+        if ((upFirst.position - firstPos).getDistance() > slop) return@awaitEachGesture
+        val second = withTimeoutOrNull(interval) {
+            awaitFirstDown(requireUnconsumed = false)
+        } ?: return@awaitEachGesture
+        if (tileAt(placements, geom, second.position) != null) return@awaitEachGesture
+        if ((second.position - firstPos).getDistance() > slop) return@awaitEachGesture
+        onDoubleTap()
+        waitForUpOrCancellation()
+    }
 }
 
 /**

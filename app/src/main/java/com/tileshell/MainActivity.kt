@@ -61,7 +61,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             DefaultLauncherPromptOnFirstRun()
             RequestRuntimePermissionsOnStart()
-            StartScreen(viewModel = startViewModel)
+            val ctx = LocalContext.current
+            StartScreen(viewModel = startViewModel, onLockScreen = { lockScreen(ctx) })
         }
     }
 

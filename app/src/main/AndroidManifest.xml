@@ -48,6 +48,21 @@
              traces from non-debuggable (release/benchmark) builds (S26). -->
         <profileable android:shell="true" />
 
+        <!-- Device-admin receiver that grants the force-lock policy, used by
+             the double-tap-to-sleep gesture on the Start screen. The user
+             must activate it once via the system's device-admin prompt. -->
+        <receiver
+            android:name=".LockAdminReceiver"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
