@@ -718,7 +718,16 @@ private fun StartPage(
         modifier = Modifier
             .fillMaxSize()
             // Tapping empty space in edit mode exits (prototype onDown).
-            .emptySpaceExit(editMode, onExitEdit),
+            .emptySpaceExit(editMode, onExitEdit)
+            // Double-tap empty space (not on a tile) locks the screen.
+            .emptySpaceDoubleTap(
+                editMode = editMode,
+                displaySpecs = { displaySpecs },
+                widthPx = widthPx,
+                statusBarTopPx = statusBarTopPx,
+                scrollOffsetPx = { scrollState.value.toFloat() },
+                onDoubleTap = onLockScreen,
+            ),
     ) {
         Column(
             modifier = Modifier
@@ -779,15 +788,9 @@ private fun StartPage(
                 edgeZonePx = with(density) { 64.dp.toPx() },
             )
 
-            val doubleTapLock = Modifier.emptySpaceDoubleTap(
-                editMode = editMode,
-                displaySpecs = displaySpecs,
-                widthPx = widthPx,
-                onDoubleTap = onLockScreen,
-            )
             DenseTileGrid(
                 tiles = displaySpecs,
-                modifier = Modifier.fillMaxWidth().then(editDrag).then(doubleTapLock),
+                modifier = Modifier.fillMaxWidth().then(editDrag),
             ) { spec, slot, sizePx ->
                 val model = byId[spec.id] ?: return@DenseTileGrid
                 val dragging = spec.id == draggingId
@@ -1500,32 +1503,44 @@ private fun rememberJigglePhase(editMode: Boolean): Float {
 }
 
 /**
- * Locks the screen when the user double-taps an empty spot in the tile grid
- * (a spot where [tileAt] finds no tile). Inactive while [editMode] is on.
- * Each tap must stay within a 10 px slop and both must land within 400 ms.
+ * Locks the screen when the user double-taps an empty spot on Start (not on
+ * a tile). Applied on the outer [fillMaxSize] Box so it covers the full Start
+ * surface including the spacer below the grid. Coordinates are converted from
+ * outer-Box space to grid-local space via [statusBarTopPx] + scroll offset so
+ * [tileAt] correctly rejects tile positions.
+ *
+ * Keys: only [editMode] and [widthPx] — NOT [displaySpecs] — so the coroutine
+ * is never restarted by live-tile recompositions (every ~2.6 s) which would
+ * kill any in-progress gesture.
  */
 private fun Modifier.emptySpaceDoubleTap(
     editMode: Boolean,
-    displaySpecs: List<TileSpec>,
+    displaySpecs: () -> List<TileSpec>,
     widthPx: Float,
+    statusBarTopPx: Float,
+    scrollOffsetPx: () -> Float,
     onDoubleTap: () -> Unit,
-): Modifier = pointerInput(editMode, displaySpecs, widthPx) {
+): Modifier = pointerInput(editMode, widthPx) {
     if (editMode) return@pointerInput
-    val placements = GridPacker.pack(displaySpecs)
     val geom = GridGeometry.of(widthPx)
-    val slop = 10.dp.toPx()
-    val interval = 400L
+    val slop = 40.dp.toPx()
+    val interval = 500L
     awaitEachGesture {
+        val placements = GridPacker.pack(displaySpecs())
+        val scrollOff = scrollOffsetPx()
+        fun toGridLocal(pos: Offset) = Offset(pos.x, pos.y - statusBarTopPx + scrollOff)
+
         val first = awaitFirstDown(requireUnconsumed = false)
-        val firstPos = first.position
-        if (tileAt(placements, geom, firstPos) != null) return@awaitEachGesture
+        if (tileAt(placements, geom, toGridLocal(first.position)) != null) return@awaitEachGesture
         val upFirst = waitForUpOrCancellation() ?: return@awaitEachGesture
-        if ((upFirst.position - firstPos).getDistance() > slop) return@awaitEachGesture
+        if ((upFirst.position - first.position).getDistance() > slop) return@awaitEachGesture
+
         val second = withTimeoutOrNull(interval) {
             awaitFirstDown(requireUnconsumed = false)
         } ?: return@awaitEachGesture
-        if (tileAt(placements, geom, second.position) != null) return@awaitEachGesture
-        if ((second.position - firstPos).getDistance() > slop) return@awaitEachGesture
+        if (tileAt(placements, geom, toGridLocal(second.position)) != null) return@awaitEachGesture
+        if ((second.position - first.position).getDistance() > slop) return@awaitEachGesture
+
         onDoubleTap()
         waitForUpOrCancellation()
     }
