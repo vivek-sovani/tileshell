@@ -51,6 +51,9 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -137,14 +140,22 @@ import com.tileshell.feature.livetiles.rememberLiveTilesActive
 import com.tileshell.feature.livetiles.rememberNotificationAccess
 import com.tileshell.feature.personalize.FeedSourceItem
 import com.tileshell.feature.personalize.PersonalizeSheet
+import com.tileshell.core.data.settings.FontStyle
+import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.design.DarkColorTokens
 import com.tileshell.core.design.Glass
 import com.tileshell.core.design.LocalAccent
 import com.tileshell.core.design.LocalColorTokens
+import com.tileshell.core.design.LocalTileCornerRadius
+import com.tileshell.core.design.LocalTileFont
+import com.tileshell.core.design.LocalTileGradient
+import com.tileshell.core.design.NunitoFamily
+import com.tileshell.core.design.OutfitFamily
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.Wallpapers
 import com.tileshell.core.design.colorTokens
+import com.tileshell.core.design.tileGradientBrush
 import com.tileshell.core.design.tiltOnPress
 import com.tileshell.core.design.wallpaperWindow
 import kotlinx.coroutines.Dispatchers
@@ -217,6 +228,13 @@ fun StartScreen(
     val wallpaper = Wallpapers.forId(settings.wallpaperId)
     // Transparent-tile fill at the current slider (FR-7); null when glass is off.
     val glassFill = if (settings.glass) Glass.fill(dark, settings.transparency) else null
+    // Tile style: corner radius + gradient fill + font family.
+    val tileFont = when (settings.fontStyle) {
+        FontStyle.OUTFIT -> OutfitFamily
+        FontStyle.NUNITO -> NunitoFamily
+        FontStyle.SYSTEM -> androidx.compose.ui.text.font.FontFamily.Default
+    }
+    val baseTextStyle = LocalTextStyle.current
     // "Wallpaper behind tiles" mode: the screen goes dark and the wallpaper shows
     // only through the tiles. Decode the custom photo here (when set) so the tiles
     // can window into it; a bundled gradient is drawn directly by the window modifier.
@@ -312,6 +330,10 @@ fun StartScreen(
     CompositionLocalProvider(
         LocalColorTokens provides tokens,
         LocalAccent provides accent,
+        LocalTileCornerRadius provides settings.cornerRadius,
+        LocalTileGradient provides (settings.tileFill == TileFill.GRADIENT),
+        LocalTileFont provides tileFont,
+        LocalTextStyle provides baseTextStyle.copy(fontFamily = tileFont),
     ) {
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val widthPx = constraints.maxWidth.toFloat()
@@ -534,6 +556,12 @@ fun StartScreen(
                             .show()
                     }
             },
+            cornerRadius = settings.cornerRadius,
+            onCornerRadiusChange = viewModel::setCornerRadius,
+            tileFill = settings.tileFill,
+            onTileFillChange = viewModel::setTileFill,
+            fontStyle = settings.fontStyle,
+            onFontStyleChange = viewModel::setFontStyle,
             onDismiss = viewModel::closePersonalize,
         )
 
@@ -941,6 +969,9 @@ private fun TileView(
     // exact same ViewModel calls through these custom actions instead).
     val a11yLabel = tileAccessibilityLabel(tile, badgeCount, editMode, selected)
 
+    val tileCornerRadius = LocalTileCornerRadius.current
+    val useTileGradient = LocalTileGradient.current
+
     // Edit chrome (prototype CSS): non-selected tiles dim to .45, the selected
     // tile scales to 1.04, and editing tiles jiggle (±.5°, alternating phase).
     // A dragged tile lifts: scales up with a shadow and ignores dim/jiggle. A
@@ -971,6 +1002,12 @@ private fun TileView(
             }
             // The press-tilt effect (S7) is replaced by the jiggle while editing.
             .then(if (editMode) Modifier else Modifier.tiltOnPress())
+            // Optional rounded corners (personalisation setting 0–12 dp).
+            .then(
+                if (tileCornerRadius > 0f)
+                    Modifier.clip(RoundedCornerShape(tileCornerRadius.dp))
+                else Modifier
+            )
             // Tile fill, in priority order:
             //  • "wallpaper behind tiles" → a window onto the screen-anchored
             //    wallpaper (custom photo if set, else the bundled gradient), with a
@@ -995,13 +1032,25 @@ private fun TileView(
                         fullHeight = fullHeight,
                         origin = wallpaperOrigin,
                     )
-                    else -> Modifier.background(glassFill ?: accent)
+                    else -> if (glassFill != null) {
+                        Modifier.background(glassFill)
+                    } else if (useTileGradient) {
+                        Modifier.background(tileGradientBrush(accent))
+                    } else {
+                        Modifier.background(accent)
+                    }
                 },
             )
             .then(
                 when {
-                    tiledWallpaper -> Modifier.border(1.dp, TiledTileBorder)
-                    glassFill != null -> Modifier.border(1.dp, glassLine)
+                    tiledWallpaper -> Modifier.border(
+                        1.dp, TiledTileBorder,
+                        RoundedCornerShape(tileCornerRadius.dp),
+                    )
+                    glassFill != null -> Modifier.border(
+                        1.dp, glassLine,
+                        RoundedCornerShape(tileCornerRadius.dp),
+                    )
                     else -> Modifier
                 },
             )

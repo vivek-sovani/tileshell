@@ -106,6 +106,21 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(followSystemTheme = follow) }
     }
 
+    /** Set the tile corner radius (0–12 dp). */
+    suspend fun setCornerRadius(radius: Float) {
+        store.updateData { it.copy(cornerRadius = radius.coerceIn(0f, 12f)) }
+    }
+
+    /** Switch tile fill between flat solid and diagonal gradient. */
+    suspend fun setTileFill(fill: TileFill) {
+        store.updateData { it.copy(tileFill = fill) }
+    }
+
+    /** Switch the UI font (system default, Outfit, or Nunito). */
+    suspend fun setFontStyle(style: FontStyle) {
+        store.updateData { it.copy(fontStyle = style) }
+    }
+
     companion object {
         fun create(context: Context): SettingsRepository =
             SettingsRepository(context.applicationContext.settingsDataStore)

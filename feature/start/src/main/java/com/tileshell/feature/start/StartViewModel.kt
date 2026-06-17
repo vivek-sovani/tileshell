@@ -258,6 +258,21 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setFeedEnabled(enabled) }
     }
 
+    /** Set the tile corner radius 0–12 dp. */
+    fun setCornerRadius(radius: Float) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setCornerRadius(radius) }
+    }
+
+    /** Switch tile fill between flat and gradient. */
+    fun setTileFill(fill: com.tileshell.core.data.settings.TileFill) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setTileFill(fill) }
+    }
+
+    /** Switch the UI font style. */
+    fun setFontStyle(style: com.tileshell.core.data.settings.FontStyle) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setFontStyle(style) }
+    }
+
     /** Subscribe a custom RSS/Atom feed and refresh so its articles appear soon. */
     fun addFeedSource(url: String, name: String) {
         viewModelScope.launch(Dispatchers.IO) {

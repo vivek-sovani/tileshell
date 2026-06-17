@@ -42,6 +42,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tileshell.core.data.settings.FontStyle
+import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.WallpaperGradient
@@ -90,6 +92,12 @@ fun PersonalizeSheet(
     onPickPhotos: () -> Unit,
     notificationsEnabled: Boolean,
     onNotificationAccess: () -> Unit,
+    cornerRadius: Float,
+    onCornerRadiusChange: (Float) -> Unit,
+    tileFill: TileFill,
+    onTileFillChange: (TileFill) -> Unit,
+    fontStyle: FontStyle,
+    onFontStyleChange: (FontStyle) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -214,6 +222,79 @@ fun PersonalizeSheet(
                 Spacer(Modifier.height(14.dp))
                 // Show-through mode: dark screen, wallpaper visible only behind tiles.
                 ToggleRow("wallpaper behind tiles", on = tiledWallpaper, accent = accent, tokens, onTiledWallpaperChange)
+            }
+
+            // ---- tile style (corner radius + gradient fill) ----
+            SettingGroup(label = "tile style", tokens.fgDim) {
+                ToggleRow(
+                    "gradient fill",
+                    on = tileFill == TileFill.GRADIENT,
+                    accent = accent,
+                    tokens,
+                    onChange = { on -> onTileFillChange(if (on) TileFill.GRADIENT else TileFill.FLAT) },
+                )
+                Spacer(Modifier.height(14.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .background(accent),
+                    )
+                    Slider(
+                        value = cornerRadius,
+                        onValueChange = onCornerRadiusChange,
+                        valueRange = 0f..12f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = accent,
+                            activeTrackColor = accent,
+                            inactiveTrackColor = tokens.tileLine,
+                        ),
+                        modifier = Modifier.weight(1f),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clip(RoundedCornerShape(7.dp))
+                            .background(accent),
+                    )
+                }
+            }
+
+            // ---- typography ----
+            SettingGroup(label = "typography", tokens.fgDim) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        FontStyle.SYSTEM to "system",
+                        FontStyle.OUTFIT to "outfit",
+                        FontStyle.NUNITO to "nunito",
+                    ).forEach { entry ->
+                        val style = entry.first
+                        val label = entry.second
+                        val selected = fontStyle == style
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(if (selected) accent else Color.Transparent)
+                                .border(
+                                    1.dp,
+                                    if (selected) accent else tokens.tileLine,
+                                    RoundedCornerShape(20.dp),
+                                )
+                                .clickable { onFontStyleChange(style) }
+                                .padding(horizontal = 14.dp, vertical = 7.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (selected) Color.White else tokens.fg,
+                                fontSize = 13.sp,
+                            )
+                        }
+                    }
+                }
             }
 
             // ---- live tiles (re-add a deleted clock/weather/calendar tile) ----

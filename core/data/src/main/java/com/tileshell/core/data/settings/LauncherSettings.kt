@@ -2,6 +2,9 @@ package com.tileshell.core.data.settings
 
 import com.tileshell.core.data.TileColors
 
+enum class TileFill { FLAT, GRADIENT }
+enum class FontStyle { SYSTEM, OUTFIT, NUNITO }
+
 /**
  * Persisted personalization (FR-7). Kept deliberately flat and framework-free so
  * it can be serialized by [SettingsCodec] and unit-tested without Android.
@@ -46,6 +49,9 @@ data class LauncherSettings(
     val feedEnabled: Boolean = true,
     val wallpaperAlignX: Float = 0.5f,
     val wallpaperAlignY: Float = 0.5f,
+    val cornerRadius: Float = 0f,
+    val tileFill: TileFill = TileFill.FLAT,
+    val fontStyle: FontStyle = FontStyle.SYSTEM,
 )
 
 /**
@@ -70,7 +76,10 @@ object SettingsCodec {
         append("tiledWallpaper=").append(settings.tiledWallpaper).append('\n')
         append("feedEnabled=").append(settings.feedEnabled).append('\n')
         append("wallAlignX=").append(settings.wallpaperAlignX).append('\n')
-        append("wallAlignY=").append(settings.wallpaperAlignY)
+        append("wallAlignY=").append(settings.wallpaperAlignY).append('\n')
+        append("cornerRadius=").append(settings.cornerRadius).append('\n')
+        append("tileFill=").append(settings.tileFill.name).append('\n')
+        append("fontStyle=").append(settings.fontStyle.name)
     }
 
     fun decode(text: String): LauncherSettings {
@@ -87,6 +96,9 @@ object SettingsCodec {
         var feedEnabled = d.feedEnabled
         var wallpaperAlignX = d.wallpaperAlignX
         var wallpaperAlignY = d.wallpaperAlignY
+        var cornerRadius = d.cornerRadius
+        var tileFill = d.tileFill
+        var fontStyle = d.fontStyle
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
             if (sep <= 0) return@forEach
@@ -105,6 +117,9 @@ object SettingsCodec {
                 "feedEnabled" -> feedEnabled = value.toBooleanStrictOrNull() ?: feedEnabled
                 "wallAlignX" -> value.toFloatOrNull()?.let { wallpaperAlignX = it.coerceIn(0f, 1f) }
                 "wallAlignY" -> value.toFloatOrNull()?.let { wallpaperAlignY = it.coerceIn(0f, 1f) }
+                "cornerRadius" -> value.toFloatOrNull()?.let { cornerRadius = it.coerceIn(0f, 12f) }
+                "tileFill" -> TileFill.entries.find { it.name == value }?.let { tileFill = it }
+                "fontStyle" -> FontStyle.entries.find { it.name == value }?.let { fontStyle = it }
             }
         }
         return LauncherSettings(
@@ -120,6 +135,9 @@ object SettingsCodec {
             feedEnabled = feedEnabled,
             wallpaperAlignX = wallpaperAlignX,
             wallpaperAlignY = wallpaperAlignY,
+            cornerRadius = cornerRadius,
+            tileFill = tileFill,
+            fontStyle = fontStyle,
         )
     }
 }

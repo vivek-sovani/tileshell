@@ -20,6 +20,9 @@ class SettingsCodecTest {
             customWallpaperUri = "content://media/external/images/42",
             tiledWallpaper = true,
             feedEnabled = false,
+            cornerRadius = 8f,
+            tileFill = TileFill.GRADIENT,
+            fontStyle = FontStyle.OUTFIT,
         )
         assertEquals(settings, SettingsCodec.decode(SettingsCodec.encode(settings)))
     }
@@ -116,5 +119,26 @@ class SettingsCodecTest {
         val d = SettingsCodec.decode("")
         assertEquals(0.5f, d.wallpaperAlignX, 0f)
         assertEquals(0.5f, d.wallpaperAlignY, 0f)
+    }
+
+    @Test
+    fun `corner radius round-trips and out-of-range is clamped`() {
+        val s = LauncherSettings(cornerRadius = 6f)
+        assertEquals(6f, SettingsCodec.decode(SettingsCodec.encode(s)).cornerRadius, 0.0001f)
+        assertEquals(12f, SettingsCodec.decode("cornerRadius=99").cornerRadius, 0f)
+        assertEquals(0f, SettingsCodec.decode("cornerRadius=-3").cornerRadius, 0f)
+    }
+
+    @Test
+    fun `tileFill round-trips and unknown value keeps default`() {
+        assertEquals(TileFill.GRADIENT, SettingsCodec.decode("tileFill=GRADIENT").tileFill)
+        assertEquals(LauncherSettings().tileFill, SettingsCodec.decode("tileFill=SPARKLE").tileFill)
+    }
+
+    @Test
+    fun `fontStyle round-trips and unknown value keeps default`() {
+        assertEquals(FontStyle.NUNITO, SettingsCodec.decode("fontStyle=NUNITO").fontStyle)
+        assertEquals(FontStyle.OUTFIT, SettingsCodec.decode("fontStyle=OUTFIT").fontStyle)
+        assertEquals(LauncherSettings().fontStyle, SettingsCodec.decode("fontStyle=COMIC").fontStyle)
     }
 }
