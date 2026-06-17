@@ -1239,3 +1239,23 @@ Android app widget.
   over manual `bindAppWidgetIdIfAllowed` + `ACTION_APPWIDGET_BIND`, since `BIND_APPWIDGET`
   is signature-level and the launcher is the host. Added the `androidx.datastore` dep to
   `:feature:start` for `WidgetStore`.
+
+## Widgets: multiple, proper sizing, resize, preview picker
+
+Reworked the single-widget slot into a full multi-widget host.
+
+- **Multiple widgets.** `WidgetStore` now holds a list of `HostedWidget(widgetId, heightDp)`;
+  the glance tab renders each with its own **resize (± ) / edit / remove** controls, plus an
+  "add a widget" button. Codec is one `id,heightDp` per line (unit-tested).
+- **Proper height (fixes horizontal-widget compression).** Each `AppWidgetHostView` is given
+  an explicit `Modifier.height(heightDp)` *and* `updateAppWidgetSize(...)` with that height,
+  so the RemoteViews lays out for its real size instead of collapsing. Default height is the
+  provider's `minHeight` (px→dp) clamped to 96–320 dp.
+- **Vertical resize.** `−` / `+` step the height by 24 dp (clamped 72–520) and persist it;
+  the view re-measures and `updateAppWidgetSize` re-applies.
+- **Custom preview picker.** Replaced the system `ACTION_APPWIDGET_PICK` with an in-app
+  `Dialog` listing `installedProviders` with each widget's **preview image** (`loadPreviewImage`
+  → `loadIcon`, drawn to a bitmap) + label. Selecting one runs the bind flow:
+  `bindAppWidgetIdIfAllowed`, falling back to `ACTION_APPWIDGET_BIND` (user-confirm) when not
+  allowed, then the optional configure activity, then commit. "edit" re-runs the configure
+  activity for an existing widget. All guarded; uninstalled providers self-remove.

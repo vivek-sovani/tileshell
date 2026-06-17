@@ -195,8 +195,8 @@ fun FeedPage(
                         )
                     }
 
-                    SectionLabel("widget", tokens.fgDim)
-                    WidgetSlot(accent = accent, tokens = tokens)
+                    SectionLabel("widgets", tokens.fgDim)
+                    WidgetSection(accent = accent, tokens = tokens)
                 }
 
                 FeedTab.NEWS -> {
