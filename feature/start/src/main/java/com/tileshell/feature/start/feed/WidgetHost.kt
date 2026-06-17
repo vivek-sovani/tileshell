@@ -5,6 +5,7 @@ import android.appwidget.AppWidgetHostView
 import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
 import android.view.GestureDetector
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 
 /**
@@ -28,6 +29,7 @@ class FeedWidgetHostView(context: Context) : AppWidgetHostView(context) {
         object : GestureDetector.SimpleOnGestureListener() {
             override fun onLongPress(e: MotionEvent) {
                 longPressed = true
+                performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                 onLongPress?.invoke()
             }
         },
