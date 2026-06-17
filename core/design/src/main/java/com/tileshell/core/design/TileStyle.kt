@@ -11,9 +11,12 @@ val LocalTileCornerRadius = staticCompositionLocalOf { 0f }
 val LocalTileGradient = staticCompositionLocalOf { false }
 val LocalTileFont = staticCompositionLocalOf<FontFamily> { FontFamily.Default }
 
+// W300 is the minimum registered weight for both custom families. Compose's
+// CSS weight-matching algorithm falls back to the nearest heavier entry when a
+// lighter one is absent, so ExtraLight/Thin requests (W100/W200) are served at
+// W300 instead — needed because geometric sans fonts have much thinner strokes
+// than Roboto at the same numeric weight, making W100/W200 unreadable at body sizes.
 val OutfitFamily: FontFamily = FontFamily(
-    Font(R.font.outfit_variable, weight = FontWeight.W100),
-    Font(R.font.outfit_variable, weight = FontWeight.W200),
     Font(R.font.outfit_variable, weight = FontWeight.W300),
     Font(R.font.outfit_variable, weight = FontWeight.W400),
     Font(R.font.outfit_variable, weight = FontWeight.W500),
@@ -22,7 +25,6 @@ val OutfitFamily: FontFamily = FontFamily(
 )
 
 val NunitoFamily: FontFamily = FontFamily(
-    Font(R.font.nunito_variable, weight = FontWeight.W200),
     Font(R.font.nunito_variable, weight = FontWeight.W300),
     Font(R.font.nunito_variable, weight = FontWeight.W400),
     Font(R.font.nunito_variable, weight = FontWeight.W500),
