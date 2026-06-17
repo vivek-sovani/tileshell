@@ -11,25 +11,23 @@ val LocalTileCornerRadius = staticCompositionLocalOf { 0f }
 val LocalTileGradient = staticCompositionLocalOf { false }
 val LocalTileFont = staticCompositionLocalOf<FontFamily> { FontFamily.Default }
 
-// W300 is the minimum registered weight for both custom families. Compose's
-// CSS weight-matching algorithm falls back to the nearest heavier entry when a
-// lighter one is absent, so ExtraLight/Thin requests (W100/W200) are served at
-// W300 instead — needed because geometric sans fonts have much thinner strokes
-// than Roboto at the same numeric weight, making W100/W200 unreadable at body sizes.
+// Static-weight files (not variable fonts). Variable fonts apply the requested
+// FontWeight directly to the wght axis, bypassing CSS weight-matching — so a
+// W300 floor on a variable font still renders ExtraLight at wght=200. With static
+// files the CSS algorithm truly caps at W300: any Thin/ExtraLight/Light request
+// picks the nearest registered entry (W300) and renders at that fixed weight.
 val OutfitFamily: FontFamily = FontFamily(
-    Font(R.font.outfit_variable, weight = FontWeight.W300),
-    Font(R.font.outfit_variable, weight = FontWeight.W400),
-    Font(R.font.outfit_variable, weight = FontWeight.W500),
-    Font(R.font.outfit_variable, weight = FontWeight.W600),
-    Font(R.font.outfit_variable, weight = FontWeight.W700),
+    Font(R.font.outfit_light,    weight = FontWeight.W300),
+    Font(R.font.outfit_regular,  weight = FontWeight.W400),
+    Font(R.font.outfit_medium,   weight = FontWeight.W500),
+    Font(R.font.outfit_semibold, weight = FontWeight.W600),
 )
 
 val NunitoFamily: FontFamily = FontFamily(
-    Font(R.font.nunito_variable, weight = FontWeight.W300),
-    Font(R.font.nunito_variable, weight = FontWeight.W400),
-    Font(R.font.nunito_variable, weight = FontWeight.W500),
-    Font(R.font.nunito_variable, weight = FontWeight.W600),
-    Font(R.font.nunito_variable, weight = FontWeight.W700),
+    Font(R.font.nunito_light,    weight = FontWeight.W300),
+    Font(R.font.nunito_regular,  weight = FontWeight.W400),
+    Font(R.font.nunito_medium,   weight = FontWeight.W500),
+    Font(R.font.nunito_semibold, weight = FontWeight.W600),
 )
 
 fun tileGradientBrush(accent: Color): Brush {
