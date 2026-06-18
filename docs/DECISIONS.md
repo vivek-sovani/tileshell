@@ -3,6 +3,38 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## S28 — Beta hardening: OEM battery guidance + notification bitmap cap
+
+- **OEM battery guidance is a two-layer problem.** On stock Android / most
+  Samsung devices, requesting `ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` (the
+  standard Doze-whitelist dialog) is enough for the `TileNotificationListenerService`
+  to survive. On Xiaomi/MIUI, Huawei/EMUI, OPPO/ColorOS, Vivo, and OnePlus,
+  OEMs run a second independent kill switch — "AutoStart", "App Launch", or
+  "Startup Manager" — that terminates the listener even after Doze exemption.
+  `OemBatteryGuard.requestExemption` therefore tries the standard dialog first, then
+  navigates to the OEM-specific battery management activity when one is resolvable
+  on this device. The user still has to toggle AutoStart manually (no API). An
+  empty `guidanceNote()` on stock Android means the extra row is text-free.
+- **Warning row only when needed.** The PersonalizeSheet "notifications" group
+  gains a second "background activity · fix ›" row that appears only when
+  `notificationsEnabled && !batteryOptimizationExempt`. Once the user grants Doze
+  exemption (and the compositor resumes, re-checking via `ON_RESUME`) the row
+  disappears — so it is not a permanent fixture but a contextual guide.
+  `rememberBatteryOptimizationExempt` mirrors the lifecycle pattern of
+  `rememberNotificationAccess`.
+- **`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` permission.** Added to the manifest.
+  Per Android policy this is acceptable for a launcher (a system-replacement app
+  that must remain resident), and it is sideloaded / in-house. No Play Store
+  policy concern for the v0.9 release candidate.
+- **Notification bitmap cap at 600 px (S28 OOM fix).** `EXTRA_PICTURE` bitmaps
+  from messaging-app notifications can be full-resolution photos (several MB each).
+  The previous `extractImage` returned them raw and stored all in a `StateFlow<Map>`
+  keyed by package, creating an unbounded memory accumulation across all apps with
+  notifications. Now downscaled to max 600 px on the longer axis — well above the
+  largest tile render size at 3× density — before being held in the map. `Bitmap.
+  createScaledBitmap` is wrapped in `runCatching` so a failed scale returns the
+  original rather than crashing (e.g. a recycled bitmap edge case).
+
 ## S24 — music tile + degradation matrix (FR-2.3, feature complete)
 
 - **Music face reads the active media session, not a notification.** `MusicTileFace`

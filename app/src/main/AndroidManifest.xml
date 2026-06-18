@@ -22,6 +22,10 @@
     <!-- App-list "uninstall" context-menu action: lets the launcher ask the system
          to uninstall a user app (the user still confirms in the platform dialog). -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <!-- Battery-exemption request (S28): opens the system dialog that adds
+         TileShell to the Doze whitelist so the notification listener service
+         keeps running on OEM devices with aggressive battery killers. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <queries>
         <intent>

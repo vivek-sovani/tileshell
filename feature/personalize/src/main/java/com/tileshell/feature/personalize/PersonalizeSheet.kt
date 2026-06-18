@@ -94,6 +94,9 @@ fun PersonalizeSheet(
     onPickPhotos: () -> Unit,
     notificationsEnabled: Boolean,
     onNotificationAccess: () -> Unit,
+    batteryOptimizationExempt: Boolean,
+    batteryGuidanceNote: String,
+    onBatteryExemption: () -> Unit,
     cornerRadius: Float,
     onCornerRadiusChange: (Float) -> Unit,
     tileFill: TileFill,
@@ -440,6 +443,39 @@ fun PersonalizeSheet(
                         color = if (notificationsEnabled) accent else tokens.fgDim,
                         fontSize = 13.sp,
                     )
+                }
+                // Battery-exemption warning: shown when notification access is on but
+                // the app is NOT yet on the Doze whitelist. OEM battery killers
+                // (Xiaomi, Huawei, Samsung, etc.) kill the listener service even after
+                // the user grants access, so this guides them to fix it (S28).
+                if (notificationsEnabled && !batteryOptimizationExempt) {
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onBatteryExemption)
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "background activity",
+                                color = tokens.fg,
+                                fontSize = 14.sp,
+                            )
+                            Text(
+                                text = if (batteryGuidanceNote.isNotEmpty()) {
+                                    batteryGuidanceNote
+                                } else {
+                                    "exempt from battery optimisation for reliable badges"
+                                },
+                                color = tokens.fgDim,
+                                fontSize = 12.sp,
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Text(text = "fix ›", color = accent, fontSize = 13.sp)
+                    }
                 }
             }
 

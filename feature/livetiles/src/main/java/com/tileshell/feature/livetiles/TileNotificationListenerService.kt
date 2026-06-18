@@ -72,12 +72,28 @@ class TileNotificationListenerService : NotificationListenerService() {
  * Pulls a displayable image out of a notification: the big-picture style photo
  * (a shared image) if present, else the large icon (typically the sender's contact
  * photo), rasterised to a bitmap. Returns null for plain text-only notifications.
+ *
+ * Big-picture bitmaps are downscaled to [MAX_NOTIFICATION_IMAGE_PX] — full-res
+ * photos from messaging apps can be several MB and holding many in a StateFlow
+ * map risks OOM on memory-constrained devices (S28 crash hardening).
  */
 private fun StatusBarNotification.extractImage(context: Context): Bitmap? {
     val n = notification ?: return null
-    (n.extras?.get(Notification.EXTRA_PICTURE) as? Bitmap)?.let { return it }
+    (n.extras?.get(Notification.EXTRA_PICTURE) as? Bitmap)?.let {
+        return it.downscaleIfNeeded(MAX_NOTIFICATION_IMAGE_PX)
+    }
     val icon = n.getLargeIcon() ?: return null
     return runCatching { icon.loadDrawable(context)?.toBitmap() }.getOrNull()
+}
+
+private const val MAX_NOTIFICATION_IMAGE_PX = 600
+
+private fun Bitmap.downscaleIfNeeded(maxPx: Int): Bitmap {
+    if (width <= maxPx && height <= maxPx) return this
+    val scale = maxPx.toFloat() / maxOf(width, height)
+    val w = (width * scale).toInt().coerceAtLeast(1)
+    val h = (height * scale).toInt().coerceAtLeast(1)
+    return runCatching { Bitmap.createScaledBitmap(this, w, h, true) }.getOrDefault(this)
 }
 
 private fun StatusBarNotification.toItem(): NotificationItem? {

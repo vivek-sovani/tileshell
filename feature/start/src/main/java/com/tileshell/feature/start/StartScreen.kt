@@ -140,6 +140,8 @@ import com.tileshell.feature.livetiles.PhotosTileFace
 import com.tileshell.feature.livetiles.WeatherTileFace
 import com.tileshell.feature.livetiles.rememberFlipState
 import com.tileshell.feature.livetiles.rememberLiveTilesActive
+import com.tileshell.feature.livetiles.OemBatteryGuard
+import com.tileshell.feature.livetiles.rememberBatteryOptimizationExempt
 import com.tileshell.feature.livetiles.rememberNotificationAccess
 import com.tileshell.feature.personalize.AboutSheet
 import com.tileshell.feature.personalize.FeedSourceItem
@@ -205,6 +207,7 @@ fun StartScreen(
     // user enables notification access, which keeps every tile static / un-badged.
     val notifications by NotificationCenter.snapshot.collectAsStateWithLifecycle()
     val notificationAccess = rememberNotificationAccess()
+    val batteryExempt = rememberBatteryOptimizationExempt()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
@@ -569,6 +572,9 @@ fun StartScreen(
                             .show()
                     }
             },
+            batteryOptimizationExempt = batteryExempt,
+            batteryGuidanceNote = OemBatteryGuard.guidanceNote(),
+            onBatteryExemption = { OemBatteryGuard.requestExemption(context) },
             cornerRadius = settings.cornerRadius,
             onCornerRadiusChange = viewModel::setCornerRadius,
             tileFill = settings.tileFill,
