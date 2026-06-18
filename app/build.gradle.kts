@@ -1,9 +1,19 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     // Consumes the baseline profile produced by :macrobenchmark (S26).
     alias(libs.plugins.baselineprofile)
+}
+
+// Signing: reads from key.properties (NOT checked into git — see key.properties.template).
+// When absent (dev machines / CI without credentials) release falls back to the
+// debug keystore so local release builds and APK comparisons still work.
+val keystoreFile = rootProject.file("key.properties")
+val keystoreProps = Properties().apply {
+    if (keystoreFile.exists()) keystoreFile.inputStream().use { load(it) }
 }
 
 android {
@@ -14,17 +24,35 @@ android {
         applicationId = "com.tileshell"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1"
+        // versionCode: 10 = v1.0; patches → 11, 12 …; v1.1 → 20, etc.
+        versionCode = 10
+        versionName = "1.0"
+    }
+
+    if (keystoreFile.exists()) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8 full-mode shrinking + obfuscation. Rules in proguard-rules.pro
+            // supplement the AGP defaults and each library's consumer rules.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            if (keystoreFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     // The baseline-profile plugin auto-creates the `benchmarkRelease` (the

@@ -1,0 +1,22 @@
+# Copy this file to key.properties (at the repo root) and fill in your values.
+# key.properties is listed in .gitignore — NEVER commit it.
+#
+# Generate a new keystore (one-time):
+#   keytool -genkey -v \
+#     -keystore tileshell-release.jks \
+#     -alias tileshell \
+#     -keyalg RSA -keysize 2048 \
+#     -validity 10000
+#
+# Build a signed AAB:
+#   ./gradlew :app:bundleRelease
+#   → app/build/outputs/bundle/release/app-release.aab
+#
+# IMPORTANT: back up tileshell-release.jks and these passwords in a secure
+# password manager. Losing the keystore permanently locks you out of future
+# Play Store updates for this app.
+
+storeFile=../tileshell-release.jks
+storePassword=CHANGE_ME
+keyAlias=tileshell
+keyPassword=CHANGE_ME

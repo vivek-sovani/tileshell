@@ -5,6 +5,11 @@ build/
 # Local configuration (machine-specific SDK path)
 local.properties
 
+# Signing credentials — NEVER commit these
+key.properties
+*.jks
+*.keystore
+
 # IDE
 .idea/
 *.iml
