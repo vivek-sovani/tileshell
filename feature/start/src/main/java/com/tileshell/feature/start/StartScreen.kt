@@ -141,6 +141,7 @@ import com.tileshell.feature.livetiles.WeatherTileFace
 import com.tileshell.feature.livetiles.rememberFlipState
 import com.tileshell.feature.livetiles.rememberLiveTilesActive
 import com.tileshell.feature.livetiles.rememberNotificationAccess
+import com.tileshell.feature.personalize.AboutSheet
 import com.tileshell.feature.personalize.FeedSourceItem
 import com.tileshell.feature.personalize.PersonalizeSheet
 import com.tileshell.core.data.settings.FontStyle
@@ -197,6 +198,7 @@ fun StartScreen(
     val selectedTileId by viewModel.selectedTileId.collectAsStateWithLifecycle()
     val openFolderId by viewModel.openFolderId.collectAsStateWithLifecycle()
     val personalizeOpen by viewModel.personalizeOpen.collectAsStateWithLifecycle()
+    val aboutOpen by viewModel.aboutOpen.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val feedSources by viewModel.feedSources.collectAsStateWithLifecycle()
     // Live notification state (FR-1.2 badges, FR-2 mail/messages). Empty until the
@@ -573,7 +575,16 @@ fun StartScreen(
             onTileFillChange = viewModel::setTileFill,
             fontStyle = settings.fontStyle,
             onFontStyleChange = viewModel::setFontStyle,
+            onAbout = viewModel::openAbout,
             onDismiss = viewModel::closePersonalize,
+        )
+
+        // About sheet (personalize → about).
+        AboutSheet(
+            visible = aboutOpen,
+            dark = dark,
+            accentId = settings.accentId,
+            onDismiss = viewModel::closeAbout,
         )
 
         // Full-screen folder overlay (FR-4).

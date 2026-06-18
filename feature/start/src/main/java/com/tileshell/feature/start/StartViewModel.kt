@@ -112,6 +112,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val _personalizeOpen = MutableStateFlow(false)
     val personalizeOpen: StateFlow<Boolean> = _personalizeOpen.asStateFlow()
 
+    /** True while the about sheet is open (personalize → about). */
+    private val _aboutOpen = MutableStateFlow(false)
+    val aboutOpen: StateFlow<Boolean> = _aboutOpen.asStateFlow()
+
     fun setAppList(value: Boolean) {
         _isAppList.value = value
     }
@@ -205,6 +209,16 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Close the personalize sheet. Safe when none is open. */
     fun closePersonalize() {
         _personalizeOpen.value = false
+    }
+
+    /** Open the about sheet (personalize → about). */
+    fun openAbout() {
+        _aboutOpen.value = true
+    }
+
+    /** Close the about sheet. */
+    fun closeAbout() {
+        _aboutOpen.value = false
     }
 
     /** Switch theme (FR-7); persisted and applied live. */

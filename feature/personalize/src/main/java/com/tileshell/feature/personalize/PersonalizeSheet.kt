@@ -100,6 +100,7 @@ fun PersonalizeSheet(
     onTileFillChange: (TileFill) -> Unit,
     fontStyle: FontStyle,
     onFontStyleChange: (FontStyle) -> Unit,
+    onAbout: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -439,6 +440,21 @@ fun PersonalizeSheet(
                         color = if (notificationsEnabled) accent else tokens.fgDim,
                         fontSize = 13.sp,
                     )
+                }
+            }
+
+            // ---- about ----
+            SettingGroup(label = "about", tokens.fgDim) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onAbout)
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(text = "tileshell", color = tokens.fg, fontSize = 14.sp)
+                    Spacer(Modifier.weight(1f))
+                    Text(text = "features & info ›", color = accent, fontSize = 13.sp)
                 }
             }
         }
