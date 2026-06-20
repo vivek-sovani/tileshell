@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TileShell — Privacy Policy</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; line-height: 1.7; }
+  h1 { font-size: 1.8rem; margin-bottom: 4px; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2rem; }
+  h2 { font-size: 1.1rem; margin-top: 2rem; border-bottom: 1px solid #e0e0e0; padding-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 1rem 0; }
+  th, td { text-align: left; padding: 8px 10px; border: 1px solid #ddd; vertical-align: top; }
+  th { background: #f5f5f5; font-weight: 600; }
+  code { background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-size: 0.88em; }
+  a { color: #2B78E4; }
+  footer { margin-top: 3rem; font-size: 0.85rem; color: #888; border-top: 1px solid #e0e0e0; padding-top: 1rem; }
+</style>
+</head>
+<body>
+
+<h1>TileShell — Privacy Policy</h1>
+<p class="meta">Effective date: 2026-06-18 &nbsp;·&nbsp; Last updated: 2026-06-20</p>
+
+<h2>Summary</h2>
+<p>TileShell is a launcher (home-screen replacement) for Android. It does not have a server backend, does not create user accounts, and does not transmit personal data to the developer. All personalisation data (layout, settings, photos) stays on your device.</p>
+
+<h2>1. What data TileShell accesses</h2>
+<p>TileShell requests the following permissions. Each is optional — the relevant feature simply stays inactive when a permission is denied.</p>
+<table>
+  <tr><th>Permission</th><th>What it reads</th><th>Where the data goes</th></tr>
+  <tr><td><code>READ_CONTACTS</code></td><td>Contact names and profile photos for the People live tile</td><td>Stays on device</td></tr>
+  <tr><td><code>READ_CALENDAR</code></td><td>Upcoming calendar events for the Calendar live tile</td><td>Stays on device</td></tr>
+  <tr><td><code>ACCESS_COARSE_LOCATION</code></td><td>Device coarse location (city level) for the Weather live tile</td><td>Sent to Open-Meteo (see §2)</td></tr>
+  <tr><td><code>NOTIFICATION_LISTENER</code> (special access)</td><td>Notification titles and snippets for badges and Mail/Messages live tiles</td><td>Stays on device</td></tr>
+  <tr><td><code>INTERNET</code></td><td>Weather forecast fetches, news RSS feeds</td><td>Sent to Open-Meteo and RSS sources (see §2)</td></tr>
+  <tr><td><code>BIND_ACCESSIBILITY_SERVICE</code> (optional)</td><td>Used only to issue the "lock screen" action when you long-press the settings icon</td><td>Not read; no data transmitted</td></tr>
+</table>
+<p>TileShell does <strong>not</strong> access call logs, SMS/MMS bodies, microphone, camera, or files beyond photos you explicitly pick for the wallpaper and live-photos slideshow.</p>
+
+<h2>2. Third-party services</h2>
+<h3 style="font-size:1rem;margin-bottom:4px;">Open-Meteo (weather)</h3>
+<p>When you grant coarse location for the Weather live tile, TileShell sends your approximate GPS coordinates to <a href="https://open-meteo.com">Open-Meteo</a> to retrieve a weather forecast. The request contains latitude/longitude only — no device identifiers, no account information. Open-Meteo's own privacy policy applies to data they receive.</p>
+
+<h3 style="font-size:1rem;margin-bottom:4px;">RSS news feeds</h3>
+<p>The Feed page fetches articles from RSS/Atom feeds you have enabled. Each request is a standard HTTP GET to the feed URL; no personal data is included. The feed providers' own privacy policies apply.</p>
+
+<h3 style="font-size:1rem;margin-bottom:4px;">Google Search</h3>
+<p>Tapping the search pill on the Feed page opens a Google Search query in your default browser. TileShell does not intercept or log these queries.</p>
+
+<h2>3. On-device storage</h2>
+<p>TileShell stores the following data locally on your device (using Android Room and DataStore):</p>
+<ul>
+  <li><strong>Start screen layout</strong> — tile positions, sizes, folder contents</li>
+  <li><strong>Personalisation settings</strong> — theme, accent colour, wallpaper choice, transparency</li>
+  <li><strong>Photos you pick</strong> for the live-photos slideshow and custom wallpaper</li>
+  <li><strong>News feed preferences</strong> — which categories and sources you have enabled</li>
+  <li><strong>Widget bindings</strong> — widget IDs added to the Feed/Glance tab</li>
+  <li><strong>Recently launched apps</strong> — used for the "recent" section in the App List (capped at 12 entries, never transmitted)</li>
+</ul>
+<p>None of this data is backed up to the developer's servers. Android's standard auto-backup to Google may back it up according to your device's backup settings.</p>
+
+<h2>4. Children's privacy</h2>
+<p>TileShell is not directed at children under 13 and does not knowingly collect personal information from children.</p>
+
+<h2>5. Changes to this policy</h2>
+<p>Material changes will be noted in the app's release notes and reflected by updating the "Last updated" date above.</p>
+
+<h2>6. Contact</h2>
+<p>Questions about this privacy policy: <a href="mailto:vivek.sovani@kimayainfotech.com">vivek.sovani@kimayainfotech.com</a></p>
+
+<footer>TileShell &copy; 2026 Kimaya Infotech. All rights reserved.</footer>
+
+</body>
+</html>
