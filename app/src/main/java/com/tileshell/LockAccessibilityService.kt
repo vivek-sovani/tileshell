@@ -22,6 +22,8 @@ class LockAccessibilityService : AccessibilityService() {
     companion object {
         @Volatile private var instance: LockAccessibilityService? = null
 
+        fun isConnected(): Boolean = instance != null
+
         @RequiresApi(Build.VERSION_CODES.P)
         fun lockScreen(): Boolean = instance?.performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN) == true
     }
