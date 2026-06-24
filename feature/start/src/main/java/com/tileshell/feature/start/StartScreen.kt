@@ -143,6 +143,8 @@ import com.tileshell.feature.livetiles.rememberLiveTilesActive
 import com.tileshell.feature.livetiles.OemBatteryGuard
 import com.tileshell.feature.livetiles.rememberBatteryOptimizationExempt
 import com.tileshell.feature.livetiles.rememberNotificationAccess
+import com.tileshell.feature.livetiles.rememberPermissionGranted
+import com.tileshell.feature.livetiles.WeatherRefreshWorker
 import com.tileshell.feature.personalize.AboutSheet
 import com.tileshell.feature.personalize.FeedSourceItem
 import com.tileshell.feature.personalize.PersonalizeSheet
@@ -208,6 +210,9 @@ fun StartScreen(
     val notifications by NotificationCenter.snapshot.collectAsStateWithLifecycle()
     val notificationAccess = rememberNotificationAccess()
     val batteryExempt = rememberBatteryOptimizationExempt()
+    val contactsGranted = rememberPermissionGranted(android.Manifest.permission.READ_CONTACTS)
+    val calendarGranted = rememberPermissionGranted(android.Manifest.permission.READ_CALENDAR)
+    val locationGranted = rememberPermissionGranted(android.Manifest.permission.ACCESS_COARSE_LOCATION)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
@@ -300,6 +305,19 @@ fun StartScreen(
             }
             scope.launch { photosStore.setUris(uris.map { it.toString() }) }
         }
+    }
+
+    // Per-permission launchers for the personalize "permissions" section.
+    val contactsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { /* granted state is re-read on ON_RESUME via rememberPermissionGranted */ }
+    val calendarLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { }
+    val locationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) WeatherRefreshWorker.refreshNow(context)
     }
 
     val scrollState = rememberScrollState()
@@ -564,6 +582,19 @@ fun StartScreen(
             },
             photosSelected = photosCount,
             onPickPhotos = { photosPicker.launch(arrayOf("image/*")) },
+            onClearPhotos = { scope.launch { photosStore.setUris(emptyList()) } },
+            contactsGranted = contactsGranted,
+            calendarGranted = calendarGranted,
+            locationGranted = locationGranted,
+            onRequestContacts = {
+                contactsLauncher.launch(android.Manifest.permission.READ_CONTACTS)
+            },
+            onRequestCalendar = {
+                calendarLauncher.launch(android.Manifest.permission.READ_CALENDAR)
+            },
+            onRequestLocation = {
+                locationLauncher.launch(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+            },
             notificationsEnabled = notificationAccess,
             onNotificationAccess = {
                 runCatching { context.startActivity(NotificationAccess.settingsIntent()) }

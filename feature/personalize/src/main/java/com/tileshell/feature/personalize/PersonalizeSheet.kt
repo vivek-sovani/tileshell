@@ -103,6 +103,13 @@ fun PersonalizeSheet(
     onTileFillChange: (TileFill) -> Unit,
     fontStyle: FontStyle,
     onFontStyleChange: (FontStyle) -> Unit,
+    onClearPhotos: () -> Unit,
+    contactsGranted: Boolean,
+    calendarGranted: Boolean,
+    locationGranted: Boolean,
+    onRequestContacts: () -> Unit,
+    onRequestCalendar: () -> Unit,
+    onRequestLocation: () -> Unit,
     onAbout: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
@@ -425,6 +432,50 @@ fun PersonalizeSheet(
                         fontSize = 13.sp,
                     )
                 }
+                if (photosSelected > 0) {
+                    Spacer(Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onClearPhotos)
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(text = "clear selected photos", color = tokens.fgDim, fontSize = 14.sp)
+                        Spacer(Modifier.weight(1f))
+                        Text(text = "✕", color = tokens.fgDim, fontSize = 13.sp)
+                    }
+                }
+            }
+
+            // ---- permissions (live-tile data sources) ----
+            SettingGroup(label = "permissions", tokens.fgDim) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    PermissionRow(
+                        label = "contacts",
+                        description = "people tile",
+                        granted = contactsGranted,
+                        accent = accent,
+                        tokens = tokens,
+                        onClick = onRequestContacts,
+                    )
+                    PermissionRow(
+                        label = "calendar",
+                        description = "calendar tile",
+                        granted = calendarGranted,
+                        accent = accent,
+                        tokens = tokens,
+                        onClick = onRequestCalendar,
+                    )
+                    PermissionRow(
+                        label = "location",
+                        description = "weather tile",
+                        granted = locationGranted,
+                        accent = accent,
+                        tokens = tokens,
+                        onClick = onRequestLocation,
+                    )
+                }
             }
 
             // ---- notifications (FR-1.2 / FR-2 opt-in) ----
@@ -642,6 +693,35 @@ private fun RowScope.SegCell(
             color = if (selected) Color.White else fg,
             fontSize = 14.sp,
             textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/** A permission row: label + description on the left, status / "allow" on the right. */
+@Composable
+private fun PermissionRow(
+    label: String,
+    description: String,
+    granted: Boolean,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = !granted, onClick = onClick)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = label, color = tokens.fg, fontSize = 14.sp)
+            Text(text = description, color = tokens.fgDim, fontSize = 12.sp)
+        }
+        Text(
+            text = if (granted) "allowed ✓" else "allow ›",
+            color = if (granted) accent else tokens.fgDim,
+            fontSize = 13.sp,
         )
     }
 }

@@ -38,7 +38,7 @@ fun colorFor(name: String): Color {
  * shows photos only); an empty result degrades the tile to static. Distinct by
  * name so a contact split across raw accounts only fills one cell.
  */
-fun queryContacts(context: Context, limit: Int = 12): List<Person> {
+fun queryContacts(context: Context, limit: Int = 50): List<Person> {
     val projection = arrayOf(
         ContactsContract.Contacts.DISPLAY_NAME_PRIMARY,
         ContactsContract.Contacts.PHOTO_THUMBNAIL_URI,

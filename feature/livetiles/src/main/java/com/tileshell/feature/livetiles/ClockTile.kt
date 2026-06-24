@@ -1,5 +1,7 @@
 package com.tileshell.feature.livetiles
 
+import android.app.AlarmManager
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.dp
@@ -37,20 +40,40 @@ private val MONTHS = listOf(
 /**
  * The text shown on the clock tile's two faces (prototype `clockNow()`). 24-hour
  * `h:mm` with full lowercase weekday and date; the back shows the date again with
- * the next alarm. [alarm] is a placeholder until the alarm provider lands.
+ * the next alarm. Empty string means no alarm is set (back omits the alarm line).
  */
 data class ClockFace(
     val hm: String,
     val weekday: String,
     val fullDate: String,
-    val alarm: String = "7:00",
+    val alarm: String = "",
 )
+
+/**
+ * Returns the next system alarm as "h:mm am/pm", or empty string if no alarm is
+ * set. Reads [AlarmManager.getNextAlarmClock] — no permission required.
+ */
+fun nextAlarmString(context: Context): String {
+    val am = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return ""
+    val info = am.nextAlarmClock ?: return ""
+    val cal = Calendar.getInstance().apply { timeInMillis = info.triggerTime }
+    val hour = cal.get(Calendar.HOUR_OF_DAY)
+    val minute = cal.get(Calendar.MINUTE)
+    val ampm = if (hour < 12) "am" else "pm"
+    val h12 = when {
+        hour == 0 -> 12
+        hour > 12 -> hour - 12
+        else -> hour
+    }
+    return "$h12:${minute.toString().padStart(2, '0')} $ampm"
+}
 
 /**
  * Builds a [ClockFace] from calendar fields. Pure (no `Calendar.getInstance()`)
  * so the formatting — 24-hour, zero-padded minutes, lowercase names — is
  * unit-testable. [dayOfWeek] is Calendar's 1=Sunday convention; [month0] is
  * 0-based (0=January), matching both Calendar and the prototype's JS `Date`.
+ * [alarm] is the formatted next-alarm string; empty means no alarm is set.
  */
 fun clockFace(
     hour24: Int,
@@ -59,13 +82,15 @@ fun clockFace(
     dayOfMonth: Int,
     month0: Int,
     year: Int,
+    alarm: String = "",
 ): ClockFace = ClockFace(
     hm = "$hour24:${minute.toString().padStart(2, '0')}",
     weekday = WEEKDAYS[dayOfWeek - 1],
     fullDate = "$dayOfMonth ${MONTHS[month0]} $year",
+    alarm = alarm,
 )
 
-private fun currentClockFace(): ClockFace {
+private fun currentClockFace(context: Context): ClockFace {
     val c = Calendar.getInstance()
     return clockFace(
         hour24 = c.get(Calendar.HOUR_OF_DAY),
@@ -74,6 +99,7 @@ private fun currentClockFace(): ClockFace {
         dayOfMonth = c.get(Calendar.DAY_OF_MONTH),
         month0 = c.get(Calendar.MONTH),
         year = c.get(Calendar.YEAR),
+        alarm = nextAlarmString(context),
     )
 }
 
@@ -91,11 +117,12 @@ fun ClockTileFace(
     active: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    var face by remember { mutableStateOf(currentClockFace()) }
+    val context = LocalContext.current
+    var face by remember { mutableStateOf(currentClockFace(context)) }
     LaunchedEffect(active) {
         if (!active) return@LaunchedEffect
         while (true) {
-            face = currentClockFace()
+            face = currentClockFace(context)
             // Align the next tick to the start of the next minute.
             delay(60_000L - (System.currentTimeMillis() % 60_000L))
         }
@@ -118,11 +145,12 @@ private val FaceText = Color.White
  */
 @Composable
 fun ClockSmallFace(active: Boolean, modifier: Modifier = Modifier) {
-    var face by remember { mutableStateOf(currentClockFace()) }
+    val context = LocalContext.current
+    var face by remember { mutableStateOf(currentClockFace(context)) }
     LaunchedEffect(active) {
         if (!active) return@LaunchedEffect
         while (true) {
-            face = currentClockFace()
+            face = currentClockFace(context)
             delay(60_000L - (System.currentTimeMillis() % 60_000L))
         }
     }
@@ -193,12 +221,14 @@ private fun ClockBack(face: ClockFace) {
             letterSpacing = (-1).sp,
             maxLines = 1,
         )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = "alarm ${face.alarm}",
-            color = FaceText.copy(alpha = 0.82f),
-            fontSize = 12.sp,
-            maxLines = 1,
-        )
+        if (face.alarm.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "alarm ${face.alarm}",
+                color = FaceText.copy(alpha = 0.82f),
+                fontSize = 12.sp,
+                maxLines = 1,
+            )
+        }
     }
 }
