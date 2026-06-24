@@ -1167,18 +1167,6 @@ private fun TileView(
             is TileModel.App -> AppTileContent(tile, flipped = flipped, liveActive = liveActive)
             is TileModel.Folder -> FolderTileContent(tile)
         }
-        // Glass small tiles lose their colour fill, so a top-right accent dot
-        // keeps the tile's colour identity (prototype `#screen.glass .tile.small
-        // .accentdot`). Larger glass tiles show the icon/label instead.
-        if (glassFill != null && !tiledWallpaper && tile.size == TileSize.SMALL) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp)
-                    .size(8.dp)
-                    .background(accent, CircleShape),
-            )
-        }
         // Per-app notification badge (FR-1.2). Top-right pill, count from the
         // notification listener; sized down on small tiles (prototype .badge).
         if (badgeCount > 0) {
