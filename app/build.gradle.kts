@@ -25,8 +25,8 @@ android {
         minSdk = 26
         targetSdk = 36
         // versionCode: 10 = v1.0; patches → 11, 12 …; v1.1 → 20, etc.
-        versionCode = 11
-        versionName = "1.0.1"
+        versionCode = 12
+        versionName = "1.0.2"
     }
 
     if (keystoreFile.exists()) {
