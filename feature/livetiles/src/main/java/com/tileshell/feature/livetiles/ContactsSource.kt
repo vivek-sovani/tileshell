@@ -32,34 +32,25 @@ fun colorFor(name: String): Color {
 }
 
 /**
- * Reads up to [limit] contacts that have a profile photo (display name +
- * thumbnail) for the people tile, leading with **favourites + frequently
- * contacted**: the provider's "strequent" list (starred contacts, then most-
- * contacted) comes first, then any remaining photo contacts alphabetically fill
- * the rest. Uses only READ_CONTACTS — no call-log permission. (Note: Android 10+
- * no longer tracks "frequently contacted" for privacy, so on modern devices the
- * strequent list is effectively the starred/favourite contacts.)
+ * Reads up to [limit] **favourite + frequently-contacted** contacts that have a
+ * profile photo (display name + thumbnail) for the people tile — and *only* those.
+ * Uses the provider's "strequent" list (starred contacts, then most-contacted),
+ * which needs only READ_CONTACTS, no call-log permission. The mosaic deliberately
+ * does **not** fall back to other contacts, so it shows just the people the user
+ * cares about; if none of them have a photo the tile degrades to static. (Note:
+ * Android 10+ no longer tracks "frequently contacted" for privacy, so on modern
+ * devices the strequent list is effectively the starred/favourite contacts — so
+ * with no favourites starred, the tile stays static.)
  *
  * Caller must hold READ_CONTACTS — this throws SecurityException otherwise, so
  * guard the call. Contacts without a display name *or without a photo* are skipped
- * (the mosaic shows photos only); an empty result degrades the tile to static.
- * Distinct by name so a contact split across raw accounts only fills one cell.
+ * (the mosaic shows photos only). Distinct by name so a contact split across raw
+ * accounts only fills one cell.
  */
 fun queryContacts(context: Context, limit: Int = 50): List<Person> {
     val people = LinkedHashMap<String, Person>()
-    // 1) Favourites + frequently-contacted first, in the provider's own order.
     @Suppress("DEPRECATION") // strequent still returns starred contacts on API 29+
     readPhotoContacts(context, ContactsContract.Contacts.CONTENT_STREQUENT_URI, null, people, limit)
-    // 2) Fill the remainder with other photo contacts, alphabetical, deduped by name.
-    if (people.size < limit) {
-        readPhotoContacts(
-            context,
-            ContactsContract.Contacts.CONTENT_URI,
-            "${ContactsContract.Contacts.DISPLAY_NAME_PRIMARY} ASC",
-            people,
-            limit,
-        )
-    }
     return people.values.toList()
 }
 

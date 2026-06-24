@@ -148,7 +148,7 @@ data. Users can also clear app data via Android Settings at any time.
 ```
 TileShell 1.0.3
 
-• People tile now leads with your favourite contacts (and frequently-contacted on older Android), showing their photos first
+• People tile now shows photos of only your favourite contacts (and frequently-contacted on older Android) instead of all contacts
 ```
 
 ## Release notes (v1.0.2)

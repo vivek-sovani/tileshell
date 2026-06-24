@@ -39,12 +39,13 @@ private const val CELL_REFRESH_MS = 2_100L
 
 /**
  * The live people tile (FR-2). Asks for READ_CONTACTS once (opt-in), then shows a
- * randomly-selected mosaic of contact *profile photos* — 2×2 at medium, 4×2 at
- * wide (prototype `liveFace('people')`). Only contacts that have a photo are used
- * (no initials avatars). While [active], one random cell cross-fades to a
- * different contact every ~2.1 s (the prototype `peopleStep`). The back face is a
- * single large photo with "<name> posted". When the permission is denied or no
- * contact has a photo it renders [fallback] (the static glyph).
+ * mosaic of *profile photos* of the user's **favourite + frequently-contacted**
+ * contacts only — 2×2 at medium, 4×2 at wide (prototype `liveFace('people')`).
+ * Only contacts that have a photo are used (no initials avatars). While [active],
+ * one random cell cross-fades to a different contact every ~2.1 s (the prototype
+ * `peopleStep`). The back face is a single large photo with "<name> posted". When
+ * the permission is denied or no favourite contact has a photo it renders
+ * [fallback] (the static glyph).
  */
 @Composable
 fun PeopleTileFace(
@@ -71,8 +72,8 @@ fun PeopleTileFace(
     val cellCount = cols * rows
 
     // Seed the mosaic in queryContacts' order — favourites + frequently-contacted
-    // first — so the tile leads with the user's important people; the rotation
-    // below still swaps in others over time for liveliness.
+    // only — so the tile shows just the user's important people; the rotation below
+    // cycles among them for liveliness.
     val cells = remember(people, cellCount) {
         mutableStateListOf<Person>().apply { addAll(mosaicCells(people, cellCount)) }
     }
