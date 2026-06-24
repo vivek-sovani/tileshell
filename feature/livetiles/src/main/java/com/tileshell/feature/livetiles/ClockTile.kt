@@ -57,8 +57,11 @@ data class ClockFace(
 )
 
 /**
- * Returns the next system alarm as "h:mm am/pm", or empty string if no alarm is
- * set. Reads [AlarmManager.getNextAlarmClock] — no permission required.
+ * Returns the next system alarm-clock event as "h:mm am/pm", or empty string if
+ * none is set. Reads [AlarmManager.getNextAlarmClock] — no permission required.
+ * Note this event includes the clock app's Bedtime schedule (Android exposes no
+ * way to distinguish a real alarm from bedtime), which is why the tile labels the
+ * value "alarm / bedtime".
  */
 fun nextAlarmString(context: Context): String {
     val am = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return ""
@@ -258,8 +261,12 @@ private fun ClockBack(face: ClockFace) {
         )
         if (face.alarm.isNotEmpty()) {
             Spacer(Modifier.height(4.dp))
+            // Labelled "alarm / bedtime" because Android's getNextAlarmClock reports
+            // the next alarm-clock *event*, which includes the clock app's Bedtime
+            // schedule, and gives no way to tell the two apart — so the label names
+            // both rather than mislabelling a bedtime as an alarm.
             Text(
-                text = "alarm ${face.alarm}",
+                text = "alarm / bedtime ${face.alarm}",
                 color = FaceText.copy(alpha = 0.82f),
                 fontSize = 12.sp,
                 maxLines = 1,
