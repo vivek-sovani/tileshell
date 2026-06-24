@@ -70,10 +70,11 @@ fun PeopleTileFace(
     val rows = 2
     val cellCount = cols * rows
 
-    // Random initial arrangement of distinct contacts (the user asked for a random
-    // selection with no repeats).
+    // Seed the mosaic in queryContacts' order — favourites + frequently-contacted
+    // first — so the tile leads with the user's important people; the rotation
+    // below still swaps in others over time for liveliness.
     val cells = remember(people, cellCount) {
-        mutableStateListOf<Person>().apply { addAll(mosaicCells(people.shuffled(), cellCount)) }
+        mutableStateListOf<Person>().apply { addAll(mosaicCells(people, cellCount)) }
     }
     // Rotate in a contact that is not already on screen, so the mosaic never shows
     // the same photo twice. Only meaningful when there are more contacts than cells

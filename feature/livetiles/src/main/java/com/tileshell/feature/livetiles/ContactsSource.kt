@@ -1,6 +1,7 @@
 package com.tileshell.feature.livetiles
 
 import android.content.Context
+import android.net.Uri
 import android.provider.ContactsContract
 import androidx.compose.ui.graphics.Color
 import kotlin.math.abs
@@ -32,34 +33,64 @@ fun colorFor(name: String): Color {
 
 /**
  * Reads up to [limit] contacts that have a profile photo (display name +
- * thumbnail) from the system provider for the people tile. Caller must hold
- * READ_CONTACTS — this throws SecurityException otherwise, so guard the call.
- * Contacts without a display name *or without a photo* are skipped (the mosaic
- * shows photos only); an empty result degrades the tile to static. Distinct by
- * name so a contact split across raw accounts only fills one cell.
+ * thumbnail) for the people tile, leading with **favourites + frequently
+ * contacted**: the provider's "strequent" list (starred contacts, then most-
+ * contacted) comes first, then any remaining photo contacts alphabetically fill
+ * the rest. Uses only READ_CONTACTS — no call-log permission. (Note: Android 10+
+ * no longer tracks "frequently contacted" for privacy, so on modern devices the
+ * strequent list is effectively the starred/favourite contacts.)
+ *
+ * Caller must hold READ_CONTACTS — this throws SecurityException otherwise, so
+ * guard the call. Contacts without a display name *or without a photo* are skipped
+ * (the mosaic shows photos only); an empty result degrades the tile to static.
+ * Distinct by name so a contact split across raw accounts only fills one cell.
  */
 fun queryContacts(context: Context, limit: Int = 50): List<Person> {
+    val people = LinkedHashMap<String, Person>()
+    // 1) Favourites + frequently-contacted first, in the provider's own order.
+    @Suppress("DEPRECATION") // strequent still returns starred contacts on API 29+
+    readPhotoContacts(context, ContactsContract.Contacts.CONTENT_STREQUENT_URI, null, people, limit)
+    // 2) Fill the remainder with other photo contacts, alphabetical, deduped by name.
+    if (people.size < limit) {
+        readPhotoContacts(
+            context,
+            ContactsContract.Contacts.CONTENT_URI,
+            "${ContactsContract.Contacts.DISPLAY_NAME_PRIMARY} ASC",
+            people,
+            limit,
+        )
+    }
+    return people.values.toList()
+}
+
+/**
+ * Appends photo-bearing contacts from [uri] (in [sortOrder]) into [into], distinct
+ * by display name, until [limit] is reached. Photos are filtered in code rather
+ * than via a selection so it works uniformly for the strequent URI (which doesn't
+ * take an arbitrary selection). Query failures are swallowed — a missing provider
+ * just contributes nothing.
+ */
+private fun readPhotoContacts(
+    context: Context,
+    uri: Uri,
+    sortOrder: String?,
+    into: LinkedHashMap<String, Person>,
+    limit: Int,
+) {
     val projection = arrayOf(
         ContactsContract.Contacts.DISPLAY_NAME_PRIMARY,
         ContactsContract.Contacts.PHOTO_THUMBNAIL_URI,
     )
-    val people = LinkedHashMap<String, Person>()
-    context.contentResolver.query(
-        ContactsContract.Contacts.CONTENT_URI,
-        projection,
-        "${ContactsContract.Contacts.DISPLAY_NAME_PRIMARY} IS NOT NULL " +
-            "AND ${ContactsContract.Contacts.PHOTO_THUMBNAIL_URI} IS NOT NULL",
-        null,
-        "${ContactsContract.Contacts.DISPLAY_NAME_PRIMARY} ASC",
-    )?.use { cursor ->
-        while (cursor.moveToNext() && people.size < limit) {
-            val name = cursor.getString(0)?.trim().orEmpty()
-            if (name.isEmpty()) continue
-            val photo = cursor.getString(1)?.ifBlank { null } ?: continue
-            people.getOrPut(name) { Person(name, photo) }
+    runCatching {
+        context.contentResolver.query(uri, projection, null, null, sortOrder)?.use { cursor ->
+            while (cursor.moveToNext() && into.size < limit) {
+                val name = cursor.getString(0)?.trim().orEmpty()
+                if (name.isEmpty()) continue
+                val photo = cursor.getString(1)?.ifBlank { null } ?: continue
+                into.getOrPut(name) { Person(name, photo) }
+            }
         }
     }
-    return people.values.toList()
 }
 
 /**
