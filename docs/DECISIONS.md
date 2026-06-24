@@ -3,6 +3,26 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Post-S29 — gallery photo picker + copy-to-internal-storage (supersedes S18/S23)
+
+- **The wallpaper and live-photos pickers now use the Android Photo Picker**
+  (`PickVisualMedia` / `PickMultipleVisualMedia`) instead of the SAF document
+  browser (`ACTION_OPEN_DOCUMENT`). The photo picker opens the phone's gallery /
+  system media picker, which is the "open my gallery" experience the user expects,
+  and needs no storage permission. The earlier S18/S23 decision used SAF
+  specifically so a *persistable* read grant (`takePersistableUriPermission`) would
+  keep the wallpaper / slideshow alive across reboots — and the photo picker's grant
+  is **not** persistable, so a naive swap would lose the image on reboot.
+- **So the picked image bytes are copied into private storage** (`MediaImport`,
+  `filesDir/wallpaper/` and `filesDir/livephotos/`) and a `file://` URI to our own
+  copy is stored. Reading our own file via `contentResolver.openInputStream` needs
+  no grant, so the choice now survives reboot *and* process death unconditionally —
+  strictly more robust than holding a persistable grant on a foreign URI (which a
+  revoked/deleted source could still break). Filenames are timestamped so the URI
+  changes on each pick, busting the URI-keyed bitmap cache; the target dir is
+  cleared before each new selection and on "clear selected photos", so copies don't
+  accumulate. This supersedes the persistable-grant rationale in S18/S23.
+
 ## S28 — Beta hardening: OEM battery guidance + notification bitmap cap
 
 - **OEM battery guidance is a two-layer problem.** On stock Android / most

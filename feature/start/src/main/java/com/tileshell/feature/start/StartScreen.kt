@@ -11,6 +11,7 @@ import android.net.Uri
 import android.provider.CalendarContract
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
@@ -266,44 +267,37 @@ fun StartScreen(
     // Set by the picker callback; cleared when the crop overlay is confirmed or cancelled.
     var pendingWallpaperCropUri by remember { mutableStateOf<String?>(null) }
 
-    // System photo picker for a custom wallpaper. OpenDocument (not the photo
-    // picker) so we can take a persistable read grant — required to reload the
-    // photo after a reboot (see docs/DECISIONS.md S18).
+    // Gallery photo picker for a custom wallpaper. PickVisualMedia opens the phone's
+    // gallery / system photo picker (nicer than the SAF document browser). Its grant
+    // isn't persistable, so the picked image is copied into private storage and the
+    // crop overlay works on that copy (MediaImport; supersedes DECISIONS S18/S23).
     val wallpaperPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument(),
+        ActivityResultContracts.PickVisualMedia(),
     ) { uri ->
         if (uri != null) {
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                )
+            scope.launch {
+                val local = withContext(Dispatchers.IO) { MediaImport.importWallpaper(context, uri) }
+                // Don't save yet — show the crop overlay first so the user can position
+                // the photo before it becomes the live wallpaper.
+                if (local != null) pendingWallpaperCropUri = local.toString()
             }
-            // Don't save yet — show the crop overlay first so the user can position
-            // the photo before it becomes the live wallpaper.
-            pendingWallpaperCropUri = uri.toString()
         }
     }
 
-    // Photos tile selection (FR-2). OpenMultipleDocuments (not the photo picker)
-    // for the same reason as the wallpaper: a persistable read grant so the
-    // slideshow survives a reboot (DECISIONS S18/S23).
+    // Live-photos selection (FR-2). PickMultipleVisualMedia opens the gallery; the
+    // picked photos are copied into private storage so the slideshow survives a
+    // reboot without a persistable grant (MediaImport).
     val photosStore = remember(context) { PhotosStore.create(context) }
     val photosCount = photosStore.data.collectAsStateWithLifecycle(initialValue = PhotosData())
         .value.uris.size
     val photosPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenMultipleDocuments(),
+        ActivityResultContracts.PickMultipleVisualMedia(),
     ) { uris ->
         if (uris.isNotEmpty()) {
-            uris.forEach { uri ->
-                runCatching {
-                    context.contentResolver.takePersistableUriPermission(
-                        uri,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                    )
-                }
+            scope.launch {
+                val local = withContext(Dispatchers.IO) { MediaImport.importPhotos(context, uris) }
+                if (local.isNotEmpty()) photosStore.setUris(local)
             }
-            scope.launch { photosStore.setUris(uris.map { it.toString() }) }
         }
     }
 
@@ -574,15 +568,28 @@ fun StartScreen(
             onTransparencyChange = viewModel::setTransparency,
             onBlurChange = viewModel::setBlur,
             onWallpaperChange = viewModel::setWallpaper,
-            onPickCustomWallpaper = { wallpaperPicker.launch(arrayOf("image/*")) },
+            onPickCustomWallpaper = {
+                wallpaperPicker.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                )
+            },
             onClearWallpaper = viewModel::clearWallpaper,
             onResetLayout = {
                 viewModel.resetLayout()
                 Toast.makeText(context, "layout reset", Toast.LENGTH_SHORT).show()
             },
             photosSelected = photosCount,
-            onPickPhotos = { photosPicker.launch(arrayOf("image/*")) },
-            onClearPhotos = { scope.launch { photosStore.setUris(emptyList()) } },
+            onPickPhotos = {
+                photosPicker.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                )
+            },
+            onClearPhotos = {
+                scope.launch {
+                    photosStore.setUris(emptyList())
+                    withContext(Dispatchers.IO) { MediaImport.clearPhotos(context) }
+                }
+            },
             contactsGranted = contactsGranted,
             calendarGranted = calendarGranted,
             locationGranted = locationGranted,
