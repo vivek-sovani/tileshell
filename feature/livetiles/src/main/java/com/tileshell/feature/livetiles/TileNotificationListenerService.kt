@@ -53,8 +53,10 @@ class TileNotificationListenerService : NotificationListenerService() {
         NotificationCenter.publishImages(notificationImages(active))
     }
 
-    /** Newest dismissable notification's image per package (null entries dropped). */
-    private fun notificationImages(active: Array<out StatusBarNotification>): Map<String, Bitmap> =
+    /** Newest dismissable notification's images per package (empty entries dropped). */
+    private fun notificationImages(
+        active: Array<out StatusBarNotification>,
+    ): Map<String, NotificationImages> =
         active
             .filter {
                 it.isClearable &&
@@ -63,27 +65,31 @@ class TileNotificationListenerService : NotificationListenerService() {
             .groupBy { it.packageName }
             .mapNotNull { (pkg, list) ->
                 val newest = list.maxByOrNull { it.postTime } ?: return@mapNotNull null
-                newest.extractImage(this)?.let { pkg to it }
+                val images = newest.extractImages(this)
+                if (images.avatar == null && images.picture == null) null else pkg to images
             }
             .toMap()
 }
 
 /**
- * Pulls a displayable image out of a notification: the big-picture style photo
- * (a shared image) if present, else the large icon (typically the sender's contact
- * photo), rasterised to a bitmap. Returns null for plain text-only notifications.
+ * Pulls the displayable images out of a notification, kept separate so the live
+ * face can render them like an Android notification row: the [NotificationImages.avatar]
+ * is the large icon (typically the sender's contact photo) and the
+ * [NotificationImages.picture] is the big-picture style shared photo. Either may be
+ * null — a plain text notification carries neither.
  *
- * Big-picture bitmaps are downscaled to [MAX_NOTIFICATION_IMAGE_PX] — full-res
- * photos from messaging apps can be several MB and holding many in a StateFlow
- * map risks OOM on memory-constrained devices (S28 crash hardening).
+ * Both bitmaps are downscaled to [MAX_NOTIFICATION_IMAGE_PX] — full-res photos from
+ * messaging apps can be several MB and holding many in a StateFlow map risks OOM on
+ * memory-constrained devices (S28 crash hardening).
  */
-private fun StatusBarNotification.extractImage(context: Context): Bitmap? {
-    val n = notification ?: return null
-    (n.extras?.get(Notification.EXTRA_PICTURE) as? Bitmap)?.let {
-        return it.downscaleIfNeeded(MAX_NOTIFICATION_IMAGE_PX)
-    }
-    val icon = n.getLargeIcon() ?: return null
-    return runCatching { icon.loadDrawable(context)?.toBitmap() }.getOrNull()
+private fun StatusBarNotification.extractImages(context: Context): NotificationImages {
+    val n = notification ?: return NotificationImages()
+    val picture = (n.extras?.get(Notification.EXTRA_PICTURE) as? Bitmap)
+        ?.downscaleIfNeeded(MAX_NOTIFICATION_IMAGE_PX)
+    val avatar = n.getLargeIcon()
+        ?.let { icon -> runCatching { icon.loadDrawable(context)?.toBitmap() }.getOrNull() }
+        ?.downscaleIfNeeded(MAX_NOTIFICATION_IMAGE_PX)
+    return NotificationImages(avatar = avatar, picture = picture)
 }
 
 private const val MAX_NOTIFICATION_IMAGE_PX = 600

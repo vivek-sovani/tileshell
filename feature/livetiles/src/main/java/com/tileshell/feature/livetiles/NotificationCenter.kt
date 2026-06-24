@@ -42,6 +42,19 @@ data class ConversationPreview(
 )
 
 /**
+ * The newest notification's images for a package, shown on its live face like an
+ * Android notification row: [avatar] is the sender / large-icon (a small circular
+ * thumbnail beside the text), [picture] is the shared big-picture image (a small
+ * rounded thumbnail at the end of the row). Either may be null — a plain text
+ * notification carries neither, a text message carries only an avatar, a photo
+ * message carries both.
+ */
+data class NotificationImages(
+    val avatar: Bitmap? = null,
+    val picture: Bitmap? = null,
+)
+
+/**
  * What a tile does when its live notification is tapped: open the newest
  * notification's [contentIntent] (jumping straight to the relevant screen inside
  * the app) and clear that app's notifications by cancelling [keys]. Holds live
@@ -106,12 +119,12 @@ object NotificationCenter {
     private val _snapshot = MutableStateFlow(NotificationSnapshot.EMPTY)
     val snapshot: StateFlow<NotificationSnapshot> = _snapshot.asStateFlow()
 
-    // The newest notification's image per package (big-picture photo or large-icon
-    // contact photo), shown alongside the text on the live face (FR-2). A separate
-    // flow from the pure snapshot since bitmaps are framework objects; empty when
-    // access is off / no notification carries an image.
-    private val _images = MutableStateFlow<Map<String, Bitmap>>(emptyMap())
-    val images: StateFlow<Map<String, Bitmap>> = _images.asStateFlow()
+    // The newest notification's images per package (sender avatar + shared picture),
+    // shown alongside the text on the live face (FR-2). A separate flow from the
+    // pure snapshot since bitmaps are framework objects; empty when access is off /
+    // no notification carries an image.
+    private val _images = MutableStateFlow<Map<String, NotificationImages>>(emptyMap())
+    val images: StateFlow<Map<String, NotificationImages>> = _images.asStateFlow()
 
     // Per-package tap actions (content intent + keys to clear), and the connected
     // listener used to cancel them. Read imperatively on a tile tap rather than via
@@ -130,7 +143,7 @@ object NotificationCenter {
     }
 
     /** Publishes the latest per-package notification images (alongside [publish]). */
-    fun publishImages(images: Map<String, Bitmap>) {
+    fun publishImages(images: Map<String, NotificationImages>) {
         _images.value = images
     }
 
