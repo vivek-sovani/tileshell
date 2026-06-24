@@ -1,7 +1,10 @@
 package com.tileshell.feature.livetiles
 
 import android.app.AlarmManager
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -21,6 +25,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.dp
@@ -118,6 +125,7 @@ fun ClockTileFace(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     var face by remember { mutableStateOf(currentClockFace(context)) }
     LaunchedEffect(active) {
         if (!active) return@LaunchedEffect
@@ -125,6 +133,33 @@ fun ClockTileFace(
             face = currentClockFace(context)
             // Align the next tick to the start of the next minute.
             delay(60_000L - (System.currentTimeMillis() % 60_000L))
+        }
+    }
+
+    // Keep the alarm line current without waiting for the next minute tick: refresh
+    // the moment the system's next alarm changes (the user added/edited/deleted an
+    // alarm) and whenever the launcher resumes (returning from the clock app). This
+    // works even while the minute tick is paused (active == false), so the alarm is
+    // never stale.
+    DisposableEffect(lifecycleOwner) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, intent: Intent?) {
+                face = currentClockFace(context)
+            }
+        }
+        runCatching {
+            context.registerReceiver(
+                receiver,
+                IntentFilter(AlarmManager.ACTION_NEXT_ALARM_CLOCK_CHANGED),
+            )
+        }
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) face = currentClockFace(context)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            runCatching { context.unregisterReceiver(receiver) }
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 

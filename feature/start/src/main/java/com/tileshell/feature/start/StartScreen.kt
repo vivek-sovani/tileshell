@@ -8,6 +8,7 @@ import android.provider.Settings
 import android.app.SearchManager
 import android.content.Intent
 import android.net.Uri
+import android.provider.AlarmClock
 import android.provider.CalendarContract
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -2059,6 +2060,11 @@ private fun launchAddEvent(context: Context) {
 private fun onTileClick(context: Context, tile: TileModel) {
     when (tile) {
         is TileModel.App -> {
+            // Clock tile: open the system clock's alarms screen. Reliable across
+            // devices (works even when the clock role didn't resolve to a launch
+            // component, which otherwise left the tap inert) and matches the tile's
+            // alarm-centric face. Falls through to a normal launch if no app handles it.
+            if (tile.iconKey == "clock" && openClock(context)) return
             if (tile.packageName.isNotBlank()) {
                 // If the tile is currently showing a notification (badge / live
                 // face), tapping opens that notification inside the app and clears
@@ -2093,6 +2099,10 @@ private fun onTileClick(context: Context, tile: TileModel) {
  * handler is swallowed rather than toasted.
  */
 private fun launchLiveTileFallback(context: Context, iconKey: String?) {
+    if (iconKey == "clock") {
+        openClock(context)
+        return
+    }
     val intent = when (iconKey) {
         "calendar" -> Intent(Intent.ACTION_VIEW)
             .setData(Uri.parse("content://com.android.calendar/time"))
@@ -2102,3 +2112,16 @@ private fun launchLiveTileFallback(context: Context, iconKey: String?) {
     }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     runCatching { context.startActivity(intent) }
 }
+
+/**
+ * Opens the device's default clock app on its alarms screen via
+ * [AlarmClock.ACTION_SHOW_ALARMS] — the standard, app-agnostic way to open the
+ * clock. Returns true if an app handled it; false (no clock app) so the caller can
+ * fall back to a normal package launch.
+ */
+private fun openClock(context: Context): Boolean = runCatching {
+    context.startActivity(
+        Intent(AlarmClock.ACTION_SHOW_ALARMS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+    )
+    true
+}.getOrDefault(false)
