@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v1.0 submission draft — update before each release*
+*v1.0.2 listing draft — update before each release*
 
 ---
 
@@ -142,6 +142,20 @@ data. Users can also clear app data via Android Settings at any time.
 | Feature graphic | 1024 × 500 px | Required for listing banner |
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
+
+## Release notes (v1.0.2)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 1.0.2
+
+• Clock tile shows your real next alarm and updates instantly — tap it to open your clock app
+• Live mail & message tiles now show the sender, message, and photo in a clean row, not a full-tile image
+• Pick your wallpaper and live photos straight from your gallery
+• Grant tile permissions (contacts, calendar, location) anytime from Personalize, and clear chosen photos
+• Fixed a stray dot on small tiles with transparent tiles on
+```
 
 ## Release notes (v1.0)
 
