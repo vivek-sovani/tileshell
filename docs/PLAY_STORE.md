@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v1.0.3 listing draft — update before each release*
+*v1.0.4 listing draft — update before each release*
 
 ---
 
@@ -143,10 +143,12 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
-## Release notes (v1.0.3)
+## Release notes (v1.0.4)
+
+*(1.0.3 / code 13 was uploaded to Play then discarded — Play reserves the code, so this ships as 1.0.4.)*
 
 ```
-TileShell 1.0.3
+TileShell 1.0.4
 
 • People tile now shows photos of only your favourite contacts (and frequently-contacted on older Android) instead of all contacts
 ```

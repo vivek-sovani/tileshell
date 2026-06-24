@@ -25,8 +25,9 @@ android {
         minSdk = 26
         targetSdk = 36
         // versionCode: 10 = v1.0; patches → 11, 12 …; v1.1 → 20, etc.
-        versionCode = 13
-        versionName = "1.0.3"
+        // (13/1.0.3 was uploaded to Play then discarded; Play burns the code, so → 14.)
+        versionCode = 14
+        versionName = "1.0.4"
     }
 
     if (keystoreFile.exists()) {
