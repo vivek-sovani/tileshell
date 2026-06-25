@@ -97,6 +97,30 @@ fun heldAsMergeTarget(
 ): Boolean = alreadyTarget || inMergeZone(rect, point, isFolder)
 
 /**
+ * Directional reorder hysteresis (FR-3.2). Returns whether the dragged tile,
+ * sitting at [fingerPos], should take over [target]'s slot — committing only
+ * once the finger has crossed past the target's *midpoint along the dominant
+ * drag axis*. This stops a tile reshuffling the moment the finger grazes a
+ * neighbour: the gap opens only when the finger has clearly moved onto the far
+ * half of the target in the direction it's travelling.
+ *
+ * [target] is already the tile under the finger (the caller hit-tests). It is
+ * never the dragged tile itself. A horizontal-dominant move tests the x
+ * midpoint, a vertical-dominant move the y midpoint.
+ */
+fun shouldReorder(target: Rect, fingerPos: Offset, dragVector: Offset): Boolean {
+    if (target.width <= 0f || target.height <= 0f) return false
+    val horizontal = kotlin.math.abs(dragVector.x) >= kotlin.math.abs(dragVector.y)
+    return if (horizontal) {
+        val mid = (target.left + target.right) / 2f
+        if (dragVector.x >= 0f) fingerPos.x >= mid else fingerPos.x <= mid
+    } else {
+        val mid = (target.top + target.bottom) / 2f
+        if (dragVector.y >= 0f) fingerPos.y >= mid else fingerPos.y <= mid
+    }
+}
+
+/**
  * Move [dragId] to sit where [targetId] currently is (FR-3.2). Mirrors the
  * prototype reorder (`reorder()` in launcher.js): splice the dragged id out,
  * then re-insert it at the target's *original* index — so a forward drag lands
