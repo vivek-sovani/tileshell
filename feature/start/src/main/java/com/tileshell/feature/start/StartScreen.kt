@@ -844,7 +844,17 @@ private fun StartPage(
             ) { spec, slot, sizePx ->
                 val model = byId[spec.id] ?: return@DenseTileGrid
                 val dragging = spec.id == draggingId
-                val slotState = animateIntOffsetAsState(slot, label = "slot")
+                // Snappier reflow: a stiffer, lightly-damped spring opens the gap
+                // promptly behind the dragged tile instead of the soft default.
+                val slotState = animateIntOffsetAsState(
+                    slot,
+                    animationSpec = spring(
+                        dampingRatio = 0.8f,
+                        stiffness = Spring.StiffnessMedium,
+                        visibilityThreshold = IntOffset(1, 1),
+                    ),
+                    label = "slot",
+                )
                 val index = displaySpecs.indexOfFirst { it.id == spec.id }
                 Box(
                     modifier = Modifier
@@ -1650,6 +1660,17 @@ private fun Modifier.editDragGesture(
     if (!editMode) return@pointerInput
     val geom = GridGeometry.of(widthPx)
     val slop = 7.dp.toPx()
+    // A tile only lifts off its slot past this (larger) distance, so a small
+    // nudge no longer reshuffles the grid; `slop` still draws the tap/drag line.
+    val liftSlop = 12.dp.toPx()
+    // Reorder commits only after the finger has settled this long on a new slot
+    // (and crossed its midpoint); a merge target settles after a longer dwell so
+    // a quick pass over a folder reorders past it instead of merging into it.
+    val reorderDwellMs = 120L
+    val mergeDwellMs = 200L
+    // Poll cadence so a stationary finger still re-evaluates its dwell timers
+    // (no pointer events fire while the finger holds still).
+    val dwellTickMs = 40L
 
     fun placementsNow(): List<TilePlacement> =
         GridPacker.pack(order.mapNotNull { id -> byId[id]?.let { TileSpec(id, it.size) } })
@@ -1698,61 +1719,106 @@ private fun Modifier.editDragGesture(
         var lifted = false
         var moved = false
         var grab = Offset.Zero
+        var pos = down.position
+        // Last non-trivial finger travel, driving the directional reorder
+        // hysteresis; held across stationary ticks so a paused finger keeps its
+        // intent.
+        var dragVec = Offset.Zero
+
+        // Reorder hysteresis: the slot we last took over, plus the candidate the
+        // finger is currently dwelling toward and when that dwell began.
         var lastTarget: String? = null
+        var reorderCandidate: String? = null
+        var reorderSince = 0L
+
+        // Merge: the active (committed) merge target, plus the dwell candidate.
         var mergeId: String? = null
+        var mergeCandidate: String? = null
+        var mergeSince = 0L
 
         while (true) {
-            val event = awaitPointerEvent()
-            val change = event.changes.firstOrNull { it.id == down.id } ?: break
-            val pos = change.position
-            if (!moved && (pos - down.position).getDistance() > slop) moved = true
+            // Poll so a stationary finger still advances its dwell timers.
+            val event = withTimeoutOrNull(dwellTickMs) { awaitPointerEvent() }
+            val now = System.currentTimeMillis()
+            var released = false
+            if (event != null) {
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                val next = change.position
+                val delta = next - pos
+                if (delta.getDistance() > 0.5f) dragVec = delta
+                pos = next
+                if (!moved && (pos - down.position).getDistance() > slop) moved = true
+                if (lifted) change.consume()
+                released = !change.pressed
+            }
 
-            if (startId != null && !lifted && moved) {
+            if (startId != null && !lifted && (pos - down.position).getDistance() > liftSlop) {
                 lifted = true
                 val r = geom.rect(placementsNow().first { it.id == startId })
                 grab = down.position - r.topLeft
                 onLift(startId, (pos - grab).round())
             }
 
-            if (lifted) {
-                change.consume()
-                onDrag((pos - grab).round())
+            if (lifted && !released) {
+                if (event != null) onDrag((pos - grab).round())
 
                 // Merge (FR-3.3) vs reorder (FR-3.2). Merge is detected against
                 // the OTHER tiles packed without the dragged tile — a layout that
-                // stays put — so hovering a tile's centre 22–78% reliably catches
-                // it. Entering a merge target settles the others under the finger
-                // (the dragged tile is parked at the end) and highlights it.
-                // Otherwise the live, dragged-included layout drives the reorder,
-                // so the gap keeps following the finger.
-                // The other tile (if any) directly under the finger, then whether
-                // it should be the merge target. Entering needs the 22–78% centre;
-                // staying only needs the finger to remain on the same tile (sticky)
-                // so a near-centre wobble doesn't drop the merge into a reorder.
+                // stays put — so the target never slips out from under the finger.
+                // A folder accepts a merge anywhere inside it; an app only in its
+                // 22–78% centre. Either way the target must be *dwelt* on before
+                // the merge settles, so a quick pass-through reorders past it.
                 val hovered = startId?.let { drag ->
                     othersPacked(drag).firstOrNull { geom.rect(it).contains(pos) }
                 }
+                val hoveredIsFolder = hovered?.let { byId[it.id] is TileModel.Folder } ?: false
                 val mergeHovered = hovered?.takeIf {
-                    heldAsMergeTarget(geom.rect(it), pos, alreadyTarget = it.id == mergeId)
+                    heldAsMergeTarget(
+                        geom.rect(it), pos,
+                        alreadyTarget = it.id == mergeId,
+                        isFolder = hoveredIsFolder,
+                    )
                 }
 
-                if (mergeHovered != null && startId != null) {
+                if (mergeHovered != null) {
+                    // Hovering a merge-eligible target: hold off on reordering.
                     lastTarget = null
+                    reorderCandidate = null
                     if (mergeId != mergeHovered.id) {
-                        mergeId = mergeHovered.id
-                        onMergeTarget(mergeHovered.id)
-                        onMergeMode(startId)
+                        if (mergeCandidate != mergeHovered.id) {
+                            mergeCandidate = mergeHovered.id
+                            mergeSince = now
+                        }
+                        if (now - mergeSince >= mergeDwellMs) {
+                            mergeId = mergeHovered.id
+                            mergeCandidate = null
+                            onMergeTarget(mergeHovered.id)
+                            onMergeMode(startId)
+                        }
                     }
                 } else {
+                    mergeCandidate = null
                     if (mergeId != null) { mergeId = null; onMergeTarget(null) }
                     val target = placementsNow().firstOrNull {
                         it.id != startId && geom.rect(it).contains(pos)
                     }
-                    if (target == null) {
-                        lastTarget = null
-                    } else if (target.id != lastTarget) {
-                        lastTarget = target.id
-                        startId?.let { onReorderTo(it, target.id) }
+                    when {
+                        target == null -> { lastTarget = null; reorderCandidate = null }
+                        target.id == lastTarget -> reorderCandidate = null
+                        // Commit only once the finger has crossed the target's
+                        // midpoint in its travel direction AND dwelt there.
+                        !shouldReorder(geom.rect(target), pos, dragVec) -> reorderCandidate = null
+                        else -> {
+                            if (reorderCandidate != target.id) {
+                                reorderCandidate = target.id
+                                reorderSince = now
+                            }
+                            if (now - reorderSince >= reorderDwellMs) {
+                                lastTarget = target.id
+                                reorderCandidate = null
+                                startId?.let { onReorderTo(it, target.id) }
+                            }
+                        }
                     }
                 }
 
@@ -1767,9 +1833,21 @@ private fun Modifier.editDragGesture(
                 )
             }
 
-            if (!change.pressed) {
+            if (released) {
                 when {
-                    lifted || draggingId() != null -> onDrop(mergeId)
+                    lifted || draggingId() != null -> {
+                        // Prefer a merge on drop: if not already committed but the
+                        // finger is resting on a folder, treat the drop as a merge
+                        // so a quick drag-onto-folder still files into it.
+                        val dropMerge = mergeId ?: startId?.let { drag ->
+                            othersPacked(drag)
+                                .firstOrNull { geom.rect(it).contains(pos) }
+                                ?.takeIf { byId[it.id] is TileModel.Folder }
+                                ?.also { onMergeMode(drag) }
+                                ?.id
+                        }
+                        onDrop(dropMerge)
+                    }
                     moved -> Unit
                     // A tap on another tile switches which tile is being edited
                     // (its corner controls move to it); a tap on open space (no

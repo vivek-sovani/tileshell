@@ -33,4 +33,21 @@ class MergeZoneTest {
         assertTrue(heldAsMergeTarget(tile, Offset(12f, 50f), alreadyTarget = true))
         assertTrue(heldAsMergeTarget(tile, Offset(95f, 95f), alreadyTarget = true))
     }
+
+    @Test
+    fun `a folder accepts a merge anywhere inside it`() {
+        // Dropping onto a folder almost always means "add to folder", so the whole
+        // tile is a merge zone — no centre bullseye required.
+        assertTrue(inMergeZone(tile, Offset(10f, 50f), isFolder = true)) // left band
+        assertTrue(inMergeZone(tile, Offset(50f, 95f), isFolder = true)) // bottom band
+        assertTrue(heldAsMergeTarget(tile, Offset(8f, 8f), alreadyTarget = false, isFolder = true))
+        // Still bounded by the tile rect.
+        assertFalse(inMergeZone(tile, Offset(120f, 50f), isFolder = true))
+    }
+
+    @Test
+    fun `an app still needs the centre even with the folder flag off`() {
+        assertFalse(inMergeZone(tile, Offset(10f, 50f), isFolder = false))
+        assertTrue(inMergeZone(tile, Offset(50f, 50f), isFolder = false))
+    }
 }

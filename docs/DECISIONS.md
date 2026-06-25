@@ -1328,3 +1328,24 @@ Follow-up on the widget host.
   320), so agenda/calendar list widgets render fuller out of the box instead of clipped.
   (Very long lists still rely on the widget's own internal scroll; the larger ceiling +
   drag-resize cover the common case.)
+
+## Edit-mode: calmer reorder + easier folder merge
+
+User feedback: tile movement/merge felt too aggressive, merging into an existing folder was
+hard, and the gap was slow to open. Three tuning changes in `editDragGesture` + `GridGeometry`:
+
+- **Larger lift threshold.** A tile now lifts off its slot only past `liftSlop = 12.dp` (the
+  `7.dp` slop still draws the tap/drag line), so a small nudge no longer reshuffles the grid.
+- **Directional reorder hysteresis.** `shouldReorder(target, finger, dragVector)` commits a
+  reorder only once the finger crosses the target's *midpoint along the dominant drag axis*,
+  and only after a `reorderDwellMs = 120` settle — no more reshuffle on a graze. A poll
+  (`withTimeoutOrNull(40 ms)`) re-evaluates the dwell so a stationary finger still advances.
+- **Folder = merge-anywhere.** `inMergeZone(rect, point, isFolder)` treats the *whole* tile as
+  a merge zone for a folder target (apps keep the 22–78% centre). A folder merge settles after
+  `mergeDwellMs = 200` so a quick pass-through reorders past it instead; on release, resting on
+  a folder commits the merge even without the full dwell. Verified on emulator: dropping an app
+  on a folder's corner files it in (no duplication); deliberate drags still reorder.
+- **Snappier reflow.** The slot animation uses `spring(dampingRatio 0.8, StiffnessMedium)` so
+  the gap opens promptly instead of the soft default spring.
+
+Constants are easy to retune after on-device feel.
