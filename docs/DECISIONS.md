@@ -1332,20 +1332,33 @@ Follow-up on the widget host.
 ## Edit-mode: calmer reorder + easier folder merge
 
 User feedback: tile movement/merge felt too aggressive, merging into an existing folder was
-hard, and the gap was slow to open. Three tuning changes in `editDragGesture` + `GridGeometry`:
+hard, and the gap was slow to open. Changes in `editDragGesture` + `GridGeometry`:
 
 - **Larger lift threshold.** A tile now lifts off its slot only past `liftSlop = 12.dp` (the
   `7.dp` slop still draws the tap/drag line), so a small nudge no longer reshuffles the grid.
-- **Directional reorder hysteresis.** `shouldReorder(target, finger, dragVector)` commits a
-  reorder only once the finger crosses the target's *midpoint along the dominant drag axis*,
-  and only after a `reorderDwellMs = 120` settle — no more reshuffle on a graze. A poll
-  (`withTimeoutOrNull(40 ms)`) re-evaluates the dwell so a stationary finger still advances.
 - **Folder = merge-anywhere.** `inMergeZone(rect, point, isFolder)` treats the *whole* tile as
   a merge zone for a folder target (apps keep the 22–78% centre). A folder merge settles after
-  `mergeDwellMs = 200` so a quick pass-through reorders past it instead; on release, resting on
-  a folder commits the merge even without the full dwell. Verified on emulator: dropping an app
-  on a folder's corner files it in (no duplication); deliberate drags still reorder.
+  `mergeDwellMs = 200` (poll-driven via `withTimeoutOrNull(40 ms)` so a stationary finger still
+  advances) so a quick pass-through reorders past it instead; on release, resting on a folder
+  commits the merge even without the full dwell.
 - **Snappier reflow.** The slot animation uses `spring(dampingRatio 0.8, StiffnessMedium)` so
   the gap opens promptly instead of the soft default spring.
+
+### Follow-up: reorder regressed, then fixed at drop time
+
+A first cut added a *directional reorder hysteresis* (`shouldReorder`, midpoint-cross + a 120 ms
+dwell). That broke ordinary placement: merge detection runs against `othersPacked` (the layout
+*without* the dragged tile), whose tile under the finger is spatially offset from the visible
+`placementsNow` tile. Requiring the finger to reach a target's midpoint pushed it into that
+hidden layout's merge hot-zone, so a normal drag-to-centre was routed to "merge" (or, pending
+the dwell, to nothing) and the tile snapped back — "not feasible most of the time".
+
+Fix: dropped `shouldReorder`/reorder-dwell entirely; reorder fires immediately on entering a new
+target's slot (the merge zone already claims the centre), AND **the release handler commits a
+final reorder to whichever slot the finger rests on** (visible `placementsNow`). So a release on
+a tile's centre positions the tile there instead of snapping back, regardless of the merge
+hot-zone. Merge precedence on drop: committed `mergeId` → folder-under-finger → otherwise
+reorder. Verified on emulator (clean seed): drag-to-centre swaps tiles and moves a tile down a
+row; dropping an app on a folder still files it in (no duplication); no crashes.
 
 Constants are easy to retune after on-device feel.
