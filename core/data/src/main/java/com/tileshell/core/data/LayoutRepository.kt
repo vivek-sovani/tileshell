@@ -92,6 +92,7 @@ class LayoutRepository(
                 activityName = child.activityName,
                 label = child.label,
                 iconKey = child.iconKey,
+                size = child.size,
             )
         }
         val dragFolderId = if (drag is TileModel.Folder) drag.id else null

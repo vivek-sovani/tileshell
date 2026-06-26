@@ -299,6 +299,11 @@ fun MusicTileFace(
     fallback: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     packageName: String? = null,
+    // Whether the transport buttons accept taps. Separate from [active] (which
+    // only gates the EQ animation) so play/pause/skip stay operable even when the
+    // live-tile animation gate is held low (animations off, battery saver) — they
+    // should only go inert in edit mode, where the grid owns all touch.
+    interactive: Boolean = active,
 ) {
     val media by MediaCenter.nowPlaying.collectAsState()
     val artworkMap by MediaCenter.artwork.collectAsState()
@@ -325,7 +330,7 @@ fun MusicTileFace(
             MusicFront(
                 np,
                 animate = active && np.playing,
-                interactive = active,
+                interactive = interactive,
                 packageName = iconPackage,
                 art = art,
             )

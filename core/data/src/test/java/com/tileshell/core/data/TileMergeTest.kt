@@ -117,6 +117,25 @@ class TileMergeTest {
     }
 
     @Test
+    fun draggedApp_carriesItsOwnSizeIntoTheFolder() {
+        // A wide/small app dropped into a folder must keep its size as a child,
+        // and existing children must keep theirs (no silent reset to MEDIUM).
+        val target = folder(
+            "g",
+            children = listOf(
+                FolderChild("fb", ".Main", "fb", size = TileSize.WIDE),
+                FolderChild("ig", ".Main", "ig", size = TileSize.SMALL),
+            ),
+        )
+        val result = computeMerge(drag = app("tw", size = TileSize.WIDE), target = target)
+
+        val sizes = result.children.associate { it.packageName to it.size }
+        assertEquals(TileSize.WIDE, sizes["fb"])  // existing wide child preserved
+        assertEquals(TileSize.SMALL, sizes["ig"]) // existing small child preserved
+        assertEquals(TileSize.WIDE, sizes["tw"])  // dragged app keeps its size
+    }
+
+    @Test
     fun folderOntoApp_newFolderHoldsTargetThenDragChildren() {
         val drag = folder("g", children = listOf(child("fb"), child("ig")))
         val result = computeMerge(drag = drag, target = app("maps", size = TileSize.SMALL))

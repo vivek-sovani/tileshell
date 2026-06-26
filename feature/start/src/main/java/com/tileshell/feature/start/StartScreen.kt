@@ -918,8 +918,16 @@ private fun StartPage(
                         jigglePhase = jigglePhase,
                         flipped = flipState.isFlipped(model.id),
                         liveActive = liveActive,
-                        badgeCount = (model as? TileModel.App)
-                            ?.let { notifications.badgeFor(it.packageName) } ?: 0,
+                        badgeCount = when (model) {
+                            is TileModel.App -> notifications.badgeFor(model.packageName)
+                            // A folder aggregates the unread counts of its children,
+                            // so a folder of mail/chat apps surfaces a single summed
+                            // badge (de-duped by package — multiple activities of one
+                            // app count once).
+                            is TileModel.Folder -> model.children
+                                .map { it.packageName }.distinct()
+                                .sumOf { notifications.badgeFor(it) }
+                        },
                         darkTheme = darkTheme,
                         canMoveBack = order.indexOf(model.id) > 0,
                         canMoveForward = order.indexOf(model.id) in 0 until order.size - 1,
@@ -1198,7 +1206,12 @@ private fun TileView(
             },
     ) {
         when (tile) {
-            is TileModel.App -> AppTileContent(tile, flipped = flipped, liveActive = liveActive)
+            is TileModel.App -> AppTileContent(
+                tile,
+                flipped = flipped,
+                liveActive = liveActive,
+                interactive = !editMode,
+            )
             is TileModel.Folder -> FolderTileContent(tile)
         }
         // Per-app notification badge (FR-1.2). Top-right pill, count from the
@@ -1925,6 +1938,11 @@ private fun AppTileContent(
     tile: TileModel.App,
     flipped: Boolean = false,
     liveActive: Boolean = false,
+    // Whether the tile's interactive elements (music transport controls) should
+    // respond to taps. Driven by edit mode — not the live-tile animation gate —
+    // so the buttons stay operable even when animations are off / battery saver
+    // is on (which holds liveActive low while now-playing still shows).
+    interactive: Boolean = false,
 ) {
     // Live faces replace the static glyph at medium+ (FR-2). Small tiles and
     // apps with no live face fall through to the static glyph; weather/calendar
@@ -2003,6 +2021,7 @@ private fun AppTileContent(
             MusicTileFace(
                 flipped = flipped,
                 active = liveActive,
+                interactive = interactive,
                 fallback = staticGlyph,
                 modifier = Modifier.fillMaxSize(),
             )
@@ -2018,6 +2037,7 @@ private fun AppTileContent(
                 MusicTileFace(
                     flipped = flipped,
                     active = liveActive,
+                    interactive = interactive,
                     packageName = tile.packageName,
                     fallback = {
                         NotificationTileFace(
