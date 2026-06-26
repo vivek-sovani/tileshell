@@ -156,6 +156,17 @@ TileShell 1.3
 • Easier merging: line up two tiles of the same size to combine them, wherever you grabbed
 ```
 
+## Release notes (v1.2.0)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 1.2
+
+• Category folders: create folders of your apps grouped by category — TileShell sorts your installed apps into suggested categories and you pick what goes in, all from Personalize
+• Drop a finished folder straight onto your Start screen as a single tile
+```
+
 ## Release notes (v1.1.1)
 
 *"What's new" — newest release first. Keep under Play's 500-character limit.*
