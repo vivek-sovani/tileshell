@@ -117,6 +117,21 @@ interface LayoutDao {
         insertFolderChildren(children)
     }
 
+    /** Find an existing folder by name (case-insensitive). Used for upsert. */
+    @Query("SELECT * FROM folders WHERE LOWER(name) = LOWER(:name) LIMIT 1")
+    suspend fun folderByName(name: String): FolderEntity?
+
+    /**
+     * Replace all children of an existing folder in one transaction. Used when
+     * the user re-creates a category folder that already exists — children are
+     * swapped, the folder tile and its position/colour stay in place.
+     */
+    @Transaction
+    suspend fun updateFolderContents(folderId: String, children: List<FolderChildEntity>) {
+        deleteFolderChildren(folderId)
+        insertFolderChildren(children)
+    }
+
     // ---- merge to folder (FR-3.3) ---------------------------------------
 
     @Query("DELETE FROM folder_children WHERE folderId = :folderId")

@@ -638,6 +638,15 @@ fun StartScreen(
             onDismiss = viewModel::closeAbout,
         )
 
+        // Build a name→packageNames map from the current tile list so CategoryFolderSheet
+        // can detect which categories already have a folder and pre-check their members.
+        val existingFoldersByName = remember(tiles) {
+            tiles.filterIsInstance<TileModel.Folder>()
+                .associate { folder ->
+                    folder.name.lowercase() to folder.children.mapTo(HashSet()) { it.packageName }
+                }
+        }
+
         // Category-folders sheet (personalize → folders).
         CategoryFolderSheet(
             visible = foldersOpen,
@@ -646,9 +655,11 @@ fun StartScreen(
             apps = apps,
             onCreate = { name, picked ->
                 viewModel.createFolder(name, picked)
-                Toast.makeText(context, "created \"$name\" folder", Toast.LENGTH_SHORT).show()
+                val verb = if (existingFoldersByName.containsKey(name.lowercase())) "updated" else "created"
+                Toast.makeText(context, "$verb \"$name\" folder", Toast.LENGTH_SHORT).show()
             },
             onDismiss = viewModel::closeFolders,
+            existingFolderPackages = { name -> existingFoldersByName[name.lowercase()] ?: emptySet() },
         )
 
         // Full-screen folder overlay (FR-4).

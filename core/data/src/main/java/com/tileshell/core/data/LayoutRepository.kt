@@ -155,13 +155,19 @@ class LayoutRepository(
     }
 
     /**
-     * Create a new folder tile from a set of installed [apps] (the personalize
-     * "category folders" feature). The folder tile is a MEDIUM tile appended to
-     * the end of the grid, reusing its generated id as the folder id (the S5
-     * convention). Children are de-duplicated by component, in the given order,
-     * and pick up a designed WP icon key when their package resolves to a default
-     * role (otherwise null → the real app icon). Returns false (no-op) when
-     * [apps] is empty after de-duplication.
+     * Upsert a folder from a set of installed [apps] (the personalize "category
+     * folders" feature). Children are de-duplicated by component, in the given
+     * order, and pick up a designed WP icon key when the package resolves to a
+     * default role (otherwise null → the real app icon).
+     *
+     * - **New folder** (no existing folder with that name): a MEDIUM tile is
+     *   appended to the end of the grid, existing standalone tiles for those apps
+     *   are removed.
+     * - **Existing folder** (case-insensitive name match): the folder tile keeps
+     *   its position/colour; only its children are replaced. Standalone Start tiles
+     *   are removed for apps newly added to the folder.
+     *
+     * Returns false (no-op) when [apps] is empty after de-duplication.
      */
     suspend fun createFolder(name: String, apps: List<AppEntry>): Boolean {
         val deduped = LinkedHashMap<String, AppEntry>()
@@ -169,16 +175,38 @@ class LayoutRepository(
         val children = deduped.values.toList()
         if (children.isEmpty()) return false
 
+        val trimmed = name.trim()
+        val existing = dao.folderByName(trimmed)
+
+        if (existing != null) {
+            val prevPackages = dao.folderChildrenOnce(existing.id).mapTo(HashSet()) { it.packageName }
+            val newPackages = children.mapTo(HashSet()) { it.packageName }
+            // Remove standalone Start tiles only for apps that are newly entering the folder.
+            (newPackages - prevPackages).forEach { pkg -> dao.deleteTilesByPackage(pkg) }
+            val childRows = children.mapIndexed { index, app ->
+                FolderChildEntity(
+                    folderId = existing.id,
+                    position = index,
+                    packageName = app.packageName,
+                    activityName = app.activityName,
+                    label = app.label,
+                    iconKey = roleIconKeyMap[app.packageName],
+                )
+            }
+            dao.updateFolderContents(existing.id, childRows)
+            return true
+        }
+
         val folderId = "folder-${System.currentTimeMillis()}"
         val folderTile = TileEntity(
             id = folderId,
             position = dao.maxPosition() + 1,
             size = TileSize.MEDIUM,
-            colorId = TileColors.defaultIdFor(name.ifBlank { folderId }),
+            colorId = TileColors.defaultIdFor(trimmed.ifBlank { folderId }),
             type = TileEntity.TYPE_FOLDER,
             folderId = folderId,
         )
-        val folder = FolderEntity(id = folderId, name = name)
+        val folder = FolderEntity(id = folderId, name = trimmed)
         val childRows = children.mapIndexed { index, app ->
             FolderChildEntity(
                 folderId = folderId,
@@ -190,8 +218,7 @@ class LayoutRepository(
             )
         }
         dao.createFolder(folderTile, folder, childRows)
-        // Remove any existing individual Start tiles for the apps now in the folder
-        // so they don't remain on the Start grid as duplicates.
+        // Remove any existing individual Start tiles for the apps now in the folder.
         children.forEach { app -> dao.deleteTilesByPackage(app.packageName) }
         return true
     }

@@ -73,6 +73,11 @@ fun CategoryFolderSheet(
     onCreate: (name: String, apps: List<AppEntry>) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    /**
+     * Returns the set of package names currently in a folder whose name matches
+     * the given string (case-insensitive). Empty set means no such folder exists.
+     */
+    existingFolderPackages: (String) -> Set<String> = { emptySet() },
 ) {
     val progress by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
@@ -138,6 +143,7 @@ fun CategoryFolderSheet(
                     apps = apps,
                     accent = accent,
                     tokens = tokens,
+                    existingFolderPackages = existingFolderPackages,
                     onPick = { reviewId = it },
                     onBack = onDismiss,
                 )
@@ -147,9 +153,10 @@ fun CategoryFolderSheet(
                     apps = apps,
                     accent = accent,
                     tokens = tokens,
+                    existingPackages = existingFolderPackages(reviewCategory.label),
                     modifier = Modifier.weight(1f),
                     onBack = { reviewId = null },
-                    // After creating, return to the category list (not close the sheet).
+                    // After creating/updating, return to the category list.
                     onCreate = { name, picked -> onCreate(name, picked); reviewId = null },
                 )
             }
@@ -162,6 +169,7 @@ private fun CategoryList(
     apps: List<AppEntry>,
     accent: Color,
     tokens: ColorTokens,
+    existingFolderPackages: (String) -> Set<String>,
     onPick: (String) -> Unit,
     onBack: () -> Unit,
 ) {
@@ -221,6 +229,7 @@ private fun CategoryList(
         } else {
             available.forEach { category ->
                 val n = counts[category.id] ?: 0
+                val folderExists = existingFolderPackages(category.label).isNotEmpty()
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -229,6 +238,18 @@ private fun CategoryList(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(text = category.label, color = tokens.fg, fontSize = 15.sp)
+                    if (folderExists) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "exists",
+                            color = accent,
+                            fontSize = 11.sp,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(accent.copy(alpha = 0.12f))
+                                .padding(horizontal = 5.dp, vertical = 2.dp),
+                        )
+                    }
                     Spacer(Modifier.weight(1f))
                     Text(
                         text = if (n == 1) "1 app" else "$n apps",
@@ -249,10 +270,17 @@ private fun CategoryReview(
     apps: List<AppEntry>,
     accent: Color,
     tokens: ColorTokens,
+    /**
+     * Package names already in an existing folder with this category's name.
+     * Empty when no such folder exists (new folder flow).
+     */
+    existingPackages: Set<String>,
     modifier: Modifier,
     onBack: () -> Unit,
     onCreate: (name: String, apps: List<AppEntry>) -> Unit,
 ) {
+    val isUpdate = existingPackages.isNotEmpty()
+
     // Matched apps first (pre-checked), then the rest (alphabetical, unchecked)
     // so the user can add a near-miss the matcher didn't catch.
     val matched = remember(category.id, apps) { AppCategories.match(category.id, apps) }
@@ -260,9 +288,14 @@ private fun CategoryReview(
         val matchedKeys = matched.mapTo(HashSet()) { it.key }
         matched + apps.filter { it.key !in matchedKeys }
     }
-    val checked = remember(category.id) {
+    val checked = remember(category.id, existingPackages) {
         mutableStateMapOf<String, Boolean>().apply {
+            // Pre-check: new category matches + apps already in the existing folder.
             matched.forEach { put(it.key, true) }
+            if (isUpdate) {
+                apps.filter { it.packageName in existingPackages }
+                    .forEach { put(it.key, true) }
+            }
         }
     }
     var name by remember(category.id) { mutableStateOf(category.label) }
@@ -376,7 +409,11 @@ private fun CategoryReview(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = if (enabled) "create folder ($selectedCount)" else "select at least one app",
+                    text = when {
+                        !enabled -> "select at least one app"
+                        isUpdate -> "update folder ($selectedCount)"
+                        else -> "create folder ($selectedCount)"
+                    },
                     color = if (enabled) Color.White else tokens.fgDim,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.W500,
