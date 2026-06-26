@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v1.1 listing draft — update before each release*
+*v1.3 listing draft — update before each release*
 
 ---
 
@@ -142,6 +142,19 @@ data. Users can also clear app data via Android Settings at any time.
 | Feature graphic | 1024 × 500 px | Required for listing banner |
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
+
+## Release notes (v1.3.0)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 1.3
+
+• Choose your grid density: 4, 5, or 6 tiles across, right from Personalize — fit more tiles per row while medium and wide tiles keep their proportions
+• Drag a tile into the empty space below the grid to send it to the bottom
+• Smoother editing: a moving tile now reorders cleanly instead of accidentally making folders — merge only when you pause one tile over another
+• Easier merging: line up two tiles of the same size to combine them, wherever you grabbed
+```
 
 ## Release notes (v1.1.1)
 
