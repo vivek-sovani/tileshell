@@ -1812,6 +1812,12 @@ private fun Modifier.editDragGesture(
     if (!editMode) return@pointerInput
     val geom = GridGeometry.of(widthPx, columns)
     val slop = 7.dp.toPx()
+    // Merge is intent-gated: the finger must dwell (pause within [dwellMoveTol])
+    // in a target's centre for [mergeDwellMs] before a merge commits. A moving
+    // finger reorders even straight across a centre, so repositioning a tile
+    // never trips an accidental folder-merge (FR-3.3).
+    val mergeDwellMs = 250L
+    val dwellMoveTol = 14.dp.toPx()
 
     fun placementsNow(): List<TilePlacement> =
         GridPacker.pack(order.mapNotNull { id -> byId[id]?.let { TileSpec(id, it.size) } }, columns)
@@ -1863,6 +1869,11 @@ private fun Modifier.editDragGesture(
         var grab = Offset.Zero
         var lastTarget: String? = null
         var mergeId: String? = null
+        // Dwell tracking for intent-gated merge: which tile's centre the finger
+        // currently rests in, where it entered, and when.
+        var dwellId: String? = null
+        var dwellAnchor = Offset.Zero
+        var dwellStartMs = 0L
 
         while (true) {
             val event = awaitPointerEvent()
@@ -1881,29 +1892,45 @@ private fun Modifier.editDragGesture(
                 change.consume()
                 onDrag((pos - grab).round())
 
-                // Merge (FR-3.3) vs reorder (FR-3.2). Merge is detected against
-                // the OTHER tiles packed without the dragged tile — a layout that
-                // stays put — so hovering a tile's centre 22–78% reliably catches
-                // it. Entering a merge target settles the others under the finger
-                // (the dragged tile is parked at the end) and highlights it.
-                // Otherwise the live, dragged-included layout drives the reorder,
-                // so the gap keeps following the finger.
-                // The other tile (if any) directly under the finger, then whether
-                // it should be the merge target. Entering needs the 22–78% centre;
-                // staying only needs the finger to remain on the same tile (sticky)
-                // so a near-centre wobble doesn't drop the merge into a reorder.
+                // Merge (FR-3.3) vs reorder (FR-3.2). A *moving* finger always
+                // reorders — even straight across a tile's centre — so
+                // repositioning never trips an accidental merge. Merge commits
+                // only on intent: the finger must dwell (pause within
+                // [dwellMoveTol]) in the target's inner 22–78% centre for
+                // [mergeDwellMs]. Hover detection uses the OTHER tiles packed
+                // without the dragged tile (an invariant layout) so a target
+                // never slips out from under the finger; reorder uses the live
+                // dragged-included layout so the gap follows. Once a merge is
+                // committed it stays sticky while the finger remains in that
+                // centre (a wobble won't drop it); moving to the edge or off the
+                // tile breaks it back into a reorder.
                 val hovered = startId?.let { drag ->
                     othersPacked(drag).firstOrNull { geom.rect(it).contains(pos) }
                 }
-                val mergeHovered = if (!allowMerge) null else hovered?.takeIf {
-                    heldAsMergeTarget(geom.rect(it), pos, alreadyTarget = it.id == mergeId)
-                }
+                val inCentre = allowMerge && hovered != null &&
+                    inMergeZone(geom.rect(hovered), pos)
 
-                if (mergeHovered != null && startId != null) {
+                if (inCentre) {
+                    if (dwellId != hovered!!.id ||
+                        (pos - dwellAnchor).getDistance() > dwellMoveTol
+                    ) {
+                        // New tile, or the finger moved too far: restart the clock.
+                        dwellId = hovered.id
+                        dwellAnchor = pos
+                        dwellStartMs = change.uptimeMillis
+                    }
+                } else {
+                    dwellId = null
+                }
+                val dwelled = inCentre &&
+                    change.uptimeMillis - dwellStartMs >= mergeDwellMs
+                val mergeNow = inCentre && (dwelled || mergeId == hovered!!.id)
+
+                if (mergeNow && startId != null) {
                     lastTarget = null
-                    if (mergeId != mergeHovered.id) {
-                        mergeId = mergeHovered.id
-                        onMergeTarget(mergeHovered.id)
+                    if (mergeId != hovered!!.id) {
+                        mergeId = hovered.id
+                        onMergeTarget(hovered.id)
                         onMergeMode(startId)
                     }
                 } else {
