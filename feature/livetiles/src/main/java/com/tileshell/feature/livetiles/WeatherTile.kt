@@ -2,6 +2,7 @@ package com.tileshell.feature.livetiles
 
 import android.Manifest
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -56,6 +57,40 @@ fun WeatherTileFace(
         front = { WeatherFront(snapshot, size) },
         back = { WeatherBack(snapshot) },
     )
+}
+
+/**
+ * The compact weather face for a small (1×1) tile: just the current temperature,
+ * centred (FR-2). Same data + opt-in as [WeatherTileFace] (shared [WeatherCache],
+ * coarse-location ask, background refresh) so a standalone small weather tile
+ * still fetches. Never flips; degrades to [fallback] when no snapshot is cached.
+ */
+@Composable
+fun WeatherSmallFace(
+    fallback: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    LaunchedEffect(Unit) { WeatherRefreshWorker.ensureScheduled(context) }
+    val locationGranted = rememberPermissionGranted(Manifest.permission.ACCESS_COARSE_LOCATION)
+    LaunchedEffect(locationGranted) {
+        if (locationGranted) WeatherRefreshWorker.refreshNow(context)
+    }
+
+    val cache = remember(context) { WeatherCache.create(context) }
+    val snapshot = cache.data.collectAsState(initial = WeatherCacheData()).value.snapshot
+        ?: return fallback()
+
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(
+            text = tempLabel(snapshot.tempC),
+            color = FaceText,
+            fontSize = 34.sp,
+            fontWeight = FontWeight.ExtraLight,
+            letterSpacing = (-1).sp,
+            maxLines = 1,
+        )
+    }
 }
 
 @Composable

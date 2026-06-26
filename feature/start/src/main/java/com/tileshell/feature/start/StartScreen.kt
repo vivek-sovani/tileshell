@@ -142,6 +142,7 @@ import com.tileshell.feature.livetiles.PeopleTileFace
 import com.tileshell.feature.livetiles.PhotosData
 import com.tileshell.feature.livetiles.PhotosStore
 import com.tileshell.feature.livetiles.PhotosTileFace
+import com.tileshell.feature.livetiles.WeatherSmallFace
 import com.tileshell.feature.livetiles.WeatherTileFace
 import com.tileshell.feature.livetiles.rememberFlipState
 import com.tileshell.feature.livetiles.rememberLiveTilesActive
@@ -2037,6 +2038,7 @@ private fun AppTileContent(
         when (tile.iconKey) {
             "clock" -> { ClockSmallFace(active = liveActive, modifier = Modifier.fillMaxSize()); return }
             "calendar" -> { CalendarSmallFace(active = liveActive, modifier = Modifier.fillMaxSize()); return }
+            "weather" -> { WeatherSmallFace(fallback = staticGlyph, modifier = Modifier.fillMaxSize()); return }
         }
     }
 
