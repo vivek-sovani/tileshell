@@ -27,8 +27,9 @@ android {
         // versionCode: 10 = v1.0; patches → 11, 12 …; v1.1 → 20, etc.
         // (13/1.0.3 was uploaded to Play then discarded; Play burns the code, so → 14.)
         // v1.1 = 20 (category folders + in-folder tile editing).
-        versionCode = 20
-        versionName = "1.1"
+        // v1.1.1 = 21 (folder-merge size fixes, operable music controls, folder badges).
+        versionCode = 21
+        versionName = "1.1.1"
     }
 
     if (keystoreFile.exists()) {

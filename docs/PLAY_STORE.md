@@ -143,6 +143,18 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
+## Release notes (v1.1.1)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 1.1.1
+
+• Fixed: dragging an app into a folder no longer resizes or reshuffles the apps already inside — each keeps its size and place (wide apps become medium, since folders use small and medium tiles)
+• Fixed: play, pause, and skip controls on music tiles now respond to taps, even with system animations off or battery saver on
+• Folders now show a combined unread badge, adding up the notification counts of the apps inside
+```
+
 ## Release notes (v1.1)
 
 *"What's new" — newest release first. Keep under Play's 500-character limit.*
