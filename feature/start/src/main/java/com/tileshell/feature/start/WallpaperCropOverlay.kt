@@ -41,11 +41,14 @@ fun WallpaperCropOverlay(
     uri: String,
     onConfirm: (alignX: Float, alignY: Float) -> Unit,
     onCancel: () -> Unit,
+    initialAlignX: Float = 0.5f,
+    initialAlignY: Float = 0.5f,
 ) {
     val image = rememberWallpaperBitmap(uri)
-    // Start centred; the user drags to reposition.
-    var alignX by remember(uri) { mutableStateOf(0.5f) }
-    var alignY by remember(uri) { mutableStateOf(0.5f) }
+    // Seed from the current focal point so re-adjusting resumes where it left off;
+    // the user drags to reposition.
+    var alignX by remember(uri) { mutableStateOf(initialAlignX) }
+    var alignY by remember(uri) { mutableStateOf(initialAlignY) }
 
     BoxWithConstraints(
         modifier = Modifier

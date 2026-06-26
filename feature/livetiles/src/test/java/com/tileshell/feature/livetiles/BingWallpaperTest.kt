@@ -55,4 +55,38 @@ class BingWallpaperTest {
     fun `market falls back to US when country missing`() {
         assertEquals("en-US", bingMarket(Locale("en", "")))
     }
+
+    private val multi = """
+        {"images":[
+          {"startdate":"20260626","url":"/th?id=OHR.A_1920x1080.jpg","urlbase":"/th?id=OHR.A","title":"Day A"},
+          {"startdate":"20260625","url":"/th?id=OHR.B_1920x1080.jpg","urlbase":"/th?id=OHR.B","copyright":"Place B (© X)"}
+        ]}
+    """.trimIndent()
+
+    @Test
+    fun `parses all images with absolute full and thumb urls`() {
+        val list = parseBingImages(multi)
+        assertEquals(2, list.size)
+        assertEquals("https://www.bing.com/th?id=OHR.A_1920x1080.jpg", list[0].fullUrl)
+        assertEquals("https://www.bing.com/th?id=OHR.A_400x240.jpg", list[0].thumbUrl)
+        assertEquals("jun 26", list[0].date)
+        assertEquals("Day A", list[0].title)
+    }
+
+    @Test
+    fun `falls back to copyright when title is missing`() {
+        assertEquals("Place B (© X)", parseBingImages(multi)[1].title)
+    }
+
+    @Test
+    fun `parseBingImages on malformed json is empty`() {
+        assertEquals(emptyList<BingImage>(), parseBingImages("nope"))
+    }
+
+    @Test
+    fun `date label formats yyyymmdd and echoes bad input`() {
+        assertEquals("jan 1", bingDateLabel("20260101"))
+        assertEquals("dec 31", bingDateLabel("20251231"))
+        assertEquals("bogus", bingDateLabel("bogus"))
+    }
 }

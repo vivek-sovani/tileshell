@@ -104,8 +104,8 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
      */
     suspend fun setBingImage(uri: String) {
         store.updateData {
-            if (!it.bingWallpaper) it
-            else it.copy(customWallpaperUri = uri, wallpaperAlignX = 0.5f, wallpaperAlignY = 0.5f)
+            // Keep the user's chosen framing (alignX/Y) across daily refreshes.
+            if (!it.bingWallpaper) it else it.copy(customWallpaperUri = uri)
         }
     }
 

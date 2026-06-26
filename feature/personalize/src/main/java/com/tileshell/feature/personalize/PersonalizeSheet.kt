@@ -76,6 +76,8 @@ fun PersonalizeSheet(
     customWallpaper: Boolean,
     bingWallpaper: Boolean,
     onBingWallpaperChange: (Boolean) -> Unit,
+    onBingHistory: () -> Unit,
+    onAdjustWallpaper: () -> Unit,
     tiledWallpaper: Boolean,
     onTiledWallpaperChange: (Boolean) -> Unit,
     feedEnabled: Boolean,
@@ -415,6 +417,13 @@ fun PersonalizeSheet(
                 // Microsoft Bing image of the day — refreshed daily; overrides the
                 // gradient/photo selection below while on.
                 ToggleRow("bing daily wallpaper", on = bingWallpaper, accent = accent, tokens, onBingWallpaperChange)
+                // Browse the last several days of Bing images and pin one.
+                WallpaperNavRow("recent bing wallpapers", "browse ›", accent, tokens, onBingHistory)
+                // Reframe the active photo/Bing wallpaper (same drag-to-position UI as
+                // picking your own photo). Only meaningful when a photo is showing.
+                if (customWallpaper) {
+                    WallpaperNavRow("adjust position", "reframe ›", accent, tokens, onAdjustWallpaper)
+                }
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     PhotoButton(tokens = tokens, onClick = onPickCustomWallpaper, modifier = Modifier.weight(1f))
@@ -616,6 +625,28 @@ fun PersonalizeSheet(
                 }
             }
         }
+    }
+}
+
+/** A compact tappable navigation row: dim label on the left, accent action on the right. */
+@Composable
+private fun WallpaperNavRow(
+    label: String,
+    action: String,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = label, color = tokens.fgDim, fontSize = 13.sp)
+        Spacer(Modifier.weight(1f))
+        Text(text = action, color = accent, fontSize = 13.sp)
     }
 }
 

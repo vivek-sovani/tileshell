@@ -231,6 +231,8 @@ fun StartScreen(
     LaunchedEffect(settings.bingWallpaper) {
         if (settings.bingWallpaper) {
             com.tileshell.feature.livetiles.BingWallpaperWorker.ensureScheduled(context)
+        } else {
+            com.tileshell.feature.livetiles.BingWallpaperWorker.cancel(context)
         }
     }
 
@@ -282,6 +284,10 @@ fun StartScreen(
     // URI of a just-picked wallpaper photo waiting for the user to crop/position it.
     // Set by the picker callback; cleared when the crop overlay is confirmed or cancelled.
     var pendingWallpaperCropUri by remember { mutableStateOf<String?>(null) }
+    // True while re-framing the active (custom/Bing) wallpaper — adjusts alignment only.
+    var adjustingWallpaper by remember { mutableStateOf(false) }
+    // True while the recent-Bing-wallpapers viewer is open.
+    var bingHistoryOpen by remember { mutableStateOf(false) }
 
     // Gallery photo picker for a custom wallpaper. PickVisualMedia opens the phone's
     // gallery / system photo picker (nicer than the SAF document browser). Its grant
@@ -567,6 +573,8 @@ fun StartScreen(
             customWallpaper = settings.customWallpaperUri != null,
             bingWallpaper = settings.bingWallpaper,
             onBingWallpaperChange = viewModel::setBingWallpaper,
+            onBingHistory = { bingHistoryOpen = true },
+            onAdjustWallpaper = { if (settings.customWallpaperUri != null) adjustingWallpaper = true },
             tiledWallpaper = settings.tiledWallpaper,
             onTiledWallpaperChange = viewModel::setTiledWallpaper,
             feedEnabled = settings.feedEnabled,
@@ -718,6 +726,35 @@ fun StartScreen(
                 onCancel = { pendingWallpaperCropUri = null },
             )
         }
+
+        // Re-frame the active wallpaper (own photo or Bing image): same drag UI, but
+        // only the alignment is written — the image/daily-mode are left untouched.
+        val adjustUri = settings.customWallpaperUri
+        if (adjustingWallpaper && adjustUri != null) {
+            WallpaperCropOverlay(
+                uri = adjustUri,
+                initialAlignX = settings.wallpaperAlignX,
+                initialAlignY = settings.wallpaperAlignY,
+                onConfirm = { alignX, alignY ->
+                    viewModel.setWallpaperAlignment(alignX, alignY)
+                    adjustingWallpaper = false
+                },
+                onCancel = { adjustingWallpaper = false },
+            )
+        }
+
+        // Recent-Bing-wallpapers viewer (personalize → "recent bing wallpapers").
+        BingHistorySheet(
+            visible = bingHistoryOpen,
+            dark = dark,
+            accentId = settings.accentId,
+            onPick = { imageUrl ->
+                viewModel.applyBingImage(imageUrl)
+                bingHistoryOpen = false
+                Toast.makeText(context, "setting bing wallpaper…", Toast.LENGTH_SHORT).show()
+            },
+            onDismiss = { bingHistoryOpen = false },
+        )
     }
     }
 }

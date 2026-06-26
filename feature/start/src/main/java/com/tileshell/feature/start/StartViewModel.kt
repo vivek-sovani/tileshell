@@ -322,6 +322,22 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Update only the focal-point alignment of the active custom/Bing wallpaper. */
+    fun setWallpaperAlignment(alignX: Float, alignY: Float) {
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsRepository.setWallpaperAlignment(alignX, alignY)
+        }
+    }
+
+    /**
+     * Pin a specific Bing image (chosen from the history viewer) as the wallpaper.
+     * Downloads it off-thread via the worker and sets it as a fixed custom wallpaper,
+     * which turns daily auto-refresh off.
+     */
+    fun applyBingImage(imageUrl: String) {
+        com.tileshell.feature.livetiles.BingWallpaperWorker.applyImage(getApplication(), imageUrl)
+    }
+
     /** Toggle "wallpaper behind tiles" mode (dark screen, show-through tiles). */
     fun setTiledWallpaper(on: Boolean) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setTiledWallpaper(on) }
