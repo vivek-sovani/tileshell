@@ -28,10 +28,10 @@ android {
         // (13/1.0.3 was uploaded to Play then discarded; Play burns the code, so → 14.)
         // v1.1 = 20 (category folders + in-folder tile editing).
         // v1.1.1 = 21 (folder-merge size fixes, operable music controls, folder badges).
-        // v1.2 = released.
-        // v1.3 = 30 (selectable 4/5/6 grid columns + drag-to-bottom + refined merge).
+        // v1.2 = 30 (grid columns 4/5/6, refined editing/merge, folder fixes,
+        //   small-weather temp, Outfit default, Bing daily wallpaper).
         versionCode = 30
-        versionName = "1.3.0"
+        versionName = "1.2.0"
     }
 
     if (keystoreFile.exists()) {

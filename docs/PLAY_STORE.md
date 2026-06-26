@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v1.3 listing draft — update before each release*
+*v1.2 listing draft — update before each release*
 
 ---
 
@@ -143,21 +143,6 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
-## Release notes (v1.3.0)
-
-*"What's new" — newest release first. Keep under Play's 500-character limit.*
-
-```
-TileShell 1.3
-
-• Choose grid density — 4, 5, or 6 tiles across a row, from Personalize
-• New: daily Bing wallpaper, with a viewer to pick from recent days
-• Drag a tile into the empty space below the grid to send it to the bottom
-• Smoother editing: a moving tile reorders cleanly — folders form only when you pause one tile over another
-• Easier merging: line up two same-size tiles to combine them, wherever you grabbed
-• A small weather tile now shows the current temperature
-```
-
 ## Release notes (v1.2.0)
 
 *"What's new" — newest release first. Keep under Play's 500-character limit.*
@@ -165,8 +150,12 @@ TileShell 1.3
 ```
 TileShell 1.2
 
-• Category folders: create folders of your apps grouped by category — TileShell sorts your installed apps into suggested categories and you pick what goes in, all from Personalize
-• Drop a finished folder straight onto your Start screen as a single tile
+• Choose grid density — 4, 5, or 6 tiles across a row, from Personalize
+• New: daily Bing wallpaper, with a viewer to pick from recent days
+• Drag a tile into the empty space below the grid to send it to the bottom
+• Smoother editing: a moving tile reorders cleanly — folders form only when you pause one tile over another
+• Easier merging: line up two same-size tiles to combine them, wherever you grabbed
+• A small weather tile now shows the current temperature
 ```
 
 ## Release notes (v1.1.1)
