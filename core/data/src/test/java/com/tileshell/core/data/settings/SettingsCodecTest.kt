@@ -18,6 +18,7 @@ class SettingsCodecTest {
             blur = true,
             wallpaperId = "ocean",
             customWallpaperUri = "content://media/external/images/42",
+            bingWallpaper = true,
             tiledWallpaper = true,
             feedEnabled = false,
             cornerRadius = 8f,
@@ -26,6 +27,15 @@ class SettingsCodecTest {
             columns = 6,
         )
         assertEquals(settings, SettingsCodec.decode(SettingsCodec.encode(settings)))
+    }
+
+    @Test
+    fun `bingWallpaper decodes and bad value keeps default`() {
+        assertEquals(true, SettingsCodec.decode("bingWallpaper=true").bingWallpaper)
+        assertEquals(
+            LauncherSettings().bingWallpaper,
+            SettingsCodec.decode("bingWallpaper=daily").bingWallpaper,
+        )
     }
 
     @Test

@@ -226,6 +226,14 @@ fun StartScreen(
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
 
+    // Keep the daily Bing wallpaper refresh enqueued across process restarts while
+    // the user has it on (the worker no-ops once they turn it off).
+    LaunchedEffect(settings.bingWallpaper) {
+        if (settings.bingWallpaper) {
+            com.tileshell.feature.livetiles.BingWallpaperWorker.ensureScheduled(context)
+        }
+    }
+
     val specs = remember(tiles) { tiles.map { TileSpec(it.id, it.size) } }
     val byId = remember(tiles) { tiles.associateBy { it.id } }
 
@@ -557,6 +565,8 @@ fun StartScreen(
             blur = settings.blur,
             wallpaperId = settings.wallpaperId,
             customWallpaper = settings.customWallpaperUri != null,
+            bingWallpaper = settings.bingWallpaper,
+            onBingWallpaperChange = viewModel::setBingWallpaper,
             tiledWallpaper = settings.tiledWallpaper,
             onTiledWallpaperChange = viewModel::setTiledWallpaper,
             feedEnabled = settings.feedEnabled,

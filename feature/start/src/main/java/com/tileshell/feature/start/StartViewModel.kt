@@ -306,6 +306,22 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Turn the Microsoft Bing daily wallpaper on or off. Enabling flips the setting,
+     * schedules the daily refresh and kicks an immediate download; disabling clears the
+     * image (reverting to the gradient) and cancels the work.
+     */
+    fun setBingWallpaper(on: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setBingWallpaper(on) }
+        val context = getApplication<Application>()
+        if (on) {
+            com.tileshell.feature.livetiles.BingWallpaperWorker.ensureScheduled(context)
+            com.tileshell.feature.livetiles.BingWallpaperWorker.refreshNow(context)
+        } else {
+            com.tileshell.feature.livetiles.BingWallpaperWorker.cancel(context)
+        }
+    }
+
     /** Toggle "wallpaper behind tiles" mode (dark screen, show-through tiles). */
     fun setTiledWallpaper(on: Boolean) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setTiledWallpaper(on) }

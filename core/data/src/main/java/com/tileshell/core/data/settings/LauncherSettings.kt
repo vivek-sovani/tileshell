@@ -24,7 +24,11 @@ enum class FontStyle { SYSTEM, OUTFIT, NUNITO }
  * @property wallpaperId id of the selected bundled gradient (`state.wall`);
  *   ignored while [customWallpaperUri] is set.
  * @property customWallpaperUri persisted content URI of a user-picked photo
- *   (`state.customWall`), or null for a bundled gradient.
+ *   (`state.customWall`), or null for a bundled gradient. Also reused to hold the
+ *   downloaded Bing image when [bingWallpaper] is on.
+ * @property bingWallpaper when true the wallpaper is the Microsoft Bing image of
+ *   the day, refreshed daily by `BingWallpaperWorker` into [customWallpaperUri].
+ *   Selecting a bundled gradient or the user's own photo clears this flag.
  * @property tiledWallpaper "wallpaper behind tiles" mode: the screen goes dark and
  *   the wallpaper shows only *through* the tiles (each tile a window onto the same
  *   screen-anchored image), so all gaps/borders stay dark. WP photo-background look.
@@ -45,6 +49,7 @@ data class LauncherSettings(
     val blur: Boolean = false,
     val wallpaperId: String = "aurora",
     val customWallpaperUri: String? = null,
+    val bingWallpaper: Boolean = false,
     val tiledWallpaper: Boolean = false,
     val feedEnabled: Boolean = true,
     val wallpaperAlignX: Float = 0.5f,
@@ -86,6 +91,7 @@ object SettingsCodec {
         append("blur=").append(settings.blur).append('\n')
         append("wallpaper=").append(settings.wallpaperId).append('\n')
         append("customWallpaper=").append(settings.customWallpaperUri.orEmpty()).append('\n')
+        append("bingWallpaper=").append(settings.bingWallpaper).append('\n')
         append("tiledWallpaper=").append(settings.tiledWallpaper).append('\n')
         append("feedEnabled=").append(settings.feedEnabled).append('\n')
         append("wallAlignX=").append(settings.wallpaperAlignX).append('\n')
@@ -106,6 +112,7 @@ object SettingsCodec {
         var blur = d.blur
         var wallpaperId = d.wallpaperId
         var customWallpaperUri = d.customWallpaperUri
+        var bingWallpaper = d.bingWallpaper
         var tiledWallpaper = d.tiledWallpaper
         var feedEnabled = d.feedEnabled
         var wallpaperAlignX = d.wallpaperAlignX
@@ -128,6 +135,7 @@ object SettingsCodec {
                 "blur" -> blur = value.toBooleanStrictOrNull() ?: blur
                 "wallpaper" -> if (value.isNotEmpty()) wallpaperId = value
                 "customWallpaper" -> customWallpaperUri = value.ifEmpty { null }
+                "bingWallpaper" -> bingWallpaper = value.toBooleanStrictOrNull() ?: bingWallpaper
                 "tiledWallpaper" -> tiledWallpaper = value.toBooleanStrictOrNull() ?: tiledWallpaper
                 "feedEnabled" -> feedEnabled = value.toBooleanStrictOrNull() ?: feedEnabled
                 "wallAlignX" -> value.toFloatOrNull()?.let { wallpaperAlignX = it.coerceIn(0f, 1f) }
@@ -149,6 +157,7 @@ object SettingsCodec {
             blur = blur,
             wallpaperId = wallpaperId,
             customWallpaperUri = customWallpaperUri,
+            bingWallpaper = bingWallpaper,
             tiledWallpaper = tiledWallpaper,
             feedEnabled = feedEnabled,
             wallpaperAlignX = wallpaperAlignX,

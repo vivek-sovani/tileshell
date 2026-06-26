@@ -74,6 +74,8 @@ fun PersonalizeSheet(
     blur: Boolean,
     wallpaperId: String,
     customWallpaper: Boolean,
+    bingWallpaper: Boolean,
+    onBingWallpaperChange: (Boolean) -> Unit,
     tiledWallpaper: Boolean,
     onTiledWallpaperChange: (Boolean) -> Unit,
     feedEnabled: Boolean,
@@ -410,6 +412,10 @@ fun PersonalizeSheet(
 
             // ---- wallpaper ----
             SettingGroup(label = "wallpaper", tokens.fgDim) {
+                // Microsoft Bing image of the day — refreshed daily; overrides the
+                // gradient/photo selection below while on.
+                ToggleRow("bing daily wallpaper", on = bingWallpaper, accent = accent, tokens, onBingWallpaperChange)
+                Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     PhotoButton(tokens = tokens, onClick = onPickCustomWallpaper, modifier = Modifier.weight(1f))
                     Wallpapers.all.take(3).forEach { wp ->

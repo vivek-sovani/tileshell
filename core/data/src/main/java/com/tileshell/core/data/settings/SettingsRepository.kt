@@ -66,10 +66,10 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(blur = blur) }
     }
 
-    /** Select a bundled gradient wallpaper, clearing any custom photo and resetting crop. */
+    /** Select a bundled gradient wallpaper, clearing any custom/Bing photo and resetting crop. */
     suspend fun setWallpaper(wallpaperId: String) {
         store.updateData {
-            it.copy(wallpaperId = wallpaperId, customWallpaperUri = null,
+            it.copy(wallpaperId = wallpaperId, customWallpaperUri = null, bingWallpaper = false,
                 wallpaperAlignX = 0.5f, wallpaperAlignY = 0.5f)
         }
     }
@@ -77,9 +77,35 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
     /** Set a user-picked custom wallpaper with its focal-point alignment (FR-7). */
     suspend fun setCustomWallpaper(uri: String, alignX: Float = 0.5f, alignY: Float = 0.5f) {
         store.updateData {
-            it.copy(customWallpaperUri = uri,
+            it.copy(customWallpaperUri = uri, bingWallpaper = false,
                 wallpaperAlignX = alignX.coerceIn(0f, 1f),
                 wallpaperAlignY = alignY.coerceIn(0f, 1f))
+        }
+    }
+
+    /**
+     * Turn the Microsoft Bing image-of-the-day wallpaper on or off. Turning it on
+     * only flips the flag (the centred image arrives once `BingWallpaperWorker`
+     * downloads it via [setBingImage]); turning it off clears the downloaded photo
+     * so the previously selected gradient ([wallpaperId]) shows again.
+     */
+    suspend fun setBingWallpaper(on: Boolean) {
+        store.updateData {
+            if (on) it.copy(bingWallpaper = true)
+            else it.copy(bingWallpaper = false, customWallpaperUri = null,
+                wallpaperAlignX = 0.5f, wallpaperAlignY = 0.5f)
+        }
+    }
+
+    /**
+     * Store the freshly downloaded Bing image URI (called by `BingWallpaperWorker`).
+     * No-ops if the user has since turned Bing off, so a late download can't
+     * resurrect the wallpaper after it was dismissed.
+     */
+    suspend fun setBingImage(uri: String) {
+        store.updateData {
+            if (!it.bingWallpaper) it
+            else it.copy(customWallpaperUri = uri, wallpaperAlignX = 0.5f, wallpaperAlignY = 0.5f)
         }
     }
 
@@ -91,9 +117,9 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         }
     }
 
-    /** Remove all wallpaper (custom photo + gradient), leaving the theme bg colour. */
+    /** Remove all wallpaper (custom/Bing photo + gradient), leaving the theme bg colour. */
     suspend fun clearWallpaper() {
-        store.updateData { it.copy(wallpaperId = "none", customWallpaperUri = null) }
+        store.updateData { it.copy(wallpaperId = "none", customWallpaperUri = null, bingWallpaper = false) }
     }
 
     /** Toggle "wallpaper behind tiles" mode (the dark screen + show-through tiles). */
