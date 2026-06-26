@@ -13,7 +13,8 @@ data class TilePlacement(val id: String, val size: TileSize, val col: Int, val r
 
 /**
  * Dense-packing grid layout (FR-1.1), mirroring CSS `grid-auto-flow: dense` on
- * a fixed 4-column grid.
+ * a [columns]-wide grid (4 by default, user-selectable 4/5/6 — tile footprints
+ * stay constant; a larger count just fits more small-tile columns per row).
  *
  * Tiles are placed in order; for each tile the cursor scans the grid from the
  * top-left, row by row then column by column, and drops the tile in the first

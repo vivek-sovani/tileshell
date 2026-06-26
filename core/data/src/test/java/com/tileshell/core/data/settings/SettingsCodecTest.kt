@@ -23,6 +23,7 @@ class SettingsCodecTest {
             cornerRadius = 8f,
             tileFill = TileFill.GRADIENT,
             fontStyle = FontStyle.OUTFIT,
+            columns = 6,
         )
         assertEquals(settings, SettingsCodec.decode(SettingsCodec.encode(settings)))
     }
@@ -133,6 +134,14 @@ class SettingsCodecTest {
     fun `tileFill round-trips and unknown value keeps default`() {
         assertEquals(TileFill.GRADIENT, SettingsCodec.decode("tileFill=GRADIENT").tileFill)
         assertEquals(LauncherSettings().tileFill, SettingsCodec.decode("tileFill=SPARKLE").tileFill)
+    }
+
+    @Test
+    fun `columns round-trips and out-of-range is clamped`() {
+        assertEquals(5, SettingsCodec.decode(SettingsCodec.encode(LauncherSettings(columns = 5))).columns)
+        assertEquals(6, SettingsCodec.decode("columns=9").columns)
+        assertEquals(4, SettingsCodec.decode("columns=1").columns)
+        assertEquals(LauncherSettings().columns, SettingsCodec.decode("columns=lots").columns)
     }
 
     @Test

@@ -52,7 +52,20 @@ data class LauncherSettings(
     val cornerRadius: Float = 0f,
     val tileFill: TileFill = TileFill.FLAT,
     val fontStyle: FontStyle = FontStyle.SYSTEM,
-)
+    /**
+     * Number of small-tile columns in the Start grid: 4 (default), 5, or 6.
+     * Tile footprints stay constant (small 1, medium 2, wide 4 = 2× medium); a
+     * larger count simply packs more columns of small tiles into a row. Clamped
+     * to 4..6 on decode.
+     */
+    val columns: Int = DEFAULT_COLUMNS,
+) {
+    companion object {
+        const val DEFAULT_COLUMNS = 4
+        const val MIN_COLUMNS = 4
+        const val MAX_COLUMNS = 6
+    }
+}
 
 /**
  * Tiny line-oriented `key=value` codec for [LauncherSettings]. Pure Kotlin (no
@@ -79,7 +92,8 @@ object SettingsCodec {
         append("wallAlignY=").append(settings.wallpaperAlignY).append('\n')
         append("cornerRadius=").append(settings.cornerRadius).append('\n')
         append("tileFill=").append(settings.tileFill.name).append('\n')
-        append("fontStyle=").append(settings.fontStyle.name)
+        append("fontStyle=").append(settings.fontStyle.name).append('\n')
+        append("columns=").append(settings.columns)
     }
 
     fun decode(text: String): LauncherSettings {
@@ -99,6 +113,7 @@ object SettingsCodec {
         var cornerRadius = d.cornerRadius
         var tileFill = d.tileFill
         var fontStyle = d.fontStyle
+        var columns = d.columns
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
             if (sep <= 0) return@forEach
@@ -120,6 +135,9 @@ object SettingsCodec {
                 "cornerRadius" -> value.toFloatOrNull()?.let { cornerRadius = it.coerceIn(0f, 12f) }
                 "tileFill" -> TileFill.entries.find { it.name == value }?.let { tileFill = it }
                 "fontStyle" -> FontStyle.entries.find { it.name == value }?.let { fontStyle = it }
+                "columns" -> value.toIntOrNull()?.let {
+                    columns = it.coerceIn(LauncherSettings.MIN_COLUMNS, LauncherSettings.MAX_COLUMNS)
+                }
             }
         }
         return LauncherSettings(
@@ -138,6 +156,7 @@ object SettingsCodec {
             cornerRadius = cornerRadius,
             tileFill = tileFill,
             fontStyle = fontStyle,
+            columns = columns,
         )
     }
 }

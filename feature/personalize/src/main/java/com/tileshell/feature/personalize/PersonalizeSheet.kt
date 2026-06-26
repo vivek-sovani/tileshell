@@ -103,6 +103,8 @@ fun PersonalizeSheet(
     onTileFillChange: (TileFill) -> Unit,
     fontStyle: FontStyle,
     onFontStyleChange: (FontStyle) -> Unit,
+    columns: Int,
+    onColumnsChange: (Int) -> Unit,
     onClearPhotos: () -> Unit,
     contactsGranted: Boolean,
     calendarGranted: Boolean,
@@ -306,6 +308,41 @@ fun PersonalizeSheet(
                                 color = if (selected) Color.White else tokens.fg,
                                 fontSize = 13.sp,
                             )
+                        }
+                    }
+                }
+            }
+
+            // ---- grid columns (small-tile count per row: 4 / 5 / 6) ----
+            SettingGroup(label = "grid columns", tokens.fgDim) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "small tiles per row (medium = 2, wide = 4)",
+                        color = tokens.fgDim,
+                        fontSize = 13.sp,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(4, 5, 6).forEach { count ->
+                            val selected = columns == count
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(if (selected) accent else Color.Transparent)
+                                    .border(
+                                        1.dp,
+                                        if (selected) accent else tokens.tileLine,
+                                        RoundedCornerShape(20.dp),
+                                    )
+                                    .clickable { onColumnsChange(count) }
+                                    .padding(horizontal = 18.dp, vertical = 7.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = count.toString(),
+                                    color = if (selected) Color.White else tokens.fg,
+                                    fontSize = 13.sp,
+                                )
+                            }
                         }
                     }
                 }

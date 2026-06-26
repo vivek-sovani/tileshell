@@ -462,6 +462,7 @@ fun StartScreen(
                     widthPx = widthPx,
                     viewportHeightPx = viewportHeightPx,
                     statusBarTopPx = statusBarTopPx,
+                    columns = settings.columns,
                     onLockScreen = onLockScreen,
                     onTile = { tile ->
                         when (tile) {
@@ -626,6 +627,8 @@ fun StartScreen(
             onTileFillChange = viewModel::setTileFill,
             fontStyle = settings.fontStyle,
             onFontStyleChange = viewModel::setFontStyle,
+            columns = settings.columns,
+            onColumnsChange = viewModel::setColumns,
             onAbout = viewModel::openAbout,
             onFolders = viewModel::openFolders,
             onDismiss = viewModel::closePersonalize,
@@ -730,6 +733,7 @@ private fun StartPage(
     widthPx: Float,
     viewportHeightPx: Float,
     statusBarTopPx: Float,
+    columns: Int,
     onLockScreen: () -> Unit,
     onTile: (TileModel) -> Unit,
     onChevron: () -> Unit,
@@ -824,6 +828,7 @@ private fun StartPage(
             val editDrag = Modifier.editDragGesture(
                 editMode = editMode,
                 widthPx = widthPx,
+                columns = columns,
                 order = order,
                 byId = byId,
                 draggingId = { draggingId },
@@ -873,6 +878,7 @@ private fun StartPage(
 
             DenseTileGrid(
                 tiles = displaySpecs,
+                columns = columns,
                 modifier = Modifier.fillMaxWidth().then(editDrag),
             ) { spec, slot, sizePx ->
                 val model = byId[spec.id] ?: return@DenseTileGrid
@@ -1772,6 +1778,7 @@ private fun Modifier.tileGesture(
 private fun Modifier.editDragGesture(
     editMode: Boolean,
     widthPx: Float,
+    columns: Int = GridPacker.COLUMNS,
     order: List<String>,
     byId: Map<String, TileModel>,
     draggingId: () -> String?,
@@ -1792,16 +1799,16 @@ private fun Modifier.editDragGesture(
     scrollOffsetPx: () -> Float,
     edgeZonePx: Float,
     allowMerge: Boolean = true,
-): Modifier = pointerInput(editMode, widthPx, byId, selectedId()) {
+): Modifier = pointerInput(editMode, widthPx, columns, byId, selectedId()) {
     // Re-keyed on byId so a resize/unpin mid-session refreshes the captured tile
     // sizes, and on the selected id so an in-edit selection switch refreshes the
     // corner-control target; neither changes mid-drag, so a live drag is safe.
     if (!editMode) return@pointerInput
-    val geom = GridGeometry.of(widthPx)
+    val geom = GridGeometry.of(widthPx, columns)
     val slop = 7.dp.toPx()
 
     fun placementsNow(): List<TilePlacement> =
-        GridPacker.pack(order.mapNotNull { id -> byId[id]?.let { TileSpec(id, it.size) } })
+        GridPacker.pack(order.mapNotNull { id -> byId[id]?.let { TileSpec(id, it.size) } }, columns)
 
     // The other tiles packed *without* [exclude] (the dragged tile). Because a
     // drag only ever moves the dragged tile within the order, this layout is
@@ -1811,6 +1818,7 @@ private fun Modifier.editDragGesture(
         GridPacker.pack(
             order.filter { it != exclude }
                 .mapNotNull { id -> byId[id]?.let { TileSpec(id, it.size) } },
+            columns,
         )
 
     awaitEachGesture {

@@ -126,6 +126,14 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(fontStyle = style) }
     }
 
+    /** Set the Start grid column count (small-tile columns per row); clamped to 4..6. */
+    suspend fun setColumns(columns: Int) {
+        store.updateData {
+            it.copy(columns = columns.coerceIn(
+                LauncherSettings.MIN_COLUMNS, LauncherSettings.MAX_COLUMNS))
+        }
+    }
+
     companion object {
         fun create(context: Context): SettingsRepository =
             SettingsRepository(context.applicationContext.settingsDataStore)

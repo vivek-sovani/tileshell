@@ -331,6 +331,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setFontStyle(style) }
     }
 
+    /** Set the Start grid column count (4, 5, or 6 small-tile columns). */
+    fun setColumns(columns: Int) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setColumns(columns) }
+    }
+
     /** Subscribe a custom RSS/Atom feed and refresh so its articles appear soon. */
     fun addFeedSource(url: String, name: String) {
         viewModelScope.launch(Dispatchers.IO) {
