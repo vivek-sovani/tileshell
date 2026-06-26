@@ -294,20 +294,24 @@ private fun CategoryReview(
     val isUpdate = existingPackages.isNotEmpty()
 
     val matched = remember(category.id, apps) { AppCategories.match(category.id, apps) }
-    // Order: apps already in the folder first (so they can be removed), then the
-    // category matches not yet in it, then every other installed app.
-    val ordered = remember(category.id, apps, existingPackages) {
-        val existing = apps.filter { it.packageName in existingPackages }
+    // Three ordered groups: apps already in the folder, then the category matches
+    // not yet in it (suggested), then every other installed app.
+    val existing = remember(apps, existingPackages) {
+        apps.filter { it.packageName in existingPackages }
+    }
+    val suggested = remember(category.id, apps, existingPackages) {
+        val existingKeys = existing.mapTo(HashSet()) { it.key }
+        matched.filter { it.key !in existingKeys }
+    }
+    val other = remember(category.id, apps, existingPackages) {
         val existingKeys = existing.mapTo(HashSet()) { it.key }
         val matchedKeys = matched.mapTo(HashSet()) { it.key }
-        val matchedNew = matched.filter { it.key !in existingKeys }
-        val rest = apps.filter { it.key !in existingKeys && it.key !in matchedKeys }
-        existing + matchedNew + rest
+        apps.filter { it.key !in existingKeys && it.key !in matchedKeys }
     }
-    // Number of leading rows that are already in the folder (for the section split).
-    val existingCount = remember(ordered, existingPackages) {
-        ordered.count { it.packageName in existingPackages }
-    }
+    val ordered = remember(existing, suggested, other) { existing + suggested + other }
+    // Group boundaries (start index of suggested / other), for the section headers.
+    val suggestedStart = existing.size
+    val otherStart = existing.size + suggested.size
     val checked = remember(category.id, existingPackages) {
         mutableStateMapOf<String, Boolean>().apply {
             // Pre-check: new category matches + apps already in the existing folder.
@@ -369,13 +373,16 @@ private fun CategoryReview(
                 .padding(vertical = 4.dp),
         ) {
             ordered.forEachIndexed { index, app ->
-                // Section headers (update flow only): "in this folder" above the
-                // current members, "suggested" above the rest.
-                if (isUpdate && index == 0 && existingCount > 0) {
-                    SectionHeader("in this folder", tokens)
+                // Three section headers: existing folder members, category
+                // suggestions, then all other installed apps.
+                if (index == 0 && existing.isNotEmpty()) {
+                    SectionHeader("existing", tokens)
                 }
-                if (isUpdate && index == existingCount) {
-                    SectionHeader("add more", tokens)
+                if (index == suggestedStart && suggested.isNotEmpty()) {
+                    SectionHeader("suggested", tokens)
+                }
+                if (index == otherStart && other.isNotEmpty()) {
+                    SectionHeader("other apps", tokens)
                 }
 
                 val isOn = checked[app.key] == true
