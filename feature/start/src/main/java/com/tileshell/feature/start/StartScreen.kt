@@ -1874,6 +1874,9 @@ private fun Modifier.editDragGesture(
         var dwellId: String? = null
         var dwellAnchor = Offset.Zero
         var dwellStartMs = 0L
+        // Half-extent of the dragged tile, captured at lift, so merge can be
+        // judged from where the floating tile's CENTRE sits (not the finger).
+        var dragHalf = Offset.Zero
 
         while (true) {
             val event = awaitPointerEvent()
@@ -1883,8 +1886,11 @@ private fun Modifier.editDragGesture(
 
             if (startId != null && !lifted && moved) {
                 lifted = true
-                val r = geom.rect(placementsNow().first { it.id == startId })
+                val p0 = placementsNow().first { it.id == startId }
+                val r = geom.rect(p0)
                 grab = down.position - r.topLeft
+                val sz = geom.sizePx(p0)
+                dragHalf = Offset(sz.width / 2f, sz.height / 2f)
                 onLift(startId, (pos - grab).round())
             }
 
@@ -1895,20 +1901,26 @@ private fun Modifier.editDragGesture(
                 // Merge (FR-3.3) vs reorder (FR-3.2). A *moving* finger always
                 // reorders — even straight across a tile's centre — so
                 // repositioning never trips an accidental merge. Merge commits
-                // only on intent: the finger must dwell (pause within
-                // [dwellMoveTol]) in the target's inner 22–78% centre for
-                // [mergeDwellMs]. Hover detection uses the OTHER tiles packed
-                // without the dragged tile (an invariant layout) so a target
-                // never slips out from under the finger; reorder uses the live
-                // dragged-included layout so the gap follows. Once a merge is
-                // committed it stays sticky while the finger remains in that
-                // centre (a wobble won't drop it); moving to the edge or off the
-                // tile breaks it back into a reorder.
+                // only on intent: a dwell (pause within [dwellMoveTol]) for
+                // [mergeDwellMs] while the dragged tile sits over a target.
+                //
+                // The merge target is judged from where the floating tile's
+                // CENTRE lands — not the finger — so aligning two tiles merges
+                // them regardless of where the tile was grabbed or how big it
+                // is. This is what makes small↔small and wide↔wide merges easy:
+                // you just drop one tile squarely onto another. Targets come
+                // from the OTHER tiles packed without the dragged tile (an
+                // invariant layout) so they don't slip out from under it;
+                // reorder still uses the live dragged-included layout so the gap
+                // follows the finger. A committed merge stays sticky while the
+                // centre remains over the target (a wobble won't drop it);
+                // sliding off it breaks back into a reorder.
+                val dragCentre = (pos - grab) + dragHalf
                 val hovered = startId?.let { drag ->
-                    othersPacked(drag).firstOrNull { geom.rect(it).contains(pos) }
+                    othersPacked(drag).firstOrNull { geom.rect(it).contains(dragCentre) }
                 }
                 val inCentre = allowMerge && hovered != null &&
-                    inMergeZone(geom.rect(hovered), pos)
+                    inMergeZone(geom.rect(hovered), dragCentre)
 
                 if (inCentre) {
                     if (dwellId != hovered!!.id ||
