@@ -73,6 +73,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -109,6 +110,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.sp
@@ -668,6 +670,8 @@ fun StartScreen(
             onPullOut = { child ->
                 openFolder?.let { viewModel.removeFolderChild(it.id, child) }
             },
+            onResize = viewModel::resizeFolderChild,
+            onReorder = viewModel::reorderFolderChildren,
         )
 
         // First-run hint (S19): one-time prototype hint card over Start. Sits
@@ -1325,24 +1329,44 @@ private fun FolderOverlay(
     onLaunchChild: (FolderChild) -> Unit,
     onRename: (String) -> Unit,
     onPullOut: (FolderChild) -> Unit,
+    onResize: (FolderChild) -> Unit,
+    onReorder: (List<FolderChild>) -> Unit,
 ) {
     if (folder == null) return
     val density = LocalDensity.current
     var renaming by remember { mutableStateOf(false) }
+    var editMode by remember { mutableStateOf(false) }
 
-    val childSpecs = remember(folder.children) {
-        folder.children.map { TileSpec(it.packageName + "/" + it.activityName, TileSize.MEDIUM) }
+    // Local reorder state: ordered list of child keys (pkg/activity).
+    val localOrder = remember(folder.id) {
+        mutableStateListOf<String>().also { list ->
+            list.addAll(folder.children.map { it.packageName + "/" + it.activityName })
+        }
     }
+    // Sync when DB pushes a new children list (resize changes size, not order).
+    LaunchedEffect(folder.children) {
+        val incoming = folder.children.map { it.packageName + "/" + it.activityName }
+        if (incoming != localOrder.toList()) {
+            localOrder.clear()
+            localOrder.addAll(incoming)
+        }
+    }
+
     val childById = remember(folder.children) {
         folder.children.associateBy { it.packageName + "/" + it.activityName }
     }
 
+    // Drag state for edit-mode reorder.
+    var dragKey by remember { mutableStateOf<String?>(null) }
+    var dragOffset by remember { mutableStateOf(Offset.Zero) }
+    // Slot centres for hit-testing reorder swaps: key → centre in grid-local px.
+    val slotCentres = remember { mutableStateMapOf<String, Offset>() }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            // Scrim (prototype rgba(8,8,12,.55)); tap to dismiss.
             .background(Color(0x8C08080C))
-            .pointerInput(Unit) { detectTapGestures { onClose() } },
+            .pointerInput(Unit) { detectTapGestures { if (!editMode) onClose() } },
     ) {
         Column(
             modifier = Modifier
@@ -1350,32 +1374,51 @@ private fun FolderOverlay(
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-            // Close button, top-right.
+            // Header row: close (left) + edit/done (right) or rename (centre).
             Box(modifier = Modifier.fillMaxWidth()) {
-                Box(
+                // Close button — hidden while renaming.
+                if (!renaming) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(top = 6.dp, start = 14.dp)
+                            .size(48.dp)
+                            .clickable(onClick = onClose, role = Role.Button),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = TileIcons["close"],
+                            contentDescription = "close folder",
+                            tint = DarkColorTokens.fg,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
+                }
+                // Edit / Done button.
+                Text(
+                    text = if (editMode) "done" else "edit",
+                    color = accent,
+                    fontSize = 14.sp,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(top = 6.dp, end = 14.dp)
-                        // 48dp min touch target (a11y); a real clickable so
-                        // TalkBack focuses and activates it (was a raw pointerInput).
-                        .size(48.dp)
-                        .clickable(onClick = onClose, role = Role.Button),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = TileIcons["close"],
-                        contentDescription = "close folder",
-                        tint = DarkColorTokens.fg,
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
+                        .padding(top = 14.dp, end = 20.dp)
+                        .clickable {
+                            if (editMode) {
+                                // Commit reorder on exit.
+                                val ordered = localOrder.mapNotNull { childById[it] }
+                                onReorder(ordered)
+                            }
+                            editMode = !editMode
+                            renaming = false
+                        },
+                )
             }
 
-            // Title (long-press to rename) or the inline rename editor.
+            // Title (long-press to rename, suppressed in edit mode) or inline editor.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 30.dp, bottom = 18.dp),
+                    .padding(top = 20.dp, bottom = 12.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 if (renaming) {
@@ -1390,90 +1433,190 @@ private fun FolderOverlay(
                         fontSize = 30.sp,
                         fontWeight = FontWeight.Thin,
                         modifier = Modifier.pointerInput(folder.id) {
-                            detectTapGestures(onLongPress = { renaming = true })
+                            detectTapGestures(onLongPress = { if (!editMode) renaming = true })
                         },
                     )
                 }
             }
 
-            // Hint: how to take an app out of the folder.
+            // Contextual hint.
             Text(
-                text = "drag a tile out to remove it from the folder",
+                text = if (editMode) "tap tile to resize  ·  drag to reorder  ·  drag out to remove"
+                       else "tap to open  ·  long-press drag out to remove",
                 color = DarkColorTokens.fg.copy(alpha = 0.6f),
-                fontSize = 12.sp,
+                fontSize = 11.sp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 14.dp),
                 textAlign = TextAlign.Center,
             )
 
-            // Grid of medium child tiles (2 per row on the 4-column grid). Long-
-            // press-drag a child and release it away from its slot to pull that app
-            // out of the folder back onto Start (FR-4); a quick tap launches it.
+            // Tile grid — uses child.size (not hardcoded MEDIUM).
+            val childSpecs = localOrder.mapNotNull { key ->
+                childById[key]?.let { TileSpec(key, it.size) }
+            }
+
             DenseTileGrid(tiles = childSpecs, modifier = Modifier.fillMaxWidth()) { spec, slot, sizePx ->
                 val child = childById[spec.id] ?: return@DenseTileGrid
                 val appModel = TileModel.App(
                     id = spec.id,
                     position = 0,
-                    size = TileSize.MEDIUM,
+                    size = child.size,
                     colorId = folder.colorId,
                     packageName = child.packageName,
                     activityName = child.activityName,
                     label = child.label,
                     iconKey = child.iconKey,
                 )
-                // A drag past ~70% of a tile counts as "pulled out of the folder".
-                val pullThreshold = sizePx.height * 0.7f
-                var dragOffset by remember(spec.id) { mutableStateOf(Offset.Zero) }
-                var dragging by remember(spec.id) { mutableStateOf(false) }
-                val pulledOut = dragging && dragOffset.getDistance() > pullThreshold
+
+                // Record the slot centre for reorder hit-testing.
+                val centre = Offset(
+                    slot.x + sizePx.width / 2f,
+                    slot.y + sizePx.height / 2f,
+                )
+                slotCentres[spec.id] = centre
+
+                // Pull-out threshold: 2.5× tile unit so reorder moves don't trigger it.
+                val pullThreshold = sizePx.width * 2.5f
+
+                val isDragging = dragKey == spec.id
+                val thisDragOffset = if (isDragging) dragOffset else Offset.Zero
+                val pulledOut = isDragging && dragOffset.getDistance() > pullThreshold
+
                 Box(
                     modifier = Modifier
                         .offset {
                             IntOffset(
-                                slot.x + dragOffset.x.roundToInt(),
-                                slot.y + dragOffset.y.roundToInt(),
+                                slot.x + thisDragOffset.x.roundToInt(),
+                                slot.y + thisDragOffset.y.roundToInt(),
                             )
                         }
-                        .zIndex(if (dragging) 5f else 0f)
+                        .zIndex(if (isDragging) 5f else 0f)
                         .graphicsLayer {
-                            val s = if (dragging) 1.06f else 1f
-                            scaleX = s
-                            scaleY = s
-                            // Fade as the tile crosses the pull-out threshold.
-                            alpha = if (pulledOut) 0.55f else 1f
-                            shadowElevation = if (dragging) 16.dp.toPx() else 0f
+                            val s = if (isDragging) 1.06f else 1f
+                            scaleX = s; scaleY = s
+                            alpha = if (pulledOut) 0.45f else 1f
+                            shadowElevation = if (isDragging) 16.dp.toPx() else 0f
                         }
                         .size(
                             with(density) { sizePx.width.toDp() },
                             with(density) { sizePx.height.toDp() },
                         )
                         .background(accent)
-                        // Quick tap launches the child.
-                        .pointerInput(spec.id) {
-                            detectTapGestures { onLaunchChild(child) }
-                        }
-                        // Long-press-drag pulls the child out of the folder.
-                        .pointerInput(spec.id, pullThreshold) {
-                            detectDragGesturesAfterLongPress(
-                                onDragStart = { dragging = true },
-                                onDrag = { change, amount ->
-                                    change.consume()
-                                    dragOffset += amount
-                                },
-                                onDragEnd = {
-                                    if (dragOffset.getDistance() > pullThreshold) onPullOut(child)
-                                    dragOffset = Offset.Zero
-                                    dragging = false
-                                },
-                                onDragCancel = {
-                                    dragOffset = Offset.Zero
-                                    dragging = false
-                                },
-                            )
-                        },
+                        .then(
+                            if (editMode) {
+                                Modifier
+                                    // Tap in edit mode = cycle size.
+                                    .pointerInput(spec.id) {
+                                        detectTapGestures { onResize(child) }
+                                    }
+                                    // Drag in edit mode = reorder (or pull-out if very far).
+                                    .pointerInput(spec.id, pullThreshold) {
+                                        detectDragGesturesAfterLongPress(
+                                            onDragStart = {
+                                                dragKey = spec.id
+                                                dragOffset = Offset.Zero
+                                            },
+                                            onDrag = { change, amount ->
+                                                change.consume()
+                                                dragOffset += amount
+                                                // Compute dragged tile's current centre.
+                                                val draggedCentre = Offset(
+                                                    slot.x + dragOffset.x + sizePx.width / 2f,
+                                                    slot.y + dragOffset.y + sizePx.height / 2f,
+                                                )
+                                                // Swap with whichever tile's resting centre
+                                                // the dragged centre is nearest to.
+                                                val hoveredKey = slotCentres
+                                                    .filter { (k, _) -> k != spec.id }
+                                                    .minByOrNull { (_, c) ->
+                                                        (c - draggedCentre).getDistance()
+                                                    }
+                                                    ?.takeIf { (_, c) ->
+                                                        (c - draggedCentre).getDistance() <
+                                                            sizePx.width * 0.6f
+                                                    }
+                                                    ?.key
+                                                if (hoveredKey != null) {
+                                                    val newOrder = reorderTiles(
+                                                        localOrder.toList(),
+                                                        spec.id,
+                                                        hoveredKey,
+                                                    )
+                                                    if (newOrder != localOrder.toList()) {
+                                                        localOrder.clear()
+                                                        localOrder.addAll(newOrder)
+                                                    }
+                                                }
+                                            },
+                                            onDragEnd = {
+                                                if (dragOffset.getDistance() > pullThreshold) {
+                                                    onPullOut(child)
+                                                } else {
+                                                    val ordered = localOrder.mapNotNull { childById[it] }
+                                                    onReorder(ordered)
+                                                }
+                                                dragKey = null
+                                                dragOffset = Offset.Zero
+                                            },
+                                            onDragCancel = {
+                                                dragKey = null
+                                                dragOffset = Offset.Zero
+                                            },
+                                        )
+                                    }
+                            } else {
+                                Modifier
+                                    // Normal mode: tap = launch.
+                                    .pointerInput(spec.id) {
+                                        detectTapGestures { onLaunchChild(child) }
+                                    }
+                                    // Normal mode: long-press-drag = pull out.
+                                    .pointerInput(spec.id) {
+                                        detectDragGesturesAfterLongPress(
+                                            onDragStart = {
+                                                dragKey = spec.id
+                                                dragOffset = Offset.Zero
+                                            },
+                                            onDrag = { change, amount ->
+                                                change.consume()
+                                                dragOffset += amount
+                                            },
+                                            onDragEnd = {
+                                                val dist = dragOffset.getDistance()
+                                                if (dist > sizePx.height * 0.7f) onPullOut(child)
+                                                dragKey = null
+                                                dragOffset = Offset.Zero
+                                            },
+                                            onDragCancel = {
+                                                dragKey = null
+                                                dragOffset = Offset.Zero
+                                            },
+                                        )
+                                    }
+                            }
+                        ),
                 ) {
                     AppTileContent(appModel)
+                    // Edit-mode overlay: show size label.
+                    if (editMode) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(4.dp)
+                                .background(
+                                    Color.Black.copy(alpha = 0.55f),
+                                    RoundedCornerShape(3.dp),
+                                )
+                                .padding(horizontal = 5.dp, vertical = 2.dp),
+                        ) {
+                            Text(
+                                text = child.size.name.lowercase(),
+                                color = Color.White,
+                                fontSize = 9.sp,
+                            )
+                        }
+                    }
                 }
             }
         }

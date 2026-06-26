@@ -13,6 +13,7 @@ import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.TileModel
+import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.core.data.settings.SettingsRepository
 import com.tileshell.feature.livetiles.DEFAULT_FEED_SOURCES
@@ -388,6 +389,23 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun removeFolderChild(folderId: String, child: FolderChild) {
         viewModelScope.launch(writeContext) { repository.removeFolderChild(folderId, child) }
+    }
+
+    /** Cycle a folder child's size: SMALL→MEDIUM→WIDE→SMALL. */
+    fun resizeFolderChild(child: FolderChild) {
+        val next = when (child.size) {
+            TileSize.SMALL -> TileSize.MEDIUM
+            TileSize.MEDIUM -> TileSize.WIDE
+            else -> TileSize.SMALL
+        }
+        viewModelScope.launch(writeContext) { repository.resizeFolderChild(child.rowId, next) }
+    }
+
+    /** Persist a new display order for folder children after an in-folder drag. */
+    fun reorderFolderChildren(orderedChildren: List<FolderChild>) {
+        viewModelScope.launch(writeContext) {
+            repository.reorderFolderChildren(orderedChildren.map { it.rowId })
+        }
     }
 
     /**
