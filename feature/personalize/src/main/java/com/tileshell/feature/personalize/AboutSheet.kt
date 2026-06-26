@@ -152,11 +152,27 @@ fun AboutSheet(
                 tokens = tokens,
                 items = listOf(
                     "live tile grid in three sizes — small, medium, wide",
+                    "choose grid density — 4, 5, or 6 tiles across a row",
                     "long-press any tile to enter edit mode",
                     "drag to reorder, resize, or unpin tiles",
-                    "merge two tiles together to create a folder",
-                    "pull an app out of a folder to unpin it back",
+                    "drag a tile into the empty space below to send it to the bottom",
+                    "a moving tile reorders cleanly; pause it over another to merge",
+                    "merge two same-size tiles by lining them up centre to centre",
                     "unread badge counts on app tiles",
+                ),
+            )
+
+            FeatureGroup(
+                title = "folders",
+                accent = accent,
+                tokens = tokens,
+                items = listOf(
+                    "merge two tiles together to create a folder",
+                    "auto-create category folders from your installed apps",
+                    "resize, reorder, and remove tiles inside an open folder",
+                    "pull an app out of a folder to unpin it back to start",
+                    "folder shows a combined badge; each app shows its own inside",
+                    "music keeps playing controls and album art live inside a folder",
                 ),
             )
 
@@ -191,6 +207,7 @@ fun AboutSheet(
                 items = listOf(
                     "clock — live time, weekday, and date; flips to alarm",
                     "weather — real forecasts via open-meteo, no account needed",
+                    "weather as a small tile shows the current temperature",
                     "calendar — today's date always visible; flips to upcoming events",
                     "music — now-playing, album art, and transport controls",
                     "people — rotating mosaic of your contacts' photos",
@@ -211,7 +228,8 @@ fun AboutSheet(
                     "6 built-in gradient wallpapers + custom photo",
                     "wallpaper visible through tiles (show-through mode)",
                     "tile corner radius slider and gradient fill option",
-                    "font style: system, outfit, or nunito",
+                    "font style: outfit (default), nunito, or system",
+                    "grid columns — pack 4, 5, or 6 tiles into a row",
                 ),
             )
 

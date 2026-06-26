@@ -22,7 +22,7 @@ class SettingsCodecTest {
             feedEnabled = false,
             cornerRadius = 8f,
             tileFill = TileFill.GRADIENT,
-            fontStyle = FontStyle.OUTFIT,
+            fontStyle = FontStyle.NUNITO,
             columns = 6,
         )
         assertEquals(settings, SettingsCodec.decode(SettingsCodec.encode(settings)))

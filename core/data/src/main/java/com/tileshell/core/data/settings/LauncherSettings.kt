@@ -51,7 +51,7 @@ data class LauncherSettings(
     val wallpaperAlignY: Float = 0.5f,
     val cornerRadius: Float = 0f,
     val tileFill: TileFill = TileFill.FLAT,
-    val fontStyle: FontStyle = FontStyle.SYSTEM,
+    val fontStyle: FontStyle = FontStyle.OUTFIT,
     /**
      * Number of small-tile columns in the Start grid: 4 (default), 5, or 6.
      * Tile footprints stay constant (small 1, medium 2, wide 4 = 2× medium); a
