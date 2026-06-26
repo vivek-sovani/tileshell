@@ -179,11 +179,18 @@ class LayoutRepository(
         val existing = dao.folderByName(trimmed)
 
         if (existing != null) {
-            val prevPackages = dao.folderChildrenOnce(existing.id).mapTo(HashSet()) { it.packageName }
+            val prevChildren = dao.folderChildrenOnce(existing.id)
+            val prevPackages = prevChildren.mapTo(HashSet()) { it.packageName }
+            // Preserve any size the user already set on apps that stay in the folder
+            // (updateFolderContents deletes + re-inserts, so we must carry it over).
+            val prevSizeByComponent = prevChildren.associate {
+                (it.packageName + "/" + it.activityName) to it.size
+            }
             val newPackages = children.mapTo(HashSet()) { it.packageName }
             // Remove standalone Start tiles only for apps that are newly entering the folder.
             (newPackages - prevPackages).forEach { pkg -> dao.deleteTilesByPackage(pkg) }
             val childRows = children.mapIndexed { index, app ->
+                val component = app.packageName + "/" + app.activityName
                 FolderChildEntity(
                     folderId = existing.id,
                     position = index,
@@ -191,6 +198,7 @@ class LayoutRepository(
                     activityName = app.activityName,
                     label = app.label,
                     iconKey = roleIconKeyMap[app.packageName],
+                    size = prevSizeByComponent[component] ?: TileSize.MEDIUM,
                 )
             }
             dao.updateFolderContents(existing.id, childRows)
