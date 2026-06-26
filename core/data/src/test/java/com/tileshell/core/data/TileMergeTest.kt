@@ -117,22 +117,37 @@ class TileMergeTest {
     }
 
     @Test
-    fun draggedApp_carriesItsOwnSizeIntoTheFolder() {
-        // A wide/small app dropped into a folder must keep its size as a child,
-        // and existing children must keep theirs (no silent reset to MEDIUM).
+    fun draggedApp_carriesItsSizeIntoFolder_wideDemotedToMedium() {
+        // A small/medium app dropped into a folder keeps its size; a WIDE app is
+        // demoted to MEDIUM (folders don't allow wide). Existing children keep
+        // their sizes — no silent reset.
         val target = folder(
             "g",
             children = listOf(
-                FolderChild("fb", ".Main", "fb", size = TileSize.WIDE),
+                FolderChild("fb", ".Main", "fb", size = TileSize.MEDIUM),
                 FolderChild("ig", ".Main", "ig", size = TileSize.SMALL),
             ),
         )
         val result = computeMerge(drag = app("tw", size = TileSize.WIDE), target = target)
 
         val sizes = result.children.associate { it.packageName to it.size }
-        assertEquals(TileSize.WIDE, sizes["fb"])  // existing wide child preserved
-        assertEquals(TileSize.SMALL, sizes["ig"]) // existing small child preserved
-        assertEquals(TileSize.WIDE, sizes["tw"])  // dragged app keeps its size
+        assertEquals(TileSize.MEDIUM, sizes["fb"]) // existing medium child preserved
+        assertEquals(TileSize.SMALL, sizes["ig"])  // existing small child preserved
+        assertEquals(TileSize.MEDIUM, sizes["tw"])  // wide dragged app demoted to medium
+    }
+
+    @Test
+    fun existingWideFolderChild_isDemotedToMediumOnMerge() {
+        // Defensive: if a WIDE child ever existed, a later merge normalises it.
+        val target = folder(
+            "g",
+            children = listOf(FolderChild("fb", ".Main", "fb", size = TileSize.WIDE)),
+        )
+        val result = computeMerge(drag = app("tw", size = TileSize.SMALL), target = target)
+
+        val sizes = result.children.associate { it.packageName to it.size }
+        assertEquals(TileSize.MEDIUM, sizes["fb"])
+        assertEquals(TileSize.SMALL, sizes["tw"])
     }
 
     @Test

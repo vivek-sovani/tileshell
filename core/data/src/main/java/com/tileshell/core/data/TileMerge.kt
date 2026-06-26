@@ -13,6 +13,10 @@ data class MergeResult(
     val children: List<FolderChild>,
 )
 
+/** Demote a WIDE child to MEDIUM; folder children are only ever SMALL / MEDIUM. */
+private fun FolderChild.clampForFolder(): FolderChild =
+    if (size == TileSize.WIDE) copy(size = TileSize.MEDIUM) else this
+
 /** The apps a tile contributes to a merge: a folder's children, or itself. */
 private fun TileModel.apps(): List<FolderChild> = when (this) {
     is TileModel.Folder -> children
@@ -39,7 +43,9 @@ fun computeMerge(drag: TileModel, target: TileModel): MergeResult {
     for (child in target.apps() + drag.apps()) {
         deduped.putIfAbsent(child.packageName + "/" + child.activityName, child)
     }
-    val children = deduped.values.toList()
+    // Folders allow only SMALL / MEDIUM children — a WIDE tile merged in is
+    // demoted to MEDIUM (the in-folder resize cycle is SMALL↔MEDIUM too).
+    val children = deduped.values.map { it.clampForFolder() }
 
     return when (target) {
         is TileModel.Folder -> MergeResult(
