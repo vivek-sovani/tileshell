@@ -391,13 +391,9 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) { repository.removeFolderChild(folderId, child) }
     }
 
-    /** Cycle a folder child's size: SMALL→MEDIUM→WIDE→SMALL. */
+    /** Toggle a folder child's size: SMALL↔MEDIUM (folders allow only two sizes). */
     fun resizeFolderChild(child: FolderChild) {
-        val next = when (child.size) {
-            TileSize.SMALL -> TileSize.MEDIUM
-            TileSize.MEDIUM -> TileSize.WIDE
-            else -> TileSize.SMALL
-        }
+        val next = if (child.size == TileSize.SMALL) TileSize.MEDIUM else TileSize.SMALL
         viewModelScope.launch(writeContext) { repository.resizeFolderChild(child.rowId, next) }
     }
 

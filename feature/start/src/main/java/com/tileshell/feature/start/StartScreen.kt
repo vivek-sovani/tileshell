@@ -11,6 +11,7 @@ import android.net.Uri
 import android.provider.AlarmClock
 import android.provider.CalendarContract
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,7 +32,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -73,7 +73,6 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -91,6 +90,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -1324,13 +1325,17 @@ private fun EditBar(
 
 /**
  * Full-screen folder overlay (FR-4): a translucent scrim over the blurred Start
- * screen, a close button, the lowercase folder title, and a grid of medium child
- * tiles. Tapping a child launches it and dismisses; tapping the scrim dismisses;
- * long-pressing the title renames it (persisted). Long-press-dragging a child and
- * releasing it away from its slot pulls that app out of the folder back onto Start
- * ([onPullOut]) — the folder dissolves to a plain tile when one app is left and the
- * overlay then self-closes. Renders nothing when [folder] is null (closed, or the
- * folder was removed/emptied while open).
+ * screen, a close button, the lowercase folder title, and a grid of child tiles.
+ *
+ * Edit interaction mirrors the Start screen exactly (the same [TileView] +
+ * [editDragGesture], minus folder-merge): tapping a child launches it; holding a
+ * child enters edit (jiggle + corner controls); in edit mode dragging reorders,
+ * the top-left × removes the app from the folder ([onPullOut], returning it to
+ * Start), the bottom-right ⤢ toggles its size between small and medium (folders
+ * allow only those two), and tapping empty space exits edit. The grid scrolls
+ * (with edge auto-scroll while dragging) so a folder taller than the screen is
+ * fully reachable. Long-pressing the title renames it. Renders nothing when
+ * [folder] is null.
  */
 @Composable
 private fun FolderOverlay(
@@ -1345,49 +1350,93 @@ private fun FolderOverlay(
 ) {
     if (folder == null) return
     val density = LocalDensity.current
-    var renaming by remember { mutableStateOf(false) }
-    var editMode by remember { mutableStateOf(false) }
+    var renaming by remember(folder.id) { mutableStateOf(false) }
+    var editMode by remember(folder.id) { mutableStateOf(false) }
+    var selectedId by remember(folder.id) { mutableStateOf<String?>(null) }
 
-    // Local reorder state: ordered list of child keys (pkg/activity).
-    val localOrder = remember(folder.id) {
-        mutableStateListOf<String>().also { list ->
-            list.addAll(folder.children.map { it.packageName + "/" + it.activityName })
-        }
-    }
-    // Sync when DB pushes a new children list (resize changes size, not order).
-    LaunchedEffect(folder.children) {
-        val incoming = folder.children.map { it.packageName + "/" + it.activityName }
-        if (incoming != localOrder.toList()) {
-            localOrder.clear()
-            localOrder.addAll(incoming)
-        }
+    // Android back: edit → exit edit; otherwise close the folder.
+    BackHandler(enabled = true) {
+        if (editMode) { editMode = false; selectedId = null } else onClose()
     }
 
-    val childById = remember(folder.children) {
+    // Child app models + lookup, keyed by component string.
+    val byId = remember(folder.children, folder.colorId) {
+        folder.children.associate { c ->
+            val key = c.packageName + "/" + c.activityName
+            key to (TileModel.App(
+                id = key,
+                position = 0,
+                size = c.size,
+                colorId = folder.colorId,
+                packageName = c.packageName,
+                activityName = c.activityName,
+                label = c.label,
+                iconKey = c.iconKey,
+            ) as TileModel)
+        }
+    }
+    val childByKey = remember(folder.children) {
         folder.children.associateBy { it.packageName + "/" + it.activityName }
     }
 
-    // Drag state for edit-mode reorder.
-    var dragKey by remember { mutableStateOf<String?>(null) }
-    var dragOffset by remember { mutableStateOf(Offset.Zero) }
-    // Slot centres for hit-testing reorder swaps: key → centre in grid-local px.
-    val slotCentres = remember { mutableStateMapOf<String, Offset>() }
+    // Working order, reconciled with the persisted children (preserves a just-
+    // dropped reorder while absorbing resizes / removals — same as StartPage).
+    val order = remember(folder.id) { mutableStateListOf<String>() }
+    var draggingId by remember { mutableStateOf<String?>(null) }
+    val dragOffset = remember { mutableStateOf(IntOffset.Zero) }
+    LaunchedEffect(folder.children) {
+        if (draggingId != null) return@LaunchedEffect
+        val ids = folder.children.map { it.packageName + "/" + it.activityName }
+        val merged = if (order.isEmpty()) {
+            ids
+        } else {
+            val present = ids.toHashSet()
+            val kept = order.filter { it in present }
+            val keptSet = kept.toHashSet()
+            kept + ids.filter { it !in keptSet }
+        }
+        if (merged != order.toList()) { order.clear(); order.addAll(merged) }
+    }
+    val displaySpecs = order.mapNotNull { id -> byId[id]?.let { TileSpec(id, it.size) } }
 
-    Box(
+    fun persistOrder() = onReorder(order.mapNotNull { childByKey[it] })
+
+    val jigglePhase = rememberJigglePhase(editMode)
+    val scrollState = rememberScrollState()
+    // Grid top in root coords at scroll 0 — feeds the auto-scroll edge maths.
+    var gridTopRoot by remember { mutableStateOf(0f) }
+    // Auto-scroll while a drag hovers near the top/bottom viewport edge.
+    var autoScroll by remember { mutableStateOf(0) }
+    LaunchedEffect(autoScroll) {
+        if (autoScroll == 0) return@LaunchedEffect
+        val speed = with(density) { 8.dp.toPx() }
+        while (true) {
+            val consumed = scrollState.scrollBy(autoScroll * speed)
+            if (consumed == 0f) break
+            withFrameNanos { }
+        }
+    }
+
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
+            // Scrim (prototype rgba(8,8,12,.55)). In edit mode an empty-space tap
+            // leaves edit; otherwise it dismisses the folder.
             .background(Color(0x8C08080C))
-            .pointerInput(Unit) { detectTapGestures { if (!editMode) onClose() } },
+            .emptySpaceExit(editMode) { editMode = false; selectedId = null },
     ) {
+        val widthPx = constraints.maxWidth.toFloat()
+        val viewportHeightPx = constraints.maxHeight.toFloat()
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(scrollState)
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-            // Header row: close (left) + edit/done (right) or rename (centre).
+            // Close button, top-left (hidden while renaming).
             Box(modifier = Modifier.fillMaxWidth()) {
-                // Close button — hidden while renaming.
                 if (!renaming) {
                     Box(
                         modifier = Modifier
@@ -1405,31 +1454,13 @@ private fun FolderOverlay(
                         )
                     }
                 }
-                // Edit / Done button.
-                Text(
-                    text = if (editMode) "done" else "edit",
-                    color = accent,
-                    fontSize = 14.sp,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 14.dp, end = 20.dp)
-                        .clickable {
-                            if (editMode) {
-                                // Commit reorder on exit.
-                                val ordered = localOrder.mapNotNull { childById[it] }
-                                onReorder(ordered)
-                            }
-                            editMode = !editMode
-                            renaming = false
-                        },
-                )
             }
 
-            // Title (long-press to rename, suppressed in edit mode) or inline editor.
+            // Title (long-press to rename; suppressed in edit mode) or inline editor.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 20.dp, bottom = 12.dp),
+                    .padding(top = 16.dp, bottom = 10.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 if (renaming) {
@@ -1452,184 +1483,117 @@ private fun FolderOverlay(
 
             // Contextual hint.
             Text(
-                text = if (editMode) "tap tile to resize  ·  drag to reorder  ·  drag out to remove"
-                       else "tap to open  ·  long-press drag out to remove",
+                text = if (editMode) "tap × to remove  ·  drag to reorder  ·  tap ⤢ to resize"
+                       else "tap to open  ·  hold to edit",
                 color = DarkColorTokens.fg.copy(alpha = 0.6f),
                 fontSize = 11.sp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 14.dp),
+                    .padding(bottom = 12.dp),
                 textAlign = TextAlign.Center,
             )
 
-            // Tile grid — uses child.size (not hardcoded MEDIUM).
-            val childSpecs = localOrder.mapNotNull { key ->
-                childById[key]?.let { TileSpec(key, it.size) }
-            }
+            // Grid-level edit-drag (same gesture as Start, merge disabled).
+            val editDrag = Modifier.editDragGesture(
+                editMode = editMode,
+                widthPx = widthPx,
+                order = order,
+                byId = byId,
+                draggingId = { draggingId },
+                selectedId = { selectedId },
+                onUnpin = { id -> order.remove(id); childByKey[id]?.let(onPullOut) },
+                onResize = { id -> childByKey[id]?.let(onResize) },
+                onLift = { id, offset -> draggingId = id; dragOffset.value = offset },
+                onDrag = { offset -> dragOffset.value = offset },
+                onReorderTo = { dragId, targetId ->
+                    val next = reorderTiles(order.toList(), dragId, targetId)
+                    if (next != order.toList()) { order.clear(); order.addAll(next) }
+                },
+                onMergeMode = {},
+                onMergeTarget = {},
+                onAutoScroll = { dir -> autoScroll = dir },
+                onDrop = {
+                    autoScroll = 0
+                    if (draggingId != null) persistOrder()
+                    draggingId = null
+                },
+                onSelect = { selectedId = it },
+                onTapExit = { editMode = false; selectedId = null },
+                contentTopPx = gridTopRoot + scrollState.value,
+                viewportHeightPx = viewportHeightPx,
+                scrollOffsetPx = { scrollState.value.toFloat() },
+                edgeZonePx = with(density) { 64.dp.toPx() },
+                allowMerge = false,
+            )
 
-            DenseTileGrid(tiles = childSpecs, modifier = Modifier.fillMaxWidth()) { spec, slot, sizePx ->
-                val child = childById[spec.id] ?: return@DenseTileGrid
-                val appModel = TileModel.App(
-                    id = spec.id,
-                    position = 0,
-                    size = child.size,
-                    colorId = folder.colorId,
-                    packageName = child.packageName,
-                    activityName = child.activityName,
-                    label = child.label,
-                    iconKey = child.iconKey,
-                )
-
-                // Record the slot centre for reorder hit-testing.
-                val centre = Offset(
-                    slot.x + sizePx.width / 2f,
-                    slot.y + sizePx.height / 2f,
-                )
-                slotCentres[spec.id] = centre
-
-                // Pull-out threshold: 2.5× tile unit so reorder moves don't trigger it.
-                val pullThreshold = sizePx.width * 2.5f
-
-                val isDragging = dragKey == spec.id
-                val thisDragOffset = if (isDragging) dragOffset else Offset.Zero
-                val pulledOut = isDragging && dragOffset.getDistance() > pullThreshold
-
+            DenseTileGrid(
+                tiles = displaySpecs,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onGloballyPositioned { gridTopRoot = it.positionInRoot().y + scrollState.value }
+                    .then(editDrag),
+            ) { spec, slot, sizePx ->
+                val model = byId[spec.id] ?: return@DenseTileGrid
+                val dragging = spec.id == draggingId
+                val slotState = animateIntOffsetAsState(slot, label = "folderSlot")
+                val index = displaySpecs.indexOfFirst { it.id == spec.id }
                 Box(
                     modifier = Modifier
-                        .offset {
-                            IntOffset(
-                                slot.x + thisDragOffset.x.roundToInt(),
-                                slot.y + thisDragOffset.y.roundToInt(),
-                            )
-                        }
-                        .zIndex(if (isDragging) 5f else 0f)
-                        .graphicsLayer {
-                            val s = if (isDragging) 1.06f else 1f
-                            scaleX = s; scaleY = s
-                            alpha = if (pulledOut) 0.45f else 1f
-                            shadowElevation = if (isDragging) 16.dp.toPx() else 0f
-                        }
+                        .offset { if (dragging) dragOffset.value else slotState.value }
+                        .zIndex(if (dragging) 10f else 0f)
                         .size(
                             with(density) { sizePx.width.toDp() },
                             with(density) { sizePx.height.toDp() },
-                        )
-                        .background(accent)
-                        .then(
-                            if (editMode) {
-                                Modifier
-                                    // Tap in edit mode = cycle size.
-                                    .pointerInput(spec.id) {
-                                        detectTapGestures { onResize(child) }
-                                    }
-                                    // Drag in edit mode = reorder (or pull-out if very far).
-                                    .pointerInput(spec.id, pullThreshold) {
-                                        detectDragGesturesAfterLongPress(
-                                            onDragStart = {
-                                                dragKey = spec.id
-                                                dragOffset = Offset.Zero
-                                            },
-                                            onDrag = { change, amount ->
-                                                change.consume()
-                                                dragOffset += amount
-                                                // Compute dragged tile's current centre.
-                                                val draggedCentre = Offset(
-                                                    slot.x + dragOffset.x + sizePx.width / 2f,
-                                                    slot.y + dragOffset.y + sizePx.height / 2f,
-                                                )
-                                                // Swap with whichever tile's resting centre
-                                                // the dragged centre is nearest to.
-                                                val hoveredKey = slotCentres
-                                                    .filter { (k, _) -> k != spec.id }
-                                                    .minByOrNull { (_, c) ->
-                                                        (c - draggedCentre).getDistance()
-                                                    }
-                                                    ?.takeIf { (_, c) ->
-                                                        (c - draggedCentre).getDistance() <
-                                                            sizePx.width * 0.6f
-                                                    }
-                                                    ?.key
-                                                if (hoveredKey != null) {
-                                                    val newOrder = reorderTiles(
-                                                        localOrder.toList(),
-                                                        spec.id,
-                                                        hoveredKey,
-                                                    )
-                                                    if (newOrder != localOrder.toList()) {
-                                                        localOrder.clear()
-                                                        localOrder.addAll(newOrder)
-                                                    }
-                                                }
-                                            },
-                                            onDragEnd = {
-                                                if (dragOffset.getDistance() > pullThreshold) {
-                                                    onPullOut(child)
-                                                } else {
-                                                    val ordered = localOrder.mapNotNull { childById[it] }
-                                                    onReorder(ordered)
-                                                }
-                                                dragKey = null
-                                                dragOffset = Offset.Zero
-                                            },
-                                            onDragCancel = {
-                                                dragKey = null
-                                                dragOffset = Offset.Zero
-                                            },
-                                        )
-                                    }
-                            } else {
-                                Modifier
-                                    // Normal mode: tap = launch.
-                                    .pointerInput(spec.id) {
-                                        detectTapGestures { onLaunchChild(child) }
-                                    }
-                                    // Normal mode: long-press-drag = pull out.
-                                    .pointerInput(spec.id) {
-                                        detectDragGesturesAfterLongPress(
-                                            onDragStart = {
-                                                dragKey = spec.id
-                                                dragOffset = Offset.Zero
-                                            },
-                                            onDrag = { change, amount ->
-                                                change.consume()
-                                                dragOffset += amount
-                                            },
-                                            onDragEnd = {
-                                                val dist = dragOffset.getDistance()
-                                                if (dist > sizePx.height * 0.7f) onPullOut(child)
-                                                dragKey = null
-                                                dragOffset = Offset.Zero
-                                            },
-                                            onDragCancel = {
-                                                dragKey = null
-                                                dragOffset = Offset.Zero
-                                            },
-                                        )
-                                    }
-                            }
                         ),
                 ) {
-                    AppTileContent(appModel)
-                    // Edit-mode overlay: show size label.
-                    if (editMode) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(4.dp)
-                                .background(
-                                    Color.Black.copy(alpha = 0.55f),
-                                    RoundedCornerShape(3.dp),
-                                )
-                                .padding(horizontal = 5.dp, vertical = 2.dp),
-                        ) {
-                            Text(
-                                text = child.size.name.lowercase(),
-                                color = Color.White,
-                                fontSize = 9.sp,
-                            )
-                        }
-                    }
+                    TileView(
+                        tile = model,
+                        index = index,
+                        editMode = editMode,
+                        selected = editMode && spec.id == selectedId,
+                        dragging = dragging,
+                        mergeTarget = false,
+                        accent = accent,
+                        glassFill = null,
+                        glassLine = Color.Transparent,
+                        tiledWallpaper = false,
+                        wallpaper = Wallpapers.forId(NONE_ID),
+                        wallpaperPhoto = null,
+                        wallpaperAlignX = 0.5f,
+                        wallpaperAlignY = 0.5f,
+                        wallpaperOrigin = { Offset.Zero },
+                        fullWidth = widthPx,
+                        fullHeight = viewportHeightPx,
+                        jigglePhase = jigglePhase,
+                        flipped = false,
+                        liveActive = false,
+                        badgeCount = 0,
+                        darkTheme = true,
+                        canMoveBack = order.indexOf(spec.id) > 0,
+                        canMoveForward = order.indexOf(spec.id) in 0 until order.size - 1,
+                        onTap = { if (!editMode) childByKey[spec.id]?.let(onLaunchChild) },
+                        onLongPress = { if (!editMode) { editMode = true; selectedId = spec.id } },
+                        onResize = { childByKey[spec.id]?.let(onResize) },
+                        onUnpin = { order.remove(spec.id); childByKey[spec.id]?.let(onPullOut) },
+                        onSelect = { selectedId = spec.id },
+                        onExitEdit = { editMode = false; selectedId = null },
+                        onMove = { dir ->
+                            val i = order.indexOf(spec.id)
+                            val j = i + dir
+                            if (i >= 0 && j in order.indices) {
+                                val next = reorderTiles(order.toList(), spec.id, order[j])
+                                if (next != order.toList()) {
+                                    order.clear(); order.addAll(next); persistOrder()
+                                }
+                            }
+                        },
+                    )
                 }
             }
+
+            // Bottom breathing room so the last row clears the nav bar / lifts
+            // above the edge while editing (matches Start's home-scroll padding).
+            Spacer(Modifier.height(if (editMode) 130.dp else 74.dp))
         }
     }
 }
@@ -1814,6 +1778,7 @@ private fun Modifier.editDragGesture(
     viewportHeightPx: Float,
     scrollOffsetPx: () -> Float,
     edgeZonePx: Float,
+    allowMerge: Boolean = true,
 ): Modifier = pointerInput(editMode, widthPx, byId, selectedId()) {
     // Re-keyed on byId so a resize/unpin mid-session refreshes the captured tile
     // sizes, and on the selected id so an in-edit selection switch refreshes the
@@ -1903,7 +1868,7 @@ private fun Modifier.editDragGesture(
                 val hovered = startId?.let { drag ->
                     othersPacked(drag).firstOrNull { geom.rect(it).contains(pos) }
                 }
-                val mergeHovered = hovered?.takeIf {
+                val mergeHovered = if (!allowMerge) null else hovered?.takeIf {
                     heldAsMergeTarget(geom.rect(it), pos, alreadyTarget = it.id == mergeId)
                 }
 
