@@ -15,7 +15,12 @@ import android.content.pm.ApplicationInfo
  *   unknown); drives the "newly installed" top section of the app list.
  * @property category the app's declared [ApplicationInfo] category
  *   (`CATEGORY_SOCIAL`, `CATEGORY_GAME`, …) or `CATEGORY_UNDEFINED` when the app
- *   declares none. Drives the category-folder matcher ([AppCategories]).
+ *   declares none. The base signal for the category-folder matcher
+ *   ([AppCategories]).
+ * @property role the standard app role this app declares via an
+ *   `Intent.CATEGORY_APP_*` manifest category (one of [AppCategories]'s
+ *   `ROLE_*` keys, e.g. "email", "messaging", "maps"), or null. Resolved by the
+ *   platform, this refines the coarse [category] without naming any app.
  */
 data class AppEntry(
     val packageName: String,
@@ -24,6 +29,7 @@ data class AppEntry(
     val letter: String = AppCatalog.letterFor(label),
     val firstInstallTime: Long = 0L,
     val category: Int = ApplicationInfo.CATEGORY_UNDEFINED,
+    val role: String? = null,
 ) {
     /** Stable key for this launchable component (matches [RecentApps] keys). */
     val key: String get() = "$packageName/$activityName"

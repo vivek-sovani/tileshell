@@ -543,7 +543,7 @@ fun PersonalizeSheet(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(text = "create category folders", color = tokens.fg, fontSize = 14.sp)
                         Text(
-                            text = "group apps — social, shopping, payments, banking…",
+                            text = "group apps by what they do — communication, social, shopping…",
                             color = tokens.fgDim,
                             fontSize = 12.sp,
                         )
