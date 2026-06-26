@@ -317,9 +317,14 @@ fun PersonalizeSheet(
             SettingGroup(label = "grid columns", tokens.fgDim) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        "small tiles per row (medium = 2, wide = 4)",
+                        "how many small tiles fit across a row",
                         color = tokens.fgDim,
                         fontSize = 13.sp,
+                    )
+                    Text(
+                        "a medium tile spans 2 columns, a wide tile spans 4",
+                        color = tokens.fgDim,
+                        fontSize = 12.sp,
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(4, 5, 6).forEach { count ->
