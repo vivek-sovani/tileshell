@@ -1388,6 +1388,11 @@ private fun FolderOverlay(
     val liveActive = rememberLiveTilesActive(suspended = editMode)
     MediaSessionsEffect(active = liveActive)
 
+    // Per-app notification counts for the child tiles. The folder *tile* shows an
+    // aggregated badge on the Start screen; opened, each child app should show its
+    // own count — same source (the process-wide notification snapshot).
+    val notifications by NotificationCenter.snapshot.collectAsStateWithLifecycle()
+
     // Android back: edit → exit edit; otherwise close the folder.
     BackHandler(enabled = true) {
         if (editMode) { editMode = false; selectedId = null } else onClose()
@@ -1601,7 +1606,9 @@ private fun FolderOverlay(
                         jigglePhase = jigglePhase,
                         flipped = false,
                         liveActive = liveActive,
-                        badgeCount = 0,
+                        badgeCount = childByKey[spec.id]?.let {
+                            notifications.badgeFor(it.packageName)
+                        } ?: 0,
                         darkTheme = true,
                         canMoveBack = order.indexOf(spec.id) > 0,
                         canMoveForward = order.indexOf(spec.id) in 0 until order.size - 1,
