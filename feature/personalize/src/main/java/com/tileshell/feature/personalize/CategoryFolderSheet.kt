@@ -265,6 +265,18 @@ private fun CategoryList(
 }
 
 @Composable
+private fun SectionHeader(text: String, tokens: ColorTokens) {
+    Text(
+        text = text,
+        color = tokens.fgDim,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.W600,
+        letterSpacing = 0.5.sp,
+        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 2.dp),
+    )
+}
+
+@Composable
 private fun CategoryReview(
     category: AppCategories.Category,
     apps: List<AppEntry>,
@@ -281,12 +293,20 @@ private fun CategoryReview(
 ) {
     val isUpdate = existingPackages.isNotEmpty()
 
-    // Matched apps first (pre-checked), then the rest (alphabetical, unchecked)
-    // so the user can add a near-miss the matcher didn't catch.
     val matched = remember(category.id, apps) { AppCategories.match(category.id, apps) }
-    val ordered = remember(category.id, apps) {
+    // Order: apps already in the folder first (so they can be removed), then the
+    // category matches not yet in it, then every other installed app.
+    val ordered = remember(category.id, apps, existingPackages) {
+        val existing = apps.filter { it.packageName in existingPackages }
+        val existingKeys = existing.mapTo(HashSet()) { it.key }
         val matchedKeys = matched.mapTo(HashSet()) { it.key }
-        matched + apps.filter { it.key !in matchedKeys }
+        val matchedNew = matched.filter { it.key !in existingKeys }
+        val rest = apps.filter { it.key !in existingKeys && it.key !in matchedKeys }
+        existing + matchedNew + rest
+    }
+    // Number of leading rows that are already in the folder (for the section split).
+    val existingCount = remember(ordered, existingPackages) {
+        ordered.count { it.packageName in existingPackages }
     }
     val checked = remember(category.id, existingPackages) {
         mutableStateMapOf<String, Boolean>().apply {
@@ -348,8 +368,18 @@ private fun CategoryReview(
                 .verticalScroll(rememberScrollState())
                 .padding(vertical = 4.dp),
         ) {
-            ordered.forEach { app ->
+            ordered.forEachIndexed { index, app ->
+                // Section headers (update flow only): "in this folder" above the
+                // current members, "suggested" above the rest.
+                if (isUpdate && index == 0 && existingCount > 0) {
+                    SectionHeader("in this folder", tokens)
+                }
+                if (isUpdate && index == existingCount) {
+                    SectionHeader("add more", tokens)
+                }
+
                 val isOn = checked[app.key] == true
+                val inFolder = app.packageName in existingPackages
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -357,6 +387,8 @@ private fun CategoryReview(
                         .padding(horizontal = 20.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // Members in the folder show a removable ✕ (tap to remove);
+                    // everything else shows a checkbox ✓ (tap to add).
                     Box(
                         modifier = Modifier
                             .size(22.dp)
@@ -370,7 +402,11 @@ private fun CategoryReview(
                         contentAlignment = Alignment.Center,
                     ) {
                         if (isOn) {
-                            Text(text = "✓", color = Color.White, fontSize = 13.sp)
+                            Text(
+                                text = if (inFolder) "✕" else "✓",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                            )
                         }
                     }
                     Spacer(Modifier.width(14.dp))
@@ -379,6 +415,15 @@ private fun CategoryReview(
                         color = tokens.fg,
                         fontSize = 14.sp,
                     )
+                    // Marked-for-removal hint on a member toggled off.
+                    if (inFolder && !isOn) {
+                        Spacer(Modifier.weight(1f))
+                        Text(
+                            text = "will be removed",
+                            color = tokens.fgDim,
+                            fontSize = 11.sp,
+                        )
+                    }
                 }
             }
         }
