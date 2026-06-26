@@ -150,10 +150,12 @@ data. Users can also clear app data via Android Settings at any time.
 ```
 TileShell 1.3
 
-• Choose your grid density: 4, 5, or 6 tiles across, right from Personalize — fit more tiles per row while medium and wide tiles keep their proportions
+• Choose grid density — 4, 5, or 6 tiles across a row, from Personalize
+• New: daily Bing wallpaper, with a viewer to pick from recent days
 • Drag a tile into the empty space below the grid to send it to the bottom
-• Smoother editing: a moving tile now reorders cleanly instead of accidentally making folders — merge only when you pause one tile over another
-• Easier merging: line up two tiles of the same size to combine them, wherever you grabbed
+• Smoother editing: a moving tile reorders cleanly — folders form only when you pause one tile over another
+• Easier merging: line up two same-size tiles to combine them, wherever you grabbed
+• A small weather tile now shows the current temperature
 ```
 
 ## Release notes (v1.2.0)
