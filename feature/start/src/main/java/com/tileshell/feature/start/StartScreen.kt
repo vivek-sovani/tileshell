@@ -844,6 +844,11 @@ private fun StartPage(
                         order.addAll(next)
                     }
                 },
+                onMoveToEnd = { dragId ->
+                    if (order.lastOrNull() != dragId && order.remove(dragId)) {
+                        order.add(dragId)
+                    }
+                },
                 onMergeMode = { dragId ->
                     // Park the dragged tile at the end so the other tiles settle
                     // into their natural slots beneath the floating tile.
@@ -1788,6 +1793,7 @@ private fun Modifier.editDragGesture(
     onLift: (id: String, offset: IntOffset) -> Unit,
     onDrag: (offset: IntOffset) -> Unit,
     onReorderTo: (dragId: String, targetId: String) -> Unit,
+    onMoveToEnd: (dragId: String) -> Unit = {},
     onMergeMode: (dragId: String) -> Unit,
     onMergeTarget: (targetId: String?) -> Unit,
     onAutoScroll: (dir: Int) -> Unit,
@@ -1902,14 +1908,25 @@ private fun Modifier.editDragGesture(
                     }
                 } else {
                     if (mergeId != null) { mergeId = null; onMergeTarget(null) }
-                    val target = placementsNow().firstOrNull {
+                    val placements = placementsNow()
+                    val target = placements.firstOrNull {
                         it.id != startId && geom.rect(it).contains(pos)
                     }
-                    if (target == null) {
+                    if (target != null) {
+                        if (target.id != lastTarget) {
+                            lastTarget = target.id
+                            startId?.let { onReorderTo(it, target.id) }
+                        }
+                    } else {
                         lastTarget = null
-                    } else if (target.id != lastTarget) {
-                        lastTarget = target.id
-                        startId?.let { onReorderTo(it, target.id) }
+                        // Finger in the trailing empty region below every tile:
+                        // send the dragged tile to the end of the order so it packs
+                        // into the bottom rows. Dense-pack can't strand a gap, but a
+                        // tile *can* be ordered last — this makes "drop it at the
+                        // bottom" reachable (the empty area is otherwise no tile's
+                        // hit-target, so a plain drop there would snap back).
+                        val contentBottom = placements.maxOfOrNull { geom.rect(it).bottom } ?: 0f
+                        if (pos.y > contentBottom) startId?.let { onMoveToEnd(it) }
                     }
                 }
 
