@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         FolderChildEntity::class,
         AppCacheEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -35,8 +35,15 @@ abstract class TileShellDatabase : RoomDatabase() {
             }
         }
 
+        /** v2→v3: add per-child tile size to folder_children (default MEDIUM). */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE folder_children ADD COLUMN size TEXT NOT NULL DEFAULT 'MEDIUM'")
+            }
+        }
+
         /** Versioned migrations, added as the schema evolves. */
-        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2)
+        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
 
         @Volatile
         private var instance: TileShellDatabase? = null

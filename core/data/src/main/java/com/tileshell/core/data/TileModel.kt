@@ -6,6 +6,8 @@ data class FolderChild(
     val activityName: String,
     val label: String?,
     val iconKey: String? = null,
+    val size: TileSize = TileSize.MEDIUM,
+    val rowId: Long = 0,
 )
 
 /**

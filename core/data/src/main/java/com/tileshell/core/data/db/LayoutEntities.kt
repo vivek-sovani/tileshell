@@ -62,6 +62,7 @@ data class FolderChildEntity(
     val activityName: String,
     val label: String? = null,
     val iconKey: String? = null,
+    val size: TileSize = TileSize.MEDIUM,
 )
 
 /**

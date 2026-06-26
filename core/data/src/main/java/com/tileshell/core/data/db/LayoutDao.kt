@@ -173,6 +173,9 @@ interface LayoutDao {
     @Query("UPDATE folder_children SET position = :position WHERE rowId = :rowId")
     suspend fun updateFolderChildPosition(rowId: Long, position: Int)
 
+    @Query("UPDATE folder_children SET size = :size WHERE rowId = :rowId")
+    suspend fun updateFolderChildSize(rowId: Long, size: TileSize)
+
     @Query(
         "UPDATE tiles SET type = '" + TileEntity.TYPE_APP + "', packageName = :packageName, " +
             "activityName = :activityName, label = :label, iconKey = :iconKey, folderId = NULL " +

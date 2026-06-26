@@ -10,8 +10,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tileshell.core.data.AppCatalogRepository
 import com.tileshell.core.data.AppEntry
-import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.FolderChild
+import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.core.data.settings.SettingsRepository
@@ -247,7 +247,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Create a folder named [name] holding [apps] on the Start grid (category
-     * folders). No-op when [apps] is empty; closes the sheet on success.
+     * folders). No-op when [apps] is empty. The sheet stays open so the user
+     * can create additional category folders without reopening it.
      */
     fun createFolder(name: String, apps: List<AppEntry>) {
         if (apps.isEmpty()) return
@@ -255,8 +256,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) {
             repository.createFolder(folderName, apps)
         }
-        _foldersOpen.value = false
     }
+
 
     /** Switch theme (FR-7); persisted and applied live. */
     fun setFollowSystemTheme(follow: Boolean) {

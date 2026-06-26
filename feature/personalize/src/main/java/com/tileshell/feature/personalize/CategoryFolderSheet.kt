@@ -27,6 +27,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -88,6 +89,11 @@ fun CategoryFolderSheet(
     // Reset navigation each time the sheet opens fresh.
     LaunchedEffect(visible) { if (visible) reviewId = null }
 
+    // Android back: in review → go to list; on list → dismiss back to personalize.
+    BackHandler(enabled = visible) {
+        if (reviewId != null) reviewId = null else onDismiss()
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
@@ -133,6 +139,7 @@ fun CategoryFolderSheet(
                     accent = accent,
                     tokens = tokens,
                     onPick = { reviewId = it },
+                    onBack = onDismiss,
                 )
             } else {
                 CategoryReview(
@@ -142,7 +149,8 @@ fun CategoryFolderSheet(
                     tokens = tokens,
                     modifier = Modifier.weight(1f),
                     onBack = { reviewId = null },
-                    onCreate = onCreate,
+                    // After creating, return to the category list (not close the sheet).
+                    onCreate = { name, picked -> onCreate(name, picked); reviewId = null },
                 )
             }
         }
@@ -155,6 +163,7 @@ private fun CategoryList(
     accent: Color,
     tokens: ColorTokens,
     onPick: (String) -> Unit,
+    onBack: () -> Unit,
 ) {
     val counts = remember(apps) { AppCategories.categorize(apps).mapValues { it.value.size } }
 
@@ -164,7 +173,25 @@ private fun CategoryList(
             .verticalScroll(rememberScrollState())
             .padding(bottom = 32.dp),
     ) {
-        Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 18.dp)) {
+        // Back button row — returns to personalize main screen.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 20.dp, top = 8.dp, bottom = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "‹ back",
+                color = accent,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(onClick = onBack)
+                    .padding(horizontal = 6.dp, vertical = 8.dp),
+            )
+        }
+
+        Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 18.dp)) {
             Text(
                 text = "category folders",
                 color = tokens.fg,

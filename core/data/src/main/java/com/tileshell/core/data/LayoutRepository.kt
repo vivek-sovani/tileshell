@@ -190,7 +190,21 @@ class LayoutRepository(
             )
         }
         dao.createFolder(folderTile, folder, childRows)
+        // Remove any existing individual Start tiles for the apps now in the folder
+        // so they don't remain on the Start grid as duplicates.
+        children.forEach { app -> dao.deleteTilesByPackage(app.packageName) }
         return true
+    }
+
+    /** Resize a folder child tile; persisted immediately. */
+    suspend fun resizeFolderChild(rowId: Long, size: TileSize) =
+        dao.updateFolderChildSize(rowId, size)
+
+    /** Reorder folder children by writing new positions for the given ordered rowIds. */
+    suspend fun reorderFolderChildren(orderedRowIds: List<Long>) {
+        orderedRowIds.forEachIndexed { index, rowId ->
+            dao.updateFolderChildPosition(rowId, index)
+        }
     }
 
     /**
@@ -295,7 +309,7 @@ class LayoutRepository(
                 name = row.folder.folder.name,
                 children = row.folder.children
                     .sortedBy { it.position }
-                    .map { FolderChild(it.packageName, it.activityName, it.label, it.iconKey) },
+                    .map { FolderChild(it.packageName, it.activityName, it.label, it.iconKey, it.size, it.rowId) },
             )
         } else {
             TileModel.App(
