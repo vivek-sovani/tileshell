@@ -4,19 +4,22 @@ import android.content.pm.ApplicationInfo
 
 /**
  * Pure, framework-free categorisation of installed apps into named groups
- * ("social", "shopping", "payments", …) so the personalize sheet can offer
+ * ("social", "communication", "shopping", …) so the personalize sheet can offer
  * one-tap **category folders**.
  *
- * Two signals decide membership, OR-ed together:
- *  1. the app's declared [ApplicationInfo] category ([AppEntry.category]) — used
- *     for the buckets Android actually models (social, games, news, productivity,
- *     audio/video → entertainment, maps → travel); and
- *  2. a curated, India-centric list of package-name substrings — for the buckets
- *     Android does not model at all (banking, payments, shopping, food).
+ * Membership is decided by a **curated list of specific package identifiers**
+ * (substring of the lowercased package name — chosen to be distinctive, e.g.
+ * `com.facebook.katana` not `facebook`, so Messenger doesn't leak into "social").
+ * We deliberately do **not** trust the app's declared [ApplicationInfo] category
+ * for most buckets — it is unreliable (Google Messages/Gmail/Meet declare
+ * `SOCIAL`, X declares `NEWS`, Maps declares `MAPS`), which mis-files apps. The
+ * one exception is **games**, where `CATEGORY_GAME` is accurate and there are far
+ * too many titles to curate by hand.
  *
- * Matching only ever runs over apps that are installed on the device (the
- * [AppEntry] list comes from the launcher catalogue), so categories with no
- * installed apps simply yield an empty list and are hidden by the UI.
+ * Matching only ever runs over apps installed on the device (the [AppEntry] list
+ * comes from the launcher catalogue), so categories with no installed apps yield
+ * an empty list and are hidden by the UI. The review screen lets the user add a
+ * miss or untick a stray, so this errs toward precision over recall.
  *
  * The `ApplicationInfo.CATEGORY_*` values referenced here are compile-time
  * constants, so this object stays unit-testable on the plain JVM.
@@ -28,14 +31,16 @@ object AppCategories {
      *
      * @property id stable key persisted/used in callbacks
      * @property label lowercase display name (also the default folder name)
-     * @property androidCategories `ApplicationInfo.CATEGORY_*` values that map here
-     * @property keywords lowercase package-name substrings that map here
+     * @property androidCategories `ApplicationInfo.CATEGORY_*` values that map
+     *   here. Used sparingly — only `games` relies on it (see class docs).
+     * @property packages distinctive lowercase package-name substrings that map
+     *   here. An app matches when its lowercased package contains any of these.
      */
     data class Category(
         val id: String,
         val label: String,
         val androidCategories: Set<Int> = emptySet(),
-        val keywords: List<String> = emptyList(),
+        val packages: List<String> = emptyList(),
     )
 
     /** The shipped category set, in display order. */
@@ -43,105 +48,122 @@ object AppCategories {
         Category(
             id = "social",
             label = "social",
-            androidCategories = setOf(ApplicationInfo.CATEGORY_SOCIAL),
-            keywords = listOf(
-                "whatsapp", "instagram", "facebook", "messenger", "telegram",
-                "snapchat", "twitter", ".twitter", "discord", "linkedin",
-                "reddit", "threads", "signal", "pinterest", "tumblr", "mastodon",
-                "sharechat", "koo",
+            packages = listOf(
+                "com.instagram.android", "com.instagram.barcelona", "com.facebook.katana",
+                "com.twitter.android", "com.snapchat.android", "com.reddit.frontpage",
+                "com.linkedin.android", "com.pinterest", "com.zhiliaoapp.musically",
+                "com.ss.android.ugc", "com.tumblr", "org.joinmastodon.android",
+                "in.mohalla.sharechat", "app.bsky", "com.quora.android", "com.vkontakte",
+            ),
+        ),
+        Category(
+            id = "communication",
+            label = "communication",
+            packages = listOf(
+                "com.whatsapp", "org.telegram.messenger", "org.thoughtcrime.securesms",
+                "com.facebook.orca", "com.google.android.apps.messaging",
+                "com.samsung.android.messaging", "com.truecaller",
+                "com.google.android.gm", "com.microsoft.office.outlook",
+                "com.yahoo.mobile.client.android.mail", "ch.protonmail.android",
+                "com.google.android.apps.meetings", "com.google.android.apps.tachyon",
+                "us.zoom.videomeetings", "com.microsoft.teams", "com.skype.raider",
+                "com.discord", "com.viber.voip", "jp.naver.line.android",
+                "com.google.android.gm.lite",
             ),
         ),
         Category(
             id = "shopping",
             label = "shopping",
-            keywords = listOf(
-                "amazon.mShop", "flipkart", "myntra", "ajio", "meesho",
-                "snapdeal", "nykaa", "tatacliq", "shopsy", "jiomart", "ebay",
-                "aliexpress", "shein", "firstcry", "lenskart", "bigbasket",
-                "blinkit", "grofers", "zepto", "dmart",
+            packages = listOf(
+                "com.amazon.mshop", "com.flipkart.android", "com.myntra.android",
+                "com.ril.ajio", "com.meesho.supply", "com.snapdeal.main",
+                "com.fsn.nykaa", "com.tul.tatacliq", "jiomart", "com.bigbasket",
+                "com.grofers.customerapp", "zepto", "com.ebay.mobile",
+                "com.alibaba.aliexpresshd", "com.zzkko", "com.firstcry",
+                "com.lenskart", "com.dmart", "club.shopsy",
             ),
         ),
         Category(
             id = "payments",
             label = "payments",
-            keywords = listOf(
-                "phonepe", "one97.paytm", "nbu.paisa", "bhim", "mobikwik",
-                "freecharge", ".cred", "amazonpay", "payzapp", "airtel.money",
-                "jio.jiopay", "razorpay",
+            packages = listOf(
+                "com.phonepe.app", "net.one97.paytm", "com.google.android.apps.nbu.paisa.user",
+                "in.org.npci.upiapp", "com.dreamplug.androidapp", "com.mobikwik_new",
+                "com.freecharge.android", "com.payzapp", "com.amazon.amazonpay",
             ),
         ),
         Category(
             id = "banking",
             label = "banking",
-            keywords = listOf(
-                "sbi", "icici", "hdfc", "axis", "kotak", "yesbank", "pnb",
-                "bankofbaroda", "idfc", "indusind", "federalbank", "rblbank",
-                "aubank", "canara", "unionbank", "bandhan", "idbi", "csam",
-                "centralbank", "iobnet",
+            packages = listOf(
+                "com.sbi.", "com.csam.icici", "com.icicibank", "com.snapwork.hdfc",
+                "com.hdfcbank", "com.axisbank", "com.axis.mobile", "com.msf.kbank",
+                "com.kotak", "com.yesbank", "com.fss.pnbpsp", "com.bankofbaroda",
+                "com.idfcfirstbank", "com.fss.idfc", "com.indusind", "com.fedmobile",
+                "com.rblbank", "com.aubank", "com.canarabank", "com.unionbankofindia",
+                "com.bandhan", "com.idbibank", "com.fss.bobpsp",
             ),
         ),
         Category(
             id = "travel",
             label = "travel",
-            androidCategories = setOf(ApplicationInfo.CATEGORY_MAPS),
-            keywords = listOf(
-                "makemytrip", "goibibo", "olacabs", "ubercab", ".uber",
-                "rapido", "irctc", "redbus", "ixigo", "cleartrip", "oyo",
-                "booking", "airbnb", "indigo", "goair", "vistara", "yatra",
-                "maps",
+            packages = listOf(
+                "com.makemytrip", "com.goibibo", "com.olacabs", "com.ubercab",
+                "com.rapido", "com.confirmtkt", "cris.org.in", "com.irctc",
+                "in.redbus", "com.ixigo", "com.cleartrip", "com.oyo",
+                "com.booking", "com.airbnb.android", "com.goindigo", "com.yatra",
             ),
         ),
         Category(
             id = "food",
             label = "food",
-            keywords = listOf(
-                "zomato", "swiggy", "dominos", "mcdonald", "kfc", "dunkin",
-                "eatfit", "faasos", "behrouz", " subway", "pizzahut",
-                "starbucks", "chaayos",
+            packages = listOf(
+                "com.application.zomato", "in.swiggy.android", "com.dominos",
+                "com.mcdonalds", "com.yum.kfc", "com.done.faasos", "com.eatfit",
+                "com.subway", "com.pizzahut", "com.starbucks", "com.dunkin",
             ),
         ),
         Category(
             id = "entertainment",
             label = "entertainment",
-            androidCategories = setOf(
-                ApplicationInfo.CATEGORY_AUDIO,
-                ApplicationInfo.CATEGORY_VIDEO,
-            ),
-            keywords = listOf(
-                "netflix", "hotstar", "primevideo", "spotify", "youtube",
-                "gaana", "jiosaavn", "saavn", "sonyliv", "zee5", "voot",
-                "wynk", "jiocinema", "mxplayer", "altbalaji", "soundcloud",
+            packages = listOf(
+                "com.netflix.mediaclient", "in.startv.hotstar", "com.hotstar",
+                "com.amazon.avod", "com.spotify.music", "com.google.android.youtube",
+                "com.gaana", "com.jio.media.jiobeats", "com.sonyliv",
+                "com.graymatrix.did", "com.jio.media.ondemand", "com.mxtech.videoplayer",
+                "com.wynk.music", "com.soundcloud.android",
             ),
         ),
         Category(
             id = "productivity",
             label = "productivity",
-            androidCategories = setOf(ApplicationInfo.CATEGORY_PRODUCTIVITY),
-            keywords = listOf(
-                "docs", "sheets", "slides", "office", ".word", ".excel",
-                "powerpoint", "notion", "evernote", "android.apps.docs",
-                "dropbox", "outlook", "trello", "slack", "zoom", "android.apps.meetings",
-                "microsoft.teams", "keep", "todoist", "anydo",
+            packages = listOf(
+                "com.google.android.apps.docs", "com.microsoft.office.word",
+                "com.microsoft.office.excel", "com.microsoft.office.powerpoint",
+                "com.microsoft.office.officehubrow", "notion", "com.evernote",
+                "com.todoist", "com.google.android.keep", "com.trello",
+                "com.dropbox.android", "com.anydo", "com.adobe.reader",
             ),
         ),
         Category(
             id = "games",
             label = "games",
             androidCategories = setOf(ApplicationInfo.CATEGORY_GAME),
-            keywords = listOf("pubg", "ludo", "candycrush", "freefire", "callofduty"),
         ),
         Category(
             id = "news",
             label = "news",
-            androidCategories = setOf(ApplicationInfo.CATEGORY_NEWS),
-            keywords = listOf(
-                "inshorts", "dailyhunt", "ndtv", ".toi", "hindustantimes",
-                "indianexpress", "news", "moneycontrol", "livemint",
+            packages = listOf(
+                "com.nis.app", "com.eterno", "com.google.android.apps.magazines",
+                "com.july.ndtv", "com.toi.reader", "com.hindustantimes",
+                "com.indianexpress", "moneycontrol", "com.htmedia.mint",
+                "flipboard.app",
             ),
         ),
     )
 
-    /** True if [app] belongs in [category] by either signal. */
+    /** True if [app] belongs in [category] by the curated package list or, for
+     * games only, by its declared [ApplicationInfo] category. */
     fun matches(category: Category, app: AppEntry): Boolean {
         if (app.category != ApplicationInfo.CATEGORY_UNDEFINED &&
             app.category in category.androidCategories
@@ -149,7 +171,7 @@ object AppCategories {
             return true
         }
         val pkg = app.packageName.lowercase()
-        return category.keywords.any { pkg.contains(it.trim()) }
+        return category.packages.any { pkg.contains(it) }
     }
 
     /** All installed [apps] that match the category with the given [categoryId]. */
