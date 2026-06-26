@@ -314,11 +314,13 @@ private fun CategoryReview(
     val otherStart = existing.size + suggested.size
     val checked = remember(category.id, existingPackages) {
         mutableStateMapOf<String, Boolean>().apply {
-            // Pre-check: new category matches + apps already in the existing folder.
-            matched.forEach { put(it.key, true) }
             if (isUpdate) {
-                apps.filter { it.packageName in existingPackages }
-                    .forEach { put(it.key, true) }
+                // Updating: only current members start checked; suggestions start
+                // off so the user opts in to additions. Unchecking a member drops it.
+                existing.forEach { put(it.key, true) }
+            } else {
+                // New folder: category matches start checked as the suggestion.
+                matched.forEach { put(it.key, true) }
             }
         }
     }
@@ -386,7 +388,6 @@ private fun CategoryReview(
                 }
 
                 val isOn = checked[app.key] == true
-                val inFolder = app.packageName in existingPackages
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -394,8 +395,6 @@ private fun CategoryReview(
                         .padding(horizontal = 20.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // Members in the folder show a removable ✕ (tap to remove);
-                    // everything else shows a checkbox ✓ (tap to add).
                     Box(
                         modifier = Modifier
                             .size(22.dp)
@@ -409,11 +408,7 @@ private fun CategoryReview(
                         contentAlignment = Alignment.Center,
                     ) {
                         if (isOn) {
-                            Text(
-                                text = if (inFolder) "✕" else "✓",
-                                color = Color.White,
-                                fontSize = 13.sp,
-                            )
+                            Text(text = "✓", color = Color.White, fontSize = 13.sp)
                         }
                     }
                     Spacer(Modifier.width(14.dp))
@@ -422,15 +417,6 @@ private fun CategoryReview(
                         color = tokens.fg,
                         fontSize = 14.sp,
                     )
-                    // Marked-for-removal hint on a member toggled off.
-                    if (inFolder && !isOn) {
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            text = "will be removed",
-                            color = tokens.fgDim,
-                            fontSize = 11.sp,
-                        )
-                    }
                 }
             }
         }
