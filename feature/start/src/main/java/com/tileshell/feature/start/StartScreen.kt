@@ -1378,6 +1378,16 @@ private fun FolderOverlay(
     var editMode by remember(folder.id) { mutableStateOf(false) }
     var selectedId by remember(folder.id) { mutableStateOf<String?>(null) }
 
+    // Keep media sessions live while the folder is open. The Start screen's
+    // own MediaSessionsEffect poll is suspended whenever a folder/personalize
+    // overlay is up, and per-controller MediaController callbacks are unreliable
+    // on many players — so without this a music-app tile *inside* a folder would
+    // freeze: album art wouldn't change on prev/next and the play/pause glyph
+    // wouldn't track stop/resume. Polling here (gated like Start, paused only in
+    // folder edit) keeps now-playing fresh and the transport buttons in sync.
+    val liveActive = rememberLiveTilesActive(suspended = editMode)
+    MediaSessionsEffect(active = liveActive)
+
     // Android back: edit → exit edit; otherwise close the folder.
     BackHandler(enabled = true) {
         if (editMode) { editMode = false; selectedId = null } else onClose()
@@ -1590,7 +1600,7 @@ private fun FolderOverlay(
                         fullHeight = viewportHeightPx,
                         jigglePhase = jigglePhase,
                         flipped = false,
-                        liveActive = false,
+                        liveActive = liveActive,
                         badgeCount = 0,
                         darkTheme = true,
                         canMoveBack = order.indexOf(spec.id) > 0,
