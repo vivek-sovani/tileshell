@@ -1,0 +1,360 @@
+package com.tileshell.feature.personalize
+
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.tileshell.core.data.AppCategories
+import com.tileshell.core.data.AppEntry
+import com.tileshell.core.design.ColorTokens
+import com.tileshell.core.design.TileAccents
+import com.tileshell.core.design.colorTokens
+
+/**
+ * The "category folders" bottom sheet (personalize → folders). Slides up over a
+ * fading scrim, same tokens/animation as [AboutSheet]. Two screens:
+ *
+ *  - **list** — the shipped [AppCategories] that match at least one *installed*
+ *    app, each with its match count; tapping one opens
+ *  - **review** — an editable folder name (default = the category label) plus the
+ *    full installed-app list with the matched apps pre-checked, so the user can
+ *    add near-misses or untick false positives before creating the folder.
+ *
+ * Stateless beyond the in-sheet navigation/selection: the host receives the final
+ * (name, apps) via [onCreate] and writes the folder.
+ */
+@Composable
+fun CategoryFolderSheet(
+    visible: Boolean,
+    dark: Boolean,
+    accentId: String,
+    apps: List<AppEntry>,
+    onCreate: (name: String, apps: List<AppEntry>) -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val progress by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(300, easing = CubicBezierEasing(0.22f, 0.61f, 0.36f, 1f)),
+        label = "categoryFolderSheetProgress",
+    )
+    if (!visible && progress == 0f) return
+
+    val tokens = colorTokens(dark)
+    val accent = TileAccents.forId(accentId)
+
+    // null = category list; non-null = reviewing that category id.
+    var reviewId by remember { mutableStateOf<String?>(null) }
+    // Reset navigation each time the sheet opens fresh.
+    LaunchedEffect(visible) { if (visible) reviewId = null }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.5f * progress))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss,
+                ),
+        )
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .fillMaxHeight(0.92f)
+                .graphicsLayer { translationY = size.height * (1f - progress) }
+                .background(tokens.sheet)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {},
+                )
+                .navigationBarsPadding()
+                .imePadding(),
+        ) {
+            // Grip
+            Box(
+                modifier = Modifier
+                    .padding(top = 10.dp, bottom = 4.dp)
+                    .align(Alignment.CenterHorizontally)
+                    .width(40.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(tokens.fgDim.copy(alpha = 0.5f)),
+            )
+
+            val reviewCategory = reviewId?.let { id -> AppCategories.ALL.firstOrNull { it.id == id } }
+            if (reviewCategory == null) {
+                CategoryList(
+                    apps = apps,
+                    accent = accent,
+                    tokens = tokens,
+                    onPick = { reviewId = it },
+                )
+            } else {
+                CategoryReview(
+                    category = reviewCategory,
+                    apps = apps,
+                    accent = accent,
+                    tokens = tokens,
+                    modifier = Modifier.weight(1f),
+                    onBack = { reviewId = null },
+                    onCreate = onCreate,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategoryList(
+    apps: List<AppEntry>,
+    accent: Color,
+    tokens: ColorTokens,
+    onPick: (String) -> Unit,
+) {
+    val counts = remember(apps) { AppCategories.categorize(apps).mapValues { it.value.size } }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = 32.dp),
+    ) {
+        Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 18.dp)) {
+            Text(
+                text = "category folders",
+                color = tokens.fg,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.W200,
+                letterSpacing = (-0.8).sp,
+            )
+            Text(
+                text = "group your installed apps into a folder",
+                color = tokens.fgDim,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.W300,
+            )
+        }
+
+        HorizontalDivider(color = tokens.tileLine, modifier = Modifier.padding(horizontal = 20.dp))
+        Spacer(Modifier.height(8.dp))
+
+        val available = AppCategories.ALL.filter { (counts[it.id] ?: 0) > 0 }
+        if (available.isEmpty()) {
+            Text(
+                text = "no matching apps found on this device",
+                color = tokens.fgDim,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(20.dp),
+            )
+        } else {
+            available.forEach { category ->
+                val n = counts[category.id] ?: 0
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onPick(category.id) }
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(text = category.label, color = tokens.fg, fontSize = 15.sp)
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        text = if (n == 1) "1 app" else "$n apps",
+                        color = tokens.fgDim,
+                        fontSize = 13.sp,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(text = "›", color = accent, fontSize = 16.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategoryReview(
+    category: AppCategories.Category,
+    apps: List<AppEntry>,
+    accent: Color,
+    tokens: ColorTokens,
+    modifier: Modifier,
+    onBack: () -> Unit,
+    onCreate: (name: String, apps: List<AppEntry>) -> Unit,
+) {
+    // Matched apps first (pre-checked), then the rest (alphabetical, unchecked)
+    // so the user can add a near-miss the matcher didn't catch.
+    val matched = remember(category.id, apps) { AppCategories.match(category.id, apps) }
+    val ordered = remember(category.id, apps) {
+        val matchedKeys = matched.mapTo(HashSet()) { it.key }
+        matched + apps.filter { it.key !in matchedKeys }
+    }
+    val checked = remember(category.id) {
+        mutableStateMapOf<String, Boolean>().apply {
+            matched.forEach { put(it.key, true) }
+        }
+    }
+    var name by remember(category.id) { mutableStateOf(category.label) }
+    val selectedCount = ordered.count { checked[it.key] == true }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        // Header: back + title
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "‹ back",
+                color = accent,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(onClick = onBack)
+                    .padding(horizontal = 6.dp, vertical = 8.dp),
+            )
+        }
+
+        // Editable folder name
+        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
+            Text(text = "folder name", color = tokens.fgDim, fontSize = 12.sp)
+            Spacer(Modifier.height(6.dp))
+            BasicTextField(
+                value = name,
+                onValueChange = { name = it },
+                singleLine = true,
+                textStyle = TextStyle(color = tokens.fg, fontSize = 18.sp, fontWeight = FontWeight.W300),
+                cursorBrush = SolidColor(accent),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(tokens.tileLine.copy(alpha = 0.3f))
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+        HorizontalDivider(color = tokens.tileLine, modifier = Modifier.padding(horizontal = 20.dp))
+
+        // App checklist (scrolls; the create bar stays pinned below)
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(vertical = 4.dp),
+        ) {
+            ordered.forEach { app ->
+                val isOn = checked[app.key] == true
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { checked[app.key] = !isOn }
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(if (isOn) accent else Color.Transparent)
+                            .border(
+                                width = 1.5.dp,
+                                color = if (isOn) accent else tokens.fgDim,
+                                shape = RoundedCornerShape(5.dp),
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (isOn) {
+                            Text(text = "✓", color = Color.White, fontSize = 13.sp)
+                        }
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Text(
+                        text = app.label.ifBlank { app.packageName },
+                        color = tokens.fg,
+                        fontSize = 14.sp,
+                    )
+                }
+            }
+        }
+
+        // Pinned create bar
+        HorizontalDivider(color = tokens.tileLine)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+        ) {
+            val enabled = selectedCount > 0
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (enabled) accent else tokens.tileLine)
+                    .then(
+                        if (enabled) {
+                            Modifier.clickable {
+                                onCreate(name, ordered.filter { checked[it.key] == true })
+                            }
+                        } else {
+                            Modifier
+                        },
+                    )
+                    .padding(vertical = 14.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = if (enabled) "create folder ($selectedCount)" else "select at least one app",
+                    color = if (enabled) Color.White else tokens.fgDim,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.W500,
+                )
+            }
+        }
+    }
+}

@@ -98,6 +98,25 @@ interface LayoutDao {
         insertFolderChildren(children)
     }
 
+    // ---- create a folder directly (category folders) --------------------
+
+    /**
+     * Insert a brand-new folder tile + its meta + children in one transaction.
+     * Used by the personalize "category folders" feature, which builds a folder
+     * from a set of installed apps rather than by merging two tiles. Folders are
+     * written before children so the foreign key is satisfied.
+     */
+    @Transaction
+    suspend fun createFolder(
+        folderTile: TileEntity,
+        folder: FolderEntity,
+        children: List<FolderChildEntity>,
+    ) {
+        insertFolders(listOf(folder))
+        insertTiles(listOf(folderTile))
+        insertFolderChildren(children)
+    }
+
     // ---- merge to folder (FR-3.3) ---------------------------------------
 
     @Query("DELETE FROM folder_children WHERE folderId = :folderId")

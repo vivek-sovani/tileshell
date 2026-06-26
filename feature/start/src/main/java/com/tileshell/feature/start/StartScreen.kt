@@ -148,6 +148,7 @@ import com.tileshell.feature.livetiles.rememberNotificationAccess
 import com.tileshell.feature.livetiles.rememberPermissionGranted
 import com.tileshell.feature.livetiles.WeatherRefreshWorker
 import com.tileshell.feature.personalize.AboutSheet
+import com.tileshell.feature.personalize.CategoryFolderSheet
 import com.tileshell.feature.personalize.FeedSourceItem
 import com.tileshell.feature.personalize.PersonalizeSheet
 import com.tileshell.core.data.settings.FontStyle
@@ -205,6 +206,8 @@ fun StartScreen(
     val openFolderId by viewModel.openFolderId.collectAsStateWithLifecycle()
     val personalizeOpen by viewModel.personalizeOpen.collectAsStateWithLifecycle()
     val aboutOpen by viewModel.aboutOpen.collectAsStateWithLifecycle()
+    val foldersOpen by viewModel.foldersOpen.collectAsStateWithLifecycle()
+    val apps by viewModel.apps.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val feedSources by viewModel.feedSources.collectAsStateWithLifecycle()
     // Live notification state (FR-1.2 badges, FR-2 mail/messages). Empty until the
@@ -621,6 +624,7 @@ fun StartScreen(
             fontStyle = settings.fontStyle,
             onFontStyleChange = viewModel::setFontStyle,
             onAbout = viewModel::openAbout,
+            onFolders = viewModel::openFolders,
             onDismiss = viewModel::closePersonalize,
         )
 
@@ -630,6 +634,19 @@ fun StartScreen(
             dark = dark,
             accentId = settings.accentId,
             onDismiss = viewModel::closeAbout,
+        )
+
+        // Category-folders sheet (personalize → folders).
+        CategoryFolderSheet(
+            visible = foldersOpen,
+            dark = dark,
+            accentId = settings.accentId,
+            apps = apps,
+            onCreate = { name, picked ->
+                viewModel.createFolder(name, picked)
+                Toast.makeText(context, "created \"$name\" folder", Toast.LENGTH_SHORT).show()
+            },
+            onDismiss = viewModel::closeFolders,
         )
 
         // Full-screen folder overlay (FR-4).

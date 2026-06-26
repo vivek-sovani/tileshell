@@ -8,6 +8,8 @@ import android.os.Looper
 import android.os.UserHandle
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.tileshell.core.data.AppCatalogRepository
+import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.TileModel
@@ -39,6 +41,7 @@ import kotlinx.coroutines.withContext
 class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = LayoutRepository.create(application)
+    private val catalogRepository = AppCatalogRepository(application)
     private val settingsRepository = SettingsRepository.create(application)
     private val feedStore = FeedStore.create(application)
     private val launcherApps =
@@ -62,6 +65,13 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = LauncherSettings(),
+    )
+
+    /** Live catalogue of installed launchable apps (drives category folders). */
+    val apps: StateFlow<List<AppEntry>> = catalogRepository.apps.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList(),
     )
 
     /** The user's subscribed news feeds (left feed discover section). */
@@ -115,6 +125,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** True while the about sheet is open (personalize → about). */
     private val _aboutOpen = MutableStateFlow(false)
     val aboutOpen: StateFlow<Boolean> = _aboutOpen.asStateFlow()
+
+    /** True while the category-folders sheet is open (personalize → folders). */
+    private val _foldersOpen = MutableStateFlow(false)
+    val foldersOpen: StateFlow<Boolean> = _foldersOpen.asStateFlow()
 
     fun setAppList(value: Boolean) {
         _isAppList.value = value
@@ -219,6 +233,29 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Close the about sheet. */
     fun closeAbout() {
         _aboutOpen.value = false
+    }
+
+    /** Open the category-folders sheet (personalize → folders). */
+    fun openFolders() {
+        _foldersOpen.value = true
+    }
+
+    /** Close the category-folders sheet. */
+    fun closeFolders() {
+        _foldersOpen.value = false
+    }
+
+    /**
+     * Create a folder named [name] holding [apps] on the Start grid (category
+     * folders). No-op when [apps] is empty; closes the sheet on success.
+     */
+    fun createFolder(name: String, apps: List<AppEntry>) {
+        if (apps.isEmpty()) return
+        val folderName = name.trim().ifEmpty { "folder" }
+        viewModelScope.launch(writeContext) {
+            repository.createFolder(folderName, apps)
+        }
+        _foldersOpen.value = false
     }
 
     /** Switch theme (FR-7); persisted and applied live. */
@@ -358,6 +395,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun goHome() {
         closePersonalize()
+        closeAbout()
+        closeFolders()
         closeFolder()
         exitEdit()
         _homeRequests.tryEmit(Unit)

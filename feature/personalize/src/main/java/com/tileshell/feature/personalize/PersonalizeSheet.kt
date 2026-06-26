@@ -111,6 +111,7 @@ fun PersonalizeSheet(
     onRequestCalendar: () -> Unit,
     onRequestLocation: () -> Unit,
     onAbout: () -> Unit,
+    onFolders: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -527,6 +528,28 @@ fun PersonalizeSheet(
                         Spacer(Modifier.width(8.dp))
                         Text(text = "fix ›", color = accent, fontSize = 13.sp)
                     }
+                }
+            }
+
+            // ---- folders (category folders) ----
+            SettingGroup(label = "folders", tokens.fgDim) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onFolders)
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "create category folders", color = tokens.fg, fontSize = 14.sp)
+                        Text(
+                            text = "group apps — social, shopping, payments, banking…",
+                            color = tokens.fgDim,
+                            fontSize = 12.sp,
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(text = "›", color = accent, fontSize = 16.sp)
                 }
             }
 

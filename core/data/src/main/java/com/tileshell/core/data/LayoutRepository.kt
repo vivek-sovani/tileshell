@@ -155,6 +155,45 @@ class LayoutRepository(
     }
 
     /**
+     * Create a new folder tile from a set of installed [apps] (the personalize
+     * "category folders" feature). The folder tile is a MEDIUM tile appended to
+     * the end of the grid, reusing its generated id as the folder id (the S5
+     * convention). Children are de-duplicated by component, in the given order,
+     * and pick up a designed WP icon key when their package resolves to a default
+     * role (otherwise null → the real app icon). Returns false (no-op) when
+     * [apps] is empty after de-duplication.
+     */
+    suspend fun createFolder(name: String, apps: List<AppEntry>): Boolean {
+        val deduped = LinkedHashMap<String, AppEntry>()
+        for (app in apps) deduped.putIfAbsent(app.packageName + "/" + app.activityName, app)
+        val children = deduped.values.toList()
+        if (children.isEmpty()) return false
+
+        val folderId = "folder-${System.currentTimeMillis()}"
+        val folderTile = TileEntity(
+            id = folderId,
+            position = dao.maxPosition() + 1,
+            size = TileSize.MEDIUM,
+            colorId = TileColors.defaultIdFor(name.ifBlank { folderId }),
+            type = TileEntity.TYPE_FOLDER,
+            folderId = folderId,
+        )
+        val folder = FolderEntity(id = folderId, name = name)
+        val childRows = children.mapIndexed { index, app ->
+            FolderChildEntity(
+                folderId = folderId,
+                position = index,
+                packageName = app.packageName,
+                activityName = app.activityName,
+                label = app.label,
+                iconKey = roleIconKeyMap[app.packageName],
+            )
+        }
+        dao.createFolder(folderTile, folder, childRows)
+        return true
+    }
+
+    /**
      * Re-add a single default live tile (e.g. clock/weather/calendar that was
      * deleted) by [appId], appended to the grid with its designed size/colour/icon
      * key and the seeder's resolved launch target (blank for the self-contained

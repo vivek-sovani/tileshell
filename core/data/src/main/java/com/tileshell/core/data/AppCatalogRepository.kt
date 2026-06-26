@@ -80,6 +80,8 @@ class AppCatalogRepository(context: Context) {
                 activityName = info.componentName.className,
                 label = info.label?.toString().orEmpty(),
                 firstInstallTime = runCatching { info.firstInstallTime }.getOrDefault(0L),
+                category = runCatching { info.applicationInfo.category }
+                    .getOrDefault(android.content.pm.ApplicationInfo.CATEGORY_UNDEFINED),
             )
         }
         return AppCatalog.sorted(entries)
