@@ -26,8 +26,9 @@ android {
         targetSdk = 36
         // versionCode: 10 = v1.0; patches → 11, 12 …; v1.1 → 20, etc.
         // (13/1.0.3 was uploaded to Play then discarded; Play burns the code, so → 14.)
-        versionCode = 14
-        versionName = "1.0.4"
+        // v1.1 = 20 (category folders + in-folder tile editing).
+        versionCode = 20
+        versionName = "1.1"
     }
 
     if (keystoreFile.exists()) {
