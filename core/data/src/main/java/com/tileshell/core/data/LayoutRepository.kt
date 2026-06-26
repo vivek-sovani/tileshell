@@ -179,6 +179,8 @@ class LayoutRepository(
         val existing = dao.folderByName(trimmed)
 
         if (existing != null) {
+            // folderChildrenOnce is ORDER BY position, so this is the user's
+            // current in-folder order.
             val prevChildren = dao.folderChildrenOnce(existing.id)
             val prevPackages = prevChildren.mapTo(HashSet()) { it.packageName }
             // Preserve any size the user already set on apps that stay in the folder
@@ -189,8 +191,20 @@ class LayoutRepository(
             val newPackages = children.mapTo(HashSet()) { it.packageName }
             // Remove standalone Start tiles only for apps that are newly entering the folder.
             (newPackages - prevPackages).forEach { pkg -> dao.deleteTilesByPackage(pkg) }
-            val childRows = children.mapIndexed { index, app ->
-                val component = app.packageName + "/" + app.activityName
+            // Preserve the user's in-folder order: keep surviving apps in their prior
+            // order, then append newly-added apps (in the sheet's order) at the end —
+            // rather than re-sorting everything into the sheet's matched-first order.
+            val newByComponent = children.associateBy { it.packageName + "/" + it.activityName }
+            val survivorComponents = prevChildren
+                .map { it.packageName + "/" + it.activityName }
+                .filter { it in newByComponent }
+            val survivorSet = survivorComponents.toHashSet()
+            val added = children
+                .map { it.packageName + "/" + it.activityName }
+                .filter { it !in survivorSet }
+            val orderedComponents = survivorComponents + added
+            val childRows = orderedComponents.mapIndexed { index, component ->
+                val app = newByComponent.getValue(component)
                 FolderChildEntity(
                     folderId = existing.id,
                     position = index,
