@@ -226,6 +226,7 @@ fun AboutSheet(
                     "dark, light, or follow-system theme",
                     "glass (transparent) tiles with adjustable transparency",
                     "6 built-in gradient wallpapers + custom photo",
+                    "daily bing wallpaper, with a viewer for recent days",
                     "wallpaper visible through tiles (show-through mode)",
                     "tile corner radius slider and gradient fill option",
                     "font style: outfit (default), nunito, or system",
