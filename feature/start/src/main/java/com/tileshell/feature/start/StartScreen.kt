@@ -498,6 +498,13 @@ fun StartScreen(
                             is TileModel.Folder -> viewModel.openFolder(tile.id)
                         }
                     },
+                    onLaunchFolderChild = { child ->
+                        if (!AppLauncher.launch(context, child.packageName, child.activityName)) {
+                            Toast.makeText(
+                                context, "couldn't open ${child.label ?: "app"}", Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    },
                     onChevron = { settleTo(1f) },
                     onEnterEdit = { id ->
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -802,6 +809,7 @@ private fun StartPage(
     columns: Int,
     onLockScreen: () -> Unit,
     onTile: (TileModel) -> Unit,
+    onLaunchFolderChild: (FolderChild) -> Unit,
     onChevron: () -> Unit,
     onEnterEdit: (String) -> Unit,
     onSelectTile: (String) -> Unit,
@@ -1022,6 +1030,7 @@ private fun StartPage(
                         canMoveForward = order.indexOf(model.id) in 0 until order.size - 1,
                         onTap = { if (!editMode) onTile(model) },
                         onLongPress = { if (!editMode) onEnterEdit(model.id) },
+                        onLaunchFolderChild = onLaunchFolderChild,
                         onResize = { onResize(model.id) },
                         onUnpin = { order.remove(model.id); onUnpin(model.id) },
                         onSelect = { onSelectTile(model.id) },
@@ -1324,6 +1333,7 @@ private fun TileView(
     onSelect: () -> Unit,
     onExitEdit: () -> Unit,
     onMove: (direction: Int) -> Unit,
+    onLaunchFolderChild: (FolderChild) -> Unit = {},
 ) {
     // TalkBack reads the whole tile as one node: the app/folder name plus state,
     // with the launch/edit operations exposed as semantic actions (the visual
@@ -1461,7 +1471,13 @@ private fun TileView(
                 liveActive = liveActive,
                 interactive = !editMode,
             )
-            is TileModel.Folder -> FolderTileContent(tile)
+            is TileModel.Folder -> FolderTileContent(
+                tile = tile,
+                editMode = editMode,
+                onLaunchChild = onLaunchFolderChild,
+                onOpenFolder = onTap,
+                onEnterEdit = onLongPress,
+            )
         }
         // Per-app notification badge (FR-1.2). Top-right pill, count from the
         // notification listener; sized down on small tiles (prototype .badge).
@@ -2526,23 +2542,63 @@ private fun FolderChildIcon(child: FolderChild?) {
 }
 
 @Composable
-private fun FolderTileContent(tile: TileModel.Folder) {
+private fun FolderTileContent(
+    tile: TileModel.Folder,
+    editMode: Boolean,
+    onLaunchChild: (FolderChild) -> Unit,
+    onOpenFolder: () -> Unit,
+    onEnterEdit: () -> Unit,
+) {
+    // Inline iOS-style folder face: a 2×2 mini-grid where each app icon is
+    // tappable to launch (out of edit mode); with more than four apps the last
+    // cell becomes a "+N" that opens the full folder overlay. In edit mode the
+    // cells are inert so the grid-level drag owns the whole tile. A long-press
+    // on any cell enters edit (mirrors the tile-level long-press for the gaps).
+    val children = tile.children
+    val overflow = children.size > 4
     Column(modifier = Modifier.fillMaxSize().padding(9.dp)) {
-        // 2×2 mini-grid of the first four child glyphs (folder face — refined in S16).
         Column(modifier = Modifier.fillMaxWidth().weight(1f)) {
             for (rowIndex in 0 until 2) {
                 Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
                     for (colIndex in 0 until 2) {
-                        val child = tile.children.getOrNull(rowIndex * 2 + colIndex)
+                        val cellIndex = rowIndex * 2 + colIndex
+                        val isPlus = overflow && cellIndex == 3
+                        val child = if (isPlus) null else children.getOrNull(cellIndex)
+                        val tap: (() -> Unit)? = when {
+                            editMode -> null
+                            isPlus -> onOpenFolder
+                            child != null -> ({ onLaunchChild(child) })
+                            else -> null
+                        }
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxSize()
                                 .padding(2.dp)
-                                .background(Color(0x2E000000)),
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0x2E000000))
+                                .then(
+                                    if (tap != null) {
+                                        Modifier.combinedClickable(
+                                            onClick = tap,
+                                            onLongClick = onEnterEdit,
+                                        )
+                                    } else {
+                                        Modifier
+                                    },
+                                ),
                             contentAlignment = Alignment.Center,
                         ) {
-                            FolderChildIcon(child)
+                            if (isPlus) {
+                                Text(
+                                    text = "+${children.size - 3}",
+                                    color = Color.White,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                            } else {
+                                FolderChildIcon(child)
+                            }
                         }
                     }
                 }

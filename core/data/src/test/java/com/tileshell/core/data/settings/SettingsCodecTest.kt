@@ -144,7 +144,7 @@ class SettingsCodecTest {
     fun `corner radius round-trips and out-of-range is clamped`() {
         val s = LauncherSettings(cornerRadius = 6f)
         assertEquals(6f, SettingsCodec.decode(SettingsCodec.encode(s)).cornerRadius, 0.0001f)
-        assertEquals(12f, SettingsCodec.decode("cornerRadius=99").cornerRadius, 0f)
+        assertEquals(40f, SettingsCodec.decode("cornerRadius=99").cornerRadius, 0f)
         assertEquals(0f, SettingsCodec.decode("cornerRadius=-3").cornerRadius, 0f)
     }
 
