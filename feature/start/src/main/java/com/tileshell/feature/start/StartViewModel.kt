@@ -353,6 +353,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setCornerRadius(radius) }
     }
 
+    /** Set the inter-tile gap (0–16 dp). */
+    fun setTileGap(gap: Float) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setTileGap(gap) }
+    }
+
     /** Switch tile fill between flat and gradient. */
     fun setTileFill(fill: com.tileshell.core.data.settings.TileFill) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setTileFill(fill) }

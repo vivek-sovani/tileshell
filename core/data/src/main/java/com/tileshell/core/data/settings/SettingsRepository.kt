@@ -142,6 +142,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(cornerRadius = radius.coerceIn(0f, 12f)) }
     }
 
+    /** Set the inter-tile gap (0–16 dp). */
+    suspend fun setTileGap(gap: Float) {
+        store.updateData { it.copy(tileGap = gap.coerceIn(0f, 16f)) }
+    }
+
     /** Switch tile fill between flat solid and diagonal gradient. */
     suspend fun setTileFill(fill: TileFill) {
         store.updateData { it.copy(tileFill = fill) }

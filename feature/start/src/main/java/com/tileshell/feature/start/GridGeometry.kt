@@ -49,9 +49,18 @@ class GridGeometry private constructor(
         if (rowCount == 0) 0 else (topPad + rowCount * unit + (rowCount - 1) * gap).roundToInt()
 
     companion object {
-        fun of(totalWidthPx: Float, columns: Int = GridPacker.COLUMNS): GridGeometry {
+        /**
+         * [gapPx], when given, overrides the proportional tile gap (the
+         * personalize "tile spacing" setting in px); null keeps the prototype's
+         * tight 3/393 ratio. Side padding and top stay proportional either way.
+         */
+        fun of(
+            totalWidthPx: Float,
+            columns: Int = GridPacker.COLUMNS,
+            gapPx: Float? = null,
+        ): GridGeometry {
             val side = totalWidthPx * (9f / 393f)
-            val gap = totalWidthPx * (3f / 393f)
+            val gap = gapPx ?: (totalWidthPx * (3f / 393f))
             val topPad = totalWidthPx * (10f / 393f)
             val unit = (totalWidthPx - 2 * side - (columns - 1) * gap) / columns
             return GridGeometry(side, gap, unit, topPad)

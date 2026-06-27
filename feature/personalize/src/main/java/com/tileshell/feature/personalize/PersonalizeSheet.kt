@@ -103,6 +103,8 @@ fun PersonalizeSheet(
     onBatteryExemption: () -> Unit,
     cornerRadius: Float,
     onCornerRadiusChange: (Float) -> Unit,
+    tileGap: Float,
+    onTileGapChange: (Float) -> Unit,
     tileFill: TileFill,
     onTileFillChange: (TileFill) -> Unit,
     fontStyle: FontStyle,
@@ -280,6 +282,38 @@ fun PersonalizeSheet(
                             .clip(RoundedCornerShape(7.dp))
                             .background(accent),
                     )
+                }
+                // Tile spacing — only while tiles are fully rounded and the
+                // wallpaper-behind-tiles mode is off, so wider gaps (a spaced
+                // rounded-card look) never fragment the show-through wallpaper.
+                if (cornerRadius >= 12f && !tiledWallpaper) {
+                    Spacer(Modifier.height(14.dp))
+                    Text("tile spacing", color = tokens.fgDim, fontSize = 13.sp)
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                            Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
+                            Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
+                        }
+                        Slider(
+                            value = tileGap,
+                            onValueChange = onTileGapChange,
+                            valueRange = 0f..16f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = accent,
+                                activeTrackColor = accent,
+                                inactiveTrackColor = tokens.tileLine,
+                            ),
+                            modifier = Modifier.weight(1f),
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
+                            Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
+                        }
+                    }
                 }
             }
 

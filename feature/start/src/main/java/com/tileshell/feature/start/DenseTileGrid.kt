@@ -30,13 +30,14 @@ fun DenseTileGrid(
     tiles: List<TileSpec>,
     modifier: Modifier = Modifier,
     columns: Int = GridPacker.COLUMNS,
+    gapPx: Float? = null,
     tileContent: @Composable (spec: TileSpec, slot: IntOffset, sizePx: IntSize) -> Unit,
 ) {
     val placements = remember(tiles, columns) { GridPacker.pack(tiles, columns) }
 
     BoxWithConstraints(modifier = modifier) {
         val totalW = constraints.maxWidth.toFloat()
-        val geom = remember(totalW, columns) { GridGeometry.of(totalW, columns) }
+        val geom = remember(totalW, columns, gapPx) { GridGeometry.of(totalW, columns, gapPx) }
         val rowCount = GridPacker.rowCount(placements)
         val heightDp = with(LocalDensity.current) { geom.totalHeight(rowCount).toDp() }
 

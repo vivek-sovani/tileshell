@@ -133,6 +133,14 @@ class SettingsCodecTest {
     }
 
     @Test
+    fun `tile gap round-trips and out-of-range is clamped`() {
+        assertEquals(8f, SettingsCodec.decode(SettingsCodec.encode(LauncherSettings(tileGap = 8f))).tileGap, 0.0001f)
+        assertEquals(16f, SettingsCodec.decode("tileGap=99").tileGap, 0f)
+        assertEquals(0f, SettingsCodec.decode("tileGap=-4").tileGap, 0f)
+        assertEquals(LauncherSettings().tileGap, SettingsCodec.decode("tileGap=wide").tileGap, 0f)
+    }
+
+    @Test
     fun `corner radius round-trips and out-of-range is clamped`() {
         val s = LauncherSettings(cornerRadius = 6f)
         assertEquals(6f, SettingsCodec.decode(SettingsCodec.encode(s)).cornerRadius, 0.0001f)

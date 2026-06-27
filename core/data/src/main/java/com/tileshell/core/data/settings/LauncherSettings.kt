@@ -55,6 +55,12 @@ data class LauncherSettings(
     val wallpaperAlignX: Float = 0.5f,
     val wallpaperAlignY: Float = 0.5f,
     val cornerRadius: Float = 0f,
+    /**
+     * Gap between tiles in dp (FR-7). Default ≈ the prototype's tight WP spacing;
+     * raising it gives a spaced "rounded-card" look. Surfaced in Personalize only
+     * while tiles are fully rounded. Clamped 0..16 on decode.
+     */
+    val tileGap: Float = 3f,
     val tileFill: TileFill = TileFill.FLAT,
     val fontStyle: FontStyle = FontStyle.OUTFIT,
     /**
@@ -97,6 +103,7 @@ object SettingsCodec {
         append("wallAlignX=").append(settings.wallpaperAlignX).append('\n')
         append("wallAlignY=").append(settings.wallpaperAlignY).append('\n')
         append("cornerRadius=").append(settings.cornerRadius).append('\n')
+        append("tileGap=").append(settings.tileGap).append('\n')
         append("tileFill=").append(settings.tileFill.name).append('\n')
         append("fontStyle=").append(settings.fontStyle.name).append('\n')
         append("columns=").append(settings.columns)
@@ -118,6 +125,7 @@ object SettingsCodec {
         var wallpaperAlignX = d.wallpaperAlignX
         var wallpaperAlignY = d.wallpaperAlignY
         var cornerRadius = d.cornerRadius
+        var tileGap = d.tileGap
         var tileFill = d.tileFill
         var fontStyle = d.fontStyle
         var columns = d.columns
@@ -141,6 +149,7 @@ object SettingsCodec {
                 "wallAlignX" -> value.toFloatOrNull()?.let { wallpaperAlignX = it.coerceIn(0f, 1f) }
                 "wallAlignY" -> value.toFloatOrNull()?.let { wallpaperAlignY = it.coerceIn(0f, 1f) }
                 "cornerRadius" -> value.toFloatOrNull()?.let { cornerRadius = it.coerceIn(0f, 12f) }
+                "tileGap" -> value.toFloatOrNull()?.let { tileGap = it.coerceIn(0f, 16f) }
                 "tileFill" -> TileFill.entries.find { it.name == value }?.let { tileFill = it }
                 "fontStyle" -> FontStyle.entries.find { it.name == value }?.let { fontStyle = it }
                 "columns" -> value.toIntOrNull()?.let {
@@ -163,6 +172,7 @@ object SettingsCodec {
             wallpaperAlignX = wallpaperAlignX,
             wallpaperAlignY = wallpaperAlignY,
             cornerRadius = cornerRadius,
+            tileGap = tileGap,
             tileFill = tileFill,
             fontStyle = fontStyle,
             columns = columns,

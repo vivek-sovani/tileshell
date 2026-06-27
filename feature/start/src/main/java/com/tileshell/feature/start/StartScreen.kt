@@ -471,6 +471,13 @@ fun StartScreen(
                     selectedTileId = selectedTileId,
                     accent = accent,
                     accentId = settings.accentId,
+                    // Tiled-wallpaper mode ignores the gap setting (stays tight) so
+                    // wider spacing never fragments the show-through wallpaper.
+                    tileGapPx = if (tiledWallpaper) {
+                        null
+                    } else {
+                        with(density) { settings.tileGap.dp.toPx() }
+                    },
                     glassFill = glassFill,
                     glassLine = tokens.glassLine,
                     tiledWallpaper = tiledWallpaper,
@@ -649,6 +656,8 @@ fun StartScreen(
             onBatteryExemption = { OemBatteryGuard.requestExemption(context) },
             cornerRadius = settings.cornerRadius,
             onCornerRadiusChange = viewModel::setCornerRadius,
+            tileGap = settings.tileGap,
+            onTileGapChange = viewModel::setTileGap,
             tileFill = settings.tileFill,
             onTileFillChange = viewModel::setTileFill,
             fontStyle = settings.fontStyle,
@@ -777,6 +786,7 @@ private fun StartPage(
     selectedTileId: String?,
     accent: Color,
     accentId: String,
+    tileGapPx: Float?,
     glassFill: Color?,
     glassLine: Color,
     tiledWallpaper: Boolean,
@@ -888,6 +898,7 @@ private fun StartPage(
                 editMode = editMode,
                 widthPx = widthPx,
                 columns = columns,
+                gapPx = tileGapPx,
                 order = order,
                 byId = byId,
                 draggingId = { draggingId },
@@ -944,6 +955,7 @@ private fun StartPage(
             DenseTileGrid(
                 tiles = displaySpecs,
                 columns = columns,
+                gapPx = tileGapPx,
                 modifier = Modifier.fillMaxWidth().then(editDrag),
             ) { spec, slot, sizePx ->
                 val model = byId[spec.id] ?: return@DenseTileGrid
@@ -2042,6 +2054,7 @@ private fun Modifier.editDragGesture(
     editMode: Boolean,
     widthPx: Float,
     columns: Int = GridPacker.COLUMNS,
+    gapPx: Float? = null,
     order: List<String>,
     byId: Map<String, TileModel>,
     draggingId: () -> String?,
@@ -2064,12 +2077,12 @@ private fun Modifier.editDragGesture(
     scrollOffsetPx: () -> Float,
     edgeZonePx: Float,
     allowMerge: Boolean = true,
-): Modifier = pointerInput(editMode, widthPx, columns, byId, selectedId()) {
+): Modifier = pointerInput(editMode, widthPx, columns, gapPx, byId, selectedId()) {
     // Re-keyed on byId so a resize/unpin mid-session refreshes the captured tile
     // sizes, and on the selected id so an in-edit selection switch refreshes the
     // corner-control target; neither changes mid-drag, so a live drag is safe.
     if (!editMode) return@pointerInput
-    val geom = GridGeometry.of(widthPx, columns)
+    val geom = GridGeometry.of(widthPx, columns, gapPx)
     val slop = 7.dp.toPx()
     // Merge is intent-gated: the finger must dwell (pause within [dwellMoveTol])
     // in a target's centre for [mergeDwellMs] before a merge commits. A moving
