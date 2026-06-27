@@ -29,4 +29,20 @@ class TileAccentsTest {
         val id = TileAccents.nearestAccentId(Color(0xFF1565C0))
         assertEquals(true, id == "blue" || id == "cobalt" || id == "cyan")
     }
+
+    @Test
+    fun `override resolves hex, then palette id, then global`() {
+        assertEquals(Color(0xFFA86B8F), TileAccents.colorForOverride("#A86B8F", "blue"))
+        assertEquals(TileAccents.Red, TileAccents.colorForOverride("red", "blue"))
+        assertEquals(TileAccents.Blue, TileAccents.colorForOverride(null, "blue"))
+        assertEquals(TileAccents.Teal, TileAccents.colorForOverride("nonsense", "teal"))
+    }
+
+    @Test
+    fun `parseHexColor accepts RRGGBB and rejects malformed`() {
+        assertEquals(Color(0xFF112233), TileAccents.parseHexColor("#112233"))
+        assertEquals(null, TileAccents.parseHexColor("112233"))
+        assertEquals(null, TileAccents.parseHexColor("#12345"))
+        assertEquals(null, TileAccents.parseHexColor("#zzzzzz"))
+    }
 }

@@ -91,6 +91,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -959,11 +960,10 @@ private fun StartPage(
                         ),
                 ) {
                     // Per-tile accent (FR-7): an App tile with a saved override
-                    // uses it; everything else follows the global accent.
-                    val tileAccent = TileAccents.forId(
-                        TileColors.accentIdFor(
-                            (model as? TileModel.App)?.accentOverride, accentId,
-                        ),
+                    // (palette id or exact #hex) uses it; everything else follows
+                    // the global accent.
+                    val tileAccent = TileAccents.colorForOverride(
+                        (model as? TileModel.App)?.accentOverride, accentId,
                     )
                     TileView(
                         tile = model,
@@ -1087,14 +1087,15 @@ private fun StartPage(
         // Per-tile accent picker (edit-mode colour dot → palette, FR-7).
         colorPickerFor?.let { pickId ->
             val app = byId[pickId] as? TileModel.App
-            val suggested = if (app != null && app.packageName.isNotBlank()) {
-                rememberSuggestedColorId(app.packageName, app.activityName)
+            val suggestion = if (app != null && app.packageName.isNotBlank()) {
+                rememberIconSuggestion(app.packageName, app.activityName)
             } else {
                 null
             }
             TileColorPicker(
                 current = app?.accentOverride,
-                suggested = suggested,
+                suggestedNearestId = suggestion?.nearestId,
+                suggestedExact = suggestion?.exact,
                 onPick = { colorId -> onSetTileColor(pickId, colorId); colorPickerFor = null },
                 onDismiss = { colorPickerFor = null },
             )
@@ -1104,19 +1105,21 @@ private fun StartPage(
 
 /**
  * Bottom-sheet accent picker for a single tile (FR-7): a "follow global" chip,
- * an optional icon-derived "suggested" swatch, and the 14 palette swatches over
- * a tap-to-dismiss scrim. [current] is the tile's saved override (null =
- * following the global accent), shown ringed; [suggested] is the palette id
- * nearest the app icon's dominant colour, badged in the grid and offered as a
- * one-tap row.
+ * two optional icon-derived suggestions — the exact dominant colour
+ * ([suggestedExact], stored as a `#hex` override) and the nearest palette accent
+ * ([suggestedNearestId]) — then the 14 palette swatches, over a tap-to-dismiss
+ * scrim. [current] is the tile's saved override (null = following global), shown
+ * ringed wherever it matches.
  */
 @Composable
 private fun BoxScope.TileColorPicker(
     current: String?,
-    suggested: String?,
+    suggestedNearestId: String?,
+    suggestedExact: Color?,
     onPick: (String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val exactHex = suggestedExact?.let { "#%06X".format(it.toArgb() and 0xFFFFFF) }
     Box(
         modifier = Modifier
             .matchParentSize()
@@ -1155,25 +1158,23 @@ private fun BoxScope.TileColorPicker(
         ) {
             Text("follow global accent", color = Color.White, fontSize = 13.sp)
         }
-        if (suggested != null) {
+        if (suggestedExact != null && exactHex != null) {
             Spacer(Modifier.height(10.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
-                    .clickable { onPick(suggested) }
-                    .padding(start = 8.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(22.dp)
-                        .clip(RoundedCornerShape(5.dp))
-                        .background(TileAccents.forId(suggested)),
-                )
-                Spacer(Modifier.width(10.dp))
-                Text("suggested · from app icon", color = Color.White, fontSize = 13.sp)
-            }
+            SuggestionRow(
+                swatch = suggestedExact,
+                label = "exact · from icon",
+                ringed = current == exactHex,
+                onClick = { onPick(exactHex) },
+            )
+        }
+        if (suggestedNearestId != null) {
+            Spacer(Modifier.height(10.dp))
+            SuggestionRow(
+                swatch = TileAccents.forId(suggestedNearestId),
+                label = "nearest accent",
+                ringed = current == suggestedNearestId,
+                onClick = { onPick(suggestedNearestId) },
+            )
         }
         Spacer(Modifier.height(14.dp))
         TileColors.IDS.chunked(7).forEach { rowIds ->
@@ -1195,9 +1196,9 @@ private fun BoxScope.TileColorPicker(
                             .clickable { onPick(id) },
                         contentAlignment = Alignment.TopEnd,
                     ) {
-                        // A small white dot badges the icon-suggested swatch so
-                        // it's findable within the grid too.
-                        if (id == suggested) {
+                        // A small white dot badges the nearest-accent suggestion
+                        // so it's findable within the grid too.
+                        if (id == suggestedNearestId) {
                             Box(
                                 modifier = Modifier
                                     .padding(3.dp)
@@ -1210,6 +1211,38 @@ private fun BoxScope.TileColorPicker(
                 }
             }
         }
+    }
+}
+
+/** A pill row in the colour picker: a colour [swatch] + [label], ringed when it
+ *  is the tile's current choice. Used for the exact / nearest icon suggestions. */
+@Composable
+private fun SuggestionRow(
+    swatch: Color,
+    label: String,
+    ringed: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .border(
+                if (ringed) 2.dp else 1.dp,
+                if (ringed) Color.White else Color.White.copy(alpha = 0.3f),
+                RoundedCornerShape(20.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(start = 8.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(22.dp)
+                .clip(RoundedCornerShape(5.dp))
+                .background(swatch),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(label, color = Color.White, fontSize = 13.sp)
     }
 }
 
@@ -2407,18 +2440,20 @@ private fun rememberTileAppIcon(packageName: String, activityName: String): Imag
     }.value
 }
 
+/** An app icon's dominant colour ([exact]) and the nearest of the 14 accents. */
+private data class IconSuggestion(val exact: Color, val nearestId: String)
+
 /**
- * The palette id whose accent best matches an app icon's dominant colour —
- * the per-tile "suggested" colour (FR-7). Saturated, opaque pixels are averaged
- * weighted by saturation (so the brand hue dominates over white/grey chrome),
- * then matched to the nearest accent; null while the icon is still loading or
- * the icon is effectively colourless.
+ * The per-tile colour suggestions from an app icon (FR-7): its dominant colour
+ * (saturated, opaque pixels averaged weighted by saturation so the brand hue
+ * beats white/grey chrome) and the nearest of the 14 accents. Null while the
+ * icon is loading or it is effectively colourless.
  */
 @Composable
-private fun rememberSuggestedColorId(packageName: String, activityName: String): String? {
+private fun rememberIconSuggestion(packageName: String, activityName: String): IconSuggestion? {
     val icon = rememberTileAppIcon(packageName, activityName)
     return remember(icon) {
-        icon?.let { dominantIconColor(it) }?.let { TileAccents.nearestAccentId(it) }
+        icon?.let { dominantIconColor(it) }?.let { IconSuggestion(it, TileAccents.nearestAccentId(it)) }
     }
 }
 

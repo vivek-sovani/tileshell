@@ -50,6 +50,26 @@ object TileAccents {
     fun forId(id: String?): Color = byId[id] ?: Blue
 
     /**
+     * Resolve a per-tile [override] to a colour (FR-7): a `#RRGGBB` hex (an exact
+     * icon colour) wins, then a palette id, otherwise the global [globalAccentId]
+     * accent. `null`/blank/unknown override → follow the global accent.
+     */
+    fun colorForOverride(override: String?, globalAccentId: String): Color {
+        if (override != null) {
+            parseHexColor(override)?.let { return it }
+            byId[override]?.let { return it }
+        }
+        return forId(globalAccentId)
+    }
+
+    /** Parse a `#RRGGBB` string to an opaque [Color], or null if malformed. */
+    fun parseHexColor(value: String): Color? {
+        if (!value.startsWith("#") || value.length != 7) return null
+        val rgb = value.substring(1).toLongOrNull(16) ?: return null
+        return Color(0xFF000000L or rgb)
+    }
+
+    /**
      * The palette id whose accent is closest to [color], by luminance-weighted
      * RGB distance (green weighted highest, matching perceived difference). Used
      * to suggest a per-tile colour from an app icon's dominant hue (FR-7). Pure.
