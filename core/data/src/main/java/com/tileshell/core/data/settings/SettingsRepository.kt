@@ -137,9 +137,9 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(followSystemTheme = follow) }
     }
 
-    /** Set the tile corner radius (0–12 dp). */
+    /** Set the tile corner radius (0–40 dp). */
     suspend fun setCornerRadius(radius: Float) {
-        store.updateData { it.copy(cornerRadius = radius.coerceIn(0f, 12f)) }
+        store.updateData { it.copy(cornerRadius = radius.coerceIn(0f, 40f)) }
     }
 
     /** Set the inter-tile gap (0–16 dp). */

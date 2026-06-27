@@ -148,7 +148,7 @@ object SettingsCodec {
                 "feedEnabled" -> feedEnabled = value.toBooleanStrictOrNull() ?: feedEnabled
                 "wallAlignX" -> value.toFloatOrNull()?.let { wallpaperAlignX = it.coerceIn(0f, 1f) }
                 "wallAlignY" -> value.toFloatOrNull()?.let { wallpaperAlignY = it.coerceIn(0f, 1f) }
-                "cornerRadius" -> value.toFloatOrNull()?.let { cornerRadius = it.coerceIn(0f, 12f) }
+                "cornerRadius" -> value.toFloatOrNull()?.let { cornerRadius = it.coerceIn(0f, 40f) }
                 "tileGap" -> value.toFloatOrNull()?.let { tileGap = it.coerceIn(0f, 16f) }
                 "tileFill" -> TileFill.entries.find { it.name == value }?.let { tileFill = it }
                 "fontStyle" -> FontStyle.entries.find { it.name == value }?.let { fontStyle = it }

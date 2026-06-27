@@ -1364,7 +1364,7 @@ private fun TileView(
             }
             // The press-tilt effect (S7) is replaced by the jiggle while editing.
             .then(if (editMode) Modifier else Modifier.tiltOnPress())
-            // Optional rounded corners (personalisation setting 0–12 dp).
+            // Optional rounded corners (personalisation setting 0–40 dp).
             .then(
                 if (tileCornerRadius > 0f)
                     Modifier.clip(RoundedCornerShape(tileCornerRadius.dp))

@@ -268,7 +268,7 @@ fun PersonalizeSheet(
                     Slider(
                         value = cornerRadius,
                         onValueChange = onCornerRadiusChange,
-                        valueRange = 0f..12f,
+                        valueRange = 0f..40f,
                         colors = SliderDefaults.colors(
                             thumbColor = accent,
                             activeTrackColor = accent,
@@ -286,7 +286,7 @@ fun PersonalizeSheet(
                 // Tile spacing — only while tiles are fully rounded and the
                 // wallpaper-behind-tiles mode is off, so wider gaps (a spaced
                 // rounded-card look) never fragment the show-through wallpaper.
-                if (cornerRadius >= 12f && !tiledWallpaper) {
+                if (cornerRadius >= 40f && !tiledWallpaper) {
                     Spacer(Modifier.height(14.dp))
                     Text("tile spacing", color = tokens.fgDim, fontSize = 13.sp)
                     Spacer(Modifier.height(6.dp))
