@@ -48,4 +48,22 @@ object TileAccents {
 
     /** Accent for a colour id, falling back to [Blue] for unknown ids. */
     fun forId(id: String?): Color = byId[id] ?: Blue
+
+    /**
+     * The palette id whose accent is closest to [color], by luminance-weighted
+     * RGB distance (green weighted highest, matching perceived difference). Used
+     * to suggest a per-tile colour from an app icon's dominant hue (FR-7). Pure.
+     */
+    fun nearestAccentId(color: Color): String {
+        var bestId = ids.first()
+        var bestD = Float.MAX_VALUE
+        swatches.forEach { (id, c) ->
+            val dr = c.red - color.red
+            val dg = c.green - color.green
+            val db = c.blue - color.blue
+            val d = 2f * dr * dr + 4f * dg * dg + 3f * db * db
+            if (d < bestD) { bestD = d; bestId = id }
+        }
+        return bestId
+    }
 }

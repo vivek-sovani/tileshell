@@ -53,6 +53,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -88,6 +89,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -1084,8 +1086,15 @@ private fun StartPage(
 
         // Per-tile accent picker (edit-mode colour dot → palette, FR-7).
         colorPickerFor?.let { pickId ->
+            val app = byId[pickId] as? TileModel.App
+            val suggested = if (app != null && app.packageName.isNotBlank()) {
+                rememberSuggestedColorId(app.packageName, app.activityName)
+            } else {
+                null
+            }
             TileColorPicker(
-                current = (byId[pickId] as? TileModel.App)?.accentOverride,
+                current = app?.accentOverride,
+                suggested = suggested,
                 onPick = { colorId -> onSetTileColor(pickId, colorId); colorPickerFor = null },
                 onDismiss = { colorPickerFor = null },
             )
@@ -1094,13 +1103,17 @@ private fun StartPage(
 }
 
 /**
- * Bottom-sheet accent picker for a single tile (FR-7): a "follow global" chip
- * plus the 14 palette swatches over a tap-to-dismiss scrim. [current] is the
- * tile's saved override (null = following the global accent), shown ringed.
+ * Bottom-sheet accent picker for a single tile (FR-7): a "follow global" chip,
+ * an optional icon-derived "suggested" swatch, and the 14 palette swatches over
+ * a tap-to-dismiss scrim. [current] is the tile's saved override (null =
+ * following the global accent), shown ringed; [suggested] is the palette id
+ * nearest the app icon's dominant colour, badged in the grid and offered as a
+ * one-tap row.
  */
 @Composable
 private fun BoxScope.TileColorPicker(
     current: String?,
+    suggested: String?,
     onPick: (String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -1142,6 +1155,26 @@ private fun BoxScope.TileColorPicker(
         ) {
             Text("follow global accent", color = Color.White, fontSize = 13.sp)
         }
+        if (suggested != null) {
+            Spacer(Modifier.height(10.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+                    .clickable { onPick(suggested) }
+                    .padding(start = 8.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(TileAccents.forId(suggested)),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text("suggested · from app icon", color = Color.White, fontSize = 13.sp)
+            }
+        }
         Spacer(Modifier.height(14.dp))
         TileColors.IDS.chunked(7).forEach { rowIds ->
             Row(
@@ -1160,7 +1193,20 @@ private fun BoxScope.TileColorPicker(
                                 shape = RoundedCornerShape(6.dp),
                             )
                             .clickable { onPick(id) },
-                    )
+                        contentAlignment = Alignment.TopEnd,
+                    ) {
+                        // A small white dot badges the icon-suggested swatch so
+                        // it's findable within the grid too.
+                        if (id == suggested) {
+                            Box(
+                                modifier = Modifier
+                                    .padding(3.dp)
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -2359,6 +2405,49 @@ private fun rememberTileAppIcon(packageName: String, activityName: String): Imag
             }.getOrNull()
         }
     }.value
+}
+
+/**
+ * The palette id whose accent best matches an app icon's dominant colour —
+ * the per-tile "suggested" colour (FR-7). Saturated, opaque pixels are averaged
+ * weighted by saturation (so the brand hue dominates over white/grey chrome),
+ * then matched to the nearest accent; null while the icon is still loading or
+ * the icon is effectively colourless.
+ */
+@Composable
+private fun rememberSuggestedColorId(packageName: String, activityName: String): String? {
+    val icon = rememberTileAppIcon(packageName, activityName)
+    return remember(icon) {
+        icon?.let { dominantIconColor(it) }?.let { TileAccents.nearestAccentId(it) }
+    }
+}
+
+private fun dominantIconColor(bitmap: ImageBitmap): Color? {
+    val w = bitmap.width
+    val h = bitmap.height
+    if (w == 0 || h == 0) return null
+    val px = IntArray(w * h)
+    runCatching { bitmap.asAndroidBitmap().getPixels(px, 0, w, 0, 0, w, h) }
+        .getOrElse { return null }
+    var wr = 0.0; var wg = 0.0; var wb = 0.0; var wSum = 0.0 // saturation-weighted
+    var ar = 0.0; var ag = 0.0; var ab = 0.0; var aN = 0      // plain opaque average
+    for (p in px) {
+        if ((p ushr 24 and 0xff) < 128) continue
+        val r = p ushr 16 and 0xff
+        val g = p ushr 8 and 0xff
+        val b = p and 0xff
+        ar += r; ag += g; ab += b; aN++
+        val mx = maxOf(r, g, b)
+        val sat = if (mx == 0) 0f else (mx - minOf(r, g, b)).toFloat() / mx
+        if (sat > 0.25f && mx > 40) {
+            wr += r * sat; wg += g * sat; wb += b * sat; wSum += sat
+        }
+    }
+    return when {
+        wSum > 0 -> Color((wr / wSum).toInt(), (wg / wSum).toInt(), (wb / wSum).toInt())
+        aN > 0 -> Color((ar / aN).toInt(), (ag / aN).toInt(), (ab / aN).toInt())
+        else -> null
+    }
 }
 
 @Composable
