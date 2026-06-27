@@ -97,6 +97,7 @@ class LayoutRepository(
                 label = child.label,
                 iconKey = child.iconKey,
                 size = child.size,
+                accentOverride = child.accentOverride,
             )
         }
         val dragFolderId = if (drag is TileModel.Folder) drag.id else null
@@ -363,7 +364,13 @@ class LayoutRepository(
                 name = row.folder.folder.name,
                 children = row.folder.children
                     .sortedBy { it.position }
-                    .map { FolderChild(it.packageName, it.activityName, it.label, it.iconKey, it.size, it.rowId) },
+                    .map {
+                        FolderChild(
+                            it.packageName, it.activityName, it.label, it.iconKey, it.size,
+                            it.rowId, it.accentOverride,
+                        )
+                    },
+                accentOverride = t.accentOverride,
             )
         } else {
             TileModel.App(

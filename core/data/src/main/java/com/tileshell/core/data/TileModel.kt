@@ -8,6 +8,8 @@ data class FolderChild(
     val iconKey: String? = null,
     val size: TileSize = TileSize.MEDIUM,
     val rowId: Long = 0,
+    /** Per-tile accent override (FR-7), carried in/out of the folder; null = follow. */
+    val accentOverride: String? = null,
 )
 
 /**
@@ -41,5 +43,7 @@ sealed interface TileModel {
         override val colorId: String,
         val name: String,
         val children: List<FolderChild>,
+        /** Per-tile accent override (FR-7); null = follow the global accent. */
+        val accentOverride: String? = null,
     ) : TileModel
 }

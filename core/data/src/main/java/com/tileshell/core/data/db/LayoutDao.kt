@@ -245,6 +245,7 @@ interface LayoutDao {
                         activityName = removed.activityName,
                         label = removed.label,
                         iconKey = removed.iconKey,
+                        accentOverride = removed.accentOverride,
                     ),
                 ),
             )

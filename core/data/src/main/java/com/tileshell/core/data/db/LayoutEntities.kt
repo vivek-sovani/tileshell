@@ -67,6 +67,8 @@ data class FolderChildEntity(
     val label: String? = null,
     val iconKey: String? = null,
     val size: TileSize = TileSize.MEDIUM,
+    // Per-tile accent override carried with the app in/out of the folder (v5).
+    val accentOverride: String? = null,
 )
 
 /**

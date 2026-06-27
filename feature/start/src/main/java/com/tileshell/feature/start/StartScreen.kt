@@ -161,6 +161,7 @@ import com.tileshell.feature.personalize.CategoryFolderSheet
 import com.tileshell.feature.personalize.FeedSourceItem
 import com.tileshell.feature.personalize.PersonalizeSheet
 import com.tileshell.core.data.settings.FontStyle
+import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.design.DarkColorTokens
 import com.tileshell.core.design.Glass
@@ -471,6 +472,7 @@ fun StartScreen(
                     selectedTileId = selectedTileId,
                     accent = accent,
                     accentId = settings.accentId,
+                    appIconColors = settings.tileColorSource == TileColorSource.APP_ICON,
                     // Tiled-wallpaper mode ignores the gap setting (stays tight) so
                     // wider spacing never fragments the show-through wallpaper.
                     tileGapPx = if (tiledWallpaper) {
@@ -665,6 +667,8 @@ fun StartScreen(
             onCornerRadiusChange = viewModel::setCornerRadius,
             tileGap = settings.tileGap,
             onTileGapChange = viewModel::setTileGap,
+            tileColorSource = settings.tileColorSource,
+            onTileColorSourceChange = viewModel::setTileColorSource,
             tileFill = settings.tileFill,
             onTileFillChange = viewModel::setTileFill,
             fontStyle = settings.fontStyle,
@@ -793,6 +797,7 @@ private fun StartPage(
     selectedTileId: String?,
     accent: Color,
     accentId: String,
+    appIconColors: Boolean,
     tileGapPx: Float?,
     glassFill: Color?,
     glassLine: Color,
@@ -979,12 +984,21 @@ private fun StartPage(
                             with(density) { sizePx.height.toDp() },
                         ),
                 ) {
-                    // Per-tile accent (FR-7): an App tile with a saved override
-                    // (palette id or exact #hex) uses it; everything else follows
-                    // the global accent.
-                    val tileAccent = TileAccents.colorForOverride(
-                        (model as? TileModel.App)?.accentOverride, accentId,
-                    )
+                    // Per-tile accent (FR-7): a saved override (palette id or exact
+                    // #hex) always wins; otherwise, in app-icon-colour mode an app
+                    // tile takes its icon's dominant colour, else the global accent.
+                    val tileOverride = when (model) {
+                        is TileModel.App -> model.accentOverride
+                        is TileModel.Folder -> model.accentOverride
+                    }
+                    val iconColor = (model as? TileModel.App)
+                        ?.takeIf { appIconColors && tileOverride == null && it.packageName.isNotBlank() }
+                        ?.let { rememberDominantIconColor(it.packageName, it.activityName) }
+                    val tileAccent = when {
+                        tileOverride != null -> TileAccents.colorForOverride(tileOverride, accentId)
+                        iconColor != null -> iconColor
+                        else -> accent
+                    }
                     TileView(
                         tile = model,
                         index = index,
@@ -1028,6 +1042,8 @@ private fun StartPage(
                         darkTheme = darkTheme,
                         canMoveBack = order.indexOf(model.id) > 0,
                         canMoveForward = order.indexOf(model.id) in 0 until order.size - 1,
+                        showColorDot = true,
+                        inlineFolderLaunch = columns == 4,
                         onTap = { if (!editMode) onTile(model) },
                         onLongPress = { if (!editMode) onEnterEdit(model.id) },
                         onLaunchFolderChild = onLaunchFolderChild,
@@ -1107,14 +1123,21 @@ private fun StartPage(
 
         // Per-tile accent picker (edit-mode colour dot → palette, FR-7).
         colorPickerFor?.let { pickId ->
-            val app = byId[pickId] as? TileModel.App
+            val model = byId[pickId]
+            val app = model as? TileModel.App
+            val current = when (model) {
+                is TileModel.App -> model.accentOverride
+                is TileModel.Folder -> model.accentOverride
+                else -> null
+            }
+            // Icon suggestion only for an app tile (a folder has no single icon).
             val suggestion = if (app != null && app.packageName.isNotBlank()) {
                 rememberIconSuggestion(app.packageName, app.activityName)
             } else {
                 null
             }
             TileColorPicker(
-                current = app?.accentOverride,
+                current = current,
                 suggestedNearestId = suggestion?.nearestId,
                 suggestedExact = suggestion?.exact,
                 onPick = { colorId -> onSetTileColor(pickId, colorId); colorPickerFor = null },
@@ -1177,7 +1200,7 @@ private fun BoxScope.TileColorPicker(
                 .clickable { onPick(null) }
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
-            Text("follow global accent", color = Color.White, fontSize = 13.sp)
+            Text("use default colour", color = Color.White, fontSize = 13.sp)
         }
         if (suggestedExact != null && exactHex != null) {
             Spacer(Modifier.height(10.dp))
@@ -1334,6 +1357,8 @@ private fun TileView(
     onExitEdit: () -> Unit,
     onMove: (direction: Int) -> Unit,
     onLaunchFolderChild: (FolderChild) -> Unit = {},
+    showColorDot: Boolean = false,
+    inlineFolderLaunch: Boolean = false,
 ) {
     // TalkBack reads the whole tile as one node: the app/folder name plus state,
     // with the launch/edit operations exposed as semantic actions (the visual
@@ -1374,7 +1399,7 @@ private fun TileView(
             }
             // The press-tilt effect (S7) is replaced by the jiggle while editing.
             .then(if (editMode) Modifier else Modifier.tiltOnPress())
-            // Optional rounded corners (personalisation setting 0–40 dp).
+            // Optional rounded corners (personalisation setting 0–20 dp).
             .then(
                 if (tileCornerRadius > 0f)
                     Modifier.clip(RoundedCornerShape(tileCornerRadius.dp))
@@ -1474,6 +1499,7 @@ private fun TileView(
             is TileModel.Folder -> FolderTileContent(
                 tile = tile,
                 editMode = editMode,
+                launchEnabled = inlineFolderLaunch,
                 onLaunchChild = onLaunchFolderChild,
                 onOpenFolder = onTap,
                 onEnterEdit = onLongPress,
@@ -1489,7 +1515,7 @@ private fun TileView(
                 modifier = Modifier.align(Alignment.TopEnd),
             )
         }
-        if (selected) TileControls(showColor = tile is TileModel.App, dotColor = accent)
+        if (selected) TileControls(showColor = showColorDot, dotColor = accent)
     }
 }
 
@@ -1680,6 +1706,7 @@ private fun FolderOverlay(
                 activityName = c.activityName,
                 label = c.label,
                 iconKey = c.iconKey,
+                accentOverride = c.accentOverride,
             ) as TileModel)
         }
     }
@@ -1854,6 +1881,9 @@ private fun FolderOverlay(
                             with(density) { sizePx.height.toDp() },
                         ),
                 ) {
+                    // The child keeps its own per-tile colour inside the folder.
+                    val childAccent = (model as? TileModel.App)?.accentOverride
+                        ?.let { TileAccents.colorForOverride(it, "blue") } ?: accent
                     TileView(
                         tile = model,
                         index = index,
@@ -1861,7 +1891,7 @@ private fun FolderOverlay(
                         selected = editMode && spec.id == selectedId,
                         dragging = dragging,
                         mergeTarget = false,
-                        accent = accent,
+                        accent = childAccent,
                         glassFill = null,
                         glassLine = Color.Transparent,
                         tiledWallpaper = false,
@@ -2136,8 +2166,7 @@ private fun Modifier.editDragGesture(
             val zone = 30.dp.toPx()
             val inUnpin = down.position.x <= r.left + zone && down.position.y <= r.top + zone
             val inResize = down.position.x >= r.right - zone && down.position.y >= r.bottom - zone
-            val isApp = byId[selPlacement.id] is TileModel.App
-            val inColor = isApp &&
+            val inColor =
                 down.position.x <= r.left + zone && down.position.y >= r.bottom - zone
             if (inUnpin || inResize || inColor) {
                 var movedCtl = false
@@ -2478,6 +2507,13 @@ private data class IconSuggestion(val exact: Color, val nearestId: String)
  * beats white/grey chrome) and the nearest of the 14 accents. Null while the
  * icon is loading or it is effectively colourless.
  */
+/** The dominant colour of an app's launcher icon, for app-icon-colour mode (FR-7). */
+@Composable
+private fun rememberDominantIconColor(packageName: String, activityName: String): Color? {
+    val icon = rememberTileAppIcon(packageName, activityName)
+    return remember(icon) { icon?.let { dominantIconColor(it) } }
+}
+
 @Composable
 private fun rememberIconSuggestion(packageName: String, activityName: String): IconSuggestion? {
     val icon = rememberTileAppIcon(packageName, activityName)
@@ -2545,38 +2581,50 @@ private fun FolderChildIcon(child: FolderChild?) {
 private fun FolderTileContent(
     tile: TileModel.Folder,
     editMode: Boolean,
+    launchEnabled: Boolean,
     onLaunchChild: (FolderChild) -> Unit,
     onOpenFolder: () -> Unit,
     onEnterEdit: () -> Unit,
 ) {
-    // Inline iOS-style folder face: a 2×2 mini-grid where each app icon is
-    // tappable to launch (out of edit mode); with more than four apps the last
-    // cell becomes a "+N" that opens the full folder overlay. In edit mode the
-    // cells are inert so the grid-level drag owns the whole tile. A long-press
-    // on any cell enters edit (mirrors the tile-level long-press for the gaps).
+    // Inline iOS-style folder face: a mini-grid of the child app icons. A wide
+    // folder shows a 4×2 grid (more apps); medium/small show 2×2. When
+    // [launchEnabled] (only on the roomy 4-column grid) each icon is tappable to
+    // launch out of edit mode, and an overflow cell becomes "+N" that opens the
+    // overlay; on denser 5/6-column grids the cells are too small to tap, so they
+    // are display-only and the whole tile opens the overlay on tap. In edit mode
+    // the cells are always inert so the grid-level drag owns the tile.
     val children = tile.children
-    val overflow = children.size > 4
+    val cols = if (tile.size == TileSize.WIDE) 4 else 2
+    val rows = 2
+    val maxCells = cols * rows
+    val overflow = children.size > maxCells
+    val lastIndex = maxCells - 1
     Column(modifier = Modifier.fillMaxSize().padding(9.dp)) {
         Column(modifier = Modifier.fillMaxWidth().weight(1f)) {
-            for (rowIndex in 0 until 2) {
+            for (rowIndex in 0 until rows) {
                 Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                    for (colIndex in 0 until 2) {
-                        val cellIndex = rowIndex * 2 + colIndex
-                        val isPlus = overflow && cellIndex == 3
+                    for (colIndex in 0 until cols) {
+                        val cellIndex = rowIndex * cols + colIndex
+                        val isPlus = overflow && cellIndex == lastIndex
                         val child = if (isPlus) null else children.getOrNull(cellIndex)
                         val tap: (() -> Unit)? = when {
-                            editMode -> null
+                            editMode || !launchEnabled -> null
                             isPlus -> onOpenFolder
                             child != null -> ({ onLaunchChild(child) })
                             else -> null
                         }
+                        // A child that carried a per-tile colour into the folder
+                        // tints its own cell; others keep the neutral dark cell.
+                        val cellBg = child?.accentOverride
+                            ?.let { TileAccents.colorForOverride(it, "blue") }
+                            ?: Color(0x2E000000)
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxSize()
                                 .padding(2.dp)
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0x2E000000))
+                                .background(cellBg)
                                 .then(
                                     if (tap != null) {
                                         Modifier.combinedClickable(
@@ -2591,7 +2639,7 @@ private fun FolderTileContent(
                         ) {
                             if (isPlus) {
                                 Text(
-                                    text = "+${children.size - 3}",
+                                    text = "+${children.size - lastIndex}",
                                     color = Color.White,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Medium,

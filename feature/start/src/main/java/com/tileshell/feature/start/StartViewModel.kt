@@ -358,6 +358,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setTileGap(gap) }
     }
 
+    /** Switch the default tile colour source (global accent vs app-icon colour). */
+    fun setTileColorSource(source: com.tileshell.core.data.settings.TileColorSource) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setTileColorSource(source) }
+    }
+
     /** Switch tile fill between flat and gradient. */
     fun setTileFill(fill: com.tileshell.core.data.settings.TileFill) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setTileFill(fill) }

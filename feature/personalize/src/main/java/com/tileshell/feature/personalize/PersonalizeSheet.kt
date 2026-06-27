@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.settings.FontStyle
+import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
@@ -105,6 +106,8 @@ fun PersonalizeSheet(
     onCornerRadiusChange: (Float) -> Unit,
     tileGap: Float,
     onTileGapChange: (Float) -> Unit,
+    tileColorSource: TileColorSource,
+    onTileColorSourceChange: (TileColorSource) -> Unit,
     tileFill: TileFill,
     onTileFillChange: (TileFill) -> Unit,
     fontStyle: FontStyle,
@@ -246,8 +249,20 @@ fun PersonalizeSheet(
                 ToggleRow("wallpaper behind tiles", on = tiledWallpaper, accent = accent, tokens, onTiledWallpaperChange)
             }
 
-            // ---- tile style (corner radius + gradient fill) ----
+            // ---- tile style (colour source + corner radius + gradient fill) ----
             SettingGroup(label = "tile style", tokens.fgDim) {
+                ToggleRow(
+                    "tile colour from app icon",
+                    on = tileColorSource == TileColorSource.APP_ICON,
+                    accent = accent,
+                    tokens,
+                    onChange = { on ->
+                        onTileColorSourceChange(
+                            if (on) TileColorSource.APP_ICON else TileColorSource.GLOBAL_ACCENT,
+                        )
+                    },
+                )
+                Spacer(Modifier.height(14.dp))
                 ToggleRow(
                     "gradient fill",
                     on = tileFill == TileFill.GRADIENT,
@@ -268,7 +283,7 @@ fun PersonalizeSheet(
                     Slider(
                         value = cornerRadius,
                         onValueChange = onCornerRadiusChange,
-                        valueRange = 0f..40f,
+                        valueRange = 0f..20f,
                         colors = SliderDefaults.colors(
                             thumbColor = accent,
                             activeTrackColor = accent,
@@ -283,10 +298,10 @@ fun PersonalizeSheet(
                             .background(accent),
                     )
                 }
-                // Tile spacing — only while tiles are fully rounded and the
-                // wallpaper-behind-tiles mode is off, so wider gaps (a spaced
-                // rounded-card look) never fragment the show-through wallpaper.
-                if (cornerRadius >= 40f && !tiledWallpaper) {
+                // Tile spacing — available at any corner radius (square or
+                // rounded), but hidden while wallpaper-behind-tiles is on, so wider
+                // gaps never fragment the show-through wallpaper.
+                if (!tiledWallpaper) {
                     Spacer(Modifier.height(14.dp))
                     Text("tile spacing", color = tokens.fgDim, fontSize = 13.sp)
                     Spacer(Modifier.height(6.dp))

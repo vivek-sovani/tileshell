@@ -20,7 +20,9 @@ private fun FolderChild.clampForFolder(): FolderChild =
 /** The apps a tile contributes to a merge: a folder's children, or itself. */
 private fun TileModel.apps(): List<FolderChild> = when (this) {
     is TileModel.Folder -> children
-    is TileModel.App -> listOf(FolderChild(packageName, activityName, label, iconKey, size))
+    is TileModel.App -> listOf(
+        FolderChild(packageName, activityName, label, iconKey, size, accentOverride = accentOverride),
+    )
 }
 
 /**

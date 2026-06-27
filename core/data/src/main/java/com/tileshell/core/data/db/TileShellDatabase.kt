@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         FolderChildEntity::class,
         AppCacheEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -54,8 +54,17 @@ abstract class TileShellDatabase : RoomDatabase() {
             }
         }
 
+        /** v4→v5: carry a per-tile accent override on folder children too, so an
+         *  app's colour survives being merged into (and pulled out of) a folder. */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE folder_children ADD COLUMN accentOverride TEXT")
+            }
+        }
+
         /** Versioned migrations, added as the schema evolves. */
-        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        val MIGRATIONS: Array<Migration> =
+            arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
 
         @Volatile
         private var instance: TileShellDatabase? = null

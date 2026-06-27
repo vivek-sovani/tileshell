@@ -137,14 +137,19 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(followSystemTheme = follow) }
     }
 
-    /** Set the tile corner radius (0–40 dp). */
+    /** Set the tile corner radius (0–20 dp; matches the feed widget cards). */
     suspend fun setCornerRadius(radius: Float) {
-        store.updateData { it.copy(cornerRadius = radius.coerceIn(0f, 40f)) }
+        store.updateData { it.copy(cornerRadius = radius.coerceIn(0f, 20f)) }
     }
 
     /** Set the inter-tile gap (0–16 dp). */
     suspend fun setTileGap(gap: Float) {
         store.updateData { it.copy(tileGap = gap.coerceIn(0f, 16f)) }
+    }
+
+    /** Switch the default tile colour source (global accent vs app-icon colour). */
+    suspend fun setTileColorSource(source: TileColorSource) {
+        store.updateData { it.copy(tileColorSource = source) }
     }
 
     /** Switch tile fill between flat solid and diagonal gradient. */

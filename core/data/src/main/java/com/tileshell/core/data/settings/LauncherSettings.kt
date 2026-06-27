@@ -6,6 +6,14 @@ enum class TileFill { FLAT, GRADIENT }
 enum class FontStyle { SYSTEM, OUTFIT, NUNITO }
 
 /**
+ * Default colour for a tile that has no explicit per-tile override (FR-7):
+ * [GLOBAL_ACCENT] paints every tile the single global accent; [APP_ICON] tints
+ * each app tile with the dominant colour of its launcher icon (a freshly pinned
+ * app then shows in its own brand colour). A per-tile override still wins.
+ */
+enum class TileColorSource { GLOBAL_ACCENT, APP_ICON }
+
+/**
  * Persisted personalization (FR-7). Kept deliberately flat and framework-free so
  * it can be serialized by [SettingsCodec] and unit-tested without Android.
  *
@@ -61,6 +69,7 @@ data class LauncherSettings(
      * while tiles are fully rounded. Clamped 0..16 on decode.
      */
     val tileGap: Float = 3f,
+    val tileColorSource: TileColorSource = TileColorSource.GLOBAL_ACCENT,
     val tileFill: TileFill = TileFill.FLAT,
     val fontStyle: FontStyle = FontStyle.OUTFIT,
     /**
@@ -104,6 +113,7 @@ object SettingsCodec {
         append("wallAlignY=").append(settings.wallpaperAlignY).append('\n')
         append("cornerRadius=").append(settings.cornerRadius).append('\n')
         append("tileGap=").append(settings.tileGap).append('\n')
+        append("tileColorSource=").append(settings.tileColorSource.name).append('\n')
         append("tileFill=").append(settings.tileFill.name).append('\n')
         append("fontStyle=").append(settings.fontStyle.name).append('\n')
         append("columns=").append(settings.columns)
@@ -126,6 +136,7 @@ object SettingsCodec {
         var wallpaperAlignY = d.wallpaperAlignY
         var cornerRadius = d.cornerRadius
         var tileGap = d.tileGap
+        var tileColorSource = d.tileColorSource
         var tileFill = d.tileFill
         var fontStyle = d.fontStyle
         var columns = d.columns
@@ -148,8 +159,10 @@ object SettingsCodec {
                 "feedEnabled" -> feedEnabled = value.toBooleanStrictOrNull() ?: feedEnabled
                 "wallAlignX" -> value.toFloatOrNull()?.let { wallpaperAlignX = it.coerceIn(0f, 1f) }
                 "wallAlignY" -> value.toFloatOrNull()?.let { wallpaperAlignY = it.coerceIn(0f, 1f) }
-                "cornerRadius" -> value.toFloatOrNull()?.let { cornerRadius = it.coerceIn(0f, 40f) }
+                "cornerRadius" -> value.toFloatOrNull()?.let { cornerRadius = it.coerceIn(0f, 20f) }
                 "tileGap" -> value.toFloatOrNull()?.let { tileGap = it.coerceIn(0f, 16f) }
+                "tileColorSource" ->
+                    TileColorSource.entries.find { it.name == value }?.let { tileColorSource = it }
                 "tileFill" -> TileFill.entries.find { it.name == value }?.let { tileFill = it }
                 "fontStyle" -> FontStyle.entries.find { it.name == value }?.let { fontStyle = it }
                 "columns" -> value.toIntOrNull()?.let {
@@ -173,6 +186,7 @@ object SettingsCodec {
             wallpaperAlignY = wallpaperAlignY,
             cornerRadius = cornerRadius,
             tileGap = tileGap,
+            tileColorSource = tileColorSource,
             tileFill = tileFill,
             fontStyle = fontStyle,
             columns = columns,
