@@ -1047,7 +1047,11 @@ private fun StartPage(
                         canMoveBack = order.indexOf(model.id) > 0,
                         canMoveForward = order.indexOf(model.id) in 0 until order.size - 1,
                         showColorDot = true,
-                        inlineFolderLaunch = columns == 4,
+                        // Inline tap-to-launch: always for medium/wide folders
+                        // (cells stay tappable); for a small folder only on the
+                        // roomy 4-column grid (too tiny on 5/6 columns).
+                        inlineFolderLaunch = model.size != TileSize.SMALL || columns == 4,
+                        appIconColors = appIconColors,
                         onTap = { if (!editMode) onTile(model) },
                         onLongPress = { if (!editMode) onEnterEdit(model.id) },
                         onLaunchFolderChild = onLaunchFolderChild,
@@ -1363,6 +1367,7 @@ private fun TileView(
     onLaunchFolderChild: (FolderChild) -> Unit = {},
     showColorDot: Boolean = false,
     inlineFolderLaunch: Boolean = false,
+    appIconColors: Boolean = false,
 ) {
     // TalkBack reads the whole tile as one node: the app/folder name plus state,
     // with the launch/edit operations exposed as semantic actions (the visual
@@ -1504,6 +1509,7 @@ private fun TileView(
                 tile = tile,
                 editMode = editMode,
                 launchEnabled = inlineFolderLaunch,
+                appIconColors = appIconColors,
                 onLaunchChild = onLaunchFolderChild,
                 onOpenFolder = onTap,
                 onEnterEdit = onLongPress,
@@ -2586,6 +2592,7 @@ private fun FolderTileContent(
     tile: TileModel.Folder,
     editMode: Boolean,
     launchEnabled: Boolean,
+    appIconColors: Boolean,
     onLaunchChild: (FolderChild) -> Unit,
     onOpenFolder: () -> Unit,
     onEnterEdit: () -> Unit,
@@ -2617,10 +2624,13 @@ private fun FolderTileContent(
                             child != null -> ({ onLaunchChild(child) })
                             else -> null
                         }
-                        // A child that carried a per-tile colour into the folder
-                        // tints its own cell; others keep the neutral dark cell.
+                        // The child keeps its own colour inside the folder: an
+                        // explicit override wins; otherwise, in app-icon-colour
+                        // mode the icon's dominant colour shows; else neutral dark.
                         val cellBg = child?.accentOverride
                             ?.let { TileAccents.colorForOverride(it, "blue") }
+                            ?: child?.takeIf { appIconColors }
+                                ?.let { rememberDominantIconColor(it.packageName, it.activityName) }
                             ?: Color(0x2E000000)
                         Box(
                             modifier = Modifier
