@@ -43,6 +43,10 @@ interface LayoutDao {
     @Query("UPDATE tiles SET size = :size WHERE id = :id")
     suspend fun updateTileSize(id: String, size: String)
 
+    /** Set/clear a tile's per-tile accent override (null = follow global, FR-7). */
+    @Query("UPDATE tiles SET accentOverride = :accentOverride WHERE id = :id")
+    suspend fun updateTileAccent(id: String, accentOverride: String?)
+
     /**
      * Remove a top-level tile (FR-3.5 unpin). A folder tile shares its id with
      * its `folders` row, so deleting that row too drops the folder meta and

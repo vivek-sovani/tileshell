@@ -467,6 +467,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) { repository.cycleTileSize(id) }
     }
 
+    /** Set or clear a tile's per-tile accent override (null = follow global, FR-7). */
+    fun setTileColor(id: String, colorId: String?) {
+        viewModelScope.launch(writeContext) { repository.setTileAccent(id, colorId) }
+    }
+
     /** Unpin (remove) a tile from the Start grid (FR-3.5). */
     fun unpin(id: String) {
         viewModelScope.launch(writeContext) { repository.removeTile(id) }

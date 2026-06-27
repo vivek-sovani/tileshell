@@ -42,6 +42,10 @@ class LayoutRepository(
         dao.updateTileSize(id, current.next().name)
     }
 
+    /** Set or clear a tile's per-tile accent override (null = follow global, FR-7). */
+    suspend fun setTileAccent(id: String, accentOverride: String?) =
+        dao.updateTileAccent(id, accentOverride)
+
     /** Unpin a top-level tile, removing it (and any folder meta) (FR-3.5). */
     suspend fun removeTile(id: String) = dao.removeTile(id)
 
@@ -371,6 +375,7 @@ class LayoutRepository(
                 activityName = t.activityName.orEmpty(),
                 label = t.label,
                 iconKey = t.iconKey,
+                accentOverride = t.accentOverride,
             )
         }
     }

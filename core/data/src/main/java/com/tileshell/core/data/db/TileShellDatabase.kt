@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         FolderChildEntity::class,
         AppCacheEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -42,8 +42,20 @@ abstract class TileShellDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v3→v4: add the per-tile accent override column (FR-7). Nullable with no
+         * default, so every existing tile decodes to null = follow the global
+         * accent — preserving the prior uniform-accent look (no tile suddenly
+         * recolours on upgrade); only explicit user overrides set a palette id.
+         */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tiles ADD COLUMN accentOverride TEXT")
+            }
+        }
+
         /** Versioned migrations, added as the schema evolves. */
-        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
 
         @Volatile
         private var instance: TileShellDatabase? = null

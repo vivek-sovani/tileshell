@@ -30,6 +30,8 @@ sealed interface TileModel {
         val activityName: String,
         val label: String?,
         val iconKey: String? = null,
+        /** Per-tile accent override (FR-7); null = follow the global accent. */
+        val accentOverride: String? = null,
     ) : TileModel
 
     data class Folder(

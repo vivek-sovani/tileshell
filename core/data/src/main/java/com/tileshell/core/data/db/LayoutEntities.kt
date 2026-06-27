@@ -21,6 +21,10 @@ data class TileEntity(
     val position: Int,
     val size: TileSize,
     val colorId: String,
+    // Per-tile accent override (FR-7): a palette id that wins over the global
+    // accent, or null to follow it. Added in schema v4; existing rows decode to
+    // null (= follow global), preserving the prior uniform-accent look.
+    val accentOverride: String? = null,
     val type: String,
     val packageName: String? = null,
     val activityName: String? = null,

@@ -35,6 +35,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -120,6 +121,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tileshell.core.data.AppLauncher
 import com.tileshell.core.data.FolderChild
+import com.tileshell.core.data.TileColors
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.TileSize
 import com.tileshell.feature.applist.AppListScreen
@@ -465,6 +467,7 @@ fun StartScreen(
                     liveSuspended = liveSuspended,
                     selectedTileId = selectedTileId,
                     accent = accent,
+                    accentId = settings.accentId,
                     glassFill = glassFill,
                     glassLine = tokens.glassLine,
                     tiledWallpaper = tiledWallpaper,
@@ -501,6 +504,7 @@ fun StartScreen(
                     },
                     onResize = viewModel::resize,
                     onUnpin = viewModel::unpin,
+                    onSetTileColor = viewModel::setTileColor,
                     onAdd = {
                         viewModel.exitEdit()
                         settleTo(1f)
@@ -769,6 +773,7 @@ private fun StartPage(
     liveSuspended: Boolean,
     selectedTileId: String?,
     accent: Color,
+    accentId: String,
     glassFill: Color?,
     glassLine: Color,
     tiledWallpaper: Boolean,
@@ -792,6 +797,7 @@ private fun StartPage(
     onMerge: (dragId: String, targetId: String, survivingOrder: List<String>) -> Unit,
     onResize: (String) -> Unit,
     onUnpin: (String) -> Unit,
+    onSetTileColor: (id: String, colorId: String?) -> Unit,
     onAdd: () -> Unit,
     onPersonalize: () -> Unit,
 ) {
@@ -808,6 +814,8 @@ private fun StartPage(
     val dragOffset = remember { mutableStateOf(IntOffset.Zero) }
     // Tile currently highlighted as a merge target (finger in its centre zone).
     var mergeTargetId by remember { mutableStateOf<String?>(null) }
+    // Tile whose accent-colour picker is open (edit-mode colour dot tapped), or null.
+    var colorPickerFor by remember { mutableStateOf<String?>(null) }
     // Reconcile the working order with the persisted layout: keep the existing
     // relative order of surviving ids, drop removed ones, append new ones in
     // persisted order. This preserves a just-dropped reorder (the async DB write
@@ -883,6 +891,7 @@ private fun StartPage(
                 selectedId = { selectedTileId },
                 onUnpin = { id -> order.remove(id); onUnpin(id) },
                 onResize = onResize,
+                onColor = { id -> colorPickerFor = id },
                 onLift = { id, offset -> draggingId = id; dragOffset.value = offset },
                 onDrag = { offset -> dragOffset.value = offset },
                 onReorderTo = { dragId, targetId ->
@@ -947,6 +956,13 @@ private fun StartPage(
                             with(density) { sizePx.height.toDp() },
                         ),
                 ) {
+                    // Per-tile accent (FR-7): an App tile with a saved override
+                    // uses it; everything else follows the global accent.
+                    val tileAccent = TileAccents.forId(
+                        TileColors.accentIdFor(
+                            (model as? TileModel.App)?.accentOverride, accentId,
+                        ),
+                    )
                     TileView(
                         tile = model,
                         index = index,
@@ -954,7 +970,7 @@ private fun StartPage(
                         selected = editMode && model.id == selectedTileId,
                         dragging = dragging,
                         mergeTarget = model.id == mergeTargetId,
-                        accent = accent,
+                        accent = tileAccent,
                         glassFill = glassFill,
                         glassLine = glassLine,
                         tiledWallpaper = tiledWallpaper,
@@ -1065,6 +1081,89 @@ private fun StartPage(
             onDone = onExitEdit,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
+
+        // Per-tile accent picker (edit-mode colour dot → palette, FR-7).
+        colorPickerFor?.let { pickId ->
+            TileColorPicker(
+                current = (byId[pickId] as? TileModel.App)?.accentOverride,
+                onPick = { colorId -> onSetTileColor(pickId, colorId); colorPickerFor = null },
+                onDismiss = { colorPickerFor = null },
+            )
+        }
+    }
+}
+
+/**
+ * Bottom-sheet accent picker for a single tile (FR-7): a "follow global" chip
+ * plus the 14 palette swatches over a tap-to-dismiss scrim. [current] is the
+ * tile's saved override (null = following the global accent), shown ringed.
+ */
+@Composable
+private fun BoxScope.TileColorPicker(
+    current: String?,
+    onPick: (String?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .matchParentSize()
+            .background(Color.Black.copy(alpha = 0.5f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onDismiss,
+            ),
+    )
+    Column(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .background(Color(0xFF1A1A1F))
+            .navigationBarsPadding()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {},
+            )
+            .padding(20.dp),
+    ) {
+        Text("tile colour", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.height(14.dp))
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(20.dp))
+                .border(
+                    1.dp,
+                    if (current == null) Color.White else Color.White.copy(alpha = 0.3f),
+                    RoundedCornerShape(20.dp),
+                )
+                .clickable { onPick(null) }
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        ) {
+            Text("follow global accent", color = Color.White, fontSize = 13.sp)
+        }
+        Spacer(Modifier.height(14.dp))
+        TileColors.IDS.chunked(7).forEach { rowIds ->
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.padding(bottom = 10.dp),
+            ) {
+                rowIds.forEach { id ->
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(TileAccents.forId(id))
+                            .border(
+                                width = if (current == id) 2.dp else 0.dp,
+                                color = if (current == id) Color.White else Color.Transparent,
+                                shape = RoundedCornerShape(6.dp),
+                            )
+                            .clickable { onPick(id) },
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -1283,7 +1382,7 @@ private fun TileView(
                 modifier = Modifier.align(Alignment.TopEnd),
             )
         }
-        if (selected) TileControls()
+        if (selected) TileControls(showColor = tile is TileModel.App, dotColor = accent)
     }
 }
 
@@ -1324,12 +1423,13 @@ private fun NotificationBadge(
 
 /**
  * Corner controls shown on the selected tile in edit mode (prototype
- * `.tile-controls`): unpin (close) top-left, resize bottom-right. These are the
- * visual affordance; the taps are handled by the grid's [editDragGesture] via
- * the matching corner hot-zones (FR-3.4/3.5).
+ * `.tile-controls`): unpin (close) top-left, resize bottom-right, and — for an
+ * app tile ([showColor]) — a colour dot bottom-left tinted with the tile's
+ * current accent ([dotColor]). These are the visual affordance; the taps are
+ * handled by the grid's [editDragGesture] corner hot-zones (FR-3.4/3.5/7).
  */
 @Composable
-private fun BoxScope.TileControls() {
+private fun BoxScope.TileControls(showColor: Boolean, dotColor: Color) {
     TileControl(
         iconKey = "close",
         description = "unpin",
@@ -1340,6 +1440,20 @@ private fun BoxScope.TileControls() {
         description = "resize",
         modifier = Modifier.align(Alignment.BottomEnd),
     )
+    if (showColor) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(6.dp)
+                .size(22.dp)
+                .clip(CircleShape)
+                .background(Color.White)
+                .padding(3.dp)
+                .clip(CircleShape)
+                .background(dotColor),
+            contentAlignment = Alignment.Center,
+        ) {}
+    }
 }
 
 @Composable
@@ -1855,6 +1969,7 @@ private fun Modifier.editDragGesture(
     selectedId: () -> String?,
     onUnpin: (String) -> Unit,
     onResize: (String) -> Unit,
+    onColor: (String) -> Unit = {},
     onLift: (id: String, offset: IntOffset) -> Unit,
     onDrag: (offset: IntOffset) -> Unit,
     onReorderTo: (dragId: String, targetId: String) -> Unit,
@@ -1901,10 +2016,11 @@ private fun Modifier.editDragGesture(
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
 
-        // Corner controls on the selected tile (FR-3.4/3.5): a tap in the
-        // top-left zone unpins, bottom-right resizes. Handled here (not as
-        // child buttons) so the grid owns all edit interaction; the events are
-        // consumed so the empty-space-exit never also fires.
+        // Corner controls on the selected tile (FR-3.4/3.5/7): a tap in the
+        // top-left zone unpins, bottom-right resizes, bottom-left recolours
+        // (app tiles only). Handled here (not as child buttons) so the grid owns
+        // all edit interaction; the events are consumed so empty-space-exit
+        // never also fires.
         val sel = selectedId()
         val selPlacement = sel?.let { id -> placementsNow().firstOrNull { it.id == id } }
         if (selPlacement != null) {
@@ -1912,7 +2028,10 @@ private fun Modifier.editDragGesture(
             val zone = 30.dp.toPx()
             val inUnpin = down.position.x <= r.left + zone && down.position.y <= r.top + zone
             val inResize = down.position.x >= r.right - zone && down.position.y >= r.bottom - zone
-            if (inUnpin || inResize) {
+            val isApp = byId[selPlacement.id] is TileModel.App
+            val inColor = isApp &&
+                down.position.x <= r.left + zone && down.position.y >= r.bottom - zone
+            if (inUnpin || inResize || inColor) {
                 var movedCtl = false
                 while (true) {
                     val event = awaitPointerEvent()
@@ -1920,7 +2039,11 @@ private fun Modifier.editDragGesture(
                     change.consume()
                     if ((change.position - down.position).getDistance() > slop) movedCtl = true
                     if (!change.pressed) {
-                        if (!movedCtl) if (inUnpin) onUnpin(selPlacement.id) else onResize(selPlacement.id)
+                        if (!movedCtl) when {
+                            inUnpin -> onUnpin(selPlacement.id)
+                            inColor -> onColor(selPlacement.id)
+                            else -> onResize(selPlacement.id)
+                        }
                         break
                     }
                 }

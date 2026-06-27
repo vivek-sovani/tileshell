@@ -25,4 +25,13 @@ object TileColors {
         for (c in packageName) hash = (hash * 31 + c.code) and 0x7fffffff
         return IDS[hash % IDS.size]
     }
+
+    /**
+     * The accent id a Start tile should actually render: its per-tile
+     * [override] when that is a valid palette id, otherwise the single global
+     * [globalAccentId]. `null`/blank/unknown override → follow global. Pure so
+     * the resolve rule is unit-testable without Android (per-tile accent, FR-7).
+     */
+    fun accentIdFor(override: String?, globalAccentId: String): String =
+        override?.takeIf { it in IDS } ?: globalAccentId
 }
