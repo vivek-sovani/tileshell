@@ -628,6 +628,10 @@ fun StartScreen(
                 viewModel.resetLayout()
                 Toast.makeText(context, "layout reset", Toast.LENGTH_SHORT).show()
             },
+            onResetTileStyle = {
+                viewModel.resetTileStyle()
+                Toast.makeText(context, "tile style reset", Toast.LENGTH_SHORT).show()
+            },
             photosSelected = photosCount,
             onPickPhotos = {
                 photosPicker.launch(

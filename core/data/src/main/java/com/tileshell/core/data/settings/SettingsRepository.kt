@@ -152,6 +152,25 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(tileColorSource = source) }
     }
 
+    /**
+     * Reset the tile-style controls (corner radius, spacing, grid columns, fill,
+     * colour source, font) to their defaults, so a user who over-personalised can
+     * recover. Theme, accent, glass and wallpaper are deliberate choices and kept.
+     */
+    suspend fun resetTileStyle() {
+        val d = LauncherSettings()
+        store.updateData {
+            it.copy(
+                cornerRadius = d.cornerRadius,
+                tileGap = d.tileGap,
+                columns = d.columns,
+                tileFill = d.tileFill,
+                tileColorSource = d.tileColorSource,
+                fontStyle = d.fontStyle,
+            )
+        }
+    }
+
     /** Switch tile fill between flat solid and diagonal gradient. */
     suspend fun setTileFill(fill: TileFill) {
         store.updateData { it.copy(tileFill = fill) }

@@ -363,6 +363,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setTileColorSource(source) }
     }
 
+    /** Reset the tile-style controls (corners, spacing, columns, fill, colour, font). */
+    fun resetTileStyle() {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.resetTileStyle() }
+    }
+
     /** Switch tile fill between flat and gradient. */
     fun setTileFill(fill: com.tileshell.core.data.settings.TileFill) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setTileFill(fill) }

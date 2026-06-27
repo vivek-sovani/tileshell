@@ -95,6 +95,7 @@ fun PersonalizeSheet(
     onPickCustomWallpaper: () -> Unit,
     onClearWallpaper: () -> Unit,
     onResetLayout: () -> Unit,
+    onResetTileStyle: () -> Unit,
     photosSelected: Int,
     onPickPhotos: () -> Unit,
     notificationsEnabled: Boolean,
@@ -518,6 +519,23 @@ fun PersonalizeSheet(
                 ) {
                     Text(text = "reset start layout", color = tokens.fg, fontSize = 14.sp)
                     Spacer(Modifier.weight(1f))
+                    Text(text = "↺", color = tokens.fgDim, fontSize = 16.sp)
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onResetTileStyle)
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(text = "reset tile style", color = tokens.fg, fontSize = 14.sp)
+                        Text(
+                            text = "corners, spacing, columns, fill, colour & font",
+                            color = tokens.fgDim,
+                            fontSize = 12.sp,
+                        )
+                    }
                     Text(text = "↺", color = tokens.fgDim, fontSize = 16.sp)
                 }
             }
