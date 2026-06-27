@@ -720,6 +720,7 @@ fun StartScreen(
         FolderOverlay(
             folder = openFolder,
             accent = accent,
+            appIconColors = settings.tileColorSource == TileColorSource.APP_ICON,
             onClose = viewModel::closeFolder,
             onLaunchChild = { child ->
                 if (!AppLauncher.launch(context, child.packageName, child.activityName)) {
@@ -1670,6 +1671,7 @@ private fun EditBar(
 private fun FolderOverlay(
     folder: TileModel.Folder?,
     accent: Color,
+    appIconColors: Boolean,
     onClose: () -> Unit,
     onLaunchChild: (FolderChild) -> Unit,
     onRename: (String) -> Unit,
@@ -1891,9 +1893,15 @@ private fun FolderOverlay(
                             with(density) { sizePx.height.toDp() },
                         ),
                 ) {
-                    // The child keeps its own per-tile colour inside the folder.
-                    val childAccent = (model as? TileModel.App)?.accentOverride
-                        ?.let { TileAccents.colorForOverride(it, "blue") } ?: accent
+                    // The child keeps its own colour inside the open folder: an
+                    // explicit override wins, else its icon colour in app-icon mode,
+                    // else the global accent.
+                    val childApp = model as? TileModel.App
+                    val childAccent = childApp?.accentOverride
+                        ?.let { TileAccents.colorForOverride(it, "blue") }
+                        ?: childApp?.takeIf { appIconColors && it.packageName.isNotBlank() }
+                            ?.let { rememberDominantIconColor(it.packageName, it.activityName) }
+                        ?: accent
                     TileView(
                         tile = model,
                         index = index,
