@@ -183,6 +183,8 @@ fun AboutSheet(
                 items = listOf(
                     "swipe right from start to open the feed",
                     "glance tab: live clock, weather, calendar events, now-playing",
+                    "tap the calendar card to open your calendar app",
+                    "tap the now-playing card to open the music app",
                     "news tab: articles from 10+ india news sources",
                     "add and manage your own custom RSS / Atom feeds",
                     "8 categories: nation, tech, sports, cricket, business and more",
@@ -223,8 +225,11 @@ fun AboutSheet(
                 tokens = tokens,
                 items = listOf(
                     "14 accent colours to choose from",
+                    "per-tile colour — give any tile its own colour in edit mode",
+                    "tile colour from app icon — auto-picks the dominant colour",
                     "dark, light, or follow-system theme",
                     "glass (transparent) tiles with adjustable transparency",
+                    "adjustable tile spacing — drag a slider to pack or spread tiles",
                     "6 built-in gradient wallpapers + custom photo",
                     "daily bing wallpaper, with a viewer for recent days",
                     "wallpaper visible through tiles (show-through mode)",
