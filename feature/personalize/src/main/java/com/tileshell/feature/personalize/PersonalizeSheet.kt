@@ -124,6 +124,9 @@ fun PersonalizeSheet(
     onAbout: () -> Unit,
     onFolders: () -> Unit,
     onDismiss: () -> Unit,
+    // In landscape the launcher splits into a feed (left) + Start (right) panel;
+    // the sheet then docks to the right half over Start instead of full width.
+    rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     // Slide/fade progress (prototype .sheet transition: .3s cubic-bezier).
@@ -152,8 +155,8 @@ fun PersonalizeSheet(
 
         Column(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
+                .align(if (rightHalf) Alignment.BottomEnd else Alignment.BottomCenter)
+                .fillMaxWidth(if (rightHalf) 0.5f else 1f)
                 .fillMaxHeight(0.86f)
                 .graphicsLayer { translationY = size.height * (1f - progress) }
                 .background(tokens.sheet)

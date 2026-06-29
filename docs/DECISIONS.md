@@ -1399,3 +1399,11 @@ in landscape, drop the feed↔Start swipe and show both as side-by-side panels.
 - Caveat: tiled-wallpaper "window" mapping uses the panel width as the full screen, so in
   that mode the show-through wallpaper shows its left portion in the right panel — cosmetic,
   only affects tiled-wallpaper users in landscape.
+
+### Landscape follow-up: personalize sheet docks right-half
+
+`PersonalizeSheet` gains a `rightHalf: Boolean = false` param. When true (passed
+`isLandscape` from `StartScreen`) the sheet `Column` aligns `BottomEnd` at
+`fillMaxWidth(0.5f)` instead of `BottomCenter`/full width, so it docks over the
+Start (right) panel rather than spanning both panels. The scrim still covers the
+full screen (tap anywhere dismisses).
