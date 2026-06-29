@@ -62,6 +62,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -592,6 +593,10 @@ fun StartScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
+                                // Keep the parallaxing Start panel and the sliding app
+                                // list inside the right half — without this the Start
+                                // tiles bleed left over the feed panel as they shift.
+                                .clipToBounds()
                                 .then(pagerModifier(panelWidthPx, 0f)),
                         ) {
                             Box(

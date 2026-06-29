@@ -1437,3 +1437,15 @@ wired to `isLandscape` at the `StartScreen` call site. Feed-spawned sheets
   `WallpaperCropOverlay` (`CategoryFolderSheet` already had one). A sub-sheet opened over
   personalize registers its handler later, so back peels them off one level at a time
   (sub-sheet → personalize → home).
+
+### Landscape follow-up: clip right panel + fit the jump grid
+
+- **Right-panel overflow.** As the Start panel parallaxes left (−22%) and the app list
+  slides, the Start tiles drew past the panel's left edge onto the feed panel. Added
+  `clipToBounds()` to the right-panel container Box so both layers stay inside the half.
+- **Jump grid (A–Z board) collapsed to dots.** The board used `aspectRatio(1f)` square
+  cells in a non-scrolling Column; in the short, half-width landscape panel 7 rows of
+  square cells overflowed the height and the middle rows rendered as unreadable
+  slivers/dots. Rewrote `JumpGrid` with `BoxWithConstraints`: cell = `min(fitWidth,
+  fitHeight)`, font size + padding scale with the cell, grid centred. Portrait is
+  unchanged (width is the limiting axis there, same ~83dp cells / 26sp).

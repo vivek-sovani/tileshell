@@ -17,10 +17,10 @@ import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -351,42 +351,52 @@ private fun JumpGrid(
     onPick: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    Column(
+    val cols = 4
+    val rows = (JUMP_LETTERS.size + cols - 1) / cols
+    val gap = 8.dp
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(LocalColorTokens.current.bg)
             .statusBarsPadding()
             .navigationBarsPadding()
             .padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        JUMP_LETTERS.chunked(4).forEach { rowLetters ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                rowLetters.forEach { letter ->
-                    val key = letter.uppercase() // "#" stays "#"
-                    val has = key in present
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .aspectRatio(1f)
-                            .background(if (has) accent else Color.Transparent)
-                            .clickable { if (has) onPick(key) else onDismiss() }
-                            .padding(8.dp),
-                        contentAlignment = Alignment.BottomStart,
-                    ) {
-                        Text(
-                            text = letter,
-                            color = if (has) Color.White else LocalColorTokens.current.fgDim.copy(alpha = 0.3f),
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.ExtraLight,
-                        )
+        // Size each cell to fit BOTH the available width and height (then take the
+        // smaller), so the board stays square and on-screen even in the short,
+        // half-width landscape panel — square aspect-ratio cells used to overflow
+        // the height there and the middle rows collapsed to dots.
+        val cellW = (maxWidth - gap * (cols - 1)) / cols
+        val cellH = (maxHeight - gap * (rows - 1)) / rows
+        val cell = minOf(cellW, cellH).coerceAtLeast(0.dp)
+        val fontSize = (cell.value * 0.42f).coerceIn(12f, 26f).sp
+        val pad = (cell.value * 0.16f).coerceIn(3f, 8f).dp
+        Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+            JUMP_LETTERS.chunked(cols).forEach { rowLetters ->
+                Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                    rowLetters.forEach { letter ->
+                        val key = letter.uppercase() // "#" stays "#"
+                        val has = key in present
+                        Box(
+                            modifier = Modifier
+                                .size(cell)
+                                .background(if (has) accent else Color.Transparent)
+                                .clickable { if (has) onPick(key) else onDismiss() }
+                                .padding(pad),
+                            contentAlignment = Alignment.BottomStart,
+                        ) {
+                            Text(
+                                text = letter,
+                                color = if (has) Color.White else LocalColorTokens.current.fgDim.copy(alpha = 0.3f),
+                                fontSize = fontSize,
+                                fontWeight = FontWeight.ExtraLight,
+                            )
+                        }
                     }
+                    // Pad the final short row so cells keep their column width.
+                    repeat(cols - rowLetters.size) { Spacer(Modifier.size(cell)) }
                 }
-                // Pad the final short row so cells keep their column width.
-                repeat(4 - rowLetters.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
