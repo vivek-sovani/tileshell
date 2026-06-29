@@ -624,10 +624,6 @@ fun StartScreen(
                 )
             },
             onClearWallpaper = viewModel::clearWallpaper,
-            onResetLayout = {
-                viewModel.resetLayout()
-                Toast.makeText(context, "layout reset", Toast.LENGTH_SHORT).show()
-            },
             onResetTileStyle = {
                 viewModel.resetTileStyle()
                 Toast.makeText(context, "tile style reset", Toast.LENGTH_SHORT).show()
@@ -721,6 +717,7 @@ fun StartScreen(
             folder = openFolder,
             accent = accent,
             appIconColors = settings.tileColorSource == TileColorSource.APP_ICON,
+            tileGap = settings.tileGap,
             onClose = viewModel::closeFolder,
             onLaunchChild = { child ->
                 if (!AppLauncher.launch(context, child.packageName, child.activityName)) {
@@ -1672,6 +1669,7 @@ private fun FolderOverlay(
     folder: TileModel.Folder?,
     accent: Color,
     appIconColors: Boolean,
+    tileGap: Float = 3f,
     onClose: () -> Unit,
     onLaunchChild: (FolderChild) -> Unit,
     onRename: (String) -> Unit,
@@ -1681,6 +1679,7 @@ private fun FolderOverlay(
 ) {
     if (folder == null) return
     val density = LocalDensity.current
+    val tileGapPx = with(density) { tileGap.dp.toPx() }
     var renaming by remember(folder.id) { mutableStateOf(false) }
     var editMode by remember(folder.id) { mutableStateOf(false) }
     var selectedId by remember(folder.id) { mutableStateOf<String?>(null) }
@@ -1844,6 +1843,7 @@ private fun FolderOverlay(
             val editDrag = Modifier.editDragGesture(
                 editMode = editMode,
                 widthPx = widthPx,
+                gapPx = tileGapPx,
                 order = order,
                 byId = byId,
                 draggingId = { draggingId },
@@ -1875,6 +1875,7 @@ private fun FolderOverlay(
 
             DenseTileGrid(
                 tiles = displaySpecs,
+                gapPx = tileGapPx,
                 modifier = Modifier
                     .fillMaxWidth()
                     .onGloballyPositioned { gridTopRoot = it.positionInRoot().y + scrollState.value }

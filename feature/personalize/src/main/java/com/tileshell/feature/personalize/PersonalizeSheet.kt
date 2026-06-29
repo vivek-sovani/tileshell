@@ -94,7 +94,6 @@ fun PersonalizeSheet(
     onWallpaperChange: (id: String) -> Unit,
     onPickCustomWallpaper: () -> Unit,
     onClearWallpaper: () -> Unit,
-    onResetLayout: () -> Unit,
     onResetTileStyle: () -> Unit,
     photosSelected: Int,
     onPickPhotos: () -> Unit,
@@ -199,8 +198,6 @@ fun PersonalizeSheet(
                         tokens,
                         onFollowSystemThemeChange,
                     )
-                    // The manual dark/light control only applies when not following
-                    // the device setting; hidden while "follow system" is on.
                     if (!followSystemTheme) {
                         Spacer(Modifier.height(14.dp))
                         Row(
@@ -233,25 +230,74 @@ fun PersonalizeSheet(
                                     onClick = { onAccentChange(id) },
                                 )
                             }
-                            // Pad a short final row so swatches keep their column width.
                             repeat(7 - row.size) { Spacer(Modifier.weight(1f)) }
                         }
                     }
                 }
             }
 
-            // ---- transparent tiles / blur wallpaper ----
-            Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 18.dp)) {
-                ToggleRow("transparent tiles", on = glass, accent = accent, tokens, onGlassChange)
-                Spacer(Modifier.height(14.dp))
-                ToggleRow("blur wallpaper", on = blur, accent = accent, tokens, onBlurChange)
-                Spacer(Modifier.height(14.dp))
-                // Show-through mode: dark screen, wallpaper visible only behind tiles.
-                ToggleRow("wallpaper behind tiles", on = tiledWallpaper, accent = accent, tokens, onTiledWallpaperChange)
+            // ---- wallpaper ----
+            SettingGroup(label = "wallpaper", tokens.fgDim) {
+                ToggleRow("bing daily wallpaper", on = bingWallpaper, accent = accent, tokens, onBingWallpaperChange)
+                WallpaperNavRow("recent bing wallpapers", "browse ›", accent, tokens, onBingHistory)
+                if (customWallpaper) {
+                    WallpaperNavRow("adjust position", "reframe ›", accent, tokens, onAdjustWallpaper)
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PhotoButton(tokens = tokens, onClick = onPickCustomWallpaper, modifier = Modifier.weight(1f))
+                    Wallpapers.all.take(3).forEach { wp ->
+                        WallpaperCell(
+                            wallpaper = wp,
+                            selected = !customWallpaper && wp.id == wallpaperId,
+                            ring = tokens.fg,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onWallpaperChange(wp.id) },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Wallpapers.all.drop(3).forEach { wp ->
+                        WallpaperCell(
+                            wallpaper = wp,
+                            selected = !customWallpaper && wp.id == wallpaperId,
+                            ring = tokens.fg,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onWallpaperChange(wp.id) },
+                        )
+                    }
+                    NoneWallpaperCell(
+                        selected = !customWallpaper && wallpaperId == NONE_ID,
+                        tokens = tokens,
+                        modifier = Modifier.weight(1f),
+                        onClick = onClearWallpaper,
+                    )
+                }
             }
 
-            // ---- tile style (colour source + corner radius + gradient fill) ----
+            // ---- tile style ----
             SettingGroup(label = "tile style", tokens.fgDim) {
+                // Glass / blur / tiled-wallpaper
+                ToggleRow("transparent tiles", on = glass, accent = accent, tokens, onGlassChange)
+                Spacer(Modifier.height(14.dp))
+                Text("tile transparency", color = tokens.fgDim, fontSize = 13.sp)
+                Spacer(Modifier.height(4.dp))
+                Slider(
+                    value = transparency,
+                    onValueChange = onTransparencyChange,
+                    colors = SliderDefaults.colors(
+                        thumbColor = accent,
+                        activeTrackColor = accent,
+                        inactiveTrackColor = tokens.tileLine,
+                    ),
+                )
+                Spacer(Modifier.height(6.dp))
+                ToggleRow("blur wallpaper", on = blur, accent = accent, tokens, onBlurChange)
+                Spacer(Modifier.height(14.dp))
+                ToggleRow("wallpaper behind tiles", on = tiledWallpaper, accent = accent, tokens, onTiledWallpaperChange)
+                Spacer(Modifier.height(20.dp))
+                // Colour, fill & shape
                 ToggleRow(
                     "tile colour from app icon",
                     on = tileColorSource == TileColorSource.APP_ICON,
@@ -272,6 +318,8 @@ fun PersonalizeSheet(
                     onChange = { on -> onTileFillChange(if (on) TileFill.GRADIENT else TileFill.FLAT) },
                 )
                 Spacer(Modifier.height(14.dp))
+                Text("corner radius", color = tokens.fgDim, fontSize = 13.sp)
+                Spacer(Modifier.height(4.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -299,13 +347,12 @@ fun PersonalizeSheet(
                             .background(accent),
                     )
                 }
-                // Tile spacing — available at any corner radius (square or
-                // rounded), but hidden while wallpaper-behind-tiles is on, so wider
+                // Tile spacing — hidden when wallpaper-behind-tiles is on so wider
                 // gaps never fragment the show-through wallpaper.
                 if (!tiledWallpaper) {
                     Spacer(Modifier.height(14.dp))
                     Text("tile spacing", color = tokens.fgDim, fontSize = 13.sp)
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(4.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -330,6 +377,25 @@ fun PersonalizeSheet(
                             Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
                         }
                     }
+                }
+                Spacer(Modifier.height(20.dp))
+                // Reset
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onResetTileStyle)
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(text = "reset tile style", color = tokens.fg, fontSize = 14.sp)
+                        Text(
+                            text = "corners, spacing, columns, fill, colour & font",
+                            color = tokens.fgDim,
+                            fontSize = 12.sp,
+                        )
+                    }
+                    Text(text = "↺", color = tokens.fgDim, fontSize = 16.sp)
                 }
             }
 
@@ -367,7 +433,7 @@ fun PersonalizeSheet(
                 }
             }
 
-            // ---- grid columns (small-tile count per row: 4 / 5 / 6) ----
+            // ---- grid columns ----
             SettingGroup(label = "grid columns", tokens.fgDim) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
@@ -434,112 +500,6 @@ fun PersonalizeSheet(
                 }
             }
 
-            // ---- system ----
-            SettingGroup(label = "system", tokens.fgDim) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onSystemSettings)
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(text = "android settings", color = tokens.fg, fontSize = 14.sp)
-                    Spacer(Modifier.weight(1f))
-                    Text(text = "open ›", color = accent, fontSize = 13.sp)
-                }
-            }
-
-            // ---- tile transparency ----
-            SettingGroup(label = "tile transparency", tokens.fgDim) {
-                Slider(
-                    value = transparency,
-                    onValueChange = onTransparencyChange,
-                    colors = SliderDefaults.colors(
-                        thumbColor = accent,
-                        activeTrackColor = accent,
-                        inactiveTrackColor = tokens.tileLine,
-                    ),
-                )
-            }
-
-            // ---- wallpaper ----
-            SettingGroup(label = "wallpaper", tokens.fgDim) {
-                // Microsoft Bing image of the day — refreshed daily; overrides the
-                // gradient/photo selection below while on.
-                ToggleRow("bing daily wallpaper", on = bingWallpaper, accent = accent, tokens, onBingWallpaperChange)
-                // Browse the last several days of Bing images and pin one.
-                WallpaperNavRow("recent bing wallpapers", "browse ›", accent, tokens, onBingHistory)
-                // Reframe the active photo/Bing wallpaper (same drag-to-position UI as
-                // picking your own photo). Only meaningful when a photo is showing.
-                if (customWallpaper) {
-                    WallpaperNavRow("adjust position", "reframe ›", accent, tokens, onAdjustWallpaper)
-                }
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    PhotoButton(tokens = tokens, onClick = onPickCustomWallpaper, modifier = Modifier.weight(1f))
-                    Wallpapers.all.take(3).forEach { wp ->
-                        WallpaperCell(
-                            wallpaper = wp,
-                            selected = !customWallpaper && wp.id == wallpaperId,
-                            ring = tokens.fg,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onWallpaperChange(wp.id) },
-                        )
-                    }
-                }
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Wallpapers.all.drop(3).forEach { wp ->
-                        WallpaperCell(
-                            wallpaper = wp,
-                            selected = !customWallpaper && wp.id == wallpaperId,
-                            ring = tokens.fg,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onWallpaperChange(wp.id) },
-                        )
-                    }
-                    // "Remove wallpaper" cell fills the trailing slot in the bottom row.
-                    NoneWallpaperCell(
-                        selected = !customWallpaper && wallpaperId == NONE_ID,
-                        tokens = tokens,
-                        modifier = Modifier.weight(1f),
-                        onClick = onClearWallpaper,
-                    )
-                }
-            }
-
-            // ---- layout ----
-            SettingGroup(label = "layout", tokens.fgDim) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onResetLayout)
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(text = "reset start layout", color = tokens.fg, fontSize = 14.sp)
-                    Spacer(Modifier.weight(1f))
-                    Text(text = "↺", color = tokens.fgDim, fontSize = 16.sp)
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onResetTileStyle)
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(text = "reset tile style", color = tokens.fg, fontSize = 14.sp)
-                        Text(
-                            text = "corners, spacing, columns, fill, colour & font",
-                            color = tokens.fgDim,
-                            fontSize = 12.sp,
-                        )
-                    }
-                    Text(text = "↺", color = tokens.fgDim, fontSize = 16.sp)
-                }
-            }
-
             // ---- live photos (FR-2 photos tile) ----
             SettingGroup(label = "live photos", tokens.fgDim) {
                 Row(
@@ -570,6 +530,28 @@ fun PersonalizeSheet(
                         Spacer(Modifier.weight(1f))
                         Text(text = "✕", color = tokens.fgDim, fontSize = 13.sp)
                     }
+                }
+            }
+
+            // ---- folders (category folders) ----
+            SettingGroup(label = "folders", tokens.fgDim) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onFolders)
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "create category folders", color = tokens.fg, fontSize = 14.sp)
+                        Text(
+                            text = "group apps by what they do — communication, social, shopping…",
+                            color = tokens.fgDim,
+                            fontSize = 12.sp,
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(text = "›", color = accent, fontSize = 16.sp)
                 }
             }
 
@@ -620,10 +602,6 @@ fun PersonalizeSheet(
                         fontSize = 13.sp,
                     )
                 }
-                // Battery-exemption warning: shown when notification access is on but
-                // the app is NOT yet on the Doze whitelist. OEM battery killers
-                // (Xiaomi, Huawei, Samsung, etc.) kill the listener service even after
-                // the user grants access, so this guides them to fix it (S28).
                 if (notificationsEnabled && !batteryOptimizationExempt) {
                     Spacer(Modifier.height(10.dp))
                     Row(
@@ -655,25 +633,18 @@ fun PersonalizeSheet(
                 }
             }
 
-            // ---- folders (category folders) ----
-            SettingGroup(label = "folders", tokens.fgDim) {
+            // ---- system ----
+            SettingGroup(label = "system", tokens.fgDim) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable(onClick = onFolders)
+                        .clickable(onClick = onSystemSettings)
                         .padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "create category folders", color = tokens.fg, fontSize = 14.sp)
-                        Text(
-                            text = "group apps by what they do — communication, social, shopping…",
-                            color = tokens.fgDim,
-                            fontSize = 12.sp,
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text(text = "›", color = accent, fontSize = 16.sp)
+                    Text(text = "android settings", color = tokens.fg, fontSize = 14.sp)
+                    Spacer(Modifier.weight(1f))
+                    Text(text = "open ›", color = accent, fontSize = 13.sp)
                 }
             }
 
