@@ -16,6 +16,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -81,6 +82,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -2817,9 +2819,10 @@ private const val STACK_ROTATE_MS = 3000L
  * 3×3 carousel of full-size live tiles instead of a mini-grid of icons. The current
  * member's live face fills the tile (reusing [AppTileContent], so music now-playing,
  * notifications, etc. all work); the stack auto-rotates every [STACK_ROTATE_MS] while
- * live, with page dots at the bottom (tap a dot to jump). Tapping the body launches
- * the current member; long-press opens the manage overlay ([onOpenManage]). In edit
- * mode it attaches no gestures — the grid drag owns the tile (move / unpin).
+ * live. **Swipe up/down inside the tile to flip through members** (a thin scroll
+ * indicator on the right shows the position); tapping the body launches the current
+ * member; long-press opens the manage overlay ([onOpenManage]). In edit mode it
+ * attaches no gestures — the grid drag owns the tile (move / unpin).
  */
 @Composable
 private fun StackTileContent(
@@ -2830,79 +2833,139 @@ private fun StackTileContent(
     onOpenManage: () -> Unit,
 ) {
     val children = tile.children
-    var index by remember(tile.id, children.size) { mutableStateOf(0) }
-    val safeIndex = index.coerceIn(0, (children.size - 1).coerceAtLeast(0))
+    val count = children.size
+    val pageIndex = remember(tile.id, count) { mutableStateOf(0) }
+    val safeIndex = pageIndex.value.coerceIn(0, (count - 1).coerceAtLeast(0))
 
     // Auto-rotate while live; paused in edit mode, off-screen, or with one member.
-    LaunchedEffect(liveActive, editMode, children.size) {
-        if (!liveActive || editMode || children.size <= 1) return@LaunchedEffect
+    LaunchedEffect(liveActive, editMode, count) {
+        if (!liveActive || editMode || count <= 1) return@LaunchedEffect
         while (true) {
             delay(STACK_ROTATE_MS)
-            index = (index + 1) % children.size
+            pageIndex.value = (pageIndex.value + 1) % count
         }
     }
+
+    // Read the callbacks live inside the gesture without restarting it (the gesture
+    // is keyed only on `count`, so it survives the recompositions a page change
+    // triggers — otherwise a swipe would cancel itself mid-drag).
+    val launchCurrent = rememberUpdatedState {
+        children.getOrNull(pageIndex.value.coerceIn(0, (count - 1).coerceAtLeast(0)))
+            ?.let(onLaunchChild)
+    }
+    val openManage = rememberUpdatedState(onOpenManage)
 
     Box(
         modifier = Modifier
             .fillMaxSize()
+            // Tap launches the current member, long-press opens the manage overlay,
+            // and a vertical drag flips through members — claimed over the grid's
+            // vertical scroll by consuming the gesture once it goes vertical. In edit
+            // mode no gestures attach; the grid drag owns the tile.
             .then(
                 if (editMode) {
                     Modifier
                 } else {
-                    Modifier.tileGesture(
-                        onTap = { children.getOrNull(safeIndex)?.let(onLaunchChild) },
-                        onLongPress = onOpenManage,
-                    )
+                    Modifier.pointerInput(count) {
+                        val slop = viewConfiguration.touchSlop
+                        val stepPx = 44.dp.toPx()
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            // Phase 1 (within the long-press window): tap, long-press,
+                            // vertical drag, or ignore? 0 = tap, 1 = ignore, 2 = vdrag.
+                            val decision = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull { it.id == down.id }
+                                        ?: return@withTimeoutOrNull 0
+                                    if (change.isConsumed) return@withTimeoutOrNull 1
+                                    if (!change.pressed) return@withTimeoutOrNull 0
+                                    val dy = change.position.y - down.position.y
+                                    val dx = change.position.x - down.position.x
+                                    if (count > 1 && abs(dy) > slop && abs(dy) > abs(dx)) {
+                                        change.consume()
+                                        return@withTimeoutOrNull 2
+                                    }
+                                    if (abs(dx) > slop) return@withTimeoutOrNull 1
+                                }
+                                @Suppress("UNREACHABLE_CODE") 1
+                            }
+                            when (decision) {
+                                null -> openManage.value() // held, no movement → manage
+                                0 -> launchCurrent.value() // quick release → launch
+                                2 -> {
+                                    // Vertical scrub: one member per ~44 dp travelled,
+                                    // consumed so the Start grid scroll stays put.
+                                    var anchorY = down.position.y
+                                    while (true) {
+                                        val event = awaitPointerEvent()
+                                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                        change.consume()
+                                        val dy = change.position.y - anchorY
+                                        if (dy <= -stepPx) { // up → next
+                                            pageIndex.value = (pageIndex.value + 1) % count
+                                            anchorY = change.position.y
+                                        } else if (dy >= stepPx) { // down → previous
+                                            pageIndex.value = (pageIndex.value - 1 + count) % count
+                                            anchorY = change.position.y
+                                        }
+                                        if (!change.pressed) break
+                                    }
+                                }
+                                else -> Unit // horizontal / consumed: leave it
+                            }
+                        }
+                    }
                 },
             ),
     ) {
-        children.getOrNull(safeIndex)?.let { child ->
-            // Render the member's live face at the stack tile's footprint by reusing
-            // the normal app-tile content. interactive=false so a tap on a music
-            // member launches the app rather than toggling its transport controls.
-            AppTileContent(
-                tile = TileModel.App(
-                    id = tile.id + "#" + child.rowId,
-                    position = 0,
-                    size = tile.size,
-                    colorId = tile.colorId,
-                    packageName = child.packageName,
-                    activityName = child.activityName,
-                    label = child.label,
-                    iconKey = child.iconKey,
-                    accentOverride = child.accentOverride,
-                ),
-                flipped = false,
-                liveActive = liveActive,
-                interactive = false,
-            )
+        // Cross-fade between members so both auto-rotate and a swipe read smoothly.
+        Crossfade(targetState = safeIndex, animationSpec = tween(280), label = "stackMember") { i ->
+            children.getOrNull(i)?.let { child ->
+                // Render the member's live face at the stack tile's footprint by
+                // reusing the normal app-tile content. interactive=false so a tap on a
+                // music member launches the app rather than toggling its controls.
+                AppTileContent(
+                    tile = TileModel.App(
+                        id = tile.id + "#" + child.rowId,
+                        position = 0,
+                        size = tile.size,
+                        colorId = tile.colorId,
+                        packageName = child.packageName,
+                        activityName = child.activityName,
+                        label = child.label,
+                        iconKey = child.iconKey,
+                        accentOverride = child.accentOverride,
+                    ),
+                    flipped = false,
+                    liveActive = liveActive,
+                    interactive = false,
+                )
+            }
         }
-        // Page dots (prototype-style indicator); tapping a dot jumps to that member.
-        if (children.size > 1) {
-            Row(
+        // Vertical scroll indicator (right edge): a faint track with a thumb whose
+        // position tracks the current member — signals the swipe affordance.
+        if (count > 1) {
+            Box(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 5.dp)
+                    .width(3.dp)
+                    .fillMaxHeight(0.5f)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.18f)),
             ) {
-                children.indices.forEach { i ->
-                    val current = i == safeIndex
+                Column(modifier = Modifier.fillMaxSize()) {
+                    if (safeIndex > 0) Spacer(Modifier.weight(safeIndex.toFloat()))
                     Box(
                         modifier = Modifier
-                            .size(if (current) 7.dp else 6.dp)
+                            .weight(1f)
+                            .fillMaxWidth()
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = if (current) 0.95f else 0.4f))
-                            .then(
-                                if (editMode) {
-                                    Modifier
-                                } else {
-                                    Modifier.clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                    ) { index = i }
-                                },
-                            ),
+                            .background(Color.White.copy(alpha = 0.92f)),
                     )
+                    val below = count - 1 - safeIndex
+                    if (below > 0) Spacer(Modifier.weight(below.toFloat()))
                 }
             }
         }

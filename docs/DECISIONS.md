@@ -1495,3 +1495,17 @@ face, auto-rotating with page dots.
 
 Management reuses the existing `FolderOverlay`. Chosen auto-rotate + dots over swipe because
 the global horizontal pager and the vertical grid scroll both contend with an in-tile swipe.
+
+### Widget stack follow-up: vertical swipe instead of page dots
+
+The stack's manual navigation changed from tappable page dots to a **vertical swipe**
+inside the tile (large-only stacking is unchanged — 2×2 merges stay folders, no DB
+migration). A single combined `pointerInput` on `StackTileContent` (keyed only on the
+member count) distinguishes: quick tap → launch current member; press held past the
+long-press timeout with no movement → manage overlay; vertical drag → ±1 member per
+~44 dp, **consumed** as soon as it goes vertical so it wins over the Start grid's
+vertical scroll (a clearly-horizontal drag is left alone). Callbacks are read via
+`rememberUpdatedState`, so the recompositions a page change triggers don't restart the
+gesture mid-swipe. The bottom page dots were replaced by a thin vertical scroll
+indicator (track + thumb) on the right edge; members cross-fade on change, and the 3 s
+auto-rotate stays. Swipe up → next, down → previous.
