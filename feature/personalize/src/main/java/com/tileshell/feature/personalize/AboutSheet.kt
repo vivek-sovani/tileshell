@@ -1,5 +1,6 @@
 package com.tileshell.feature.personalize
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -63,6 +64,9 @@ fun AboutSheet(
         runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }
             .getOrDefault("0.9")
     }
+
+    // Android back / back-gesture closes the sheet (it has no on-screen close).
+    BackHandler(enabled = visible) { onDismiss() }
 
     SheetStage(rightHalf = rightHalf, modifier = modifier) {
         Box(

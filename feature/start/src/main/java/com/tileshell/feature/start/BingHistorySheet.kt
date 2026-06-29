@@ -1,5 +1,6 @@
 package com.tileshell.feature.start
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -77,6 +78,9 @@ fun BingHistorySheet(
     LaunchedEffect(visible) {
         if (visible && images == null) images = fetchBingImages()
     }
+
+    // Android back / back-gesture closes the viewer.
+    BackHandler(enabled = visible) { onDismiss() }
 
     SheetStage(rightHalf = rightHalf, modifier = modifier) {
         Box(

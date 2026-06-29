@@ -850,6 +850,7 @@ fun StartScreen(
                     pendingWallpaperCropUri = null
                 },
                 onCancel = { pendingWallpaperCropUri = null },
+                rightHalf = isLandscape,
             )
         }
 
@@ -866,6 +867,7 @@ fun StartScreen(
                     adjustingWallpaper = false
                 },
                 onCancel = { adjustingWallpaper = false },
+                rightHalf = isLandscape,
             )
         }
 

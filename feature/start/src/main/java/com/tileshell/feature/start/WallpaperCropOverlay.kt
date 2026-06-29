@@ -1,5 +1,6 @@
 package com.tileshell.feature.start
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,6 +28,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tileshell.core.design.SheetStage
 import kotlin.math.max
 
 /**
@@ -43,6 +45,7 @@ fun WallpaperCropOverlay(
     onCancel: () -> Unit,
     initialAlignX: Float = 0.5f,
     initialAlignY: Float = 0.5f,
+    rightHalf: Boolean = false,
 ) {
     val image = rememberWallpaperBitmap(uri)
     // Seed from the current focal point so re-adjusting resumes where it left off;
@@ -50,11 +53,15 @@ fun WallpaperCropOverlay(
     var alignX by remember(uri) { mutableStateOf(initialAlignX) }
     var alignY by remember(uri) { mutableStateOf(initialAlignY) }
 
-    BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black),
-    ) {
+    // Back gesture cancels the crop (only composed while active, so always on).
+    BackHandler(enabled = true) { onCancel() }
+
+    SheetStage(rightHalf = rightHalf) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black),
+        ) {
         val screenW = constraints.maxWidth.toFloat()
         val screenH = constraints.maxHeight.toFloat()
 
@@ -136,6 +143,7 @@ fun WallpaperCropOverlay(
                     ),
                 )
             }
+        }
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.tileshell.feature.personalize
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -140,6 +141,11 @@ fun PersonalizeSheet(
 
     val tokens = colorTokens(dark)
     val accent = TileAccents.forId(accentId)
+
+    // Android back / back-gesture closes the sheet. When a sub-sheet (about,
+    // folders, bing history) is open on top, its own handler — registered later —
+    // takes the back press first, so this closes personalize only once they're gone.
+    BackHandler(enabled = visible) { onDismiss() }
 
     SheetStage(rightHalf = rightHalf, modifier = modifier) {
         // Scrim (prototype rgba(0,0,0,.5)); tap to dismiss.

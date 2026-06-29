@@ -1421,3 +1421,19 @@ half automatically. Applied to `PersonalizeSheet`, `AboutSheet`,
 wired to `isLandscape` at the `StartScreen` call site. Feed-spawned sheets
 (`FeedSettingsSheet`) and the wallpaper crop overlay are left full-width for now
 (the feed is the *left* panel, so its sheets don't belong on the right).
+
+### Landscape follow-up: crop overlay right-half + back-gesture dismiss
+
+- **Wallpaper crop/position overlay** (the photo-positioning step, both the post-pick
+  crop and the "reframe" path) now routes through `SheetStage(rightHalf)` too, so it
+  docks to the right half in landscape like the other personalize sub-sections. Its
+  internal `BoxWithConstraints` measures the half region; the chosen focal point still
+  maps onto the live wallpaper. (The OS photo *picker* — `PickVisualMedia` /
+  `PickMultipleVisualMedia` — is a system activity we can't resize.)
+- **Back-gesture dismiss.** The sheets relied on a scrim tap to close; in landscape the
+  half-scrim made that worse and `AboutSheet` had no on-screen close at all. Added
+  `BackHandler(enabled = visible) { onDismiss() }` to `PersonalizeSheet`, `AboutSheet`,
+  `BingHistorySheet`, and `BackHandler(enabled = true) { onCancel() }` to
+  `WallpaperCropOverlay` (`CategoryFolderSheet` already had one). A sub-sheet opened over
+  personalize registers its handler later, so back peels them off one level at a time
+  (sub-sheet → personalize → home).
