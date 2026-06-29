@@ -140,10 +140,10 @@ object AppCategories {
             ?: fromTokens(app.packageName, app.label)
 
     /**
-     * Whether a tile may cycle up to the 4×4 [TileSize.LARGE] size. Large is gated
+     * Whether a tile may cycle up to the 3×3 [TileSize.LARGE] size. Large is gated
      * to **media** (music / video) and **news** app tiles only, and only on a 5- or
-     * 6-column grid (on a 4-column grid a 4×4 tile fills the whole width — too
-     * dominant — so it is disallowed and large tiles auto-shrink to medium).
+     * 6-column grid (large is reserved for the roomier 5/6-column grids; on a
+     * 4-column grid it is disallowed and large tiles auto-shrink to medium).
      *
      * - **media**: the tile carries the designed `"music"` icon key, or the app
      *   classifies as `"entertainment"` (the music/video bucket: [ROLE_MUSIC],

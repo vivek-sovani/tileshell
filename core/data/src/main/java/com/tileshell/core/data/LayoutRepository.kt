@@ -37,7 +37,7 @@ class LayoutRepository(
     suspend fun reorderTiles(orderedIds: List<String>) = dao.applyOrder(orderedIds)
 
     /**
-     * Cycle a tile's size (FR-3.4). [largeAllowed] adds the 4×4 [TileSize.LARGE]
+     * Cycle a tile's size (FR-3.4). [largeAllowed] adds the 3×3 [TileSize.LARGE]
      * step (medium → small → wide → large → medium) for music/news tiles on a
      * 5/6-column grid; otherwise the cycle is medium → small → wide → medium.
      */
@@ -47,7 +47,7 @@ class LayoutRepository(
     }
 
     /**
-     * Shrink every 4×4 [TileSize.LARGE] tile back to [TileSize.MEDIUM]. Called when
+     * Shrink every 3×3 [TileSize.LARGE] tile back to [TileSize.MEDIUM]. Called when
      * the grid drops to 4 columns, where large is disallowed.
      */
     suspend fun demoteLargeTiles() = dao.demoteLargeTiles()

@@ -163,7 +163,7 @@ class TileMergeTest {
 
     @Test
     fun draggedLargeApp_isDemotedToMediumInsideFolder() {
-        // A 4×4 large music tile dragged into a folder becomes a MEDIUM child —
+        // A 3×3 large music tile dragged into a folder becomes a MEDIUM child —
         // folders only hold SMALL/MEDIUM children.
         val target = folder("g", children = listOf(FolderChild("fb", ".Main", "fb", size = TileSize.MEDIUM)))
         val result = computeMerge(drag = app("music", size = TileSize.LARGE), target = target)
@@ -174,7 +174,7 @@ class TileMergeTest {
     @Test
     fun largeAppTarget_makesAWideFolderTile() {
         // Merging onto a LARGE music tile forms a folder; folders never carry the
-        // 4×4 large size, so the folder tile collapses to WIDE.
+        // 3×3 large size, so the folder tile collapses to WIDE.
         val result = computeMerge(drag = app("ig", size = TileSize.SMALL), target = app("music", size = TileSize.LARGE))
 
         assertEquals("music", result.folderId)

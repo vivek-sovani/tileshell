@@ -43,7 +43,7 @@ interface LayoutDao {
     @Query("UPDATE tiles SET size = :size WHERE id = :id")
     suspend fun updateTileSize(id: String, size: String)
 
-    /** Shrink every 4×4 LARGE tile to MEDIUM (grid dropped below 5 columns). */
+    /** Shrink every 3×3 LARGE tile to MEDIUM (grid dropped below 5 columns). */
     @Query("UPDATE tiles SET size = 'MEDIUM' WHERE size = 'LARGE'")
     suspend fun demoteLargeTiles()
 

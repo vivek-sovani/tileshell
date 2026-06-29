@@ -31,7 +31,7 @@ fun NotificationTileFace(
     packageName: String,
     fallback: @Composable () -> Unit,
     modifier: Modifier = Modifier,
-    // A 4×4 LARGE tile (news apps) gets the full-area hero layout instead of the
+    // A 3×3 LARGE tile (news apps) gets the full-area hero layout instead of the
     // compact notification row.
     large: Boolean = false,
 ) {

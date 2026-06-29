@@ -1449,3 +1449,14 @@ wired to `isLandscape` at the `StartScreen` call site. Feed-spawned sheets
   slivers/dots. Rewrote `JumpGrid` with `BoxWithConstraints`: cell = `min(fitWidth,
   fitHeight)`, font size + padding scale with the cell, grid centred. Portrait is
   unchanged (width is the limiting axis there, same ~83dp cells / 26sp).
+
+### Large tile resized 3×3 (was 4×4)
+
+`TileSize.LARGE` changed from `(4, 4)` to `(3, 3)` per request. Dimensions live only
+in the `TileSize` enum; the packer and all rendering read `.cols`/`.rows`
+generically, and faces measure from the packed pixel size, so the tile simply
+renders smaller — no packer/migration/test changes. Gating is unchanged: large is
+still reserved for media/news tiles on 5/6-column grids (`allowsLargeTile`,
+`columns < 5` → false) and auto-shrinks to MEDIUM on a 4-column grid. Persisted as
+the enum name `"LARGE"`, so existing layouts are unaffected. Comment references to
+"4×4 large" updated to "3×3" across the data/start/livetiles sources.

@@ -18,7 +18,7 @@ private fun FolderChild.clampForFolder(): FolderChild =
     if (size == TileSize.WIDE || size == TileSize.LARGE) copy(size = TileSize.MEDIUM) else this
 
 /**
- * The size a merged folder tile may take. Folders never carry the 4×4 LARGE size
+ * The size a merged folder tile may take. Folders never carry the 3×3 LARGE size
  * (large is gated to music/news app tiles), so a large merge target collapses to
  * WIDE — the widest size the folder mini-grid face renders. SMALL is promoted to
  * MEDIUM; other sizes are kept.

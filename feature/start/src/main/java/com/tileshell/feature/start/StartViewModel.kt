@@ -382,7 +382,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Set the Start grid column count (4, 5, or 6 small-tile columns). */
     fun setColumns(columns: Int) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setColumns(columns) }
-        // The 4×4 large size is only allowed on 5/6-column grids; dropping to 4
+        // The 3×3 large size is only allowed on 5/6-column grids; dropping to 4
         // auto-shrinks any large tile back to medium.
         if (columns < 5) {
             viewModelScope.launch(writeContext) { repository.demoteLargeTiles() }
@@ -485,7 +485,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Cycle the tile's size (FR-3.4 resize): medium → small → wide → medium. Music
-     * and news app tiles on a 5/6-column grid also get the 4×4 large step
+     * and news app tiles on a 5/6-column grid also get the 3×3 large step
      * ([AppCategories.allowsLargeTile]).
      */
     fun resize(id: String) {

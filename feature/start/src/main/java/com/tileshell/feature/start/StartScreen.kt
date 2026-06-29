@@ -2602,7 +2602,7 @@ private fun StaticTileGlyph(tile: TileModel.App) {
             TileIconContent(30)
         }
     } else {
-        // A 4×4 large tile (music/news only) gets a bigger glyph so it isn't lost in
+        // A 3×3 large tile (music/news only) gets a bigger glyph so it isn't lost in
         // the larger footprint; medium/wide keep the standard size.
         val glyphSize = if (tile.size == TileSize.LARGE) 46 else 34
         Column(modifier = Modifier.fillMaxSize().padding(11.dp)) {

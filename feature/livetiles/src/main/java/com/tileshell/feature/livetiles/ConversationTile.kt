@@ -138,7 +138,7 @@ internal fun NotificationFaceContent(
 }
 
 /**
- * The full-area notification face for a 4×4 LARGE tile (news apps). Instead of the
+ * The full-area notification face for a 3×3 LARGE tile (news apps). Instead of the
  * compact single row it fills the tile: a shared [picture] becomes a hero image
  * that takes the available height, with the source name and the headline
  * [ConversationPreview.snippet] below it in larger type. When there is no picture

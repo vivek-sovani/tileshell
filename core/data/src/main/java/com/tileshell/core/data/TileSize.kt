@@ -2,9 +2,9 @@ package com.tileshell.core.data
 
 /**
  * Tile footprints on the 4-column grid (CLAUDE.md normative values):
- * small 1×1, medium 2×2, wide 4×2, large 4×4.
+ * small 1×1, medium 2×2, wide 4×2, large 3×3.
  *
- * [LARGE] (4×4) is special: it is only reachable in the resize cycle for music /
+ * [LARGE] (3×3) is special: it is only reachable in the resize cycle for music /
  * news app tiles on a 5- or 6-column grid (see [AppCategories.allowsLargeTile]),
  * and a large tile auto-shrinks back to [MEDIUM] when the grid drops to 4 columns.
  * Every other tile cycles medium → small → wide → medium and never sees large.
@@ -16,7 +16,7 @@ enum class TileSize(val cols: Int, val rows: Int) {
     SMALL(1, 1),
     MEDIUM(2, 2),
     WIDE(4, 2),
-    LARGE(4, 4),
+    LARGE(3, 3),
     ;
 
     /**
