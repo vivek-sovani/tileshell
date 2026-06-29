@@ -2264,7 +2264,9 @@ private fun Modifier.editDragGesture(
                     othersPacked(drag).firstOrNull { geom.rect(it).contains(dragCentre) }
                 }
                 val inCentre = allowMerge && hovered != null &&
-                    inMergeZone(geom.rect(hovered), dragCentre)
+                    inMergeZone(geom.rect(hovered), dragCentre) &&
+                    byId[startId] !is TileModel.Folder &&
+                    byId[hovered.id] !is TileModel.Folder
 
                 if (inCentre) {
                     if (dwellId != hovered!!.id ||
