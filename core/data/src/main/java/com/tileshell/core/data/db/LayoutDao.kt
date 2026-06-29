@@ -199,6 +199,20 @@ interface LayoutDao {
     @Query("UPDATE folder_children SET size = :size WHERE rowId = :rowId")
     suspend fun updateFolderChildSize(rowId: Long, size: TileSize)
 
+    @Query("UPDATE folder_children SET size = :size WHERE folderId = :folderId")
+    suspend fun setAllFolderChildrenSize(folderId: String, size: TileSize)
+
+    /**
+     * Collapse a widget stack back to a normal folder: every member drops to
+     * MEDIUM and the folder tile to WIDE. Triggered when any stack member is
+     * resized down (a stack renders only while all members are LARGE).
+     */
+    @Transaction
+    suspend fun collapseStackToFolder(folderId: String) {
+        setAllFolderChildrenSize(folderId, TileSize.MEDIUM)
+        updateTileSize(folderId, TileSize.WIDE.name)
+    }
+
     @Query(
         "UPDATE tiles SET type = '" + TileEntity.TYPE_APP + "', packageName = :packageName, " +
             "activityName = :activityName, label = :label, iconKey = :iconKey, folderId = NULL " +

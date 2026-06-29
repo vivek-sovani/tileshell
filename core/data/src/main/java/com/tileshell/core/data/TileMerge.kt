@@ -38,6 +38,16 @@ private fun TileModel.apps(): List<FolderChild> = when (this) {
 }
 
 /**
+ * A tile that can take part in a **widget stack**: a LARGE app tile, or a folder
+ * that is already a stack (all members LARGE). Dropping one stackable tile onto
+ * another keeps the result a stack — see [computeMerge].
+ */
+private fun TileModel.isStackable(): Boolean = when (this) {
+    is TileModel.App -> size == TileSize.LARGE
+    is TileModel.Folder -> isStack
+}
+
+/**
  * Compute the FR-3.3 merge of dropping [drag] onto [target]. Mirrors the
  * prototype `doMerge`:
  *
@@ -57,14 +67,24 @@ fun computeMerge(drag: TileModel, target: TileModel): MergeResult {
     for (child in target.apps() + drag.apps()) {
         deduped.putIfAbsent(child.packageName + "/" + child.activityName, child)
     }
-    // Folders allow only SMALL / MEDIUM children — a WIDE or LARGE tile merged in
-    // is demoted to MEDIUM (the in-folder resize cycle is SMALL↔MEDIUM too).
-    val children = deduped.values.map { it.clampForFolder() }
+
+    // Dropping a large tile onto another large tile (or onto an existing stack)
+    // forms a **widget stack**: members keep their LARGE size and the tile keeps
+    // the 3×3 footprint, so it renders as a swipeable carousel of live tiles. Any
+    // other merge is a normal folder — children demoted to MEDIUM (the in-folder
+    // resize cycle is SMALL↔MEDIUM) and a LARGE target collapsed to WIDE.
+    val keepStack = drag.isStackable() && target.isStackable()
+    val children = if (keepStack) {
+        deduped.values.toList()
+    } else {
+        deduped.values.map { it.clampForFolder() }
+    }
+    val size = if (keepStack) TileSize.LARGE else target.size.clampFolderTile()
 
     return when (target) {
         is TileModel.Folder -> MergeResult(
             folderId = target.id,
-            size = target.size.clampFolderTile(),
+            size = size,
             colorId = target.colorId,
             name = target.name,
             children = children,
@@ -72,9 +92,9 @@ fun computeMerge(drag: TileModel, target: TileModel): MergeResult {
 
         is TileModel.App -> MergeResult(
             folderId = target.id,
-            size = target.size.clampFolderTile(),
+            size = size,
             colorId = target.colorId,
-            name = "folder",
+            name = if (keepStack) "stack" else "folder",
             children = children,
         )
     }

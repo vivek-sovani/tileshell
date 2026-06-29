@@ -113,7 +113,7 @@ class AppCategoriesTest {
         AppCategories.ALL.forEach { assertEquals(it.label, it.label.lowercase()) }
     }
 
-    // ---- large-tile eligibility (music / news, 5-6 columns) -----------------
+    // ---- large-tile eligibility (any app, 5-6 columns) ----------------------
 
     @Test
     fun `music role allows large on 5 and 6 columns`() {
@@ -157,15 +157,21 @@ class AppCategoriesTest {
     }
 
     @Test
-    fun `non media non news apps never allow large`() {
+    fun `any app now allows large on 5 and 6 columns`() {
+        // The media/news restriction was removed — large is offered for every app
+        // on the roomier grids; only the column gate remains.
         val mail = app("x.mail", role = AppCategories.ROLE_EMAIL)
-        assertFalse(AppCategories.allowsLargeTile(iconKey = "mail", app = mail, columns = 6))
+        assertTrue(AppCategories.allowsLargeTile(iconKey = "mail", app = mail, columns = 6))
         val game = app("x.game", category = ApplicationInfo.CATEGORY_GAME)
-        assertFalse(AppCategories.allowsLargeTile(iconKey = null, app = game, columns = 6))
+        assertTrue(AppCategories.allowsLargeTile(iconKey = null, app = game, columns = 5))
+        // even an unresolved tile (null app, no icon key) qualifies on 5/6.
+        assertTrue(AppCategories.allowsLargeTile(iconKey = null, app = null, columns = 6))
     }
 
     @Test
-    fun `null app with no music icon key never allows large`() {
-        assertFalse(AppCategories.allowsLargeTile(iconKey = null, app = null, columns = 6))
+    fun `large is disallowed below 5 columns for any app`() {
+        val game = app("x.game", category = ApplicationInfo.CATEGORY_GAME)
+        assertFalse(AppCategories.allowsLargeTile(iconKey = null, app = game, columns = 4))
+        assertFalse(AppCategories.allowsLargeTile(iconKey = null, app = null, columns = 4))
     }
 }

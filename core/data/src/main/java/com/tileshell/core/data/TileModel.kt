@@ -45,5 +45,14 @@ sealed interface TileModel {
         val children: List<FolderChild>,
         /** Per-tile accent override (FR-7); null = follow the global accent. */
         val accentOverride: String? = null,
-    ) : TileModel
+    ) : TileModel {
+        /**
+         * A folder renders as a **widget stack** (a swipeable carousel of full-size
+         * live tiles) while every member is the same size = LARGE. Derived, not
+         * stored: the instant a member is resized down or a smaller tile is merged
+         * in, this turns false and the folder renders as the normal mini-grid.
+         */
+        val isStack: Boolean
+            get() = children.isNotEmpty() && children.all { it.size == TileSize.LARGE }
+    }
 }

@@ -140,30 +140,14 @@ object AppCategories {
             ?: fromTokens(app.packageName, app.label)
 
     /**
-     * Whether a tile may cycle up to the 3×3 [TileSize.LARGE] size. Large is gated
-     * to **media** (music / video) and **news** app tiles only, and only on a 5- or
-     * 6-column grid (large is reserved for the roomier 5/6-column grids; on a
-     * 4-column grid it is disallowed and large tiles auto-shrink to medium).
-     *
-     * - **media**: the tile carries the designed `"music"` icon key, or the app
-     *   classifies as `"entertainment"` (the music/video bucket: [ROLE_MUSIC],
-     *   `CATEGORY_AUDIO`/`CATEGORY_VIDEO`, or audio/video/stream tokens). This is
-     *   broader than the music role alone so pinned media apps that don't declare
-     *   the `CATEGORY_APP_MUSIC` launcher role — Apple Music, YouTube, Spotify,
-     *   etc., which carry the now-playing live face — also qualify.
-     * - **news**: the app classifies as `"news"` (OS `CATEGORY_NEWS` or news tokens).
-     *
-     * Pure so the gating is unit-testable; [app] is the catalogue entry for the
-     * tile's package (null when it doesn't resolve — then only the `"music"` icon
-     * key qualifies).
+     * Whether a tile may cycle up to the 3×3 [TileSize.LARGE] size. Large is offered
+     * for **any** app tile, but only on a 5- or 6-column grid: large is reserved for
+     * the roomier grids; on a 4-column grid it is disallowed and large tiles
+     * auto-shrink to medium. ([iconKey]/[app] are unused now — kept for call-site
+     * compatibility.) Pure so the gating stays unit-testable.
      */
-    fun allowsLargeTile(iconKey: String?, app: AppEntry?, columns: Int): Boolean {
-        if (columns < 5) return false
-        val category = app?.let { classify(it) }
-        val isMedia = iconKey == "music" || category == "entertainment"
-        val isNews = category == "news"
-        return isMedia || isNews
-    }
+    fun allowsLargeTile(iconKey: String?, app: AppEntry?, columns: Int): Boolean =
+        columns >= 5
 
     /** All installed [apps] that classify into the category with id [categoryId]. */
     fun match(categoryId: String, apps: List<AppEntry>): List<AppEntry> =

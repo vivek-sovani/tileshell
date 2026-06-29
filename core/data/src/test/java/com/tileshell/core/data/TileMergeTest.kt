@@ -181,4 +181,60 @@ class TileMergeTest {
         assertEquals(TileSize.WIDE, result.size) // large target → wide folder
         assertEquals(listOf("music", "ig"), result.children.map { it.packageName })
     }
+
+    private fun largeChild(pkg: String, activity: String = ".Main") =
+        FolderChild(packageName = pkg, activityName = activity, label = pkg, size = TileSize.LARGE)
+
+    @Test
+    fun largeOntoLarge_formsWidgetStackKeepingLargeMembers() {
+        // Dropping a large tile onto another large tile makes a widget stack: the
+        // tile stays 3×3 and both members keep LARGE (so it renders as a carousel).
+        val result = computeMerge(
+            drag = app("yt", size = TileSize.LARGE),
+            target = app("spotify", size = TileSize.LARGE, color = "teal"),
+        )
+
+        assertEquals("spotify", result.folderId)
+        assertEquals("stack", result.name)
+        assertEquals(TileSize.LARGE, result.size)
+        assertEquals(listOf("spotify", "yt"), result.children.map { it.packageName })
+        assertEquals(listOf(TileSize.LARGE, TileSize.LARGE), result.children.map { it.size })
+        // The derived stack flag follows from all members being LARGE.
+        assertEquals(
+            true,
+            folder("spotify", size = TileSize.LARGE, children = result.children).isStack,
+        )
+    }
+
+    @Test
+    fun largeAppOntoStack_appendsAndStaysStack() {
+        val stack = folder(
+            "spotify", size = TileSize.LARGE, name = "stack",
+            children = listOf(largeChild("spotify"), largeChild("yt")),
+        )
+        val result = computeMerge(drag = app("news", size = TileSize.LARGE), target = stack)
+
+        assertEquals(TileSize.LARGE, result.size)
+        assertEquals("stack", result.name)
+        assertEquals(listOf("spotify", "yt", "news"), result.children.map { it.packageName })
+        assertEquals(true, result.children.all { it.size == TileSize.LARGE })
+    }
+
+    @Test
+    fun nonLargeOntoStack_revertsToNormalFolder() {
+        // Merging a non-large tile into a stack breaks the "all members LARGE" rule,
+        // so it collapses back to a normal folder: tile → WIDE, members → MEDIUM.
+        val stack = folder(
+            "spotify", size = TileSize.LARGE, name = "stack",
+            children = listOf(largeChild("spotify"), largeChild("yt")),
+        )
+        val result = computeMerge(drag = app("ig", size = TileSize.MEDIUM), target = stack)
+
+        assertEquals(TileSize.WIDE, result.size)
+        assertEquals(true, result.children.all { it.size == TileSize.MEDIUM })
+        assertEquals(
+            false,
+            folder("spotify", size = TileSize.WIDE, children = result.children).isStack,
+        )
+    }
 }

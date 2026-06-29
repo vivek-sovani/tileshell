@@ -185,6 +185,7 @@ import com.tileshell.core.design.tileGradientBrush
 import com.tileshell.core.design.tiltOnPress
 import com.tileshell.core.design.wallpaperWindow
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -835,7 +836,9 @@ fun StartScreen(
             onPullOut = { child ->
                 openFolder?.let { viewModel.removeFolderChild(it.id, child) }
             },
-            onResize = viewModel::resizeFolderChild,
+            onResize = { child ->
+                openFolder?.let { viewModel.resizeFolderChild(it.id, child) }
+            },
             onReorder = viewModel::reorderFolderChildren,
         )
 
@@ -1481,6 +1484,10 @@ private fun TileView(
 
     val tileCornerRadius = LocalTileCornerRadius.current
     val useTileGradient = LocalTileGradient.current
+    // A widget stack owns its own tap/long-press (tap launches the current member,
+    // long-press opens the manage overlay), so the outer tile gesture is suppressed
+    // for it; in edit mode the grid drag owns interaction for every tile.
+    val isStackTile = tile is TileModel.Folder && tile.isStack
 
     // Edit chrome (prototype CSS): non-selected tiles dim to .45, the selected
     // tile scales to 1.04, and editing tiles jiggle (±.5°, alternating phase).
@@ -1571,7 +1578,7 @@ private fun TileView(
             // Out of edit mode the tile owns tap-to-launch / long-press-to-edit;
             // in edit mode the grid-level drag gesture owns all interaction.
             .then(
-                if (editMode) Modifier
+                if (editMode || isStackTile) Modifier
                 else Modifier.tileGesture(onTap = onTap, onLongPress = onLongPress),
             )
             // Accessibility: collapse the tile to a single labelled button and
@@ -1609,15 +1616,26 @@ private fun TileView(
                 liveActive = liveActive,
                 interactive = !editMode,
             )
-            is TileModel.Folder -> FolderTileContent(
-                tile = tile,
-                editMode = editMode,
-                launchEnabled = inlineFolderLaunch,
-                appIconColors = appIconColors,
-                onLaunchChild = onLaunchFolderChild,
-                onOpenFolder = onTap,
-                onEnterEdit = onLongPress,
-            )
+            is TileModel.Folder ->
+                if (tile.isStack) {
+                    StackTileContent(
+                        tile = tile,
+                        editMode = editMode,
+                        liveActive = liveActive,
+                        onLaunchChild = onLaunchFolderChild,
+                        onOpenManage = onTap,
+                    )
+                } else {
+                    FolderTileContent(
+                        tile = tile,
+                        editMode = editMode,
+                        launchEnabled = inlineFolderLaunch,
+                        appIconColors = appIconColors,
+                        onLaunchChild = onLaunchFolderChild,
+                        onOpenFolder = onTap,
+                        onEnterEdit = onLongPress,
+                    )
+                }
         }
         // Per-app notification badge (FR-1.2). Top-right pill, count from the
         // notification listener; sized down on small tiles (prototype .badge).
@@ -2788,6 +2806,106 @@ private fun FolderTileContent(
         }
         Spacer(Modifier.height(6.dp))
         TileLabel(tile.name)
+    }
+}
+
+/** Auto-rotate interval for a widget stack (matches the ~3 s photos cross-fade). */
+private const val STACK_ROTATE_MS = 3000L
+
+/**
+ * A **widget stack**: a folder whose members are all LARGE renders as a swipeable
+ * 3×3 carousel of full-size live tiles instead of a mini-grid of icons. The current
+ * member's live face fills the tile (reusing [AppTileContent], so music now-playing,
+ * notifications, etc. all work); the stack auto-rotates every [STACK_ROTATE_MS] while
+ * live, with page dots at the bottom (tap a dot to jump). Tapping the body launches
+ * the current member; long-press opens the manage overlay ([onOpenManage]). In edit
+ * mode it attaches no gestures — the grid drag owns the tile (move / unpin).
+ */
+@Composable
+private fun StackTileContent(
+    tile: TileModel.Folder,
+    editMode: Boolean,
+    liveActive: Boolean,
+    onLaunchChild: (FolderChild) -> Unit,
+    onOpenManage: () -> Unit,
+) {
+    val children = tile.children
+    var index by remember(tile.id, children.size) { mutableStateOf(0) }
+    val safeIndex = index.coerceIn(0, (children.size - 1).coerceAtLeast(0))
+
+    // Auto-rotate while live; paused in edit mode, off-screen, or with one member.
+    LaunchedEffect(liveActive, editMode, children.size) {
+        if (!liveActive || editMode || children.size <= 1) return@LaunchedEffect
+        while (true) {
+            delay(STACK_ROTATE_MS)
+            index = (index + 1) % children.size
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .then(
+                if (editMode) {
+                    Modifier
+                } else {
+                    Modifier.tileGesture(
+                        onTap = { children.getOrNull(safeIndex)?.let(onLaunchChild) },
+                        onLongPress = onOpenManage,
+                    )
+                },
+            ),
+    ) {
+        children.getOrNull(safeIndex)?.let { child ->
+            // Render the member's live face at the stack tile's footprint by reusing
+            // the normal app-tile content. interactive=false so a tap on a music
+            // member launches the app rather than toggling its transport controls.
+            AppTileContent(
+                tile = TileModel.App(
+                    id = tile.id + "#" + child.rowId,
+                    position = 0,
+                    size = tile.size,
+                    colorId = tile.colorId,
+                    packageName = child.packageName,
+                    activityName = child.activityName,
+                    label = child.label,
+                    iconKey = child.iconKey,
+                    accentOverride = child.accentOverride,
+                ),
+                flipped = false,
+                liveActive = liveActive,
+                interactive = false,
+            )
+        }
+        // Page dots (prototype-style indicator); tapping a dot jumps to that member.
+        if (children.size > 1) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                children.indices.forEach { i ->
+                    val current = i == safeIndex
+                    Box(
+                        modifier = Modifier
+                            .size(if (current) 7.dp else 6.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = if (current) 0.95f else 0.4f))
+                            .then(
+                                if (editMode) {
+                                    Modifier
+                                } else {
+                                    Modifier.clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                    ) { index = i }
+                                },
+                            ),
+                    )
+                }
+            }
+        }
     }
 }
 

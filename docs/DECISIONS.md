@@ -1460,3 +1460,38 @@ still reserved for media/news tiles on 5/6-column grids (`allowsLargeTile`,
 `columns < 5` → false) and auto-shrinks to MEDIUM on a 4-column grid. Persisted as
 the enum name `"LARGE"`, so existing layouts are unaffected. Comment references to
 "4×4 large" updated to "3×3" across the data/start/livetiles sources.
+
+## Widget stack: merge two large tiles into a swipeable carousel
+
+Dropping a LARGE (3×3) tile onto another LARGE tile forms a **widget stack** instead of a
+folder: a 3×3 footprint holding several full-size large tiles, each keeping its own live
+face, auto-rotating with page dots.
+
+- **Large for any app.** `AppCategories.allowsLargeTile` dropped the media/news category
+  check — now just `columns >= 5` (large stays gated to the roomier grids). Any app tile can
+  be resized to LARGE, so stacks aren't limited to music/news.
+- **Stack is derived, not stored.** `TileModel.Folder.isStack = children.isNotEmpty() &&
+  children.all { it.size == TileSize.LARGE }`. No `isStack` column, **no DB migration** — a
+  folder renders as a stack exactly while every member is LARGE. The instant a member is
+  resized down or a smaller tile is merged in, it reverts to a normal folder.
+- **Merge.** `computeMerge` keeps members LARGE + the tile LARGE (`name = "stack"`) only when
+  *both* sides are stackable (a LARGE app, or a folder that is already a stack); otherwise the
+  existing folder path runs (members clamped to MEDIUM, tile to WIDE) — which is also the
+  reversion path when a non-large tile is dropped onto a stack.
+- **Render.** `StackTileContent` draws the current member by building a `TileModel.App` from
+  the `FolderChild` at the stack tile's size and reusing `AppTileContent` (so music
+  now-playing, the news hero, notifications, etc. all work for free). Auto-rotate is a gated
+  `LaunchedEffect` (3 s, paused when `!liveActive`/edit/one member) mirroring the flip
+  scheduler; page dots are tappable. Tap launches the current member; long-press opens the
+  manage overlay; in edit mode the outer `tileGesture` is suppressed (`isStackTile`) so the
+  grid drag owns move/select/unpin.
+- **Reversion / dissolve.** Resizing a member (`resizeFolderChild` → `dao.collapseStackToFolder`)
+  sets all members MEDIUM + tile WIDE. Pull-out and dissolve already preserve sizes
+  (`removeFolderChild` re-pins `removed.size`; `convertFolderTileToApp` keeps the tile size),
+  so pulling members out of a stack yields LARGE app tiles. `StartViewModel.resize` early-
+  returns for a stack so the 3×3 footprint is fixed.
+- **Edge:** dropping to 4 columns runs `demoteLargeTiles`, shrinking the stack tile to MEDIUM;
+  it then renders as a smaller (2×2) stack and doesn't auto-restore to 3×3 (one-way).
+
+Management reuses the existing `FolderOverlay`. Chosen auto-rotate + dots over swipe because
+the global horizontal pager and the vertical grid scroll both contend with an in-tile swipe.

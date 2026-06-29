@@ -449,10 +449,13 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) { repository.removeFolderChild(folderId, child) }
     }
 
-    /** Toggle a folder child's size: SMALL↔MEDIUM (folders allow only two sizes). */
-    fun resizeFolderChild(child: FolderChild) {
-        val next = if (child.size == TileSize.SMALL) TileSize.MEDIUM else TileSize.SMALL
-        viewModelScope.launch(writeContext) { repository.resizeFolderChild(child.rowId, next) }
+    /**
+     * Resize a folder child. A normal folder child toggles SMALL↔MEDIUM; a LARGE
+     * child is a widget-stack member, so resizing it collapses the stack back to a
+     * normal folder (handled in the repository).
+     */
+    fun resizeFolderChild(folderId: String, child: FolderChild) {
+        viewModelScope.launch(writeContext) { repository.resizeFolderChild(folderId, child) }
     }
 
     /** Persist a new display order for folder children after an in-folder drag. */
@@ -489,7 +492,12 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      * ([AppCategories.allowsLargeTile]).
      */
     fun resize(id: String) {
-        val tile = tiles.value.firstOrNull { it.id == id } as? TileModel.App
+        val model = tiles.value.firstOrNull { it.id == id }
+        // A widget stack stays a fixed 3×3 — don't run the folder tile through the
+        // resize cycle (that would shrink the stack's footprint). Members are
+        // resized individually inside the folder overlay instead.
+        if (model is TileModel.Folder && model.isStack) return
+        val tile = model as? TileModel.App
         val largeAllowed = tile != null && AppCategories.allowsLargeTile(
             iconKey = tile.iconKey,
             app = apps.value.firstOrNull { it.packageName == tile.packageName },

@@ -261,9 +261,19 @@ class LayoutRepository(
         return true
     }
 
-    /** Resize a folder child tile; persisted immediately. */
-    suspend fun resizeFolderChild(rowId: Long, size: TileSize) =
-        dao.updateFolderChildSize(rowId, size)
+    /**
+     * Resize a folder child (persisted immediately). A LARGE child belongs to a
+     * widget stack — resizing it down collapses the whole stack back to a normal
+     * folder (all members MEDIUM, tile WIDE). Otherwise the child cycles SMALL↔MEDIUM.
+     */
+    suspend fun resizeFolderChild(folderId: String, child: FolderChild) {
+        if (child.size == TileSize.LARGE) {
+            dao.collapseStackToFolder(folderId)
+        } else {
+            val next = if (child.size == TileSize.SMALL) TileSize.MEDIUM else TileSize.SMALL
+            dao.updateFolderChildSize(child.rowId, next)
+        }
+    }
 
     /** Reorder folder children by writing new positions for the given ordered rowIds. */
     suspend fun reorderFolderChildren(orderedRowIds: List<Long>) {
