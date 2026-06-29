@@ -16,7 +16,12 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -520,6 +525,7 @@ fun StartScreen(
                             ).show()
                         }
                     },
+                    onDeleteStackMember = viewModel::deleteStackMember,
                     onChevron = { settleTo(1f) },
                     onEnterEdit = { id ->
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -927,6 +933,7 @@ private fun StartPage(
     onLockScreen: () -> Unit,
     onTile: (TileModel) -> Unit,
     onLaunchFolderChild: (FolderChild) -> Unit,
+    onDeleteStackMember: (folderId: String, child: FolderChild) -> Unit,
     onChevron: () -> Unit,
     onEnterEdit: (String) -> Unit,
     onSelectTile: (String) -> Unit,
@@ -1163,6 +1170,7 @@ private fun StartPage(
                         onTap = { if (!editMode) onTile(model) },
                         onLongPress = { if (!editMode) onEnterEdit(model.id) },
                         onLaunchFolderChild = onLaunchFolderChild,
+                        onDeleteStackMember = { child -> onDeleteStackMember(model.id, child) },
                         onResize = { onResize(model.id) },
                         onUnpin = { order.remove(model.id); onUnpin(model.id) },
                         onSelect = { onSelectTile(model.id) },
@@ -1474,6 +1482,7 @@ private fun TileView(
     onExitEdit: () -> Unit,
     onMove: (direction: Int) -> Unit,
     onLaunchFolderChild: (FolderChild) -> Unit = {},
+    onDeleteStackMember: (FolderChild) -> Unit = {},
     showColorDot: Boolean = false,
     inlineFolderLaunch: Boolean = false,
     appIconColors: Boolean = false,
@@ -1623,9 +1632,11 @@ private fun TileView(
                     StackTileContent(
                         tile = tile,
                         editMode = editMode,
+                        selected = selected,
                         liveActive = liveActive,
                         onLaunchChild = onLaunchFolderChild,
-                        onOpenManage = onTap,
+                        onEnterEdit = onLongPress,
+                        onDeleteMember = onDeleteStackMember,
                     )
                 } else {
                     FolderTileContent(
@@ -1649,7 +1660,9 @@ private fun TileView(
                 modifier = Modifier.align(Alignment.TopEnd),
             )
         }
-        if (selected) TileControls(showColor = showColorDot, dotColor = accent)
+        // A widget stack shows only its own in-place × (delete current member) —
+        // no resize/colour controls; everything else uses the standard controls.
+        if (selected && !isStackTile) TileControls(showColor = showColorDot, dotColor = accent)
     }
 }
 
@@ -2819,29 +2832,36 @@ private const val STACK_ROTATE_MS = 3000L
  * 3×3 carousel of full-size live tiles instead of a mini-grid of icons. The current
  * member's live face fills the tile (reusing [AppTileContent], so music now-playing,
  * notifications, etc. all work); the stack auto-rotates every [STACK_ROTATE_MS] while
- * live. **Swipe up/down inside the tile to flip through members** (a thin scroll
- * indicator on the right shows the position); tapping the body launches the current
- * member; long-press opens the manage overlay ([onOpenManage]). In edit mode it
- * attaches no gestures — the grid drag owns the tile (move / unpin).
+ * live, and members slide up/down so each reads as a distinct tile. **Swipe up/down
+ * inside the tile to flip through members** (a thin scroll indicator on the right
+ * shows the position); tapping the body launches the current member; long-press
+ * enters edit mode. There is **no folder overlay** for a stack: in edit mode it shows
+ * only an in-place **×** that deletes the current member ([onDeleteMember]) — no size
+ * adjustment — while the grid drag owns move / select.
  */
 @Composable
 private fun StackTileContent(
     tile: TileModel.Folder,
     editMode: Boolean,
+    selected: Boolean,
     liveActive: Boolean,
     onLaunchChild: (FolderChild) -> Unit,
-    onOpenManage: () -> Unit,
+    onEnterEdit: () -> Unit,
+    onDeleteMember: (FolderChild) -> Unit,
 ) {
     val children = tile.children
     val count = children.size
     val pageIndex = remember(tile.id, count) { mutableStateOf(0) }
     val safeIndex = pageIndex.value.coerceIn(0, (count - 1).coerceAtLeast(0))
+    // Direction of the last member change (+1 next / −1 previous) — drives the slide.
+    val lastDir = remember { mutableStateOf(1) }
 
     // Auto-rotate while live; paused in edit mode, off-screen, or with one member.
     LaunchedEffect(liveActive, editMode, count) {
         if (!liveActive || editMode || count <= 1) return@LaunchedEffect
         while (true) {
             delay(STACK_ROTATE_MS)
+            lastDir.value = 1
             pageIndex.value = (pageIndex.value + 1) % count
         }
     }
@@ -2853,15 +2873,16 @@ private fun StackTileContent(
         children.getOrNull(pageIndex.value.coerceIn(0, (count - 1).coerceAtLeast(0)))
             ?.let(onLaunchChild)
     }
-    val openManage = rememberUpdatedState(onOpenManage)
+    val enterEdit = rememberUpdatedState(onEnterEdit)
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            // Tap launches the current member, long-press opens the manage overlay,
-            // and a vertical drag flips through members — claimed over the grid's
-            // vertical scroll by consuming the gesture once it goes vertical. In edit
-            // mode no gestures attach; the grid drag owns the tile.
+            // Out of edit mode the stack owns its gestures: tap launches the current
+            // member, long-press enters edit, and a vertical drag flips through
+            // members — claimed over the grid's vertical scroll by consuming the
+            // gesture once it goes vertical. In edit mode no gesture attaches; the
+            // grid drag owns move/select and the in-place × handles delete.
             .then(
                 if (editMode) {
                     Modifier
@@ -2891,7 +2912,7 @@ private fun StackTileContent(
                                 @Suppress("UNREACHABLE_CODE") 1
                             }
                             when (decision) {
-                                null -> openManage.value() // held, no movement → manage
+                                null -> enterEdit.value() // held, no movement → edit
                                 0 -> launchCurrent.value() // quick release → launch
                                 2 -> {
                                     // Vertical scrub: one member per ~44 dp travelled,
@@ -2903,9 +2924,11 @@ private fun StackTileContent(
                                         change.consume()
                                         val dy = change.position.y - anchorY
                                         if (dy <= -stepPx) { // up → next
+                                            lastDir.value = 1
                                             pageIndex.value = (pageIndex.value + 1) % count
                                             anchorY = change.position.y
                                         } else if (dy >= stepPx) { // down → previous
+                                            lastDir.value = -1
                                             pageIndex.value = (pageIndex.value - 1 + count) % count
                                             anchorY = change.position.y
                                         }
@@ -2919,8 +2942,17 @@ private fun StackTileContent(
                 },
             ),
     ) {
-        // Cross-fade between members so both auto-rotate and a swipe read smoothly.
-        Crossfade(targetState = safeIndex, animationSpec = tween(280), label = "stackMember") { i ->
+        // Members slide vertically (in the travel direction) so each reads as a
+        // distinct tile scrolling past — for both the swipe and the auto-rotate.
+        AnimatedContent(
+            targetState = safeIndex,
+            transitionSpec = {
+                val dir = lastDir.value
+                (slideInVertically { h -> dir * h } + fadeIn()) togetherWith
+                    (slideOutVertically { h -> -dir * h } + fadeOut())
+            },
+            label = "stackMember",
+        ) { i ->
             children.getOrNull(i)?.let { child ->
                 // Render the member's live face at the stack tile's footprint by
                 // reusing the normal app-tile content. interactive=false so a tap on a
@@ -2967,6 +2999,23 @@ private fun StackTileContent(
                     val below = count - 1 - safeIndex
                     if (below > 0) Spacer(Modifier.weight(below.toFloat()))
                 }
+            }
+        }
+        // Edit mode: an in-place × on the current member (delete it) — the only
+        // control a stack offers (no resize). Tapping it removes that member; the
+        // stack dissolves to a single tile when one is left.
+        if (editMode && selected) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(6.dp)
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.55f))
+                    .clickable { children.getOrNull(safeIndex)?.let(onDeleteMember) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(text = "×", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Medium)
             }
         }
     }

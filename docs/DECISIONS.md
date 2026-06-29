@@ -1509,3 +1509,17 @@ vertical scroll (a clearly-horizontal drag is left alone). Callbacks are read vi
 gesture mid-swipe. The bottom page dots were replaced by a thin vertical scroll
 indicator (track + thumb) on the right edge; members cross-fade on change, and the 3 s
 auto-rotate stays. Swipe up → next, down → previous.
+
+### Widget stack follow-up: slide animation + in-place delete-only edit
+
+- **Slide animation.** Members now slide vertically (`AnimatedContent`, in/out offset =
+  travel direction) instead of cross-fading, so each member reads as a distinct tile
+  scrolling past — applied to both the swipe and the 3 s auto-rotate (`lastDir` tracks
+  the direction).
+- **No folder overlay for stacks.** Long-press now enters edit mode (not the overlay).
+  A selected stack shows only an in-place **×** (top-left) that deletes the *current*
+  member — no resize/colour (`TileControls` is gated off for stacks via `isStackTile`).
+  Delete uses a new `deleteStackMember` (DAO/repo/VM): like `removeFolderChild` but it
+  drops the member instead of re-pinning it to Start, dissolving the stack to a single
+  tile when one remains. Pick the member to delete by swiping to it before/while editing
+  (auto-rotate is paused in edit, so the shown member is the one removed).

@@ -275,6 +275,14 @@ class LayoutRepository(
         }
     }
 
+    /**
+     * Delete one member from a widget stack (the in-place edit × action). Unlike
+     * [removeFolderChild] (pull-out, which re-pins the app to Start), this just drops
+     * the member; the stack dissolves to a single tile when one remains.
+     */
+    suspend fun deleteStackMember(folderId: String, child: FolderChild) =
+        dao.deleteStackMember(folderId, child.packageName, child.activityName)
+
     /** Reorder folder children by writing new positions for the given ordered rowIds. */
     suspend fun reorderFolderChildren(orderedRowIds: List<Long>) {
         orderedRowIds.forEachIndexed { index, rowId ->

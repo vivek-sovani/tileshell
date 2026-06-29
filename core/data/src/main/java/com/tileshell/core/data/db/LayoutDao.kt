@@ -292,6 +292,38 @@ interface LayoutDao {
         }
     }
 
+    /**
+     * Delete one member from a widget stack in place (the stack's edit × action) —
+     * like [removeFolderChild] but the removed app is **not** re-pinned to Start, it
+     * is simply dropped. The stack then collapses the same way: ≥2 left renumber and
+     * keep; exactly 1 left dissolves the tile to that survivor (keeping its slot /
+     * size / colour); none left removes the tile and its meta.
+     */
+    @Transaction
+    suspend fun deleteStackMember(folderId: String, packageName: String, activityName: String) {
+        deleteFolderChildComponent(folderId, packageName, activityName)
+        val remaining = folderChildrenOnce(folderId)
+        when {
+            remaining.size >= 2 ->
+                remaining.forEachIndexed { index, child -> updateFolderChildPosition(child.rowId, index) }
+            remaining.size == 1 -> {
+                val survivor = remaining.first()
+                convertFolderTileToApp(
+                    id = folderId,
+                    packageName = survivor.packageName,
+                    activityName = survivor.activityName,
+                    label = survivor.label,
+                    iconKey = survivor.iconKey,
+                )
+                deleteFolderById(folderId)
+            }
+            else -> {
+                deleteTileById(folderId)
+                deleteFolderById(folderId)
+            }
+        }
+    }
+
     // ---- uninstall removal (FR-5) ---------------------------------------
 
     @Query("DELETE FROM tiles WHERE packageName = :packageName")
