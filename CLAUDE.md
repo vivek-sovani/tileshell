@@ -10,7 +10,7 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Persistence: Room for tiles/folders (v5 schema, `tileshell.db`), flat key=value DataStore for settings (custom `SettingsCodec`, not Proto DataStore). All layout writes debounced + transactional.
 
 ## Normative behaviour values (from prototype — treat as constants)
-- Grid: 4 columns default (user-selectable 4/5/6 via `columns` setting), dense packing, sizes small 1×1 / medium 2×2 / wide 4×2 / large 4×4 (large is gated: only music/news app tiles, only on 5/6-column grids; auto-shrinks to MEDIUM when grid drops to 4 cols — `AppCategories.allowsLargeTile`; legacy LARGE rows already decoded to MEDIUM under the post-S24 build); ref unit 90px, gap 3px, side 9px on 393px width → derive dp proportionally
+- Grid: 4 columns default (user-selectable 4/5/6 via `columns` setting), dense packing, sizes small 1×1 / medium 2×2 / wide 4×2 / large 4×4 (large is gated: only media (music/video, i.e. `classify=="entertainment"`, or `"music"` icon key) + news app tiles, only on 5/6-column grids; auto-shrinks to MEDIUM when grid drops to 4 cols — `AppCategories.allowsLargeTile`; news app's `NotificationTileFace` gets a full-area hero layout at LARGE; legacy LARGE rows already decoded to MEDIUM under the post-S24 build); ref unit 90px, gap 3px, side 9px on 393px width → derive dp proportionally
 - Long-press: 430ms (tiles), 450ms (app list pin); move-cancel threshold 7px
 - Merge zone: inner 22–78% of target tile, both axes
 - Pager: app list slides in; Start translates −22% and fades to 0.4; commit at 50%; activate when |dx|>12px and |dx|>1.2|dy|

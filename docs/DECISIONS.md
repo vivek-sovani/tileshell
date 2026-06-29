@@ -16,12 +16,23 @@ rule 4. Newest first.
   than a second enum or a per-tile flag. Default `false` keeps the cycle (and every
   existing caller/test) unchanged; `StartViewModel.resize` computes `largeAllowed`
   per tile via the pure `AppCategories.allowsLargeTile(iconKey, app, columns)`.
-- **Category match:** music = the designed `"music"` icon key OR the app's
-  `ROLE_MUSIC` role (the role, not the broader "entertainment" category, so
-  video/streaming apps don't qualify); news = `classify(app) == "news"`
-  (`CATEGORY_NEWS` or news tokens). The check needs the catalogue `AppEntry` (the
-  `TileModel.App` carries only `packageName`/`iconKey`), looked up by package in the
-  ViewModel where `apps`/`settings` are available.
+- **Category match:** media = the designed `"music"` icon key OR
+  `classify(app) == "entertainment"` (the music/video bucket: `ROLE_MUSIC`,
+  `CATEGORY_AUDIO`/`CATEGORY_VIDEO`, or audio/video/stream tokens); news =
+  `classify(app) == "news"` (`CATEGORY_NEWS` or news tokens). The check needs the
+  catalogue `AppEntry` (the `TileModel.App` carries only `packageName`/`iconKey`),
+  looked up by package in the ViewModel where `apps`/`settings` are available.
+  **Initially the music match used `ROLE_MUSIC` alone, but that only catches the
+  app declaring the `CATEGORY_APP_MUSIC` launcher role** — the seeded default music
+  tile (e.g. YT Music) qualified, but pinned media apps like Apple Music / YouTube /
+  Spotify did not. Broadening to the `"entertainment"` category fixed it: those apps
+  already carry the now-playing live face, so letting them go large is consistent.
+- **Large news notification face fills the tile.** A news app at 4×4 with no media
+  session renders `NotificationTileFace`; the compact single-row layout left most of
+  the 4×4 empty, so `NotificationFaceContentLarge` gives it a hero layout — the
+  shared picture becomes a large image taking the available height, with the source
+  + headline below in bigger type (no picture → the headline itself is the hero).
+  Threaded via a `large` flag (`tile.size == LARGE`) into `NotificationTileFace`.
 - **Auto-shrink on 4 columns (chosen over leaving large tiles as-is).** Switching
   the grid back to 4 columns demotes every large tile to MEDIUM
   (`setColumns` → `demoteLargeTiles` bulk `UPDATE`), so the invariant "no LARGE below

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -92,7 +93,12 @@ internal fun NotificationFaceContent(
     preview: ConversationPreview,
     avatar: ImageBitmap?,
     picture: ImageBitmap?,
+    large: Boolean = false,
 ) {
+    if (large) {
+        NotificationFaceContentLarge(preview, avatar, picture)
+        return
+    }
     Row(
         modifier = Modifier.fillMaxSize().padding(11.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -127,6 +133,77 @@ internal fun NotificationFaceContent(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.size(44.dp).clip(RoundedCornerShape(6.dp)),
             )
+        }
+    }
+}
+
+/**
+ * The full-area notification face for a 4×4 LARGE tile (news apps). Instead of the
+ * compact single row it fills the tile: a shared [picture] becomes a hero image
+ * that takes the available height, with the source name and the headline
+ * [ConversationPreview.snippet] below it in larger type. When there is no picture
+ * the headline itself becomes the hero, given several lines of room.
+ */
+@Composable
+private fun NotificationFaceContentLarge(
+    preview: ConversationPreview,
+    avatar: ImageBitmap?,
+    picture: ImageBitmap?,
+) {
+    Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
+        // Leave room for the app-icon corner badge (top-left) drawn by the caller.
+        Spacer(Modifier.height(22.dp))
+        if (picture != null) {
+            Image(
+                bitmap = picture,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(10.dp)),
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = preview.sender.ifBlank { "someone" },
+                color = FaceText.copy(alpha = 0.7f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (preview.snippet.isNotEmpty()) {
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    text = preview.snippet,
+                    color = FaceText,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SenderAvatar(name = preview.sender, photo = avatar)
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = preview.sender.ifBlank { "someone" },
+                    color = FaceText,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (preview.snippet.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = preview.snippet,
+                    color = FaceText.copy(alpha = 0.92f),
+                    fontSize = 20.sp,
+                    maxLines = 6,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.weight(1f))
         }
     }
 }

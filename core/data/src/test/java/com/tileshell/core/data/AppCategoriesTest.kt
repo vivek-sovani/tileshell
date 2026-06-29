@@ -123,6 +123,20 @@ class AppCategoriesTest {
     }
 
     @Test
+    fun `media apps without the music role still allow large`() {
+        // Apple Music / Spotify-style audio apps declare CATEGORY_AUDIO (not the
+        // CATEGORY_APP_MUSIC launcher role) → entertainment → large allowed.
+        val appleMusicLike = app("x.applemusic", category = ApplicationInfo.CATEGORY_AUDIO)
+        assertTrue(AppCategories.allowsLargeTile(iconKey = null, app = appleMusicLike, columns = 5))
+        // YouTube-style video apps declare CATEGORY_VIDEO → entertainment → large.
+        val youtubeLike = app("x.video", category = ApplicationInfo.CATEGORY_VIDEO)
+        assertTrue(AppCategories.allowsLargeTile(iconKey = null, app = youtubeLike, columns = 6))
+        // media app classified only by token also qualifies.
+        val byToken = app("com.acme.android", label = "Acme Stream Player")
+        assertTrue(AppCategories.allowsLargeTile(iconKey = null, app = byToken, columns = 5))
+    }
+
+    @Test
     fun `music icon key alone allows large even without a catalogue match`() {
         assertTrue(AppCategories.allowsLargeTile(iconKey = "music", app = null, columns = 5))
     }
@@ -143,12 +157,11 @@ class AppCategoriesTest {
     }
 
     @Test
-    fun `non music non news apps never allow large`() {
+    fun `non media non news apps never allow large`() {
         val mail = app("x.mail", role = AppCategories.ROLE_EMAIL)
         assertFalse(AppCategories.allowsLargeTile(iconKey = "mail", app = mail, columns = 6))
-        // video/streaming classifies as entertainment but is not music → no large
-        val video = app("x.video", category = ApplicationInfo.CATEGORY_VIDEO)
-        assertFalse(AppCategories.allowsLargeTile(iconKey = null, app = video, columns = 6))
+        val game = app("x.game", category = ApplicationInfo.CATEGORY_GAME)
+        assertFalse(AppCategories.allowsLargeTile(iconKey = null, app = game, columns = 6))
     }
 
     @Test

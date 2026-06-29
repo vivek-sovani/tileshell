@@ -31,6 +31,9 @@ fun NotificationTileFace(
     packageName: String,
     fallback: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    // A 4×4 LARGE tile (news apps) gets the full-area hero layout instead of the
+    // compact notification row.
+    large: Boolean = false,
 ) {
     val snapshot by NotificationCenter.snapshot.collectAsState()
     val preview = snapshot.conversationFor(packageName) ?: return fallback()
@@ -43,6 +46,7 @@ fun NotificationTileFace(
             preview = preview,
             avatar = imgs?.avatar?.asImageBitmap(),
             picture = imgs?.picture?.asImageBitmap(),
+            large = large,
         )
         // The app's own icon in the top-left corner (the count badge sits top-right).
         AppIconCorner(

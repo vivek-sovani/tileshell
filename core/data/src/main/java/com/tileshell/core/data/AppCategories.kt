@@ -141,13 +141,16 @@ object AppCategories {
 
     /**
      * Whether a tile may cycle up to the 4×4 [TileSize.LARGE] size. Large is gated
-     * to **music** and **news** app tiles only, and only on a 5- or 6-column grid
-     * (on a 4-column grid a 4×4 tile fills the whole width — too dominant — so it is
-     * disallowed and large tiles auto-shrink to medium).
+     * to **media** (music / video) and **news** app tiles only, and only on a 5- or
+     * 6-column grid (on a 4-column grid a 4×4 tile fills the whole width — too
+     * dominant — so it is disallowed and large tiles auto-shrink to medium).
      *
-     * - **music**: the tile carries the designed `"music"` icon key, or the app
-     *   declares the music app role ([ROLE_MUSIC]). Using the role (not the broader
-     *   "entertainment" category) keeps video/streaming apps out.
+     * - **media**: the tile carries the designed `"music"` icon key, or the app
+     *   classifies as `"entertainment"` (the music/video bucket: [ROLE_MUSIC],
+     *   `CATEGORY_AUDIO`/`CATEGORY_VIDEO`, or audio/video/stream tokens). This is
+     *   broader than the music role alone so pinned media apps that don't declare
+     *   the `CATEGORY_APP_MUSIC` launcher role — Apple Music, YouTube, Spotify,
+     *   etc., which carry the now-playing live face — also qualify.
      * - **news**: the app classifies as `"news"` (OS `CATEGORY_NEWS` or news tokens).
      *
      * Pure so the gating is unit-testable; [app] is the catalogue entry for the
@@ -156,9 +159,10 @@ object AppCategories {
      */
     fun allowsLargeTile(iconKey: String?, app: AppEntry?, columns: Int): Boolean {
         if (columns < 5) return false
-        val isMusic = iconKey == "music" || app?.role == ROLE_MUSIC
-        val isNews = app != null && classify(app) == "news"
-        return isMusic || isNews
+        val category = app?.let { classify(it) }
+        val isMedia = iconKey == "music" || category == "entertainment"
+        val isNews = category == "news"
+        return isMedia || isNews
     }
 
     /** All installed [apps] that classify into the category with id [categoryId]. */

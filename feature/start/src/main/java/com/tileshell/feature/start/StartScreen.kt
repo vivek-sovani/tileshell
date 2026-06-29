@@ -2454,6 +2454,7 @@ private fun AppTileContent(
                         NotificationTileFace(
                             packageName = tile.packageName,
                             fallback = staticGlyph,
+                            large = tile.size == TileSize.LARGE,
                             modifier = Modifier.fillMaxSize(),
                         )
                     },

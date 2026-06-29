@@ -50,7 +50,7 @@ Room/DataStore → Repository → ViewModel (StateFlow) → Compose UI
 ```
 Grid:        4 columns default (user-selectable 4/5/6), dense back-fill packing
 Tile sizes:  small 1×1 / medium 2×2 / wide 4×2 / large 4×4
-             (large gated: music/news app tiles only, 5/6-column grids only)
+             (large gated: media [music/video] + news app tiles, 5/6-column grids only)
              ref unit 90px, gap 3px, side margin 9px on 393px width
 Long-press:  430ms (tiles), 450ms (app list pin); cancel threshold 7px
 Merge zone:  inner 22–78% of target tile on both axes
@@ -148,7 +148,7 @@ enum class TileSize(val cols: Int, val rows: Int) {
 }
 ```
 
-**Resize cycle (FR-3.4):** MEDIUM → SMALL → WIDE → MEDIUM by default. For **music/news app tiles on a 5/6-column grid** (`AppCategories.allowsLargeTile(iconKey, app, columns)`) wide steps up to LARGE: MEDIUM → SMALL → WIDE → LARGE → MEDIUM. `StartViewModel.resize` computes `largeAllowed` from the tile's catalogue category + `settings.columns`.
+**Resize cycle (FR-3.4):** MEDIUM → SMALL → WIDE → MEDIUM by default. For **media (music/video) + news app tiles on a 5/6-column grid** (`AppCategories.allowsLargeTile(iconKey, app, columns)` — media = `"music"` icon key or `classify=="entertainment"`; news = `classify=="news"`) wide steps up to LARGE: MEDIUM → SMALL → WIDE → LARGE → MEDIUM. `StartViewModel.resize` computes `largeAllowed` from the tile's catalogue category + `settings.columns`. A LARGE news tile's `NotificationTileFace` renders a full-area hero layout (`NotificationFaceContentLarge`).
 **Large auto-shrink:** dropping the grid to 4 columns demotes every LARGE tile to MEDIUM (`StartViewModel.setColumns` → `LayoutRepository.demoteLargeTiles` → DAO bulk `UPDATE … WHERE size='LARGE'`).
 **Folder child resize:** SMALL ↔ MEDIUM only (no WIDE/LARGE inside folders; WIDE/LARGE tiles merged in are demoted to MEDIUM, and a LARGE merge target makes a WIDE folder tile — `TileMerge.clampForFolder` / `clampFolderTile`).
 **Legacy LARGE** rows decode via Room converter's `runCatching { TileSize.valueOf(name) }.getOrDefault(TileSize.MEDIUM)` — with LARGE back in the enum, `valueOf("LARGE")` succeeds (but post-S24 builds already re-persisted those rows as MEDIUM, so nothing resurrects).
