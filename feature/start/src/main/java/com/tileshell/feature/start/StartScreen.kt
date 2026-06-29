@@ -4,6 +4,7 @@ package com.tileshell.feature.start
 
 import android.content.ComponentName
 import android.content.Context
+import android.content.res.Configuration
 import android.provider.Settings
 import android.app.SearchManager
 import android.content.Intent
@@ -45,6 +46,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutoutPadding
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -99,6 +101,7 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -346,6 +349,10 @@ fun StartScreen(
     // Pager position: -1 = feed (left), 0 = Start, +1 = app list (right). The feed
     // page is the swipe-right surface; it is only reachable when enabled (FR-7).
     val feedEnabled = settings.feedEnabled
+    // In landscape we drop the feed↔Start swipe and show both as side-by-side
+    // panels instead (so a 4-col grid never balloons to fill the wide screen).
+    val isLandscape =
+        LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val progress = remember { Animatable(0f) }
     // Live tiles pause when Start is no longer the foreground surface: the app
     // list (>50% right) or the feed (>50% left) has taken over, or an overlay
@@ -366,6 +373,12 @@ fun StartScreen(
     // back to Start so the pager never rests on a now-absent page.
     LaunchedEffect(feedEnabled) {
         if (!feedEnabled && progress.value < 0f) progress.animateTo(0f, settleSpec)
+    }
+
+    // The feed page is its own left panel in landscape (no −1 swipe position), so
+    // never rest on it once we rotate into landscape.
+    LaunchedEffect(isLandscape) {
+        if (isLandscape && progress.value < 0f) progress.animateTo(0f, settleSpec)
     }
 
     // Home press collapses to Start and scrolls the grid to the top.
@@ -410,58 +423,54 @@ fun StartScreen(
             )
         }
 
-        // Horizontal pager gesture. Detection runs in the Initial pass so a
-        // dominant horizontal drag is claimed before the vertical grid scroll
-        // (a child) can consume it; vertical drags pass straight through.
-        val pager = Modifier.pointerInput(swipeEnabled, widthPx, feedEnabled) {
-            if (!swipeEnabled) return@pointerInput
-            val slop = 12.dp.toPx()
-            awaitEachGesture {
-                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                val base = progress.value
-                var horizontal = false
-                var decided = false
-                while (true) {
-                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                    val dx = change.position.x - down.position.x
-                    val dy = change.position.y - down.position.y
-                    if (!decided) {
-                        if (abs(dx) > slop && abs(dx) > abs(dy) * 1.2f) {
-                            decided = true
-                            horizontal = true
-                        } else if (abs(dy) > slop) {
-                            decided = true // vertical → leave it to the grid scroll
+        // Horizontal pager gesture, parameterised by the width of the page being
+        // swiped (`pageWidthPx`) and the lowest reachable position (`lower`: −1 to
+        // reach the feed in portrait, 0 when there is no swipe-in feed page).
+        // Detection runs in the Initial pass so a dominant horizontal drag is
+        // claimed before the vertical grid scroll (a child) can consume it;
+        // vertical drags pass straight through.
+        fun pagerModifier(pageWidthPx: Float, lower: Float): Modifier =
+            Modifier.pointerInput(swipeEnabled, pageWidthPx, lower) {
+                if (!swipeEnabled) return@pointerInput
+                val slop = 12.dp.toPx()
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    val base = progress.value
+                    var horizontal = false
+                    var decided = false
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        val dx = change.position.x - down.position.x
+                        val dy = change.position.y - down.position.y
+                        if (!decided) {
+                            if (abs(dx) > slop && abs(dx) > abs(dy) * 1.2f) {
+                                decided = true
+                                horizontal = true
+                            } else if (abs(dy) > slop) {
+                                decided = true // vertical → leave it to the grid scroll
+                            }
                         }
+                        if (horizontal) {
+                            change.consume()
+                            val target = (base - dx / pageWidthPx).coerceIn(lower, 1f)
+                            scope.launch { progress.snapTo(target) }
+                        }
+                        if (!change.pressed) break
                     }
                     if (horizontal) {
-                        change.consume()
-                        val lower = if (feedEnabled) -1f else 0f
-                        val target = (base - dx / widthPx).coerceIn(lower, 1f)
-                        scope.launch { progress.snapTo(target) }
+                        settleTo(pagerCommitTarget(base, progress.value).coerceAtLeast(lower))
                     }
-                    if (!change.pressed) break
-                }
-                if (horizontal) {
-                    val lower = if (feedEnabled) -1f else 0f
-                    settleTo(pagerCommitTarget(base, progress.value).coerceAtLeast(lower))
                 }
             }
-        }
 
         // Blur the Start surface behind the folder overlay (prototype
         // backdrop-filter; real blur only takes effect API 31+, harmless below).
         val behindBlur = if (openFolder != null) 14.dp else 0.dp
-        Box(modifier = Modifier.fillMaxSize().blur(behindBlur).then(pager)) {
-            // Start page: parallaxes (±22%) and fades as a side page comes in.
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        translationX = -0.22f * widthPx * progress.value
-                        alpha = 1f - 0.6f * abs(progress.value)
-                    },
-            ) {
+        // Page content reused by both layouts. `pageWidthPx` drives the Start grid
+        // and its edit-drag hit-testing, so a half-width landscape panel keeps
+        // tiles portrait-sized instead of stretching to fill the wide screen.
+        val renderStartPage: @Composable (Float) -> Unit = { pageWidthPx ->
                 StartPage(
                     specs = specs,
                     byId = byId,
@@ -489,7 +498,7 @@ fun StartScreen(
                     wallpaperAlignY = settings.wallpaperAlignY,
                     darkTheme = dark,
                     notifications = notifications,
-                    widthPx = widthPx,
+                    widthPx = pageWidthPx,
                     viewportHeightPx = viewportHeightPx,
                     statusBarTopPx = statusBarTopPx,
                     columns = settings.columns,
@@ -532,52 +541,137 @@ fun StartScreen(
                     },
                     onPersonalize = viewModel::openPersonalize,
                 )
-            }
+        }
 
-            // App-list page: slides in from the right.
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { translationX = widthPx * (1f - progress.value) }
-                    .background(LocalColorTokens.current.bg),
-            ) {
-                AppListScreen(
-                    modifier = Modifier.fillMaxSize(),
-                    onPinned = { settleTo(0f) },
-                )
-            }
+        val renderAppList: @Composable () -> Unit = {
+            AppListScreen(
+                modifier = Modifier.fillMaxSize(),
+                onPinned = { settleTo(0f) },
+            )
+        }
 
-            // Feed page (left): an independent, opaque screen that slides in over
-            // Start from the left edge as the user swipes right (mirrors the app
-            // list). Drawn on top with its own background so Start never shows
-            // through it. Only composed when enabled (FR-7); off-screen otherwise.
-            if (feedEnabled) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { translationX = widthPx * (-1f - progress.value) }
-                        .background(LocalColorTokens.current.bg),
-                ) {
-                    FeedPage(
-                        accent = accent,
-                        statusBarTopPx = statusBarTopPx,
-                        feedEnabled = settings.feedEnabled,
-                        onFeedEnabledChange = viewModel::setFeedEnabled,
-                        feeds = feedSources.map { FeedSourceItem(it.url, it.name, it.category, it.enabled) },
-                        onToggleFeed = viewModel::setFeedSourceEnabled,
-                        onToggleCategory = viewModel::setFeedCategoryEnabled,
-                        onRemoveFeed = viewModel::removeFeedSource,
-                        onAddFeed = viewModel::addFeedSource,
-                        onSearch = { query -> launchWebSearch(context, query) },
-                        onWeatherDetails = { query -> launchWebSearch(context, query) },
-                        onAddSchedule = { launchAddEvent(context) },
-                        onOpenArticle = { link -> launchUrl(context, link) },
-                        onRefresh = {
-                            viewModel.refreshFeeds()
-                            Toast.makeText(context, "refreshing news", Toast.LENGTH_SHORT).show()
-                        },
-                        active = feedShown,
-                    )
+        // Feed page: an independent, opaque screen. In portrait it slides in over
+        // Start from the left edge as the user swipes right (mirrors the app list);
+        // in landscape it is the always-visible left panel (`active` stays true).
+        val renderFeed: @Composable (Boolean) -> Unit = { active ->
+            FeedPage(
+                accent = accent,
+                statusBarTopPx = statusBarTopPx,
+                feedEnabled = settings.feedEnabled,
+                onFeedEnabledChange = viewModel::setFeedEnabled,
+                feeds = feedSources.map { FeedSourceItem(it.url, it.name, it.category, it.enabled) },
+                onToggleFeed = viewModel::setFeedSourceEnabled,
+                onToggleCategory = viewModel::setFeedCategoryEnabled,
+                onRemoveFeed = viewModel::removeFeedSource,
+                onAddFeed = viewModel::addFeedSource,
+                onSearch = { query -> launchWebSearch(context, query) },
+                onWeatherDetails = { query -> launchWebSearch(context, query) },
+                onAddSchedule = { launchAddEvent(context) },
+                onOpenArticle = { link -> launchUrl(context, link) },
+                onRefresh = {
+                    viewModel.refreshFeeds()
+                    Toast.makeText(context, "refreshing news", Toast.LENGTH_SHORT).show()
+                },
+                active = active,
+            )
+        }
+
+        Box(modifier = Modifier.fillMaxSize().blur(behindBlur)) {
+            when {
+                // Landscape with the feed on: two side-by-side panels. The feed is
+                // the left panel (always live); Start is the right panel at half
+                // width, so its grid stays portrait-sized. The app list slides in
+                // over the Start panel only — the feed panel stays put.
+                isLandscape && feedEnabled -> {
+                    val panelWidthPx = widthPx / 2f
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                            renderFeed(true)
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .then(pagerModifier(panelWidthPx, 0f)),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer {
+                                        translationX = -0.22f * panelWidthPx * progress.value
+                                        alpha = 1f - 0.6f * abs(progress.value)
+                                    },
+                            ) { renderStartPage(panelWidthPx) }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer { translationX = panelWidthPx * (1f - progress.value) }
+                                    .background(LocalColorTokens.current.bg),
+                            ) { renderAppList() }
+                        }
+                    }
+                }
+                // Landscape with the feed off: no left panel, so keep Start at a
+                // portrait-like width centred on screen (tiles never balloon); the
+                // app list still covers the full width.
+                isLandscape -> {
+                    val cappedWidthPx = minOf(widthPx, with(density) { 460.dp.toPx() })
+                    Box(modifier = Modifier.fillMaxSize().then(pagerModifier(widthPx, 0f))) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .width(with(density) { cappedWidthPx.toDp() })
+                                .fillMaxHeight()
+                                .graphicsLayer {
+                                    translationX = -0.22f * widthPx * progress.value
+                                    alpha = 1f - 0.6f * abs(progress.value)
+                                },
+                        ) { renderStartPage(cappedWidthPx) }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { translationX = widthPx * (1f - progress.value) }
+                                .background(LocalColorTokens.current.bg),
+                        ) { renderAppList() }
+                    }
+                }
+                // Portrait: the stacked, swipeable pager (feed −1, Start 0, list +1).
+                else -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .then(pagerModifier(widthPx, if (feedEnabled) -1f else 0f)),
+                    ) {
+                        // Start page: parallaxes (±22%) and fades as a side page comes in.
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    translationX = -0.22f * widthPx * progress.value
+                                    alpha = 1f - 0.6f * abs(progress.value)
+                                },
+                        ) { renderStartPage(widthPx) }
+
+                        // App-list page: slides in from the right.
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { translationX = widthPx * (1f - progress.value) }
+                                .background(LocalColorTokens.current.bg),
+                        ) { renderAppList() }
+
+                        // Feed page (left): drawn on top with its own background so
+                        // Start never shows through it. Only composed when enabled
+                        // (FR-7); off-screen otherwise.
+                        if (feedEnabled) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer { translationX = widthPx * (-1f - progress.value) }
+                                    .background(LocalColorTokens.current.bg),
+                            ) { renderFeed(feedShown) }
+                        }
+                    }
                 }
             }
         }

@@ -1372,3 +1372,30 @@ Follow-up on the widget host.
   320), so agenda/calendar list widgets render fuller out of the box instead of clipped.
   (Very long lists still rely on the widget's own internal scroll; the larger ceiling +
   drag-resize cover the common case.)
+
+## Landscape: two-panel layout (feed + Start) instead of stretched tiles
+
+Grid sizing is purely responsive (`GridGeometry.of(constraints.maxWidth, columns)`), so in
+landscape the doubled width was divided across the same 4 columns and tiles ballooned. Fix:
+in landscape, drop the feed↔Start swipe and show both as side-by-side panels.
+
+- **`isLandscape`** = `LocalConfiguration.current.orientation == ORIENTATION_LANDSCAPE`.
+- **Feed on (default):** a `Row` with feed (left, `weight(1f)`, always `active=true`) and
+  Start (right, `weight(1f)`). Start renders at half width (`widthPx/2f`) — the grid
+  self-measures via `fillMaxWidth` and `widthPx` is passed to `StartPage` so the
+  edit-drag hit-testing geometry matches, keeping tiles portrait-sized. **50/50 split**
+  (user choice); no divider Box so the halves stay exactly equal.
+- **App list in landscape covers the Start panel only** (user choice): its slide Box lives
+  inside the right-panel Box, translating by `panelWidthPx`. The feed panel stays put.
+- **Feed off:** no left panel; Start is centred at a capped portrait-like width
+  (`min(widthPx, 460dp)`) so tiles still never balloon, and the app list covers the full
+  width. (The `feedEnabled` setting does exist, default on; this is the defensive fallback.)
+- **Pager refactor:** the `pager` val became `fun pagerModifier(pageWidthPx, lower)` so each
+  layout drives the gesture with its own page width and lower bound (portrait −1 to reach the
+  feed; landscape 0 — feed is a panel, not a swipe position). A `LaunchedEffect(isLandscape)`
+  clamps `progress` to ≥0 on rotation so the pager never rests on the now-absent feed page.
+- Page bodies are hoisted into `renderStartPage(pageWidthPx)`, `renderAppList()`,
+  `renderFeed(active)` composable lambdas, shared by both layouts (no duplicated arg lists).
+- Caveat: tiled-wallpaper "window" mapping uses the panel width as the full screen, so in
+  that mode the show-through wallpaper shows its left portion in the right panel — cosmetic,
+  only affects tiled-wallpaper users in landscape.
