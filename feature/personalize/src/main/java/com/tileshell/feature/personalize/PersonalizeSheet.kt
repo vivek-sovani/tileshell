@@ -141,6 +141,18 @@ fun PersonalizeSheet(
     val accent = TileAccents.forId(accentId)
 
     Box(modifier = modifier.fillMaxSize()) {
+        // In landscape the launcher splits into a feed (left) + Start (right)
+        // panel; the whole sheet — scrim included — is confined to the right half
+        // so the feed panel on the left stays visible and undimmed. Portrait fills
+        // the full screen.
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .then(
+                    if (rightHalf) Modifier.fillMaxWidth(0.5f).fillMaxHeight()
+                    else Modifier.fillMaxSize(),
+                ),
+        ) {
         // Scrim (prototype rgba(0,0,0,.5)); tap to dismiss.
         Box(
             modifier = Modifier
@@ -155,8 +167,8 @@ fun PersonalizeSheet(
 
         Column(
             modifier = Modifier
-                .align(if (rightHalf) Alignment.BottomEnd else Alignment.BottomCenter)
-                .fillMaxWidth(if (rightHalf) 0.5f else 1f)
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
                 .fillMaxHeight(0.86f)
                 .graphicsLayer { translationY = size.height * (1f - progress) }
                 .background(tokens.sheet)
@@ -665,6 +677,7 @@ fun PersonalizeSheet(
                     Text(text = "features & info ›", color = accent, fontSize = 13.sp)
                 }
             }
+        }
         }
     }
 }
