@@ -1,6 +1,10 @@
 package com.tileshell.feature.start.feed
 
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
+import android.provider.CalendarContract
+import android.widget.Toast
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -214,7 +218,12 @@ fun FeedPage(
                     )
 
                     SectionHeader("today", actionText = "add", accent = accent, tokens = tokens, showPlus = true, onAction = onAddSchedule)
-                    AgendaCard(agenda = agenda, granted = calGranted, accent = accent)
+                    AgendaCard(
+                        agenda = agenda,
+                        granted = calGranted,
+                        accent = accent,
+                        onClick = { openCalendar(context) },
+                    )
 
                     if (nowPlaying != null) {
                         NowPlayingCard(
@@ -222,6 +231,7 @@ fun FeedPage(
                             packageName = nowPlayingPackage,
                             art = nowPlayingPackage?.let { artwork[it] },
                             accent = accent,
+                            onClick = nowPlayingPackage?.let { pkg -> { launchPackage(context, pkg) } },
                         )
                     }
 
@@ -544,8 +554,9 @@ private fun AgendaCard(
     agenda: CalendarFace,
     granted: Boolean,
     accent: Color,
+    onClick: () -> Unit,
 ) {
-    AccentCard(accent) {
+    AccentCard(accent, onClick = onClick) {
         Column(modifier = Modifier.padding(16.dp)) {
             val events = listOfNotNull(agenda.next, agenda.following)
             when {
@@ -579,8 +590,9 @@ private fun NowPlayingCard(
     packageName: String?,
     art: android.graphics.Bitmap?,
     accent: Color,
+    onClick: (() -> Unit)? = null,
 ) {
-    AccentCard(accent) {
+    AccentCard(accent, onClick = onClick) {
         Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
@@ -1045,3 +1057,27 @@ private fun FeedsManager(
     }
 }
 
+/**
+ * Opens the default calendar app. Tries the calendar content provider VIEW intent
+ * (the standard way to land in the device's calendar at the current time), then
+ * falls back to the add-event INSERT intent. Best-effort — toasts if no calendar
+ * app handles either.
+ */
+private fun openCalendar(context: android.content.Context) {
+    val view = Intent(Intent.ACTION_VIEW)
+        .setData(Uri.parse("content://com.android.calendar/time"))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (runCatching { context.startActivity(view) }.isSuccess) return
+    val insert = Intent(Intent.ACTION_INSERT)
+        .setData(CalendarContract.Events.CONTENT_URI)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (runCatching { context.startActivity(insert) }.isSuccess) return
+    Toast.makeText(context, "no calendar app found", Toast.LENGTH_SHORT).show()
+}
+
+/** Launches [packageName]'s main activity via the launcher intent. Best-effort; silently no-ops on failure. */
+private fun launchPackage(context: android.content.Context, packageName: String) {
+    val intent = context.packageManager.getLaunchIntentForPackage(packageName)
+        ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) ?: return
+    runCatching { context.startActivity(intent) }
+}
