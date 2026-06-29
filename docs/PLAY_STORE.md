@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v1.2 listing draft — update before each release*
+*v1.3 listing draft — update before each release*
 
 ---
 
@@ -41,13 +41,19 @@ Alphabetical grid with live letter headers and a full-screen A–Z jump grid. Se
 filters instantly. Recent apps float to the top. Long-press to pin to Start or uninstall.
 
 ★ PERSONALIZATION
-14 accent colours · dark/light themes (follows system) · glass transparent tiles ·
-blur wallpaper · wallpaper-behind-tiles window mode · 6 bundled gradient wallpapers +
-custom photo · corner radius slider · gradient fill toggle · 3 font styles.
+14 accent colours · per-tile colour override · tile colour from the app's own icon ·
+dark/light themes (follows system) · glass transparent tiles · blur wallpaper ·
+wallpaper-behind-tiles window mode · 6 bundled gradient wallpapers + custom photo ·
+corner radius slider · gradient fill toggle · 3 font styles · adjustable tile spacing.
 
 ★ SCREEN LOCK
 Long-press the settings gear to lock the screen instantly — uses the Accessibility
 API so biometric unlock is preserved (fingerprint / face).
+
+★ BATTERY FRIENDLY
+Background workers (weather, news, Bing wallpaper) only run when your device has a
+network connection, so they never wake the radio on airplane mode or burn retries.
+Live-tile animations pause automatically in battery saver mode.
 
 ★ PRIVACY FIRST
 No accounts. No analytics. No ads. All your data stays on your device. Only weather
@@ -142,6 +148,18 @@ data. Users can also clear app data via Android Settings at any time.
 | Feature graphic | 1024 × 500 px | Required for listing banner |
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
+
+## Release notes (v1.3.0)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 1.3
+
+• Give any tile its own colour — tap the palette in edit mode to pick an accent, or let TileShell pull the colour straight from the app's icon
+• Adjustable tile spacing — drag the spacing slider in Personalize to pack tiles tighter or give them more room
+• Battery improvements: background weather, news, and Bing wallpaper workers now wait for a network connection before running, so they never wake the radio on airplane mode
+```
 
 ## Release notes (v1.2.0)
 

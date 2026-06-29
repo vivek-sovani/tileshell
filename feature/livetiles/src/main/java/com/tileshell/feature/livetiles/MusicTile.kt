@@ -55,7 +55,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlin.random.Random
 
 private val FaceText = Color.White
-private const val POLL_MS = 2_000L
+private const val POLL_MS = 3_000L
 private const val EQ_STEP_MS = 240L
 
 /**

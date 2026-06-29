@@ -6,9 +6,11 @@ import android.content.pm.PackageManager
 import android.location.Geocoder
 import android.location.LocationManager
 import androidx.core.content.ContextCompat
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkerParameters
@@ -104,6 +106,12 @@ class WeatherRefreshWorker(
         private const val UNIQUE_PERIODIC = "tileshell_weather_refresh"
         private const val UNIQUE_NOW = "tileshell_weather_refresh_now"
 
+        // Skip the background refresh when there is no network — avoids a wakeup
+        // that would just retry immediately and burn radio time.
+        private val periodicConstraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
         /**
          * Ensures the ≥30-min periodic refresh is enqueued and kicks an immediate
          * one-off so a freshly shown weather tile does not wait a full period.
@@ -114,7 +122,9 @@ class WeatherRefreshWorker(
             wm.enqueueUniquePeriodicWork(
                 UNIQUE_PERIODIC,
                 ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequestBuilder<WeatherRefreshWorker>(30, TimeUnit.MINUTES).build(),
+                PeriodicWorkRequestBuilder<WeatherRefreshWorker>(30, TimeUnit.MINUTES)
+                    .setConstraints(periodicConstraints)
+                    .build(),
             )
             wm.enqueueUniqueWork(
                 UNIQUE_NOW,

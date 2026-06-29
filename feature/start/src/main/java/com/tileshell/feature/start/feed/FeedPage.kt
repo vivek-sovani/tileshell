@@ -139,7 +139,7 @@ fun FeedPage(
         if (!active) return@LaunchedEffect
         while (true) {
             refreshMediaSessions(context)
-            delay(1_500L)
+            delay(2_500L)
         }
     }
 

@@ -1,9 +1,11 @@
 package com.tileshell.feature.livetiles
 
 import android.content.Context
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -72,6 +74,12 @@ class FeedRefreshWorker(
         private const val UNIQUE_PERIODIC = "tileshell_feed_refresh"
         private const val UNIQUE_NOW = "tileshell_feed_refresh_now"
 
+        // Require a network connection for the background periodic refresh so the
+        // worker is not woken up on airplane mode / offline to fail and retry.
+        private val periodicConstraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
         /**
          * Ensures the ≥30-min periodic refresh is enqueued and kicks an immediate
          * one-off so a freshly shown feed page does not wait a full period.
@@ -82,7 +90,9 @@ class FeedRefreshWorker(
             wm.enqueueUniquePeriodicWork(
                 UNIQUE_PERIODIC,
                 ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequestBuilder<FeedRefreshWorker>(30, TimeUnit.MINUTES).build(),
+                PeriodicWorkRequestBuilder<FeedRefreshWorker>(30, TimeUnit.MINUTES)
+                    .setConstraints(periodicConstraints)
+                    .build(),
             )
             wm.enqueueUniqueWork(
                 UNIQUE_NOW,

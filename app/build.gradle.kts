@@ -30,8 +30,10 @@ android {
         // v1.1.1 = 21 (folder-merge size fixes, operable music controls, folder badges).
         // v1.2 = 30 (grid columns 4/5/6, refined editing/merge, folder fixes,
         //   small-weather temp, Outfit default, Bing daily wallpaper).
-        versionCode = 30
-        versionName = "1.2.0"
+        // v1.3 = 40 (per-tile colour, tile colour from app icon, adjustable tile spacing,
+        //   battery: network constraints on background workers, reduced media poll).
+        versionCode = 40
+        versionName = "1.3.0"
     }
 
     if (keystoreFile.exists()) {

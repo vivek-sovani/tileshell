@@ -168,29 +168,31 @@ fun WidgetSection(accent: Color, tokens: ColorTokens) {
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         widgets.widgets.forEachIndexed { index, hw ->
-            WidgetView(
-                host = host,
-                manager = manager,
-                widget = hw,
-                widthDp = widthDp,
-                accent = accent,
-                tokens = tokens,
-                canMoveUp = index > 0,
-                canMoveDown = index < widgets.widgets.lastIndex,
-                onMoveUp = { scope.launch { store.move(hw.widgetId, up = true) } },
-                onMoveDown = { scope.launch { store.move(hw.widgetId, up = false) } },
-                onResize = { newH -> scope.launch { store.setHeight(hw.widgetId, newH) } },
-                onEdit = { info ->
-                    val cfg = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE)
-                        .setComponent(info.configure)
-                        .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, hw.widgetId)
-                    runCatching { editLauncher.launch(cfg) }
-                },
-                onRemove = {
-                    runCatching { host.deleteAppWidgetId(hw.widgetId) }
-                    scope.launch { store.remove(hw.widgetId) }
-                },
-            )
+            key(hw.widgetId) {
+                WidgetView(
+                    host = host,
+                    manager = manager,
+                    widget = hw,
+                    widthDp = widthDp,
+                    accent = accent,
+                    tokens = tokens,
+                    canMoveUp = index > 0,
+                    canMoveDown = index < widgets.widgets.lastIndex,
+                    onMoveUp = { scope.launch { store.move(hw.widgetId, up = true) } },
+                    onMoveDown = { scope.launch { store.move(hw.widgetId, up = false) } },
+                    onResize = { newH -> scope.launch { store.setHeight(hw.widgetId, newH) } },
+                    onEdit = { info ->
+                        val cfg = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE)
+                            .setComponent(info.configure)
+                            .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, hw.widgetId)
+                        runCatching { editLauncher.launch(cfg) }
+                    },
+                    onRemove = {
+                        runCatching { host.deleteAppWidgetId(hw.widgetId) }
+                        scope.launch { store.remove(hw.widgetId) }
+                    },
+                )
+            }
         }
 
         Box(
