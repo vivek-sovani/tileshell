@@ -2319,7 +2319,13 @@ private fun Modifier.editDragGesture(
         // never also fires.
         val sel = selectedId()
         val selPlacement = sel?.let { id -> placementsNow().firstOrNull { it.id == id } }
-        if (selPlacement != null) {
+        // A widget stack has no grid corner controls: its top-left × deletes the
+        // current member in place (handled by StackTileContent), and it offers no
+        // resize/colour. Skipping the zones here is critical — otherwise a tap on
+        // that × also lands in the top-left "unpin" zone and removes the WHOLE stack.
+        val selModel = sel?.let { byId[it] }
+        val selIsStack = selModel is TileModel.Folder && selModel.isStack
+        if (selPlacement != null && !selIsStack) {
             val r = geom.rect(selPlacement)
             val zone = 30.dp.toPx()
             val inUnpin = down.position.x <= r.left + zone && down.position.y <= r.top + zone
