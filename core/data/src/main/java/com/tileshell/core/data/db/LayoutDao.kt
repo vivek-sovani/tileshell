@@ -238,7 +238,7 @@ interface LayoutDao {
                     TileEntity(
                         id = newTileId,
                         position = maxPosition() + 1,
-                        size = TileSize.MEDIUM,
+                        size = removed.size,
                         colorId = newTileColorId,
                         type = TileEntity.TYPE_APP,
                         packageName = removed.packageName,
