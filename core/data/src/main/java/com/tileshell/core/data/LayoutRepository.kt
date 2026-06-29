@@ -36,11 +36,21 @@ class LayoutRepository(
     /** Persist a new top-level tile order after an edit-mode drag (FR-3.2). */
     suspend fun reorderTiles(orderedIds: List<String>) = dao.applyOrder(orderedIds)
 
-    /** Cycle a tile through small → medium → wide → large → small (FR-3.4). */
-    suspend fun cycleTileSize(id: String) {
+    /**
+     * Cycle a tile's size (FR-3.4). [largeAllowed] adds the 4×4 [TileSize.LARGE]
+     * step (medium → small → wide → large → medium) for music/news tiles on a
+     * 5/6-column grid; otherwise the cycle is medium → small → wide → medium.
+     */
+    suspend fun cycleTileSize(id: String, largeAllowed: Boolean = false) {
         val current = dao.tilesOnce().firstOrNull { it.tile.id == id }?.tile?.size ?: return
-        dao.updateTileSize(id, current.next().name)
+        dao.updateTileSize(id, current.next(largeAllowed).name)
     }
+
+    /**
+     * Shrink every 4×4 [TileSize.LARGE] tile back to [TileSize.MEDIUM]. Called when
+     * the grid drops to 4 columns, where large is disallowed.
+     */
+    suspend fun demoteLargeTiles() = dao.demoteLargeTiles()
 
     /** Set or clear a tile's per-tile accent override (null = follow global, FR-7). */
     suspend fun setTileAccent(id: String, accentOverride: String?) =

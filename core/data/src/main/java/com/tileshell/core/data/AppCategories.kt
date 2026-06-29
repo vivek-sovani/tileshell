@@ -139,6 +139,28 @@ object AppCategories {
             ?: fromOsCategory(app.category)
             ?: fromTokens(app.packageName, app.label)
 
+    /**
+     * Whether a tile may cycle up to the 4×4 [TileSize.LARGE] size. Large is gated
+     * to **music** and **news** app tiles only, and only on a 5- or 6-column grid
+     * (on a 4-column grid a 4×4 tile fills the whole width — too dominant — so it is
+     * disallowed and large tiles auto-shrink to medium).
+     *
+     * - **music**: the tile carries the designed `"music"` icon key, or the app
+     *   declares the music app role ([ROLE_MUSIC]). Using the role (not the broader
+     *   "entertainment" category) keeps video/streaming apps out.
+     * - **news**: the app classifies as `"news"` (OS `CATEGORY_NEWS` or news tokens).
+     *
+     * Pure so the gating is unit-testable; [app] is the catalogue entry for the
+     * tile's package (null when it doesn't resolve — then only the `"music"` icon
+     * key qualifies).
+     */
+    fun allowsLargeTile(iconKey: String?, app: AppEntry?, columns: Int): Boolean {
+        if (columns < 5) return false
+        val isMusic = iconKey == "music" || app?.role == ROLE_MUSIC
+        val isNews = app != null && classify(app) == "news"
+        return isMusic || isNews
+    }
+
     /** All installed [apps] that classify into the category with id [categoryId]. */
     fun match(categoryId: String, apps: List<AppEntry>): List<AppEntry> =
         if (ALL.none { it.id == categoryId }) emptyList()

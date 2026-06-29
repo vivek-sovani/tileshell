@@ -112,4 +112,47 @@ class AppCategoriesTest {
         assertEquals(ids.size, ids.toSet().size)
         AppCategories.ALL.forEach { assertEquals(it.label, it.label.lowercase()) }
     }
+
+    // ---- large-tile eligibility (music / news, 5-6 columns) -----------------
+
+    @Test
+    fun `music role allows large on 5 and 6 columns`() {
+        val music = app("x.music", role = AppCategories.ROLE_MUSIC)
+        assertTrue(AppCategories.allowsLargeTile(iconKey = null, app = music, columns = 5))
+        assertTrue(AppCategories.allowsLargeTile(iconKey = null, app = music, columns = 6))
+    }
+
+    @Test
+    fun `music icon key alone allows large even without a catalogue match`() {
+        assertTrue(AppCategories.allowsLargeTile(iconKey = "music", app = null, columns = 5))
+    }
+
+    @Test
+    fun `news category allows large on 5 and 6 columns`() {
+        val news = app("x.news", category = ApplicationInfo.CATEGORY_NEWS)
+        assertTrue(AppCategories.allowsLargeTile(iconKey = null, app = news, columns = 6))
+        // news by token too
+        val newsByToken = app("com.acme.android", label = "Daily Headlines")
+        assertTrue(AppCategories.allowsLargeTile(iconKey = null, app = newsByToken, columns = 5))
+    }
+
+    @Test
+    fun `large is disallowed on a 4 column grid`() {
+        val music = app("x.music", role = AppCategories.ROLE_MUSIC)
+        assertFalse(AppCategories.allowsLargeTile(iconKey = "music", app = music, columns = 4))
+    }
+
+    @Test
+    fun `non music non news apps never allow large`() {
+        val mail = app("x.mail", role = AppCategories.ROLE_EMAIL)
+        assertFalse(AppCategories.allowsLargeTile(iconKey = "mail", app = mail, columns = 6))
+        // video/streaming classifies as entertainment but is not music → no large
+        val video = app("x.video", category = ApplicationInfo.CATEGORY_VIDEO)
+        assertFalse(AppCategories.allowsLargeTile(iconKey = null, app = video, columns = 6))
+    }
+
+    @Test
+    fun `null app with no music icon key never allows large`() {
+        assertFalse(AppCategories.allowsLargeTile(iconKey = null, app = null, columns = 6))
+    }
 }

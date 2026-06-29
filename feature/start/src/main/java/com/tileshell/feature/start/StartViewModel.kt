@@ -9,6 +9,7 @@ import android.os.UserHandle
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tileshell.core.data.AppCatalogRepository
+import com.tileshell.core.data.AppCategories
 import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.LayoutRepository
@@ -381,6 +382,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Set the Start grid column count (4, 5, or 6 small-tile columns). */
     fun setColumns(columns: Int) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setColumns(columns) }
+        // The 4×4 large size is only allowed on 5/6-column grids; dropping to 4
+        // auto-shrinks any large tile back to medium.
+        if (columns < 5) {
+            viewModelScope.launch(writeContext) { repository.demoteLargeTiles() }
+        }
     }
 
     /** Subscribe a custom RSS/Atom feed and refresh so its articles appear soon. */
@@ -477,9 +483,19 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         reorderRequests.tryEmit(orderedIds)
     }
 
-    /** Cycle the tile's size small→medium→wide→large→small (FR-3.4 resize). */
+    /**
+     * Cycle the tile's size (FR-3.4 resize): medium → small → wide → medium. Music
+     * and news app tiles on a 5/6-column grid also get the 4×4 large step
+     * ([AppCategories.allowsLargeTile]).
+     */
     fun resize(id: String) {
-        viewModelScope.launch(writeContext) { repository.cycleTileSize(id) }
+        val tile = tiles.value.firstOrNull { it.id == id } as? TileModel.App
+        val largeAllowed = tile != null && AppCategories.allowsLargeTile(
+            iconKey = tile.iconKey,
+            app = apps.value.firstOrNull { it.packageName == tile.packageName },
+            columns = settings.value.columns,
+        )
+        viewModelScope.launch(writeContext) { repository.cycleTileSize(id, largeAllowed) }
     }
 
     /** Set or clear a tile's per-tile accent override (null = follow global, FR-7). */

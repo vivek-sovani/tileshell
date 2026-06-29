@@ -13,9 +13,21 @@ data class MergeResult(
     val children: List<FolderChild>,
 )
 
-/** Demote a WIDE child to MEDIUM; folder children are only ever SMALL / MEDIUM. */
+/** Demote a WIDE or LARGE child to MEDIUM; folder children are only SMALL / MEDIUM. */
 private fun FolderChild.clampForFolder(): FolderChild =
-    if (size == TileSize.WIDE) copy(size = TileSize.MEDIUM) else this
+    if (size == TileSize.WIDE || size == TileSize.LARGE) copy(size = TileSize.MEDIUM) else this
+
+/**
+ * The size a merged folder tile may take. Folders never carry the 4×4 LARGE size
+ * (large is gated to music/news app tiles), so a large merge target collapses to
+ * WIDE — the widest size the folder mini-grid face renders. SMALL is promoted to
+ * MEDIUM; other sizes are kept.
+ */
+private fun TileSize.clampFolderTile(): TileSize = when (this) {
+    TileSize.SMALL -> TileSize.MEDIUM
+    TileSize.LARGE -> TileSize.WIDE
+    else -> this
+}
 
 /** The apps a tile contributes to a merge: a folder's children, or itself. */
 private fun TileModel.apps(): List<FolderChild> = when (this) {
@@ -45,14 +57,14 @@ fun computeMerge(drag: TileModel, target: TileModel): MergeResult {
     for (child in target.apps() + drag.apps()) {
         deduped.putIfAbsent(child.packageName + "/" + child.activityName, child)
     }
-    // Folders allow only SMALL / MEDIUM children — a WIDE tile merged in is
-    // demoted to MEDIUM (the in-folder resize cycle is SMALL↔MEDIUM too).
+    // Folders allow only SMALL / MEDIUM children — a WIDE or LARGE tile merged in
+    // is demoted to MEDIUM (the in-folder resize cycle is SMALL↔MEDIUM too).
     val children = deduped.values.map { it.clampForFolder() }
 
     return when (target) {
         is TileModel.Folder -> MergeResult(
             folderId = target.id,
-            size = target.size,
+            size = target.size.clampFolderTile(),
             colorId = target.colorId,
             name = target.name,
             children = children,
@@ -60,7 +72,7 @@ fun computeMerge(drag: TileModel, target: TileModel): MergeResult {
 
         is TileModel.App -> MergeResult(
             folderId = target.id,
-            size = if (target.size == TileSize.SMALL) TileSize.MEDIUM else target.size,
+            size = target.size.clampFolderTile(),
             colorId = target.colorId,
             name = "folder",
             children = children,

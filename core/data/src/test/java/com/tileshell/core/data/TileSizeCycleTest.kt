@@ -19,4 +19,26 @@ class TileSizeCycleTest {
         repeat(3) { size = size.next() }
         assertEquals(TileSize.MEDIUM, size)
     }
+
+    @Test
+    fun cyclesThroughLargeWhenAllowed() {
+        assertEquals(TileSize.SMALL, TileSize.MEDIUM.next(largeAllowed = true))
+        assertEquals(TileSize.WIDE, TileSize.SMALL.next(largeAllowed = true))
+        assertEquals(TileSize.LARGE, TileSize.WIDE.next(largeAllowed = true)) // wide steps up
+        assertEquals(TileSize.MEDIUM, TileSize.LARGE.next(largeAllowed = true)) // wraps to medium
+    }
+
+    @Test
+    fun fourStepsReturnToStartWhenLargeAllowed() {
+        var size = TileSize.MEDIUM
+        repeat(4) { size = size.next(largeAllowed = true) }
+        assertEquals(TileSize.MEDIUM, size)
+    }
+
+    @Test
+    fun largeShrinksToMediumWhenNotAllowed() {
+        // A tile already large (e.g. grid dropped to 4 cols mid-cycle) returns to
+        // medium rather than getting stuck.
+        assertEquals(TileSize.MEDIUM, TileSize.LARGE.next(largeAllowed = false))
+    }
 }

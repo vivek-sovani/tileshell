@@ -3,6 +3,39 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Post-S29 — re-enable the 4×4 LARGE tile, gated to music/news on 5/6-column grids
+
+- **The 4×4 `LARGE` size (removed post-S24) is back, but conditionally.** It is
+  only reachable in the resize cycle for **music** and **news** app tiles, and only
+  on a **5- or 6-column** grid. Every other tile keeps the
+  medium → small → wide → medium cycle and never sees large. Rationale: a 4×4 tile
+  fills the whole width of a 4-column grid (too dominant), and large faces only earn
+  their space for content-rich live surfaces — the now-playing music tile and a news
+  app tile. The user asked specifically for these two categories.
+- **`TileSize.next()` gained a `largeAllowed: Boolean = false` parameter** rather
+  than a second enum or a per-tile flag. Default `false` keeps the cycle (and every
+  existing caller/test) unchanged; `StartViewModel.resize` computes `largeAllowed`
+  per tile via the pure `AppCategories.allowsLargeTile(iconKey, app, columns)`.
+- **Category match:** music = the designed `"music"` icon key OR the app's
+  `ROLE_MUSIC` role (the role, not the broader "entertainment" category, so
+  video/streaming apps don't qualify); news = `classify(app) == "news"`
+  (`CATEGORY_NEWS` or news tokens). The check needs the catalogue `AppEntry` (the
+  `TileModel.App` carries only `packageName`/`iconKey`), looked up by package in the
+  ViewModel where `apps`/`settings` are available.
+- **Auto-shrink on 4 columns (chosen over leaving large tiles as-is).** Switching
+  the grid back to 4 columns demotes every large tile to MEDIUM
+  (`setColumns` → `demoteLargeTiles` bulk `UPDATE`), so the invariant "no LARGE below
+  5 columns" always holds and a 4×4 tile never dominates a 4-column grid. The
+  alternative (keep existing large tiles) was rejected as it would leave an
+  unreachable, over-sized tile the user couldn't have created on that grid.
+- **Folders never carry LARGE.** A large tile dragged into a folder demotes its
+  child to MEDIUM (like WIDE); a large merge *target* makes a WIDE folder tile (the
+  widest the mini-grid face renders) — `TileMerge.clampForFolder` / `clampFolderTile`.
+- **Legacy `LARGE` rows:** re-adding the enum value means `TileSize.valueOf("LARGE")`
+  now succeeds, but post-S24 builds already decoded those rows to MEDIUM and
+  re-persisted them, so nothing resurrects in practice. `GridPacker`/`GridGeometry`
+  are size-agnostic, so 4×4 packing needed no layout change.
+
 ## Post-S29 — gallery photo picker + copy-to-internal-storage (supersedes S18/S23)
 
 - **The wallpaper and live-photos pickers now use the Android Photo Picker**
