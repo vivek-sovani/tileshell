@@ -778,6 +778,7 @@ fun StartScreen(
         // About sheet (personalize → about).
         AboutSheet(
             visible = aboutOpen,
+            rightHalf = isLandscape,
             dark = dark,
             accentId = settings.accentId,
             onDismiss = viewModel::closeAbout,
@@ -795,6 +796,7 @@ fun StartScreen(
         // Category-folders sheet (personalize → folders).
         CategoryFolderSheet(
             visible = foldersOpen,
+            rightHalf = isLandscape,
             dark = dark,
             accentId = settings.accentId,
             apps = apps,
@@ -870,6 +872,7 @@ fun StartScreen(
         // Recent-Bing-wallpapers viewer (personalize → "recent bing wallpapers").
         BingHistorySheet(
             visible = bingHistoryOpen,
+            rightHalf = isLandscape,
             dark = dark,
             accentId = settings.accentId,
             onPick = { imageUrl ->

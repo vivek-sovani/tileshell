@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.AppCategories
 import com.tileshell.core.data.AppEntry
 import com.tileshell.core.design.ColorTokens
+import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.colorTokens
 
@@ -72,6 +73,7 @@ fun CategoryFolderSheet(
     apps: List<AppEntry>,
     onCreate: (name: String, apps: List<AppEntry>) -> Unit,
     onDismiss: () -> Unit,
+    rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
     /**
      * Returns the set of package names currently in a folder whose name matches
@@ -99,7 +101,7 @@ fun CategoryFolderSheet(
         if (reviewId != null) reviewId = null else onDismiss()
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    SheetStage(rightHalf = rightHalf, modifier = modifier) {
         Box(
             modifier = Modifier
                 .fillMaxSize()

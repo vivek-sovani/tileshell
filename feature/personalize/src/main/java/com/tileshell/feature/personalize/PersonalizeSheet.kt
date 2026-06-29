@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.settings.FontStyle
 import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
+import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.WallpaperGradient
@@ -140,19 +141,7 @@ fun PersonalizeSheet(
     val tokens = colorTokens(dark)
     val accent = TileAccents.forId(accentId)
 
-    Box(modifier = modifier.fillMaxSize()) {
-        // In landscape the launcher splits into a feed (left) + Start (right)
-        // panel; the whole sheet — scrim included — is confined to the right half
-        // so the feed panel on the left stays visible and undimmed. Portrait fills
-        // the full screen.
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .then(
-                    if (rightHalf) Modifier.fillMaxWidth(0.5f).fillMaxHeight()
-                    else Modifier.fillMaxSize(),
-                ),
-        ) {
+    SheetStage(rightHalf = rightHalf, modifier = modifier) {
         // Scrim (prototype rgba(0,0,0,.5)); tap to dismiss.
         Box(
             modifier = Modifier
@@ -677,7 +666,6 @@ fun PersonalizeSheet(
                     Text(text = "features & info ›", color = accent, fontSize = 13.sp)
                 }
             }
-        }
         }
     }
 }

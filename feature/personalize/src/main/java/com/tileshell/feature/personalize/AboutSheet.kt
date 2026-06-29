@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.colorTokens
 
@@ -45,6 +46,7 @@ fun AboutSheet(
     dark: Boolean,
     accentId: String,
     onDismiss: () -> Unit,
+    rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val progress by animateFloatAsState(
@@ -62,7 +64,7 @@ fun AboutSheet(
             .getOrDefault("0.9")
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    SheetStage(rightHalf = rightHalf, modifier = modifier) {
         Box(
             modifier = Modifier
                 .fillMaxSize()

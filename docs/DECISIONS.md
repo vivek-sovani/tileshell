@@ -1407,3 +1407,17 @@ in landscape, drop the feed↔Start swipe and show both as side-by-side panels.
 `fillMaxWidth(0.5f)` instead of `BottomCenter`/full width, so it docks over the
 Start (right) panel rather than spanning both panels. The scrim still covers the
 full screen (tap anywhere dismisses).
+
+### Landscape follow-up: shared SheetStage for all Start-spawned sheets
+
+Confining one sheet to the right half by narrowing only its panel left the scrim
+full-screen (dimming the feed). Extracted `core/design/SheetStage.kt`: a
+`SheetStage(rightHalf, modifier) { … }` wrapper that hosts scrim + panel inside a
+stage box sized to the right half (`fillMaxWidth(0.5f).fillMaxHeight()`, aligned
+`BottomEnd`) in landscape, full screen otherwise. The scrim's `fillMaxSize()` and
+the panel's `align(BottomCenter)` resolve against the stage, so both shrink to the
+half automatically. Applied to `PersonalizeSheet`, `AboutSheet`,
+`CategoryFolderSheet`, `BingHistorySheet` — each gains `rightHalf: Boolean = false`
+wired to `isLandscape` at the `StartScreen` call site. Feed-spawned sheets
+(`FeedSettingsSheet`) and the wallpaper crop overlay are left full-width for now
+(the feed is the *left* panel, so its sheets don't belong on the right).
