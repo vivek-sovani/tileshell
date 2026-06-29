@@ -458,11 +458,6 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) { repository.resizeFolderChild(folderId, child) }
     }
 
-    /** Delete one member from a widget stack in place (the stack's edit × action). */
-    fun deleteStackMember(folderId: String, child: FolderChild) {
-        viewModelScope.launch(writeContext) { repository.deleteStackMember(folderId, child) }
-    }
-
     /** Persist a new display order for folder children after an in-folder drag. */
     fun reorderFolderChildren(orderedChildren: List<FolderChild>) {
         viewModelScope.launch(writeContext) {

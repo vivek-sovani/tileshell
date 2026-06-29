@@ -525,7 +525,10 @@ fun StartScreen(
                             ).show()
                         }
                     },
-                    onDeleteStackMember = viewModel::deleteStackMember,
+                    // Stack × removes the current member exactly like a folder
+                    // pull-out: the app is returned to Start (re-pinned), and the
+                    // stack dissolves to a single tile when one member is left.
+                    onDeleteStackMember = viewModel::removeFolderChild,
                     onChevron = { settleTo(1f) },
                     onEnterEdit = { id ->
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -2842,8 +2845,8 @@ private const val STACK_ROTATE_MS = 3000L
  * inside the tile to flip through members** (a thin scroll indicator on the right
  * shows the position); tapping the body launches the current member; long-press
  * enters edit mode. There is **no folder overlay** for a stack: in edit mode it shows
- * only an in-place **×** that deletes the current member ([onDeleteMember]) — no size
- * adjustment — while the grid drag owns move / select.
+ * only an in-place **×** that removes the current member back to Start ([onDeleteMember],
+ * a folder pull-out) — no size adjustment — while the grid drag owns move / select.
  */
 @Composable
 private fun StackTileContent(
@@ -3007,9 +3010,10 @@ private fun StackTileContent(
                 }
             }
         }
-        // Edit mode: an in-place × on the current member (delete it) — the only
-        // control a stack offers (no resize). Tapping it removes that member; the
-        // stack dissolves to a single tile when one is left.
+        // Edit mode: an in-place × on the current member — the only control a stack
+        // offers (no resize). Tapping it pulls that member out of the stack back to
+        // Start (like a folder pull-out); the stack dissolves to a single tile when
+        // one member is left.
         if (editMode && selected) {
             Box(
                 modifier = Modifier
