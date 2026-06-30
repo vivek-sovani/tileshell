@@ -87,7 +87,6 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -525,10 +524,6 @@ fun StartScreen(
                             ).show()
                         }
                     },
-                    // Stack × removes the current member exactly like a folder
-                    // pull-out: the app is returned to Start (re-pinned), and the
-                    // stack dissolves to a single tile when one member is left.
-                    onDeleteStackMember = viewModel::removeFolderChild,
                     onChevron = { settleTo(1f) },
                     onEnterEdit = { id ->
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -936,7 +931,6 @@ private fun StartPage(
     onLockScreen: () -> Unit,
     onTile: (TileModel) -> Unit,
     onLaunchFolderChild: (FolderChild) -> Unit,
-    onDeleteStackMember: (folderId: String, child: FolderChild) -> Unit,
     onChevron: () -> Unit,
     onEnterEdit: (String) -> Unit,
     onSelectTile: (String) -> Unit,
@@ -1173,7 +1167,6 @@ private fun StartPage(
                         onTap = { if (!editMode) onTile(model) },
                         onLongPress = { if (!editMode) onEnterEdit(model.id) },
                         onLaunchFolderChild = onLaunchFolderChild,
-                        onDeleteStackMember = { child -> onDeleteStackMember(model.id, child) },
                         onResize = { onResize(model.id) },
                         onUnpin = { order.remove(model.id); onUnpin(model.id) },
                         onSelect = { onSelectTile(model.id) },
@@ -1485,7 +1478,6 @@ private fun TileView(
     onExitEdit: () -> Unit,
     onMove: (direction: Int) -> Unit,
     onLaunchFolderChild: (FolderChild) -> Unit = {},
-    onDeleteStackMember: (FolderChild) -> Unit = {},
     showColorDot: Boolean = false,
     inlineFolderLaunch: Boolean = false,
     appIconColors: Boolean = false,
@@ -1592,7 +1584,7 @@ private fun TileView(
             // Out of edit mode the tile owns tap-to-launch / long-press-to-edit;
             // in edit mode the grid-level drag gesture owns all interaction.
             .then(
-                if (editMode || isStackTile) Modifier
+                if (editMode) Modifier
                 else Modifier.tileGesture(onTap = onTap, onLongPress = onLongPress),
             )
             // Accessibility: collapse the tile to a single labelled button and
@@ -1637,9 +1629,6 @@ private fun TileView(
                         editMode = editMode,
                         selected = selected,
                         liveActive = liveActive,
-                        onLaunchChild = onLaunchFolderChild,
-                        onEnterEdit = onLongPress,
-                        onDeleteMember = onDeleteStackMember,
                     )
                 } else {
                     FolderTileContent(
@@ -1663,8 +1652,8 @@ private fun TileView(
                 modifier = Modifier.align(Alignment.TopEnd),
             )
         }
-        // A widget stack shows only its own in-place × (delete current member) —
-        // no resize/colour controls; everything else uses the standard controls.
+        // Widget stacks don't offer resize/colour controls (the folder overlay handles
+        // member management); all other tiles use the standard corner controls.
         if (selected && !isStackTile) TileControls(showColor = showColorDot, dotColor = accent)
     }
 }
@@ -2322,13 +2311,7 @@ private fun Modifier.editDragGesture(
         // never also fires.
         val sel = selectedId()
         val selPlacement = sel?.let { id -> placementsNow().firstOrNull { it.id == id } }
-        // A widget stack has no grid corner controls: its top-left × deletes the
-        // current member in place (handled by StackTileContent), and it offers no
-        // resize/colour. Skipping the zones here is critical — otherwise a tap on
-        // that × also lands in the top-left "unpin" zone and removes the WHOLE stack.
-        val selModel = sel?.let { byId[it] }
-        val selIsStack = selModel is TileModel.Folder && selModel.isStack
-        if (selPlacement != null && !selIsStack) {
+        if (selPlacement != null) {
             val r = geom.rect(selPlacement)
             val zone = 30.dp.toPx()
             val inUnpin = down.position.x <= r.left + zone && down.position.y <= r.top + zone
@@ -2845,8 +2828,8 @@ private const val STACK_ROTATE_MS = 3000L
  * inside the tile to flip through members** (a thin scroll indicator on the right
  * shows the position); tapping the body launches the current member; long-press
  * enters edit mode. There is **no folder overlay** for a stack: in edit mode it shows
- * only an in-place **×** that removes the current member back to Start ([onDeleteMember],
- * a folder pull-out) — no size adjustment — while the grid drag owns move / select.
+ * Tapping opens the standard folder overlay for member management (pull-out to re-pin
+ * to Start, reorder); the grid drag owns move / select in edit mode.
  */
 @Composable
 private fun StackTileContent(
@@ -2854,9 +2837,6 @@ private fun StackTileContent(
     editMode: Boolean,
     selected: Boolean,
     liveActive: Boolean,
-    onLaunchChild: (FolderChild) -> Unit,
-    onEnterEdit: () -> Unit,
-    onDeleteMember: (FolderChild) -> Unit,
 ) {
     val children = tile.children
     val count = children.size
@@ -2875,82 +2855,7 @@ private fun StackTileContent(
         }
     }
 
-    // Read the callbacks live inside the gesture without restarting it (the gesture
-    // is keyed only on `count`, so it survives the recompositions a page change
-    // triggers — otherwise a swipe would cancel itself mid-drag).
-    val launchCurrent = rememberUpdatedState {
-        children.getOrNull(pageIndex.value.coerceIn(0, (count - 1).coerceAtLeast(0)))
-            ?.let(onLaunchChild)
-    }
-    val enterEdit = rememberUpdatedState(onEnterEdit)
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            // Out of edit mode the stack owns its gestures: tap launches the current
-            // member, long-press enters edit, and a vertical drag flips through
-            // members — claimed over the grid's vertical scroll by consuming the
-            // gesture once it goes vertical. In edit mode no gesture attaches; the
-            // grid drag owns move/select and the in-place × handles delete.
-            .then(
-                if (editMode) {
-                    Modifier
-                } else {
-                    Modifier.pointerInput(count) {
-                        val slop = viewConfiguration.touchSlop
-                        val stepPx = 44.dp.toPx()
-                        awaitEachGesture {
-                            val down = awaitFirstDown(requireUnconsumed = false)
-                            // Phase 1 (within the long-press window): tap, long-press,
-                            // vertical drag, or ignore? 0 = tap, 1 = ignore, 2 = vdrag.
-                            val decision = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
-                                while (true) {
-                                    val event = awaitPointerEvent()
-                                    val change = event.changes.firstOrNull { it.id == down.id }
-                                        ?: return@withTimeoutOrNull 0
-                                    if (change.isConsumed) return@withTimeoutOrNull 1
-                                    if (!change.pressed) return@withTimeoutOrNull 0
-                                    val dy = change.position.y - down.position.y
-                                    val dx = change.position.x - down.position.x
-                                    if (count > 1 && abs(dy) > slop && abs(dy) > abs(dx)) {
-                                        change.consume()
-                                        return@withTimeoutOrNull 2
-                                    }
-                                    if (abs(dx) > slop) return@withTimeoutOrNull 1
-                                }
-                                @Suppress("UNREACHABLE_CODE") 1
-                            }
-                            when (decision) {
-                                null -> enterEdit.value() // held, no movement → edit
-                                0 -> launchCurrent.value() // quick release → launch
-                                2 -> {
-                                    // Vertical scrub: one member per ~44 dp travelled,
-                                    // consumed so the Start grid scroll stays put.
-                                    var anchorY = down.position.y
-                                    while (true) {
-                                        val event = awaitPointerEvent()
-                                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                                        change.consume()
-                                        val dy = change.position.y - anchorY
-                                        if (dy <= -stepPx) { // up → next
-                                            lastDir.value = 1
-                                            pageIndex.value = (pageIndex.value + 1) % count
-                                            anchorY = change.position.y
-                                        } else if (dy >= stepPx) { // down → previous
-                                            lastDir.value = -1
-                                            pageIndex.value = (pageIndex.value - 1 + count) % count
-                                            anchorY = change.position.y
-                                        }
-                                        if (!change.pressed) break
-                                    }
-                                }
-                                else -> Unit // horizontal / consumed: leave it
-                            }
-                        }
-                    }
-                },
-            ),
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
         // Members slide vertically (in the travel direction) so each reads as a
         // distinct tile scrolling past — for both the swipe and the auto-rotate.
         AnimatedContent(
@@ -3008,24 +2913,6 @@ private fun StackTileContent(
                     val below = count - 1 - safeIndex
                     if (below > 0) Spacer(Modifier.weight(below.toFloat()))
                 }
-            }
-        }
-        // Edit mode: an in-place × on the current member — the only control a stack
-        // offers (no resize). Tapping it pulls that member out of the stack back to
-        // Start (like a folder pull-out); the stack dissolves to a single tile when
-        // one member is left.
-        if (editMode && selected) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(6.dp)
-                    .size(26.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.55f))
-                    .clickable { children.getOrNull(safeIndex)?.let(onDeleteMember) },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(text = "×", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
