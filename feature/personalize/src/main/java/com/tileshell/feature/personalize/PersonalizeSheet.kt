@@ -670,16 +670,27 @@ fun PersonalizeSheet(
 
             // ---- backup & restore ----
             SettingGroup(label = "backup & restore", tokens.fgDim) {
+
+                // — snapshots —
                 WallpaperNavRow("layout history", "view ›", accent, tokens, onOpenHistory)
-                WallpaperNavRow("save snapshot", "save ›", accent, tokens, onSaveSnapshot)
-                // auto save toggle
+
+                // Auto-save: description reflects current state so the toggle is self-explanatory
+                val intervalLabel = when {
+                    autoBackupIntervalHours <= 6 -> "every 6h"
+                    autoBackupIntervalHours <= 12 -> "every 12h"
+                    else -> "daily"
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "auto save", color = tokens.fg, fontSize = 14.sp)
-                        Text(text = "save a snapshot periodically", color = tokens.fgDim, fontSize = 12.sp)
+                        Text(text = "auto-save", color = tokens.fg, fontSize = 14.sp)
+                        Text(
+                            text = if (autoBackupEnabled) "saves automatically · $intervalLabel" else "off",
+                            color = tokens.fgDim,
+                            fontSize = 12.sp,
+                        )
                     }
                     Switch(
                         checked = autoBackupEnabled,
@@ -687,18 +698,23 @@ fun PersonalizeSheet(
                         colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = accent),
                     )
                 }
-                // interval selector (only when auto save is on)
+                // Compact 3-option frequency picker — only shown when auto-save is on
                 if (autoBackupEnabled) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        Text(text = "every", color = tokens.fgDim, fontSize = 12.sp)
-                        listOf(1, 4, 6, 12, 24).forEach { h ->
-                            val selected = autoBackupIntervalHours == h
+                        Text(text = "frequency", color = tokens.fgDim, fontSize = 12.sp)
+                        Spacer(Modifier.weight(1f))
+                        listOf(6 to "6h", 12 to "12h", 24 to "daily").forEach { (h, label) ->
+                            val selected = when (h) {
+                                6 -> autoBackupIntervalHours <= 6
+                                12 -> autoBackupIntervalHours in 7..23
+                                else -> autoBackupIntervalHours >= 24
+                            }
                             Text(
-                                text = if (h == 24) "24h" else "${h}h",
+                                text = label,
                                 color = if (selected) Color.White else tokens.fgDim,
                                 fontSize = 12.sp,
                                 modifier = Modifier
@@ -707,11 +723,34 @@ fun PersonalizeSheet(
                                         androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
                                     )
                                     .clickable { onAutoBackupInterval(h) }
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    .padding(horizontal = 10.dp, vertical = 4.dp),
                             )
                         }
                     }
                 }
+
+                WallpaperNavRow("save now", "save ›", accent, tokens, onSaveSnapshot)
+
+                // — file transfer divider —
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    androidx.compose.material3.HorizontalDivider(
+                        modifier = Modifier.weight(1f),
+                        color = tokens.fgDim.copy(alpha = 0.15f),
+                    )
+                    Text(
+                        text = "  file transfer  ",
+                        color = tokens.fgDim.copy(alpha = 0.5f),
+                        fontSize = 11.sp,
+                    )
+                    androidx.compose.material3.HorizontalDivider(
+                        modifier = Modifier.weight(1f),
+                        color = tokens.fgDim.copy(alpha = 0.15f),
+                    )
+                }
+
                 WallpaperNavRow("export layout", "save ›", accent, tokens, onExportBackup)
                 WallpaperNavRow("restore from file", "open ›", accent, tokens, onRestoreBackup)
             }
