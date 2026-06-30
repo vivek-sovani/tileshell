@@ -1037,6 +1037,7 @@ private fun StartPage(
                 draggingId = { draggingId },
                 selectedId = { selectedTileId },
                 onUnpin = { id -> order.remove(id); onUnpin(id) },
+                onOpenFolder = { id -> byId[id]?.let(onTile) },
                 onResize = onResize,
                 onColor = { id -> colorPickerFor = id },
                 onLift = { id, offset -> draggingId = id; dragOffset.value = offset },
@@ -1171,7 +1172,6 @@ private fun StartPage(
                         onTap = { if (!editMode) onTile(model) },
                         onLongPress = { if (!editMode) onEnterEdit(model.id) },
                         onLaunchFolderChild = onLaunchFolderChild,
-                        onOpenStackMembers = { onTile(model) },
                         onResize = { onResize(model.id) },
                         onUnpin = { order.remove(model.id); onUnpin(model.id) },
                         onSelect = { onSelectTile(model.id) },
@@ -1483,7 +1483,6 @@ private fun TileView(
     onExitEdit: () -> Unit,
     onMove: (direction: Int) -> Unit,
     onLaunchFolderChild: (FolderChild) -> Unit = {},
-    onOpenStackMembers: () -> Unit = {},
     showColorDot: Boolean = false,
     inlineFolderLaunch: Boolean = false,
     appIconColors: Boolean = false,
@@ -1663,12 +1662,15 @@ private fun TileView(
                 modifier = Modifier.align(Alignment.TopEnd),
             )
         }
-        // Selected tiles show corner controls: stacks get a simplified overlay (×
-        // unpin + folder-icon button to manage members); other tiles get the full
-        // standard controls (× + resize + colour dot).
+        // Selected tiles show corner controls: folder/stack tiles get a folder icon
+        // at top-left (tap opens the overlay to manage members one-by-one); app
+        // tiles get the standard close icon. Stacks suppress resize and colour dot.
         if (selected) {
-            if (isStackTile) StackEditControls(onManageMembers = onOpenStackMembers)
-            else TileControls(showColor = showColorDot, dotColor = accent)
+            when {
+                isStackTile -> StackEditControls()
+                tile is TileModel.Folder -> TileControls(showColor = showColorDot, dotColor = accent, isFolder = true)
+                else -> TileControls(showColor = showColorDot, dotColor = accent)
+            }
         }
     }
 }
@@ -1710,16 +1712,17 @@ private fun NotificationBadge(
 
 /**
  * Corner controls shown on the selected tile in edit mode (prototype
- * `.tile-controls`): unpin (close) top-left, resize bottom-right, and — for an
- * app tile ([showColor]) — a colour dot bottom-left tinted with the tile's
- * current accent ([dotColor]). These are the visual affordance; the taps are
- * handled by the grid's [editDragGesture] corner hot-zones (FR-3.4/3.5/7).
+ * `.tile-controls`): top-left shows a close icon for app tiles or a folder icon
+ * for folder tiles (opens the overlay to pull apps out one-by-one); resize is
+ * bottom-right; and — for app tiles ([showColor]) — a colour dot bottom-left.
+ * These are the visual affordance; the taps are handled by the grid's
+ * [editDragGesture] corner hot-zones (FR-3.4/3.5/7).
  */
 @Composable
-private fun BoxScope.TileControls(showColor: Boolean, dotColor: Color) {
+private fun BoxScope.TileControls(showColor: Boolean, dotColor: Color, isFolder: Boolean = false) {
     TileControl(
-        iconKey = "close",
-        description = "unpin",
+        iconKey = if (isFolder) "folder" else "close",
+        description = if (isFolder) "open folder" else "unpin",
         modifier = Modifier.align(Alignment.TopStart),
     )
     TileControl(
@@ -1744,33 +1747,19 @@ private fun BoxScope.TileControls(showColor: Boolean, dotColor: Color) {
 }
 
 /**
- * Corner controls for a **selected widget stack** in edit mode. Shows the standard
- * × at TopStart (handled by [editDragGesture]'s unpin zone — visual only here) and
- * a tappable folder icon at TopEnd that opens the folder overlay for member
- * management (reorder / pull-out / remove). No resize or colour dot — stacks are
- * fixed at 3×3 and member colours are set per-member in the overlay.
+ * Corner controls for a **selected widget stack** in edit mode. Shows a folder
+ * icon at TopStart — handled by [editDragGesture]'s top-left zone, which opens
+ * the folder overlay so the user can pull members out one by one. No resize or
+ * colour dot — stacks are fixed at 3×3 and member colours are set per-member in
+ * the overlay.
  */
 @Composable
-private fun BoxScope.StackEditControls(onManageMembers: () -> Unit) {
+private fun BoxScope.StackEditControls() {
     TileControl(
-        iconKey = "close",
-        description = "unpin",
+        iconKey = "folder",
+        description = "open stack members",
         modifier = Modifier.align(Alignment.TopStart),
     )
-    Box(
-        modifier = Modifier
-            .align(Alignment.TopEnd)
-            .size(26.dp)
-            .clickable(onClick = onManageMembers),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = TileIcons["folder"],
-            contentDescription = "manage members",
-            tint = Color.White,
-            modifier = Modifier.size(18.dp),
-        )
-    }
 }
 
 @Composable
@@ -2301,6 +2290,7 @@ private fun Modifier.editDragGesture(
     draggingId: () -> String?,
     selectedId: () -> String?,
     onUnpin: (String) -> Unit,
+    onOpenFolder: (String) -> Unit = {},
     onResize: (String) -> Unit,
     onColor: (String) -> Unit = {},
     onLift: (id: String, offset: IntOffset) -> Unit,
@@ -2372,7 +2362,10 @@ private fun Modifier.editDragGesture(
                     if ((change.position - down.position).getDistance() > slop) movedCtl = true
                     if (!change.pressed) {
                         if (!movedCtl) when {
-                            inUnpin -> onUnpin(selPlacement.id)
+                            inUnpin -> if (byId[selPlacement.id] is TileModel.Folder)
+                                onOpenFolder(selPlacement.id)
+                            else
+                                onUnpin(selPlacement.id)
                             inColor -> onColor(selPlacement.id)
                             else -> onResize(selPlacement.id)
                         }
