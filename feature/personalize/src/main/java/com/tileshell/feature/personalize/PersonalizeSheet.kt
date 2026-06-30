@@ -30,6 +30,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -127,6 +129,12 @@ fun PersonalizeSheet(
     onFolders: () -> Unit,
     onExportBackup: () -> Unit,
     onRestoreBackup: () -> Unit,
+    onOpenHistory: () -> Unit,
+    onSaveSnapshot: () -> Unit,
+    autoBackupEnabled: Boolean,
+    autoBackupIntervalHours: Int,
+    onAutoBackupEnabled: (Boolean) -> Unit,
+    onAutoBackupInterval: (Int) -> Unit,
     onDismiss: () -> Unit,
     // In landscape the launcher splits into a feed (left) + Start (right) panel;
     // the sheet then docks to the right half over Start instead of full width.
@@ -662,8 +670,50 @@ fun PersonalizeSheet(
 
             // ---- backup & restore ----
             SettingGroup(label = "backup & restore", tokens.fgDim) {
+                WallpaperNavRow("layout history", "view ›", accent, tokens, onOpenHistory)
+                WallpaperNavRow("save snapshot", "save ›", accent, tokens, onSaveSnapshot)
+                // auto save toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "auto save", color = tokens.fg, fontSize = 14.sp)
+                        Text(text = "save a snapshot periodically", color = tokens.fgDim, fontSize = 12.sp)
+                    }
+                    Switch(
+                        checked = autoBackupEnabled,
+                        onCheckedChange = onAutoBackupEnabled,
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = accent),
+                    )
+                }
+                // interval selector (only when auto save is on)
+                if (autoBackupEnabled) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(text = "every", color = tokens.fgDim, fontSize = 12.sp)
+                        listOf(1, 4, 6, 12, 24).forEach { h ->
+                            val selected = autoBackupIntervalHours == h
+                            Text(
+                                text = if (h == 24) "24h" else "${h}h",
+                                color = if (selected) Color.White else tokens.fgDim,
+                                fontSize = 12.sp,
+                                modifier = Modifier
+                                    .background(
+                                        if (selected) accent else tokens.fgDim.copy(alpha = 0.12f),
+                                        androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
+                                    )
+                                    .clickable { onAutoBackupInterval(h) }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                            )
+                        }
+                    }
+                }
                 WallpaperNavRow("export layout", "save ›", accent, tokens, onExportBackup)
-                WallpaperNavRow("restore layout", "open ›", accent, tokens, onRestoreBackup)
+                WallpaperNavRow("restore from file", "open ›", accent, tokens, onRestoreBackup)
             }
 
             // ---- about ----

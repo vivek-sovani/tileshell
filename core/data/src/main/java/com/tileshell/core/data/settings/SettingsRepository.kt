@@ -194,6 +194,14 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { settings }
     }
 
+    suspend fun setAutoBackupEnabled(enabled: Boolean) {
+        store.updateData { it.copy(autoBackupEnabled = enabled) }
+    }
+
+    suspend fun setAutoBackupIntervalHours(hours: Int) {
+        store.updateData { it.copy(autoBackupIntervalHours = hours.coerceIn(1, 24)) }
+    }
+
     companion object {
         fun create(context: Context): SettingsRepository =
             SettingsRepository(context.applicationContext.settingsDataStore)

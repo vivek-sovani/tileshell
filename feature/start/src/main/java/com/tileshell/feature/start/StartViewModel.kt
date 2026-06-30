@@ -14,7 +14,9 @@ import com.tileshell.core.data.AppCategories
 import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.BackupManager
 import com.tileshell.core.data.FolderChild
+import com.tileshell.core.data.LayoutHistoryRepository
 import com.tileshell.core.data.LayoutRepository
+import com.tileshell.core.data.LayoutSnapshot
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.settings.LauncherSettings
@@ -49,6 +51,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = LayoutRepository.create(application)
     private val catalogRepository = AppCatalogRepository(application)
     private val settingsRepository = SettingsRepository.create(application)
+    private val historyRepository = LayoutHistoryRepository(application)
     private val feedStore = FeedStore.create(application)
     private val launcherApps =
         application.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
@@ -131,6 +134,17 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** True while the about sheet is open (personalize → about). */
     private val _aboutOpen = MutableStateFlow(false)
     val aboutOpen: StateFlow<Boolean> = _aboutOpen.asStateFlow()
+
+    /** True while the layout history sheet is open (personalize → layout history). */
+    private val _historyOpen = MutableStateFlow(false)
+    val historyOpen: StateFlow<Boolean> = _historyOpen.asStateFlow()
+
+    /** Rolling history of the last 10 layout snapshots (newest first). */
+    val layoutHistory: StateFlow<List<LayoutSnapshot>> = historyRepository.snapshots.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList(),
+    )
 
     /** True while the category-folders sheet is open (personalize → folders). */
     private val _foldersOpen = MutableStateFlow(false)
@@ -240,6 +254,12 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     fun closeAbout() {
         _aboutOpen.value = false
     }
+
+    /** Open the layout history sheet (personalize → history). */
+    fun openHistory() { _historyOpen.value = true }
+
+    /** Close the layout history sheet. */
+    fun closeHistory() { _historyOpen.value = false }
 
     /** Open the category-folders sheet (personalize → folders). */
     fun openFolders() {
@@ -565,6 +585,63 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             }.onFailure {
                 _backupMessage.tryEmit("restore failed")
             }
+        }
+    }
+
+    /** Manually save the current layout to the rolling history. */
+    fun saveLayoutSnapshot() {
+        viewModelScope.launch(writeContext) {
+            runCatching {
+                val (tiles, folders, children) = repository.tilesForBackup()
+                val currentSettings = settingsRepository.settings.first()
+                val json = BackupManager.buildBackupJson(tiles, folders, children, currentSettings)
+                val hash = BackupManager.layoutHash(tiles, folders, children)
+                val now = System.currentTimeMillis()
+                historyRepository.addSnapshot(
+                    LayoutSnapshot(
+                        id = now.toString(),
+                        timestamp = now,
+                        label = "manual",
+                        tileCount = tiles.size,
+                        folderCount = folders.size,
+                        contentHash = hash,
+                        json = json,
+                    )
+                )
+                _backupMessage.tryEmit("snapshot saved")
+            }.onFailure { _backupMessage.tryEmit("save failed") }
+        }
+    }
+
+    /** Restore a layout snapshot from the history. */
+    fun restoreFromSnapshot(snapshot: LayoutSnapshot) {
+        viewModelScope.launch(writeContext) {
+            runCatching {
+                val backup = BackupManager.parseBackup(snapshot.json)
+                repository.restoreFromBackup(backup.tiles, backup.folders, backup.folderChildren)
+                settingsRepository.restoreSettings(backup.settings)
+                _backupMessage.tryEmit("layout restored")
+            }.onFailure { _backupMessage.tryEmit("restore failed") }
+        }
+    }
+
+    /** Delete a snapshot from the history by its id. */
+    fun deleteSnapshot(id: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            historyRepository.deleteSnapshot(id)
+        }
+    }
+
+    /** Persist the auto-backup enabled state and re-schedule (or cancel) the worker. */
+    fun setAutoBackupEnabled(enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsRepository.setAutoBackupEnabled(enabled)
+        }
+    }
+
+    fun setAutoBackupInterval(hours: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsRepository.setAutoBackupIntervalHours(hours)
         }
     }
 

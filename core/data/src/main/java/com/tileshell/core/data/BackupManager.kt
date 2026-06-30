@@ -80,6 +80,29 @@ object BackupManager {
     }.toString()
 
     /**
+     * Stable deduplication hash of the tile/folder structure (excludes settings so
+     * a theme change alone does not create a duplicate history entry).
+     */
+    fun layoutHash(
+        tiles: List<TileEntity>,
+        folders: List<FolderEntity>,
+        children: List<FolderChildEntity>,
+    ): String = buildString {
+        tiles.sortedBy { it.id }.forEach { t ->
+            append(t.id).append(':').append(t.position).append(':')
+                .append(t.size.name).append(':').append(t.type).append(':')
+                .append(t.packageName).append(':').append(t.folderId).append('|')
+        }
+        folders.sortedBy { it.id }.forEach { f ->
+            append(f.id).append(':').append(f.name).append('|')
+        }
+        children.sortedWith(compareBy({ it.folderId }, { it.position })).forEach { c ->
+            append(c.folderId).append(':').append(c.position).append(':')
+                .append(c.packageName).append(':').append(c.size.name).append('|')
+        }
+    }.hashCode().toString()
+
+    /**
      * Parse and validate a backup JSON string. Throws [IllegalArgumentException]
      * on a version mismatch or any structural problem — callers should wrap in
      * runCatching and surface the failure as a user-visible error.

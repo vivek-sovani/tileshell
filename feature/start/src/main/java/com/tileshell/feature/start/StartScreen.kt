@@ -172,6 +172,8 @@ import com.tileshell.feature.livetiles.rememberNotificationAccess
 import com.tileshell.feature.livetiles.rememberPermissionGranted
 import com.tileshell.feature.livetiles.WeatherRefreshWorker
 import com.tileshell.feature.personalize.AboutSheet
+import com.tileshell.feature.personalize.LayoutHistorySheet
+import com.tileshell.feature.livetiles.LayoutAutoBackupWorker
 import com.tileshell.feature.personalize.CategoryFolderSheet
 import com.tileshell.feature.personalize.FeedSourceItem
 import com.tileshell.feature.personalize.PersonalizeSheet
@@ -233,6 +235,8 @@ fun StartScreen(
     val openFolderId by viewModel.openFolderId.collectAsStateWithLifecycle()
     val personalizeOpen by viewModel.personalizeOpen.collectAsStateWithLifecycle()
     val aboutOpen by viewModel.aboutOpen.collectAsStateWithLifecycle()
+    val historyOpen by viewModel.historyOpen.collectAsStateWithLifecycle()
+    val layoutHistory by viewModel.layoutHistory.collectAsStateWithLifecycle()
     val foldersOpen by viewModel.foldersOpen.collectAsStateWithLifecycle()
     val apps by viewModel.apps.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
@@ -372,6 +376,17 @@ fun StartScreen(
     LaunchedEffect(viewModel) {
         viewModel.backupMessage.collect { msg ->
             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Keep the auto-backup WorkManager task in sync with settings.
+    val autoBackupEnabled = settings.autoBackupEnabled
+    val autoBackupInterval = settings.autoBackupIntervalHours
+    LaunchedEffect(autoBackupEnabled, autoBackupInterval) {
+        if (autoBackupEnabled) {
+            LayoutAutoBackupWorker.schedule(context, autoBackupInterval)
+        } else {
+            LayoutAutoBackupWorker.cancel(context)
         }
     }
 
@@ -827,6 +842,12 @@ fun StartScreen(
             onFolders = viewModel::openFolders,
             onExportBackup = { backupExportLauncher.launch("tileshell-backup.json") },
             onRestoreBackup = { restoreConfirmPending = true },
+            onOpenHistory = viewModel::openHistory,
+            onSaveSnapshot = viewModel::saveLayoutSnapshot,
+            autoBackupEnabled = settings.autoBackupEnabled,
+            autoBackupIntervalHours = settings.autoBackupIntervalHours,
+            onAutoBackupEnabled = viewModel::setAutoBackupEnabled,
+            onAutoBackupInterval = viewModel::setAutoBackupInterval,
             onDismiss = viewModel::closePersonalize,
         )
 
@@ -837,6 +858,18 @@ fun StartScreen(
             dark = dark,
             accentId = settings.accentId,
             onDismiss = viewModel::closeAbout,
+        )
+
+        // Layout history sheet (personalize → history).
+        LayoutHistorySheet(
+            visible = historyOpen,
+            snapshots = layoutHistory,
+            dark = dark,
+            accentId = settings.accentId,
+            onDismiss = viewModel::closeHistory,
+            onRestore = viewModel::restoreFromSnapshot,
+            onDelete = viewModel::deleteSnapshot,
+            rightHalf = isLandscape,
         )
 
         // Build a name→packageNames map from the current tile list so CategoryFolderSheet

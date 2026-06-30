@@ -79,6 +79,10 @@ data class LauncherSettings(
      * to 4..6 on decode.
      */
     val columns: Int = DEFAULT_COLUMNS,
+    /** Periodic background layout snapshot saves (for LayoutHistorySheet). */
+    val autoBackupEnabled: Boolean = true,
+    /** Hours between automatic snapshots: 1, 4, 6, 12, or 24. */
+    val autoBackupIntervalHours: Int = 6,
 ) {
     companion object {
         const val DEFAULT_COLUMNS = 4
@@ -116,7 +120,9 @@ object SettingsCodec {
         append("tileColorSource=").append(settings.tileColorSource.name).append('\n')
         append("tileFill=").append(settings.tileFill.name).append('\n')
         append("fontStyle=").append(settings.fontStyle.name).append('\n')
-        append("columns=").append(settings.columns)
+        append("columns=").append(settings.columns).append('\n')
+        append("autoBackup=").append(settings.autoBackupEnabled).append('\n')
+        append("autoBackupInterval=").append(settings.autoBackupIntervalHours)
     }
 
     fun decode(text: String): LauncherSettings {
@@ -140,6 +146,8 @@ object SettingsCodec {
         var tileFill = d.tileFill
         var fontStyle = d.fontStyle
         var columns = d.columns
+        var autoBackupEnabled = d.autoBackupEnabled
+        var autoBackupIntervalHours = d.autoBackupIntervalHours
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
             if (sep <= 0) return@forEach
@@ -168,6 +176,10 @@ object SettingsCodec {
                 "columns" -> value.toIntOrNull()?.let {
                     columns = it.coerceIn(LauncherSettings.MIN_COLUMNS, LauncherSettings.MAX_COLUMNS)
                 }
+                "autoBackup" -> autoBackupEnabled = value.toBooleanStrictOrNull() ?: autoBackupEnabled
+                "autoBackupInterval" -> value.toIntOrNull()?.let {
+                    autoBackupIntervalHours = it.coerceIn(1, 24)
+                }
             }
         }
         return LauncherSettings(
@@ -190,6 +202,8 @@ object SettingsCodec {
             tileFill = tileFill,
             fontStyle = fontStyle,
             columns = columns,
+            autoBackupEnabled = autoBackupEnabled,
+            autoBackupIntervalHours = autoBackupIntervalHours,
         )
     }
 }
