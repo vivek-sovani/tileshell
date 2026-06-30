@@ -32,8 +32,10 @@ android {
         //   small-weather temp, Outfit default, Bing daily wallpaper).
         // v1.3 = 40 (per-tile colour, tile colour from app icon, adjustable tile spacing,
         //   battery: network constraints on background workers, reduced media poll).
-        versionCode = 40
-        versionName = "1.3.0"
+        // v1.4 = 50 (widget stacks, large tiles 3×3, landscape two-panel, notification
+        //   tile content improvements, clock alarm priority, staggered stack rotation).
+        versionCode = 50
+        versionName = "1.4.0"
     }
 
     if (keystoreFile.exists()) {
