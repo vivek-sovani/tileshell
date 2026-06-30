@@ -2823,7 +2823,7 @@ private fun FolderTileContent(
 }
 
 /** Auto-rotate interval for a widget stack (matches the ~3 s photos cross-fade). */
-private const val STACK_ROTATE_MS = 3000L
+private const val STACK_ROTATE_MS = 8000L
 
 /**
  * A **widget stack**: a folder whose members are all LARGE renders as a swipeable
@@ -2851,11 +2851,15 @@ private fun StackTileContent(
     // Direction of the last member change (+1 next / −1 previous) — drives the slide.
     val lastDir = remember { mutableStateOf(1) }
 
-    // Auto-rotate while live; paused in edit mode, off-screen, or with one member.
-    LaunchedEffect(liveActive, editMode, count) {
-        if (!liveActive || editMode || count <= 1) return@LaunchedEffect
+    // Auto-rotate: runs for the lifetime of the composition so the delay never
+    // resets when liveActive or editMode toggle briefly (e.g. app list opens and
+    // closes). The guard is checked after each full delay, not as a LaunchedEffect
+    // key, so a short interruption doesn't shorten the next interval.
+    LaunchedEffect(count) {
+        if (count <= 1) return@LaunchedEffect
         while (true) {
             delay(STACK_ROTATE_MS)
+            if (!liveActive || editMode) continue
             lastDir.value = 1
             pageIndex.value = (pageIndex.value + 1) % count
         }
