@@ -35,4 +35,8 @@ enum class TileSize(val cols: Int, val rows: Int) {
         WIDE -> if (largeAllowed) LARGE else MEDIUM
         LARGE -> MEDIUM
     }
+
+    val area get() = cols * rows
+
+    fun nextIsLarger(largeAllowed: Boolean = false) = next(largeAllowed).area > area
 }

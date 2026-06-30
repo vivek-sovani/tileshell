@@ -137,6 +137,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.tileshell.core.data.AppCategories
 import com.tileshell.core.data.AppLauncher
 import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.TileColors
@@ -552,6 +553,7 @@ fun StartScreen(
                 StartPage(
                     specs = specs,
                     byId = byId,
+                    apps = apps,
                     scrollState = scrollState,
                     chevronVisible = swipeEnabled,
                     editMode = editMode,
@@ -999,6 +1001,7 @@ fun StartScreen(
 private fun StartPage(
     specs: List<TileSpec>,
     byId: Map<String, TileModel>,
+    apps: List<com.tileshell.core.data.AppEntry>,
     scrollState: androidx.compose.foundation.ScrollState,
     chevronVisible: Boolean,
     editMode: Boolean,
@@ -1258,6 +1261,15 @@ private fun StartPage(
                         // roomy 4-column grid (too tiny on 5/6 columns).
                         inlineFolderLaunch = model.size != TileSize.SMALL || columns == 4,
                         appIconColors = appIconColors,
+                        nextSizeIsLarger = model.size.nextIsLarger(
+                            largeAllowed = (model as? TileModel.App)?.let { appTile ->
+                                AppCategories.allowsLargeTile(
+                                    iconKey = appTile.iconKey,
+                                    app = apps.firstOrNull { entry -> entry.packageName == appTile.packageName },
+                                    columns = columns,
+                                )
+                            } ?: false,
+                        ),
                         onTap = { if (!editMode) onTile(model) },
                         onLongPress = { if (!editMode) onEnterEdit(model.id) },
                         onLaunchFolderChild = onLaunchFolderChild,
@@ -1575,6 +1587,7 @@ private fun TileView(
     showColorDot: Boolean = false,
     inlineFolderLaunch: Boolean = false,
     appIconColors: Boolean = false,
+    nextSizeIsLarger: Boolean = false,
 ) {
     // TalkBack reads the whole tile as one node: the app/folder name plus state,
     // with the launch/edit operations exposed as semantic actions (the visual
@@ -1757,8 +1770,8 @@ private fun TileView(
         if (selected) {
             when {
                 isStackTile -> StackEditControls()
-                tile is TileModel.Folder -> TileControls(showColor = showColorDot, dotColor = accent, isFolder = true)
-                else -> TileControls(showColor = showColorDot, dotColor = accent)
+                tile is TileModel.Folder -> TileControls(showColor = showColorDot, dotColor = accent, nextSizeIsLarger = nextSizeIsLarger, isFolder = true)
+                else -> TileControls(showColor = showColorDot, dotColor = accent, nextSizeIsLarger = nextSizeIsLarger)
             }
         }
     }
@@ -1808,14 +1821,14 @@ private fun NotificationBadge(
  * [editDragGesture] corner hot-zones (FR-3.4/3.5/7).
  */
 @Composable
-private fun BoxScope.TileControls(showColor: Boolean, dotColor: Color, isFolder: Boolean = false) {
+private fun BoxScope.TileControls(showColor: Boolean, dotColor: Color, nextSizeIsLarger: Boolean, isFolder: Boolean = false) {
     TileControl(
         iconKey = if (isFolder) "folder" else "close",
         description = if (isFolder) "open folder" else "unpin",
         modifier = Modifier.align(Alignment.TopStart),
     )
     TileControl(
-        iconKey = "resize",
+        iconKey = if (nextSizeIsLarger) "resize" else "resize-shrink",
         description = "resize",
         modifier = Modifier.align(Alignment.BottomEnd),
     )
@@ -2184,6 +2197,7 @@ private fun FolderOverlay(
                         darkTheme = true,
                         canMoveBack = order.indexOf(spec.id) > 0,
                         canMoveForward = order.indexOf(spec.id) in 0 until order.size - 1,
+                        nextSizeIsLarger = model.size.nextIsLarger(largeAllowed = false),
                         onTap = { if (!editMode) childByKey[spec.id]?.let(onLaunchChild) },
                         onLongPress = { if (!editMode) { editMode = true; selectedId = spec.id } },
                         onResize = { childByKey[spec.id]?.let(onResize) },

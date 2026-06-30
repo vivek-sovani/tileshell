@@ -248,6 +248,11 @@ object TileIcons {
             p(line(20.0, 20.0, 14.0, 14.0)),
         ))
 
+        // Inward brackets: shown when the next resize step is smaller.
+        put("resize-shrink", vector("resize-shrink",
+            p("M10 4v6h-6M14 20v-6h6"),
+        ))
+
         put("check", vector("check", p("M5 12l5 5 9-11")))
 
         put("chevron", vector("chevron", p("M9 6l6 6-6 6")))
