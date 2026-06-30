@@ -193,6 +193,7 @@ import com.tileshell.core.design.colorTokens
 import com.tileshell.core.design.tileGradientBrush
 import com.tileshell.core.design.tiltOnPress
 import com.tileshell.core.design.wallpaperWindow
+import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -2921,12 +2922,17 @@ private fun StackTileContent(
         if (liveActive) flipStates[key] = true
     }
 
+    // Random phase offset so multiple stacks on screen don't all rotate in lockstep.
+    // Stable per tile.id for the lifetime of the composition.
+    val rotateOffset = remember(tile.id) { Random.nextLong(0L, STACK_ROTATE_MS) }
+
     // Auto-rotate: runs for the lifetime of the composition so the delay never
     // resets when liveActive or editMode toggle briefly (e.g. app list opens and
     // closes). The guard is checked after each full delay, not as a LaunchedEffect
     // key, so a short interruption doesn't shorten the next interval.
     LaunchedEffect(count) {
         if (count <= 1) return@LaunchedEffect
+        delay(rotateOffset)
         while (true) {
             delay(STACK_ROTATE_MS)
             if (!liveActive || editMode) continue
