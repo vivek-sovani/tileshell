@@ -4,7 +4,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -29,6 +31,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -37,7 +40,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,6 +50,8 @@ import com.tileshell.core.data.BackupManager
 import com.tileshell.core.data.LayoutSnapshot
 import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.db.TileEntity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.colorTokens
@@ -188,21 +195,41 @@ private fun SnapshotRow(
             .getOrDefault(emptyList())
     }
 
+    // Load the actual screenshot off the main thread; fall back to Canvas preview if absent.
+    val screenshotBitmap by produceState<android.graphics.Bitmap?>(null, snapshot.screenshotPath) {
+        value = withContext(Dispatchers.IO) {
+            snapshot.screenshotPath?.let { path ->
+                runCatching { BitmapFactory.decodeFile(path) }.getOrNull()
+            }
+        }
+    }
+
+    val previewModifier = Modifier
+        .size(width = 64.dp, height = 104.dp)
+        .clip(RoundedCornerShape(6.dp))
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // mini grid preview
-        MiniGridPreview(
-            tiles = tiles,
-            accent = accent,
-            dark = dark,
-            modifier = Modifier
-                .size(width = 72.dp, height = 72.dp)
-                .clip(RoundedCornerShape(6.dp)),
-        )
+        // Show actual screenshot when captured; Canvas mini-grid for auto-snapshots.
+        if (screenshotBitmap != null) {
+            Image(
+                bitmap = screenshotBitmap!!.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = previewModifier,
+            )
+        } else {
+            MiniGridPreview(
+                tiles = tiles,
+                accent = accent,
+                dark = dark,
+                modifier = previewModifier,
+            )
+        }
 
         Spacer(Modifier.width(14.dp))
 

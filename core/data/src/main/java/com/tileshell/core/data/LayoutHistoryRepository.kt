@@ -29,6 +29,8 @@ data class LayoutSnapshot(
     val folderCount: Int,
     val contentHash: String,
     val json: String,
+    /** Absolute path to a JPEG thumbnail of the Start screen at capture time; null for auto-snapshots. */
+    val screenshotPath: String? = null,
 )
 
 // ── Codec ─────────────────────────────────────────────────────────────────────
@@ -54,6 +56,7 @@ internal object LayoutHistoryCodec : Serializer<List<LayoutSnapshot>> {
                 put("folderCount", s.folderCount)
                 put("contentHash", s.contentHash)
                 put("json", s.json)
+                if (s.screenshotPath != null) put("screenshotPath", s.screenshotPath)
             })
         }
     }.toString()
@@ -71,6 +74,7 @@ internal object LayoutHistoryCodec : Serializer<List<LayoutSnapshot>> {
                     folderCount = o.optInt("folderCount", 0),
                     contentHash = o.getString("contentHash"),
                     json = o.getString("json"),
+                    screenshotPath = o.optString("screenshotPath").takeIf { it.isNotEmpty() },
                 )
             }.getOrNull()
         }

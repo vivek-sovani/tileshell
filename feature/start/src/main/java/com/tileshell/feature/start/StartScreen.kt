@@ -390,6 +390,20 @@ fun StartScreen(
         }
     }
 
+    // Pending screenshot capture: set true when the user taps "save snapshot" so the
+    // PersonalizeSheet can dismiss first, then we PixelCopy the bare Start screen.
+    var captureRequested by remember { mutableStateOf(false) }
+    val activity = context as? android.app.Activity
+    LaunchedEffect(captureRequested) {
+        if (captureRequested && activity != null) {
+            delay(380) // wait for sheet dismiss animation (~300ms) to finish
+            val id = System.currentTimeMillis().toString()
+            val path = captureSnapshotJpeg(activity, context, id)
+            viewModel.saveLayoutSnapshot(id = id, screenshotPath = path)
+            captureRequested = false
+        }
+    }
+
     // Guard against accidental restore (destructive — replaces the current layout).
     var restoreConfirmPending by remember { mutableStateOf(false) }
     if (restoreConfirmPending) {
@@ -843,7 +857,10 @@ fun StartScreen(
             onExportBackup = { backupExportLauncher.launch("tileshell-backup.json") },
             onRestoreBackup = { restoreConfirmPending = true },
             onOpenHistory = viewModel::openHistory,
-            onSaveSnapshot = viewModel::saveLayoutSnapshot,
+            onSaveSnapshot = {
+                viewModel.closePersonalize()
+                captureRequested = true
+            },
             autoBackupEnabled = settings.autoBackupEnabled,
             autoBackupIntervalHours = settings.autoBackupIntervalHours,
             onAutoBackupEnabled = viewModel::setAutoBackupEnabled,
@@ -3263,3 +3280,41 @@ private fun openClock(context: Context): Boolean = runCatching {
     )
     true
 }.getOrDefault(false)
+
+/**
+ * Captures the current window contents via [android.view.PixelCopy], scales to a
+ * 360 px-wide JPEG thumbnail, and writes it to `filesDir/snapshots/snapshot_<id>.jpg`.
+ * Returns the absolute file path on success, null if PixelCopy fails or any IO error
+ * occurs. Must be called from a coroutine on the main dispatcher.
+ */
+internal suspend fun captureSnapshotJpeg(
+    activity: android.app.Activity,
+    context: Context,
+    id: String,
+): String? {
+    val decorView = activity.window.decorView
+    if (decorView.width == 0 || decorView.height == 0) return null
+    val full = android.graphics.Bitmap.createBitmap(
+        decorView.width, decorView.height, android.graphics.Bitmap.Config.ARGB_8888,
+    )
+    val deferred = kotlinx.coroutines.CompletableDeferred<Boolean>()
+    android.view.PixelCopy.request(
+        activity.window, full,
+        { result -> deferred.complete(result == android.view.PixelCopy.SUCCESS) },
+        android.os.Handler(android.os.Looper.getMainLooper()),
+    )
+    if (!deferred.await()) return null
+    return withContext(Dispatchers.IO) {
+        runCatching {
+            val thumbW = 360
+            val thumbH = (360f * full.height / full.width).toInt()
+            val thumb = android.graphics.Bitmap.createScaledBitmap(full, thumbW, thumbH, true)
+            val dir = java.io.File(context.filesDir, "snapshots").also { it.mkdirs() }
+            val file = java.io.File(dir, "snapshot_$id.jpg")
+            java.io.FileOutputStream(file).use { out ->
+                thumb.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)
+            }
+            file.absolutePath
+        }.getOrNull()
+    }
+}

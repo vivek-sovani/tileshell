@@ -589,23 +589,24 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Manually save the current layout to the rolling history. */
-    fun saveLayoutSnapshot() {
+    fun saveLayoutSnapshot(id: String = System.currentTimeMillis().toString(), screenshotPath: String? = null) {
         viewModelScope.launch(writeContext) {
             runCatching {
                 val (tiles, folders, children) = repository.tilesForBackup()
                 val currentSettings = settingsRepository.settings.first()
                 val json = BackupManager.buildBackupJson(tiles, folders, children, currentSettings)
                 val hash = BackupManager.layoutHash(tiles, folders, children)
-                val now = System.currentTimeMillis()
+                val ts = id.toLongOrNull() ?: System.currentTimeMillis()
                 historyRepository.addSnapshot(
                     LayoutSnapshot(
-                        id = now.toString(),
-                        timestamp = now,
+                        id = id,
+                        timestamp = ts,
                         label = "manual",
                         tileCount = tiles.size,
                         folderCount = folders.size,
                         contentHash = hash,
                         json = json,
+                        screenshotPath = screenshotPath,
                     )
                 )
                 _backupMessage.tryEmit("snapshot saved")
@@ -625,9 +626,12 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Delete a snapshot from the history by its id. */
+    /** Delete a snapshot from the history by its id; also removes its screenshot file. */
     fun deleteSnapshot(id: String) {
         viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                java.io.File(getApplication<android.app.Application>().filesDir, "snapshots/snapshot_$id.jpg").delete()
+            }
             historyRepository.deleteSnapshot(id)
         }
     }
