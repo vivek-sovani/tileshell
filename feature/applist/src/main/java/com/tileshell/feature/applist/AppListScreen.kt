@@ -353,25 +353,32 @@ private fun JumpGrid(
 ) {
     val cols = 4
     val rows = (JUMP_LETTERS.size + cols - 1) / cols
-    val gap = 8.dp
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(LocalColorTokens.current.bg)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .padding(18.dp),
+            .displayCutoutPadding(),
         contentAlignment = Alignment.Center,
     ) {
-        // Size each cell to fit BOTH the available width and height (then take the
-        // smaller), so the board stays square and on-screen even in the short,
-        // half-width landscape panel — square aspect-ratio cells used to overflow
-        // the height there and the middle rows collapsed to dots.
-        val cellW = (maxWidth - gap * (cols - 1)) / cols
-        val cellH = (maxHeight - gap * (rows - 1)) / rows
+        // On compact screens (small portrait phones, landscape half-panel) shrink the
+        // gap and inset so cells don't become so small the minimum font-size clamp
+        // causes the letter to overflow its tile.
+        val isCompact = minOf(maxWidth, maxHeight) < 320.dp
+        val gap = if (isCompact) 4.dp else 8.dp
+        val inset = if (isCompact) 8.dp else 18.dp
+        // Subtract the inset from both axes before computing cell size; the
+        // BoxWithConstraints centring then naturally leaves ~inset on each side.
+        val availW = maxWidth - inset * 2
+        val availH = maxHeight - inset * 2
+        val cellW = (availW - gap * (cols - 1)) / cols
+        val cellH = (availH - gap * (rows - 1)) / rows
         val cell = minOf(cellW, cellH).coerceAtLeast(0.dp)
-        val fontSize = (cell.value * 0.42f).coerceIn(12f, 26f).sp
-        val pad = (cell.value * 0.16f).coerceIn(3f, 8f).dp
+        // Allow font to scale down to 8 sp on tiny cells (12 sp floor could exceed
+        // the available text area when cells are ~15 dp on a compact landscape panel).
+        val fontSize = (cell.value * 0.42f).coerceIn(8f, 26f).sp
+        val pad = (cell.value * 0.16f).coerceIn(2f, 8f).dp
         Column(verticalArrangement = Arrangement.spacedBy(gap)) {
             JUMP_LETTERS.chunked(cols).forEach { rowLetters ->
                 Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
