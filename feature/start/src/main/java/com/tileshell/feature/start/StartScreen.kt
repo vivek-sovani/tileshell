@@ -2859,8 +2859,8 @@ private fun FolderTileContent(
     }
 }
 
-/** Auto-rotate interval for a widget stack (matches the ~3 s photos cross-fade). */
-private const val STACK_ROTATE_MS = 3000L
+/** Auto-rotate interval for a widget stack — long enough to read a notification snippet. */
+private const val STACK_ROTATE_MS = 5000L
 
 /**
  * A **widget stack**: a folder whose members are all LARGE renders as a swipeable
