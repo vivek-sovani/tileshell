@@ -84,6 +84,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -2525,6 +2526,10 @@ private fun AppTileContent(
     // so the buttons stay operable even when animations are off / battery saver
     // is on (which holds liveActive low while now-playing still shows).
     interactive: Boolean = false,
+    // When true the photos tile advances one photo per activation instead of
+    // running its continuous 3 s timer. Set to true for stack members so each
+    // stack rotation shows the next sequential photo.
+    photosAdvanceOnActivate: Boolean = false,
 ) {
     // Live faces replace the static glyph at medium+ (FR-2). Small tiles and
     // apps with no live face fall through to the static glyph; weather/calendar
@@ -2597,6 +2602,7 @@ private fun AppTileContent(
             PhotosTileFace(
                 active = liveActive,
                 fallback = staticGlyph,
+                advanceOnActivate = photosAdvanceOnActivate,
                 modifier = Modifier.fillMaxSize(),
             )
             return
@@ -2888,6 +2894,20 @@ private fun StackTileContent(
     // Direction of the last member change (+1 next / −1 previous) — drives the slide.
     val lastDir = remember { mutableStateOf(1) }
 
+    // Per-member flip state: each child flips to its back face 2 600 ms after it
+    // becomes the active member (matching the global flip scheduler interval), then
+    // resets to front when the stack rotates to the next member.
+    // liveActive is NOT a key — brief interruptions (app list) don't restart the
+    // timer; it is checked after the delay, same pattern as the auto-rotate above.
+    val flipStates = remember(tile.id, count) { mutableStateMapOf<String, Boolean>() }
+    LaunchedEffect(safeIndex) {
+        val child = children.getOrNull(safeIndex) ?: return@LaunchedEffect
+        val key = child.rowId.toString()
+        flipStates[key] = false
+        delay(2600L)
+        if (liveActive) flipStates[key] = true
+    }
+
     // Auto-rotate: runs for the lifetime of the composition so the delay never
     // resets when liveActive or editMode toggle briefly (e.g. app list opens and
     // closes). The guard is checked after each full delay, not as a LaunchedEffect
@@ -3005,9 +3025,10 @@ private fun StackTileContent(
                         iconKey = child.iconKey,
                         accentOverride = child.accentOverride,
                     ),
-                    flipped = false,
-                    liveActive = liveActive,
+                    flipped = flipStates[child.rowId.toString()] ?: false,
+                    liveActive = liveActive && (i == safeIndex),
                     interactive = true,
+                    photosAdvanceOnActivate = (child.iconKey == "photos"),
                 )
             }
         }

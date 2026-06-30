@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
@@ -31,9 +32,17 @@ private const val SLIDE_MS = 3_000L
 /**
  * The live photos tile (FR-2): a cross-fade slideshow of the user's picked photos
  * (prototype `liveFace('photos')`, `slideshowStep`). It never flips — the photos
- * face is the prototype's `data-noflip` — so [flipped] is irrelevant here. While
- * [active], the visible photo advances every ~3.0 s with an ~0.8 s cross-fade. A
- * shadowed "photos" label sits bottom-left. With no photos picked it renders
+ * face is the prototype's `data-noflip` — so [flipped] is irrelevant here.
+ *
+ * Standalone mode ([advanceOnActivate] = false, default): while [active] the photo
+ * advances every ~3.0 s with an ~0.8 s cross-fade.
+ *
+ * Stack mode ([advanceOnActivate] = true): the timer is suppressed entirely. Instead
+ * the index advances by 1 each time [active] transitions to true — i.e. each time
+ * the stack rotates back to this member. The first activation shows photo 0 without
+ * advancing, so the full sequence is shown in order with one photo per stack visit.
+ *
+ * A shadowed "photos" label sits bottom-left. With no photos picked it renders
  * [fallback] (the static glyph); an individual unreadable URI just shows the
  * tile's accent fill for that step.
  */
@@ -41,6 +50,7 @@ private const val SLIDE_MS = 3_000L
 fun PhotosTileFace(
     active: Boolean,
     fallback: @Composable () -> Unit,
+    advanceOnActivate: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -49,11 +59,21 @@ fun PhotosTileFace(
     if (uris.isEmpty()) return fallback()
 
     var index by remember(uris) { mutableIntStateOf(0) }
+    // Tracks whether this composable has been activated at least once — used in
+    // stack mode to skip the advance on the very first activation so photo 0 is shown.
+    var hasBeenActivated by remember { mutableStateOf(false) }
     LaunchedEffect(active, uris) {
         if (!active || uris.size < 2) return@LaunchedEffect
-        while (true) {
-            delay(SLIDE_MS)
-            index = (index + 1) % uris.size
+        if (advanceOnActivate) {
+            // Stack mode: one new photo per stack visit (sequential), no timer loop.
+            if (hasBeenActivated) index = (index + 1) % uris.size
+            hasBeenActivated = true
+        } else {
+            // Standalone: continuous 3 s slideshow.
+            while (true) {
+                delay(SLIDE_MS)
+                index = (index + 1) % uris.size
+            }
         }
     }
 
