@@ -155,6 +155,18 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
+## Release notes (v1.4.1)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 1.4.1
+
+• Fixed: tapping the corner button on a folder or widget stack in edit mode
+  now opens the folder overlay instead of deleting all the tiles inside —
+  remove apps one by one, and the folder closes automatically when it's empty
+```
+
 ## Release notes (v1.4.0)
 
 *"What's new" — newest release first. Keep under Play's 500-character limit.*
