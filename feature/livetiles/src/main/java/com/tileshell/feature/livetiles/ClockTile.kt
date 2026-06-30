@@ -250,25 +250,43 @@ private fun ClockBack(face: ClockFace) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.End,
     ) {
-        Text(
-            text = face.fullDate,
-            color = FaceText,
-            fontSize = 30.sp,
-            lineHeight = 30.sp,
-            fontWeight = FontWeight.Light,
-            letterSpacing = (-1).sp,
-            maxLines = 1,
-        )
         if (face.alarm.isNotEmpty()) {
-            Spacer(Modifier.height(4.dp))
+            // Alarm gets the hero slot — user set it, they want to see it.
             // Labelled "alarm / bedtime" because Android's getNextAlarmClock reports
             // the next alarm-clock *event*, which includes the clock app's Bedtime
-            // schedule, and gives no way to tell the two apart — so the label names
-            // both rather than mislabelling a bedtime as an alarm.
+            // schedule, and gives no way to tell the two apart.
             Text(
-                text = "alarm / bedtime ${face.alarm}",
-                color = FaceText.copy(alpha = 0.82f),
+                text = "alarm / bedtime",
+                color = FaceText.copy(alpha = 0.65f),
+                fontSize = 11.sp,
+                maxLines = 1,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = face.alarm,
+                color = FaceText,
+                fontSize = 30.sp,
+                lineHeight = 30.sp,
+                fontWeight = FontWeight.Light,
+                letterSpacing = (-1).sp,
+                maxLines = 1,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = face.fullDate,
+                color = FaceText.copy(alpha = 0.65f),
                 fontSize = 12.sp,
+                maxLines = 1,
+            )
+        } else {
+            // No alarm set — date fills the back face as before.
+            Text(
+                text = face.fullDate,
+                color = FaceText,
+                fontSize = 30.sp,
+                lineHeight = 30.sp,
+                fontWeight = FontWeight.Light,
+                letterSpacing = (-1).sp,
                 maxLines = 1,
             )
         }
