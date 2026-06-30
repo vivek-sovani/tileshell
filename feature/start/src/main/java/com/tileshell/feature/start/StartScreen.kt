@@ -2855,7 +2855,51 @@ private fun StackTileContent(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            // Vertical scrub to flip through members — detected immediately (no
+            // long-press timeout): as soon as the finger travels past the touch slop
+            // in the vertical direction it steps the member and consumes the event,
+            // which makes tileGesture bail so the outer tap/long-press never fires.
+            // Tap and long-press are handled entirely by the outer tileGesture.
+            .pointerInput(count) {
+                val slop = viewConfiguration.touchSlop
+                val stepPx = 44.dp.toPx()
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    var anchorY = down.position.y
+                    var dragging = false
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) break
+                        if (change.isConsumed && !dragging) break
+                        val totalDy = change.position.y - down.position.y
+                        val totalDx = change.position.x - down.position.x
+                        if (!dragging) {
+                            if (abs(totalDy) > slop && abs(totalDy) > abs(totalDx)) {
+                                dragging = true
+                                anchorY = change.position.y
+                            } else if (abs(totalDx) > slop) break
+                        }
+                        if (dragging) {
+                            change.consume()
+                            val dy = change.position.y - anchorY
+                            if (dy <= -stepPx) {
+                                lastDir.value = 1
+                                pageIndex.value = (pageIndex.value + 1) % count
+                                anchorY = change.position.y
+                            } else if (dy >= stepPx) {
+                                lastDir.value = -1
+                                pageIndex.value = (pageIndex.value - 1 + count) % count
+                                anchorY = change.position.y
+                            }
+                        }
+                    }
+                }
+            },
+    ) {
         // Members slide vertically (in the travel direction) so each reads as a
         // distinct tile scrolling past — for both the swipe and the auto-rotate.
         AnimatedContent(
