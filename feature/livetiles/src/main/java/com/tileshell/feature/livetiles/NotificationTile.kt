@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
+import com.tileshell.core.data.TileSize
 
 /**
  * The generic notification live tile (FR-2.3 — "live tiles for all other apps").
@@ -25,15 +26,16 @@ import androidx.compose.ui.unit.dp
  * registered with the flip scheduler (its icon key maps to no [LiveFace]). It
  * shows the latest notification only — content, never gated by `liveActive`, so
  * notifications surface even while the flip scheduler is paused.
+ *
+ * Layout scales with [size]: MEDIUM = compact row, WIDE = two-column with picture
+ * hero on the right, LARGE = full-area hero image.
  */
 @Composable
 fun NotificationTileFace(
     packageName: String,
     fallback: @Composable () -> Unit,
+    size: TileSize = TileSize.MEDIUM,
     modifier: Modifier = Modifier,
-    // A 3×3 LARGE tile (news apps) gets the full-area hero layout instead of the
-    // compact notification row.
-    large: Boolean = false,
 ) {
     val snapshot by NotificationCenter.snapshot.collectAsState()
     val preview = snapshot.conversationFor(packageName) ?: return fallback()
@@ -46,7 +48,7 @@ fun NotificationTileFace(
             preview = preview,
             avatar = imgs?.avatar?.asImageBitmap(),
             picture = imgs?.picture?.asImageBitmap(),
-            large = large,
+            size = size,
         )
         // The app's own icon in the top-left corner (the count badge sits top-right).
         AppIconCorner(

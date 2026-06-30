@@ -2578,6 +2578,7 @@ private fun AppTileContent(
                 packageName = tile.packageName,
                 flipped = flipped,
                 fallback = staticGlyph,
+                size = tile.size,
                 modifier = Modifier.fillMaxSize(),
             )
             return
@@ -2626,7 +2627,7 @@ private fun AppTileContent(
                         NotificationTileFace(
                             packageName = tile.packageName,
                             fallback = staticGlyph,
-                            large = tile.size == TileSize.LARGE,
+                            size = tile.size,
                             modifier = Modifier.fillMaxSize(),
                         )
                     },
@@ -2859,7 +2860,7 @@ private fun FolderTileContent(
 }
 
 /** Auto-rotate interval for a widget stack (matches the ~3 s photos cross-fade). */
-private const val STACK_ROTATE_MS = 8000L
+private const val STACK_ROTATE_MS = 3000L
 
 /**
  * A **widget stack**: a folder whose members are all LARGE renders as a swipeable

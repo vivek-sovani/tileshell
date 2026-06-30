@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -30,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tileshell.core.data.TileSize
 
 private val FaceText = Color.White
 
@@ -51,6 +53,7 @@ fun ConversationTileFace(
     packageName: String,
     flipped: Boolean,
     fallback: @Composable () -> Unit,
+    size: TileSize = TileSize.MEDIUM,
     modifier: Modifier = Modifier,
 ) {
     val snapshot by NotificationCenter.snapshot.collectAsState()
@@ -69,6 +72,7 @@ fun ConversationTileFace(
                     preview = preview,
                     avatar = imgs?.avatar?.asImageBitmap(),
                     picture = imgs?.picture?.asImageBitmap(),
+                    size = size,
                 )
             },
             back = { ConversationBack(preview.count, countWord) },
@@ -83,27 +87,41 @@ fun ConversationTileFace(
 
 /**
  * Shared front layout for the notification-style live faces (mail/messages and the
- * generic notification tile): the sender [avatar] as a small circular thumbnail
- * (falling back to initials when there is no photo), the sender name + message
- * [ConversationPreview.snippet] beside it, and an optional shared-[picture]
- * thumbnail at the end of the row — mirroring a collapsed Android notification.
+ * generic notification tile). Layout scales with [size]:
+ *
+ * - MEDIUM: compact single row — avatar + name/snippet + optional thumbnail.
+ * - WIDE: two-column — text on the left (bigger avatar, more snippet lines),
+ *   picture hero on the right half when present.
+ * - LARGE: full-area hero — picture fills the tile, name + headline below (or
+ *   headline fills the tile when there is no picture).
  */
 @Composable
 internal fun NotificationFaceContent(
     preview: ConversationPreview,
     avatar: ImageBitmap?,
     picture: ImageBitmap?,
-    large: Boolean = false,
+    size: TileSize = TileSize.MEDIUM,
 ) {
-    if (large) {
-        NotificationFaceContentLarge(preview, avatar, picture)
-        return
+    when (size) {
+        TileSize.LARGE -> NotificationFaceContentLarge(preview, avatar, picture)
+        TileSize.WIDE  -> NotificationFaceContentWide(preview, avatar, picture)
+        else           -> NotificationFaceContentMedium(preview, avatar, picture)
     }
+}
+
+// ── MEDIUM (2×2) ──────────────────────────────────────────────────────────────
+
+@Composable
+private fun NotificationFaceContentMedium(
+    preview: ConversationPreview,
+    avatar: ImageBitmap?,
+    picture: ImageBitmap?,
+) {
     Row(
         modifier = Modifier.fillMaxSize().padding(11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SenderAvatar(name = preview.sender, photo = avatar)
+        SenderAvatar(name = preview.sender, photo = avatar, sizeDp = 28)
         Spacer(Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -137,13 +155,68 @@ internal fun NotificationFaceContent(
     }
 }
 
-/**
- * The full-area notification face for a 3×3 LARGE tile (news apps). Instead of the
- * compact single row it fills the tile: a shared [picture] becomes a hero image
- * that takes the available height, with the source name and the headline
- * [ConversationPreview.snippet] below it in larger type. When there is no picture
- * the headline itself becomes the hero, given several lines of room.
- */
+// ── WIDE (4×2) ────────────────────────────────────────────────────────────────
+// Left side: avatar + sender name + snippet (more lines). When a picture is
+// present it fills the right ~40 % of the tile as a portrait-style hero image.
+
+@Composable
+private fun NotificationFaceContentWide(
+    preview: ConversationPreview,
+    avatar: ImageBitmap?,
+    picture: ImageBitmap?,
+) {
+    Row(modifier = Modifier.fillMaxSize()) {
+        // Text column — takes remaining space after the picture (if any).
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .padding(start = 14.dp, top = 28.dp, end = 10.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.Top,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SenderAvatar(name = preview.sender, photo = avatar, sizeDp = 40)
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = preview.sender.ifBlank { "someone" },
+                    color = FaceText,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (preview.snippet.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = preview.snippet,
+                    color = FaceText.copy(alpha = 0.88f),
+                    fontSize = 13.sp,
+                    // More lines fit because the tile is taller than MEDIUM
+                    maxLines = if (picture != null) 4 else 5,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        // Picture hero — right ~38 % of the tile, full height, no padding.
+        if (picture != null) {
+            Image(
+                bitmap = picture,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(130.dp)
+                    .clip(RoundedCornerShape(topEnd = 0.dp, bottomEnd = 0.dp)),
+            )
+        }
+    }
+}
+
+// ── LARGE (3×3) ───────────────────────────────────────────────────────────────
+// Full-area hero: picture fills the tile, name + headline below it in larger
+// type. When there is no picture the headline itself becomes the hero.
+
 @Composable
 private fun NotificationFaceContentLarge(
     preview: ConversationPreview,
@@ -182,7 +255,7 @@ private fun NotificationFaceContentLarge(
             }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                SenderAvatar(name = preview.sender, photo = avatar)
+                SenderAvatar(name = preview.sender, photo = avatar, sizeDp = 36)
                 Spacer(Modifier.width(10.dp))
                 Text(
                     text = preview.sender.ifBlank { "someone" },
@@ -230,23 +303,23 @@ private fun ConversationBack(count: Int, word: String) {
  * a tinted initials avatar (prototype `.av`). Used by both notification-style faces.
  */
 @Composable
-internal fun SenderAvatar(name: String, photo: ImageBitmap?) {
+internal fun SenderAvatar(name: String, photo: ImageBitmap?, sizeDp: Int = 28) {
     if (photo != null) {
         Image(
             bitmap = photo,
             contentDescription = name,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.size(28.dp).clip(CircleShape),
+            modifier = Modifier.size(sizeDp.dp).clip(CircleShape),
         )
     } else {
         Box(
-            modifier = Modifier.size(28.dp).background(Color(0x33FFFFFF), CircleShape),
+            modifier = Modifier.size(sizeDp.dp).background(Color(0x33FFFFFF), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = initials(name),
                 color = FaceText,
-                fontSize = 12.sp,
+                fontSize = (sizeDp * 0.42f).sp,
                 fontWeight = FontWeight.Medium,
             )
         }
