@@ -157,7 +157,8 @@ fun AboutSheet(
                 accent = accent,
                 tokens = tokens,
                 items = listOf(
-                    "live tile grid in three sizes — small, medium, wide",
+                    "live tile grid in four sizes — small, medium, wide, and large",
+                    "large (3×3) tile available for any app on 5 and 6-column grids",
                     "choose grid density — 4, 5, or 6 tiles across a row",
                     "long-press any tile to enter edit mode",
                     "drag to reorder, resize, or unpin tiles",
@@ -165,6 +166,7 @@ fun AboutSheet(
                     "a moving tile reorders cleanly; pause it over another to merge",
                     "merge two same-size tiles by lining them up centre to centre",
                     "unread badge counts on app tiles",
+                    "landscape mode shows feed and start side by side",
                 ),
             )
 
@@ -175,10 +177,28 @@ fun AboutSheet(
                 items = listOf(
                     "merge two tiles together to create a folder",
                     "auto-create category folders from your installed apps",
+                    "tap an app icon inside a folder tile to launch it directly",
+                    "folder shows overflow count (+N) when more than 4 apps are inside",
                     "resize, reorder, and remove tiles inside an open folder",
                     "pull an app out of a folder to unpin it back to start",
                     "folder shows a combined badge; each app shows its own inside",
                     "music keeps playing controls and album art live inside a folder",
+                ),
+            )
+
+            FeatureGroup(
+                title = "widget stacks",
+                accent = accent,
+                tokens = tokens,
+                items = listOf(
+                    "merge two large tiles to create a widget stack",
+                    "stack shows each member's full live tile — clock, music, notifications",
+                    "swipe up or down to flip through stack members instantly",
+                    "stack auto-rotates every 6 s; each stack runs on its own independent schedule",
+                    "tap the stack to launch the current member's app",
+                    "long-press to manage members in the overlay",
+                    "drag a member out of the overlay to return it to start",
+                    "live faces (music transport, clock flip) stay fully interactive inside a stack",
                 ),
             )
 
@@ -222,6 +242,8 @@ fun AboutSheet(
                     "photos — cross-fading slideshow of photos you pick",
                     "mail & messages — latest sender and message snippet",
                     "any app tile shows its latest notification as a preview",
+                    "wide and large tiles show more notification content — bigger photos, more lines",
+                    "clock back face leads with your next alarm time; date shown below",
                 ),
             )
 

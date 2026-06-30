@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v1.3 listing draft — update before each release*
+*v1.4 listing draft — update before each release*
 
 ---
 
@@ -25,9 +25,10 @@ Every tile flips on a gentle 2.6 s schedule; pauses on battery saver and when yo
 leave the screen.
 
 ★ START SCREEN
-Dense 4-column grid of Small, Medium, and Wide tiles. Long-press to drag, merge into
-folders, resize, or unpin. TalkBack-accessible — every tile is a labelled button with
-custom actions for screen-reader users.
+Dense grid of Small, Medium, Wide, and Large (3×3) tiles — choose 4, 5, or 6 columns.
+Long-press to drag, merge into folders or widget stacks, resize, or unpin.
+TalkBack-accessible — every tile is a labelled button with custom actions.
+In landscape mode the feed and Start screen sit side by side.
 
 ★ FEED PAGE (swipe right)
 A personal glance page: live weather card, today's calendar agenda, now-playing with
@@ -39,6 +40,11 @@ it fresh.
 ★ APP LIST (swipe left)
 Alphabetical grid with live letter headers and a full-screen A–Z jump grid. Search
 filters instantly. Recent apps float to the top. Long-press to pin to Start or uninstall.
+
+★ WIDGET STACKS
+Drag two Large tiles together to form a widget stack — a 3×3 carousel of full-size
+live tiles. Swipe up or down to jump between members, or let each stack auto-rotate on
+its own independent schedule. Every live face stays interactive inside the stack.
 
 ★ PERSONALIZATION
 14 accent colours · per-tile colour override · tile colour from the app's own icon ·
@@ -148,6 +154,20 @@ data. Users can also clear app data via Android Settings at any time.
 | Feature graphic | 1024 × 500 px | Required for listing banner |
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
+
+## Release notes (v1.4.0)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 1.4
+
+• Widget stacks: merge two large tiles into a full-size live-tile carousel — swipe up/down or let it auto-rotate; each stack runs on its own schedule so the screen never all-flips at once
+• Large tiles (3×3) now available for any app on 5 and 6-column grids
+• Landscape: feed and Start screen shown side by side on wide devices
+• Notification tiles on wide and large sizes now show bigger photos and more message lines
+• Clock tile back face leads with your alarm time, not the date
+```
 
 ## Release notes (v1.3.0)
 
