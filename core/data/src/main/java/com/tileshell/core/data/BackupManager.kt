@@ -1,0 +1,145 @@
+package com.tileshell.core.data
+
+import com.tileshell.core.data.db.FolderChildEntity
+import com.tileshell.core.data.db.FolderEntity
+import com.tileshell.core.data.db.TileEntity
+import com.tileshell.core.data.settings.LauncherSettings
+import com.tileshell.core.data.settings.SettingsCodec
+import org.json.JSONArray
+import org.json.JSONObject
+
+/** Serialized snapshot of the Start layout + settings for export/import. */
+data class BackupData(
+    val tiles: List<TileEntity>,
+    val folders: List<FolderEntity>,
+    val folderChildren: List<FolderChildEntity>,
+    val settings: LauncherSettings,
+)
+
+/**
+ * Pure JSON serializer/deserializer for layout backups. No Android Context
+ * needed — fully JVM-unit-testable. Uses org.json (already on classpath via
+ * the weather provider).
+ *
+ * Version 1 schema: { version, settings, tiles, folders, folderChildren }
+ * FolderChildEntity.rowId is always stored as 0 so Room auto-generates new
+ * IDs on restore (avoids any collision with existing rows in a clean DB).
+ */
+object BackupManager {
+
+    private const val CURRENT_VERSION = 1
+
+    fun buildBackupJson(
+        tiles: List<TileEntity>,
+        folders: List<FolderEntity>,
+        children: List<FolderChildEntity>,
+        settings: LauncherSettings,
+    ): String = JSONObject().apply {
+        put("version", CURRENT_VERSION)
+        put("settings", SettingsCodec.encode(settings))
+        put("tiles", JSONArray().also { arr ->
+            tiles.forEach { t ->
+                arr.put(JSONObject().apply {
+                    put("id", t.id)
+                    put("position", t.position)
+                    put("size", t.size.name)
+                    put("colorId", t.colorId)
+                    putOpt("accentOverride", t.accentOverride)
+                    put("type", t.type)
+                    putOpt("packageName", t.packageName)
+                    putOpt("activityName", t.activityName)
+                    putOpt("label", t.label)
+                    putOpt("iconKey", t.iconKey)
+                    putOpt("folderId", t.folderId)
+                })
+            }
+        })
+        put("folders", JSONArray().also { arr ->
+            folders.forEach { f ->
+                arr.put(JSONObject().apply {
+                    put("id", f.id)
+                    put("name", f.name)
+                })
+            }
+        })
+        put("folderChildren", JSONArray().also { arr ->
+            children.forEach { c ->
+                arr.put(JSONObject().apply {
+                    put("rowId", 0)
+                    put("folderId", c.folderId)
+                    put("position", c.position)
+                    put("packageName", c.packageName)
+                    put("activityName", c.activityName)
+                    putOpt("label", c.label)
+                    putOpt("iconKey", c.iconKey)
+                    put("size", c.size.name)
+                    putOpt("accentOverride", c.accentOverride)
+                })
+            }
+        })
+    }.toString()
+
+    /**
+     * Parse and validate a backup JSON string. Throws [IllegalArgumentException]
+     * on a version mismatch or any structural problem — callers should wrap in
+     * runCatching and surface the failure as a user-visible error.
+     */
+    fun parseBackup(json: String): BackupData {
+        val root = runCatching { JSONObject(json) }
+            .getOrElse { throw IllegalArgumentException("not valid JSON", it) }
+
+        val version = root.optInt("version", -1)
+        require(version == CURRENT_VERSION) {
+            "unsupported backup version $version (expected $CURRENT_VERSION)"
+        }
+
+        val settings = SettingsCodec.decode(root.optString("settings", ""))
+
+        val tiles = root.getJSONArray("tiles").let { arr ->
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                TileEntity(
+                    id = o.getString("id"),
+                    position = o.getInt("position"),
+                    size = TileSize.entries.find { it.name == o.getString("size") }
+                        ?: TileSize.MEDIUM,
+                    colorId = o.getString("colorId"),
+                    accentOverride = o.optString("accentOverride", "").ifEmpty { null },
+                    type = o.getString("type"),
+                    packageName = o.optString("packageName", "").ifEmpty { null },
+                    activityName = o.optString("activityName", "").ifEmpty { null },
+                    label = o.optString("label", "").ifEmpty { null },
+                    iconKey = o.optString("iconKey", "").ifEmpty { null },
+                    folderId = o.optString("folderId", "").ifEmpty { null },
+                )
+            }
+        }
+
+        val folders = root.getJSONArray("folders").let { arr ->
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                FolderEntity(id = o.getString("id"), name = o.getString("name"))
+            }
+        }
+
+        val folderChildren = root.getJSONArray("folderChildren").let { arr ->
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                FolderChildEntity(
+                    rowId = 0,
+                    folderId = o.getString("folderId"),
+                    position = o.getInt("position"),
+                    packageName = o.getString("packageName"),
+                    activityName = o.getString("activityName"),
+                    label = o.optString("label", "").ifEmpty { null },
+                    iconKey = o.optString("iconKey", "").ifEmpty { null },
+                    size = TileSize.entries.find { it.name == o.optString("size", "") }
+                        ?: TileSize.MEDIUM,
+                    accentOverride = o.optString("accentOverride", "").ifEmpty { null },
+                )
+            }
+        }
+
+        return BackupData(tiles, folders, folderChildren, settings)
+    }
+}

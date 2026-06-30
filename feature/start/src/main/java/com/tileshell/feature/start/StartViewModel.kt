@@ -3,6 +3,7 @@ package com.tileshell.feature.start
 import android.app.Application
 import android.content.Context
 import android.content.pm.LauncherApps
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.os.UserHandle
@@ -11,6 +12,7 @@ import androidx.lifecycle.viewModelScope
 import com.tileshell.core.data.AppCatalogRepository
 import com.tileshell.core.data.AppCategories
 import com.tileshell.core.data.AppEntry
+import com.tileshell.core.data.BackupManager
 import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.TileModel
@@ -28,8 +30,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -524,6 +528,43 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     fun merge(dragId: String, targetId: String, survivingOrder: List<String>) {
         viewModelScope.launch(writeContext) {
             repository.mergeTiles(dragId, targetId, survivingOrder)
+        }
+    }
+
+    // One-shot toast messages emitted after an export/import completes (or fails).
+    private val _backupMessage = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val backupMessage: SharedFlow<String> = _backupMessage.asSharedFlow()
+
+    /** Export the current layout + settings to the SAF URI chosen by the user. */
+    fun exportBackup(uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                val (tiles, folders, children) = repository.tilesForBackup()
+                val currentSettings = settingsRepository.settings.first()
+                val json = BackupManager.buildBackupJson(tiles, folders, children, currentSettings)
+                getApplication<Application>().contentResolver
+                    .openOutputStream(uri)?.use { it.write(json.encodeToByteArray()) }
+                _backupMessage.tryEmit("backup saved")
+            }.onFailure {
+                _backupMessage.tryEmit("export failed")
+            }
+        }
+    }
+
+    /** Import a layout + settings backup from the SAF URI chosen by the user. */
+    fun importBackup(uri: Uri) {
+        viewModelScope.launch(writeContext) {
+            runCatching {
+                val json = getApplication<Application>().contentResolver
+                    .openInputStream(uri)?.use { it.readBytes().decodeToString() }
+                    ?: error("could not read backup file")
+                val backup = BackupManager.parseBackup(json)
+                repository.restoreFromBackup(backup.tiles, backup.folders, backup.folderChildren)
+                settingsRepository.restoreSettings(backup.settings)
+                _backupMessage.tryEmit("layout restored")
+            }.onFailure {
+                _backupMessage.tryEmit("restore failed")
+            }
         }
     }
 

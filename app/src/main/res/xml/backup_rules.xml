@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android Auto Backup rules. Backs up the Start layout DB + all DataStore
+    preferences to the user's Google Drive (app-private appdata folder).
+    On reinstall, Android restores these before the app first opens, so
+    seedIfEmpty() finds existing tiles and skips the default seed.
+
+    The Room WAL/SHM files are excluded on purpose: Room recovers cleanly
+    from a DB whose WAL is absent (only uncommitted-since-last-checkpoint
+    writes are lost — acceptable for a launcher layout).
+-->
+<full-backup-content>
+    <!-- Room database (main journal file only) -->
+    <include domain="database" path="tileshell.db"/>
+    <!-- DataStore settings and feed data -->
+    <include domain="file" path="datastore/launcher_settings.pb"/>
+    <include domain="file" path="datastore/news_feed.pb"/>
+    <include domain="file" path="datastore/feed_widget.pb"/>
+    <include domain="file" path="datastore/photos_tile.pb"/>
+    <include domain="file" path="datastore/weather_cache.pb"/>
+    <!-- First-run hint + default-launcher prompt flags -->
+    <include domain="sharedpref" path="tileshell.prefs"/>
+</full-backup-content>

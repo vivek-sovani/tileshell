@@ -313,6 +313,29 @@ class LayoutRepository(
         return true
     }
 
+    /**
+     * Return the raw DB entities for a manual backup export. Reuses the
+     * existing [LayoutDao.tilesOnce] snapshot; no new DAO query needed.
+     */
+    suspend fun tilesForBackup(): Triple<List<TileEntity>, List<FolderEntity>, List<FolderChildEntity>> {
+        val all = dao.tilesOnce()
+        val tiles = all.map { it.tile }
+        val folders = all.mapNotNull { it.folder?.folder }
+        val children = all.flatMap { it.folder?.children.orEmpty() }
+        return Triple(tiles, folders, children)
+    }
+
+    /**
+     * Atomically replace the persisted layout with the data from a backup
+     * import. Delegates to the existing [LayoutDao.replaceLayout] transaction
+     * (no new DAO code needed).
+     */
+    suspend fun restoreFromBackup(
+        tiles: List<TileEntity>,
+        folders: List<FolderEntity>,
+        children: List<FolderChildEntity>,
+    ) = dao.replaceLayout(tiles, folders, children)
+
     /** Seed the default layout iff the grid is empty. Safe to call repeatedly. */
     suspend fun seedIfEmpty() {
         if (dao.tileCount() > 0) return

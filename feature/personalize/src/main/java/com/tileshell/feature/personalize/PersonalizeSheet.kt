@@ -125,6 +125,8 @@ fun PersonalizeSheet(
     onRequestLocation: () -> Unit,
     onAbout: () -> Unit,
     onFolders: () -> Unit,
+    onExportBackup: () -> Unit,
+    onRestoreBackup: () -> Unit,
     onDismiss: () -> Unit,
     // In landscape the launcher splits into a feed (left) + Start (right) panel;
     // the sheet then docks to the right half over Start instead of full width.
@@ -656,6 +658,12 @@ fun PersonalizeSheet(
                     Spacer(Modifier.weight(1f))
                     Text(text = "open ›", color = accent, fontSize = 13.sp)
                 }
+            }
+
+            // ---- backup & restore ----
+            SettingGroup(label = "backup & restore", tokens.fgDim) {
+                WallpaperNavRow("export layout", "save ›", accent, tokens, onExportBackup)
+                WallpaperNavRow("restore layout", "open ›", accent, tokens, onRestoreBackup)
             }
 
             // ---- about ----

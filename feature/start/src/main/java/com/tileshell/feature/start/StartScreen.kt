@@ -69,7 +69,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -355,6 +357,41 @@ fun StartScreen(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
         if (granted) WeatherRefreshWorker.refreshNow(context)
+    }
+
+    // SAF launchers for backup export/import (permission-free; supports Google Drive).
+    val backupExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri -> uri?.let { viewModel.exportBackup(it) } }
+
+    val backupRestoreLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri -> uri?.let { viewModel.importBackup(it) } }
+
+    // Show a Toast for backup export/restore outcomes.
+    LaunchedEffect(viewModel) {
+        viewModel.backupMessage.collect { msg ->
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Guard against accidental restore (destructive — replaces the current layout).
+    var restoreConfirmPending by remember { mutableStateOf(false) }
+    if (restoreConfirmPending) {
+        AlertDialog(
+            onDismissRequest = { restoreConfirmPending = false },
+            title = { Text("restore backup?") },
+            text = { Text("this will replace your current start screen layout and settings.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    restoreConfirmPending = false
+                    backupRestoreLauncher.launch(arrayOf("application/json"))
+                }) { Text("restore") }
+            },
+            dismissButton = {
+                TextButton(onClick = { restoreConfirmPending = false }) { Text("cancel") }
+            },
+        )
     }
 
     val scrollState = rememberScrollState()
@@ -788,6 +825,8 @@ fun StartScreen(
             onColumnsChange = viewModel::setColumns,
             onAbout = viewModel::openAbout,
             onFolders = viewModel::openFolders,
+            onExportBackup = { backupExportLauncher.launch("tileshell-backup.json") },
+            onRestoreBackup = { restoreConfirmPending = true },
             onDismiss = viewModel::closePersonalize,
         )
 

@@ -35,4 +35,7 @@ dependencies {
     ksp(libs.androidx.room.compiler)
 
     testImplementation(libs.junit)
+    // Real org.json for unit tests (the android.jar stub throws "not mocked").
+    // BackupManager serializes/deserializes JSON in the core data layer.
+    testImplementation("org.json:json:20240303")
 }

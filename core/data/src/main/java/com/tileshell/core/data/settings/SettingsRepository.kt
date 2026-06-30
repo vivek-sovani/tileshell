@@ -189,6 +189,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         }
     }
 
+    /** Replace all settings with a restored backup value atomically. */
+    suspend fun restoreSettings(settings: LauncherSettings) {
+        store.updateData { settings }
+    }
+
     companion object {
         fun create(context: Context): SettingsRepository =
             SettingsRepository(context.applicationContext.settingsDataStore)
