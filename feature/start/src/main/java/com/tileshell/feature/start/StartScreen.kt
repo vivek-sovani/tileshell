@@ -1168,6 +1168,7 @@ private fun StartPage(
                         onTap = { if (!editMode) onTile(model) },
                         onLongPress = { if (!editMode) onEnterEdit(model.id) },
                         onLaunchFolderChild = onLaunchFolderChild,
+                        onOpenStackMembers = { onTile(model) },
                         onResize = { onResize(model.id) },
                         onUnpin = { order.remove(model.id); onUnpin(model.id) },
                         onSelect = { onSelectTile(model.id) },
@@ -1479,6 +1480,7 @@ private fun TileView(
     onExitEdit: () -> Unit,
     onMove: (direction: Int) -> Unit,
     onLaunchFolderChild: (FolderChild) -> Unit = {},
+    onOpenStackMembers: () -> Unit = {},
     showColorDot: Boolean = false,
     inlineFolderLaunch: Boolean = false,
     appIconColors: Boolean = false,
@@ -1491,9 +1493,9 @@ private fun TileView(
 
     val tileCornerRadius = LocalTileCornerRadius.current
     val useTileGradient = LocalTileGradient.current
-    // A widget stack owns its own tap/long-press (tap launches the current member,
-    // long-press opens the manage overlay), so the outer tile gesture is suppressed
-    // for it; in edit mode the grid drag owns interaction for every tile.
+    // A widget stack owns its own tap/long-press (tap = launch current member,
+    // long-press = enter edit mode), so the outer tile gesture is suppressed for it;
+    // in edit mode the grid drag owns interaction for every tile.
     val isStackTile = tile is TileModel.Folder && tile.isStack
 
     // Edit chrome (prototype CSS): non-selected tiles dim to .45, the selected
@@ -1634,7 +1636,7 @@ private fun TileView(
                         selected = selected,
                         liveActive = liveActive,
                         onLaunchChild = onLaunchFolderChild,
-                        onOpenFolder = onTap,
+                        onEnterEdit = onLongPress,
                     )
                 } else {
                     FolderTileContent(
@@ -1658,9 +1660,13 @@ private fun TileView(
                 modifier = Modifier.align(Alignment.TopEnd),
             )
         }
-        // Widget stacks don't offer resize/colour controls (the folder overlay handles
-        // member management); all other tiles use the standard corner controls.
-        if (selected && !isStackTile) TileControls(showColor = showColorDot, dotColor = accent)
+        // Selected tiles show corner controls: stacks get a simplified overlay (×
+        // unpin + folder-icon button to manage members); other tiles get the full
+        // standard controls (× + resize + colour dot).
+        if (selected) {
+            if (isStackTile) StackEditControls(onManageMembers = onOpenStackMembers)
+            else TileControls(showColor = showColorDot, dotColor = accent)
+        }
     }
 }
 
@@ -1731,6 +1737,36 @@ private fun BoxScope.TileControls(showColor: Boolean, dotColor: Color) {
                 .background(dotColor),
             contentAlignment = Alignment.Center,
         ) {}
+    }
+}
+
+/**
+ * Corner controls for a **selected widget stack** in edit mode. Shows the standard
+ * × at TopStart (handled by [editDragGesture]'s unpin zone — visual only here) and
+ * a tappable folder icon at TopEnd that opens the folder overlay for member
+ * management (reorder / pull-out / remove). No resize or colour dot — stacks are
+ * fixed at 3×3 and member colours are set per-member in the overlay.
+ */
+@Composable
+private fun BoxScope.StackEditControls(onManageMembers: () -> Unit) {
+    TileControl(
+        iconKey = "close",
+        description = "unpin",
+        modifier = Modifier.align(Alignment.TopStart),
+    )
+    Box(
+        modifier = Modifier
+            .align(Alignment.TopEnd)
+            .size(26.dp)
+            .clickable(onClick = onManageMembers),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = TileIcons["folder"],
+            contentDescription = "manage members",
+            tint = Color.White,
+            modifier = Modifier.size(18.dp),
+        )
     }
 }
 
@@ -2842,7 +2878,7 @@ private fun StackTileContent(
     selected: Boolean,
     liveActive: Boolean,
     onLaunchChild: (FolderChild) -> Unit,
-    onOpenFolder: () -> Unit,
+    onEnterEdit: () -> Unit,
 ) {
     val children = tile.children
     val count = children.size
@@ -2871,7 +2907,7 @@ private fun StackTileContent(
         children.getOrNull(pageIndex.value.coerceIn(0, (count - 1).coerceAtLeast(0)))
             ?.let(onLaunchChild)
     }
-    val openFolderRef = rememberUpdatedState(onOpenFolder)
+    val enterEditRef = rememberUpdatedState(onEnterEdit)
 
     Box(
         modifier = Modifier
@@ -2913,7 +2949,7 @@ private fun StackTileContent(
                         }
                         when (phase) {
                             null -> {
-                                openFolderRef.value()
+                                enterEditRef.value()
                                 waitForUpOrCancellation()
                             }
                             0 -> launchCurrent.value()
