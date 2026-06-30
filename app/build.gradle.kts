@@ -34,8 +34,9 @@ android {
         //   battery: network constraints on background workers, reduced media poll).
         // v1.4 = 50 (widget stacks, large tiles 3×3, landscape two-panel, notification
         //   tile content improvements, clock alarm priority, staggered stack rotation).
-        versionCode = 50
-        versionName = "1.4.0"
+        // v1.4.1 = 51 (folder/stack X button opens overlay instead of deleting all tiles).
+        versionCode = 51
+        versionName = "1.4.1"
     }
 
     if (keystoreFile.exists()) {
