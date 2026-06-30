@@ -87,6 +87,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -1583,8 +1584,11 @@ private fun TileView(
             )
             // Out of edit mode the tile owns tap-to-launch / long-press-to-edit;
             // in edit mode the grid-level drag gesture owns all interaction.
+            // Stack tiles handle their own tap/long-press inside StackTileContent
+            // (tap = launch current member, long-press = open folder overlay), so
+            // the outer gesture is suppressed for them too.
             .then(
-                if (editMode) Modifier
+                if (editMode || isStackTile) Modifier
                 else Modifier.tileGesture(onTap = onTap, onLongPress = onLongPress),
             )
             // Accessibility: collapse the tile to a single labelled button and
@@ -1629,6 +1633,8 @@ private fun TileView(
                         editMode = editMode,
                         selected = selected,
                         liveActive = liveActive,
+                        onLaunchChild = onLaunchFolderChild,
+                        onOpenFolder = onTap,
                     )
                 } else {
                     FolderTileContent(
@@ -2822,14 +2828,12 @@ private const val STACK_ROTATE_MS = 3000L
 /**
  * A **widget stack**: a folder whose members are all LARGE renders as a swipeable
  * 3×3 carousel of full-size live tiles instead of a mini-grid of icons. The current
- * member's live face fills the tile (reusing [AppTileContent], so music now-playing,
- * notifications, etc. all work); the stack auto-rotates every [STACK_ROTATE_MS] while
- * live, and members slide up/down so each reads as a distinct tile. **Swipe up/down
- * inside the tile to flip through members** (a thin scroll indicator on the right
- * shows the position); tapping the body launches the current member; long-press
- * enters edit mode. There is **no folder overlay** for a stack: in edit mode it shows
- * Tapping opens the standard folder overlay for member management (pull-out to re-pin
- * to Start, reorder); the grid drag owns move / select in edit mode.
+ * member's live face fills the tile (reusing [AppTileContent] with interactive=true, so
+ * music play controls and other live-face gestures work); the stack auto-rotates every
+ * [STACK_ROTATE_MS] while live, and members slide up/down. **Tap** → launch the current
+ * member's app. **Swipe up/down** → flip members immediately (detected at slop, no
+ * long-press wait). **Long press** → open the folder overlay for management (pull-out
+ * re-pins a member to Start, reorder). A thin right-edge indicator shows position.
  */
 @Composable
 private fun StackTileContent(
@@ -2837,6 +2841,8 @@ private fun StackTileContent(
     editMode: Boolean,
     selected: Boolean,
     liveActive: Boolean,
+    onLaunchChild: (FolderChild) -> Unit,
+    onOpenFolder: () -> Unit,
 ) {
     val children = tile.children
     val count = children.size
@@ -2855,50 +2861,81 @@ private fun StackTileContent(
         }
     }
 
+    // Stable ref to the current-member launch action (page index changes across
+    // recompositions; rememberUpdatedState lets the gesture read it without restart).
+    val launchCurrent = rememberUpdatedState {
+        children.getOrNull(pageIndex.value.coerceIn(0, (count - 1).coerceAtLeast(0)))
+            ?.let(onLaunchChild)
+    }
+    val openFolderRef = rememberUpdatedState(onOpenFolder)
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            // Vertical scrub to flip through members — detected immediately (no
-            // long-press timeout): as soon as the finger travels past the touch slop
-            // in the vertical direction it steps the member and consumes the event,
-            // which makes tileGesture bail so the outer tap/long-press never fires.
-            // Tap and long-press are handled entirely by the outer tileGesture.
-            .pointerInput(count) {
-                val slop = viewConfiguration.touchSlop
-                val stepPx = 44.dp.toPx()
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    var anchorY = down.position.y
-                    var dragging = false
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                        if (!change.pressed) break
-                        if (change.isConsumed && !dragging) break
-                        val totalDy = change.position.y - down.position.y
-                        val totalDx = change.position.x - down.position.x
-                        if (!dragging) {
-                            if (abs(totalDy) > slop && abs(totalDy) > abs(totalDx)) {
-                                dragging = true
-                                anchorY = change.position.y
-                            } else if (abs(totalDx) > slop) break
-                        }
-                        if (dragging) {
-                            change.consume()
-                            val dy = change.position.y - anchorY
-                            if (dy <= -stepPx) {
-                                lastDir.value = 1
-                                pageIndex.value = (pageIndex.value + 1) % count
-                                anchorY = change.position.y
-                            } else if (dy >= stepPx) {
-                                lastDir.value = -1
-                                pageIndex.value = (pageIndex.value - 1 + count) % count
-                                anchorY = change.position.y
+            // In non-edit mode the stack owns all three gestures: vertical drag flips
+            // members immediately (exits withTimeoutOrNull as soon as slop is crossed —
+            // no wait); a quick tap launches the current member; a long hold opens the
+            // folder overlay. If a child (e.g. a music transport button) consumes the
+            // event the gesture bails without firing launch or overlay. In edit mode
+            // the grid drag owns interaction, so this block is removed.
+            .then(
+                if (editMode) Modifier
+                else Modifier.pointerInput(count) {
+                    val slop = viewConfiguration.touchSlop
+                    val stepPx = 44.dp.toPx()
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        var anchorY = down.position.y
+                        // Distinguish tap / long-press / vertical-drag. The timeout only
+                        // fires if the finger sits still — vertical movement exits it
+                        // immediately (return 2) so the scrub feels instant.
+                        val phase = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id }
+                                    ?: return@withTimeoutOrNull 1
+                                if (change.isConsumed) return@withTimeoutOrNull 1
+                                if (!change.pressed) return@withTimeoutOrNull 0
+                                val dy = change.position.y - down.position.y
+                                val dx = change.position.x - down.position.x
+                                if (count > 1 && abs(dy) > slop && abs(dy) > abs(dx)) {
+                                    change.consume()
+                                    anchorY = change.position.y
+                                    return@withTimeoutOrNull 2
+                                }
+                                if (abs(dx) > slop) return@withTimeoutOrNull 1
                             }
+                            @Suppress("UNREACHABLE_CODE") 1
+                        }
+                        when (phase) {
+                            null -> {
+                                openFolderRef.value()
+                                waitForUpOrCancellation()
+                            }
+                            0 -> launchCurrent.value()
+                            2 -> {
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                    change.consume()
+                                    val dy = change.position.y - anchorY
+                                    if (dy <= -stepPx) {
+                                        lastDir.value = 1
+                                        pageIndex.value = (pageIndex.value + 1) % count
+                                        anchorY = change.position.y
+                                    } else if (dy >= stepPx) {
+                                        lastDir.value = -1
+                                        pageIndex.value = (pageIndex.value - 1 + count) % count
+                                        anchorY = change.position.y
+                                    }
+                                    if (!change.pressed) break
+                                }
+                            }
+                            else -> Unit
                         }
                     }
                 }
-            },
+            ),
     ) {
         // Members slide vertically (in the travel direction) so each reads as a
         // distinct tile scrolling past — for both the swipe and the auto-rotate.
@@ -2913,8 +2950,8 @@ private fun StackTileContent(
         ) { i ->
             children.getOrNull(i)?.let { child ->
                 // Render the member's live face at the stack tile's footprint by
-                // reusing the normal app-tile content. interactive=false so a tap on a
-                // music member launches the app rather than toggling its controls.
+                // reusing the normal app-tile content. interactive=true so music
+                // transport buttons and other live-face controls are tappable.
                 AppTileContent(
                     tile = TileModel.App(
                         id = tile.id + "#" + child.rowId,
@@ -2929,7 +2966,7 @@ private fun StackTileContent(
                     ),
                     flipped = false,
                     liveActive = liveActive,
-                    interactive = false,
+                    interactive = true,
                 )
             }
         }
