@@ -84,6 +84,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -2526,10 +2527,10 @@ private fun AppTileContent(
     // so the buttons stay operable even when animations are off / battery saver
     // is on (which holds liveActive low while now-playing still shows).
     interactive: Boolean = false,
-    // When true the photos tile advances one photo per activation instead of
-    // running its continuous 3 s timer. Set to true for stack members so each
-    // stack rotation shows the next sequential photo.
-    photosAdvanceOnActivate: Boolean = false,
+    // When non-null, passed as forcedIndex to PhotosTileFace so the displayed photo
+    // is controlled by StackTileContent (hoisted above AnimatedContent so it survives
+    // composition recycling). Null = standalone tile, normal 3 s timer.
+    photosStackIndex: Int? = null,
 ) {
     // Live faces replace the static glyph at medium+ (FR-2). Small tiles and
     // apps with no live face fall through to the static glyph; weather/calendar
@@ -2602,7 +2603,7 @@ private fun AppTileContent(
             PhotosTileFace(
                 active = liveActive,
                 fallback = staticGlyph,
-                advanceOnActivate = photosAdvanceOnActivate,
+                forcedIndex = photosStackIndex,
                 modifier = Modifier.fillMaxSize(),
             )
             return
@@ -2900,10 +2901,22 @@ private fun StackTileContent(
     // liveActive is NOT a key — brief interruptions (app list) don't restart the
     // timer; it is checked after the delay, same pattern as the auto-rotate above.
     val flipStates = remember(tile.id, count) { mutableStateMapOf<String, Boolean>() }
+
+    // Hoisted photos index: AnimatedContent recreates the composition for each member
+    // on every visit, so remember() inside PhotosTileFace resets to 0 each time.
+    // Keeping the index here (above AnimatedContent) makes it persist across rotations.
+    // photosActivated skips the advance on the very first visit so photo 0 is shown first.
+    val photosStackIndex = remember(tile.id) { mutableIntStateOf(0) }
+    var photosActivated by remember(tile.id) { mutableStateOf(false) }
+
     LaunchedEffect(safeIndex) {
         val child = children.getOrNull(safeIndex) ?: return@LaunchedEffect
         val key = child.rowId.toString()
         flipStates[key] = false
+        if (child.iconKey == "photos") {
+            if (photosActivated) photosStackIndex.value++
+            photosActivated = true
+        }
         delay(2600L)
         if (liveActive) flipStates[key] = true
     }
@@ -3028,7 +3041,7 @@ private fun StackTileContent(
                     flipped = flipStates[child.rowId.toString()] ?: false,
                     liveActive = liveActive && (i == safeIndex),
                     interactive = true,
-                    photosAdvanceOnActivate = (child.iconKey == "photos"),
+                    photosStackIndex = if (child.iconKey == "photos") photosStackIndex.value else null,
                 )
             }
         }

@@ -11,7 +11,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
@@ -34,13 +33,14 @@ private const val SLIDE_MS = 3_000L
  * (prototype `liveFace('photos')`, `slideshowStep`). It never flips — the photos
  * face is the prototype's `data-noflip` — so [flipped] is irrelevant here.
  *
- * Standalone mode ([advanceOnActivate] = false, default): while [active] the photo
- * advances every ~3.0 s with an ~0.8 s cross-fade.
+ * Standalone mode ([forcedIndex] = null, default): while [active] the photo advances
+ * every ~3.0 s with an ~0.8 s cross-fade.
  *
- * Stack mode ([advanceOnActivate] = true): the timer is suppressed entirely. Instead
- * the index advances by 1 each time [active] transitions to true — i.e. each time
- * the stack rotates back to this member. The first activation shows photo 0 without
- * advancing, so the full sequence is shown in order with one photo per stack visit.
+ * Stack mode ([forcedIndex] != null): the internal timer is suppressed. The displayed
+ * photo is determined entirely by the caller-supplied [forcedIndex], which is hoisted
+ * into [StackTileContent] so it survives AnimatedContent composition recycling.
+ * [forcedIndex] is taken modulo the URI count so the caller doesn't need to know the
+ * photo count.
  *
  * A shadowed "photos" label sits bottom-left. With no photos picked it renders
  * [fallback] (the static glyph); an individual unreadable URI just shows the
@@ -50,7 +50,7 @@ private const val SLIDE_MS = 3_000L
 fun PhotosTileFace(
     active: Boolean,
     fallback: @Composable () -> Unit,
-    advanceOnActivate: Boolean = false,
+    forcedIndex: Int? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -58,22 +58,20 @@ fun PhotosTileFace(
     val uris = store.data.collectAsState(initial = PhotosData()).value.uris
     if (uris.isEmpty()) return fallback()
 
-    var index by remember(uris) { mutableIntStateOf(0) }
-    // Tracks whether this composable has been activated at least once — used in
-    // stack mode to skip the advance on the very first activation so photo 0 is shown.
-    var hasBeenActivated by remember { mutableStateOf(false) }
+    // In stack mode the index is driven by forcedIndex (keyed in remember so the
+    // correct photo shows immediately on composition, with no first-frame flash).
+    // In standalone mode the index starts at 0 and advances via the timer below.
+    var index by remember(uris, forcedIndex) {
+        mutableIntStateOf(
+            if (forcedIndex != null && uris.isNotEmpty()) forcedIndex % uris.size else 0
+        )
+    }
     LaunchedEffect(active, uris) {
-        if (!active || uris.size < 2) return@LaunchedEffect
-        if (advanceOnActivate) {
-            // Stack mode: one new photo per stack visit (sequential), no timer loop.
-            if (hasBeenActivated) index = (index + 1) % uris.size
-            hasBeenActivated = true
-        } else {
-            // Standalone: continuous 3 s slideshow.
-            while (true) {
-                delay(SLIDE_MS)
-                index = (index + 1) % uris.size
-            }
+        if (!active || uris.size < 2 || forcedIndex != null) return@LaunchedEffect
+        // Standalone: continuous 3 s slideshow.
+        while (true) {
+            delay(SLIDE_MS)
+            index = (index + 1) % uris.size
         }
     }
 
