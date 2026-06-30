@@ -247,9 +247,8 @@ private fun NotificationFaceContentLarge(
                 Text(
                     text = preview.snippet,
                     color = FaceText,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 3,
+                    fontSize = 13.sp,
+                    maxLines = 4,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -267,12 +266,12 @@ private fun NotificationFaceContentLarge(
                 )
             }
             if (preview.snippet.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(8.dp))
                 Text(
                     text = preview.snippet,
                     color = FaceText.copy(alpha = 0.92f),
-                    fontSize = 20.sp,
-                    maxLines = 6,
+                    fontSize = 13.sp,
+                    maxLines = 10,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
