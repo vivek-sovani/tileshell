@@ -103,6 +103,7 @@ private val JUMP_LETTERS: List<String> = listOf("#") + ('a'..'z').map(Char::toSt
 @Composable
 fun AppListScreen(
     modifier: Modifier = Modifier,
+    visible: Boolean = true,
     onPinned: () -> Unit = {},
     viewModel: AppListViewModel = viewModel(),
 ) {
@@ -115,6 +116,13 @@ fun AppListScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var jumpOpen by remember { mutableStateOf(false) }
+
+    // Clear the search whenever the list is left (back press, swipe back to
+    // Start, home) so the next time it opens it starts fresh — the screen is
+    // never disposed (just translated off-screen), so nothing else would reset it.
+    LaunchedEffect(visible) {
+        if (!visible) viewModel.resetQuery()
+    }
 
     // Pinning a row toasts and, on success, returns to Start (FR-5).
     val onPinnedState = rememberUpdatedState(onPinned)
@@ -155,7 +163,10 @@ fun AppListScreen(
                         items(topApps, key = { "recent/${it.key}" }) { app ->
                             AppRow(
                                 app = app,
-                                onTap = { AppLauncher.launch(context, app.packageName, app.activityName) },
+                                onTap = {
+                                    viewModel.resetQuery()
+                                    AppLauncher.launch(context, app.packageName, app.activityName)
+                                },
                                 onPin = { viewModel.pin(app) },
                                 onUninstall = { uninstallApp(context, app.packageName) },
                             )
@@ -169,7 +180,10 @@ fun AppListScreen(
                         if (newSection) LetterHeader(app.letter, accent) { jumpOpen = true }
                         AppRow(
                             app = app,
-                            onTap = { AppLauncher.launch(context, app.packageName, app.activityName) },
+                            onTap = {
+                                viewModel.resetQuery()
+                                AppLauncher.launch(context, app.packageName, app.activityName)
+                            },
                             onPin = { viewModel.pin(app) },
                             onUninstall = { uninstallApp(context, app.packageName) },
                         )

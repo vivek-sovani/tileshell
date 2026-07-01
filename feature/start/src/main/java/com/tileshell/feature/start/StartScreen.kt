@@ -246,6 +246,7 @@ fun StartScreen(
     val layoutHistory by viewModel.layoutHistory.collectAsStateWithLifecycle()
     val backupOpen by viewModel.backupOpen.collectAsStateWithLifecycle()
     val foldersOpen by viewModel.foldersOpen.collectAsStateWithLifecycle()
+    val isAppList by viewModel.isAppList.collectAsStateWithLifecycle()
     val apps by viewModel.apps.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val feedSources by viewModel.feedSources.collectAsStateWithLifecycle()
@@ -657,6 +658,7 @@ fun StartScreen(
         val renderAppList: @Composable () -> Unit = {
             AppListScreen(
                 modifier = Modifier.fillMaxSize(),
+                visible = isAppList,
                 onPinned = { settleTo(0f) },
             )
         }

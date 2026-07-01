@@ -78,6 +78,11 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
         _query.value = value
     }
 
+    /** Clears the search query — called on launching an app or leaving the list. */
+    fun resetQuery() {
+        _query.value = ""
+    }
+
     /** Pin [app] to Start, then emit the outcome for the UI to toast on. */
     fun pin(app: AppEntry) {
         viewModelScope.launch {
