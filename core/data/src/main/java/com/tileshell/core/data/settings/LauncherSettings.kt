@@ -25,12 +25,17 @@ enum class TileColorSource { GLOBAL_ACCENT, APP_ICON }
  * @property accentId one of the 14 [TileColors] ids — the single global accent
  *   (`state.accent`) used by app-list/chrome *and* every Start tile (one uniform
  *   tile colour across the Start screen, default blue; per-tile colourId ignored).
- * @property glass transparent-tile ("glass") mode on/off (`state.glass`)
+ * @property glass transparent-tile ("glass") mode on/off (`state.glass`); default
+ *   off so a fresh install shows solid Nokia-blue tiles (the classic WP look)
+ *   rather than a translucent glass fill.
  * @property transparency tile-transparency slider 0..1 feeding the alpha formula
  *   (`state.transparency`); only meaningful while [glass] is on.
  * @property blur blur-wallpaper toggle (`state.blur`)
- * @property wallpaperId id of the selected bundled gradient (`state.wall`);
- *   ignored while [customWallpaperUri] is set.
+ * @property wallpaperId id of the selected bundled gradient (`state.wall`), or
+ *   `"none"` (mirrors `Wallpapers.NONE_ID` in `:core:design`, not imported here to
+ *   avoid a cross-module dependency) for a flat theme-background fill — the
+ *   default, so a fresh install has no wallpaper. Ignored while
+ *   [customWallpaperUri] is set.
  * @property customWallpaperUri persisted content URI of a user-picked photo
  *   (`state.customWall`), or null for a bundled gradient. Also reused to hold the
  *   downloaded Bing image when [bingWallpaper] is on.
@@ -52,10 +57,10 @@ data class LauncherSettings(
     val followSystemTheme: Boolean = true,
     val dark: Boolean = true,
     val accentId: String = "blue",
-    val glass: Boolean = true,
+    val glass: Boolean = false,
     val transparency: Float = 0.55f,
     val blur: Boolean = false,
-    val wallpaperId: String = "aurora",
+    val wallpaperId: String = "none",
     val customWallpaperUri: String? = null,
     val bingWallpaper: Boolean = false,
     val tiledWallpaper: Boolean = false,

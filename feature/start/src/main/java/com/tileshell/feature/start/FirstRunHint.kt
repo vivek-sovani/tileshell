@@ -32,11 +32,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * First-run hint overlay (S19): a one-time card carrying the prototype's hint
- * text (`<div class="hint">` in the prototype), shown over Start on the very
- * first launch and dismissed by a tap. A `SharedPreferences` flag keeps it from
- * ever returning. The card sits at the bottom — clear of the grid and the
- * chevron affordance it describes — so the user can glance between the two.
+ * First-run hint overlay (S19): a one-time card leading with a brief feature
+ * summary ([featureText]) followed by the prototype's gesture hint text
+ * (`<div class="hint">` in the prototype), shown over Start on the very first
+ * launch and dismissed by a tap. A `SharedPreferences` flag keeps it from ever
+ * returning. The card sits at the bottom — clear of the grid and the chevron
+ * affordance it describes — so the user can glance between the two.
  */
 @Composable
 fun FirstRunHint(modifier: Modifier = Modifier) {
@@ -78,6 +79,12 @@ fun FirstRunHint(modifier: Modifier = Modifier) {
                     fontWeight = FontWeight.Thin,
                 )
                 Text(
+                    text = featureText,
+                    color = Color(0xFFB4B4C2),
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp,
+                )
+                Text(
                     text = hintText,
                     color = Color(0xFF8A8A96),
                     fontSize = 13.sp,
@@ -96,6 +103,19 @@ fun FirstRunHint(modifier: Modifier = Modifier) {
             }
         }
     }
+}
+
+/** A brief, plain-language summary of what the launcher can do, shown once on first run. */
+private val featureText = buildAnnotatedString {
+    val bold = SpanStyle(color = Color(0xFFCFCFE0), fontWeight = FontWeight.SemiBold)
+    withStyle(bold) { append("live tiles") }
+    append(" for clock, weather, calendar, mail, music & more · a ")
+    withStyle(bold) { append("feed") }
+    append(" page for news, widgets & now-playing · ")
+    withStyle(bold) { append("folders") }
+    append(" and widget stacks to group apps · deep ")
+    withStyle(bold) { append("personalization") }
+    append(" — colours, wallpapers, fonts, grid density.")
 }
 
 /**
