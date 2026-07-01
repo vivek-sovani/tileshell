@@ -35,8 +35,11 @@ android {
         // v1.4 = 50 (widget stacks, large tiles 3×3, landscape two-panel, notification
         //   tile content improvements, clock alarm priority, staggered stack rotation).
         // v1.4.1 = 51 (folder/stack X button opens overlay instead of deleting all tiles).
-        versionCode = 51
-        versionName = "1.4.1"
+        // v1.5 = 60 (backup & restore: auto-save, visual layout history, export/import;
+        //   personalize navigation shows one screen at a time; fresh installs default to
+        //   no wallpaper + solid Nokia-blue tiles; app-list search-clear fix).
+        versionCode = 60
+        versionName = "1.5.0"
     }
 
     if (keystoreFile.exists()) {

@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v1.4 listing draft — update before each release*
+*v1.5 listing draft — update before each release*
 
 ---
 
@@ -154,6 +154,19 @@ data. Users can also clear app data via Android Settings at any time.
 | Feature graphic | 1024 × 500 px | Required for listing banner |
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
+
+## Release notes (v1.5.0)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 1.5
+
+• New: Backup & Restore — auto-save on a schedule, browse & restore from visual layout history, or export/import a file (save it to Google Drive for your next device)
+• Personalize is now one screen at a time, with backup & restore in its own section
+• Fresh installs start with the classic flat blue Windows Phone look
+• Fixed: app list search now clears after opening an app or pressing back
+```
 
 ## Release notes (v1.4.1)
 
