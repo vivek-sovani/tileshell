@@ -8,6 +8,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.tileshell.core.data.BackupManager
+import com.tileshell.core.data.CachedScreenshotPrefs
 import com.tileshell.core.data.LayoutHistoryRepository
 import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.LayoutSnapshot
@@ -38,6 +39,11 @@ class LayoutAutoBackupWorker(
         val hash = BackupManager.layoutHash(tiles, folders, children)
         val now = System.currentTimeMillis()
 
+        // PixelCopy needs a live, on-screen window, which this headless worker never has —
+        // reuse whatever Start last cached while it was actually visible, but only if the
+        // layout hasn't changed since (a stale screenshot would misrepresent this snapshot).
+        val screenshotPath = CachedScreenshotPrefs.pathFor(applicationContext, hash)
+
         historyRepo.addSnapshot(
             LayoutSnapshot(
                 id = now.toString(),
@@ -47,6 +53,7 @@ class LayoutAutoBackupWorker(
                 folderCount = folders.size,
                 contentHash = hash,
                 json = json,
+                screenshotPath = screenshotPath,
             )
         )
         Result.success()

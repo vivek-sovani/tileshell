@@ -13,6 +13,7 @@ import com.tileshell.core.data.AppCatalogRepository
 import com.tileshell.core.data.AppCategories
 import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.BackupManager
+import com.tileshell.core.data.CachedScreenshotPrefs
 import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.LayoutHistoryRepository
 import com.tileshell.core.data.LayoutRepository
@@ -611,6 +612,29 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 _backupMessage.tryEmit("snapshot saved")
             }.onFailure { _backupMessage.tryEmit("save failed") }
+        }
+    }
+
+    /**
+     * Cache a screenshot taken opportunistically while Start was on-screen (e.g. on
+     * ON_STOP), keyed to the current layout's content hash, so the headless auto-backup
+     * worker — which has no window to PixelCopy from — can reuse it later.
+     */
+    fun cacheForegroundScreenshot(path: String) {
+        viewModelScope.launch(writeContext) {
+            runCatching {
+                val app = getApplication<Application>()
+                val (tiles, folders, children) = repository.tilesForBackup()
+                val hash = BackupManager.layoutHash(tiles, folders, children)
+                val previous = CachedScreenshotPrefs.currentPath(app)
+                CachedScreenshotPrefs.save(app, path, hash)
+                // Clean up the file we're superseding, unless a saved history entry still
+                // points at it (a manual/auto snapshot may have captured it permanently).
+                if (previous != null && previous != path) {
+                    val stillReferenced = historyRepository.snapshots.first().any { it.screenshotPath == previous }
+                    if (!stillReferenced) java.io.File(previous).delete()
+                }
+            }
         }
     }
 

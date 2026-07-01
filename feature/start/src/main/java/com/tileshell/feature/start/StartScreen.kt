@@ -82,6 +82,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.getValue
@@ -135,10 +136,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tileshell.core.data.AppCategories
 import com.tileshell.core.data.AppLauncher
+import com.tileshell.core.data.CachedScreenshotPrefs
 import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.TileColors
 import com.tileshell.core.data.TileModel
@@ -403,6 +408,30 @@ fun StartScreen(
             viewModel.saveLayoutSnapshot(id = id, screenshotPath = path)
             captureRequested = false
         }
+    }
+
+    // Opportunistically cache a screenshot whenever Start leaves the foreground, so the
+    // headless auto-backup worker (no window to PixelCopy from) has something to reuse —
+    // see cacheForegroundScreenshot. Hooked on ON_PAUSE rather than ON_STOP: the window is
+    // still attached/visible at pause time, but may already be gone by the time stop fires.
+    // Skipped mid-edit so we never capture the jiggle/drag UI.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, activity, editMode) {
+        val observer = LifecycleEventObserver { _, event ->
+            val throttleMs = 10 * 60 * 1000L // at most once per 10 min — ON_PAUSE fires on every app switch
+            if (event == Lifecycle.Event.ON_PAUSE && activity != null && !editMode &&
+                CachedScreenshotPrefs.claimAttempt(context, throttleMs)
+            ) {
+                scope.launch {
+                    val id = System.currentTimeMillis().toString()
+                    captureSnapshotJpeg(activity, context, id)?.let { path ->
+                        viewModel.cacheForegroundScreenshot(path)
+                    }
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     // Guard against accidental restore (destructive — replaces the current layout).
