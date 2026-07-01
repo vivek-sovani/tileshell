@@ -140,6 +140,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val _historyOpen = MutableStateFlow(false)
     val historyOpen: StateFlow<Boolean> = _historyOpen.asStateFlow()
 
+    /** True while the backup & restore sheet is open (personalize → manage backups). */
+    private val _backupOpen = MutableStateFlow(false)
+    val backupOpen: StateFlow<Boolean> = _backupOpen.asStateFlow()
+
     /** Rolling history of the last 10 layout snapshots (newest first). */
     val layoutHistory: StateFlow<List<LayoutSnapshot>> = historyRepository.snapshots.stateIn(
         scope = viewModelScope,
@@ -261,6 +265,12 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Close the layout history sheet. */
     fun closeHistory() { _historyOpen.value = false }
+
+    /** Open the backup & restore sheet (personalize → manage backups). */
+    fun openBackup() { _backupOpen.value = true }
+
+    /** Close the backup & restore sheet. */
+    fun closeBackup() { _backupOpen.value = false }
 
     /** Open the category-folders sheet (personalize → folders). */
     fun openFolders() {
@@ -498,6 +508,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         closePersonalize()
         closeAbout()
         closeFolders()
+        closeBackup()
         closeFolder()
         exitEdit()
         _homeRequests.tryEmit(Unit)

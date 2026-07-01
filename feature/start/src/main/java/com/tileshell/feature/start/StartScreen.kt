@@ -178,6 +178,7 @@ import com.tileshell.feature.livetiles.rememberNotificationAccess
 import com.tileshell.feature.livetiles.rememberPermissionGranted
 import com.tileshell.feature.livetiles.WeatherRefreshWorker
 import com.tileshell.feature.personalize.AboutSheet
+import com.tileshell.feature.personalize.BackupRestoreSheet
 import com.tileshell.feature.personalize.LayoutHistorySheet
 import com.tileshell.feature.livetiles.LayoutAutoBackupWorker
 import com.tileshell.feature.personalize.CategoryFolderSheet
@@ -243,6 +244,7 @@ fun StartScreen(
     val aboutOpen by viewModel.aboutOpen.collectAsStateWithLifecycle()
     val historyOpen by viewModel.historyOpen.collectAsStateWithLifecycle()
     val layoutHistory by viewModel.layoutHistory.collectAsStateWithLifecycle()
+    val backupOpen by viewModel.backupOpen.collectAsStateWithLifecycle()
     val foldersOpen by viewModel.foldersOpen.collectAsStateWithLifecycle()
     val apps by viewModel.apps.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
@@ -885,17 +887,7 @@ fun StartScreen(
             onColumnsChange = viewModel::setColumns,
             onAbout = viewModel::openAbout,
             onFolders = viewModel::openFolders,
-            onExportBackup = { backupExportLauncher.launch("tileshell-backup.json") },
-            onRestoreBackup = { restoreConfirmPending = true },
-            onOpenHistory = viewModel::openHistory,
-            onSaveSnapshot = {
-                viewModel.closePersonalize()
-                captureRequested = true
-            },
-            autoBackupEnabled = settings.autoBackupEnabled,
-            autoBackupIntervalHours = settings.autoBackupIntervalHours,
-            onAutoBackupEnabled = viewModel::setAutoBackupEnabled,
-            onAutoBackupInterval = viewModel::setAutoBackupInterval,
+            onBackupRestore = viewModel::openBackup,
             onDismiss = viewModel::closePersonalize,
         )
 
@@ -917,6 +909,27 @@ fun StartScreen(
             onDismiss = viewModel::closeHistory,
             onRestore = viewModel::restoreFromSnapshot,
             onDelete = viewModel::deleteSnapshot,
+            rightHalf = isLandscape,
+        )
+
+        // Backup & restore sheet (personalize → manage backups).
+        BackupRestoreSheet(
+            visible = backupOpen,
+            dark = dark,
+            accentId = settings.accentId,
+            onDismiss = viewModel::closeBackup,
+            onOpenHistory = viewModel::openHistory,
+            onSaveSnapshot = {
+                viewModel.closeBackup()
+                viewModel.closePersonalize()
+                captureRequested = true
+            },
+            onExportBackup = { backupExportLauncher.launch("tileshell-backup.json") },
+            onRestoreBackup = { restoreConfirmPending = true },
+            autoBackupEnabled = settings.autoBackupEnabled,
+            autoBackupIntervalHours = settings.autoBackupIntervalHours,
+            onAutoBackupEnabled = viewModel::setAutoBackupEnabled,
+            onAutoBackupInterval = viewModel::setAutoBackupInterval,
             rightHalf = isLandscape,
         )
 
