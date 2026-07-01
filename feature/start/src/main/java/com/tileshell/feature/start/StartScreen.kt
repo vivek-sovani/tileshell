@@ -1789,6 +1789,8 @@ private fun TileView(
                         editMode = editMode,
                         selected = selected,
                         liveActive = liveActive,
+                        accent = accent,
+                        appIconColors = appIconColors,
                         onLaunchChild = onLaunchFolderChild,
                         onEnterEdit = onLongPress,
                     )
@@ -3032,6 +3034,8 @@ private fun StackTileContent(
     editMode: Boolean,
     selected: Boolean,
     liveActive: Boolean,
+    accent: Color,
+    appIconColors: Boolean,
     onLaunchChild: (FolderChild) -> Unit,
     onEnterEdit: () -> Unit,
 ) {
@@ -3175,26 +3179,44 @@ private fun StackTileContent(
             label = "stackMember",
         ) { i ->
             children.getOrNull(i)?.let { child ->
+                // Each member keeps its own colour while rotating: an explicit
+                // per-child override wins; otherwise, in app-icon-colour mode the
+                // icon's dominant colour shows; else the stack tile's own accent —
+                // same three-way chain as FolderOverlay/FolderTileContent. This has
+                // to be painted here (not on the outer TileView Box) since the
+                // outer background is fixed once per composition and can't vary
+                // per rotated member.
+                val memberAccent = child.accentOverride
+                    ?.let { TileAccents.colorForOverride(it, "blue") }
+                    ?: child.takeIf { appIconColors }
+                        ?.let { rememberDominantIconColor(it.packageName, it.activityName) }
+                    ?: accent
                 // Render the member's live face at the stack tile's footprint by
                 // reusing the normal app-tile content. interactive=true so music
                 // transport buttons and other live-face controls are tappable.
-                AppTileContent(
-                    tile = TileModel.App(
-                        id = tile.id + "#" + child.rowId,
-                        position = 0,
-                        size = tile.size,
-                        colorId = tile.colorId,
-                        packageName = child.packageName,
-                        activityName = child.activityName,
-                        label = child.label,
-                        iconKey = child.iconKey,
-                        accentOverride = child.accentOverride,
-                    ),
-                    flipped = flipStates[child.rowId.toString()] ?: false,
-                    liveActive = liveActive && (i == safeIndex),
-                    interactive = true,
-                    photosStackIndex = if (child.iconKey == "photos") photosStackIndex.value else null,
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(memberAccent),
+                ) {
+                    AppTileContent(
+                        tile = TileModel.App(
+                            id = tile.id + "#" + child.rowId,
+                            position = 0,
+                            size = tile.size,
+                            colorId = tile.colorId,
+                            packageName = child.packageName,
+                            activityName = child.activityName,
+                            label = child.label,
+                            iconKey = child.iconKey,
+                            accentOverride = child.accentOverride,
+                        ),
+                        flipped = flipStates[child.rowId.toString()] ?: false,
+                        liveActive = liveActive && (i == safeIndex),
+                        interactive = true,
+                        photosStackIndex = if (child.iconKey == "photos") photosStackIndex.value else null,
+                    )
+                }
             }
         }
         // Vertical scroll indicator (right edge): a faint track with a thumb whose
