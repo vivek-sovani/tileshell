@@ -791,9 +791,15 @@ fun StartScreen(
             }
         }
 
+        // Each sub-sheet hides its parent while it's on top, so only one page is ever
+        // visible at once (a proper back-stack: closing a child reveals its parent again,
+        // driven by each sheet's own BackHandler(enabled = visible)).
+        val personalizeVisible = personalizeOpen && !aboutOpen && !foldersOpen && !backupOpen
+        val backupVisible = backupOpen && !historyOpen
+
         // Personalize sheet overlay (edit bar → personalize, FR-7).
         PersonalizeSheet(
-            visible = personalizeOpen,
+            visible = personalizeVisible,
             rightHalf = isLandscape,
             dark = dark,
             followSystemTheme = settings.followSystemTheme,
@@ -914,7 +920,7 @@ fun StartScreen(
 
         // Backup & restore sheet (personalize → manage backups).
         BackupRestoreSheet(
-            visible = backupOpen,
+            visible = backupVisible,
             dark = dark,
             accentId = settings.accentId,
             onDismiss = viewModel::closeBackup,
