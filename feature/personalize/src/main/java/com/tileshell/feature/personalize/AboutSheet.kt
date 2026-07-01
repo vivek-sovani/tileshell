@@ -268,6 +268,20 @@ fun AboutSheet(
             )
 
             FeatureGroup(
+                title = "backup & restore",
+                accent = accent,
+                tokens = tokens,
+                items = listOf(
+                    "auto-save your layout on a schedule — every 6h, 12h, or daily",
+                    "layout history — browse and restore up to 10 past layouts with a visual preview",
+                    "save a snapshot manually any time from personalize",
+                    "export your layout & settings to a file",
+                    "save that exported file to google drive so it's there on your next device",
+                    "restore from a file to bring a layout back, on this device or a new one",
+                ),
+            )
+
+            FeatureGroup(
                 title = "screen lock",
                 accent = accent,
                 tokens = tokens,

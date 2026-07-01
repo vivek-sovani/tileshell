@@ -204,6 +204,14 @@ fun BackupRestoreSheet(
 
                     WallpaperNavRow("export layout", "save ›", accent, tokens, onExportBackup)
                     WallpaperNavRow("restore from file", "open ›", accent, tokens, onRestoreBackup)
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = "tip: save the exported file to google drive (or another cloud folder) " +
+                            "so it's there to restore on your next device.",
+                        color = tokens.fgDim,
+                        fontSize = 12.sp,
+                        lineHeight = 17.sp,
+                    )
                 }
             }
         }

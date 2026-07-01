@@ -994,7 +994,7 @@ fun StartScreen(
         // First-run hint (S19): one-time prototype hint card over Start. Sits
         // above all other layers so it reads on a fresh install; self-hides once
         // seen.
-        FirstRunHint()
+        FirstRunHint(accentId = settings.accentId)
 
         // Wallpaper crop overlay: shown immediately after the user picks a photo so
         // they can drag to position the image before it becomes the live wallpaper.

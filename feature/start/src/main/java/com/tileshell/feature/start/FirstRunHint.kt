@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tileshell.core.design.TileAccents
 
 /**
  * First-run hint overlay (S19): a one-time card leading with a brief feature
@@ -37,12 +38,15 @@ import androidx.compose.ui.unit.sp
  * (`<div class="hint">` in the prototype), shown over Start on the very first
  * launch and dismissed by a tap. A `SharedPreferences` flag keeps it from ever
  * returning. The card sits at the bottom — clear of the grid and the chevron
- * affordance it describes — so the user can glance between the two.
+ * affordance it describes — so the user can glance between the two. The bold
+ * highlights and "got it" action tie into [accentId] so the card reads as part
+ * of the same theme as the tiles behind the scrim, not a generic dark dialog.
  */
 @Composable
-fun FirstRunHint(modifier: Modifier = Modifier) {
+fun FirstRunHint(accentId: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var visible by remember { mutableStateOf(!FirstRunHintPrefs.shown(context)) }
+    val accent = TileAccents.forId(accentId)
 
     AnimatedVisibility(
         visible = visible,
@@ -79,20 +83,20 @@ fun FirstRunHint(modifier: Modifier = Modifier) {
                     fontWeight = FontWeight.Thin,
                 )
                 Text(
-                    text = featureText,
+                    text = featureText(accent),
                     color = Color(0xFFB4B4C2),
                     fontSize = 13.sp,
                     lineHeight = 19.sp,
                 )
                 Text(
-                    text = hintText,
+                    text = hintText(accent),
                     color = Color(0xFF8A8A96),
                     fontSize = 13.sp,
                     lineHeight = 19.sp,
                 )
                 Text(
                     text = "got it",
-                    color = Color(0xFFCFCFE0),
+                    color = accent,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
@@ -106,8 +110,8 @@ fun FirstRunHint(modifier: Modifier = Modifier) {
 }
 
 /** A brief, plain-language summary of what the launcher can do, shown once on first run. */
-private val featureText = buildAnnotatedString {
-    val bold = SpanStyle(color = Color(0xFFCFCFE0), fontWeight = FontWeight.SemiBold)
+private fun featureText(accent: Color) = buildAnnotatedString {
+    val bold = SpanStyle(color = accent, fontWeight = FontWeight.SemiBold)
     withStyle(bold) { append("live tiles") }
     append(" for clock, weather, calendar, mail, music & more · a ")
     withStyle(bold) { append("feed") }
@@ -120,11 +124,11 @@ private val featureText = buildAnnotatedString {
 
 /**
  * The prototype hint string with the same bolded spans
- * (`Windows Mobile Launcher.html` → `.hint`). `<b>` highlights map to the lighter
- * `#cfcfe0` weight emphasis used in the prototype.
+ * (`Windows Mobile Launcher.html` → `.hint`). `<b>` highlights map to an
+ * accent-tinted weight emphasis (was a fixed lavender-gray in the prototype).
  */
-private val hintText = buildAnnotatedString {
-    val bold = SpanStyle(color = Color(0xFFCFCFE0), fontWeight = FontWeight.SemiBold)
+private fun hintText(accent: Color) = buildAnnotatedString {
+    val bold = SpanStyle(color = accent, fontWeight = FontWeight.SemiBold)
     withStyle(bold) { append("tap") }
     append(" a tile to open · ")
     withStyle(bold) { append("long-press") }
