@@ -221,6 +221,30 @@ class TileMergeTest {
     }
 
     @Test
+    fun liveOnlyBlankPackageTiles_areDistinctByIconKey() {
+        // weather/calendar/clock are self-contained "liveOnly" tiles that can share
+        // the exact same blank packageName/activityName (LayoutSeeder's
+        // selfContainedComponent) when their app role doesn't resolve on-device.
+        // Dedup must not collapse them into one — regression for the widget stack
+        // silently swallowing a live tile with no resolvable app.
+        val stack = folder(
+            "clock", size = TileSize.LARGE, name = "stack",
+            children = listOf(
+                FolderChild("", "", "calendar", iconKey = "calendar", size = TileSize.LARGE),
+                FolderChild("", "", "clock", iconKey = "clock", size = TileSize.LARGE),
+            ),
+        )
+        val weather = app("weather", pkg = "", activity = "", size = TileSize.LARGE, icon = "weather")
+        val result = computeMerge(drag = weather, target = stack)
+
+        assertEquals(3, result.children.size)
+        assertEquals(
+            listOf("calendar", "clock", "weather"),
+            result.children.map { it.iconKey },
+        )
+    }
+
+    @Test
     fun nonLargeOntoStack_revertsToNormalFolder() {
         // Merging a non-large tile into a stack breaks the "all members LARGE" rule,
         // so it collapses back to a normal folder: tile → WIDE, members → MEDIUM.

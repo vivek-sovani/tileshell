@@ -38,6 +38,15 @@ private fun TileModel.apps(): List<FolderChild> = when (this) {
 }
 
 /**
+ * Dedup identity for a merge. Real apps key on their launch component. Self-contained
+ * `liveOnly` tiles (weather/calendar/clock) all share a blank package/activity — see
+ * `DefaultTile.liveOnly` — so they'd otherwise collide onto one dedup slot and silently
+ * disappear when merged together; key those on `iconKey` (distinct per live face) instead.
+ */
+private fun FolderChild.mergeKey(): String =
+    if (packageName.isNotBlank()) "$packageName/$activityName" else "live:${iconKey ?: label}"
+
+/**
  * A tile that can take part in a **widget stack**: a LARGE app tile, or a folder
  * that is already a stack (all members LARGE). Dropping one stackable tile onto
  * another keeps the result a stack — see [computeMerge].
@@ -65,7 +74,7 @@ private fun TileModel.isStackable(): Boolean = when (this) {
 fun computeMerge(drag: TileModel, target: TileModel): MergeResult {
     val deduped = LinkedHashMap<String, FolderChild>()
     for (child in target.apps() + drag.apps()) {
-        deduped.putIfAbsent(child.packageName + "/" + child.activityName, child)
+        deduped.putIfAbsent(child.mergeKey(), child)
     }
 
     // Dropping a large tile onto another large tile (or onto an existing stack)
