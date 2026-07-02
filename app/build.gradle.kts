@@ -47,8 +47,11 @@ android {
         //   contact call/message/pin-to-start, recent searches + suggested apps; apps with a
         //   pending notification surface in the app list's recent section even when unpinned;
         //   hide/unhide apps from the app list; Samsung Gallery "story" notification fix).
-        versionCode = 70
-        versionName = "1.6.0"
+        // v1.6.1 = 71 (wallpaper-behind-tiles / glass transparency fix: widget stack members
+        //   and closed-folder mini-grid cells with an individually selected colour rendered
+        //   fully opaque instead of showing the wallpaper/glass through them like other tiles).
+        versionCode = 71
+        versionName = "1.6.1"
     }
 
     if (keystoreFile.exists()) {
