@@ -15,6 +15,7 @@ import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.BackupManager
 import com.tileshell.core.data.CachedScreenshotPrefs
 import com.tileshell.core.data.FolderChild
+import com.tileshell.core.data.HiddenApps
 import com.tileshell.core.data.LayoutHistoryRepository
 import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.LayoutSnapshot
@@ -82,6 +83,13 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList(),
+    )
+
+    /** Packages hidden from the app list (personalize → hidden apps). */
+    val hiddenPackages: StateFlow<Set<String>> = HiddenApps.hidden(application).stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptySet(),
     )
 
     /** The user's subscribed news feeds (left feed discover section). */
@@ -154,6 +162,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** True while the category-folders sheet is open (personalize → folders). */
     private val _foldersOpen = MutableStateFlow(false)
     val foldersOpen: StateFlow<Boolean> = _foldersOpen.asStateFlow()
+
+    /** True while the hidden-apps sheet is open (personalize → hidden apps). */
+    private val _hiddenAppsOpen = MutableStateFlow(false)
+    val hiddenAppsOpen: StateFlow<Boolean> = _hiddenAppsOpen.asStateFlow()
 
     fun setAppList(value: Boolean) {
         _isAppList.value = value
@@ -280,6 +292,21 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Close the category-folders sheet. */
     fun closeFolders() {
         _foldersOpen.value = false
+    }
+
+    /** Open the hidden-apps sheet (personalize → hidden apps). */
+    fun openHiddenApps() {
+        _hiddenAppsOpen.value = true
+    }
+
+    /** Close the hidden-apps sheet. */
+    fun closeHiddenApps() {
+        _hiddenAppsOpen.value = false
+    }
+
+    /** Unhide [packageName], returning it to the app list. */
+    fun unhide(packageName: String) {
+        viewModelScope.launch { HiddenApps.unhide(getApplication(), packageName) }
     }
 
     /**
@@ -526,6 +553,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         closePersonalize()
         closeAbout()
         closeFolders()
+        closeHiddenApps()
         closeBackup()
         closeFolder()
         exitEdit()

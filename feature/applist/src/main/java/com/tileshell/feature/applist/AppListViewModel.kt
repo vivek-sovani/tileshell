@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tileshell.core.data.AppCatalogRepository
 import com.tileshell.core.data.AppEntry
+import com.tileshell.core.data.HiddenApps
 import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.PinResult
 import com.tileshell.core.data.RecentApps
@@ -42,9 +43,21 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
 
-    /** The catalogue filtered by the current query (case-insensitive substring). */
+    private val hiddenPackages: StateFlow<Set<String>> =
+        HiddenApps.hidden(application).stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptySet(),
+        )
+
+    /**
+     * The catalogue filtered by the current query (case-insensitive substring),
+     * with hidden apps excluded.
+     */
     val filteredApps: StateFlow<List<AppEntry>> =
-        combine(apps, _query) { list, q -> AppListFilter.filter(list, q) }.stateIn(
+        combine(apps, _query, hiddenPackages) { list, q, hidden ->
+            AppListFilter.filter(list.filterNot { it.packageName in hidden }, q)
+        }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyList(),
@@ -59,12 +72,13 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The "recent" section (recently-launched + newly-installed) shown above the
-     * alphabetical list when the search box is empty. Empty while searching.
+     * alphabetical list when the search box is empty. Empty while searching, and
+     * hidden apps are excluded here too.
      */
     val topApps: StateFlow<List<AppEntry>> =
-        combine(apps, recentKeys, _query) { list, keys, q ->
+        combine(apps, recentKeys, _query, hiddenPackages) { list, keys, q, hidden ->
             if (q.isNotBlank()) emptyList()
-            else AppListFilter.topApps(list, keys, System.currentTimeMillis())
+            else AppListFilter.topApps(list.filterNot { it.packageName in hidden }, keys, System.currentTimeMillis())
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -73,6 +87,9 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
 
     private val _pinned = MutableSharedFlow<PinOutcome>(extraBufferCapacity = 4)
     val pinned: SharedFlow<PinOutcome> = _pinned.asSharedFlow()
+
+    private val _hidden = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val hidden: SharedFlow<String> = _hidden.asSharedFlow()
 
     fun setQuery(value: String) {
         _query.value = value
@@ -88,6 +105,14 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             val result = layout.pinApp(app)
             _pinned.emit(PinOutcome(result, app.label))
+        }
+    }
+
+    /** Hide [app] from the app list; emits its label for the UI to toast on. */
+    fun hide(app: AppEntry) {
+        viewModelScope.launch {
+            HiddenApps.hide(getApplication(), app.packageName)
+            _hidden.emit(app.label)
         }
     }
 }

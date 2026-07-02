@@ -137,6 +137,17 @@ fun AppListScreen(
         }
     }
 
+    // Hiding a row toasts, pointing at where to undo it.
+    LaunchedEffect(viewModel) {
+        viewModel.hidden.collect { label ->
+            Toast.makeText(
+                context,
+                "hid $label — unhide it from personalize · hidden apps",
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.fillMaxSize().statusBarsPadding().displayCutoutPadding(),
@@ -169,6 +180,7 @@ fun AppListScreen(
                                 },
                                 onPin = { viewModel.pin(app) },
                                 onUninstall = { uninstallApp(context, app.packageName) },
+                                onHide = { viewModel.hide(app) },
                             )
                         }
                     }
@@ -186,6 +198,7 @@ fun AppListScreen(
                             },
                             onPin = { viewModel.pin(app) },
                             onUninstall = { uninstallApp(context, app.packageName) },
+                            onHide = { viewModel.hide(app) },
                         )
                     }
                 }
@@ -270,23 +283,27 @@ private fun AppRow(
     onTap: () -> Unit,
     onPin: () -> Unit,
     onUninstall: () -> Unit,
+    onHide: () -> Unit,
 ) {
-    // Long-press opens a WP-style context menu: pin the app to Start, or uninstall
-    // it (the system uninstall dialog). A quick tap still launches.
+    // Long-press opens a WP-style context menu: pin the app to Start, hide it
+    // from the list, or uninstall it (the system uninstall dialog). A quick tap
+    // still launches.
     var menuOpen by remember { mutableStateOf(false) }
     Box {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .tapOrLongPress(onTap = onTap, onLongPress = { menuOpen = true })
-                // TalkBack: launch on activate, with pin / uninstall as custom
-                // actions (the sighted long-press menu isn't reachable otherwise).
+                // TalkBack: launch on activate, with pin / hide / uninstall as
+                // custom actions (the sighted long-press menu isn't reachable
+                // otherwise).
                 .clearAndSetSemantics {
                     contentDescription = app.label
                     role = Role.Button
                     onClick(label = "launch") { onTap(); true }
                     customActions = listOf(
                         CustomAccessibilityAction("pin to start") { onPin(); true },
+                        CustomAccessibilityAction("hide") { onHide(); true },
                         CustomAccessibilityAction("uninstall") { onUninstall(); true },
                     )
                 }
@@ -322,6 +339,10 @@ private fun AppRow(
             DropdownMenuItem(
                 text = { Text("pin to start") },
                 onClick = { menuOpen = false; onPin() },
+            )
+            DropdownMenuItem(
+                text = { Text("hide") },
+                onClick = { menuOpen = false; onHide() },
             )
             DropdownMenuItem(
                 text = { Text("uninstall") },

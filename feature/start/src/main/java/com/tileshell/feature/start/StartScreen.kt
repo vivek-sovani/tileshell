@@ -183,6 +183,7 @@ import com.tileshell.feature.personalize.LayoutHistorySheet
 import com.tileshell.feature.livetiles.LayoutAutoBackupWorker
 import com.tileshell.feature.personalize.CategoryFolderSheet
 import com.tileshell.feature.personalize.FeedSourceItem
+import com.tileshell.feature.personalize.HiddenAppsSheet
 import com.tileshell.feature.personalize.PersonalizeSheet
 import com.tileshell.core.data.settings.FontStyle
 import com.tileshell.core.data.settings.TileColorSource
@@ -246,6 +247,8 @@ fun StartScreen(
     val layoutHistory by viewModel.layoutHistory.collectAsStateWithLifecycle()
     val backupOpen by viewModel.backupOpen.collectAsStateWithLifecycle()
     val foldersOpen by viewModel.foldersOpen.collectAsStateWithLifecycle()
+    val hiddenAppsOpen by viewModel.hiddenAppsOpen.collectAsStateWithLifecycle()
+    val hiddenPackages by viewModel.hiddenPackages.collectAsStateWithLifecycle()
     val isAppList by viewModel.isAppList.collectAsStateWithLifecycle()
     val apps by viewModel.apps.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
@@ -790,8 +793,12 @@ fun StartScreen(
         // Each sub-sheet hides its parent while it's on top, so only one page is ever
         // visible at once (a proper back-stack: closing a child reveals its parent again,
         // driven by each sheet's own BackHandler(enabled = visible)).
-        val personalizeVisible = personalizeOpen && !aboutOpen && !foldersOpen && !backupOpen
+        val personalizeVisible =
+            personalizeOpen && !aboutOpen && !foldersOpen && !backupOpen && !hiddenAppsOpen
         val backupVisible = backupOpen && !historyOpen
+        val hiddenAppEntries = remember(apps, hiddenPackages) {
+            apps.filter { it.packageName in hiddenPackages }.sortedBy { it.label.lowercase() }
+        }
 
         // Personalize sheet overlay (edit bar → personalize, FR-7).
         PersonalizeSheet(
@@ -889,6 +896,7 @@ fun StartScreen(
             onColumnsChange = viewModel::setColumns,
             onAbout = viewModel::openAbout,
             onFolders = viewModel::openFolders,
+            onHiddenApps = viewModel::openHiddenApps,
             onBackupRestore = viewModel::openBackup,
             onDismiss = viewModel::closePersonalize,
         )
@@ -900,6 +908,17 @@ fun StartScreen(
             dark = dark,
             accentId = settings.accentId,
             onDismiss = viewModel::closeAbout,
+        )
+
+        // Hidden-apps sheet (personalize → hidden apps).
+        HiddenAppsSheet(
+            visible = hiddenAppsOpen,
+            rightHalf = isLandscape,
+            dark = dark,
+            accentId = settings.accentId,
+            apps = hiddenAppEntries,
+            onUnhide = { viewModel.unhide(it.packageName) },
+            onDismiss = viewModel::closeHiddenApps,
         )
 
         // Layout history sheet (personalize → history).

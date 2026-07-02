@@ -125,6 +125,7 @@ fun PersonalizeSheet(
     onRequestLocation: () -> Unit,
     onAbout: () -> Unit,
     onFolders: () -> Unit,
+    onHiddenApps: () -> Unit,
     onBackupRestore: () -> Unit,
     onDismiss: () -> Unit,
     // In landscape the launcher splits into a feed (left) + Start (right) panel;
@@ -557,6 +558,28 @@ fun PersonalizeSheet(
                         Text(text = "create category folders", color = tokens.fg, fontSize = 14.sp)
                         Text(
                             text = "group apps by what they do — communication, social, shopping…",
+                            color = tokens.fgDim,
+                            fontSize = 12.sp,
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(text = "›", color = accent, fontSize = 16.sp)
+                }
+            }
+
+            // ---- hidden apps ----
+            SettingGroup(label = "app visibility", tokens.fgDim) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onHiddenApps)
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "hidden apps", color = tokens.fg, fontSize = 14.sp)
+                        Text(
+                            text = "show apps you've hidden from the app list",
                             color = tokens.fgDim,
                             fontSize = 12.sp,
                         )
