@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v1.6 listing draft — update before each release*
+*v1.6.1 listing draft — update before each release*
 
 ---
 
@@ -154,6 +154,16 @@ data. Users can also clear app data via Android Settings at any time.
 | Feature graphic | 1024 × 500 px | Required for listing banner |
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
+
+## Release notes (v1.6.1)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 1.6.1
+
+• Fixed: widget stacks and folders with a custom tile colour now correctly show through in "wallpaper behind tiles" and glass (transparent tiles) modes, instead of staying solid
+```
 
 ## Release notes (v1.6.0)
 
