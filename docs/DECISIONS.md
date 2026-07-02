@@ -1620,3 +1620,30 @@ Four follow-up additions, all scoped to the quick search overlay from the previo
   from a scrim-tap or back-press cancel, so abandoned typing never pollutes the suggestion list.
   "Suggested apps" reuses `AppListFilter.topApps` (already unit-tested for the app list's own
   "recent" section) rather than inventing new ranking logic — one function, two call sites.
+
+## Notification package alias for OEM companion-service splits
+
+Found on a physical Samsung device: a pinned Gallery app's live tile never showed a pending
+"story"/highlights notification, even though notification access was granted and the listener
+was confirmed connected (`dumpsys notification` showed a live bound proxy). The notification was
+real — `dumpsys notification --noredact` showed it posted by `com.samsung.storyservice`, a
+distinct package from the Gallery app itself (`com.sec.android.gallery3d`). Every notification-
+to-tile match in this app (badges, previews, images, tap-to-clear) is a plain package-name
+lookup, so a notification posted by a *different-but-related* package is invisible to any tile,
+by design — this isn't a bug in the matching logic, it's a gap the logic can't close on its own.
+
+- **A small, explicit alias table, not a general heuristic.** `NOTIFICATION_PACKAGE_ALIASES`
+  (`TileNotificationListenerService.kt`) maps `com.samsung.storyservice` →
+  `com.sec.android.gallery3d`. Considered and rejected: fuzzy-matching by shared signing
+  certificate/UID, or by app label similarity — both are the kind of clever-but-fragile logic
+  that breaks in ways that are hard to debug later (a false match would misattribute a real
+  notification to the wrong tile). A hardcoded table is honest about its scope: it fixes the one
+  confirmed split, and future ones get added the same way once actually seen, not guessed at.
+- **Remapped at the boundary, before anything pure sees it.** `StatusBarNotification
+  .tilePackageName()` applies the alias once, right where `packageName` is first read
+  (`toItem()`/`toActionRow()`/`notificationImages()` grouping) — `summarizeNotifications` and
+  `tileNotificationActions` (both pure, unit-tested) stay unaware that aliasing exists at all.
+- **The alias only affects grouping, not cancellation.** `NotificationActionRow.key` is left as
+  the real `StatusBarNotification.key` — tapping the Gallery tile still cancels the actual
+  `com.samsung.storyservice` notification via its real key; only the *lookup* (which tile does
+  this belong to) is aliased, not the object being acted on.

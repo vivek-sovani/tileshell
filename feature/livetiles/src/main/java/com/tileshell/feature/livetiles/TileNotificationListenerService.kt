@@ -62,7 +62,7 @@ class TileNotificationListenerService : NotificationListenerService() {
                 it.isClearable &&
                     ((it.notification?.flags ?: 0) and Notification.FLAG_GROUP_SUMMARY) == 0
             }
-            .groupBy { it.packageName }
+            .groupBy { it.tilePackageName() }
             .mapNotNull { (pkg, list) ->
                 val newest = list.maxByOrNull { it.postTime } ?: return@mapNotNull null
                 val images = newest.extractImages(this)
@@ -70,6 +70,22 @@ class TileNotificationListenerService : NotificationListenerService() {
             }
             .toMap()
 }
+
+/**
+ * A couple of OEM notifications aren't posted by the app the user thinks of —
+ * Samsung's Gallery "story"/highlights feature posts under a separate companion
+ * service package rather than the Gallery app itself, so a tile pinned to the
+ * Gallery app would never match it by package name. Remapped to the package the
+ * notification should surface on; deliberately a small, explicit table rather
+ * than a general heuristic — extend only for a confirmed, specific OEM split.
+ */
+private val NOTIFICATION_PACKAGE_ALIASES = mapOf(
+    "com.samsung.storyservice" to "com.sec.android.gallery3d",
+)
+
+/** [StatusBarNotification.packageName], remapped through [NOTIFICATION_PACKAGE_ALIASES]. */
+private fun StatusBarNotification.tilePackageName(): String =
+    NOTIFICATION_PACKAGE_ALIASES[packageName] ?: packageName
 
 /**
  * Pulls the displayable images out of a notification, kept separate so the live
@@ -105,7 +121,7 @@ private fun Bitmap.downscaleIfNeeded(maxPx: Int): Bitmap {
 private fun StatusBarNotification.toItem(): NotificationItem? {
     val extras = notification?.extras ?: return null
     return NotificationItem(
-        packageName = packageName,
+        packageName = tilePackageName(),
         title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString(),
         text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString(),
         isClearable = isClearable,
@@ -116,7 +132,7 @@ private fun StatusBarNotification.toItem(): NotificationItem? {
 
 private fun StatusBarNotification.toActionRow(): NotificationActionRow =
     NotificationActionRow(
-        packageName = packageName,
+        packageName = tilePackageName(),
         key = key,
         contentIntent = notification?.contentIntent,
         isClearable = isClearable,

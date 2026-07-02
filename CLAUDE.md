@@ -36,6 +36,20 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-S27 — notification package alias for OEM companion-service splits.** Debugged on a
+  physical Samsung device: a "gallery" widget stack (Samsung Gallery + Google Photos, both
+  pinned as LARGE tiles) wasn't showing a pending Gallery notification. Root cause: Samsung's
+  Gallery "story"/highlights feature posts its notifications under a separate companion package
+  (`com.samsung.storyservice`), not the Gallery app's own package (`com.sec.android.gallery3d`)
+  — every notification-to-tile match in this app is by exact package name, so it silently found
+  nothing. Fixed with a small, explicit alias table (`NOTIFICATION_PACKAGE_ALIASES` in
+  `TileNotificationListenerService.kt`, `:feature:livetiles`): `StatusBarNotification.packageName`
+  is remapped through it (`tilePackageName()`) before being grouped into badges/previews/images,
+  so the story notification now surfaces on the Gallery tile. The remap only touches the grouping
+  key — `NotificationActionRow.key` (used to actually cancel the notification on tap) still holds
+  the real underlying key, so tap-to-open/clear is unaffected. Deliberately a tiny hardcoded table,
+  not a heuristic — extend only for a confirmed, specific OEM split, per DECISIONS. Build + tests
+  green.
 - **Post-S27 — quick search follow-up: call/message/pin-to-start on contacts, recent/suggested.**
   Three additions to quick search (a fourth, photo search, was built then deliberately removed —
   see below), all UI-only (see DECISIONS "Quick search follow-up"):
