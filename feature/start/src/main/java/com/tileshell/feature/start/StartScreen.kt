@@ -1874,6 +1874,15 @@ private fun TileView(
                         liveActive = liveActive,
                         accent = accent,
                         appIconColors = appIconColors,
+                        glassFill = glassFill,
+                        tiledWallpaper = tiledWallpaper,
+                        wallpaper = wallpaper,
+                        wallpaperPhoto = wallpaperPhoto,
+                        wallpaperAlignX = wallpaperAlignX,
+                        wallpaperAlignY = wallpaperAlignY,
+                        wallpaperOrigin = wallpaperOrigin,
+                        fullWidth = fullWidth,
+                        fullHeight = fullHeight,
                         onLaunchChild = onLaunchFolderChild,
                         onEnterEdit = onLongPress,
                     )
@@ -3263,9 +3272,19 @@ private fun StackTileContent(
     liveActive: Boolean,
     accent: Color,
     appIconColors: Boolean,
+    glassFill: Color?,
+    tiledWallpaper: Boolean,
+    wallpaper: com.tileshell.core.design.WallpaperGradient,
+    wallpaperPhoto: ImageBitmap?,
+    wallpaperAlignX: Float,
+    wallpaperAlignY: Float,
+    wallpaperOrigin: () -> Offset,
+    fullWidth: Float,
+    fullHeight: Float,
     onLaunchChild: (FolderChild) -> Unit,
     onEnterEdit: () -> Unit,
 ) {
+    val useTileGradient = LocalTileGradient.current
     val children = tile.children
     val count = children.size
     val pageIndex = remember(tile.id, count) { mutableStateOf(0) }
@@ -3421,10 +3440,35 @@ private fun StackTileContent(
                 // Render the member's live face at the stack tile's footprint by
                 // reusing the normal app-tile content. interactive=true so music
                 // transport buttons and other live-face controls are tappable.
+                // Fill mirrors the outer TileView priority (wallpaper window / glass
+                // / gradient / flat) so a stack behaves like any other tile under
+                // "wallpaper behind tiles" or glass mode instead of always painting
+                // an opaque memberAccent square over it.
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(memberAccent),
+                        .then(
+                            when {
+                                tiledWallpaper && wallpaperPhoto != null -> Modifier.photoWindow(
+                                    image = wallpaperPhoto,
+                                    fullWidth = fullWidth,
+                                    fullHeight = fullHeight,
+                                    darkBase = TiledScreenDark,
+                                    origin = wallpaperOrigin,
+                                    alignX = wallpaperAlignX,
+                                    alignY = wallpaperAlignY,
+                                )
+                                tiledWallpaper -> Modifier.wallpaperWindow(
+                                    wallpaper = wallpaper,
+                                    fullWidth = fullWidth,
+                                    fullHeight = fullHeight,
+                                    origin = wallpaperOrigin,
+                                )
+                                glassFill != null -> Modifier.background(glassFill)
+                                useTileGradient -> Modifier.background(tileGradientBrush(memberAccent))
+                                else -> Modifier.background(memberAccent)
+                            },
+                        ),
                 ) {
                     AppTileContent(
                         tile = TileModel.App(
