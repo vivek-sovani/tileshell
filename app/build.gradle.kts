@@ -38,8 +38,13 @@ android {
         // v1.5 = 60 (backup & restore: auto-save, visual layout history, export/import;
         //   personalize navigation shows one screen at a time; fresh installs default to
         //   no wallpaper + solid Nokia-blue tiles; app-list search-clear fix).
-        versionCode = 60
-        versionName = "1.5.0"
+        // v1.5.1 = 61 (widget stack fixes: per-member tile colour during rotation, merging
+        //   a liveOnly tile like weather into a stack no longer drops it; per-tile colour
+        //   picker + full small/medium/wide/large resize cycle inside a folder overlay;
+        //   folder overlay "make wide/large stack" shortcut; calendar/weather tile layout
+        //   fixes at WIDE size).
+        versionCode = 61
+        versionName = "1.5.1"
     }
 
     if (keystoreFile.exists()) {
