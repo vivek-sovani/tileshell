@@ -621,13 +621,7 @@ fun StartScreen(
                             is TileModel.Folder -> viewModel.openFolder(tile.id)
                         }
                     },
-                    onLaunchFolderChild = { child ->
-                        if (!AppLauncher.launch(context, child.packageName, child.activityName)) {
-                            Toast.makeText(
-                                context, "couldn't open ${child.label ?: "app"}", Toast.LENGTH_SHORT,
-                            ).show()
-                        }
-                    },
+                    onLaunchFolderChild = { child -> launchFolderChild(context, child) },
                     onChevron = { settleTo(1f) },
                     onEnterEdit = { id ->
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -972,15 +966,10 @@ fun StartScreen(
             accent = accent,
             appIconColors = settings.tileColorSource == TileColorSource.APP_ICON,
             tileGap = settings.tileGap,
+            columns = settings.columns,
             onClose = viewModel::closeFolder,
             onLaunchChild = { child ->
-                if (!AppLauncher.launch(context, child.packageName, child.activityName)) {
-                    Toast.makeText(
-                        context,
-                        "couldn't open ${child.label ?: "app"}",
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                }
+                launchFolderChild(context, child)
                 viewModel.closeFolder()
             },
             onRename = { name -> openFolder?.let { viewModel.renameFolder(it.id, name) } },
@@ -991,6 +980,8 @@ fun StartScreen(
                 openFolder?.let { viewModel.resizeFolderChild(it.id, child) }
             },
             onReorder = viewModel::reorderFolderChildren,
+            onSetColor = viewModel::setFolderChildAccent,
+            onMakeStack = { size -> openFolder?.let { viewModel.convertFolderToStack(it.id, size) } },
         )
 
         // First-run hint (S19): one-time prototype hint card over Start. Sits
@@ -1989,12 +1980,15 @@ private fun FolderOverlay(
     accent: Color,
     appIconColors: Boolean,
     tileGap: Float = 3f,
+    columns: Int = GridPacker.COLUMNS,
     onClose: () -> Unit,
     onLaunchChild: (FolderChild) -> Unit,
     onRename: (String) -> Unit,
     onPullOut: (FolderChild) -> Unit,
     onResize: (FolderChild) -> Unit,
     onReorder: (List<FolderChild>) -> Unit,
+    onSetColor: (FolderChild, String?) -> Unit = { _, _ -> },
+    onMakeStack: (TileSize) -> Unit = {},
 ) {
     if (folder == null) return
     val density = LocalDensity.current
@@ -2002,6 +1996,8 @@ private fun FolderOverlay(
     var renaming by remember(folder.id) { mutableStateOf(false) }
     var editMode by remember(folder.id) { mutableStateOf(false) }
     var selectedId by remember(folder.id) { mutableStateOf<String?>(null) }
+    // Child whose accent-colour picker is open (edit-mode colour dot tapped), or null.
+    var colorPickerFor by remember(folder.id) { mutableStateOf<String?>(null) }
 
     // Keep media sessions live while the folder is open. The Start screen's
     // own MediaSessionsEffect poll is suspended whenever a folder/personalize
@@ -2023,10 +2019,14 @@ private fun FolderOverlay(
         if (editMode) { editMode = false; selectedId = null } else onClose()
     }
 
-    // Child app models + lookup, keyed by component string.
+    // Child app models + lookup, keyed by the child's own DB rowId. Component
+    // string (packageName/activityName) isn't unique enough: self-contained
+    // liveOnly children (weather/calendar/clock with no resolvable app) can share
+    // the exact same blank "" / "" identity, which used to collapse them onto one
+    // slot here — one child effectively invisible, its neighbour rendered twice.
     val byId = remember(folder.children, folder.colorId) {
         folder.children.associate { c ->
-            val key = c.packageName + "/" + c.activityName
+            val key = c.rowId.toString()
             key to (TileModel.App(
                 id = key,
                 position = 0,
@@ -2041,7 +2041,7 @@ private fun FolderOverlay(
         }
     }
     val childByKey = remember(folder.children) {
-        folder.children.associateBy { it.packageName + "/" + it.activityName }
+        folder.children.associateBy { it.rowId.toString() }
     }
 
     // Working order, reconciled with the persisted children (preserves a just-
@@ -2051,7 +2051,7 @@ private fun FolderOverlay(
     val dragOffset = remember { mutableStateOf(IntOffset.Zero) }
     LaunchedEffect(folder.children) {
         if (draggingId != null) return@LaunchedEffect
-        val ids = folder.children.map { it.packageName + "/" + it.activityName }
+        val ids = folder.children.map { it.rowId.toString() }
         val merged = if (order.isEmpty()) {
             ids
         } else {
@@ -2158,10 +2158,44 @@ private fun FolderOverlay(
                 textAlign = TextAlign.Center,
             )
 
+            // "Make stack" shortcut: resize every child to a uniform WIDE or
+            // LARGE size in one shot, turning the folder into a widget stack
+            // carousel — the same end state as resizing every child by hand,
+            // or merging two large tiles (large only offered at columns>=5).
+            // "keep as folder" is shown alongside as a plain, current-state chip
+            // so the mini-grid isn't presented as if stacking were the only
+            // option. Any of the three choices closes the overlay — it's a
+            // one-time decision point, not something to keep browsing after.
+            // Hidden once it's already a stack, or a lone-child folder (which
+            // wouldn't read as a meaningful carousel).
+            if (!editMode && !renaming && !folder.isStack && folder.children.size >= 2) {
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 14.dp),
+                ) {
+                    StackModeChip(label = "keep as folder", selected = true, onClick = onClose)
+                    Spacer(Modifier.width(10.dp))
+                    StackModeChip(
+                        label = "make wide stack",
+                        onClick = { onMakeStack(TileSize.WIDE); onClose() },
+                    )
+                    if (columns >= 5) {
+                        Spacer(Modifier.width(10.dp))
+                        StackModeChip(
+                            label = "make large stack",
+                            onClick = { onMakeStack(TileSize.LARGE); onClose() },
+                        )
+                    }
+                }
+            }
+
             // Grid-level edit-drag (same gesture as Start, merge disabled).
             val editDrag = Modifier.editDragGesture(
                 editMode = editMode,
                 widthPx = widthPx,
+                columns = columns,
                 gapPx = tileGapPx,
                 order = order,
                 byId = byId,
@@ -2169,6 +2203,7 @@ private fun FolderOverlay(
                 selectedId = { selectedId },
                 onUnpin = { id -> order.remove(id); childByKey[id]?.let(onPullOut) },
                 onResize = { id -> childByKey[id]?.let(onResize) },
+                onColor = { id -> colorPickerFor = id },
                 onLift = { id, offset -> draggingId = id; dragOffset.value = offset },
                 onDrag = { offset -> dragOffset.value = offset },
                 onReorderTo = { dragId, targetId ->
@@ -2194,6 +2229,7 @@ private fun FolderOverlay(
 
             DenseTileGrid(
                 tiles = displaySpecs,
+                columns = columns,
                 gapPx = tileGapPx,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2249,7 +2285,8 @@ private fun FolderOverlay(
                         darkTheme = true,
                         canMoveBack = order.indexOf(spec.id) > 0,
                         canMoveForward = order.indexOf(spec.id) in 0 until order.size - 1,
-                        nextSizeIsLarger = model.size.nextIsLarger(largeAllowed = false),
+                        showColorDot = true,
+                        nextSizeIsLarger = model.size.nextForFolderChild(columns >= 5).area > model.size.area,
                         onTap = { if (!editMode) childByKey[spec.id]?.let(onLaunchChild) },
                         onLongPress = { if (!editMode) { editMode = true; selectedId = spec.id } },
                         onResize = { childByKey[spec.id]?.let(onResize) },
@@ -2274,6 +2311,42 @@ private fun FolderOverlay(
             // above the edge while editing (matches Start's home-scroll padding).
             Spacer(Modifier.height(if (editMode) 130.dp else 74.dp))
         }
+
+        // Per-child accent picker (edit-mode colour dot → palette, FR-7), same
+        // sheet the Start screen uses for top-level tiles.
+        colorPickerFor?.let { pickId ->
+            val child = childByKey[pickId]
+            val suggestion = child
+                ?.takeIf { it.packageName.isNotBlank() }
+                ?.let { rememberIconSuggestion(it.packageName, it.activityName) }
+            TileColorPicker(
+                current = child?.accentOverride,
+                suggestedNearestId = suggestion?.nearestId,
+                suggestedExact = suggestion?.exact,
+                onPick = { colorId -> child?.let { onSetColor(it, colorId) }; colorPickerFor = null },
+                onDismiss = { colorPickerFor = null },
+            )
+        }
+    }
+}
+
+/** Pill button for the folder overlay's "make stack · wide/large" shortcut. */
+@Composable
+private fun StackModeChip(label: String, selected: Boolean = false, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .then(
+                if (selected) {
+                    Modifier.background(Color.White.copy(alpha = 0.16f))
+                } else {
+                    Modifier.border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
+                },
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+    ) {
+        Text(label, color = Color.White, fontSize = 12.sp)
     }
 }
 
@@ -3339,6 +3412,27 @@ private fun onTileClick(context: Context, tile: TileModel) {
  * browser). Other live tiles have no target and stay inert. Best-effort — a missing
  * handler is swallowed rather than toasted.
  */
+/**
+ * Launch a folder/widget-stack child, mirroring [onTileClick]'s App branch: a
+ * clock child opens the system alarms screen, a pending notification opens
+ * in-app, and a self-contained liveOnly child seeded with no resolved app
+ * (weather/calendar with a blank package) falls back to its live-tile intent
+ * instead of failing with "couldn't open" — that fallback only applied to
+ * top-level tiles before, so the same child launched from inside a folder or
+ * stack (whose package is not part of its folder identity) errored out.
+ */
+private fun launchFolderChild(context: Context, child: FolderChild) {
+    if (child.iconKey == "clock" && openClock(context)) return
+    if (child.packageName.isNotBlank()) {
+        if (NotificationCenter.openAndClear(context, child.packageName)) return
+        if (!AppLauncher.launch(context, child.packageName, child.activityName)) {
+            Toast.makeText(context, "couldn't open ${child.label ?: "app"}", Toast.LENGTH_SHORT).show()
+        }
+    } else {
+        launchLiveTileFallback(context, child.iconKey)
+    }
+}
+
 private fun launchLiveTileFallback(context: Context, iconKey: String?) {
     if (iconKey == "clock") {
         openClock(context)

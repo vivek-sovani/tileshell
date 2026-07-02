@@ -180,15 +180,8 @@ interface LayoutDao {
 
     // ---- remove one app from a folder (FR-4) ----------------------------
 
-    @Query(
-        "DELETE FROM folder_children WHERE folderId = :folderId " +
-            "AND packageName = :packageName AND activityName = :activityName",
-    )
-    suspend fun deleteFolderChildComponent(
-        folderId: String,
-        packageName: String,
-        activityName: String,
-    )
+    @Query("DELETE FROM folder_children WHERE rowId = :rowId")
+    suspend fun deleteFolderChildByRowId(rowId: Long)
 
     @Query("SELECT * FROM folder_children WHERE folderId = :folderId ORDER BY position")
     suspend fun folderChildrenOnce(folderId: String): List<FolderChildEntity>
@@ -199,18 +192,51 @@ interface LayoutDao {
     @Query("UPDATE folder_children SET size = :size WHERE rowId = :rowId")
     suspend fun updateFolderChildSize(rowId: Long, size: TileSize)
 
+    /** Set/clear a folder child's per-tile accent override (null = follow global, FR-7). */
+    @Query("UPDATE folder_children SET accentOverride = :accentOverride WHERE rowId = :rowId")
+    suspend fun updateFolderChildAccent(rowId: Long, accentOverride: String?)
+
     @Query("UPDATE folder_children SET size = :size WHERE folderId = :folderId")
     suspend fun setAllFolderChildrenSize(folderId: String, size: TileSize)
 
     /**
-     * Collapse a widget stack back to a normal folder: every member drops to
-     * MEDIUM and the folder tile to WIDE. Triggered when any stack member is
-     * resized down (a stack renders only while all members are LARGE).
+     * Collapse a widget stack (uniform WIDE or LARGE members, [stackSize]) back
+     * to a normal folder: every member demotes one tier (LARGE→MEDIUM,
+     * WIDE→SMALL) and the folder tile returns to WIDE. Triggered when any stack
+     * member is resized down — a stack resize is all-or-nothing.
      */
     @Transaction
-    suspend fun collapseStackToFolder(folderId: String) {
-        setAllFolderChildrenSize(folderId, TileSize.MEDIUM)
+    suspend fun collapseStack(folderId: String, stackSize: TileSize) {
+        setAllFolderChildrenSize(folderId, if (stackSize == TileSize.LARGE) TileSize.MEDIUM else TileSize.SMALL)
         updateTileSize(folderId, TileSize.WIDE.name)
+    }
+
+    /**
+     * The reverse of [collapseStack]: a normal folder becomes a widget stack the
+     * moment every one of its children is individually resized to the same WIDE
+     * or LARGE size (not just via a large-onto-large merge, or the folder
+     * overlay's explicit "make stack" action). `TileModel.Folder.isStack` is
+     * derived from the children alone, so without this the folder tile's own
+     * footprint would stay WIDE while it renders as a stack carousel.
+     */
+    @Transaction
+    suspend fun promoteFolderToStackIfUniform(folderId: String) {
+        val children = folderChildrenOnce(folderId)
+        val uniform = children.firstOrNull()?.size
+            ?.takeIf { it == TileSize.WIDE || it == TileSize.LARGE }
+            ?.takeIf { size -> children.all { it.size == size } }
+        if (uniform != null) updateTileSize(folderId, uniform.name)
+    }
+
+    /**
+     * Turn a folder into a widget stack in one shot (folder overlay's "make
+     * stack · wide/large" action): every child resized to [size], the folder
+     * tile matching.
+     */
+    @Transaction
+    suspend fun convertFolderToStack(folderId: String, size: TileSize) {
+        setAllFolderChildrenSize(folderId, size)
+        updateTileSize(folderId, size.name)
     }
 
     @Query(
@@ -241,14 +267,12 @@ interface LayoutDao {
     @Transaction
     suspend fun removeFolderChild(
         folderId: String,
-        packageName: String,
-        activityName: String,
+        rowId: Long,
         newTileId: String,
         newTileColorId: String,
     ) {
-        val removed = folderChildrenOnce(folderId)
-            .firstOrNull { it.packageName == packageName && it.activityName == activityName }
-        deleteFolderChildComponent(folderId, packageName, activityName)
+        val removed = folderChildrenOnce(folderId).firstOrNull { it.rowId == rowId }
+        deleteFolderChildByRowId(rowId)
         // Re-pin the pulled-out app as a top-level Start tile (parallels pinApp).
         if (removed != null) {
             insertTiles(

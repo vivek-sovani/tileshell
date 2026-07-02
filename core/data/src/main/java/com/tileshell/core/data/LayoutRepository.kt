@@ -71,8 +71,7 @@ class LayoutRepository(
     suspend fun removeFolderChild(folderId: String, child: FolderChild) =
         dao.removeFolderChild(
             folderId = folderId,
-            packageName = child.packageName,
-            activityName = child.activityName,
+            rowId = child.rowId,
             newTileId = "pin-${child.packageName}-${System.currentTimeMillis()}",
             newTileColorId = TileColors.defaultIdFor(child.packageName),
         )
@@ -262,18 +261,46 @@ class LayoutRepository(
     }
 
     /**
-     * Resize a folder child (persisted immediately). A LARGE child belongs to a
-     * widget stack — resizing it down collapses the whole stack back to a normal
-     * folder (all members MEDIUM, tile WIDE). Otherwise the child cycles SMALL↔MEDIUM.
+     * Resize a folder child (persisted immediately), keeping the folder's own
+     * stack-ness in sync with its siblings:
+     *  - If the folder is presently a uniform WIDE/LARGE stack and the resized
+     *    child sits at that stack size, resizing it down un-stacks the whole
+     *    folder — a stack resize is all-or-nothing (every member demotes, the
+     *    tile returns to WIDE), not just this one child.
+     *  - Otherwise the child cycles size on its own: the full small→medium→
+     *    wide→large steps when the grid has room ([largeAllowed], columns>=5),
+     *    else the tighter small↔medium toggle. If every child ends up
+     *    uniformly WIDE or LARGE, the folder tile promotes to match — a stack
+     *    can form one individual resize at a time, not just via merge or the
+     *    folder overlay's "make stack" action.
      */
-    suspend fun resizeFolderChild(folderId: String, child: FolderChild) {
-        if (child.size == TileSize.LARGE) {
-            dao.collapseStackToFolder(folderId)
-        } else {
-            val next = if (child.size == TileSize.SMALL) TileSize.MEDIUM else TileSize.SMALL
-            dao.updateFolderChildSize(child.rowId, next)
+    suspend fun resizeFolderChild(folderId: String, child: FolderChild, largeAllowed: Boolean = false) {
+        val siblings = dao.folderChildrenOnce(folderId)
+        val stackSize = siblings.firstOrNull()?.size
+            ?.takeIf { it == TileSize.WIDE || it == TileSize.LARGE }
+            ?.takeIf { size -> siblings.all { it.size == size } }
+        if (stackSize != null && child.size == stackSize) {
+            dao.collapseStack(folderId, stackSize)
+            return
+        }
+        val next = child.size.nextForFolderChild(largeAllowed)
+        dao.updateFolderChildSize(child.rowId, next)
+        if (next == TileSize.WIDE || next == TileSize.LARGE) {
+            dao.promoteFolderToStackIfUniform(folderId)
         }
     }
+
+    /**
+     * Turn a folder into a widget stack in one shot (folder overlay's "make
+     * stack" action): every child resized to [size] (WIDE or LARGE), the
+     * folder tile matching.
+     */
+    suspend fun convertFolderToStack(folderId: String, size: TileSize) =
+        dao.convertFolderToStack(folderId, size)
+
+    /** Set or clear a folder child's own accent override (null = follow global, FR-7). */
+    suspend fun setFolderChildAccent(rowId: Long, accentOverride: String?) =
+        dao.updateFolderChildAccent(rowId, accentOverride)
 
     /** Reorder folder children by writing new positions for the given ordered rowIds. */
     suspend fun reorderFolderChildren(orderedRowIds: List<Long>) {
@@ -399,20 +426,28 @@ class LayoutRepository(
     private fun toModel(row: TileWithFolder): TileModel {
         val t = row.tile
         return if (t.type == TileEntity.TYPE_FOLDER && row.folder != null) {
+            val children = row.folder.children
+                .sortedBy { it.position }
+                .map {
+                    FolderChild(
+                        it.packageName, it.activityName, it.label, it.iconKey, it.size,
+                        it.rowId, it.accentOverride,
+                    )
+                }
+            // isStack is a derived render mode (children uniformly WIDE or LARGE), so
+            // the folder's own footprint follows the same derivation rather than
+            // trusting the stored tile size — a child resized individually (FR-3.4,
+            // folder overlay) may not have persisted the tile-size promotion yet.
+            val stackSize = children.firstOrNull()?.size
+                ?.takeIf { it == TileSize.WIDE || it == TileSize.LARGE }
+                ?.takeIf { size -> children.all { it.size == size } }
             TileModel.Folder(
                 id = t.id,
                 position = t.position,
-                size = t.size,
+                size = stackSize ?: t.size,
                 colorId = t.colorId,
                 name = row.folder.folder.name,
-                children = row.folder.children
-                    .sortedBy { it.position }
-                    .map {
-                        FolderChild(
-                            it.packageName, it.activityName, it.label, it.iconKey, it.size,
-                            it.rowId, it.accentOverride,
-                        )
-                    },
+                children = children,
                 accentOverride = t.accentOverride,
             )
         } else {

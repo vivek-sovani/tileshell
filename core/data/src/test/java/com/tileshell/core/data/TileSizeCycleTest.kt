@@ -67,4 +67,25 @@ class TileSizeCycleTest {
         // LARGE(9) → MEDIUM(4): shrink
         assertEquals(false, TileSize.LARGE.nextIsLarger(largeAllowed = true))
     }
+
+    @Test
+    fun folderChildTogglesSmallMediumOnFourColumns() {
+        // A 4-column grid keeps folder children to a tight two-size toggle,
+        // unlike a top-level tile's medium→small→wide cycle.
+        assertEquals(TileSize.MEDIUM, TileSize.SMALL.nextForFolderChild(largeAllowed = false))
+        assertEquals(TileSize.SMALL, TileSize.MEDIUM.nextForFolderChild(largeAllowed = false))
+        // Anything else (shouldn't normally occur at 4 columns) degrades to small.
+        assertEquals(TileSize.SMALL, TileSize.WIDE.nextForFolderChild(largeAllowed = false))
+    }
+
+    @Test
+    fun folderChildGetsFullCycleOnFiveOrSixColumns() {
+        var size = TileSize.MEDIUM
+        val seen = mutableListOf(size)
+        repeat(4) { size = size.nextForFolderChild(largeAllowed = true); seen.add(size) }
+        assertEquals(
+            listOf(TileSize.MEDIUM, TileSize.SMALL, TileSize.WIDE, TileSize.LARGE, TileSize.MEDIUM),
+            seen,
+        )
+    }
 }

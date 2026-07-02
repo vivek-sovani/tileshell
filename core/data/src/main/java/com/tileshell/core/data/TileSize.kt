@@ -39,4 +39,14 @@ enum class TileSize(val cols: Int, val rows: Int) {
     val area get() = cols * rows
 
     fun nextIsLarger(largeAllowed: Boolean = false) = next(largeAllowed).area > area
+
+    /**
+     * Resize cycle for a folder child, which is deliberately tighter than a
+     * top-level tile's: on a 5/6-column grid ([largeAllowed]) it gets the full
+     * [next] cycle (small→medium→wide→large); on a 4-column grid it keeps a
+     * plain small↔medium toggle rather than [next]'s medium→small→wide, since a
+     * WIDE child would crowd the folder overlay's grid at that density.
+     */
+    fun nextForFolderChild(largeAllowed: Boolean): TileSize =
+        if (largeAllowed) next(largeAllowed = true) else if (this == SMALL) MEDIUM else SMALL
 }

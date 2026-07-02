@@ -485,12 +485,30 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Resize a folder child. A normal folder child toggles SMALL↔MEDIUM; a LARGE
-     * child is a widget-stack member, so resizing it collapses the stack back to a
-     * normal folder (handled in the repository).
+     * Resize a folder child. On a 5/6-column grid it cycles the full small→
+     * medium→wide→large steps (same as a top-level tile); on 4 columns it keeps
+     * the tighter small↔medium toggle. A LARGE child is a widget-stack member, so
+     * resizing it collapses the stack back to a normal folder (handled in the
+     * repository) regardless of column count.
      */
     fun resizeFolderChild(folderId: String, child: FolderChild) {
-        viewModelScope.launch(writeContext) { repository.resizeFolderChild(folderId, child) }
+        val largeAllowed = settings.value.columns >= 5
+        viewModelScope.launch(writeContext) {
+            repository.resizeFolderChild(folderId, child, largeAllowed)
+        }
+    }
+
+    /**
+     * Turn a folder into a widget stack in one shot: every child resized to
+     * [size] (WIDE or LARGE), the folder tile matching.
+     */
+    fun convertFolderToStack(folderId: String, size: TileSize) {
+        viewModelScope.launch(writeContext) { repository.convertFolderToStack(folderId, size) }
+    }
+
+    /** Set or clear a folder child's own accent override (null = follow global, FR-7). */
+    fun setFolderChildAccent(child: FolderChild, colorId: String?) {
+        viewModelScope.launch(writeContext) { repository.setFolderChildAccent(child.rowId, colorId) }
     }
 
     /** Persist a new display order for folder children after an in-folder drag. */

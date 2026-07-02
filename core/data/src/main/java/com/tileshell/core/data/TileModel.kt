@@ -53,6 +53,20 @@ sealed interface TileModel {
          * in, this turns false and the folder renders as the normal mini-grid.
          */
         val isStack: Boolean
-            get() = children.isNotEmpty() && children.all { it.size == TileSize.LARGE }
+            get() = stackSize != null
+
+        /**
+         * The uniform member size driving [isStack] — WIDE or LARGE — or null if the
+         * members aren't uniformly one of those sizes. A WIDE stack comes from the
+         * folder overlay's "make stack · wide" action (or every member individually
+         * resized to WIDE); a LARGE stack comes from merging two large tiles or
+         * "make stack · large".
+         */
+        val stackSize: TileSize?
+            get() {
+                val first = children.firstOrNull()?.size ?: return null
+                if (first != TileSize.WIDE && first != TileSize.LARGE) return null
+                return first.takeIf { size -> children.all { it.size == size } }
+            }
     }
 }
