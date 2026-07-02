@@ -2825,6 +2825,8 @@ private fun AppTileContent(
             PhotosTileFace(
                 active = liveActive,
                 fallback = staticGlyph,
+                packageName = tile.packageName,
+                size = tile.size,
                 forcedIndex = photosStackIndex,
                 modifier = Modifier.fillMaxSize(),
             )
