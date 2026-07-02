@@ -1892,6 +1892,8 @@ private fun TileView(
                         editMode = editMode,
                         launchEnabled = inlineFolderLaunch,
                         appIconColors = appIconColors,
+                        glassFill = glassFill,
+                        tiledWallpaper = tiledWallpaper,
                         onLaunchChild = onLaunchFolderChild,
                         onOpenFolder = onTap,
                         onEnterEdit = onLongPress,
@@ -3173,6 +3175,8 @@ private fun FolderTileContent(
     editMode: Boolean,
     launchEnabled: Boolean,
     appIconColors: Boolean,
+    glassFill: Color?,
+    tiledWallpaper: Boolean,
     onLaunchChild: (FolderChild) -> Unit,
     onOpenFolder: () -> Unit,
     onEnterEdit: () -> Unit,
@@ -3207,18 +3211,30 @@ private fun FolderTileContent(
                         // The child keeps its own colour inside the folder: an
                         // explicit override wins; otherwise, in app-icon-colour
                         // mode the icon's dominant colour shows; else neutral dark.
+                        // Under "wallpaper behind tiles" the parent tile is already
+                        // a window onto the wallpaper, so a cell paints nothing and
+                        // lets it show through (matching a plain tile, which also
+                        // drops its accent under tiled mode); under glass the cell
+                        // takes the same translucent glass tint as any other tile
+                        // instead of a fully opaque colour that would otherwise mask
+                        // the frosted background just for this one cell.
                         val cellBg = child?.accentOverride
                             ?.let { TileAccents.colorForOverride(it, "blue") }
                             ?: child?.takeIf { appIconColors }
                                 ?.let { rememberDominantIconColor(it.packageName, it.activityName) }
                             ?: Color(0x2E000000)
+                        val cellFill = when {
+                            tiledWallpaper -> Modifier
+                            glassFill != null -> Modifier.background(glassFill)
+                            else -> Modifier.background(cellBg)
+                        }
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxSize()
                                 .padding(2.dp)
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(cellBg)
+                                .then(cellFill)
                                 .then(
                                     if (tap != null) {
                                         Modifier.combinedClickable(
