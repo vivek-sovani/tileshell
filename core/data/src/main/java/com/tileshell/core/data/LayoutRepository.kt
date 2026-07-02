@@ -170,6 +170,35 @@ class LayoutRepository(
     }
 
     /**
+     * Pin a contact (quick search → "pin to start") as a medium tile, appended to
+     * the end of the grid. Stored as a plain app tile with a blank `packageName`
+     * (like the weather/calendar liveOnly tiles) — [ContactTile] encodes the
+     * contact's identity into `activityName` so the tile can reopen the right
+     * contact card without a schema change. No-op (returns
+     * [PinResult.ALREADY_ON_START]) if that contact is already pinned.
+     */
+    suspend fun pinContact(contactId: Long, lookupKey: String, name: String): PinResult {
+        val activityName = ContactTile.encode(contactId, lookupKey)
+        if (dao.activityTileCount(activityName) > 0) return PinResult.ALREADY_ON_START
+        dao.insertTiles(
+            listOf(
+                TileEntity(
+                    id = "pin-contact-$contactId-${System.currentTimeMillis()}",
+                    position = dao.maxPosition() + 1,
+                    size = TileSize.MEDIUM,
+                    colorId = TileColors.defaultIdFor(lookupKey),
+                    type = TileEntity.TYPE_APP,
+                    packageName = null,
+                    activityName = activityName,
+                    label = name,
+                    iconKey = ContactTile.ICON_KEY,
+                ),
+            ),
+        )
+        return PinResult.PINNED
+    }
+
+    /**
      * Upsert a folder from a set of installed [apps] (the personalize "category
      * folders" feature). Children are de-duplicated by component, in the given
      * order, and pick up a designed WP icon key when the package resolves to a

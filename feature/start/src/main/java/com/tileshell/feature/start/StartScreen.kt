@@ -101,6 +101,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
@@ -145,6 +146,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tileshell.core.data.AppCategories
 import com.tileshell.core.data.AppLauncher
 import com.tileshell.core.data.CachedScreenshotPrefs
+import com.tileshell.core.data.ContactTile
 import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.TileColors
 import com.tileshell.core.data.TileModel
@@ -169,6 +171,10 @@ import com.tileshell.feature.livetiles.PeopleTileFace
 import com.tileshell.feature.livetiles.PhotosData
 import com.tileshell.feature.livetiles.PhotosStore
 import com.tileshell.feature.livetiles.PhotosTileFace
+import com.tileshell.feature.livetiles.contactLookupUri
+import com.tileshell.feature.livetiles.mediaImagesPermission
+import com.tileshell.feature.livetiles.rememberContactPhotoUri
+import com.tileshell.feature.livetiles.rememberTileBitmap
 import com.tileshell.feature.livetiles.WeatherSmallFace
 import com.tileshell.feature.livetiles.WeatherTileFace
 import com.tileshell.feature.livetiles.rememberFlipState
@@ -263,6 +269,7 @@ fun StartScreen(
     val contactsGranted = rememberPermissionGranted(android.Manifest.permission.READ_CONTACTS)
     val calendarGranted = rememberPermissionGranted(android.Manifest.permission.READ_CALENDAR)
     val locationGranted = rememberPermissionGranted(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+    val photosSearchGranted = rememberPermissionGranted(mediaImagesPermission())
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
@@ -376,6 +383,9 @@ fun StartScreen(
     ) { granted ->
         if (granted) WeatherRefreshWorker.refreshNow(context)
     }
+    val photosSearchLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { /* granted state is re-read on ON_RESUME via rememberPermissionGranted */ }
 
     // SAF launchers for backup export/import (permission-free; supports Google Drive).
     val backupExportLauncher = rememberLauncherForActivityResult(
@@ -389,6 +399,13 @@ fun StartScreen(
     // Show a Toast for backup export/restore outcomes.
     LaunchedEffect(viewModel) {
         viewModel.backupMessage.collect { msg ->
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Show a Toast for quick search's "pin to start" action.
+    LaunchedEffect(viewModel) {
+        viewModel.pinMessage.collect { msg ->
             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
         }
     }
@@ -968,7 +985,7 @@ fun StartScreen(
             onDismiss = viewModel::closeHiddenApps,
         )
 
-        // Quick search (two-finger swipe-down on Start): apps, contacts, web.
+        // Quick search (two-finger swipe-down on Start): apps, contacts, photos, web.
         QuickSearchOverlay(
             visible = searchOpen,
             dark = dark,
@@ -978,6 +995,11 @@ fun StartScreen(
             onRequestContacts = {
                 contactsLauncher.launch(android.Manifest.permission.READ_CONTACTS)
             },
+            photosGranted = photosSearchGranted,
+            onRequestPhotos = {
+                photosSearchLauncher.launch(mediaImagesPermission())
+            },
+            onPinContact = viewModel::pinContact,
             onDismiss = viewModel::closeSearch,
         )
 
@@ -2833,6 +2855,16 @@ private fun AppTileContent(
     // composition recycling). Null = standalone tile, normal 3 s timer.
     photosStackIndex: Int? = null,
 ) {
+    // A pinned contact (quick search → "pin to start") is a plain App tile whose
+    // activityName encodes the contact's identity (ContactTile) rather than a
+    // resolvable launch component — render its photo/avatar instead of falling
+    // through to the app-icon/live-face machinery below.
+    val contactId = remember(tile.activityName) { ContactTile.decode(tile.activityName)?.first }
+    if (contactId != null) {
+        ContactTileFace(contactId = contactId, name = tile.label.orEmpty(), size = tile.size, modifier = Modifier.fillMaxSize())
+        return
+    }
+
     // Live faces replace the static glyph at medium+ (FR-2). Small tiles and
     // apps with no live face fall through to the static glyph; weather/calendar
     // also fall back to it when their opt-in permission is denied or no data is
@@ -2987,6 +3019,56 @@ private fun StaticTileGlyph(tile: TileModel.App) {
             TileIconContent(glyphSize)
             Spacer(Modifier.weight(1f))
             TileLabel(tile.label.orEmpty())
+        }
+    }
+}
+
+/**
+ * A pinned contact's tile face: the contact's own photo full-bleed (WP people
+ * tile style) with the name legible over a bottom scrim, or — when they have no
+ * photo, or it fails to load — the "people" glyph over the tile's normal
+ * accent/gradient/wallpaper fill (drawn by the caller Box, same as
+ * [StaticTileGlyph]) so the colour picker still means something for them.
+ */
+@Composable
+private fun ContactTileFace(contactId: Long, name: String, size: TileSize, modifier: Modifier = Modifier) {
+    val photoUri = rememberContactPhotoUri(contactId)
+    val photo = photoUri?.let { rememberTileBitmap(it, targetPx = if (size == TileSize.LARGE) 300 else 150) }
+    if (photo != null) {
+        Box(modifier = modifier) {
+            Image(
+                bitmap = photo,
+                contentDescription = name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+            if (size != TileSize.SMALL) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)))),
+                )
+                Text(
+                    text = name.lowercase(),
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    modifier = Modifier.align(Alignment.BottomStart).padding(11.dp),
+                )
+            }
+        }
+    } else if (size == TileSize.SMALL) {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            Icon(TileIcons["people"], null, tint = Color.White, modifier = Modifier.size(30.dp))
+        }
+    } else {
+        val glyphSize = if (size == TileSize.LARGE) 46 else 34
+        Column(modifier = modifier.padding(11.dp)) {
+            Icon(TileIcons["people"], null, tint = Color.White, modifier = Modifier.size(glyphSize.dp))
+            Spacer(Modifier.weight(1f))
+            TileLabel(name)
         }
     }
 }
@@ -3455,6 +3537,14 @@ private fun launchAddEvent(context: Context) {
 private fun onTileClick(context: Context, tile: TileModel) {
     when (tile) {
         is TileModel.App -> {
+            // A pinned contact (quick search → "pin to start"): reopen its
+            // contact card rather than falling into the liveOnly branch below
+            // (its packageName is blank the same way weather/calendar's is).
+            val contact = ContactTile.decode(tile.activityName)
+            if (contact != null) {
+                openContactCard(context, contact.first, contact.second)
+                return
+            }
             // Clock tile: open the system clock's alarms screen. Reliable across
             // devices (works even when the clock role didn't resolve to a launch
             // component, which otherwise left the tap inert) and matches the tile's
@@ -3503,6 +3593,11 @@ private fun onTileClick(context: Context, tile: TileModel) {
  * stack (whose package is not part of its folder identity) errored out.
  */
 private fun launchFolderChild(context: Context, child: FolderChild) {
+    val contact = ContactTile.decode(child.activityName)
+    if (contact != null) {
+        openContactCard(context, contact.first, contact.second)
+        return
+    }
     if (child.iconKey == "clock" && openClock(context)) return
     if (child.packageName.isNotBlank()) {
         if (NotificationCenter.openAndClear(context, child.packageName)) return
@@ -3512,6 +3607,13 @@ private fun launchFolderChild(context: Context, child: FolderChild) {
     } else {
         launchLiveTileFallback(context, child.iconKey)
     }
+}
+
+/** Opens a pinned contact's card ([ContactTile]) via `ACTION_VIEW`. Best-effort. */
+private fun openContactCard(context: Context, contactId: Long, lookupKey: String) {
+    val intent = Intent(Intent.ACTION_VIEW, contactLookupUri(contactId, lookupKey))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { context.startActivity(intent) }
 }
 
 private fun launchLiveTileFallback(context: Context, iconKey: String?) {

@@ -1562,3 +1562,57 @@ the only entry point available; several choices below are therefore new, not por
 - **Tapping a contact opens the contact card**, not a call/message shortcut
   (`ContactsContract.Contacts.getLookupUri` + `ACTION_VIEW`) — the safer, permission-free
   action for a launcher-level search (calling/texting are the *contacts app's* job).
+
+## Quick search follow-up: contact quick actions, pin-to-start, photos, recent/suggested
+
+Four follow-up additions, all scoped to the quick search overlay from the previous session.
+
+- **Call/message reintroduced, but as a long-press menu, not the default tap.** The prior
+  session deliberately made tap-a-contact open the card, not call/text, reasoning that's the
+  contacts app's job. Revisited: a long-press menu (450ms, same threshold as the app list's
+  pin gesture — a private `tapOrLongPress` duplicated into `QuickSearchOverlay.kt`, a different
+  module from `AppListScreen`'s) keeps the *tap* behaviour unchanged while adding "call"/
+  "message" as an explicit, deliberate action alongside "pin to start". Numbers are looked up
+  lazily (`ContactsSource.primaryPhoneNumber`, only queried once the menu opens) rather than
+  for all 5 rows on every keystroke. `ACTION_DIAL`/`ACTION_SENDTO`, not a direct `CALL_PHONE`
+  intent — opens the dialer/messaging app pre-filled, no new dangerous permission.
+- **Pinning a contact reuses the App tile shape instead of a new tile kind.** A `TileModel`
+  sealed-interface addition would touch merge (`TileMerge.kt`), stack/resize, accessibility
+  labels, and every `when (tile)` in `StartScreen.kt`/`StartViewModel.kt`/`AppListViewModel.kt` —
+  real surface area for what's fundamentally the weather/calendar tiles' own trick: a `TileModel.App`
+  with no resolvable launch component. `ContactTile.encode`/`decode` (`:core:data`, pure,
+  unit-tested) packs the contact's id + lookup key into `activityName` (`packageName` stays
+  blank, exactly like `DefaultTile.liveOnly`); `iconKey = "contact"` marks it for rendering.
+  Zero schema change, and the tile gets merge/resize/drag/per-tile-colour for free by riding the
+  existing App tile machinery — a bonus of the representation, not something coded specially.
+  The tradeoff: every `TileModel.App` consumer must remember to check `ContactTile.decode` before
+  assuming a blank `packageName` means weather/calendar (`onTileClick`, `launchFolderChild`,
+  `AppTileContent` all do).
+- **Merge-dedup bug this surfaced, fixed alongside it.** `TileMerge.mergeKey()` keyed a blank-
+  package tile on `iconKey` alone (`"live:${iconKey}"`) — correct while there was at most one
+  weather, one calendar, one clock tile ever, but every pinned contact shares the same
+  `"contact"` iconKey, so merging two contacts collided onto one dedup slot and silently
+  dropped one. Fixed by also keying on `activityName` (blank for weather/calendar/clock, so
+  no behaviour change there; unique per contact). Would have been latent forever without
+  contact tiles existing to exercise it.
+- **Contact tile face: full-bleed photo, or the tile's normal fill + glyph — never a
+  separate flat colour.** With a photo, it fills the tile (`ContentScale.Crop`) with the name
+  legible over a bottom gradient scrim — the WP people-tile look. Without one, *nothing* is
+  drawn as a background by `ContactTileFace` itself; the "people" glyph + name sit directly over
+  whatever the tile's normal accent/gradient/wallpaper-window fill already painted (same
+  convention as `StaticTileGlyph`), so the per-tile colour picker still does something useful for
+  a photo-less contact instead of being silently overridden by a separate initials-colour palette.
+- **Photos section is images-only, not "files/documents" broadly.** A true system-wide
+  downloads/documents search needs `MANAGE_EXTERNAL_STORAGE` — Play-Console-reviewed, a much
+  heavier ask than every other permission this launcher requests. `READ_MEDIA_IMAGES` (API 33+)
+  / `READ_EXTERNAL_STORAGE` (below it) covers photo filename search via
+  `MediaStore.Images.Media`, follows the exact same opt-in/degrade-to-a-row pattern as contacts,
+  and is the honest scope: "photos" in the search box copy, not "files."
+  `MediaSearch.searchPhotos` doesn't require the DisplayName selection to be indexed — fine at
+  quick-search's row counts (capped at 5).
+- **Recent searches record on action, not on every keystroke or on cancel.** `RecentSearches`
+  (`:core:data`, mirrors `RecentApps`'s DataStore/codec exactly) is written only from the
+  overlay's `act()` wrapper — used by every result tap and the keyboard "search" action — never
+  from a scrim-tap or back-press cancel, so abandoned typing never pollutes the suggestion list.
+  "Suggested apps" reuses `AppListFilter.topApps` (already unit-tested for the app list's own
+  "recent" section) rather than inventing new ranking logic — one function, two call sites.

@@ -1,10 +1,17 @@
 package com.tileshell.feature.livetiles
 
+import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
 import android.provider.ContactsContract
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import kotlin.math.abs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * One contact shown in the people mosaic (FR-2 people tile): a [name] and the
@@ -144,3 +151,47 @@ fun searchContacts(context: Context, query: String, limit: Int = 5): List<Contac
 /** The contact card URI for [contactId]/[lookupKey] — opened via `ACTION_VIEW`. */
 fun contactLookupUri(contactId: Long, lookupKey: String): Uri =
     ContactsContract.Contacts.getLookupUri(contactId, lookupKey)
+
+/**
+ * The contact's primary phone number (super-primary first, else the first on
+ * file), or null if it has none / access is denied — degrades the quick-search
+ * call/message row rather than crashing.
+ */
+fun primaryPhoneNumber(context: Context, contactId: Long): String? {
+    val projection = arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER)
+    return runCatching {
+        context.contentResolver.query(
+            ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+            projection,
+            "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
+            arrayOf(contactId.toString()),
+            "${ContactsContract.CommonDataKinds.Phone.IS_SUPER_PRIMARY} DESC",
+        )?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0)?.ifBlank { null } else null }
+    }.getOrNull()
+}
+
+/** The contact's current profile-photo thumbnail URI, or null if it has none. */
+fun photoUriFor(context: Context, contactId: Long): String? {
+    val projection = arrayOf(ContactsContract.Contacts.PHOTO_THUMBNAIL_URI)
+    return runCatching {
+        val uri = ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, contactId)
+        context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0)?.ifBlank { null } else null
+        }
+    }.getOrNull()
+}
+
+/**
+ * The pinned-contact tile face's photo, re-resolved off the main thread each
+ * time [contactId] changes — a pinned contact tile only stores the contact's
+ * identity (see `ContactTile`), not a snapshot of their photo, so it's looked
+ * up live and simply shows nothing if the contact/photo has since been removed.
+ */
+@Composable
+fun rememberContactPhotoUri(contactId: Long): String? {
+    val context = LocalContext.current
+    val uri by produceState<String?>(initialValue = null, contactId) {
+        value = withContext(Dispatchers.IO) { photoUriFor(context, contactId) }
+    }
+    return uri
+}

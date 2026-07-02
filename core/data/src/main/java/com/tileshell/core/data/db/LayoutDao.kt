@@ -31,6 +31,16 @@ interface LayoutDao {
     @Query("SELECT COUNT(*) FROM tiles WHERE type = 'app' AND packageName = :packageName")
     suspend fun appTileCount(packageName: String): Int
 
+    /**
+     * Count app tiles with a given `activityName` — used to de-dupe pinning a
+     * contact (quick search → "pin to start"): contact tiles share a blank
+     * `packageName` (like the weather/calendar liveOnly tiles) so [appTileCount]
+     * can't tell them apart; `activityName` encodes the contact's identity
+     * ([com.tileshell.core.data.ContactTile]) and is unique per contact.
+     */
+    @Query("SELECT COUNT(*) FROM tiles WHERE type = 'app' AND activityName = :activityName")
+    suspend fun activityTileCount(activityName: String): Int
+
     /** Highest grid position, or -1 when empty — new tiles append after it. */
     @Query("SELECT COALESCE(MAX(position), -1) FROM tiles")
     suspend fun maxPosition(): Int

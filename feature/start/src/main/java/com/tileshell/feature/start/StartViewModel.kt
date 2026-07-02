@@ -19,6 +19,7 @@ import com.tileshell.core.data.HiddenApps
 import com.tileshell.core.data.LayoutHistoryRepository
 import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.LayoutSnapshot
+import com.tileshell.core.data.PinResult
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.settings.LauncherSettings
@@ -630,6 +631,23 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     // One-shot toast messages emitted after an export/import completes (or fails).
     private val _backupMessage = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val backupMessage: SharedFlow<String> = _backupMessage.asSharedFlow()
+
+    // One-shot toast messages emitted after a "pin to start" action from quick search.
+    private val _pinMessage = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val pinMessage: SharedFlow<String> = _pinMessage.asSharedFlow()
+
+    /** Pin a contact to Start from quick search's "pin to start" action. */
+    fun pinContact(contactId: Long, lookupKey: String, name: String) {
+        viewModelScope.launch(writeContext) {
+            val result = repository.pinContact(contactId, lookupKey, name)
+            _pinMessage.tryEmit(
+                when (result) {
+                    PinResult.PINNED -> "pinned $name to start"
+                    PinResult.ALREADY_ON_START -> "already on start"
+                },
+            )
+        }
+    }
 
     /** Export the current layout + settings to the SAF URI chosen by the user. */
     fun exportBackup(uri: Uri) {

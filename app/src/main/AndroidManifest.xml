@@ -16,6 +16,13 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- People tile (FR-2): contact names + thumbnails for the avatar mosaic. -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Quick search "photos" section: filename search across the device's photo
+         library (not just this app's own imports, unlike the personalize photo
+         picker). Split the same way Android itself split it at API 33. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
     <!-- Weather tile (FR-2): fetch a live, location-specific forecast from the
          no-API-key Open-Meteo service. -->
     <uses-permission android:name="android.permission.INTERNET" />

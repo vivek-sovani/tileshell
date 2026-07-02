@@ -36,6 +36,32 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-S27 — quick search follow-up: call/message/pin-to-start on contacts, photos section, recent/suggested.**
+  Four additions to quick search, all UI-only (see DECISIONS "Quick search follow-up"):
+  (1) **contact quick actions** — long-press a contact result (450ms, mirrors the app list's
+  pin gesture) for a menu: "call"/"message" (`ACTION_DIAL`/`ACTION_SENDTO`, only shown once a
+  number resolves via new `ContactsSource.primaryPhoneNumber`) and "pin to start"; a plain tap
+  still opens the contact card. (2) **pin a contact to Start** — `LayoutRepository.pinContact`
+  stores it as a plain `TileModel.App` with a blank `packageName` (like the weather/calendar
+  liveOnly tiles) whose `activityName` encodes the contact's identity (new `ContactTile.encode`/
+  `decode`, `:core:data`, unit-tested round-trip) — no schema change, and the tile gets merge/
+  resize/drag/accent-override for free by reusing the App tile machinery. `AppTileContent` gained
+  a `ContactTileFace` (photo full-bleed + name over a bottom scrim, or the "people" glyph over
+  the tile's normal accent when there's no photo) and `onTileClick`/`launchFolderChild` reopen the
+  contact card instead of the liveOnly weather/calendar fallback. Fixed a latent merge-dedup bug
+  this surfaced: `TileMerge.mergeKey()` keyed blank-package tiles on `iconKey` alone, which is fine
+  for weather/calendar/clock (one of each) but every contact shares the `"contact"` iconKey, so
+  merging two would silently drop one — now also keys on `activityName`. (3) **photos section** —
+  new `MediaSearch.kt` (`:feature:livetiles`) matches filenames via `MediaStore.Images.Media`,
+  gated on a new opt-in `READ_MEDIA_IMAGES`/`READ_EXTERNAL_STORAGE` permission (same request-when-
+  needed/degrade-to-a-row pattern as contacts); tapping opens the photo (`ACTION_VIEW`). Scoped to
+  images only — a true "downloads/documents" search needs `MANAGE_EXTERNAL_STORAGE`, too heavy an
+  ask next to this launcher's other permissions. (4) **recent searches + suggested apps** — new
+  `RecentSearches` DataStore (`:core:data`, mirrors `RecentApps`) records each acted-on query
+  (not abandoned/cancelled ones); before typing anything the overlay now shows up to 5 recent
+  queries (tap to reuse, "×" to remove) and up to 5 frequently-launched apps (reuses
+  `AppListFilter.topApps`, already tested) instead of being blank. Build + tests green (new
+  `ContactTileTest`).
 - **Post-S27 — quick search (two-finger swipe-down): apps, contacts, web.** New gesture entry
   point on Start, not in the WP prototype/spec — see DECISIONS "Quick search". A two-finger
   swipe-down (tracked in `StartScreen.kt`'s outer `pointerInput`, pure threshold check

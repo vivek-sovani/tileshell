@@ -41,10 +41,14 @@ private fun TileModel.apps(): List<FolderChild> = when (this) {
  * Dedup identity for a merge. Real apps key on their launch component. Self-contained
  * `liveOnly` tiles (weather/calendar/clock) all share a blank package/activity — see
  * `DefaultTile.liveOnly` — so they'd otherwise collide onto one dedup slot and silently
- * disappear when merged together; key those on `iconKey` (distinct per live face) instead.
+ * disappear when merged together; key those on `iconKey` (distinct per live face) plus
+ * `activityName` too — weather/calendar/clock all leave `activityName` blank so this is a
+ * no-op for them, but a pinned contact tile (`ContactTile`) shares the `"contact"` iconKey
+ * across every contact, so without the activityName (which encodes the contact's identity)
+ * every contact would collide onto the same slot and merging two would drop one.
  */
 private fun FolderChild.mergeKey(): String =
-    if (packageName.isNotBlank()) "$packageName/$activityName" else "live:${iconKey ?: label}"
+    if (packageName.isNotBlank()) "$packageName/$activityName" else "live:${iconKey ?: label}:$activityName"
 
 /**
  * A tile that can take part in a **widget stack**: a LARGE app tile, or a folder
