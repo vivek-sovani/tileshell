@@ -594,7 +594,7 @@ fun PersonalizeSheet(
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     PermissionRow(
                         label = "contacts",
-                        description = "people tile",
+                        description = "people tile · quick search",
                         granted = contactsGranted,
                         accent = accent,
                         tokens = tokens,

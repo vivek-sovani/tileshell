@@ -43,8 +43,12 @@ android {
         //   picker + full small/medium/wide/large resize cycle inside a folder overlay;
         //   folder overlay "make wide/large stack" shortcut; calendar/weather tile layout
         //   fixes at WIDE size).
-        versionCode = 61
-        versionName = "1.5.1"
+        // v1.6.0 = 70 (quick search: two-finger swipe-down opens apps/contacts/web search,
+        //   contact call/message/pin-to-start, recent searches + suggested apps; apps with a
+        //   pending notification surface in the app list's recent section even when unpinned;
+        //   hide/unhide apps from the app list; Samsung Gallery "story" notification fix).
+        versionCode = 70
+        versionName = "1.6.0"
     }
 
     if (keystoreFile.exists()) {

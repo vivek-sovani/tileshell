@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v1.5 listing draft — update before each release*
+*v1.6 listing draft — update before each release*
 
 ---
 
@@ -154,6 +154,19 @@ data. Users can also clear app data via Android Settings at any time.
 | Feature graphic | 1024 × 500 px | Required for listing banner |
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
+
+## Release notes (v1.6.0)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 1.6.0
+
+• New: Quick Search — swipe down with two fingers on Start to search apps, contacts, and the web
+• Long-press a contact to call, message, or pin it to Start
+• New: hide apps from the App List; apps with a notification show in Recent even if unpinned
+• Gallery tile now reliably flips to show pending notifications
+```
 
 ## Release notes (v1.5.1)
 

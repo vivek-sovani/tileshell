@@ -168,6 +168,21 @@ fun AboutSheet(
                     "unread badge counts on app tiles",
                     "landscape mode shows feed and start side by side",
                     "hide apps you don't want cluttering the app list — bring them back any time from personalize",
+                    "apps with a pending notification show up in the app list's recent section, even if they're not pinned to start",
+                ),
+            )
+
+            FeatureGroup(
+                title = "quick search",
+                accent = accent,
+                tokens = tokens,
+                items = listOf(
+                    "swipe down with two fingers on start to open quick search",
+                    "search apps, contacts, and the web from one box",
+                    "before you type: jump back into a recent search or a frequently-used app",
+                    "tap a contact to open their contact card",
+                    "long-press a contact result to call, message, or pin them to start",
+                    "pinned contacts show their real photo on the tile",
                 ),
             )
 
