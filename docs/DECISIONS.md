@@ -1602,14 +1602,18 @@ Four follow-up additions, all scoped to the quick search overlay from the previo
   whatever the tile's normal accent/gradient/wallpaper-window fill already painted (same
   convention as `StaticTileGlyph`), so the per-tile colour picker still does something useful for
   a photo-less contact instead of being silently overridden by a separate initials-colour palette.
-- **Photos section is images-only, not "files/documents" broadly.** A true system-wide
-  downloads/documents search needs `MANAGE_EXTERNAL_STORAGE` — Play-Console-reviewed, a much
-  heavier ask than every other permission this launcher requests. `READ_MEDIA_IMAGES` (API 33+)
-  / `READ_EXTERNAL_STORAGE` (below it) covers photo filename search via
-  `MediaStore.Images.Media`, follows the exact same opt-in/degrade-to-a-row pattern as contacts,
-  and is the honest scope: "photos" in the search box copy, not "files."
-  `MediaSearch.searchPhotos` doesn't require the DisplayName selection to be indexed — fine at
-  quick-search's row counts (capped at 5).
+- **Photos section shipped, then removed — Play Console declaration, not a technical
+  problem.** It worked (verified on-device: filename match, thumbnail, opens the photo) —
+  images-only was the right technical scope (a true downloads/documents search needs
+  `MANAGE_EXTERNAL_STORAGE`, much heavier). But `READ_MEDIA_IMAGES`/`READ_EXTERNAL_STORAGE` for
+  photo *search* (not just the picker this app already uses elsewhere for wallpaper/live-photos)
+  falls under Google Play's **Photos and Videos Permissions** policy: publishing to Play would
+  require a declaration form justifying the access. Decided that obligation isn't worth it for
+  a personal-launcher feature, so `MediaSearch.kt` and both permissions were deleted outright
+  (`git log` has the working version if this is ever revisited with Play distribution in mind, or
+  swapped for something that doesn't need the declaration — e.g. only ever showing photos the
+  user already granted via the personal-photos/wallpaper picker, which are already private-storage
+  copies with no extra permission needed, just a smaller corpus to search).
 - **Recent searches record on action, not on every keystroke or on cancel.** `RecentSearches`
   (`:core:data`, mirrors `RecentApps`'s DataStore/codec exactly) is written only from the
   overlay's `act()` wrapper — used by every result tap and the keyboard "search" action — never

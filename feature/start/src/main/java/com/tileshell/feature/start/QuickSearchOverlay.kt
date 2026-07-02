@@ -72,14 +72,12 @@ import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.colorTokens
 import com.tileshell.feature.applist.AppListFilter
 import com.tileshell.feature.livetiles.ContactMatch
-import com.tileshell.feature.livetiles.MediaMatch
 import com.tileshell.feature.livetiles.colorFor
 import com.tileshell.feature.livetiles.contactLookupUri
 import com.tileshell.feature.livetiles.primaryPhoneNumber
 import com.tileshell.feature.livetiles.rememberAppIconBitmap
 import com.tileshell.feature.livetiles.rememberTileBitmap
 import com.tileshell.feature.livetiles.searchContacts
-import com.tileshell.feature.livetiles.searchPhotos
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -90,11 +88,11 @@ private const val QUERY_DEBOUNCE_MS = 150L
 
 /**
  * Quick search: a two-finger swipe-down on Start opens this, showing apps,
- * contacts, photos, and a web-search fallback as the user types — the
- * launcher-native equivalent of a search button, reachable without a dedicated
- * tile. Slides down from the top edge (matching the gesture that opens it)
- * rather than the bottom-up sheets used elsewhere. Before anything is typed it
- * instead shows recent searches and frequently-launched apps.
+ * contacts, and a web-search fallback as the user types — the launcher-native
+ * equivalent of a search button, reachable without a dedicated tile. Slides
+ * down from the top edge (matching the gesture that opens it) rather than the
+ * bottom-up sheets used elsewhere. Before anything is typed it instead shows
+ * recent searches and frequently-launched apps.
  */
 @Composable
 fun QuickSearchOverlay(
@@ -104,8 +102,6 @@ fun QuickSearchOverlay(
     apps: List<AppEntry>,
     contactsGranted: Boolean,
     onRequestContacts: () -> Unit,
-    photosGranted: Boolean,
-    onRequestPhotos: () -> Unit,
     onPinContact: (contactId: Long, lookupKey: String, name: String) -> Unit,
     onDismiss: () -> Unit,
     rightHalf: Boolean = false,
@@ -166,15 +162,6 @@ fun QuickSearchOverlay(
             value = withContext(Dispatchers.IO) { searchContacts(context, trimmed, RESULT_LIMIT) }
         }
     }
-    val photoMatches by produceState<List<MediaMatch>>(emptyList(), trimmed, photosGranted) {
-        if (trimmed.isEmpty() || !photosGranted) {
-            value = emptyList()
-        } else {
-            delay(QUERY_DEBOUNCE_MS)
-            value = withContext(Dispatchers.IO) { searchPhotos(context, trimmed, RESULT_LIMIT) }
-        }
-    }
-
     BackHandler(enabled = visible) { dismiss() }
 
     SheetStage(rightHalf = rightHalf, modifier = modifier) {
@@ -215,7 +202,7 @@ fun QuickSearchOverlay(
                 Spacer(Modifier.width(10.dp))
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                     if (query.isEmpty()) {
-                        Text("search apps, contacts, photos & web", color = tokens.fgDim, fontSize = 15.sp)
+                        Text("search apps, contacts & web", color = tokens.fgDim, fontSize = 15.sp)
                     }
                     BasicTextField(
                         value = query,
@@ -298,18 +285,6 @@ fun QuickSearchOverlay(
                     } else {
                         item { RequestRow(tokens, "allow contacts access to search contacts", onRequestContacts) }
                     }
-                    if (photosGranted) {
-                        if (photoMatches.isNotEmpty()) {
-                            item { SearchSectionHeader("photos", accent) }
-                            items(photoMatches, key = { "photo/${it.uri}" }) { photo ->
-                                PhotoResultRow(photo, tokens) {
-                                    act { openPhoto(context, photo.uri) }
-                                }
-                            }
-                        }
-                    } else {
-                        item { RequestRow(tokens, "allow photo access to search photos", onRequestPhotos) }
-                    }
                     item { SearchSectionHeader("web", accent) }
                     item {
                         WebSearchRow(trimmed, tokens) {
@@ -329,13 +304,6 @@ private fun callContact(context: Context, number: String) {
 
 private fun messageContact(context: Context, number: String) {
     val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${Uri.encode(number)}"))
-    runCatching { context.startActivity(intent) }
-}
-
-private fun openPhoto(context: Context, uri: Uri) {
-    val intent = Intent(Intent.ACTION_VIEW)
-        .setDataAndType(uri, "image/*")
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
     runCatching { context.startActivity(intent) }
 }
 
@@ -454,33 +422,6 @@ private fun ContactResultRow(
             }
             DropdownMenuItem(text = { Text("pin to start") }, onClick = { menuOpen = false; onPin() })
         }
-    }
-}
-
-@Composable
-private fun PhotoResultRow(photo: MediaMatch, tokens: ColorTokens, onTap: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onTap)
-            .padding(horizontal = 18.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        val thumb = rememberTileBitmap(photo.uri.toString(), targetPx = 96)
-        Box(modifier = Modifier.size(32.dp)) {
-            if (thumb != null) {
-                Image(
-                    bitmap = thumb,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                Icon(TileIcons["app"], null, tint = tokens.fg, modifier = Modifier.fillMaxSize())
-            }
-        }
-        Spacer(Modifier.width(14.dp))
-        Text(photo.displayName, color = tokens.fg, fontSize = 16.sp, maxLines = 1)
     }
 }
 

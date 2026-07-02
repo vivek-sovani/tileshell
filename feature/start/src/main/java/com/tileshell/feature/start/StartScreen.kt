@@ -172,7 +172,6 @@ import com.tileshell.feature.livetiles.PhotosData
 import com.tileshell.feature.livetiles.PhotosStore
 import com.tileshell.feature.livetiles.PhotosTileFace
 import com.tileshell.feature.livetiles.contactLookupUri
-import com.tileshell.feature.livetiles.mediaImagesPermission
 import com.tileshell.feature.livetiles.rememberContactPhotoUri
 import com.tileshell.feature.livetiles.rememberTileBitmap
 import com.tileshell.feature.livetiles.WeatherSmallFace
@@ -269,7 +268,6 @@ fun StartScreen(
     val contactsGranted = rememberPermissionGranted(android.Manifest.permission.READ_CONTACTS)
     val calendarGranted = rememberPermissionGranted(android.Manifest.permission.READ_CALENDAR)
     val locationGranted = rememberPermissionGranted(android.Manifest.permission.ACCESS_COARSE_LOCATION)
-    val photosSearchGranted = rememberPermissionGranted(mediaImagesPermission())
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
@@ -383,9 +381,6 @@ fun StartScreen(
     ) { granted ->
         if (granted) WeatherRefreshWorker.refreshNow(context)
     }
-    val photosSearchLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { /* granted state is re-read on ON_RESUME via rememberPermissionGranted */ }
 
     // SAF launchers for backup export/import (permission-free; supports Google Drive).
     val backupExportLauncher = rememberLauncherForActivityResult(
@@ -985,7 +980,7 @@ fun StartScreen(
             onDismiss = viewModel::closeHiddenApps,
         )
 
-        // Quick search (two-finger swipe-down on Start): apps, contacts, photos, web.
+        // Quick search (two-finger swipe-down on Start): apps, contacts, web.
         QuickSearchOverlay(
             visible = searchOpen,
             dark = dark,
@@ -994,10 +989,6 @@ fun StartScreen(
             contactsGranted = contactsGranted,
             onRequestContacts = {
                 contactsLauncher.launch(android.Manifest.permission.READ_CONTACTS)
-            },
-            photosGranted = photosSearchGranted,
-            onRequestPhotos = {
-                photosSearchLauncher.launch(mediaImagesPermission())
             },
             onPinContact = viewModel::pinContact,
             onDismiss = viewModel::closeSearch,
