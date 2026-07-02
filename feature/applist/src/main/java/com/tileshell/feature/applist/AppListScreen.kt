@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -34,6 +35,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -77,6 +79,7 @@ import com.tileshell.core.data.PinResult
 import com.tileshell.core.design.LocalAccent
 import com.tileshell.core.design.LocalColorTokens
 import com.tileshell.core.design.TileIcons
+import com.tileshell.feature.livetiles.NotificationCenter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -110,6 +113,7 @@ fun AppListScreen(
     val apps by viewModel.filteredApps.collectAsStateWithLifecycle()
     val topApps by viewModel.topApps.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
+    val notifications by NotificationCenter.snapshot.collectAsStateWithLifecycle()
     val accent = LocalAccent.current // global accent (FR-7, S17)
     val context = LocalContext.current
 
@@ -176,11 +180,17 @@ fun AppListScreen(
                                 app = app,
                                 onTap = {
                                     viewModel.resetQuery()
-                                    AppLauncher.launch(context, app.packageName, app.activityName)
+                                    // A pending notification takes tap priority — opens it inside
+                                    // the app (and clears it), matching Start tile taps. Falls
+                                    // back to a plain launch when nothing is pending.
+                                    if (!NotificationCenter.openAndClear(context, app.packageName)) {
+                                        AppLauncher.launch(context, app.packageName, app.activityName)
+                                    }
                                 },
                                 onPin = { viewModel.pin(app) },
                                 onUninstall = { uninstallApp(context, app.packageName) },
                                 onHide = { viewModel.hide(app) },
+                                badgeCount = notifications.badgeFor(app.packageName),
                             )
                         }
                     }
@@ -284,6 +294,7 @@ private fun AppRow(
     onPin: () -> Unit,
     onUninstall: () -> Unit,
     onHide: () -> Unit,
+    badgeCount: Int = 0,
 ) {
     // Long-press opens a WP-style context menu: pin the app to Start, hide it
     // from the list, or uninstall it (the system uninstall dialog). A quick tap
@@ -298,7 +309,11 @@ private fun AppRow(
                 // custom actions (the sighted long-press menu isn't reachable
                 // otherwise).
                 .clearAndSetSemantics {
-                    contentDescription = app.label
+                    contentDescription = if (badgeCount > 0) {
+                        "${app.label}, $badgeCount notifications"
+                    } else {
+                        app.label
+                    }
                     role = Role.Button
                     onClick(label = "launch") { onTap(); true }
                     customActions = listOf(
@@ -329,6 +344,26 @@ private fun AppRow(
                         tint = LocalColorTokens.current.fg,
                         modifier = Modifier.size(28.dp),
                     )
+                }
+                if (badgeCount > 0) {
+                    // A pending notification on an app not pinned to Start has no
+                    // tile to badge, so it gets one here instead (mirrors the Start
+                    // tile's NotificationBadge).
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .size(16.dp)
+                            .background(LocalAccent.current, CircleShape)
+                            .border(1.dp, LocalColorTokens.current.bg, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = if (badgeCount > 9) "9+" else badgeCount.toString(),
+                            color = Color.White,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
                 }
             }
             Spacer(Modifier.width(14.dp))

@@ -9,6 +9,8 @@ import com.tileshell.core.data.HiddenApps
 import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.PinResult
 import com.tileshell.core.data.RecentApps
+import com.tileshell.core.data.TileModel
+import com.tileshell.feature.livetiles.NotificationCenter
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -17,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -70,15 +73,51 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
             initialValue = emptyList(),
         )
 
+    /** Packages currently pinned to Start, top-level or inside a folder — these already show a badge on their own tile. */
+    private val pinnedPackages: StateFlow<Set<String>> =
+        layout.tiles.map { tiles ->
+            buildSet {
+                tiles.forEach { tile ->
+                    when (tile) {
+                        is TileModel.App -> add(tile.packageName)
+                        is TileModel.Folder -> tile.children.mapTo(this) { it.packageName }
+                    }
+                }
+            }
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptySet(),
+        )
+
     /**
-     * The "recent" section (recently-launched + newly-installed) shown above the
+     * Packages with a pending notification that aren't pinned to Start, so they
+     * have no tile to badge — these get surfaced in the "recent" section instead.
+     */
+    private val notifiedPackages: StateFlow<Set<String>> =
+        combine(NotificationCenter.snapshot, pinnedPackages) { snapshot, pinned ->
+            snapshot.badges.keys - pinned
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptySet(),
+        )
+
+    /**
+     * The "recent" section (recently-launched + newly-installed + apps with a
+     * pending notification that aren't pinned to Start) shown above the
      * alphabetical list when the search box is empty. Empty while searching, and
      * hidden apps are excluded here too.
      */
     val topApps: StateFlow<List<AppEntry>> =
-        combine(apps, recentKeys, _query, hiddenPackages) { list, keys, q, hidden ->
+        combine(apps, recentKeys, _query, hiddenPackages, notifiedPackages) { list, keys, q, hidden, notified ->
             if (q.isNotBlank()) emptyList()
-            else AppListFilter.topApps(list.filterNot { it.packageName in hidden }, keys, System.currentTimeMillis())
+            else AppListFilter.topApps(
+                list.filterNot { it.packageName in hidden },
+                keys,
+                System.currentTimeMillis(),
+                notified,
+            )
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),

@@ -96,4 +96,34 @@ class AppListFilterTest {
         val list = listOf(app("Old", installed = now - 100 * day))
         assertEquals(emptyList<AppEntry>(), AppListFilter.topApps(list, emptyList(), now))
     }
+
+    @Test
+    fun `apps with a pending notification are appended after recent and new`() {
+        val recent = app("Recent", installed = 0)
+        val notified = app("Notified", installed = 0)
+        val untouched = app("Untouched", installed = 0)
+        val list = listOf(recent, notified, untouched)
+
+        val top = AppListFilter.topApps(
+            list,
+            recentKeys = listOf(recent.key),
+            nowMillis = now,
+            notifiedPackages = setOf(notified.packageName),
+        )
+        assertEquals(listOf("Recent", "Notified"), top.map { it.label })
+    }
+
+    @Test
+    fun `a notified app already in recent or new is not duplicated`() {
+        val recent = app("Recent", installed = 0)
+        val list = listOf(recent)
+
+        val top = AppListFilter.topApps(
+            list,
+            recentKeys = listOf(recent.key),
+            nowMillis = now,
+            notifiedPackages = setOf(recent.packageName),
+        )
+        assertEquals(listOf("Recent"), top.map { it.label })
+    }
 }

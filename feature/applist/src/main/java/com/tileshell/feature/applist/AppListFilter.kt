@@ -31,13 +31,16 @@ object AppListFilter {
      * the up-to-[MAX_RECENT] most-recently-launched apps (ordered by [recentKeys],
      * most-recent first), followed by up-to-[MAX_NEW] newly-installed apps
      * (installed within the last week of [nowMillis], newest first) that aren't
-     * already in the recent set. De-duplicated; only apps still in [apps] are kept.
-     * Pure, so the ordering/windowing is unit-testable.
+     * already in the recent set, followed by any app in [notifiedPackages] (an
+     * app with a pending notification that isn't pinned to Start, so it has no
+     * tile to badge) not already covered above. De-duplicated; only apps still
+     * in [apps] are kept. Pure, so the ordering/windowing is unit-testable.
      */
     fun topApps(
         apps: List<AppEntry>,
         recentKeys: List<String>,
         nowMillis: Long,
+        notifiedPackages: Set<String> = emptySet(),
     ): List<AppEntry> {
         val byKey = apps.associateBy { it.key }
         val recent = recentKeys.mapNotNull { byKey[it] }.take(MAX_RECENT)
@@ -47,6 +50,10 @@ object AppListFilter {
             .filter { it.key !in recentKeySet }
             .sortedByDescending { it.firstInstallTime }
             .take(MAX_NEW)
-        return recent + newlyInstalled
+        val shown = recent + newlyInstalled
+        if (notifiedPackages.isEmpty()) return shown
+        val shownKeys = shown.mapTo(mutableSetOf()) { it.key }
+        val notified = apps.filter { it.packageName in notifiedPackages && it.key !in shownKeys }
+        return shown + notified
     }
 }

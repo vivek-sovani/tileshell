@@ -29,6 +29,7 @@ android {
 dependencies {
     implementation(project(":core:data"))
     implementation(project(":core:design"))
+    implementation(project(":feature:livetiles")) // NotificationCenter for the recent section's notification indicator
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.android)
