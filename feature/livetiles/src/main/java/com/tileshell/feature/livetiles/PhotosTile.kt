@@ -49,7 +49,9 @@ private const val NOTIF_HOLD_MS = 3_000L
  * without losing the slideshow. This flip is self-managed (not driven by the shared
  * scheduler) and happens *only* while a notification is pending — with nothing
  * pending the tile stays on the slideshow and never turns. When no photos are
- * picked it renders [fallback] (the static glyph), unchanged.
+ * picked there is nothing to turn back to, so a pending notification is shown
+ * directly (no flip); with neither photos nor a notification it renders
+ * [fallback] (the static glyph), unchanged.
  *
  * Standalone mode ([forcedIndex] = null, default): while [active] the photo advances
  * every ~3.0 s with an ~0.8 s cross-fade, and the notification flip (above) applies.
@@ -72,7 +74,39 @@ fun PhotosTileFace(
     val context = LocalContext.current
     val store = remember(context) { PhotosStore.create(context) }
     val uris = store.data.collectAsState(initial = PhotosData()).value.uris
-    if (uris.isEmpty()) return fallback()
+
+    // The gallery app's newest notification, if any. Only consulted for standalone
+    // tiles (a stack member never flips to a notification).
+    val snapshot by NotificationCenter.snapshot.collectAsState()
+    val preview = if (forcedIndex == null && packageName.isNotBlank()) {
+        snapshot.conversationFor(packageName)
+    } else {
+        null
+    }
+    val images by NotificationCenter.images.collectAsState()
+    val imgs = images[packageName]
+
+    // No photos picked: with a notification pending, show it directly (no flip —
+    // there is no slideshow to turn back to); otherwise the static glyph, unchanged.
+    if (uris.isEmpty()) {
+        if (preview != null) {
+            Box(modifier = modifier.fillMaxSize()) {
+                NotificationFaceContent(
+                    preview = preview,
+                    avatar = imgs?.avatar?.asImageBitmap(),
+                    picture = imgs?.picture?.asImageBitmap(),
+                    size = size,
+                )
+                AppIconCorner(
+                    packageName = packageName,
+                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+                )
+            }
+        } else {
+            fallback()
+        }
+        return
+    }
 
     // In stack mode the index is driven by forcedIndex (keyed in remember so the
     // correct photo shows immediately on composition, with no first-frame flash).
@@ -89,15 +123,6 @@ fun PhotosTileFace(
             delay(SLIDE_MS)
             index = (index + 1) % uris.size
         }
-    }
-
-    // The gallery app's newest notification, if any. Only consulted for standalone
-    // tiles (a stack member never flips to a notification).
-    val snapshot by NotificationCenter.snapshot.collectAsState()
-    val preview = if (forcedIndex == null && packageName.isNotBlank()) {
-        snapshot.conversationFor(packageName)
-    } else {
-        null
     }
 
     val photoFront: @Composable () -> Unit = {
@@ -153,8 +178,6 @@ fun PhotosTileFace(
         }
     }
 
-    val images by NotificationCenter.images.collectAsState()
-    val imgs = images[packageName]
     Box(modifier = modifier.fillMaxSize()) {
         FlipTile(
             flipped = flipped,
