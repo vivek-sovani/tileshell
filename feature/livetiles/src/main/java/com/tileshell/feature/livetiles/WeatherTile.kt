@@ -95,7 +95,10 @@ fun WeatherSmallFace(
 
 @Composable
 private fun WeatherFront(snapshot: WeatherSnapshot, size: TileSize) {
-    val big = size == TileSize.WIDE
+    // WIDE and MEDIUM share the same 2-row height (only LARGE's 3 rows have the
+    // extra vertical room for the enlarged temperature) — sizing "big" off WIDE
+    // clipped the condition line at the bottom of a WIDE stack member.
+    val big = size == TileSize.LARGE
     val tempSize = if (big) 60.sp else 40.sp
     val place = snapshot.place.ifBlank { "weather" }
     Column(

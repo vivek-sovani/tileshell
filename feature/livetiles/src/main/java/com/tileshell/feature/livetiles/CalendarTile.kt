@@ -129,7 +129,10 @@ fun CalendarSmallFace(active: Boolean, modifier: Modifier = Modifier) {
 
 @Composable
 private fun CalendarDateColumn(today: CalendarToday, size: TileSize) {
-    val big = size == TileSize.WIDE
+    // WIDE and MEDIUM share the same 2-row height (only LARGE's 3 rows have the
+    // extra vertical room for the enlarged day number) — sizing "big" off WIDE
+    // clipped the month/"calendar" lines at the bottom of a WIDE stack member.
+    val big = size == TileSize.LARGE
     Column(
         modifier = Modifier.fillMaxSize().padding(11.dp),
         verticalArrangement = Arrangement.Center,
@@ -152,8 +155,14 @@ private fun CalendarDateColumn(today: CalendarToday, size: TileSize) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        Spacer(Modifier.weight(1f))
-        Text(text = "calendar", color = FaceText.copy(alpha = 0.82f), fontSize = 12.sp, maxLines = 1)
+        // The "calendar" caption only has room on a tall LARGE tile — MEDIUM
+        // and WIDE share LARGE's shorter sibling height with no space left for
+        // a fourth line without clipping it, so it's dropped there rather than
+        // squeezed in; the face is self-evidently a calendar without it.
+        if (big) {
+            Spacer(Modifier.weight(1f))
+            Text(text = "calendar", color = FaceText.copy(alpha = 0.82f), fontSize = 12.sp, maxLines = 1)
+        }
     }
 }
 
