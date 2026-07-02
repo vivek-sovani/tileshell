@@ -167,6 +167,7 @@ fun AboutSheet(
                     "merge two same-size tiles by lining them up centre to centre",
                     "unread badge counts on app tiles",
                     "landscape mode shows feed and start side by side",
+                    "hide apps you don't want cluttering the app list — bring them back any time from personalize",
                 ),
             )
 
@@ -180,6 +181,7 @@ fun AboutSheet(
                     "tap an app icon inside a folder tile to launch it directly",
                     "folder shows overflow count (+N) when more than 4 apps are inside",
                     "resize, reorder, and remove tiles inside an open folder",
+                    "give a tile inside a folder its own colour, just like on start",
                     "pull an app out of a folder to unpin it back to start",
                     "folder shows a combined badge; each app shows its own inside",
                     "music keeps playing controls and album art live inside a folder",
@@ -192,7 +194,9 @@ fun AboutSheet(
                 tokens = tokens,
                 items = listOf(
                     "merge two large tiles to create a widget stack",
+                    "or open a folder and use \"make stack · wide\" to turn every member wide in one shot",
                     "stack shows each member's full live tile — clock, music, notifications",
+                    "each member keeps its own tile colour while the stack rotates",
                     "swipe up or down to flip through stack members instantly",
                     "stack auto-rotates every 6 s; each stack runs on its own independent schedule",
                     "tap the stack to launch the current member's app",
@@ -240,6 +244,7 @@ fun AboutSheet(
                     "music — now-playing, album art, and transport controls",
                     "people — rotating mosaic of your contacts' photos",
                     "photos — cross-fading slideshow of photos you pick",
+                    "photos tile flips to show a gallery notification when one's pending",
                     "mail & messages — latest sender and message snippet",
                     "any app tile shows its latest notification as a preview",
                     "wide and large tiles show more notification content — bigger photos, more lines",

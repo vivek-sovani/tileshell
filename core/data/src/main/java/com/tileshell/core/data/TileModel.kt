@@ -48,7 +48,7 @@ sealed interface TileModel {
     ) : TileModel {
         /**
          * A folder renders as a **widget stack** (a swipeable carousel of full-size
-         * live tiles) while every member is the same size = LARGE. Derived, not
+         * live tiles) while every member is uniformly WIDE or LARGE. Derived, not
          * stored: the instant a member is resized down or a smaller tile is merged
          * in, this turns false and the folder renders as the normal mini-grid.
          */
