@@ -113,6 +113,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -248,6 +249,7 @@ fun StartScreen(
     val backupOpen by viewModel.backupOpen.collectAsStateWithLifecycle()
     val foldersOpen by viewModel.foldersOpen.collectAsStateWithLifecycle()
     val hiddenAppsOpen by viewModel.hiddenAppsOpen.collectAsStateWithLifecycle()
+    val searchOpen by viewModel.searchOpen.collectAsStateWithLifecycle()
     val hiddenPackages by viewModel.hiddenPackages.collectAsStateWithLifecycle()
     val isAppList by viewModel.isAppList.collectAsStateWithLifecycle()
     val apps by viewModel.apps.collectAsStateWithLifecycle()
@@ -504,6 +506,51 @@ fun StartScreen(
         }
     }
 
+    // Two-finger swipe-down opens quick search — only while resting on Start with
+    // nothing else already up (edit mode / a folder already disables swipeEnabled;
+    // the sheet flags are checked directly since they don't touch it).
+    val restingAtStart = abs(progress.value) < 0.05f
+    val quickSearchEnabled = swipeEnabled && restingAtStart && !searchOpen &&
+        !personalizeOpen && !aboutOpen && !historyOpen && !backupOpen &&
+        !foldersOpen && !hiddenAppsOpen
+    // Runs in the Initial pass like the pager, but keys off pointer *count* (2)
+    // rather than direction, so it never competes with the single-finger pager /
+    // tile-drag gestures below it — those simply never see a second pointer.
+    val quickSearchGesture = Modifier.pointerInput(quickSearchEnabled) {
+        if (!quickSearchEnabled) return@pointerInput
+        val thresholdPx = 40.dp.toPx()
+        awaitEachGesture {
+            val first = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            val startA = first.position
+            var secondId: PointerId? = null
+            var startB = Offset.Zero
+            var triggered = false
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                val pressed = event.changes.filter { it.pressed }
+                if (pressed.isEmpty()) break
+                if (secondId == null) {
+                    pressed.firstOrNull { it.id != first.id }?.let {
+                        secondId = it.id
+                        startB = it.position
+                    }
+                }
+                val second = secondId
+                if (!triggered && second != null) {
+                    val a = pressed.firstOrNull { it.id == first.id } ?: break
+                    val b = pressed.firstOrNull { it.id == second } ?: break
+                    val dy = ((a.position.y - startA.y) + (b.position.y - startB.y)) / 2f
+                    val dx = ((a.position.x - startA.x) + (b.position.x - startB.x)) / 2f
+                    if (isQuickSearchSwipe(dy, dx, thresholdPx)) {
+                        triggered = true
+                        viewModel.openSearch()
+                    }
+                }
+                if (triggered) event.changes.forEach { it.consume() }
+            }
+        }
+    }
+
     val density = LocalDensity.current
     CompositionLocalProvider(
         LocalColorTokens provides tokens,
@@ -513,7 +560,7 @@ fun StartScreen(
         LocalTileFont provides tileFont,
         LocalTextStyle provides baseTextStyle.copy(fontFamily = tileFont),
     ) {
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize().then(quickSearchGesture)) {
         val widthPx = constraints.maxWidth.toFloat()
         val viewportHeightPx = constraints.maxHeight.toFloat()
         val statusBarTopPx = WindowInsets.statusBars.getTop(density).toFloat()
@@ -919,6 +966,19 @@ fun StartScreen(
             apps = hiddenAppEntries,
             onUnhide = { viewModel.unhide(it.packageName) },
             onDismiss = viewModel::closeHiddenApps,
+        )
+
+        // Quick search (two-finger swipe-down on Start): apps, contacts, web.
+        QuickSearchOverlay(
+            visible = searchOpen,
+            dark = dark,
+            accentId = settings.accentId,
+            apps = apps.filterNot { it.packageName in hiddenPackages },
+            contactsGranted = contactsGranted,
+            onRequestContacts = {
+                contactsLauncher.launch(android.Manifest.permission.READ_CONTACTS)
+            },
+            onDismiss = viewModel::closeSearch,
         )
 
         // Layout history sheet (personalize → history).
@@ -3359,7 +3419,7 @@ private fun TileLabel(text: String) {
  * back to a browser `google.com/search` view when nothing handles the search
  * action. Best-effort — both attempts are guarded so a missing handler is silent.
  */
-private fun launchWebSearch(context: Context, query: String) {
+internal fun launchWebSearch(context: Context, query: String) {
     val trimmed = query.trim()
     if (trimmed.isEmpty()) return
     val search = Intent(Intent.ACTION_WEB_SEARCH)

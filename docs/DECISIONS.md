@@ -1523,3 +1523,42 @@ auto-rotate stays. Swipe up → next, down → previous.
   drops the member instead of re-pinning it to Start, dissolving the stack to a single
   tile when one remains. Pick the member to delete by swiping to it before/while editing
   (auto-rotate is paused in edit, so the shown member is the one removed).
+
+## Quick search: two-finger swipe-down overlay (apps, contacts, web)
+
+Not in the WP prototype or spec — a new request (search apps/contacts/web from Start via a
+gesture). No dedicated "search" tile or button exists in this launcher, so a gesture was
+the only entry point available; several choices below are therefore new, not ported.
+
+- **Naming.** Called **"quick search"**, not "Spotlight" (that's iOS branding) — chosen to
+  match the doc comment already on `launchWebSearch` ("the Quick Search Box / Google app
+  picks it up"), so the name ties into an existing in-repo concept rather than inventing one.
+- **Gesture: two-finger swipe-down, not a button/tile.** A `pointerInput` on the outer
+  `BoxWithConstraints` (`StartScreen.kt`) tracks two concurrent pointers' *average* vertical
+  travel since both went down; `isQuickSearchSwipe` (pure, unit-tested,
+  `QuickSearchGesture.kt`) fires once the average downward travel clears 40dp and is more
+  vertical than horizontal. Runs in `PointerEventPass.Initial` like the pager, but keyed off
+  pointer *count* rather than direction, so it never competes with the single-finger
+  pager/tile-drag gestures underneath — those simply never see a second pointer. Gated off
+  during edit mode, an open folder, any personalize sub-sheet, or while already open
+  (`quickSearchEnabled` in `StartScreen.kt`), and while it's open it disables the pager swipe
+  the same way edit mode and the folder overlay do.
+- **Slides from the top, not the bottom.** Every other overlay (`AboutSheet`,
+  `BackupRestoreSheet`, …) slides up from the bottom sheet-style; `QuickSearchOverlay` slides
+  down from the top edge instead, since that matches the gesture that opens it (reuses the
+  same `SheetStage` + 300ms progress-driven `graphicsLayer` translation, just negated).
+- **Three sections, capped at 5 rows each.** Apps via the existing `AppListFilter.filter`
+  (already unit-tested, so no new app-matching logic); contacts via a new
+  `ContactsSource.searchContacts` using `ContactsContract.Contacts.CONTENT_FILTER_URI` (the
+  same filter URI the Dialer/People app use — matches name/phone/email, not just name); web
+  always shown as a "search the web for '<query>'" row reusing the existing
+  `launchWebSearch` (widened from `private` to `internal` so this new file can call it).
+  Hidden apps (personalize → hidden apps) are excluded from the apps section, matching the
+  app list.
+- **Contacts degrade, don't block.** No new permission — reuses `READ_CONTACTS` (already
+  requested for the people tile). Without the grant, the contacts section is replaced by a
+  single "allow contacts access…" row wired to the same request launcher the personalize
+  sheet already uses; the apps and web sections still work.
+- **Tapping a contact opens the contact card**, not a call/message shortcut
+  (`ContactsContract.Contacts.getLookupUri` + `ACTION_VIEW`) — the safer, permission-free
+  action for a launcher-level search (calling/texting are the *contacts app's* job).

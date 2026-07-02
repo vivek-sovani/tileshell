@@ -93,3 +93,54 @@ fun mosaicCells(people: List<Person>, cellCount: Int): List<Person> {
     if (people.isEmpty()) return emptyList()
     return List(cellCount) { people[it % people.size] }
 }
+
+/**
+ * One contact match for quick search: enough to render a row (name + optional
+ * photo) and to reopen the contact card via [contactLookupUri].
+ */
+data class ContactMatch(
+    val contactId: Long,
+    val lookupKey: String,
+    val name: String,
+    val photoUri: String?,
+)
+
+/**
+ * Matches contacts by name/phone/email against [query] via the platform's own
+ * contacts filter URI (the same lookup the Dialer/People app use), capped to
+ * [limit]. Caller must hold READ_CONTACTS — query failures (denied access,
+ * missing provider) are swallowed and return an empty list, degrading quick
+ * search's contacts section to nothing rather than crashing.
+ */
+fun searchContacts(context: Context, query: String, limit: Int = 5): List<ContactMatch> {
+    val q = query.trim()
+    if (q.isEmpty()) return emptyList()
+    val projection = arrayOf(
+        ContactsContract.Contacts._ID,
+        ContactsContract.Contacts.LOOKUP_KEY,
+        ContactsContract.Contacts.DISPLAY_NAME_PRIMARY,
+        ContactsContract.Contacts.PHOTO_THUMBNAIL_URI,
+    )
+    val uri = Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_FILTER_URI, Uri.encode(q))
+    val matches = mutableListOf<ContactMatch>()
+    runCatching {
+        context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+            while (cursor.moveToNext() && matches.size < limit) {
+                val name = cursor.getString(2)?.trim().orEmpty()
+                val lookupKey = cursor.getString(1)
+                if (name.isEmpty() || lookupKey == null) continue
+                matches += ContactMatch(
+                    contactId = cursor.getLong(0),
+                    lookupKey = lookupKey,
+                    name = name,
+                    photoUri = cursor.getString(3)?.ifBlank { null },
+                )
+            }
+        }
+    }
+    return matches
+}
+
+/** The contact card URI for [contactId]/[lookupKey] — opened via `ACTION_VIEW`. */
+fun contactLookupUri(contactId: Long, lookupKey: String): Uri =
+    ContactsContract.Contacts.getLookupUri(contactId, lookupKey)

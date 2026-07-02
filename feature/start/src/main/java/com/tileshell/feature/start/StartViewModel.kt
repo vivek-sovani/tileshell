@@ -167,6 +167,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val _hiddenAppsOpen = MutableStateFlow(false)
     val hiddenAppsOpen: StateFlow<Boolean> = _hiddenAppsOpen.asStateFlow()
 
+    /** True while quick search is open (two-finger swipe-down on Start). */
+    private val _searchOpen = MutableStateFlow(false)
+    val searchOpen: StateFlow<Boolean> = _searchOpen.asStateFlow()
+
     fun setAppList(value: Boolean) {
         _isAppList.value = value
     }
@@ -302,6 +306,19 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Close the hidden-apps sheet. */
     fun closeHiddenApps() {
         _hiddenAppsOpen.value = false
+    }
+
+    /** Open quick search (two-finger swipe-down on Start). Disables the pager swipe. */
+    fun openSearch() {
+        _searchOpen.value = true
+        _swipeEnabled.value = false
+    }
+
+    /** Close quick search and re-enable the swipe. Safe when not open. */
+    fun closeSearch() {
+        if (!_searchOpen.value) return
+        _searchOpen.value = false
+        _swipeEnabled.value = true
     }
 
     /** Unhide [packageName], returning it to the app list. */
@@ -556,6 +573,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         closeHiddenApps()
         closeBackup()
         closeFolder()
+        closeSearch()
         exitEdit()
         _homeRequests.tryEmit(Unit)
     }
