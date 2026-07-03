@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v1.6.1 listing draft — update before each release*
+*v1.6.2 listing draft — update before each release*
 
 ---
 
@@ -154,6 +154,18 @@ data. Users can also clear app data via Android Settings at any time.
 | Feature graphic | 1024 × 500 px | Required for listing banner |
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
+
+## Release notes (v1.6.2)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 1.6.2
+
+• New: wallpaper slideshow — pick multiple photos and rotate them automatically every 15 min to 3 hours
+• New: pinch to zoom when positioning your wallpaper photo
+• New: in-app update notifications so you always have the latest version
+```
 
 ## Release notes (v1.6.1)
 
