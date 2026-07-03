@@ -32,6 +32,7 @@ dependencies {
     implementation(project(":feature:livetiles"))
     implementation(project(":feature:applist"))
     implementation(project(":feature:personalize"))
+    implementation(project(":feature:system"))
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.datastore)

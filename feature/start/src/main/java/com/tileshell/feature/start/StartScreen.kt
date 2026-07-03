@@ -191,6 +191,8 @@ import com.tileshell.feature.personalize.CategoryFolderSheet
 import com.tileshell.feature.personalize.FeedSourceItem
 import com.tileshell.feature.personalize.HiddenAppsSheet
 import com.tileshell.feature.personalize.PersonalizeSheet
+import com.tileshell.feature.system.AppUpdateState
+import com.tileshell.feature.system.rememberAppUpdateState
 import com.tileshell.core.data.settings.FontStyle
 import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
@@ -268,6 +270,7 @@ fun StartScreen(
     val contactsGranted = rememberPermissionGranted(android.Manifest.permission.READ_CONTACTS)
     val calendarGranted = rememberPermissionGranted(android.Manifest.permission.READ_CALENDAR)
     val locationGranted = rememberPermissionGranted(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+    val (updateState, onUpdateAction) = rememberAppUpdateState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
@@ -855,6 +858,10 @@ fun StartScreen(
         val personalizeVisible =
             personalizeOpen && !aboutOpen && !foldersOpen && !backupOpen && !hiddenAppsOpen
         val backupVisible = backupOpen && !historyOpen
+        // Update banner only over the plain Start/feed pages — never on top of edit
+        // mode, an open folder, the app list, quick search, or a personalize sheet.
+        val showUpdateBanner = !editMode && !isAppList && openFolderId == null &&
+            !personalizeOpen && !searchOpen
         val hiddenAppEntries = remember(apps, hiddenPackages) {
             apps.filter { it.packageName in hiddenPackages }.sortedBy { it.label.lowercase() }
         }
@@ -1075,6 +1082,17 @@ fun StartScreen(
             onSetColor = viewModel::setFolderChildAccent,
             onMakeStack = { size -> openFolder?.let { viewModel.convertFolderToStack(it.id, size) } },
         )
+
+        // Play Store update prompt: a thin dismissible strip pinned to the top,
+        // never a takeover — see UpdateAvailableBanner for why.
+        if (showUpdateBanner) {
+            UpdateAvailableBanner(
+                state = updateState,
+                accent = accent,
+                onAction = onUpdateAction,
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
+        }
 
         // First-run hint (S19): one-time prototype hint card over Start. Sits
         // above all other layers so it reads on a fresh install; self-hides once

@@ -1647,3 +1647,36 @@ by design — this isn't a bug in the matching logic, it's a gap the logic can't
   the real `StatusBarNotification.key` — tapping the Gallery tile still cancels the actual
   `com.samsung.storyservice` notification via its real key; only the *lookup* (which tile does
   this belong to) is aliased, not the object being acted on.
+
+## Play Store update prompt on Start
+
+New ask: check Play Store for a newer version and prompt the user to update, from Start.
+
+- **Flexible in-app update, never immediate.** Google Play Core's In-App Updates API offers two
+  flows: IMMEDIATE (a full-screen, blocking takeover the OS draws until the update installs) and
+  FLEXIBLE (silent background download, app stays usable, a small prompt to restart once ready).
+  TileShell is the user's Home app — an IMMEDIATE takeover on top of the launcher would strand
+  anyone who happens to unlock their phone mid-rollout. Only FLEXIBLE is wired up
+  (`AppUpdateType.FLEXIBLE` in `rememberAppUpdateState`, `:feature:system`).
+- **Module split: Play Core wrapper in `:feature:system`, banner UI in `:feature:start`.**
+  `:feature:system` already owns the launcher's other OS-integration surfaces (default-launcher
+  prompt, screen lock) and had no Compose dependency yet — added it (mirrors `:feature:livetiles`
+  hosting `rememberNotificationAccess`/`rememberBatteryOptimizationExempt`, i.e. permission/
+  system-state gates live next to *what* they gate, not next to the UI that reads them).
+  `rememberAppUpdateState()` returns `(AppUpdateState, () -> Unit)` — no Play Core types leak into
+  `:feature:start`, which gets a new one-directional `implementation(project(":feature:system"))`
+  dependency (same pattern as `:feature:applist` → `:feature:livetiles`).
+- **Banner, not a scrim dialog.** `FirstRunHint` is a one-time full-screen scrim because it only
+  ever fires once, on a fresh install. An update prompt can recur every session until the user
+  acts, so a `FirstRunHint`-style takeover would become naggy fast — `UpdateAvailableBanner` is a
+  thin dismissible strip pinned to the top of Start instead, closer to the transient prompts
+  elsewhere in the app (`PermissionRow`, wallpaper-crop toasts). Dismissing only hides it for the
+  current state value; it resurfaces if the state changes (e.g. `AVAILABLE` → `READY_TO_INSTALL`
+  once the background download finishes) since that's materially new information.
+- **Re-check on `ON_RESUME`, same as `rememberNotificationAccess`.** Play can flag an update at
+  any point in the session, not just at cold start — this keeps the check consistent with the
+  other opt-in/state gates in the app rather than inventing a separate polling scheme.
+- **Gated off editing/overlay surfaces.** The banner only renders when none of edit mode, the app
+  list, an open folder, personalize, or quick search is showing (`showUpdateBanner` in
+  `StartScreen.kt`) — it would otherwise float on top of a full-screen sheet that itself expects
+  to own the top of the screen.

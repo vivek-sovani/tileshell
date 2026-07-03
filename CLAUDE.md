@@ -36,6 +36,25 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-S27 — Play Store update check + prompt on Start.** New ask, not in the WP prototype/spec
+  — see DECISIONS "Play Store update prompt on Start". Uses Google Play Core's In-App Updates API,
+  **flexible flow only** (never immediate/blocking — TileShell is Home, so a full-screen update
+  takeover over the launcher isn't acceptable). `rememberAppUpdateState()` (new
+  `AppUpdateChecker.kt`, `:feature:system`, which gained a Compose dependency for this) wraps
+  `AppUpdateManagerFactory`: checks `appUpdateInfo` on first composition and every `ON_RESUME`
+  (mirrors `rememberNotificationAccess`'s re-check pattern), registers an
+  `InstallStateUpdatedListener` for background-download progress, and exposes a plain
+  `(AppUpdateState, () -> Unit)` pair — `NONE`/`AVAILABLE`/`DOWNLOADING`/`READY_TO_INSTALL` — with
+  no Play Core types leaking past the module boundary. `UpdateAvailableBanner.kt` (`:feature:start`,
+  new one-directional `implementation(project(":feature:system"))` dependency, same pattern as
+  `:feature:applist` → `:feature:livetiles`) renders a thin dismissible strip pinned to the top of
+  Start (not a `FirstRunHint`-style full-screen scrim, since this can recur every session) — "a new
+  version of tileshell is available · update" while downloading, "update downloaded — restart to
+  finish · restart" once ready (taps `completeUpdate()`, which restarts the app). Silent while
+  `DOWNLOADING`. Gated off (`showUpdateBanner` in `StartScreen.kt`) whenever edit mode, the app
+  list, an open folder, personalize, or quick search is showing. New `com.google.android.play:
+  app-update-ktx` dependency (`playAppUpdate` version catalog entry); no new manifest permission
+  (reuses the existing `INTERNET` grant). Build + tests green.
 - **Post-S27 — notification package alias for OEM companion-service splits.** Debugged on a
   physical Samsung device: a "gallery" widget stack (Samsung Gallery + Google Photos, both
   pinned as LARGE tiles) wasn't showing a pending Gallery notification. Root cause: Samsung's
