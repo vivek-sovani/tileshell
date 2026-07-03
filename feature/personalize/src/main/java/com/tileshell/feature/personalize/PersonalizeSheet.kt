@@ -81,6 +81,13 @@ fun PersonalizeSheet(
     onBingWallpaperChange: (Boolean) -> Unit,
     onBingHistory: () -> Unit,
     onAdjustWallpaper: () -> Unit,
+    wallpaperSlideshowEnabled: Boolean,
+    onWallpaperSlideshowChange: (Boolean) -> Unit,
+    wallpaperSlideshowIntervalMin: Int,
+    onWallpaperSlideshowIntervalChange: (Int) -> Unit,
+    wallpaperSlideshowCount: Int,
+    onPickWallpaperSlideshowPhotos: () -> Unit,
+    onClearWallpaperSlideshowPhotos: () -> Unit,
     tiledWallpaper: Boolean,
     onTiledWallpaperChange: (Boolean) -> Unit,
     feedEnabled: Boolean,
@@ -254,6 +261,59 @@ fun PersonalizeSheet(
                 WallpaperNavRow("recent bing wallpapers", "browse ›", accent, tokens, onBingHistory)
                 if (customWallpaper) {
                     WallpaperNavRow("adjust position", "reframe ›", accent, tokens, onAdjustWallpaper)
+                }
+                Spacer(Modifier.height(14.dp))
+                ToggleRow(
+                    "wallpaper slideshow",
+                    on = wallpaperSlideshowEnabled,
+                    accent = accent,
+                    tokens,
+                    onWallpaperSlideshowChange,
+                )
+                if (wallpaperSlideshowEnabled) {
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(text = "every", color = tokens.fgDim, fontSize = 12.sp)
+                        Spacer(Modifier.weight(1f))
+                        listOf(15 to "15m", 30 to "30m", 60 to "1h", 180 to "3h").forEach { (min, label) ->
+                            val selected = wallpaperSlideshowIntervalMin == min
+                            Text(
+                                text = label,
+                                color = if (selected) Color.White else tokens.fgDim,
+                                fontSize = 12.sp,
+                                modifier = Modifier
+                                    .background(
+                                        if (selected) accent else tokens.fgDim.copy(alpha = 0.12f),
+                                        RoundedCornerShape(4.dp),
+                                    )
+                                    .clickable { onWallpaperSlideshowIntervalChange(min) }
+                                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                WallpaperNavRow(
+                    "slideshow photos",
+                    if (wallpaperSlideshowCount > 0) "$wallpaperSlideshowCount selected ›" else "choose ›",
+                    accent, tokens, onPickWallpaperSlideshowPhotos,
+                )
+                if (wallpaperSlideshowCount > 0) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onClearWallpaperSlideshowPhotos)
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(text = "clear slideshow photos", color = tokens.fgDim, fontSize = 14.sp)
+                        Spacer(Modifier.weight(1f))
+                        Text(text = "✕", color = tokens.fgDim, fontSize = 13.sp)
+                    }
                 }
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

@@ -52,6 +52,17 @@ enum class TileColorSource { GLOBAL_ACCENT, APP_ICON }
  *   [0..1]: 0 = left edge visible, 0.5 = centred, 1 = right edge visible. Only
  *   meaningful while [customWallpaperUri] is set; ignored for bundled gradients.
  * @property wallpaperAlignY vertical focal point, same 0..1 scale.
+ * @property wallpaperZoom zoom level applied on top of the cover-fit crop
+ *   ([MIN_WALLPAPER_ZOOM]..[MAX_WALLPAPER_ZOOM], 1 = no zoom). Set from the crop
+ *   overlay's pinch gesture; only meaningful while [customWallpaperUri] is set.
+ * @property wallpaperSlideshowEnabled rotates [customWallpaperUri] through the
+ *   photos in `WallpaperSlideshowStore` on a timer (`WallpaperSlideshowWorker`)
+ *   instead of showing one fixed photo. Mutually exclusive with [bingWallpaper].
+ * @property wallpaperSlideshowIntervalMin minutes between rotations
+ *   ([MIN_SLIDESHOW_INTERVAL_MIN]..[MAX_SLIDESHOW_INTERVAL_MIN]; WorkManager's
+ *   periodic-work floor is 15 min).
+ * @property wallpaperSlideshowIndex index of the currently shown photo within
+ *   the slideshow list, so the worker knows which one to advance past.
  */
 data class LauncherSettings(
     val followSystemTheme: Boolean = true,
@@ -67,6 +78,10 @@ data class LauncherSettings(
     val feedEnabled: Boolean = true,
     val wallpaperAlignX: Float = 0.5f,
     val wallpaperAlignY: Float = 0.5f,
+    val wallpaperZoom: Float = 1f,
+    val wallpaperSlideshowEnabled: Boolean = false,
+    val wallpaperSlideshowIntervalMin: Int = 30,
+    val wallpaperSlideshowIndex: Int = 0,
     val cornerRadius: Float = 0f,
     /**
      * Gap between tiles in dp (FR-7). Default ≈ the prototype's tight WP spacing;
@@ -93,6 +108,10 @@ data class LauncherSettings(
         const val DEFAULT_COLUMNS = 4
         const val MIN_COLUMNS = 4
         const val MAX_COLUMNS = 6
+        const val MIN_WALLPAPER_ZOOM = 1f
+        const val MAX_WALLPAPER_ZOOM = 3f
+        const val MIN_SLIDESHOW_INTERVAL_MIN = 15
+        const val MAX_SLIDESHOW_INTERVAL_MIN = 180
     }
 }
 
@@ -120,6 +139,10 @@ object SettingsCodec {
         append("feedEnabled=").append(settings.feedEnabled).append('\n')
         append("wallAlignX=").append(settings.wallpaperAlignX).append('\n')
         append("wallAlignY=").append(settings.wallpaperAlignY).append('\n')
+        append("wallZoom=").append(settings.wallpaperZoom).append('\n')
+        append("slideshowEnabled=").append(settings.wallpaperSlideshowEnabled).append('\n')
+        append("slideshowInterval=").append(settings.wallpaperSlideshowIntervalMin).append('\n')
+        append("slideshowIndex=").append(settings.wallpaperSlideshowIndex).append('\n')
         append("cornerRadius=").append(settings.cornerRadius).append('\n')
         append("tileGap=").append(settings.tileGap).append('\n')
         append("tileColorSource=").append(settings.tileColorSource.name).append('\n')
@@ -145,6 +168,10 @@ object SettingsCodec {
         var feedEnabled = d.feedEnabled
         var wallpaperAlignX = d.wallpaperAlignX
         var wallpaperAlignY = d.wallpaperAlignY
+        var wallpaperZoom = d.wallpaperZoom
+        var wallpaperSlideshowEnabled = d.wallpaperSlideshowEnabled
+        var wallpaperSlideshowIntervalMin = d.wallpaperSlideshowIntervalMin
+        var wallpaperSlideshowIndex = d.wallpaperSlideshowIndex
         var cornerRadius = d.cornerRadius
         var tileGap = d.tileGap
         var tileColorSource = d.tileColorSource
@@ -172,6 +199,16 @@ object SettingsCodec {
                 "feedEnabled" -> feedEnabled = value.toBooleanStrictOrNull() ?: feedEnabled
                 "wallAlignX" -> value.toFloatOrNull()?.let { wallpaperAlignX = it.coerceIn(0f, 1f) }
                 "wallAlignY" -> value.toFloatOrNull()?.let { wallpaperAlignY = it.coerceIn(0f, 1f) }
+                "wallZoom" -> value.toFloatOrNull()?.let {
+                    wallpaperZoom = it.coerceIn(LauncherSettings.MIN_WALLPAPER_ZOOM, LauncherSettings.MAX_WALLPAPER_ZOOM)
+                }
+                "slideshowEnabled" -> wallpaperSlideshowEnabled =
+                    value.toBooleanStrictOrNull() ?: wallpaperSlideshowEnabled
+                "slideshowInterval" -> value.toIntOrNull()?.let {
+                    wallpaperSlideshowIntervalMin = it.coerceIn(
+                        LauncherSettings.MIN_SLIDESHOW_INTERVAL_MIN, LauncherSettings.MAX_SLIDESHOW_INTERVAL_MIN)
+                }
+                "slideshowIndex" -> value.toIntOrNull()?.let { wallpaperSlideshowIndex = it.coerceAtLeast(0) }
                 "cornerRadius" -> value.toFloatOrNull()?.let { cornerRadius = it.coerceIn(0f, 20f) }
                 "tileGap" -> value.toFloatOrNull()?.let { tileGap = it.coerceIn(0f, 16f) }
                 "tileColorSource" ->
@@ -201,6 +238,10 @@ object SettingsCodec {
             feedEnabled = feedEnabled,
             wallpaperAlignX = wallpaperAlignX,
             wallpaperAlignY = wallpaperAlignY,
+            wallpaperZoom = wallpaperZoom,
+            wallpaperSlideshowEnabled = wallpaperSlideshowEnabled,
+            wallpaperSlideshowIntervalMin = wallpaperSlideshowIntervalMin,
+            wallpaperSlideshowIndex = wallpaperSlideshowIndex,
             cornerRadius = cornerRadius,
             tileGap = tileGap,
             tileColorSource = tileColorSource,

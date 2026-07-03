@@ -380,10 +380,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setWallpaper(wallpaperId) }
     }
 
-    /** Persist a user-picked custom wallpaper URI and its crop alignment (FR-7). */
-    fun setCustomWallpaper(uri: String, alignX: Float = 0.5f, alignY: Float = 0.5f) {
+    /** Persist a user-picked custom wallpaper URI and its crop alignment/zoom (FR-7). */
+    fun setCustomWallpaper(uri: String, alignX: Float = 0.5f, alignY: Float = 0.5f, zoom: Float = 1f) {
         viewModelScope.launch(Dispatchers.IO) {
-            settingsRepository.setCustomWallpaper(uri, alignX, alignY)
+            settingsRepository.setCustomWallpaper(uri, alignX, alignY, zoom)
         }
     }
 
@@ -403,11 +403,50 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Update only the focal-point alignment of the active custom/Bing wallpaper. */
-    fun setWallpaperAlignment(alignX: Float, alignY: Float) {
+    /** Update only the focal-point alignment/zoom of the active custom/Bing wallpaper. */
+    fun setWallpaperAlignment(alignX: Float, alignY: Float, zoom: Float = 1f) {
         viewModelScope.launch(Dispatchers.IO) {
-            settingsRepository.setWallpaperAlignment(alignX, alignY)
+            settingsRepository.setWallpaperAlignment(alignX, alignY, zoom)
         }
+    }
+
+    /**
+     * Turn the wallpaper slideshow on or off (rotates through `WallpaperSlideshowStore`'s
+     * photos on a timer instead of one fixed photo; mutually exclusive with Bing).
+     * Enabling schedules the periodic rotation and — if photos are already picked —
+     * applies the first one immediately, same "instant feedback" as picking a single
+     * custom wallpaper; disabling cancels the rotation and leaves the current photo
+     * showing (mirrors [setBingWallpaper]'s own on/off split).
+     */
+    fun setWallpaperSlideshowEnabled(on: Boolean) {
+        val context = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsRepository.setWallpaperSlideshowEnabled(on)
+            if (on) {
+                val uris = com.tileshell.feature.livetiles.WallpaperSlideshowStore.create(context).read().uris
+                if (uris.isNotEmpty()) settingsRepository.setWallpaperSlide(uris.first(), 0)
+            }
+        }
+        if (on) {
+            com.tileshell.feature.livetiles.WallpaperSlideshowWorker.ensureScheduled(
+                context, settings.value.wallpaperSlideshowIntervalMin,
+            )
+        } else {
+            com.tileshell.feature.livetiles.WallpaperSlideshowWorker.cancel(context)
+        }
+    }
+
+    /** Set the slideshow rotation interval in minutes; reschedules immediately if already on. */
+    fun setWallpaperSlideshowInterval(minutes: Int) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setWallpaperSlideshowInterval(minutes) }
+        if (settings.value.wallpaperSlideshowEnabled) {
+            com.tileshell.feature.livetiles.WallpaperSlideshowWorker.ensureScheduled(getApplication(), minutes)
+        }
+    }
+
+    /** Apply [uri] at [index] as the current slideshow photo (used when photos are (re)picked). */
+    fun setWallpaperSlide(uri: String, index: Int) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setWallpaperSlide(uri, index) }
     }
 
     /**

@@ -168,4 +168,33 @@ class SettingsCodecTest {
         assertEquals(FontStyle.OUTFIT, SettingsCodec.decode("fontStyle=OUTFIT").fontStyle)
         assertEquals(LauncherSettings().fontStyle, SettingsCodec.decode("fontStyle=COMIC").fontStyle)
     }
+
+    @Test
+    fun `wallpaper zoom round-trips and out-of-range is clamped`() {
+        val s = LauncherSettings(wallpaperZoom = 2.2f)
+        assertEquals(2.2f, SettingsCodec.decode(SettingsCodec.encode(s)).wallpaperZoom, 0.0001f)
+        assertEquals(3f, SettingsCodec.decode("wallZoom=9").wallpaperZoom, 0f)
+        assertEquals(1f, SettingsCodec.decode("wallZoom=0.2").wallpaperZoom, 0f)
+        assertEquals(LauncherSettings().wallpaperZoom, SettingsCodec.decode("wallZoom=deep").wallpaperZoom, 0f)
+    }
+
+    @Test
+    fun `wallpaper slideshow fields round-trip and out-of-range is clamped`() {
+        val s = LauncherSettings(
+            wallpaperSlideshowEnabled = true,
+            wallpaperSlideshowIntervalMin = 60,
+            wallpaperSlideshowIndex = 3,
+        )
+        val decoded = SettingsCodec.decode(SettingsCodec.encode(s))
+        assertEquals(true, decoded.wallpaperSlideshowEnabled)
+        assertEquals(60, decoded.wallpaperSlideshowIntervalMin)
+        assertEquals(3, decoded.wallpaperSlideshowIndex)
+
+        assertEquals(180, SettingsCodec.decode("slideshowInterval=999").wallpaperSlideshowIntervalMin)
+        assertEquals(15, SettingsCodec.decode("slideshowInterval=1").wallpaperSlideshowIntervalMin)
+        assertEquals(
+            LauncherSettings().wallpaperSlideshowEnabled,
+            SettingsCodec.decode("slideshowEnabled=maybe").wallpaperSlideshowEnabled,
+        )
+    }
 }

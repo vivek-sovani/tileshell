@@ -285,6 +285,17 @@ fun StartScreen(
         }
     }
 
+    // Same re-arm for the wallpaper slideshow rotation, also picking up interval changes.
+    LaunchedEffect(settings.wallpaperSlideshowEnabled, settings.wallpaperSlideshowIntervalMin) {
+        if (settings.wallpaperSlideshowEnabled) {
+            com.tileshell.feature.livetiles.WallpaperSlideshowWorker.ensureScheduled(
+                context, settings.wallpaperSlideshowIntervalMin,
+            )
+        } else {
+            com.tileshell.feature.livetiles.WallpaperSlideshowWorker.cancel(context)
+        }
+    }
+
     val specs = remember(tiles) { tiles.map { TileSpec(it.id, it.size) } }
     val byId = remember(tiles) { tiles.associateBy { it.id } }
 
@@ -368,6 +379,30 @@ fun StartScreen(
             scope.launch {
                 val local = withContext(Dispatchers.IO) { MediaImport.importPhotos(context, uris) }
                 if (local.isNotEmpty()) photosStore.setUris(local)
+            }
+        }
+    }
+
+    // Wallpaper slideshow selection: multiple photos the background wallpaper
+    // rotates through on a timer (`WallpaperSlideshowWorker`), mirroring the live-
+    // photos picker above. Picking while the slideshow is already on shows the
+    // first photo immediately, same instant feedback as picking a single wallpaper.
+    val wallpaperSlideshowStore = remember(context) {
+        com.tileshell.feature.livetiles.WallpaperSlideshowStore.create(context)
+    }
+    val wallpaperSlideshowCount = wallpaperSlideshowStore.data
+        .collectAsStateWithLifecycle(initialValue = com.tileshell.feature.livetiles.WallpaperSlideshowData())
+        .value.uris.size
+    val wallpaperSlideshowPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(),
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            scope.launch {
+                val local = withContext(Dispatchers.IO) { MediaImport.importWallpaperSlideshow(context, uris) }
+                if (local.isNotEmpty()) {
+                    wallpaperSlideshowStore.setUris(local)
+                    if (settings.wallpaperSlideshowEnabled) viewModel.setWallpaperSlide(local.first(), 0)
+                }
             }
         }
     }
@@ -596,6 +631,7 @@ fun StartScreen(
                 blur = settings.blur,
                 alignX = settings.wallpaperAlignX,
                 alignY = settings.wallpaperAlignY,
+                zoom = settings.wallpaperZoom,
             )
         }
 
@@ -673,6 +709,7 @@ fun StartScreen(
                     wallpaperPhoto = tiledPhoto,
                     wallpaperAlignX = settings.wallpaperAlignX,
                     wallpaperAlignY = settings.wallpaperAlignY,
+                    wallpaperZoom = settings.wallpaperZoom,
                     darkTheme = dark,
                     notifications = notifications,
                     widthPx = pageWidthPx,
@@ -883,6 +920,22 @@ fun StartScreen(
             onBingWallpaperChange = viewModel::setBingWallpaper,
             onBingHistory = { bingHistoryOpen = true },
             onAdjustWallpaper = { if (settings.customWallpaperUri != null) adjustingWallpaper = true },
+            wallpaperSlideshowEnabled = settings.wallpaperSlideshowEnabled,
+            onWallpaperSlideshowChange = viewModel::setWallpaperSlideshowEnabled,
+            wallpaperSlideshowIntervalMin = settings.wallpaperSlideshowIntervalMin,
+            onWallpaperSlideshowIntervalChange = viewModel::setWallpaperSlideshowInterval,
+            wallpaperSlideshowCount = wallpaperSlideshowCount,
+            onPickWallpaperSlideshowPhotos = {
+                wallpaperSlideshowPicker.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                )
+            },
+            onClearWallpaperSlideshowPhotos = {
+                scope.launch {
+                    wallpaperSlideshowStore.setUris(emptyList())
+                    withContext(Dispatchers.IO) { MediaImport.clearWallpaperSlideshow(context) }
+                }
+            },
             tiledWallpaper = settings.tiledWallpaper,
             onTiledWallpaperChange = viewModel::setTiledWallpaper,
             feedEnabled = settings.feedEnabled,
@@ -1105,8 +1158,8 @@ fun StartScreen(
         if (cropUri != null) {
             WallpaperCropOverlay(
                 uri = cropUri,
-                onConfirm = { alignX, alignY ->
-                    viewModel.setCustomWallpaper(cropUri, alignX, alignY)
+                onConfirm = { alignX, alignY, zoom ->
+                    viewModel.setCustomWallpaper(cropUri, alignX, alignY, zoom)
                     pendingWallpaperCropUri = null
                 },
                 onCancel = { pendingWallpaperCropUri = null },
@@ -1122,8 +1175,9 @@ fun StartScreen(
                 uri = adjustUri,
                 initialAlignX = settings.wallpaperAlignX,
                 initialAlignY = settings.wallpaperAlignY,
-                onConfirm = { alignX, alignY ->
-                    viewModel.setWallpaperAlignment(alignX, alignY)
+                initialZoom = settings.wallpaperZoom,
+                onConfirm = { alignX, alignY, zoom ->
+                    viewModel.setWallpaperAlignment(alignX, alignY, zoom)
                     adjustingWallpaper = false
                 },
                 onCancel = { adjustingWallpaper = false },
@@ -1169,6 +1223,7 @@ private fun StartPage(
     wallpaperPhoto: ImageBitmap?,
     wallpaperAlignX: Float,
     wallpaperAlignY: Float,
+    wallpaperZoom: Float,
     darkTheme: Boolean,
     notifications: NotificationSnapshot,
     widthPx: Float,
@@ -1378,6 +1433,7 @@ private fun StartPage(
                         wallpaperPhoto = wallpaperPhoto,
                         wallpaperAlignX = wallpaperAlignX,
                         wallpaperAlignY = wallpaperAlignY,
+                        wallpaperZoom = wallpaperZoom,
                         // This tile's window onto the screen-fixed wallpaper: its live
                         // on-screen top-left (grid slot minus the scroll offset, below
                         // the status bar). Read in the draw phase, so the wallpaper
@@ -1717,6 +1773,7 @@ private fun TileView(
     wallpaperPhoto: ImageBitmap?,
     wallpaperAlignX: Float,
     wallpaperAlignY: Float,
+    wallpaperZoom: Float,
     wallpaperOrigin: () -> Offset,
     fullWidth: Float,
     fullHeight: Float,
@@ -1806,6 +1863,7 @@ private fun TileView(
                         origin = wallpaperOrigin,
                         alignX = wallpaperAlignX,
                         alignY = wallpaperAlignY,
+                        zoom = wallpaperZoom,
                     )
                     tiledWallpaper -> Modifier.wallpaperWindow(
                         wallpaper = wallpaper,
@@ -1898,6 +1956,7 @@ private fun TileView(
                         wallpaperPhoto = wallpaperPhoto,
                         wallpaperAlignX = wallpaperAlignX,
                         wallpaperAlignY = wallpaperAlignY,
+                        wallpaperZoom = wallpaperZoom,
                         wallpaperOrigin = wallpaperOrigin,
                         fullWidth = fullWidth,
                         fullHeight = fullHeight,
@@ -2394,6 +2453,7 @@ private fun FolderOverlay(
                         wallpaperPhoto = null,
                         wallpaperAlignX = 0.5f,
                         wallpaperAlignY = 0.5f,
+                        wallpaperZoom = 1f,
                         wallpaperOrigin = { Offset.Zero },
                         fullWidth = widthPx,
                         fullHeight = viewportHeightPx,
@@ -3312,6 +3372,7 @@ private fun StackTileContent(
     wallpaperPhoto: ImageBitmap?,
     wallpaperAlignX: Float,
     wallpaperAlignY: Float,
+    wallpaperZoom: Float,
     wallpaperOrigin: () -> Offset,
     fullWidth: Float,
     fullHeight: Float,
@@ -3491,6 +3552,7 @@ private fun StackTileContent(
                                     origin = wallpaperOrigin,
                                     alignX = wallpaperAlignX,
                                     alignY = wallpaperAlignY,
+                                    zoom = wallpaperZoom,
                                 )
                                 tiledWallpaper -> Modifier.wallpaperWindow(
                                     wallpaper = wallpaper,

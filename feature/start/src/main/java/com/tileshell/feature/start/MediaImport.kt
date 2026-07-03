@@ -21,6 +21,7 @@ object MediaImport {
 
     private const val WALLPAPER_DIR = "wallpaper"
     private const val PHOTOS_DIR = "livephotos"
+    private const val WALLPAPER_SLIDESHOW_DIR = "wallpaper_slideshow"
 
     /**
      * Copies a picked wallpaper image into private storage, replacing any previous
@@ -55,6 +56,26 @@ object MediaImport {
     /** Deletes all imported live-photos (used by "clear selected photos"). */
     fun clearPhotos(context: Context) {
         clearDir(File(context.filesDir, PHOTOS_DIR))
+    }
+
+    /**
+     * Copies the picked wallpaper-slideshow photos into private storage, replacing
+     * the previous selection, and returns `file://` URIs to the copies (in pick
+     * order; failed copies are dropped). Call off the main thread.
+     */
+    fun importWallpaperSlideshow(context: Context, sources: List<Uri>): List<String> {
+        val dir = File(context.filesDir, WALLPAPER_SLIDESHOW_DIR)
+        clearDir(dir)
+        dir.mkdirs()
+        val now = System.currentTimeMillis()
+        return sources.mapIndexedNotNull { i, source ->
+            copy(context, source, File(dir, "s_${now}_$i.jpg"))?.toString()
+        }
+    }
+
+    /** Deletes all imported wallpaper-slideshow photos (used by "clear slideshow photos"). */
+    fun clearWallpaperSlideshow(context: Context) {
+        clearDir(File(context.filesDir, WALLPAPER_SLIDESHOW_DIR))
     }
 
     private fun copy(context: Context, source: Uri, dest: File): Uri? = runCatching {

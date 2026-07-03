@@ -4,7 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
@@ -31,27 +32,33 @@ import androidx.compose.ui.unit.sp
 import com.tileshell.core.design.SheetStage
 import kotlin.math.max
 
+private const val MIN_ZOOM = 1f
+private const val MAX_ZOOM = 3f
+
 /**
  * Full-screen overlay shown immediately after the user picks a custom wallpaper
  * photo. Displays the photo cover-scaled to fill the screen and lets the user
- * drag to choose which part of the image to use as the wallpaper. Tapping
- * "use this" calls [onConfirm] with the chosen [alignX]/[alignY] (0..1). Tapping
- * "cancel" calls [onCancel] without changing anything.
+ * drag to reposition and pinch to zoom which part of the image is used as the
+ * wallpaper. Tapping "use this" calls [onConfirm] with the chosen
+ * [alignX]/[alignY] (0..1) and [zoom] (1..3). Tapping "cancel" calls [onCancel]
+ * without changing anything.
  */
 @Composable
 fun WallpaperCropOverlay(
     uri: String,
-    onConfirm: (alignX: Float, alignY: Float) -> Unit,
+    onConfirm: (alignX: Float, alignY: Float, zoom: Float) -> Unit,
     onCancel: () -> Unit,
     initialAlignX: Float = 0.5f,
     initialAlignY: Float = 0.5f,
+    initialZoom: Float = 1f,
     rightHalf: Boolean = false,
 ) {
     val image = rememberWallpaperBitmap(uri)
     // Seed from the current focal point so re-adjusting resumes where it left off;
-    // the user drags to reposition.
+    // the user drags to reposition and pinches to zoom.
     var alignX by remember(uri) { mutableStateOf(initialAlignX) }
     var alignY by remember(uri) { mutableStateOf(initialAlignY) }
+    var zoomLevel by remember(uri) { mutableStateOf(initialZoom.coerceIn(MIN_ZOOM, MAX_ZOOM)) }
 
     // Back gesture cancels the crop (only composed while active, so always on).
     BackHandler(enabled = true) { onCancel() }
@@ -89,15 +96,19 @@ fun WallpaperCropOverlay(
                 modifier = Modifier
                     .fillMaxSize()
                     .pointerInput(overflowX, overflowY) {
-                        detectDragGestures { _, delta ->
+                        detectTransformGestures { _, pan, zoomChange, _ ->
+                            zoomLevel = (zoomLevel * zoomChange).coerceIn(MIN_ZOOM, MAX_ZOOM)
                             // Dragging right/down moves the photo right/down, showing
-                            // the left/top part → alignX/Y decreases.
+                            // the left/top part → alignX/Y decreases. The pan delta is
+                            // in raw (unzoomed) screen px, but at higher zoom the same
+                            // finger travel reveals less of the underlying image.
                             if (overflowX > 0f)
-                                alignX = (alignX - delta.x / overflowX).coerceIn(0f, 1f)
+                                alignX = (alignX - (pan.x / zoomLevel) / overflowX).coerceIn(0f, 1f)
                             if (overflowY > 0f)
-                                alignY = (alignY - delta.y / overflowY).coerceIn(0f, 1f)
+                                alignY = (alignY - (pan.y / zoomLevel) / overflowY).coerceIn(0f, 1f)
                         }
-                    },
+                    }
+                    .graphicsLayer { scaleX = zoomLevel; scaleY = zoomLevel },
             )
         }
 
@@ -126,7 +137,7 @@ fun WallpaperCropOverlay(
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
-                    text = if (image == null) "loading…" else "drag to position",
+                    text = if (image == null) "loading…" else "drag to position · pinch to zoom",
                     color = Color.White.copy(alpha = 0.45f),
                     fontSize = 13.sp,
                 )
@@ -139,7 +150,7 @@ fun WallpaperCropOverlay(
                         enabled = image != null,
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                        onClick = { onConfirm(alignX, alignY) },
+                        onClick = { onConfirm(alignX, alignY, zoomLevel) },
                     ),
                 )
             }

@@ -1680,3 +1680,50 @@ New ask: check Play Store for a newer version and prompt the user to update, fro
   list, an open folder, personalize, or quick search is showing (`showUpdateBanner` in
   `StartScreen.kt`) — it would otherwise float on top of a full-screen sheet that itself expects
   to own the top of the screen.
+
+## Wallpaper crop zoom + wallpaper slideshow
+
+New ask: the wallpaper crop overlay could only pan (horizontal/vertical), not zoom; and a wallpaper
+could only ever be one fixed photo, not a rotating set.
+
+- **Zoom is a pinch gesture on the existing crop overlay, not a separate slider screen.**
+  `WallpaperCropOverlay` swapped `detectDragGestures` for `detectTransformGestures`, which reports
+  pan and zoom together — reuses the exact same interaction (drag to reposition) users already
+  know, adding pinch on top rather than a second control surface. `zoom` (1..3,
+  `LauncherSettings.MIN/MAX_WALLPAPER_ZOOM`) is applied as a `graphicsLayer` scale on top of the
+  already cover-cropped/aligned image, pivoted at the screen centre. Pan deltas are divided by the
+  live zoom level before being converted to alignment change, since at higher zoom the same finger
+  travel is a smaller fraction of the (visually magnified) image.
+- **Tiled "wallpaper behind tiles" mode mirrors the same centre-pivot zoom.** `photoWindow()` (the
+  per-tile screen-anchored window painter) zooms around the *screen's* centre expressed in each
+  tile's own local draw coordinates, not each tile's own centre — otherwise every tile would zoom
+  toward a different point and the "single photo behind all tiles" illusion would break. This keeps
+  the crop-overlay preview and both live-render paths (normal + tiled) visually consistent (WYSIWYG).
+- **Slideshow reuses the single-photo render path — no new UI plumbing.** `wallpaperSlideshowEnabled`
+  rotates through `WallpaperSlideshowStore`'s (`:feature:livetiles`, mirrors `PhotosStore`) picked
+  photos by periodically writing the next URI into the *same* `customWallpaperUri` field a single
+  custom photo uses (`SettingsRepository.setWallpaperSlide`), via `WallpaperSlideshowWorker`
+  (mirrors `BingWallpaperWorker`'s periodic-job shape). Every existing renderer (`WallpaperBackground`,
+  tiled `photoWindow`, the crop/reframe overlay) already reads `customWallpaperUri` — none of them
+  needed to learn about "slideshow" as a concept.
+- **Mutually exclusive with Bing daily wallpaper, not with a single custom photo.** Bing and the
+  slideshow both drive `customWallpaperUri` on a timer from different sources, so turning one on
+  clears the other's flag (`SettingsRepository.setBingWallpaper`/`setWallpaperSlideshowEnabled`).
+  Picking a single custom photo or a bundled gradient also turns the slideshow off. Toggling the
+  slideshow off does *not* explicitly cancel Bing's `WorkManager` job (and vice versa) — matches the
+  existing convention where `setWallpaper`/`clearWallpaper` never call `BingWallpaperWorker.cancel()`
+  either; each worker's `doWork()` guards on its own still-enabled flag and no-ops otherwise, so a
+  stale periodic tick is a harmless skip rather than a real bug.
+- **Alignment/zoom reset to centred/1x on every slide change.** A crop chosen for one photo rarely
+  suits a different one, so each rotation (and each freshly picked slideshow photo) resets
+  `wallpaperAlignX/Y` to 0.5 and `wallpaperZoom` to 1 — same reset `setWallpaper` already does when
+  switching to a bundled gradient.
+- **Interval floor is 15 minutes.** `WorkManager`'s `PeriodicWorkRequest` cannot run more often than
+  15 minutes; the UI only offers 15m/30m/1h/3h so every choice is actually honoured, and
+  `ExistingPeriodicWorkPolicy.UPDATE` re-enqueues in place on an interval change (no cancel/re-enqueue
+  race, mirrors how auto-backup's frequency pills reschedule).
+- **Known limitation:** the "adjust position" reframe row is gated on `customWallpaperUri != null`,
+  which is also true *during* an active slideshow (it writes the same field) — reframing a slideshow
+  photo works, but the crop is discarded at the next scheduled rotation by design (see the reset
+  bullet above). Not fixed further since a rotating wallpaper's per-photo crop is inherently
+  transient.

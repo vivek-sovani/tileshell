@@ -43,6 +43,8 @@ import kotlin.math.max
  * when [blur] is on. Blur is a no-op below API 31 (matching the folder overlay).
  * [alignX]/[alignY] (0..1) control which part of a custom photo is visible when the
  * image is cropped to fill the screen (0 = left/top edge, 0.5 = centred, 1 = right/bottom).
+ * [zoom] (1 = none) additionally magnifies the cropped photo around the screen
+ * centre, matching the pinch-zoom set in `WallpaperCropOverlay`.
  */
 @Composable
 fun WallpaperBackground(
@@ -51,6 +53,7 @@ fun WallpaperBackground(
     blur: Boolean,
     alignX: Float = 0.5f,
     alignY: Float = 0.5f,
+    zoom: Float = 1f,
     modifier: Modifier = Modifier,
 ) {
     val layer = modifier
@@ -72,7 +75,7 @@ fun WallpaperBackground(
                 contentScale = ContentScale.Crop,
                 alignment = BiasAlignment(alignX * 2f - 1f, alignY * 2f - 1f),
                 colorFilter = if (blur) ColorFilter.colorMatrix(saturation(1.1f)) else null,
-                modifier = layer,
+                modifier = layer.graphicsLayer { scaleX = zoom; scaleY = zoom },
             )
             return
         }
@@ -94,6 +97,9 @@ private fun saturation(value: Float): ColorMatrix =
  * first, so any tile beyond the photo stays dark rather than empty.
  * [alignX]/[alignY] shift the photo's position within the screen rectangle (same
  * semantics as [WallpaperBackground]): 0 = left/top edge, 0.5 = centred, 1 = right/bottom.
+ * [zoom] (1 = none) additionally magnifies the photo around the *screen's* centre
+ * (not this tile's own centre), same semantics as [WallpaperBackground] so every
+ * tile's window magnifies consistently.
  */
 fun Modifier.photoWindow(
     image: ImageBitmap,
@@ -103,6 +109,7 @@ fun Modifier.photoWindow(
     origin: () -> Offset,
     alignX: Float = 0.5f,
     alignY: Float = 0.5f,
+    zoom: Float = 1f,
 ): Modifier = drawBehind {
     drawRect(darkBase)
     val imgW = image.width.toFloat()
@@ -116,10 +123,14 @@ fun Modifier.photoWindow(
     // visible, 0.5 = centred (the original behaviour), 1 = right/bottom edge.
     val left = alignX * (fullWidth - dstW) - o.x
     val top  = alignY * (fullHeight - dstH) - o.y
+    // The screen's centre, expressed in this tile's local draw coordinates.
+    val zoomPivot = Offset(fullWidth / 2f - o.x, fullHeight / 2f - o.y)
     clipRect {
-        translate(left = left, top = top) {
-            scale(scale, pivot = Offset.Zero) {
-                drawImage(image)
+        scale(zoom, pivot = zoomPivot) {
+            translate(left = left, top = top) {
+                scale(scale, pivot = Offset.Zero) {
+                    drawImage(image)
+                }
             }
         }
     }

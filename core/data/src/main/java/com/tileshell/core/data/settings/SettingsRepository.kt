@@ -66,34 +66,37 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(blur = blur) }
     }
 
-    /** Select a bundled gradient wallpaper, clearing any custom/Bing photo and resetting crop. */
+    /** Select a bundled gradient wallpaper, clearing any custom/Bing/slideshow photo and resetting crop. */
     suspend fun setWallpaper(wallpaperId: String) {
         store.updateData {
             it.copy(wallpaperId = wallpaperId, customWallpaperUri = null, bingWallpaper = false,
-                wallpaperAlignX = 0.5f, wallpaperAlignY = 0.5f)
+                wallpaperSlideshowEnabled = false,
+                wallpaperAlignX = 0.5f, wallpaperAlignY = 0.5f, wallpaperZoom = 1f)
         }
     }
 
-    /** Set a user-picked custom wallpaper with its focal-point alignment (FR-7). */
-    suspend fun setCustomWallpaper(uri: String, alignX: Float = 0.5f, alignY: Float = 0.5f) {
+    /** Set a user-picked custom wallpaper with its focal-point alignment and zoom (FR-7). */
+    suspend fun setCustomWallpaper(uri: String, alignX: Float = 0.5f, alignY: Float = 0.5f, zoom: Float = 1f) {
         store.updateData {
-            it.copy(customWallpaperUri = uri, bingWallpaper = false,
+            it.copy(customWallpaperUri = uri, bingWallpaper = false, wallpaperSlideshowEnabled = false,
                 wallpaperAlignX = alignX.coerceIn(0f, 1f),
-                wallpaperAlignY = alignY.coerceIn(0f, 1f))
+                wallpaperAlignY = alignY.coerceIn(0f, 1f),
+                wallpaperZoom = zoom.coerceIn(LauncherSettings.MIN_WALLPAPER_ZOOM, LauncherSettings.MAX_WALLPAPER_ZOOM))
         }
     }
 
     /**
      * Turn the Microsoft Bing image-of-the-day wallpaper on or off. Turning it on
      * only flips the flag (the centred image arrives once `BingWallpaperWorker`
-     * downloads it via [setBingImage]); turning it off clears the downloaded photo
+     * downloads it via [setBingImage]) and turns the slideshow off (the two photo
+     * sources are mutually exclusive); turning it off clears the downloaded photo
      * so the previously selected gradient ([wallpaperId]) shows again.
      */
     suspend fun setBingWallpaper(on: Boolean) {
         store.updateData {
-            if (on) it.copy(bingWallpaper = true)
+            if (on) it.copy(bingWallpaper = true, wallpaperSlideshowEnabled = false)
             else it.copy(bingWallpaper = false, customWallpaperUri = null,
-                wallpaperAlignX = 0.5f, wallpaperAlignY = 0.5f)
+                wallpaperAlignX = 0.5f, wallpaperAlignY = 0.5f, wallpaperZoom = 1f)
         }
     }
 
@@ -104,22 +107,63 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
      */
     suspend fun setBingImage(uri: String) {
         store.updateData {
-            // Keep the user's chosen framing (alignX/Y) across daily refreshes.
+            // Keep the user's chosen framing (alignX/Y/zoom) across daily refreshes.
             if (!it.bingWallpaper) it else it.copy(customWallpaperUri = uri)
         }
     }
 
-    /** Update the focal-point alignment of the current custom wallpaper. */
-    suspend fun setWallpaperAlignment(alignX: Float, alignY: Float) {
+    /** Update the focal-point alignment and zoom of the current custom wallpaper. */
+    suspend fun setWallpaperAlignment(alignX: Float, alignY: Float, zoom: Float = 1f) {
         store.updateData {
             it.copy(wallpaperAlignX = alignX.coerceIn(0f, 1f),
-                wallpaperAlignY = alignY.coerceIn(0f, 1f))
+                wallpaperAlignY = alignY.coerceIn(0f, 1f),
+                wallpaperZoom = zoom.coerceIn(LauncherSettings.MIN_WALLPAPER_ZOOM, LauncherSettings.MAX_WALLPAPER_ZOOM))
         }
     }
 
-    /** Remove all wallpaper (custom/Bing photo + gradient), leaving the theme bg colour. */
+    /** Remove all wallpaper (custom/Bing/slideshow photo + gradient), leaving the theme bg colour. */
     suspend fun clearWallpaper() {
-        store.updateData { it.copy(wallpaperId = "none", customWallpaperUri = null, bingWallpaper = false) }
+        store.updateData {
+            it.copy(wallpaperId = "none", customWallpaperUri = null, bingWallpaper = false,
+                wallpaperSlideshowEnabled = false)
+        }
+    }
+
+    /**
+     * Turn the wallpaper slideshow on or off — rotates [LauncherSettings.customWallpaperUri]
+     * through `WallpaperSlideshowStore`'s photos on a timer instead of a single fixed
+     * photo. Mutually exclusive with [bingWallpaper]. The caller (StartViewModel) is
+     * responsible for scheduling/cancelling `WallpaperSlideshowWorker` and for applying
+     * the first photo immediately on enable, same division of responsibility as
+     * [setBingWallpaper]/`BingWallpaperWorker`.
+     */
+    suspend fun setWallpaperSlideshowEnabled(enabled: Boolean) {
+        store.updateData {
+            if (enabled) it.copy(wallpaperSlideshowEnabled = true, bingWallpaper = false)
+            else it.copy(wallpaperSlideshowEnabled = false)
+        }
+    }
+
+    /** Set the slideshow rotation interval in minutes; clamped to WorkManager's periodic floor. */
+    suspend fun setWallpaperSlideshowInterval(minutes: Int) {
+        store.updateData {
+            it.copy(wallpaperSlideshowIntervalMin = minutes.coerceIn(
+                LauncherSettings.MIN_SLIDESHOW_INTERVAL_MIN, LauncherSettings.MAX_SLIDESHOW_INTERVAL_MIN))
+        }
+    }
+
+    /**
+     * Advance the slideshow to [uri] at [index] (called by `WallpaperSlideshowWorker`
+     * and from the UI when photos are (re)picked while the slideshow is already on).
+     * Resets alignment/zoom to centred/1x since the crop of the previous photo rarely
+     * suits a different one. No-ops if the slideshow has since been turned off.
+     */
+    suspend fun setWallpaperSlide(uri: String, index: Int) {
+        store.updateData {
+            if (!it.wallpaperSlideshowEnabled) it
+            else it.copy(customWallpaperUri = uri, wallpaperSlideshowIndex = index,
+                wallpaperAlignX = 0.5f, wallpaperAlignY = 0.5f, wallpaperZoom = 1f)
+        }
     }
 
     /** Toggle "wallpaper behind tiles" mode (the dark screen + show-through tiles). */
