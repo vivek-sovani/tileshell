@@ -50,8 +50,11 @@ android {
         // v1.6.1 = 71 (wallpaper-behind-tiles / glass transparency fix: widget stack members
         //   and closed-folder mini-grid cells with an individually selected colour rendered
         //   fully opaque instead of showing the wallpaper/glass through them like other tiles).
-        versionCode = 71
-        versionName = "1.6.1"
+        // v1.6.2 = 72 (in-app update check + flexible-update prompt banner on Start; wallpaper
+        //   crop overlay gains pinch-to-zoom alongside drag-to-position; wallpaper slideshow
+        //   rotates the background through multiple picked photos on a 15m/30m/1h/3h timer).
+        versionCode = 72
+        versionName = "1.6.2"
     }
 
     if (keystoreFile.exists()) {
