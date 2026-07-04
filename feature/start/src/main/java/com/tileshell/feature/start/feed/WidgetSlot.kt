@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -61,6 +62,7 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tileshell.core.design.ColorTokens
+import com.tileshell.feature.livetiles.rememberAppIconBitmap
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -411,6 +413,7 @@ private fun WidgetPicker(
                         val isExpanded = group.packageName in expanded
                         item(key = "header/${group.packageName}") {
                             WidgetGroupHeader(
+                                packageName = group.packageName,
                                 appLabel = group.appLabel,
                                 count = group.providers.size,
                                 expanded = isExpanded,
@@ -441,6 +444,7 @@ private fun WidgetPicker(
 
 @Composable
 private fun WidgetGroupHeader(
+    packageName: String,
     appLabel: String,
     count: Int,
     expanded: Boolean,
@@ -452,13 +456,25 @@ private fun WidgetGroupHeader(
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
-            .padding(top = 4.dp, bottom = 2.dp),
+            .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val icon = rememberAppIconBitmap(packageName)
+        Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+            if (icon != null) {
+                Image(
+                    bitmap = icon,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+        }
+        Spacer(Modifier.width(10.dp))
         Text(
             text = "$appLabel ($count)",
-            color = tokens.fgDim,
-            fontSize = 13.sp,
+            color = tokens.fg,
+            fontSize = 16.sp,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.weight(1f),
         )

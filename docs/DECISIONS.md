@@ -1927,3 +1927,7 @@ a phone has 20+ widgets spread across a handful of apps.
   toggles that package in/out of the set on tap. Collapsed-by-default rather than expanded-by-default
   because the whole point of grouping was taming a long list — leaving every group open by default
   would have looked identical to the old flat list until the user manually collapsed something.
+- **Follow-up: group headers show the app's real icon at app-list size.** `rememberAppIconBitmap`
+  (already used by `AppRow`/`ServicePill`) — no new icon-loading code. Name bumped from a 13sp dim
+  caption to 16sp/`fg`/medium-weight, matching `AppRow`'s own label exactly, since with an icon now
+  present the header reads as a mini app row rather than a section label.
