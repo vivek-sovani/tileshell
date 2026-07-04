@@ -292,16 +292,22 @@ private fun WidgetView(
     onEdit: (AppWidgetProviderInfo) -> Unit,
     onRemove: () -> Unit,
 ) {
-    // Some OEMs (Samsung's Glance-based widgets — spage news, notes, reminder —
-    // confirmed via their async GWT/"Kumiho" provider-registration path in logcat)
+    // Some OEMs (Samsung's Glance-based widgets — spage news, notes, reminder,
+    // Device Care, Digital Wellbeing — confirmed via their async GWT/"Kumiho"/
+    // androidx.glance.session.SessionWorker provider-registration path in logcat)
     // don't have the provider info ready the instant a widget is bound, so a null
-    // read right after add doesn't necessarily mean "uninstalled." Retry for a couple
-    // seconds before concluding it's actually gone, instead of deleting on the spot.
+    // read right after add doesn't necessarily mean "uninstalled." A 2s grace
+    // period (4×500ms) was enough for spage but not for Device Care/Digital
+    // Wellbeing — confirmed on-device they were being deleted by this exact
+    // logic on every cold app start (many widgets registering at once slows
+    // each one down further) even though they're pre-installed system apps
+    // that can never actually be "uninstalled." Widened to ~15s before
+    // concluding it's actually gone, instead of deleting on the spot.
     var infoState by remember(widget.widgetId) { mutableStateOf(manager.getAppWidgetInfo(widget.widgetId)) }
     LaunchedEffect(widget.widgetId) {
         if (infoState == null) {
-            repeat(4) {
-                delay(500)
+            repeat(15) {
+                delay(1000)
                 infoState = manager.getAppWidgetInfo(widget.widgetId)
                 if (infoState != null) return@LaunchedEffect
             }

@@ -2133,3 +2133,22 @@ only floored at the generic `WIDGET_MIN_H` constant, letting a user drag a widge
 provider's minimum). Same caveat as before applies to *already-added* widgets with a small
 persisted width from before this fix — they need either a fresh drag (the new floor applies from
 the first pixel of movement) or a remove-and-re-add to pick up the corrected default immediately.
+
+## Widened the null-info retry grace period from 2s to ~15s
+
+Turned out the min-width floor above wasn't the actual bug: re-checked on-device (`dumpsys
+appwidget`) after resizing per that fix, and Device Care / Digital Wellbeing weren't rendering
+undersized — they were **gone from the host entirely**. The original retry-before-delete logic
+(added earlier this session for the "spage" news widget, `WidgetView`) gives a widget with null
+`getAppWidgetInfo` a 2s grace period (4×500ms) before concluding its provider was uninstalled and
+deleting it. 2s was enough for spage but not for Device Care/Digital Wellbeing — both are
+pre-installed **system** apps that can never actually be uninstalled, yet kept getting auto-deleted
+by this exact logic. The likely trigger: every one of this session's many install-and-relaunch
+cycles cold-starts the whole widget host at once, so a dozen-plus widgets all register
+simultaneously and the slower ones (these two, both Jetpack Glance-based per
+`androidx.glance.session.SessionWorker` in logcat) don't make it inside 2s under that contention —
+a realistic scenario for any real phone reboot too, not just this session's repeated test installs.
+
+Widened the grace period to ~15s (15×1s) before concluding a widget is actually gone. This doesn't
+restore widgets already deleted by the old 2s window — those need to be re-added once — but should
+stop it from recurring on future cold starts.
