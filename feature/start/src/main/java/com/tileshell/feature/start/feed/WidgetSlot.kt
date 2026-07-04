@@ -114,11 +114,19 @@ fun WidgetSection(accent: Color, tokens: ColorTokens) {
         scope.launch { store.add(HostedWidget(id, h)) }
     }
 
-    val configureLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { result ->
+    // Some OEM configure activities (confirmed on-device: Samsung Health's
+    // "Daily activity" widget settings screen, DaHomeWidgetSettingActivityOneUI7)
+    // finish() without ever calling setResult(RESULT_OK), even when the user
+    // genuinely saved — trusting resultCode alone deleted a widget the user had
+    // just successfully configured. The bind itself already happened before
+    // configure ever launched, so a still-valid provider lookup is a more
+    // reliable "did this actually work" signal than the OEM's result code; only
+    // delete when the widget id itself is no longer bound to anything.
+    val configureLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { _ ->
         val id = pendingConfigureId
         pendingConfigureId = -1
         val provider = if (id != -1) manager.getAppWidgetInfo(id) else null
-        if (result.resultCode == Activity.RESULT_OK && id != -1 && provider != null) {
+        if (id != -1 && provider != null) {
             commit(id, provider)
         } else if (id != -1) {
             runCatching { host.deleteAppWidgetId(id) }

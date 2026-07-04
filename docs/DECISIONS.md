@@ -1986,3 +1986,35 @@ Caveat noted but not fixed (OS-level, not ours to fix): even once bound, some Sa
 widgets may still render sparser or slower than in Samsung's own One UI Home, since part of their
 layout/sizing logic is tied to Samsung's proprietary "Kumiho" hosting extensions that no
 third-party `AppWidgetHost` (including this one) has access to.
+
+## Widget host: don't trust an OEM configure activity's result code
+
+Follow-up bug in the same area (reported: Samsung Health's "Daily activity" widget "not shown in
+gadgets even after adding"). Diagnosed live via `adb logcat` while reproducing on the physical
+Samsung device: right as Samsung Health's `DailyActivityWidgetReceiverGlance` logged
+`update widget - id = AppWidgetId(appWidgetId=4228)` (i.e. it was actively initializing after the
+user finished its own "Widget settings" configure screen, `DaHomeWidgetSettingActivityOneUI7`),
+TileShell's own `AppWidgetHost.deleteAppWidgetId(4228)` fired and the system immediately logged
+`cannot find widget for appWidgetId=4228`. TileShell deleted the widget it had just walked the user
+through configuring.
+
+Root cause: `WidgetSection`'s `configureLauncher` callback (`WidgetSlot.kt`) deleted the widget
+whenever the configure `Activity` didn't return `Activity.RESULT_OK`, per the standard
+`ACTION_APPWIDGET_CONFIGURE` contract. Samsung's `DaHomeWidgetSettingActivityOneUI7` doesn't
+reliably call `setResult(RESULT_OK)` on save — it evidently `finish()`es with the default
+`RESULT_CANCELED` even when the user picked options and the widget went on to initialize normally
+on Samsung's side. Trusting that result code meant a correctly-configured Samsung Health widget
+was silently thrown away every time.
+
+Fixed by no longer trusting the configure activity's result code at all: the widget was already
+bound (allocated + `bindAppWidgetIdIfAllowed`/`ACTION_APPWIDGET_BIND`) *before* configure ever
+launched, so `manager.getAppWidgetInfo(id)` still resolving after configure returns is a more
+reliable "did this actually work" signal than an OEM's self-reported result code — `commit()` now
+runs whenever the id is still validly bound, regardless of `resultCode`, and only deletes when the
+provider info is genuinely gone. Trade-off accepted: a user who backs out of a configure screen
+without saving now gets the widget added in its default/unconfigured state rather than nothing —
+preferred over the previous failure mode (silently losing a correctly-configured widget), and it's
+still one tap to remove via the existing edit/remove control. `bindLauncher` (the earlier,
+system-owned `ACTION_APPWIDGET_BIND` permission dialog, not an OEM activity) keeps its strict
+`RESULT_OK` check — that result code comes from the OS itself, not a third-party app, so it's
+trustworthy.
