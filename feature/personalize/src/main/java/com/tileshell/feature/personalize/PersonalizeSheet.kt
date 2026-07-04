@@ -27,6 +27,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -407,11 +408,33 @@ fun PersonalizeSheet(
                         }
                     }
                 }
+
+                // Display effects apply to whichever wallpaper is showing — meaningless
+                // for NONE, which renders a flat theme-bg fill and never reaches
+                // WallpaperBackground at all.
+                if (currentWallpaper != WallpaperType.NONE) {
+                    Spacer(Modifier.height(20.dp))
+                    HorizontalDivider(color = tokens.tileLine)
+                    Spacer(Modifier.height(18.dp))
+                    Text("effects", color = tokens.fgDim, fontSize = 12.sp)
+                    Spacer(Modifier.height(10.dp))
+                    ToggleRow("blur wallpaper", on = blur, accent = accent, tokens, onBlurChange)
+                    Spacer(Modifier.height(14.dp))
+                    ToggleRow(
+                        "wallpaper behind tiles",
+                        on = tiledWallpaper,
+                        accent = accent,
+                        tokens,
+                        onTiledWallpaperChange,
+                    )
+                }
             }
 
             // ---- tile style ----
             SettingGroup(label = "tile style", tokens.fgDim) {
-                // Glass / blur / tiled-wallpaper
+                // -- glass --
+                Text("glass", color = tokens.fgDim, fontSize = 12.sp)
+                Spacer(Modifier.height(10.dp))
                 ToggleRow("transparent tiles", on = glass, accent = accent, tokens, onGlassChange)
                 Spacer(Modifier.height(14.dp))
                 Text("tile transparency", color = tokens.fgDim, fontSize = 13.sp)
@@ -425,12 +448,14 @@ fun PersonalizeSheet(
                         inactiveTrackColor = tokens.tileLine,
                     ),
                 )
-                Spacer(Modifier.height(6.dp))
-                ToggleRow("blur wallpaper", on = blur, accent = accent, tokens, onBlurChange)
-                Spacer(Modifier.height(14.dp))
-                ToggleRow("wallpaper behind tiles", on = tiledWallpaper, accent = accent, tokens, onTiledWallpaperChange)
-                Spacer(Modifier.height(20.dp))
-                // Colour, fill & shape
+
+                Spacer(Modifier.height(18.dp))
+                HorizontalDivider(color = tokens.tileLine)
+                Spacer(Modifier.height(18.dp))
+
+                // -- colour & fill --
+                Text("colour & fill", color = tokens.fgDim, fontSize = 12.sp)
+                Spacer(Modifier.height(10.dp))
                 ToggleRow(
                     "tile colour from app icon",
                     on = tileColorSource == TileColorSource.APP_ICON,
@@ -450,7 +475,14 @@ fun PersonalizeSheet(
                     tokens,
                     onChange = { on -> onTileFillChange(if (on) TileFill.GRADIENT else TileFill.FLAT) },
                 )
-                Spacer(Modifier.height(14.dp))
+
+                Spacer(Modifier.height(18.dp))
+                HorizontalDivider(color = tokens.tileLine)
+                Spacer(Modifier.height(18.dp))
+
+                // -- shape & spacing --
+                Text("shape & spacing", color = tokens.fgDim, fontSize = 12.sp)
+                Spacer(Modifier.height(10.dp))
                 Text("corner radius", color = tokens.fgDim, fontSize = 13.sp)
                 Spacer(Modifier.height(4.dp))
                 Row(
@@ -511,8 +543,12 @@ fun PersonalizeSheet(
                         }
                     }
                 }
-                Spacer(Modifier.height(20.dp))
-                // Reset
+
+                Spacer(Modifier.height(18.dp))
+                HorizontalDivider(color = tokens.tileLine)
+                Spacer(Modifier.height(18.dp))
+
+                // -- reset --
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

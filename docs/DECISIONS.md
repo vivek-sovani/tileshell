@@ -1755,3 +1755,20 @@ reorganize into "pick one of five wallpaper kinds, then configure that kind."
   6-cell wallpaper grid (photo-picker button + "no wallpaper" cell mixed in with the 6 bundled
   gradients); now that photo and none are their own top-level types, the STOCK section is a plain
   3×2 grid of just the bundled gradients and neither composable has another caller.
+
+## Wallpaper effects moved out of tile style + tile style sub-grouping
+
+Follow-up ask: "blur wallpaper" and "wallpaper behind tiles" lived in the "tile style" group even
+though both are wallpaper-rendering effects (`WallpaperBackground`/`photoWindow`), not tile
+properties; "tile style" itself had also grown into an undifferentiated stack of eight controls.
+
+- **Blur/tiled-wallpaper moved into the wallpaper `SettingGroup`**, as a small "effects" subsection
+  below the type-specific content, shown for every type *except* `NONE` — `NONE` renders a flat
+  `tokens.bg` fill directly in `StartScreen.kt` (`noWallpaper` branch) and never reaches
+  `WallpaperBackground`, so both toggles would be inert there. No behavioural change to the toggles
+  themselves (`onBlurChange`/`onTiledWallpaperChange` unchanged) — purely a placement fix.
+- **"tile style" split into three labelled subgroups** (`glass`, `colour & fill`, `shape & spacing`)
+  separated by `HorizontalDivider`s, mirroring the wallpaper section's new clarity. Reset stays a
+  fourth, unlabelled block at the end (it already reads as a distinct action). No control moved
+  between subgroups relative to before, other than the two that left for wallpaper — this pass is
+  visual grouping only, not a re-think of which knobs belong together.
