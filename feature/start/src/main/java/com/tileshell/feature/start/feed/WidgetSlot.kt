@@ -103,13 +103,23 @@ fun WidgetSection(accent: Color, tokens: ColorTokens) {
     var pendingConfigureId by remember { mutableStateOf(-1) }
 
     fun commit(id: Int, provider: AppWidgetProviderInfo) {
-        // Start from the provider's preferred/min height; collection widgets
-        // (calendar/agenda lists) report tall sizes — don't clamp them short.
-        val preferred = if (android.os.Build.VERSION.SDK_INT >= 31 && provider.targetCellHeight > 0) {
-            provider.targetCellHeight * 60 // ~60dp per cell
+        // Scale to the provider's own recommended aspect ratio rather than just
+        // its raw minHeight — a widget designed for a narrow cell (e.g. 2 columns,
+        // ~110dp) looks squat and undersized once stretched across our fixed
+        // full-device-width slot unless the height scales up to match. API 31+
+        // providers publish an explicit recommended cell footprint
+        // (targetCellWidth/Height); older ones only report min width/height,
+        // used as the next-best proxy for "recommended."
+        val minWidthDp = (provider.minWidth / density).takeIf { it > 0 }
+        val minHeightDp = (provider.minHeight / density).takeIf { it > 0 }
+        val aspect = if (android.os.Build.VERSION.SDK_INT >= 31 && provider.targetCellWidth > 0 && provider.targetCellHeight > 0) {
+            provider.targetCellHeight.toFloat() / provider.targetCellWidth.toFloat()
+        } else if (minWidthDp != null && minHeightDp != null) {
+            minHeightDp / minWidthDp
         } else {
-            (provider.minHeight / density).roundToInt()
+            null
         }
+        val preferred = aspect?.let { (widthDp * it).roundToInt() } ?: minHeightDp?.roundToInt() ?: 180
         val h = preferred.coerceIn(96, 480)
         scope.launch { store.add(HostedWidget(id, h)) }
     }

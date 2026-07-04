@@ -2018,3 +2018,23 @@ still one tap to remove via the existing edit/remove control. `bindLauncher` (th
 system-owned `ACTION_APPWIDGET_BIND` permission dialog, not an OEM activity) keeps its strict
 `RESULT_OK` check — that result code comes from the OS itself, not a third-party app, so it's
 trustworthy.
+
+## Widget default height: scale to the provider's own aspect ratio, not raw minHeight
+
+Improvement (reported after the fixes above got Samsung Health's widget showing at all: "it is
+showing but in small size... can we display the widget as per the recommended widget size by
+provider... I mean proportion"). `commit()` (`WidgetSlot.kt`) previously set a newly-added widget's
+height directly from `provider.minHeight` (or `targetCellHeight * 60dp` on API 31+), ignoring width
+entirely. Every widget slot in the feed renders at the full device width, so a widget authored for
+a narrow cell (say a 2-column ~110dp-wide layout) got its designer-intended *height* applied
+verbatim to a much wider slot — squashing its recommended proportions into something visibly
+squat/undersized.
+
+Fixed by deriving an aspect ratio from the provider's own recommended footprint and scaling it to
+the slot's actual width, instead of using minHeight as an absolute value: API 31+ providers publish
+an explicit recommended cell size (`targetCellWidth`/`targetCellHeight` — literally "recommended
+size" in the platform's own terms) and its ratio is applied to `widthDp`; older providers fall back
+to the `minWidth:minHeight` ratio as the next-best proxy. Same final `coerceIn(96, 480)` sanity
+clamp as before. Only affects *newly added* widgets — an already-hosted widget's height is
+persisted in `WidgetStore` and isn't retroactively recomputed, so an existing undersized widget
+needs a remove-and-re-add (or a manual drag-resize) to pick up the new proportional default.
