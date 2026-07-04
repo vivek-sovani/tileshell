@@ -51,9 +51,16 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(accentId = accentId) }
     }
 
-    /** Toggle transparent-tile ("glass") mode (FR-7). */
+    /**
+     * Toggle transparent-tile ("glass") mode (FR-7). Mutually exclusive with
+     * [tiledWallpaper] — both paint a tile's fill (glass tint vs. a window onto the
+     * wallpaper), so enabling one turns the other off rather than leaving a toggle
+     * on that silently has no visible effect.
+     */
     suspend fun setGlass(glass: Boolean) {
-        store.updateData { it.copy(glass = glass) }
+        store.updateData {
+            if (glass) it.copy(glass = true, tiledWallpaper = false) else it.copy(glass = false)
+        }
     }
 
     /** Set the tile-transparency slider value; clamped to 0..1. */
@@ -112,6 +119,22 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         }
     }
 
+    /**
+     * Pin a specific image from the Bing history viewer (called by
+     * `BingWallpaperWorker`'s "pin this day" path). Unlike [setCustomWallpaper],
+     * this *keeps* [LauncherSettings.bingWallpaper] on rather than switching to a
+     * plain fixed photo — the user reached this picker from within Bing mode, so
+     * the personalize wallpaper-type selector should keep showing "bing", not
+     * silently reclassify to "photo". The daily worker will still refresh over it
+     * on its next scheduled run, same as any other day's Bing image.
+     */
+    suspend fun setPinnedBingImage(uri: String) {
+        store.updateData {
+            it.copy(customWallpaperUri = uri, bingWallpaper = true, wallpaperSlideshowEnabled = false,
+                wallpaperAlignX = 0.5f, wallpaperAlignY = 0.5f, wallpaperZoom = 1f)
+        }
+    }
+
     /** Update the focal-point alignment and zoom of the current custom wallpaper. */
     suspend fun setWallpaperAlignment(alignX: Float, alignY: Float, zoom: Float = 1f) {
         store.updateData {
@@ -166,9 +189,14 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         }
     }
 
-    /** Toggle "wallpaper behind tiles" mode (the dark screen + show-through tiles). */
+    /**
+     * Toggle "wallpaper behind tiles" mode (the dark screen + show-through tiles).
+     * Mutually exclusive with [glass] — see [setGlass].
+     */
     suspend fun setTiledWallpaper(on: Boolean) {
-        store.updateData { it.copy(tiledWallpaper = on) }
+        store.updateData {
+            if (on) it.copy(tiledWallpaper = true, glass = false) else it.copy(tiledWallpaper = false)
+        }
     }
 
     /** Toggle the left "feed" page (the 3rd pager page reached by swiping right). */

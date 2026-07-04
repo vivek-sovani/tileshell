@@ -451,8 +451,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Pin a specific Bing image (chosen from the history viewer) as the wallpaper.
-     * Downloads it off-thread via the worker and sets it as a fixed custom wallpaper,
-     * which turns daily auto-refresh off.
+     * Downloads it off-thread via the worker; stays in Bing mode (daily auto-refresh
+     * keeps running and will replace it on the next scheduled run).
      */
     fun applyBingImage(imageUrl: String) {
         com.tileshell.feature.livetiles.BingWallpaperWorker.applyImage(getApplication(), imageUrl)

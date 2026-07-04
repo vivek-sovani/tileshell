@@ -12,6 +12,7 @@ import android.net.Uri
 import android.provider.AlarmClock
 import android.provider.CalendarContract
 import android.widget.Toast
+import java.net.URLEncoder
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -3650,12 +3651,13 @@ internal fun launchWebSearch(context: Context, query: String) {
  */
 data class AiAssistant(val id: String, val label: String, val packageName: String)
 
-/** The four assistants offered in quick search, in display order. */
+/** The AI assistants offered in quick search, in display order. */
 val AI_ASSISTANTS = listOf(
     AiAssistant("chatgpt", "chatgpt", "com.openai.chatgpt"),
     AiAssistant("gemini", "gemini", "com.google.android.apps.bard"),
     AiAssistant("claude", "claude", "com.anthropic.claude"),
     AiAssistant("perplexity", "perplexity", "ai.perplexity.app.android"),
+    AiAssistant("copilot", "copilot", "com.microsoft.copilot"),
 )
 
 /**
@@ -3683,6 +3685,55 @@ internal fun launchAiAssistant(context: Context, packageName: String, query: Str
         Uri.parse("https://play.google.com/store/apps/details?id=$packageName"),
     ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     runCatching { context.startActivity(webListing) }
+}
+
+/**
+ * One search engine offered as a quick-search shortcut (post-S27, not in the WP
+ * prototype/spec). [packageName] is only used to show that engine's real app icon
+ * when installed (cosmetic — [urlTemplate] is what's actually opened, so a wrong
+ * or missing package just falls back to a plain icon, never breaks the search).
+ */
+data class SearchEngine(
+    val id: String,
+    val label: String,
+    val packageName: String?,
+    val urlTemplate: (String) -> String,
+)
+
+/** The search engines offered in quick search, in display order. */
+val SEARCH_ENGINES = listOf(
+    SearchEngine("google", "google", "com.google.android.googlequicksearchbox", ::googleSearchUrl),
+    SearchEngine("bing", "bing", "com.microsoft.bing") {
+        "https://www.bing.com/search?q=" + URLEncoder.encode(it.trim(), "UTF-8")
+    },
+    SearchEngine("duckduckgo", "duckduckgo", "com.duckduckgo.mobile.android") {
+        "https://duckduckgo.com/?q=" + URLEncoder.encode(it.trim(), "UTF-8")
+    },
+    SearchEngine("yahoo", "yahoo", "com.yahoo.mobile.client.android.search") {
+        "https://search.yahoo.com/search?p=" + URLEncoder.encode(it.trim(), "UTF-8")
+    },
+    SearchEngine("yandex", "yandex", "ru.yandex.searchplugin") {
+        "https://yandex.com/search/?text=" + URLEncoder.encode(it.trim(), "UTF-8")
+    },
+)
+
+/**
+ * Opens [engine]'s search results for [query]. The "google" engine reuses
+ * [launchWebSearch] (tries the system's default search handler first, e.g. the
+ * Google app's Quick Search Box, falling back to a browser); every other engine
+ * goes straight to its own search URL in a browser, since there's no equivalent
+ * "default handler" concept for a specific non-default engine.
+ */
+internal fun launchSearchEngine(context: Context, engine: SearchEngine, query: String) {
+    val trimmed = query.trim()
+    if (trimmed.isEmpty()) return
+    if (engine.id == "google") {
+        launchWebSearch(context, trimmed)
+        return
+    }
+    val browser = Intent(Intent.ACTION_VIEW, Uri.parse(engine.urlTemplate(trimmed)))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { context.startActivity(browser) }
 }
 
 /**

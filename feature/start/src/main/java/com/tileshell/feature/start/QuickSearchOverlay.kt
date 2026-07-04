@@ -12,11 +12,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -285,16 +288,32 @@ fun QuickSearchOverlay(
                     } else {
                         item { RequestRow(tokens, "allow contacts access to search contacts", onRequestContacts) }
                     }
-                    item { SearchSectionHeader("web", accent) }
+                    item { SearchSectionHeader("search", accent) }
                     item {
-                        WebSearchRow(trimmed, tokens) {
-                            act { launchWebSearch(context, trimmed) }
+                        ServicePillRow(tokens) {
+                            SEARCH_ENGINES.forEach { engine ->
+                                ServicePill(
+                                    label = engine.label,
+                                    packageName = engine.packageName,
+                                    accent = accent,
+                                    tokens = tokens,
+                                    onClick = { act { launchSearchEngine(context, engine, trimmed) } },
+                                )
+                            }
                         }
                     }
                     item { SearchSectionHeader("ask ai", accent) }
-                    items(AI_ASSISTANTS, key = { "ai/${it.id}" }) { assistant ->
-                        AiSearchRow(assistant, trimmed, tokens) {
-                            act { launchAiAssistant(context, assistant.packageName, trimmed) }
+                    item {
+                        ServicePillRow(tokens) {
+                            AI_ASSISTANTS.forEach { assistant ->
+                                ServicePill(
+                                    label = assistant.label,
+                                    packageName = assistant.packageName,
+                                    accent = accent,
+                                    tokens = tokens,
+                                    onClick = { act { launchAiAssistant(context, assistant.packageName, trimmed) } },
+                                )
+                            }
                         }
                     }
                 }
@@ -431,38 +450,78 @@ private fun ContactResultRow(
     }
 }
 
+/**
+ * A horizontally scrollable row of [ServicePill]s (search engines or AI
+ * assistants — post-S27, not in the WP prototype/spec). Scrollable rather than
+ * wrapped since the pill count (5 apiece) comfortably exceeds one screen width.
+ */
 @Composable
-private fun WebSearchRow(query: String, tokens: ColorTokens, onTap: () -> Unit) {
+private fun ServicePillRow(tokens: ColorTokens, content: @Composable RowScope.() -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onTap)
-            .padding(horizontal = 18.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(TileIcons["search"], null, tint = tokens.fg, modifier = Modifier.size(24.dp))
-        Spacer(Modifier.width(14.dp))
-        Text("search the web for “$query”", color = tokens.fg, fontSize = 16.sp)
-    }
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 18.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        content = content,
+    )
 }
 
 /**
- * One "ask <assistant>" row (FR: AI assistants in quick search — not in the WP
- * prototype/spec). Reuses the search glyph rather than each brand's logo, matching
- * this app's original-monoline-icon convention (no third-party assets).
+ * One search-engine or AI-assistant pill: the app's own real launcher icon when
+ * installed (via [rememberAppIconBitmap] — same package-visibility grant the app
+ * list already relies on, no bundled brand assets), falling back to a plain
+ * accent-tinted initial when it isn't. Tapping fires [onClick]; the actual
+ * navigation (share intent, market fallback, or a specific engine's search URL)
+ * is the caller's job — this is presentation-only.
  */
 @Composable
-private fun AiSearchRow(assistant: AiAssistant, query: String, tokens: ColorTokens, onTap: () -> Unit) {
-    Row(
+private fun ServicePill(
+    label: String,
+    packageName: String?,
+    accent: Color,
+    tokens: ColorTokens,
+    onClick: () -> Unit,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onTap)
-            .padding(horizontal = 18.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .width(64.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp, horizontal = 4.dp),
     ) {
-        Icon(TileIcons["search"], null, tint = tokens.fg, modifier = Modifier.size(24.dp))
-        Spacer(Modifier.width(14.dp))
-        Text("ask ${assistant.label} about “$query”", color = tokens.fg, fontSize = 16.sp)
+        val icon = packageName?.let { rememberAppIconBitmap(it, sizePx = 96) }
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(if (icon == null) accent.copy(alpha = 0.18f) else Color.Transparent),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (icon != null) {
+                Image(
+                    bitmap = icon,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().clip(CircleShape),
+                )
+            } else {
+                Text(
+                    text = label.take(1).uppercase(),
+                    color = accent,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = label,
+            color = tokens.fg,
+            fontSize = 11.sp,
+            maxLines = 1,
+        )
     }
 }
 

@@ -109,8 +109,10 @@ suspend fun fetchBingImages(market: String = bingMarket()): List<BingImage> = wi
  * writes its file URI into [SettingsRepository.setBingImage] so the existing
  * custom-wallpaper render path picks it up — preserving the user's framing across
  * days. Given an [KEY_IMAGE_URL] input it instead pins that specific (historical)
- * image as a plain custom wallpaper, turning daily mode off. Retries on any network
- * failure so the tile keeps its last good image.
+ * image via [SettingsRepository.setPinnedBingImage], staying in Bing mode (the
+ * history viewer is only reachable from within it) rather than switching to a
+ * plain fixed photo. Retries on any network failure so the tile keeps its last
+ * good image.
  */
 class BingWallpaperWorker(
     context: Context,
@@ -121,13 +123,14 @@ class BingWallpaperWorker(
         val settings = SettingsRepository.create(applicationContext)
         val file = File(applicationContext.filesDir, "bing_wallpaper.jpg")
 
-        // "Pin this day" path: download the requested image and set it as a fixed
-        // custom wallpaper (this clears the daily flag via setCustomWallpaper).
+        // "Pin this day" path: download the requested image and show it now, staying
+        // in Bing mode (setPinnedBingImage) rather than switching to a plain fixed
+        // photo — the history viewer is only reachable from within Bing mode.
         inputData.getString(KEY_IMAGE_URL)?.let { pinned ->
             if (!runCatching { bingDownload(pinned, file) }.getOrDefault(false)) {
                 return@withContext Result.retry()
             }
-            settings.setCustomWallpaper(versionedUri(file))
+            settings.setPinnedBingImage(versionedUri(file))
             return@withContext Result.success()
         }
 
@@ -195,7 +198,7 @@ class BingWallpaperWorker(
                 )
         }
 
-        /** Pin a specific (e.g. historical) Bing image as the wallpaper, turning daily mode off. */
+        /** Pin a specific (e.g. historical) Bing image as the wallpaper, staying in Bing mode. */
         fun applyImage(context: Context, imageUrl: String) {
             androidx.work.WorkManager.getInstance(context.applicationContext)
                 .enqueueUniqueWork(

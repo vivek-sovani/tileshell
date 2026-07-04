@@ -1813,3 +1813,48 @@ Claude, Perplexity) — not in the WP prototype/spec.
   (`AiSearchRow` — reuses the search glyph rather than each brand's logo, keeping the launcher's
   original-monoline-icon convention with no third-party assets). Only shown once the user has typed
   something (same gate as the "web" section) — asking an assistant needs a query.
+
+## Personalize bug fixes + further reorganization; search pills with real icons
+
+Follow-up bug/polish pass on the wallpaper and tile-style work above, plus a redesign of the
+quick-search AI/web rows.
+
+- **Bing history pin no longer reclassifies as "photo".** Picking an image from "recent bing
+  wallpapers" only reaches the picker from within Bing mode, but `BingWallpaperWorker`'s pin path
+  called `setCustomWallpaper` — which (correctly, for the *general* "set a photo" case) clears
+  `bingWallpaper`. From the wallpaper-type selector's point of view this looked like the pin
+  silently switching you to "photo". New `SettingsRepository.setPinnedBingImage` keeps
+  `bingWallpaper = true` instead, so the type stays "bing"; the daily worker still refreshes over
+  the pinned image on its next scheduled run, same as any other day.
+- **Glass and "wallpaper behind tiles" are now mutually exclusive at the data layer**
+  (`SettingsRepository.setGlass`/`setTiledWallpaper`, each clearing the other on enable) rather than
+  just being mutually exclusive at render time (`TileView`'s fill-priority `when` already picked
+  tiled over glass) — previously both toggles could show "on" while only one was visibly doing
+  anything.
+- **Blur wallpaper is hidden (not merely disabled) while "wallpaper behind tiles" is on**, instead
+  of the originally-planned "make blur actually work in tiled mode." That fix was implemented once
+  — threading a `wallpaperBlur` flag down to `TileView`/`StackTileContent` and applying
+  `Modifier.blur(18.dp)` to each tile's own wallpaper-window — and caused a real ANR on-device:
+  every visible tile got its own RenderEffect layer, and compositing a dozen-plus simultaneous blur
+  layers is far more expensive than one full-screen blur. Reverted rather than chasing a safer
+  version (e.g. pre-blurring the shared bitmap once) given the effort/benefit here — tiled mode is
+  a decorative extra, not worth the risk of a repeat performance bug.
+- **"reset tile style" now confirms via `AlertDialog`** (cancel/reset) before calling
+  `onResetTileStyle`, mirroring `LayoutHistorySheet`'s existing restore-confirmation pattern —
+  the action is destructive-ish (loses corner radius/spacing/columns/fill/colour/font choices) and
+  had no undo.
+- **Sheet order reshuffled**: theme → grid columns → accent colour → typography → colour & fill →
+  wallpaper → tile style (now just glass + shape & spacing) → live tiles → … `columns` and
+  `fontStyle` controls didn't move logically, just physically (same params, same callbacks) — this
+  is a pure ordering/grouping pass, not a re-think of what belongs together beyond pulling colour &
+  fill out of tile style to sit with the other "pick a look" groups near the top.
+- **Quick search's AI-assistant and web-search rows became icon pills**, replacing the vertical
+  "ask X about Y" / "search the web for Y" list rows. Each `ServicePill` shows the target app's own
+  real launcher icon via `rememberAppIconBitmap` (already used for the app-list icons — no bundled
+  brand assets, no trademark concerns, and it only ever shows an icon for an app the user actually
+  has installed) falling back to an accent-tinted initial when not installed. Added Microsoft
+  Copilot as a fifth assistant and a "search" pill row (Google/Bing/DuckDuckGo/Yahoo/Yandex) above
+  "ask ai" — every non-Google engine opens its own search URL directly (verified against each
+  engine's real query-parameter docs, not guessed) since `ACTION_WEB_SEARCH` has no way to target a
+  specific non-default engine; "google" keeps reusing `launchWebSearch`'s existing default-handler
+  behaviour.

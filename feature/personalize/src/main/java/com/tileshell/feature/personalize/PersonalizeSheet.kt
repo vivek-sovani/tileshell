@@ -27,13 +27,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -170,11 +174,29 @@ fun PersonalizeSheet(
 
     val tokens = colorTokens(dark)
     val accent = TileAccents.forId(accentId)
+    var showResetTileStyleConfirm by remember { mutableStateOf(false) }
 
     // Android back / back-gesture closes the sheet. When a sub-sheet (about,
     // folders, bing history) is open on top, its own handler — registered later —
     // takes the back press first, so this closes personalize only once they're gone.
     BackHandler(enabled = visible) { onDismiss() }
+
+    if (showResetTileStyleConfirm) {
+        AlertDialog(
+            onDismissRequest = { showResetTileStyleConfirm = false },
+            title = { Text("reset tile style?") },
+            text = { Text("this resets corners, spacing, columns, fill, colour & font to their defaults.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onResetTileStyle()
+                    showResetTileStyleConfirm = false
+                }) { Text("reset") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetTileStyleConfirm = false }) { Text("cancel") }
+            },
+        )
+    }
 
     SheetStage(rightHalf = rightHalf, modifier = modifier) {
         // Scrim (prototype rgba(0,0,0,.5)); tap to dismiss.
@@ -255,6 +277,46 @@ fun PersonalizeSheet(
                 }
             }
 
+            // ---- grid columns ----
+            SettingGroup(label = "grid columns", tokens.fgDim) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "how many small tiles fit across a row",
+                        color = tokens.fgDim,
+                        fontSize = 13.sp,
+                    )
+                    Text(
+                        "a medium tile spans 2 columns, a wide tile spans 4",
+                        color = tokens.fgDim,
+                        fontSize = 12.sp,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(4, 5, 6).forEach { count ->
+                            val selected = columns == count
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(if (selected) accent else Color.Transparent)
+                                    .border(
+                                        1.dp,
+                                        if (selected) accent else tokens.tileLine,
+                                        RoundedCornerShape(20.dp),
+                                    )
+                                    .clickable { onColumnsChange(count) }
+                                    .padding(horizontal = 18.dp, vertical = 7.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = count.toString(),
+                                    color = if (selected) Color.White else tokens.fg,
+                                    fontSize = 13.sp,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // ---- accent colour ----
             SettingGroup(label = "accent colour", tokens.fgDim) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -273,6 +335,63 @@ fun PersonalizeSheet(
                         }
                     }
                 }
+            }
+
+            // ---- typography ----
+            SettingGroup(label = "typography", tokens.fgDim) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        FontStyle.SYSTEM to "system",
+                        FontStyle.OUTFIT to "outfit",
+                        FontStyle.NUNITO to "nunito",
+                    ).forEach { entry ->
+                        val style = entry.first
+                        val label = entry.second
+                        val selected = fontStyle == style
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(if (selected) accent else Color.Transparent)
+                                .border(
+                                    1.dp,
+                                    if (selected) accent else tokens.tileLine,
+                                    RoundedCornerShape(20.dp),
+                                )
+                                .clickable { onFontStyleChange(style) }
+                                .padding(horizontal = 14.dp, vertical = 7.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (selected) Color.White else tokens.fg,
+                                fontSize = 13.sp,
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ---- colour & fill ----
+            SettingGroup(label = "colour & fill", tokens.fgDim) {
+                ToggleRow(
+                    "tile colour from app icon",
+                    on = tileColorSource == TileColorSource.APP_ICON,
+                    accent = accent,
+                    tokens,
+                    onChange = { on ->
+                        onTileColorSourceChange(
+                            if (on) TileColorSource.APP_ICON else TileColorSource.GLOBAL_ACCENT,
+                        )
+                    },
+                )
+                Spacer(Modifier.height(14.dp))
+                ToggleRow(
+                    "gradient fill",
+                    on = tileFill == TileFill.GRADIENT,
+                    accent = accent,
+                    tokens,
+                    onChange = { on -> onTileFillChange(if (on) TileFill.GRADIENT else TileFill.FLAT) },
+                )
             }
 
             // ---- wallpaper ----
@@ -411,15 +530,21 @@ fun PersonalizeSheet(
 
                 // Display effects apply to whichever wallpaper is showing — meaningless
                 // for NONE, which renders a flat theme-bg fill and never reaches
-                // WallpaperBackground at all.
+                // WallpaperBackground at all. "Blur wallpaper" is only offered while
+                // "wallpaper behind tiles" is off: tiled mode has no single composable
+                // to blur (each tile draws its own window onto the wallpaper), and
+                // blurring every tile's window individually is prohibitively expensive
+                // (one RenderEffect layer per visible tile — tried it, caused an ANR).
                 if (currentWallpaper != WallpaperType.NONE) {
                     Spacer(Modifier.height(20.dp))
                     HorizontalDivider(color = tokens.tileLine)
                     Spacer(Modifier.height(18.dp))
                     Text("effects", color = tokens.fgDim, fontSize = 12.sp)
                     Spacer(Modifier.height(10.dp))
-                    ToggleRow("blur wallpaper", on = blur, accent = accent, tokens, onBlurChange)
-                    Spacer(Modifier.height(14.dp))
+                    if (!tiledWallpaper) {
+                        ToggleRow("blur wallpaper", on = blur, accent = accent, tokens, onBlurChange)
+                        Spacer(Modifier.height(14.dp))
+                    }
                     ToggleRow(
                         "wallpaper behind tiles",
                         on = tiledWallpaper,
@@ -447,33 +572,6 @@ fun PersonalizeSheet(
                         activeTrackColor = accent,
                         inactiveTrackColor = tokens.tileLine,
                     ),
-                )
-
-                Spacer(Modifier.height(18.dp))
-                HorizontalDivider(color = tokens.tileLine)
-                Spacer(Modifier.height(18.dp))
-
-                // -- colour & fill --
-                Text("colour & fill", color = tokens.fgDim, fontSize = 12.sp)
-                Spacer(Modifier.height(10.dp))
-                ToggleRow(
-                    "tile colour from app icon",
-                    on = tileColorSource == TileColorSource.APP_ICON,
-                    accent = accent,
-                    tokens,
-                    onChange = { on ->
-                        onTileColorSourceChange(
-                            if (on) TileColorSource.APP_ICON else TileColorSource.GLOBAL_ACCENT,
-                        )
-                    },
-                )
-                Spacer(Modifier.height(14.dp))
-                ToggleRow(
-                    "gradient fill",
-                    on = tileFill == TileFill.GRADIENT,
-                    accent = accent,
-                    tokens,
-                    onChange = { on -> onTileFillChange(if (on) TileFill.GRADIENT else TileFill.FLAT) },
                 )
 
                 Spacer(Modifier.height(18.dp))
@@ -552,7 +650,7 @@ fun PersonalizeSheet(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable(onClick = onResetTileStyle)
+                        .clickable { showResetTileStyleConfirm = true }
                         .padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -565,80 +663,6 @@ fun PersonalizeSheet(
                         )
                     }
                     Text(text = "↺", color = tokens.fgDim, fontSize = 16.sp)
-                }
-            }
-
-            // ---- typography ----
-            SettingGroup(label = "typography", tokens.fgDim) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(
-                        FontStyle.SYSTEM to "system",
-                        FontStyle.OUTFIT to "outfit",
-                        FontStyle.NUNITO to "nunito",
-                    ).forEach { entry ->
-                        val style = entry.first
-                        val label = entry.second
-                        val selected = fontStyle == style
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(if (selected) accent else Color.Transparent)
-                                .border(
-                                    1.dp,
-                                    if (selected) accent else tokens.tileLine,
-                                    RoundedCornerShape(20.dp),
-                                )
-                                .clickable { onFontStyleChange(style) }
-                                .padding(horizontal = 14.dp, vertical = 7.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = label,
-                                color = if (selected) Color.White else tokens.fg,
-                                fontSize = 13.sp,
-                            )
-                        }
-                    }
-                }
-            }
-
-            // ---- grid columns ----
-            SettingGroup(label = "grid columns", tokens.fgDim) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "how many small tiles fit across a row",
-                        color = tokens.fgDim,
-                        fontSize = 13.sp,
-                    )
-                    Text(
-                        "a medium tile spans 2 columns, a wide tile spans 4",
-                        color = tokens.fgDim,
-                        fontSize = 12.sp,
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(4, 5, 6).forEach { count ->
-                            val selected = columns == count
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(if (selected) accent else Color.Transparent)
-                                    .border(
-                                        1.dp,
-                                        if (selected) accent else tokens.tileLine,
-                                        RoundedCornerShape(20.dp),
-                                    )
-                                    .clickable { onColumnsChange(count) }
-                                    .padding(horizontal = 18.dp, vertical = 7.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    text = count.toString(),
-                                    color = if (selected) Color.White else tokens.fg,
-                                    fontSize = 13.sp,
-                                )
-                            }
-                        }
-                    }
                 }
             }
 
