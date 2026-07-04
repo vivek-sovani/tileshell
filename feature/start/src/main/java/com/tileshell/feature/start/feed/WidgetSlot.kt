@@ -20,6 +20,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -53,6 +54,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -417,35 +419,42 @@ private fun WidgetView(
                         if (info.configure != null) EditPill("edit", accent) { onEdit(info) }
                         EditPill("remove", Color(0xFFD6262B)) { onRemove() }
                     }
-                    // Bottom drag handle: drag up/down to resize. Square widgets grow
-                    // diagonally (width follows height, staying square, capped to the
-                    // available slot width); everything else only grows in height.
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 8.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.White.copy(alpha = 0.9f))
-                            .size(width = 44.dp, height = 6.dp)
-                            .pointerInput(widget.widgetId) {
-                                detectDragGestures(
-                                    onDrag = { change, drag ->
-                                        change.consume()
-                                        if (isSquare) {
-                                            val squareMin = maxOf(WIDGET_MIN_H, providerMinWidthDp(info, density))
-                                            val squareMax = minOf(WIDGET_MAX_H, widthDp)
-                                            val newSize = (liveHeight + (drag.y / density)).roundToInt()
-                                                .coerceIn(squareMin, squareMax)
-                                            liveHeight = newSize
-                                            liveWidth = newSize
-                                        } else {
-                                            liveHeight = (liveHeight + (drag.y / density)).roundToInt()
-                                                .coerceIn(WIDGET_MIN_H, WIDGET_MAX_H)
-                                        }
-                                    },
-                                    onDragEnd = { onResize(liveHeight, if (isSquare) liveWidth else 0) },
-                                )
-                            },
+                    // Three independent resize handles — bottom edge (height only),
+                    // right edge (width only), corner (both at once, diagonal) — so any
+                    // widget can be resized in whichever direction makes sense for it,
+                    // rather than the host guessing from its shape.
+                    val widthFloor = maxOf(WIDGET_MIN_H, providerMinWidthDp(info, density))
+                    ResizeHandle(
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
+                        width = 44.dp,
+                        height = 6.dp,
+                        widgetId = widget.widgetId,
+                        onDrag = { _, dy ->
+                            liveHeight = (liveHeight + dy / density).roundToInt().coerceIn(WIDGET_MIN_H, WIDGET_MAX_H)
+                        },
+                        onDragEnd = { onResize(liveHeight, liveWidth) },
+                    )
+                    ResizeHandle(
+                        modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp),
+                        width = 6.dp,
+                        height = 44.dp,
+                        widgetId = widget.widgetId,
+                        onDrag = { dx, _ ->
+                            liveWidth = (liveWidth + dx / density).roundToInt().coerceIn(widthFloor, widthDp)
+                        },
+                        onDragEnd = { onResize(liveHeight, liveWidth) },
+                    )
+                    ResizeHandle(
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
+                        width = 14.dp,
+                        height = 14.dp,
+                        cornerRadius = 6.dp,
+                        widgetId = widget.widgetId,
+                        onDrag = { dx, dy ->
+                            liveWidth = (liveWidth + dx / density).roundToInt().coerceIn(widthFloor, widthDp)
+                            liveHeight = (liveHeight + dy / density).roundToInt().coerceIn(WIDGET_MIN_H, WIDGET_MAX_H)
+                        },
+                        onDragEnd = { onResize(liveHeight, liveWidth) },
                     )
                 }
             }
@@ -645,6 +654,31 @@ private fun EditPill(label: String, color: Color, onClick: () -> Unit) {
             .background(color)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp),
+    )
+}
+
+/** A small draggable pill/dot used to resize a widget in one or both directions. */
+@Composable
+private fun BoxScope.ResizeHandle(
+    modifier: Modifier,
+    width: Dp,
+    height: Dp,
+    widgetId: Int,
+    cornerRadius: Dp = minOf(width, height) / 2,
+    onDrag: (dx: Float, dy: Float) -> Unit,
+    onDragEnd: () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(cornerRadius))
+            .background(Color.White.copy(alpha = 0.9f))
+            .size(width = width, height = height)
+            .pointerInput(widgetId) {
+                detectDragGestures(
+                    onDrag = { change, drag -> change.consume(); onDrag(drag.x, drag.y) },
+                    onDragEnd = { onDragEnd() },
+                )
+            },
     )
 }
 

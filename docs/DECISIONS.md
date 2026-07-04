@@ -2152,3 +2152,24 @@ a realistic scenario for any real phone reboot too, not just this session's repe
 Widened the grace period to ~15s (15×1s) before concluding a widget is actually gone. This doesn't
 restore widgets already deleted by the old 2s window — those need to be re-added once — but should
 stop it from recurring on future cold starts.
+
+## Widget resize: independent width/height/diagonal handles, not shape-guessed
+
+The Device Care/Digital Wellbeing investigation above didn't turn up a fixable root cause (looks
+like a genuine Samsung OEM restriction on system-privileged widgets — dropped, not pursued
+further). Separately, asked whether resize could work via pinch-zoom or per-direction handles
+instead of the single bottom-center handle whose behavior (height-only vs. diagonal) was decided by
+the `isSquareWidget` shape guess. Pinch-zoom was considered and rejected — it fights the feed's own
+scroll gesture and can't set width/height independently; per-edge/corner handles are the standard
+Android widget-resize pattern (matches Pixel Launcher) and let the user override the shape guess
+entirely instead of being stuck with whatever the host inferred.
+
+`WidgetView`'s single bottom-center handle is now three independent ones (new `ResizeHandle` helper,
+`WidgetSlot.kt`): bottom-center (height only, horizontal pill), right-center (width only, vertical
+pill), bottom-right corner (both at once — a literal diagonal drag, small square dot). Any widget
+can now be resized in any direction the user wants, not just square-classified ones — the
+`isSquareWidget` check still decides the sensible *initial* default width when a widget is first
+added (half-slot-or-provider-minimum for square shapes, full slot otherwise), but no longer gates
+which resize directions are available afterward. The width handles share the same
+provider-minimum-width floor as before (`providerMinWidthDp`); the corner handle moves width and
+height independently based on the drag's x/y components, not locked to a shared square value.
