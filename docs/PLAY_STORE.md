@@ -157,15 +157,19 @@ data. Users can also clear app data via Android Settings at any time.
 
 ## Release notes (v1.8.0)
 
+*1.7.0 was built but never actually published to the Play Store — the last live release is 1.6.2,
+so this note folds in everything since then, not just the 1.8.0-only delta.*
+
 *"What's new" — newest release first. Keep under Play's 500-character limit.*
 
 ```
 TileShell 1.8.0
 
-• New: the feed's search box now opens quick search directly — apps, contacts, AI, and web
-• New: resize widgets by width, height, or both — three independent handles instead of one
-• Fixed: widgets weren't always rendering at the right size
-• Fixed: some slow-loading widgets could vanish shortly after being added
+• New: wallpaper picker simplified to one clear choice — none, photo, slideshow, bing, or stock
+• New: quick search can ask ChatGPT, Gemini, Claude, Perplexity, or search Google, Bing, and more
+• New: resize widgets by width, height, or both — three independent handles
+• Fixed: clock tile date was cut off on 5- and 6-column grids
+• Fixed: widgets not rendering at the right size, and some vanishing after being added
 ```
 
 ## Release notes (v1.7.0)
