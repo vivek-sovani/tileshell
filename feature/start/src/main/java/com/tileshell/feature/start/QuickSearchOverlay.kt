@@ -291,6 +291,12 @@ fun QuickSearchOverlay(
                             act { launchWebSearch(context, trimmed) }
                         }
                     }
+                    item { SearchSectionHeader("ask ai", accent) }
+                    items(AI_ASSISTANTS, key = { "ai/${it.id}" }) { assistant ->
+                        AiSearchRow(assistant, trimmed, tokens) {
+                            act { launchAiAssistant(context, assistant.packageName, trimmed) }
+                        }
+                    }
                 }
             }
         }
@@ -437,6 +443,26 @@ private fun WebSearchRow(query: String, tokens: ColorTokens, onTap: () -> Unit) 
         Icon(TileIcons["search"], null, tint = tokens.fg, modifier = Modifier.size(24.dp))
         Spacer(Modifier.width(14.dp))
         Text("search the web for “$query”", color = tokens.fg, fontSize = 16.sp)
+    }
+}
+
+/**
+ * One "ask <assistant>" row (FR: AI assistants in quick search — not in the WP
+ * prototype/spec). Reuses the search glyph rather than each brand's logo, matching
+ * this app's original-monoline-icon convention (no third-party assets).
+ */
+@Composable
+private fun AiSearchRow(assistant: AiAssistant, query: String, tokens: ColorTokens, onTap: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onTap)
+            .padding(horizontal = 18.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(TileIcons["search"], null, tint = tokens.fg, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.width(14.dp))
+        Text("ask ${assistant.label} about “$query”", color = tokens.fg, fontSize = 16.sp)
     }
 }
 

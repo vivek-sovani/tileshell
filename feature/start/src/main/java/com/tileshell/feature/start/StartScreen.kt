@@ -3645,6 +3645,47 @@ internal fun launchWebSearch(context: Context, query: String) {
 }
 
 /**
+ * One AI assistant offered as a quick-search shortcut (post-S27, not in the WP
+ * prototype/spec — see DECISIONS.md "AI assistants in quick search").
+ */
+data class AiAssistant(val id: String, val label: String, val packageName: String)
+
+/** The four assistants offered in quick search, in display order. */
+val AI_ASSISTANTS = listOf(
+    AiAssistant("chatgpt", "chatgpt", "com.openai.chatgpt"),
+    AiAssistant("gemini", "gemini", "com.google.android.apps.bard"),
+    AiAssistant("claude", "claude", "com.anthropic.claude"),
+    AiAssistant("perplexity", "perplexity", "ai.perplexity.app.android"),
+)
+
+/**
+ * Hands [query] to the named AI assistant's app via a plain text share
+ * (`ACTION_SEND`) — the same mechanism as sharing text from any other app, which
+ * every major assistant app registers as a share target and opens as a new,
+ * pre-filled prompt. Falls back to that app's Play Store listing when it isn't
+ * installed (so the row is still useful — "go get the app" — rather than a
+ * silent no-op), matching [launchWebSearch]'s best-effort two-tier pattern.
+ */
+internal fun launchAiAssistant(context: Context, packageName: String, query: String) {
+    val trimmed = query.trim()
+    if (trimmed.isEmpty()) return
+    val share = Intent(Intent.ACTION_SEND)
+        .setType("text/plain")
+        .setPackage(packageName)
+        .putExtra(Intent.EXTRA_TEXT, trimmed)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (runCatching { context.startActivity(share) }.isSuccess) return
+    val marketListing = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName"))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (runCatching { context.startActivity(marketListing) }.isSuccess) return
+    val webListing = Intent(
+        Intent.ACTION_VIEW,
+        Uri.parse("https://play.google.com/store/apps/details?id=$packageName"),
+    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { context.startActivity(webListing) }
+}
+
+/**
  * Opens the calendar app's add-event screen (`ACTION_INSERT` on the events URI)
  * so the user can add a schedule straight from the feed. Best-effort: toasts when
  * no calendar app handles it.

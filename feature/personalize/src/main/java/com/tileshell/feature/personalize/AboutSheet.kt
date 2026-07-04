@@ -183,6 +183,7 @@ fun AboutSheet(
                     "tap a contact to open their contact card",
                     "long-press a contact result to call, message, or pin them to start",
                     "pinned contacts show their real photo on the tile",
+                    "ask chatgpt, gemini, claude, or perplexity — opens the app with your query ready to send",
                 ),
             )
 

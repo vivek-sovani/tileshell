@@ -1793,3 +1793,23 @@ invisible at 6, on both the WIDE (top Start tile) and MEDIUM sizes.
   was picked so ordinary 4-column phones (WIDE ≈ 170dp+ tall in practice) clamp to scale 1 and stay
   pixel-identical to before; only the shorter 5/6-column case actually shrinks. WIDE and MEDIUM
   share this fix since both occupy the same 2-row footprint and shrink identically.
+
+## AI assistants in quick search
+
+New ask: quick search's "web" fallback should also offer asking an AI assistant (ChatGPT, Gemini,
+Claude, Perplexity) — not in the WP prototype/spec.
+
+- **Plain-text share (`ACTION_SEND`), not a guessed deep link or web URL.** Each assistant app is a
+  registered share target that opens a new, pre-filled conversation from shared text — the same
+  mechanism as sharing text from any other app — so `launchAiAssistant` (`StartScreen.kt`) uses
+  `Intent.ACTION_SEND` + `setPackage(pkg)` + `EXTRA_TEXT` rather than a per-service web URL query
+  parameter (which isn't consistently documented/stable across these services and would silently
+  rot). Package names (`com.openai.chatgpt`, `com.google.android.apps.bard`, `com.anthropic.claude`,
+  `ai.perplexity.app.android`) were verified against each app's live Play Store listing, not
+  recalled from memory. Falls back to that app's Play Store listing when the share intent fails to
+  resolve (not installed), matching `launchWebSearch`'s existing two-tier degrade pattern, so the
+  row is still useful on a device without the app rather than a silent no-op.
+- **New "ask ai" section in `QuickSearchOverlay`**, below "web", one row per assistant
+  (`AiSearchRow` — reuses the search glyph rather than each brand's logo, keeping the launcher's
+  original-monoline-icon convention with no third-party assets). Only shown once the user has typed
+  something (same gate as the "web" section) — asking an assistant needs a query.
