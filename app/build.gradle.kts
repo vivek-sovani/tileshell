@@ -53,8 +53,13 @@ android {
         // v1.6.2 = 72 (in-app update check + flexible-update prompt banner on Start; wallpaper
         //   crop overlay gains pinch-to-zoom alongside drag-to-position; wallpaper slideshow
         //   rotates the background through multiple picked photos on a 15m/30m/1h/3h timer).
-        versionCode = 72
-        versionName = "1.6.2"
+        // v1.7.0 = 80 (personalize wallpaper section reorganized into a none/photo/slideshow/
+        //   bing/stock type selector, with blur/wallpaper-behind-tiles moved there as an
+        //   "effects" subsection and tile style split into glass/colour & fill/shape & spacing
+        //   subgroups; quick search can ask ChatGPT, Gemini, Claude, or Perplexity; clock tile
+        //   date no longer clipped at 5/6 grid columns).
+        versionCode = 80
+        versionName = "1.7.0"
     }
 
     if (keystoreFile.exists()) {
