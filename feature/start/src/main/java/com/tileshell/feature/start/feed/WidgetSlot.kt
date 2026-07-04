@@ -63,6 +63,7 @@ import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tileshell.core.design.ColorTokens
 import com.tileshell.feature.livetiles.rememberAppIconBitmap
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -237,10 +238,23 @@ private fun WidgetView(
     onEdit: (AppWidgetProviderInfo) -> Unit,
     onRemove: () -> Unit,
 ) {
-    val info = manager.getAppWidgetInfo(widget.widgetId)
-    // A widget whose provider was uninstalled returns null info — forget it.
-    LaunchedEffect(widget.widgetId, info) { if (info == null) onRemove() }
-    if (info == null) return
+    // Some OEMs (Samsung's Glance-based widgets — spage news, notes, reminder —
+    // confirmed via their async GWT/"Kumiho" provider-registration path in logcat)
+    // don't have the provider info ready the instant a widget is bound, so a null
+    // read right after add doesn't necessarily mean "uninstalled." Retry for a couple
+    // seconds before concluding it's actually gone, instead of deleting on the spot.
+    var infoState by remember(widget.widgetId) { mutableStateOf(manager.getAppWidgetInfo(widget.widgetId)) }
+    LaunchedEffect(widget.widgetId) {
+        if (infoState == null) {
+            repeat(4) {
+                delay(500)
+                infoState = manager.getAppWidgetInfo(widget.widgetId)
+                if (infoState != null) return@LaunchedEffect
+            }
+            onRemove()
+        }
+    }
+    val info = infoState ?: return
 
     val density = LocalDensity.current.density
     var editing by remember(widget.widgetId) { mutableStateOf(false) }

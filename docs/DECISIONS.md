@@ -1956,3 +1956,33 @@ the underlying pager translation math. `FeedPage`'s `onSearch` param (and the in
 `launchWebSearch` wiring in `StartScreen.kt`) was removed — quick search's own "search the web for
 '<query>'" row already covers that path. Verified on-device: tapping the pill opens quick search
 with the keyboard focused, no more Alarm/Clock fall-through. Build + tests green.
+
+## Widget host: retry before deleting a widget with transient null provider info
+
+Bug (reported: "samsung widgets are not running/showing properly"), diagnosed live on the physical
+Samsung device already connected this session via `adb shell dumpsys appwidget`: TileShell holds
+the widget bind grant fine (it's the default HOME, confirmed via `dumpsys package`/`resolve-activity`
+— not a permission issue), but the alarm history showed Samsung's "spage" news widget
+(`com.samsung.android.app.spage/...NewsWidgetProvider2x2`) being **added, then auto-cancelled 8
+seconds later** — i.e. TileShell bound it and then immediately deleted it itself. `adb logcat`
+around that package confirmed why it's slow: Samsung's newer system widgets (spage news, S Notes,
+Reminder, S Health) are built on **Jetpack Glance**, whose provider registration goes through an
+async background rendering session (`GWT:GlanceSession`/`GlanceStateDefinition`/`CoroutineSession`
+log tags, plus Samsung's own "Kumiho" One UI Home widget-hosting layer) rather than being available
+synchronously the instant `bindAppWidgetIdIfAllowed`/`ACTION_APPWIDGET_BIND` returns.
+
+`WidgetView` (`WidgetSlot.kt`) called `manager.getAppWidgetInfo(widget.widgetId)` once per
+composition and deleted the widget immediately if it came back null, on the assumption that null
+only ever means "the provider app was uninstalled." That assumption doesn't hold for a
+just-bound Glance-backed widget — the info lookup can transiently miss before Samsung's async
+registration finishes, and TileShell was deleting the widget it had just added out from under
+itself, which is exactly the add→cancel pattern seen in `dumpsys`. Fixed by giving a bound-but-
+not-yet-visible widget a grace period: a null read now retries up to 4× at 500ms (2s total) before
+concluding the provider is actually gone and calling `onRemove()` — a real uninstall still gets
+cleaned up, just not instantly. This is a real, reproducible bug independent of any Samsung-only
+platform limitation, so it's fixed for every OEM, not special-cased.
+
+Caveat noted but not fixed (OS-level, not ours to fix): even once bound, some Samsung system
+widgets may still render sparser or slower than in Samsung's own One UI Home, since part of their
+layout/sizing logic is tied to Samsung's proprietary "Kumiho" hosting extensions that no
+third-party `AppWidgetHost` (including this one) has access to.
