@@ -3647,18 +3647,30 @@ internal fun launchWebSearch(context: Context, query: String) {
 
 /**
  * One AI assistant offered as a quick-search shortcut (post-S27, not in the WP
- * prototype/spec — see DECISIONS.md "AI assistants in quick search").
+ * prototype/spec — see DECISIONS.md "AI assistants in quick search"). [domain] is
+ * only used to fetch that service's real favicon as a pill icon when the app
+ * itself isn't installed — see [faviconUrl].
  */
-data class AiAssistant(val id: String, val label: String, val packageName: String)
+data class AiAssistant(val id: String, val label: String, val packageName: String, val domain: String)
 
 /** The AI assistants offered in quick search, in display order. */
 val AI_ASSISTANTS = listOf(
-    AiAssistant("chatgpt", "chatgpt", "com.openai.chatgpt"),
-    AiAssistant("gemini", "gemini", "com.google.android.apps.bard"),
-    AiAssistant("claude", "claude", "com.anthropic.claude"),
-    AiAssistant("perplexity", "perplexity", "ai.perplexity.app.android"),
-    AiAssistant("copilot", "copilot", "com.microsoft.copilot"),
+    AiAssistant("chatgpt", "chatgpt", "com.openai.chatgpt", "chatgpt.com"),
+    AiAssistant("gemini", "gemini", "com.google.android.apps.bard", "gemini.google.com"),
+    AiAssistant("claude", "claude", "com.anthropic.claude", "claude.ai"),
+    AiAssistant("perplexity", "perplexity", "ai.perplexity.app.android", "perplexity.ai"),
+    AiAssistant("copilot", "copilot", "com.microsoft.copilot", "copilot.microsoft.com"),
 )
+
+/**
+ * Google's favicon service (`s2/favicons`) — widely used, undocumented-but-stable,
+ * returns any domain's real favicon as a PNG at roughly [sizePx]. Used as the
+ * second-tier icon source for [ServicePill] (after the real installed app icon,
+ * before the plain accent-tinted initial) so a search engine or assistant that
+ * isn't installed still shows its actual logo instead of a generic placeholder.
+ */
+internal fun faviconUrl(domain: String, sizePx: Int = 128): String =
+    "https://www.google.com/s2/favicons?domain=$domain&sz=$sizePx"
 
 /**
  * Hands [query] to the named AI assistant's app via a plain text share
@@ -3690,29 +3702,31 @@ internal fun launchAiAssistant(context: Context, packageName: String, query: Str
 /**
  * One search engine offered as a quick-search shortcut (post-S27, not in the WP
  * prototype/spec). [packageName] is only used to show that engine's real app icon
- * when installed (cosmetic — [urlTemplate] is what's actually opened, so a wrong
- * or missing package just falls back to a plain icon, never breaks the search).
+ * when installed; [domain] is the fallback favicon source when it isn't (see
+ * [faviconUrl]) — either way [urlTemplate] is what's actually opened, so a wrong
+ * or missing icon source just falls back further, never breaks the search).
  */
 data class SearchEngine(
     val id: String,
     val label: String,
     val packageName: String?,
+    val domain: String,
     val urlTemplate: (String) -> String,
 )
 
 /** The search engines offered in quick search, in display order. */
 val SEARCH_ENGINES = listOf(
-    SearchEngine("google", "google", "com.google.android.googlequicksearchbox", ::googleSearchUrl),
-    SearchEngine("bing", "bing", "com.microsoft.bing") {
+    SearchEngine("google", "google", "com.google.android.googlequicksearchbox", "google.com", ::googleSearchUrl),
+    SearchEngine("bing", "bing", "com.microsoft.bing", "bing.com") {
         "https://www.bing.com/search?q=" + URLEncoder.encode(it.trim(), "UTF-8")
     },
-    SearchEngine("duckduckgo", "duckduckgo", "com.duckduckgo.mobile.android") {
+    SearchEngine("duckduckgo", "duckduckgo", "com.duckduckgo.mobile.android", "duckduckgo.com") {
         "https://duckduckgo.com/?q=" + URLEncoder.encode(it.trim(), "UTF-8")
     },
-    SearchEngine("yahoo", "yahoo", "com.yahoo.mobile.client.android.search") {
+    SearchEngine("yahoo", "yahoo", "com.yahoo.mobile.client.android.search", "yahoo.com") {
         "https://search.yahoo.com/search?p=" + URLEncoder.encode(it.trim(), "UTF-8")
     },
-    SearchEngine("yandex", "yandex", "ru.yandex.searchplugin") {
+    SearchEngine("yandex", "yandex", "ru.yandex.searchplugin", "yandex.com") {
         "https://yandex.com/search/?text=" + URLEncoder.encode(it.trim(), "UTF-8")
     },
 )

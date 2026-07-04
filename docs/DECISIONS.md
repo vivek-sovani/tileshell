@@ -1877,3 +1877,25 @@ a third type selector (`TileBackgroundStyle`), mirroring `WallpaperType`'s patte
   directly on "shape & spacing" (colour & fill and glass have both moved out of it).
 - **"typography" moved below "colour & fill"** (was above it) — both are now adjacent "how tiles
   look" groups ahead of "wallpaper"/"tile background", with no other reordering.
+
+## Search-pill logos for services the user hasn't installed
+
+Follow-up: `ServicePill`'s real-installed-app-icon tier only shows anything for services the user
+actually has — in practice, usually just Google, since Bing/Yahoo/Yandex/DuckDuckGo/the AI
+assistant apps are rarely all installed, so those pills fell back to a plain accent-tinted initial.
+
+- **Second tier: Google's `s2/favicons` endpoint** (`faviconUrl(domain)`,
+  `https://www.google.com/s2/favicons?domain=…&sz=128`) fetched via the existing
+  `rememberRemoteImage` (already used for feed-article thumbnails — same `HttpURLConnection` +
+  manual-redirect + `LruCache` machinery, no new networking code). This is a widely-used, stable
+  but undocumented Google endpoint, not an official API — acceptable here because the fallback
+  chain degrades gracefully (accent-tinted initial) if it ever goes away, and because it returns
+  each service's own real favicon rather than a bundled/recreated copy of their logo. Verified
+  directly (`curl`) for every current pill before shipping: all resolve, most at a full 128×128
+  (Bing/Yahoo returned smaller native favicons — 32×32/48×48 — still legible at pill size).
+  `SearchEngine`/`AiAssistant` both gained a `domain` field to drive this.
+- **Backdrop differs by tier**: a real app icon already has its own opaque, full-bleed art — no
+  backdrop. A favicon is often small and colour-keyed for a *light* background specifically (many
+  favicons are ~32-48px and were never designed for a dark UI), so it gets a white circle behind it
+  regardless of app theme, plus inset padding since favicons are usually square, not pre-cropped to
+  a circle like an app icon. Only the final "neither loaded" tier uses the accent-tinted dot.

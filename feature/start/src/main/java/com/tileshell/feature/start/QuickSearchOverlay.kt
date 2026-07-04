@@ -81,6 +81,7 @@ import com.tileshell.feature.livetiles.primaryPhoneNumber
 import com.tileshell.feature.livetiles.rememberAppIconBitmap
 import com.tileshell.feature.livetiles.rememberTileBitmap
 import com.tileshell.feature.livetiles.searchContacts
+import com.tileshell.feature.start.feed.rememberRemoteImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -295,6 +296,7 @@ fun QuickSearchOverlay(
                                 ServicePill(
                                     label = engine.label,
                                     packageName = engine.packageName,
+                                    domain = engine.domain,
                                     accent = accent,
                                     tokens = tokens,
                                     onClick = { act { launchSearchEngine(context, engine, trimmed) } },
@@ -309,6 +311,7 @@ fun QuickSearchOverlay(
                                 ServicePill(
                                     label = assistant.label,
                                     packageName = assistant.packageName,
+                                    domain = assistant.domain,
                                     accent = accent,
                                     tokens = tokens,
                                     onClick = { act { launchAiAssistant(context, assistant.packageName, trimmed) } },
@@ -468,17 +471,22 @@ private fun ServicePillRow(tokens: ColorTokens, content: @Composable RowScope.()
 }
 
 /**
- * One search-engine or AI-assistant pill: the app's own real launcher icon when
- * installed (via [rememberAppIconBitmap] — same package-visibility grant the app
- * list already relies on, no bundled brand assets), falling back to a plain
- * accent-tinted initial when it isn't. Tapping fires [onClick]; the actual
- * navigation (share intent, market fallback, or a specific engine's search URL)
- * is the caller's job — this is presentation-only.
+ * One search-engine or AI-assistant pill, resolving its icon in three tiers: the
+ * app's own real launcher icon when installed ([rememberAppIconBitmap] — same
+ * package-visibility grant the app list already relies on, no bundled brand
+ * assets); else that service's real favicon fetched from [domain] via
+ * [faviconUrl] (most users won't have Bing/Yahoo/Yandex/Perplexity/etc.
+ * installed, but still want to recognize the logo); else a plain accent-tinted
+ * initial if even that fails (offline, or the favicon service itself is down).
+ * Tapping fires [onClick]; the actual navigation (share intent, market fallback,
+ * or a specific engine's search URL) is the caller's job — this is
+ * presentation-only.
  */
 @Composable
 private fun ServicePill(
     label: String,
     packageName: String?,
+    domain: String,
     accent: Color,
     tokens: ColorTokens,
     onClick: () -> Unit,
@@ -491,20 +499,33 @@ private fun ServicePill(
             .clickable(onClick = onClick)
             .padding(vertical = 8.dp, horizontal = 4.dp),
     ) {
-        val icon = packageName?.let { rememberAppIconBitmap(it, sizePx = 96) }
+        val appIcon = packageName?.let { rememberAppIconBitmap(it, sizePx = 96) }
+        val favicon = if (appIcon == null) rememberRemoteImage(faviconUrl(domain)) else null
+        val icon = appIcon ?: favicon
+        // Real app icons are already opaque, full-bleed art — no backdrop needed.
+        // A favicon is often small/transparent, so it gets a white circle behind
+        // it (readable in both themes); with neither, fall back to a tinted dot.
+        val backdrop = when {
+            appIcon != null -> Color.Transparent
+            favicon != null -> Color.White
+            else -> accent.copy(alpha = 0.18f)
+        }
         Box(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(if (icon == null) accent.copy(alpha = 0.18f) else Color.Transparent),
+                .background(backdrop),
             contentAlignment = Alignment.Center,
         ) {
             if (icon != null) {
                 Image(
                     bitmap = icon,
                     contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().clip(CircleShape),
+                    contentScale = if (appIcon != null) ContentScale.Crop else ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(if (appIcon == null) Modifier.padding(8.dp) else Modifier)
+                        .clip(CircleShape),
                 )
             } else {
                 Text(
