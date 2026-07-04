@@ -774,7 +774,7 @@ fun StartScreen(
                 onToggleCategory = viewModel::setFeedCategoryEnabled,
                 onRemoveFeed = viewModel::removeFeedSource,
                 onAddFeed = viewModel::addFeedSource,
-                onSearch = { query -> launchWebSearch(context, query) },
+                onOpenQuickSearch = viewModel::openSearch,
                 onWeatherDetails = { query -> launchWebSearch(context, query) },
                 onAddSchedule = { launchAddEvent(context) },
                 onOpenArticle = { link -> launchUrl(context, link) },

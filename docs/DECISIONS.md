@@ -1931,3 +1931,28 @@ a phone has 20+ widgets spread across a handful of apps.
   (already used by `AppRow`/`ServicePill`) — no new icon-loading code. Name bumped from a 13sp dim
   caption to 16sp/`fg`/medium-weight, matching `AppRow`'s own label exactly, since with an icon now
   present the header reads as a mini app row rather than a section label.
+
+## Feed search pill: removed the "g" avatar, whole pill opens quick search
+
+Bug: the feed/glance page's search pill had an inline `BasicTextField` (typing + IME-search fired
+`launchWebSearch` directly) plus a separate "g" avatar circle intended to open the same
+apps/contacts/web/ask-ai overlay as the two-finger quick-search swipe. The "g" circle had no
+`.clickable` at all, so taps there fell through to whatever was underneath — and the underlying
+cause is structural: `StartScreen.kt`'s pager only parallaxes the Start page by 22%
+(`translationX = -0.22f * widthPx * progress.value`) when Feed is foregrounded, so Start (including
+its clock tile) is never actually off-screen and stays hit-testable under Feed's non-interactive
+areas. Adding `.clickable` to just the "g" circle was tried first but didn't read as an obviously
+correct fix given how easy it is to mis-hit a small 32dp circle inside a larger tap surface that
+itself does nothing.
+
+Fixed per explicit request ("remove this g button, wire search or ai chat through this text box"):
+`SearchPill` (`FeedPage.kt`) is no longer an editable text field — it's a plain clickable `Row`
+(icon + "search or ask ai" placeholder) whose entire surface calls `onOpenQuickSearch`
+(`StartViewModel::openSearch`), opening the exact same `QuickSearchOverlay` the two-finger swipe
+does. This both removes the redundant "g" button and eliminates the fall-through risk: the whole
+pill is now one unambiguous tap target, and since `QuickSearchOverlay` renders as a top-level
+sibling (not nested inside the Start-only page `Box`), it always intercepts the tap regardless of
+the underlying pager translation math. `FeedPage`'s `onSearch` param (and the inline
+`launchWebSearch` wiring in `StartScreen.kt`) was removed — quick search's own "search the web for
+'<query>'" row already covers that path. Verified on-device: tapping the pill opens quick search
+with the keyboard focused, no more Alarm/Clock fall-through. Build + tests green.

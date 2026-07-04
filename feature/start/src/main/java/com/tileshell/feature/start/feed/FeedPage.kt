@@ -56,7 +56,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -93,7 +92,8 @@ import java.util.Calendar
  * sources — [WeatherCache], [MediaCenter] and the calendar query — so this page
  * adds no new data plumbing. News / market data arrive with the RSS engine (S29).
  *
- * @param onSearch fires the user's typed query at Google (the host owns the intent).
+ * @param onOpenQuickSearch opens the same apps/contacts/web-engines/ask-ai overlay the
+ *   two-finger swipe gesture does — the search pill itself is just an entry point into it.
  * @param onWeatherDetails opens fuller weather for the given place query.
  * @param onAddSchedule opens the calendar app's add-event screen.
  * @param onOpenArticle opens a tapped article's link in the browser.
@@ -113,7 +113,7 @@ fun FeedPage(
     onToggleCategory: (category: String, enabled: Boolean) -> Unit,
     onRemoveFeed: (url: String) -> Unit,
     onAddFeed: (url: String, name: String) -> Unit,
-    onSearch: (String) -> Unit,
+    onOpenQuickSearch: () -> Unit,
     onWeatherDetails: (String) -> Unit,
     onAddSchedule: () -> Unit,
     onOpenArticle: (String) -> Unit,
@@ -189,7 +189,7 @@ fun FeedPage(
             .padding(start = 14.dp, end = 14.dp, top = topPad),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        SearchPill(accent = accent, tokens = tokens, onSearch = onSearch)
+        SearchPill(accent = accent, tokens = tokens, onOpenQuickSearch = onOpenQuickSearch)
         GlanceRow(glance = glance, clock = clock, tokens = tokens)
         FeedTabs(
             selected = tab,
@@ -345,21 +345,26 @@ private fun FeedTabs(
 
 /* ---------------------------------------------------------------- cards ---- */
 
+/**
+ * Not a real text field — tapping anywhere on the pill opens [QuickSearchOverlay]
+ * (apps/contacts/web-engines/ask-ai), which owns its own input box. Kept as a
+ * plain clickable row rather than an inline field so the whole pill is a single
+ * unambiguous tap target with no fall-through to whatever page sits underneath.
+ */
 @Composable
 private fun SearchPill(
     accent: Color,
     tokens: com.tileshell.core.design.ColorTokens,
-    onSearch: (String) -> Unit,
+    onOpenQuickSearch: () -> Unit,
 ) {
-    var query by remember { mutableStateOf("") }
-    val focus = LocalFocusManager.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(50.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(tokens.sheet)
-            .padding(start = 16.dp, end = 8.dp),
+            .clickable(onClick = onOpenQuickSearch)
+            .padding(start = 16.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Canvas(modifier = Modifier.size(21.dp)) {
@@ -375,29 +380,7 @@ private fun SearchPill(
             )
         }
         Spacer(Modifier.width(11.dp))
-        BasicTextField(
-            value = query,
-            onValueChange = { query = it },
-            modifier = Modifier.weight(1f),
-            singleLine = true,
-            textStyle = TextStyle(color = tokens.fg, fontSize = 16.sp),
-            cursorBrush = SolidColor(accent),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = {
-                if (query.isNotBlank()) onSearch(query)
-                focus.clearFocus()
-            }),
-            decorationBox = { inner ->
-                if (query.isEmpty()) Text("search", color = tokens.fgDim, fontSize = 16.sp)
-                inner()
-            },
-        )
-        Box(
-            modifier = Modifier.size(32.dp).clip(CircleShape).background(accent),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("g", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-        }
+        Text("search or ask ai", color = tokens.fgDim, fontSize = 16.sp)
     }
 }
 
