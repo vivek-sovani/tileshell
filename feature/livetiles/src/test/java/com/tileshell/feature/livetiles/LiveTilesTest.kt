@@ -1,5 +1,6 @@
 package com.tileshell.feature.livetiles
 
+import androidx.compose.ui.unit.dp
 import com.tileshell.core.data.TileSize
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -93,5 +94,27 @@ class ClockFaceTest {
     fun `saturday is the last weekday slot`() {
         assertEquals("saturday", clockFace(0, 0, 7, 1, 11, 2026).weekday)
         assertEquals("1 december 2026", clockFace(0, 0, 7, 1, 11, 2026).fullDate)
+    }
+}
+
+class ClockFaceScaleTest {
+
+    @Test
+    fun `comfortably tall tiles are not scaled down`() {
+        // A default-4-column WIDE clock tile is well above the 165dp reference.
+        assertEquals(1f, clockFaceScale(200.dp), 0.001f)
+        assertEquals(1f, clockFaceScale(165.dp), 0.001f)
+    }
+
+    @Test
+    fun `shorter tiles scale down proportionally`() {
+        // 5/6-column grids shrink every tile's pixel height at a constant screen width.
+        assertEquals(0.8f, clockFaceScale(132.dp), 0.01f)
+    }
+
+    @Test
+    fun `scale never drops below the floor`() {
+        assertEquals(0.6f, clockFaceScale(1.dp), 0.001f)
+        assertEquals(0.6f, clockFaceScale(0.dp), 0.001f)
     }
 }

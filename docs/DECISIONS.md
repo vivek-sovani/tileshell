@@ -1772,3 +1772,24 @@ properties; "tile style" itself had also grown into an undifferentiated stack of
   fourth, unlabelled block at the end (it already reads as a distinct action). No control moved
   between subgroups relative to before, other than the two that left for wallpaper — this pass is
   visual grouping only, not a re-think of which knobs belong together.
+
+## Clock tile date clipped at 5/6 grid columns
+
+Bug: the clock tile's date line (below the time) was partially clipped at 5 columns and fully
+invisible at 6, on both the WIDE (top Start tile) and MEDIUM sizes.
+
+- **Root cause: fixed-sp text sized for 4 columns, against a tile height that isn't fixed.**
+  `GridGeometry.unit` is `(width - sides - gaps) / columns` — raising `columns` shrinks every
+  tile's *pixel* size at a constant screen width, even though a tile's footprint in *units* (WIDE =
+  4×2, MEDIUM = 2×2) doesn't change. `ClockFront`'s three stacked lines (time/weekday/date) were
+  sized in fixed `sp` for the 4-column case and simply didn't fit in the shorter 5/6-column tile;
+  Compose clips overflowing content at the tile bounds rather than reflowing it.
+- **Fix: scale text/spacing by measured tile height, not by columns.** `ClockTile.kt`'s `ClockFront`/
+  `ClockBack` wrap their content in `BoxWithConstraints` and compute
+  `clockFaceScale(maxHeight) = (maxHeight / 165.dp).coerceIn(0.6f, 1f)`, multiplying every font size
+  and spacing value by it. Measuring the actual rendered height (rather than threading `columns`
+  down through `ClockTileFace`'s call sites) means the fix works regardless of *why* the tile got
+  shorter — column count, a future tile-spacing change, anything — with no new parameter. 165.dp
+  was picked so ordinary 4-column phones (WIDE ≈ 170dp+ tall in practice) clamp to scale 1 and stay
+  pixel-identical to before; only the shorter 5/6-column case actually shrinks. WIDE and MEDIUM
+  share this fix since both occupy the same 2-row footprint and shrink identically.

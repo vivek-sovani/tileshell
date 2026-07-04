@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,6 +31,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.TileSize
@@ -177,6 +179,20 @@ fun ClockTileFace(
 private val FaceText = Color.White
 
 /**
+ * WIDE and MEDIUM clock tiles both occupy a 2-row footprint (`GridGeometry`), whose
+ * absolute pixel height shrinks as the grid's column count rises — 5/6 columns pack
+ * more, smaller units into the same screen width, so a tile's row height shrinks too
+ * even though its unit *count* doesn't. The face text below is sized to fit
+ * comfortably at the default 4 columns (≈170dp+ tall); [clockFaceScale] shrinks it
+ * proportionally below that so the date line never gets clipped at 5/6 columns,
+ * while leaving the common 4-column case pixel-identical (scale clamps to 1).
+ */
+private val ClockRowReferenceHeight = 165.dp
+
+internal fun clockFaceScale(measuredHeight: Dp): Float =
+    (measuredHeight / ClockRowReferenceHeight).coerceIn(0.6f, 1f)
+
+/**
  * The compact clock face for a small (1×1) tile: just the time, centred, at a size
  * that fits the tiny tile. Ticks on the minute boundary while [active]; never flips
  * (small tiles stay out of the flip scheduler).
@@ -211,84 +227,92 @@ private fun ClockFront(face: ClockFace, size: TileSize) {
     // .9 line box harmlessly; Compose would crop them (the time vanished at the
     // earlier inflated size), so trim = None keeps the full glyph painted.
     val big = size == TileSize.WIDE
-    val timeSize = if (big) 64.sp else 42.sp
-    Column(
-        modifier = Modifier.fillMaxSize().padding(11.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.End,
-    ) {
-        Text(
-            text = face.hm,
-            color = FaceText,
-            fontSize = timeSize,
-            lineHeight = timeSize * 0.9f,
-            fontWeight = FontWeight.ExtraLight,
-            letterSpacing = (-2).sp,
-            maxLines = 1,
-            style = LocalTextStyle.current.copy(
-                lineHeightStyle = LineHeightStyle(
-                    alignment = LineHeightStyle.Alignment.Center,
-                    trim = LineHeightStyle.Trim.None,
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val scale = clockFaceScale(maxHeight)
+        val timeSize = (if (big) 64f else 42f).sp * scale
+        Column(
+            modifier = Modifier.fillMaxSize().padding(11.dp * scale),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.End,
+        ) {
+            Text(
+                text = face.hm,
+                color = FaceText,
+                fontSize = timeSize,
+                lineHeight = timeSize * 0.9f,
+                fontWeight = FontWeight.ExtraLight,
+                letterSpacing = (-2).sp,
+                maxLines = 1,
+                style = LocalTextStyle.current.copy(
+                    lineHeightStyle = LineHeightStyle(
+                        alignment = LineHeightStyle.Alignment.Center,
+                        trim = LineHeightStyle.Trim.None,
+                    ),
                 ),
-            ),
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(text = face.weekday, color = FaceText, fontSize = 15.sp, maxLines = 1)
-        Text(
-            text = face.fullDate,
-            color = FaceText.copy(alpha = 0.82f),
-            fontSize = 12.sp,
-            maxLines = 1,
-        )
+            )
+            Spacer(Modifier.height(4.dp * scale))
+            Text(text = face.weekday, color = FaceText, fontSize = 15.sp * scale, maxLines = 1)
+            Text(
+                text = face.fullDate,
+                color = FaceText.copy(alpha = 0.82f),
+                fontSize = 12.sp * scale,
+                maxLines = 1,
+            )
+        }
     }
 }
 
 @Composable
 private fun ClockBack(face: ClockFace) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(11.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.End,
-    ) {
-        if (face.alarm.isNotEmpty()) {
-            // Alarm gets the hero slot — user set it, they want to see it.
-            // Labelled "alarm / bedtime" because Android's getNextAlarmClock reports
-            // the next alarm-clock *event*, which includes the clock app's Bedtime
-            // schedule, and gives no way to tell the two apart.
-            Text(
-                text = "alarm / bedtime",
-                color = FaceText.copy(alpha = 0.65f),
-                fontSize = 11.sp,
-                maxLines = 1,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = face.alarm,
-                color = FaceText,
-                fontSize = 30.sp,
-                lineHeight = 30.sp,
-                fontWeight = FontWeight.Light,
-                letterSpacing = (-1).sp,
-                maxLines = 1,
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = face.fullDate,
-                color = FaceText.copy(alpha = 0.65f),
-                fontSize = 12.sp,
-                maxLines = 1,
-            )
-        } else {
-            // No alarm set — date fills the back face as before.
-            Text(
-                text = face.fullDate,
-                color = FaceText,
-                fontSize = 30.sp,
-                lineHeight = 30.sp,
-                fontWeight = FontWeight.Light,
-                letterSpacing = (-1).sp,
-                maxLines = 1,
-            )
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val scale = clockFaceScale(maxHeight)
+        val bigSize = 30.sp * scale
+        val smallSize = 12.sp * scale
+        Column(
+            modifier = Modifier.fillMaxSize().padding(11.dp * scale),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.End,
+        ) {
+            if (face.alarm.isNotEmpty()) {
+                // Alarm gets the hero slot — user set it, they want to see it.
+                // Labelled "alarm / bedtime" because Android's getNextAlarmClock reports
+                // the next alarm-clock *event*, which includes the clock app's Bedtime
+                // schedule, and gives no way to tell the two apart.
+                Text(
+                    text = "alarm / bedtime",
+                    color = FaceText.copy(alpha = 0.65f),
+                    fontSize = 11.sp * scale,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.height(2.dp * scale))
+                Text(
+                    text = face.alarm,
+                    color = FaceText,
+                    fontSize = bigSize,
+                    lineHeight = bigSize,
+                    fontWeight = FontWeight.Light,
+                    letterSpacing = (-1).sp,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.height(8.dp * scale))
+                Text(
+                    text = face.fullDate,
+                    color = FaceText.copy(alpha = 0.65f),
+                    fontSize = smallSize,
+                    maxLines = 1,
+                )
+            } else {
+                // No alarm set — date fills the back face as before.
+                Text(
+                    text = face.fullDate,
+                    color = FaceText,
+                    fontSize = bigSize,
+                    lineHeight = bigSize,
+                    fontWeight = FontWeight.Light,
+                    letterSpacing = (-1).sp,
+                    maxLines = 1,
+                )
+            }
         }
     }
 }
