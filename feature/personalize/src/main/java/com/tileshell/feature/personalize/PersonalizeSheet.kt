@@ -91,6 +91,19 @@ private fun currentWallpaperType(
     else -> WallpaperType.NONE
 }
 
+/**
+ * The three mutually-exclusive tile-background styles, selected the same way as
+ * [WallpaperType] above — a segmented row, picking one applies it immediately.
+ */
+private enum class TileBackgroundStyle { NONE, TRANSPARENT, BEHIND_TILES }
+
+/** Which [TileBackgroundStyle] is active, derived from the same flags [glass]/[tiledWallpaper]. */
+private fun currentTileBackgroundStyle(glass: Boolean, tiledWallpaper: Boolean): TileBackgroundStyle = when {
+    tiledWallpaper -> TileBackgroundStyle.BEHIND_TILES
+    glass -> TileBackgroundStyle.TRANSPARENT
+    else -> TileBackgroundStyle.NONE
+}
+
 @Composable
 fun PersonalizeSheet(
     visible: Boolean,
@@ -337,6 +350,29 @@ fun PersonalizeSheet(
                 }
             }
 
+            // ---- colour & fill ----
+            SettingGroup(label = "colour & fill", tokens.fgDim) {
+                ToggleRow(
+                    "tile colour from app icon",
+                    on = tileColorSource == TileColorSource.APP_ICON,
+                    accent = accent,
+                    tokens,
+                    onChange = { on ->
+                        onTileColorSourceChange(
+                            if (on) TileColorSource.APP_ICON else TileColorSource.GLOBAL_ACCENT,
+                        )
+                    },
+                )
+                Spacer(Modifier.height(14.dp))
+                ToggleRow(
+                    "gradient fill",
+                    on = tileFill == TileFill.GRADIENT,
+                    accent = accent,
+                    tokens,
+                    onChange = { on -> onTileFillChange(if (on) TileFill.GRADIENT else TileFill.FLAT) },
+                )
+            }
+
             // ---- typography ----
             SettingGroup(label = "typography", tokens.fgDim) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -369,29 +405,6 @@ fun PersonalizeSheet(
                         }
                     }
                 }
-            }
-
-            // ---- colour & fill ----
-            SettingGroup(label = "colour & fill", tokens.fgDim) {
-                ToggleRow(
-                    "tile colour from app icon",
-                    on = tileColorSource == TileColorSource.APP_ICON,
-                    accent = accent,
-                    tokens,
-                    onChange = { on ->
-                        onTileColorSourceChange(
-                            if (on) TileColorSource.APP_ICON else TileColorSource.GLOBAL_ACCENT,
-                        )
-                    },
-                )
-                Spacer(Modifier.height(14.dp))
-                ToggleRow(
-                    "gradient fill",
-                    on = tileFill == TileFill.GRADIENT,
-                    accent = accent,
-                    tokens,
-                    onChange = { on -> onTileFillChange(if (on) TileFill.GRADIENT else TileFill.FLAT) },
-                )
             }
 
             // ---- wallpaper ----
@@ -528,56 +541,70 @@ fun PersonalizeSheet(
                     }
                 }
 
-                // Display effects apply to whichever wallpaper is showing — meaningless
-                // for NONE, which renders a flat theme-bg fill and never reaches
-                // WallpaperBackground at all. "Blur wallpaper" is only offered while
-                // "wallpaper behind tiles" is off: tiled mode has no single composable
-                // to blur (each tile draws its own window onto the wallpaper), and
-                // blurring every tile's window individually is prohibitively expensive
-                // (one RenderEffect layer per visible tile — tried it, caused an ANR).
-                if (currentWallpaper != WallpaperType.NONE) {
-                    Spacer(Modifier.height(20.dp))
-                    HorizontalDivider(color = tokens.tileLine)
-                    Spacer(Modifier.height(18.dp))
-                    Text("effects", color = tokens.fgDim, fontSize = 12.sp)
-                    Spacer(Modifier.height(10.dp))
-                    if (!tiledWallpaper) {
-                        ToggleRow("blur wallpaper", on = blur, accent = accent, tokens, onBlurChange)
-                        Spacer(Modifier.height(14.dp))
+            }
+
+            // ---- tile background ----
+            SettingGroup(label = "tile background", tokens.fgDim) {
+                val currentBackground = currentTileBackgroundStyle(glass, tiledWallpaper)
+
+                // Same pattern as the wallpaper type selector above: picking an option
+                // applies it immediately (the two are already mutually exclusive at the
+                // data layer — SettingsRepository.setGlass/setTiledWallpaper), and the
+                // section below asks for whatever more that option needs.
+                fun selectBackground(style: TileBackgroundStyle) {
+                    if (style == currentBackground) return
+                    when (style) {
+                        TileBackgroundStyle.NONE -> {
+                            onGlassChange(false)
+                            onTiledWallpaperChange(false)
+                        }
+                        TileBackgroundStyle.TRANSPARENT -> onGlassChange(true)
+                        TileBackgroundStyle.BEHIND_TILES -> onTiledWallpaperChange(true)
                     }
-                    ToggleRow(
-                        "wallpaper behind tiles",
-                        on = tiledWallpaper,
-                        accent = accent,
-                        tokens,
-                        onTiledWallpaperChange,
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, tokens.tileLine),
+                ) {
+                    val labels = listOf(
+                        TileBackgroundStyle.NONE to "none",
+                        TileBackgroundStyle.TRANSPARENT to "transparent",
+                        TileBackgroundStyle.BEHIND_TILES to "behind tiles",
                     )
+                    labels.forEach { (style, label) ->
+                        SegCell(label, selected = style == currentBackground, accent = accent, fg = tokens.fg) {
+                            selectBackground(style)
+                        }
+                    }
+                }
+
+                // Blur only applies to the transparent-tiles case: tiled mode has no
+                // single composable to blur (each tile draws its own window onto the
+                // wallpaper), and blurring every tile's window individually is
+                // prohibitively expensive (one RenderEffect layer per visible tile —
+                // tried it, caused an ANR).
+                if (currentBackground == TileBackgroundStyle.TRANSPARENT) {
+                    Spacer(Modifier.height(14.dp))
+                    Text("tile transparency", color = tokens.fgDim, fontSize = 13.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Slider(
+                        value = transparency,
+                        onValueChange = onTransparencyChange,
+                        colors = SliderDefaults.colors(
+                            thumbColor = accent,
+                            activeTrackColor = accent,
+                            inactiveTrackColor = tokens.tileLine,
+                        ),
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    ToggleRow("blur wallpaper", on = blur, accent = accent, tokens, onBlurChange)
                 }
             }
 
             // ---- tile style ----
             SettingGroup(label = "tile style", tokens.fgDim) {
-                // -- glass --
-                Text("glass", color = tokens.fgDim, fontSize = 12.sp)
-                Spacer(Modifier.height(10.dp))
-                ToggleRow("transparent tiles", on = glass, accent = accent, tokens, onGlassChange)
-                Spacer(Modifier.height(14.dp))
-                Text("tile transparency", color = tokens.fgDim, fontSize = 13.sp)
-                Spacer(Modifier.height(4.dp))
-                Slider(
-                    value = transparency,
-                    onValueChange = onTransparencyChange,
-                    colors = SliderDefaults.colors(
-                        thumbColor = accent,
-                        activeTrackColor = accent,
-                        inactiveTrackColor = tokens.tileLine,
-                    ),
-                )
-
-                Spacer(Modifier.height(18.dp))
-                HorizontalDivider(color = tokens.tileLine)
-                Spacer(Modifier.height(18.dp))
-
                 // -- shape & spacing --
                 Text("shape & spacing", color = tokens.fgDim, fontSize = 12.sp)
                 Spacer(Modifier.height(10.dp))

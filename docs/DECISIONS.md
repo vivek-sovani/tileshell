@@ -1858,3 +1858,22 @@ quick-search AI/web rows.
   engine's real query-parameter docs, not guessed) since `ACTION_WEB_SEARCH` has no way to target a
   specific non-default engine; "google" keeps reusing `launchWebSearch`'s existing default-handler
   behaviour.
+
+## Tile background as a third type selector; typography after colour & fill
+
+Follow-up: the "effects" subsection under wallpaper (blur + wallpaper-behind-tiles) and the "glass"
+subgroup under tile style (transparent tiles + transparency) were really the same underlying choice
+— glass vs. tiled vs. neither — split across two different groups with plain toggles. Reworked into
+a third type selector (`TileBackgroundStyle`), mirroring `WallpaperType`'s pattern exactly:
+
+- **`SettingGroup(label = "tile background")`**, new, positioned right after wallpaper: a
+  `none`/`transparent`/`behind tiles` segmented row (`SegCell`, same as the wallpaper selector).
+  Selecting an option calls the existing `onGlassChange`/`onTiledWallpaperChange` callbacks — the
+  mutual exclusion those already enforce (`SettingsRepository`, added for the earlier glass/tiled
+  bug fix) means the selector is correct by construction, same as the wallpaper type picker.
+- **Tile transparency slider + "blur wallpaper" now live under "transparent" only**, appearing the
+  moment that option is selected — matches the wallpaper selector's "pick a type, see that type's
+  options below" shape instead of the flat toggle list this replaced. "tile style" now opens
+  directly on "shape & spacing" (colour & fill and glass have both moved out of it).
+- **"typography" moved below "colour & fill"** (was above it) — both are now adjacent "how tiles
+  look" groups ahead of "wallpaper"/"tile background", with no other reordering.
