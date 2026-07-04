@@ -2087,3 +2087,23 @@ composition, so it applies immediately to already-hosted widgets with no re-add 
 *height*, however, is only computed once at add time (`commit()`) and persists in `WidgetStore` —
 a square widget added before this fix has a height sized for the old full-width rendering, so it'll
 now render at half width but keep its old (too-tall) height until removed and re-added.
+
+## Square widgets resize diagonally, others only in height
+
+Follow-up ("square widgets should expand diagonally and other in height"). The bottom drag handle
+only ever changed `liveHeight`, keeping width fixed at whatever the slot computed — fine for wide
+widgets (drag = taller, same width), but dragging a square widget bigger just stretched it into a
+non-square rectangle instead of growing as a square.
+
+`HostedWidget` gained an optional `widthDp: Int = 0` (`WidgetStore.kt`, tolerant codec — a 3rd
+`,widthDp` column, 0/missing means "no custom width, use the default"; `WidgetCodecTest` covers the
+round-trip), and `WidgetStore.setHeight` became `setSize(widgetId, heightDp, widthDp)`. Only square
+widgets (per the existing `isSquareWidget` check) ever get a non-zero stored width — `commit()`
+persists the initial half-slot width for a newly-added square widget, everything else keeps 0 and
+derives its width live from the slot as before. In `WidgetView`, the drag handle now branches on
+`isSquare`: for a square widget, dragging moves `liveHeight` **and** `liveWidth` together (clamped
+to `min(WIDGET_MAX_H, widthDp)` so it can't outgrow the available slot), growing/shrinking outward
+from the centered box — a literal diagonal resize; for everything else, only `liveHeight` changes,
+exactly as before. Same known caveat as the last two entries: a square widget added before this
+fix has no persisted width (defaults live to the half-slot default until first resized), so nothing
+breaks, but its very first drag will jump from the old default rather than a previously-saved size.

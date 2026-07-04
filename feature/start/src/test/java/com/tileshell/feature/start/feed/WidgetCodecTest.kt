@@ -22,4 +22,10 @@ class WidgetCodecTest {
         val decoded = WidgetCodec.decode("garbage\n9\n5,160")
         assertEquals(listOf(HostedWidget(9, 110), HostedWidget(5, 160)), decoded.widgets)
     }
+
+    @Test
+    fun `round-trips a custom width for square widgets`() {
+        val data = WidgetData(listOf(HostedWidget(7, 180, 180), HostedWidget(42, 200)))
+        assertEquals(data, WidgetCodec.decode(WidgetCodec.encode(data)))
+    }
 }

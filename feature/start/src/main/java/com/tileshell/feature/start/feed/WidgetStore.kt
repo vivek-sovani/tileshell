@@ -9,8 +9,13 @@ import kotlinx.coroutines.flow.first
 import java.io.InputStream
 import java.io.OutputStream
 
-/** One hosted app widget: its bound `AppWidgetHost` id and its current height (dp). */
-data class HostedWidget(val widgetId: Int, val heightDp: Int)
+/**
+ * One hosted app widget: its bound `AppWidgetHost` id, its current height (dp), and
+ * an optional custom width (dp) — only square widgets are user-resizable in width
+ * (diagonal resize, keeping height == width); everything else derives its width
+ * live from the feed's slot width, so 0 means "no custom width, use the default."
+ */
+data class HostedWidget(val widgetId: Int, val heightDp: Int, val widthDp: Int = 0)
 
 /**
  * The app widgets hosted in the feed's glance tab, in display order. Each carries a
@@ -19,17 +24,18 @@ data class HostedWidget(val widgetId: Int, val heightDp: Int)
  */
 data class WidgetData(val widgets: List<HostedWidget> = emptyList())
 
-/** One widget per line as `id,heightDp`; tolerant (bad lines dropped). */
+/** One widget per line as `id,heightDp,widthDp`; tolerant (bad lines dropped, missing width → 0). */
 object WidgetCodec {
     fun encode(data: WidgetData): String =
-        data.widgets.joinToString("\n") { "${it.widgetId},${it.heightDp}" }
+        data.widgets.joinToString("\n") { "${it.widgetId},${it.heightDp},${it.widthDp}" }
 
     fun decode(text: String): WidgetData = WidgetData(
         text.lineSequence().mapNotNull { line ->
             val parts = line.split(",")
             val id = parts.getOrNull(0)?.trim()?.toIntOrNull() ?: return@mapNotNull null
             val h = parts.getOrNull(1)?.trim()?.toIntOrNull() ?: 110
-            HostedWidget(id, h)
+            val w = parts.getOrNull(2)?.trim()?.toIntOrNull() ?: 0
+            HostedWidget(id, h, w)
         }.toList(),
     )
 }
@@ -65,9 +71,13 @@ class WidgetStore(private val store: DataStore<WidgetData>) {
         store.updateData { it.copy(widgets = it.widgets.filterNot { w -> w.widgetId == widgetId }) }
     }
 
-    suspend fun setHeight(widgetId: Int, heightDp: Int) {
+    suspend fun setSize(widgetId: Int, heightDp: Int, widthDp: Int) {
         store.updateData {
-            it.copy(widgets = it.widgets.map { w -> if (w.widgetId == widgetId) w.copy(heightDp = heightDp) else w })
+            it.copy(
+                widgets = it.widgets.map { w ->
+                    if (w.widgetId == widgetId) w.copy(heightDp = heightDp, widthDp = widthDp) else w
+                },
+            )
         }
     }
 

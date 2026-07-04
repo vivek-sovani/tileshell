@@ -139,10 +139,13 @@ fun WidgetSection(accent: Color, tokens: ColorTokens) {
         // Scale against the width it'll actually render at (half, for a square
         // widget centered at half width) — scaling a square's aspect against the
         // full slot width would store a height meant for twice the display width.
-        val contentWidthDp = if (isSquareWidget(provider, density)) widthDp / 2 else widthDp
+        val square = isSquareWidget(provider, density)
+        val contentWidthDp = if (square) widthDp / 2 else widthDp
         val preferred = aspect?.let { (contentWidthDp * it).roundToInt() } ?: minHeightDp?.roundToInt() ?: 180
         val h = preferred.coerceIn(96, 480)
-        scope.launch { store.add(HostedWidget(id, h)) }
+        // Only square widgets are user-resizable in width (diagonal resize); everything
+        // else derives its width live from the slot, so 0 = "no custom width stored."
+        scope.launch { store.add(HostedWidget(id, h, if (square) contentWidthDp else 0)) }
     }
 
     // Some OEM configure activities (confirmed on-device: Samsung Health's
@@ -223,7 +226,7 @@ fun WidgetSection(accent: Color, tokens: ColorTokens) {
                     canMoveDown = index < widgets.widgets.lastIndex,
                     onMoveUp = { scope.launch { store.move(hw.widgetId, up = true) } },
                     onMoveDown = { scope.launch { store.move(hw.widgetId, up = false) } },
-                    onResize = { newH -> scope.launch { store.setHeight(hw.widgetId, newH) } },
+                    onResize = { newH, newW -> scope.launch { store.setSize(hw.widgetId, newH, newW) } },
                     onEdit = { info ->
                         val cfg = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE)
                             .setComponent(info.configure)
@@ -273,7 +276,7 @@ private fun WidgetView(
     canMoveDown: Boolean,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
-    onResize: (Int) -> Unit,
+    onResize: (heightDp: Int, widthDp: Int) -> Unit,
     onEdit: (AppWidgetProviderInfo) -> Unit,
     onRemove: () -> Unit,
 ) {
@@ -302,12 +305,16 @@ private fun WidgetView(
     // Small square widgets (2x2-style icon/toggle widgets) look stretched thin
     // across the full feed width — render those centered at half width instead;
     // everything else (wider or taller than roughly square) keeps the full slot.
-    val contentWidthDp = remember(widget.widgetId, info) {
-        if (isSquareWidget(info, density)) widthDp / 2 else widthDp
+    // Only square widgets are resizable in width (diagonally, keeping width ==
+    // height); a persisted widthDp of 0 means "no custom size yet, use the default."
+    val isSquare = remember(widget.widgetId, info) { isSquareWidget(info, density) }
+    val defaultContentWidthDp = if (isSquare) widthDp / 2 else widthDp
+    var liveWidth by remember(widget.widgetId, widget.widthDp) {
+        mutableStateOf(if (widget.widthDp > 0) widget.widthDp else defaultContentWidthDp)
     }
 
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-    Box(modifier = Modifier.width(contentWidthDp.dp)) {
+    Box(modifier = Modifier.width(liveWidth.dp)) {
         key(widget.widgetId) {
             AndroidView(
                 factory = { ctx ->
@@ -321,7 +328,7 @@ private fun WidgetView(
                         // on every call, so the provider never actually learned its real size
                         // and kept rendering its smallest/narrowest layout regardless of how
                         // big our container was. A fresh mutable Bundle fixes that.
-                        view.updateAppWidgetSize(Bundle(), contentWidthDp, liveHeight, contentWidthDp, liveHeight)
+                        view.updateAppWidgetSize(Bundle(), liveWidth, liveHeight, liveWidth, liveHeight)
                     }
                 },
                 modifier = Modifier
@@ -369,7 +376,7 @@ private fun WidgetView(
             ) {
                 Box(
                     modifier = Modifier
-                        .width(contentWidthDp.dp)
+                        .width(liveWidth.dp)
                         .height(liveHeight.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
@@ -392,7 +399,9 @@ private fun WidgetView(
                         if (info.configure != null) EditPill("edit", accent) { onEdit(info) }
                         EditPill("remove", Color(0xFFD6262B)) { onRemove() }
                     }
-                    // Bottom drag handle: drag up/down to resize.
+                    // Bottom drag handle: drag up/down to resize. Square widgets grow
+                    // diagonally (width follows height, staying square, capped to the
+                    // available slot width); everything else only grows in height.
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
@@ -404,10 +413,18 @@ private fun WidgetView(
                                 detectDragGestures(
                                     onDrag = { change, drag ->
                                         change.consume()
-                                        liveHeight = (liveHeight + (drag.y / density)).roundToInt()
-                                            .coerceIn(WIDGET_MIN_H, WIDGET_MAX_H)
+                                        if (isSquare) {
+                                            val squareMax = minOf(WIDGET_MAX_H, widthDp)
+                                            val newSize = (liveHeight + (drag.y / density)).roundToInt()
+                                                .coerceIn(WIDGET_MIN_H, squareMax)
+                                            liveHeight = newSize
+                                            liveWidth = newSize
+                                        } else {
+                                            liveHeight = (liveHeight + (drag.y / density)).roundToInt()
+                                                .coerceIn(WIDGET_MIN_H, WIDGET_MAX_H)
+                                        }
                                     },
-                                    onDragEnd = { onResize(liveHeight) },
+                                    onDragEnd = { onResize(liveHeight, if (isSquare) liveWidth else 0) },
                                 )
                             },
                     )
