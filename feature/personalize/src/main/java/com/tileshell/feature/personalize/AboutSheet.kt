@@ -280,6 +280,8 @@ fun AboutSheet(
                     "glass (transparent) tiles with adjustable transparency",
                     "adjustable tile spacing — drag a slider to pack or spread tiles",
                     "6 built-in gradient wallpapers + custom photo",
+                    "wallpaper slideshow — rotate through photos you pick, every 15 min to 3 hours",
+                    "pinch to zoom, drag to reposition when framing a wallpaper photo",
                     "daily bing wallpaper, with a viewer for recent days",
                     "wallpaper visible through tiles (show-through mode)",
                     "tile corner radius slider and gradient fill option",
