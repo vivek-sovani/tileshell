@@ -2107,3 +2107,29 @@ from the centered box — a literal diagonal resize; for everything else, only `
 exactly as before. Same known caveat as the last two entries: a square widget added before this
 fix has no persisted width (defaults live to the half-slot default until first resized), so nothing
 breaks, but its very first drag will jump from the old default rather than a previously-saved size.
+
+## Square widgets never sized below the provider's own declared minimum
+
+Regression from the half-width change above (reported: Samsung Device Care and the Gallery/photo
+widget — both worked fine before the size-related changes — now show their own "Can't show
+content" fallback, and it persists even after manually dragging bigger). Diagnosed on-device via
+`dumpsys appwidget` + `logcat`: no crash, no exception, no permission denial anywhere in TileShell
+— `androidx.glance.session.SessionWorker` (confirmed both are Jetpack Glance-based) reports
+"SUCCESS" repeatedly, so the widget's own session runs fine; "Can't show content" is the *widget's
+own* fallback string, not a host-side error screen. The width we were computing for a square
+widget — half the feed slot, ~150–190dp on this device — is likely below what these specific
+providers consider usable room, and rather than clip their layout they show this defensive
+placeholder instead. Some providers (Samsung's `pictureframe`) declare no minimum at all
+(`min=(0x0)`, happy at any size) which is why the earlier square-widget change looked fine when it
+was tested against those; others (`SMWidgetOneButton`/Device Care) apparently need more than half
+the slot and silently refuse below it.
+
+Fixed with a floor, not a special case: new `squareContentWidthDp(info, widthDp, density)` computes
+`max(widthDp / 2, provider's own declared minWidth in dp)`, capped at the full slot width — a
+square widget still gets half-width when that's enough room, but never less than what its own
+manifest says it needs. Applied everywhere a square widget's width is decided: `commit()`'s initial
+size, `WidgetView`'s live default, and the diagonal drag handle's lower resize bound (previously
+only floored at the generic `WIDGET_MIN_H` constant, letting a user drag a widget below its own
+provider's minimum). Same caveat as before applies to *already-added* widgets with a small
+persisted width from before this fix — they need either a fresh drag (the new floor applies from
+the first pixel of movement) or a remove-and-re-add to pick up the corrected default immediately.

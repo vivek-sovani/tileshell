@@ -88,6 +88,18 @@ private fun isSquareWidget(info: AppWidgetProviderInfo, density: Float): Boolean
     return ratio in 0.7f..1.4f
 }
 
+private fun providerMinWidthDp(info: AppWidgetProviderInfo, density: Float): Int =
+    (info.minWidth / density).roundToInt()
+
+/**
+ * Half the slot width for a square widget, but never less than the provider's own
+ * declared minimum width — some providers (confirmed on-device: Samsung Device
+ * Care's SMWidgetOneButton) show their own "Can't show content" fallback rather
+ * than clip when given less room than they declare needing.
+ */
+private fun squareContentWidthDp(info: AppWidgetProviderInfo, widthDp: Int, density: Float): Int =
+    maxOf(widthDp / 2, providerMinWidthDp(info, density)).coerceAtMost(widthDp)
+
 /**
  * Hosts any number of Android app widgets on the feed's glance tab. Self-contained:
  * owns an [AppWidgetHost] (started while composed), adds widgets through a custom
@@ -140,7 +152,7 @@ fun WidgetSection(accent: Color, tokens: ColorTokens) {
         // widget centered at half width) — scaling a square's aspect against the
         // full slot width would store a height meant for twice the display width.
         val square = isSquareWidget(provider, density)
-        val contentWidthDp = if (square) widthDp / 2 else widthDp
+        val contentWidthDp = if (square) squareContentWidthDp(provider, widthDp, density) else widthDp
         val preferred = aspect?.let { (contentWidthDp * it).roundToInt() } ?: minHeightDp?.roundToInt() ?: 180
         val h = preferred.coerceIn(96, 480)
         // Only square widgets are user-resizable in width (diagonal resize); everything
@@ -308,7 +320,7 @@ private fun WidgetView(
     // Only square widgets are resizable in width (diagonally, keeping width ==
     // height); a persisted widthDp of 0 means "no custom size yet, use the default."
     val isSquare = remember(widget.widgetId, info) { isSquareWidget(info, density) }
-    val defaultContentWidthDp = if (isSquare) widthDp / 2 else widthDp
+    val defaultContentWidthDp = if (isSquare) squareContentWidthDp(info, widthDp, density) else widthDp
     var liveWidth by remember(widget.widgetId, widget.widthDp) {
         mutableStateOf(if (widget.widthDp > 0) widget.widthDp else defaultContentWidthDp)
     }
@@ -414,9 +426,10 @@ private fun WidgetView(
                                     onDrag = { change, drag ->
                                         change.consume()
                                         if (isSquare) {
+                                            val squareMin = maxOf(WIDGET_MIN_H, providerMinWidthDp(info, density))
                                             val squareMax = minOf(WIDGET_MAX_H, widthDp)
                                             val newSize = (liveHeight + (drag.y / density)).roundToInt()
-                                                .coerceIn(WIDGET_MIN_H, squareMax)
+                                                .coerceIn(squareMin, squareMax)
                                             liveHeight = newSize
                                             liveWidth = newSize
                                         } else {
