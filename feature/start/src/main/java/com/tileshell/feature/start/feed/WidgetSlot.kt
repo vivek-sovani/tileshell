@@ -51,6 +51,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -348,7 +349,20 @@ private fun WidgetView(
     }
 }
 
-/** Full-screen widget picker dialog: installed providers with preview + label. */
+/** One app's widgets in the picker — [appLabel] drives both sort order and the group header. */
+private data class WidgetAppGroup(
+    val packageName: String,
+    val appLabel: String,
+    val providers: List<AppWidgetProviderInfo>,
+)
+
+/**
+ * Full-screen widget picker dialog: installed providers with preview + label,
+ * grouped by owning app (a phone can easily have 20+ widgets across a handful of
+ * apps — a flat list made it hard to find, say, "the calendar app's" widgets
+ * among everything else). Groups and their contents are both sorted by label so
+ * the picker reads the same way every time it's opened.
+ */
 @Composable
 private fun WidgetPicker(
     manager: AppWidgetManager,
@@ -357,9 +371,22 @@ private fun WidgetPicker(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    val providers = remember {
+    val groups = remember {
         runCatching {
-            manager.installedProviders.sortedBy { it.loadLabel(context.packageManager).lowercase() }
+            val pm = context.packageManager
+            manager.installedProviders
+                .groupBy { it.provider.packageName }
+                .map { (packageName, providers) ->
+                    val appLabel = runCatching {
+                        pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
+                    }.getOrDefault(packageName)
+                    WidgetAppGroup(
+                        packageName = packageName,
+                        appLabel = appLabel,
+                        providers = providers.sortedBy { it.loadLabel(pm).lowercase() },
+                    )
+                }
+                .sortedBy { it.appLabel.lowercase() }
         }.getOrDefault(emptyList())
     }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -372,17 +399,36 @@ private fun WidgetPicker(
                 .padding(16.dp),
         ) {
             Text("choose a widget", color = tokens.fg, fontSize = 18.sp, modifier = Modifier.padding(bottom = 10.dp))
-            if (providers.isEmpty()) {
+            if (groups.isEmpty()) {
                 Text("no widgets available", color = tokens.fgDim, fontSize = 14.sp)
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(providers) { p ->
-                        WidgetPickerRow(p, tokens) { onPick(p) }
+                    groups.forEach { group ->
+                        item(key = "header/${group.packageName}") {
+                            WidgetGroupHeader(group.appLabel, tokens)
+                        }
+                        items(
+                            group.providers,
+                            key = { "${group.packageName}/${it.provider.className}" },
+                        ) { p ->
+                            WidgetPickerRow(p, tokens) { onPick(p) }
+                        }
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun WidgetGroupHeader(appLabel: String, tokens: ColorTokens) {
+    Text(
+        text = appLabel,
+        color = tokens.fgDim,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Medium,
+        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
+    )
 }
 
 @Composable

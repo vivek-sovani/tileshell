@@ -1907,3 +1907,17 @@ both render through the same non-tiled `WallpaperBackground` (only "behind tiles
 blur, per the ANR fix above). Split the two controls: "tile transparency" stays "transparent"-only
 (nothing to tint otherwise), "blur wallpaper" now shows whenever the background isn't "behind
 tiles" — i.e. for both "none" and "transparent".
+
+## Widget picker grouped by app
+
+Improvement: the feed/glance page's "+ add a widget" dialog (`WidgetPicker`, `WidgetSlot.kt`) listed
+every installed `AppWidgetProviderInfo` as one flat, alphabetically-sorted list — hard to scan once
+a phone has 20+ widgets spread across a handful of apps.
+
+- **Grouped by owning app** (`AppWidgetProviderInfo.provider.packageName`), each group headed by
+  that app's real label (`PackageManager.getApplicationLabel`, falling back to the raw package name
+  if the lookup fails). Groups are sorted by app label, and each group's own widgets stay sorted by
+  widget label — same ordering as before, just partitioned.
+- **Implementation is a plain `LazyListScope` `forEach`** (`groups.forEach { item {…}; items(…) {…} }`)
+  — the same "loop emitting header + items per group" shape already used by quick search's app/
+  contact sections, not a new pattern.
