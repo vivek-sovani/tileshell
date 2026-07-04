@@ -2038,3 +2038,26 @@ to the `minWidth:minHeight` ratio as the next-best proxy. Same final `coerceIn(9
 clamp as before. Only affects *newly added* widgets — an already-hosted widget's height is
 persisted in `WidgetStore` and isn't retroactively recomputed, so an existing undersized widget
 needs a remove-and-re-add (or a manual drag-resize) to pick up the new proportional default.
+
+## Widget host: `Bundle.EMPTY` silently broke size reporting to every provider
+
+Follow-up (reported after the aspect-ratio fix above: "rendered big (square) but characters are
+still small"). Diagnosed via `adb shell dumpsys appwidget` on the physical device: the hosted
+Daily Activity widget's `options` bundle was `Bundle[{appWidgetCategory=1}]` — no
+`appWidgetMinWidth`/`MaxWidth`/`MinHeight`/`MaxHeight` keys at all, on *every* widget TileShell
+hosts, not just Samsung's. The widget box itself was correctly big, but the provider had never
+been told its real size, so it kept rendering whatever default/smallest layout it falls back to
+when it thinks it has no room — hence a big empty box around small, unscaled content.
+
+Root cause: `WidgetView`'s `AndroidView.update` block called
+`view.updateAppWidgetSize(Bundle.EMPTY, widthDp, liveHeight, widthDp, liveHeight)` on every
+recomposition. `Bundle.EMPTY` is Android's immutable singleton; `updateAppWidgetSize` calls
+`.putInt(...)` on the options bundle it's given to stash the computed min/max width/height before
+pushing it to `AppWidgetManager.updateAppWidgetOptions` — calling `.putInt()` on `Bundle.EMPTY`
+throws `UnsupportedOperationException`, which the surrounding `runCatching` silently swallowed on
+literally every call, so the size update never once reached any provider. Fixed by passing a fresh
+`Bundle()` instead. Verified via `dumpsys appwidget`: every hosted widget now reports real
+`appWidgetMinWidth`/`MaxWidth`/`MinHeight`/`MaxHeight` values (e.g. the Daily Activity widget now
+shows a correct 316×316dp square) instead of an empty bundle — this was starving *every* hosted
+widget of size info, not just Samsung's, so Gmail/ChatGPT/Apple Music/etc. should all render more
+appropriately now too, not only the widget that happened to surface the bug.

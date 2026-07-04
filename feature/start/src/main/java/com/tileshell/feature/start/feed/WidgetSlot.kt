@@ -287,7 +287,13 @@ private fun WidgetView(
                 },
                 update = { view ->
                     runCatching {
-                        view.updateAppWidgetSize(Bundle.EMPTY, widthDp, liveHeight, widthDp, liveHeight)
+                        // Bundle.EMPTY is Android's immutable singleton — updateAppWidgetSize
+                        // calls putInt() on the options bundle internally, which threw
+                        // UnsupportedOperationException here (silently, into this runCatching)
+                        // on every call, so the provider never actually learned its real size
+                        // and kept rendering its smallest/narrowest layout regardless of how
+                        // big our container was. A fresh mutable Bundle fixes that.
+                        view.updateAppWidgetSize(Bundle(), widthDp, liveHeight, widthDp, liveHeight)
                     }
                 },
                 modifier = Modifier
