@@ -1899,3 +1899,11 @@ assistant apps are rarely all installed, so those pills fell back to a plain acc
   favicons are ~32-48px and were never designed for a dark UI), so it gets a white circle behind it
   regardless of app theme, plus inset padding since favicons are usually square, not pre-cropped to
   a circle like an app icon. Only the final "neither loaded" tier uses the accent-tinted dot.
+
+## Blur wallpaper available for "none" tile background too
+
+Bug: "blur wallpaper" only showed under the "transparent" tile-background option, not "none" — but
+both render through the same non-tiled `WallpaperBackground` (only "behind tiles" doesn't support
+blur, per the ANR fix above). Split the two controls: "tile transparency" stays "transparent"-only
+(nothing to tint otherwise), "blur wallpaper" now shows whenever the background isn't "behind
+tiles" — i.e. for both "none" and "transparent".

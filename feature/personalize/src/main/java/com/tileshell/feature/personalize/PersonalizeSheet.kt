@@ -580,11 +580,13 @@ fun PersonalizeSheet(
                     }
                 }
 
-                // Blur only applies to the transparent-tiles case: tiled mode has no
-                // single composable to blur (each tile draws its own window onto the
-                // wallpaper), and blurring every tile's window individually is
-                // prohibitively expensive (one RenderEffect layer per visible tile —
-                // tried it, caused an ANR).
+                // Tile transparency only makes sense for "transparent" (nothing to tint
+                // otherwise). Blur applies to both "none" and "transparent" — both render
+                // through the same non-tiled WallpaperBackground — but not "behind tiles":
+                // that mode has no single composable to blur (each tile draws its own
+                // window onto the wallpaper), and blurring every tile's window
+                // individually is prohibitively expensive (one RenderEffect layer per
+                // visible tile — tried it, caused an ANR).
                 if (currentBackground == TileBackgroundStyle.TRANSPARENT) {
                     Spacer(Modifier.height(14.dp))
                     Text("tile transparency", color = tokens.fgDim, fontSize = 13.sp)
@@ -598,7 +600,9 @@ fun PersonalizeSheet(
                             inactiveTrackColor = tokens.tileLine,
                         ),
                     )
-                    Spacer(Modifier.height(6.dp))
+                }
+                if (currentBackground != TileBackgroundStyle.BEHIND_TILES) {
+                    Spacer(Modifier.height(14.dp))
                     ToggleRow("blur wallpaper", on = blur, accent = accent, tokens, onBlurChange)
                 }
             }
