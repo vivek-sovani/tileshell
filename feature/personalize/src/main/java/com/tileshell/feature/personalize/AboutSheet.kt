@@ -184,6 +184,8 @@ fun AboutSheet(
                     "long-press a contact result to call, message, or pin them to start",
                     "pinned contacts show their real photo on the tile",
                     "ask chatgpt, gemini, claude, or perplexity — opens the app with your query ready to send",
+                    "or send it to google, bing, duckduckgo, yahoo, or yandex instead",
+                    "tap the search box on the feed's glance tab to jump straight into quick search",
                 ),
             )
 
@@ -243,8 +245,10 @@ fun AboutSheet(
                 tokens = tokens,
                 items = listOf(
                     "add any android app widget to the feed page",
-                    "resize widgets by dragging the edge",
-                    "long-press a widget to edit or remove it",
+                    "widget picker is grouped by app, and each app's group can be collapsed",
+                    "tap \"edit\" on a widget for reorder, resize, reconfigure, and remove controls",
+                    "resize width and height independently, or drag the corner to resize both at once",
+                    "reorder widgets up or down in the feed",
                 ),
             )
 

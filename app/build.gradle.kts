@@ -58,8 +58,16 @@ android {
         //   "effects" subsection and tile style split into glass/colour & fill/shape & spacing
         //   subgroups; quick search can ask ChatGPT, Gemini, Claude, or Perplexity; clock tile
         //   date no longer clipped at 5/6 grid columns).
-        versionCode = 80
-        versionName = "1.7.0"
+        // v1.8.0 = 90 (feed search pill opens quick search directly instead of a separate "g"
+        //   button that could fall through to Start's clock tile underneath; widget hosting
+        //   overhaul — providers now actually receive their real render size (a Bundle.EMPTY
+        //   bug silently broke this for every widget), a provider's own recommended aspect
+        //   ratio sizes it instead of a raw minHeight, square widgets render centered at half
+        //   width, and three independent handles resize width/height/diagonal instead of one
+        //   shape-guessed handle; widgets from slow-registering OEM providers get a longer
+        //   grace period before being dropped as "uninstalled").
+        versionCode = 90
+        versionName = "1.8.0"
     }
 
     if (keystoreFile.exists()) {

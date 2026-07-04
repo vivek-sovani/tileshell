@@ -155,6 +155,19 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
+## Release notes (v1.8.0)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 1.8.0
+
+• New: the feed's search box now opens quick search directly — apps, contacts, AI, and web
+• New: resize widgets by width, height, or both — three independent handles instead of one
+• Fixed: widgets weren't always rendering at the right size
+• Fixed: some slow-loading widgets could vanish shortly after being added
+```
+
 ## Release notes (v1.7.0)
 
 *"What's new" — newest release first. Keep under Play's 500-character limit.*
