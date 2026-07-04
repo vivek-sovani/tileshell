@@ -27,7 +27,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -48,7 +47,6 @@ import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
-import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.WallpaperGradient
 import com.tileshell.core.design.Wallpapers
 import com.tileshell.core.design.Wallpapers.NONE_ID
@@ -66,6 +64,27 @@ import com.tileshell.core.design.wallpaperBackground
  */
 /** A subscribed news feed shown in the feeds-management list (framework-free). */
 data class FeedSourceItem(val url: String, val name: String, val category: String, val enabled: Boolean)
+
+/** The five mutually-exclusive kinds of Start wallpaper, for the type selector below. */
+private enum class WallpaperType { NONE, PHOTO, SLIDESHOW, BING, STOCK }
+
+/**
+ * Which [WallpaperType] is currently active, derived from the existing persisted
+ * flags (there's no separate stored "type" — it's implied by which of these is
+ * set, same priority order the data layer already enforces as mutually exclusive).
+ */
+private fun currentWallpaperType(
+    wallpaperId: String,
+    customWallpaper: Boolean,
+    bingWallpaper: Boolean,
+    wallpaperSlideshowEnabled: Boolean,
+): WallpaperType = when {
+    bingWallpaper -> WallpaperType.BING
+    wallpaperSlideshowEnabled -> WallpaperType.SLIDESHOW
+    customWallpaper -> WallpaperType.PHOTO
+    wallpaperId != NONE_ID -> WallpaperType.STOCK
+    else -> WallpaperType.NONE
+}
 
 @Composable
 fun PersonalizeSheet(
@@ -257,94 +276,136 @@ fun PersonalizeSheet(
 
             // ---- wallpaper ----
             SettingGroup(label = "wallpaper", tokens.fgDim) {
-                ToggleRow("bing daily wallpaper", on = bingWallpaper, accent = accent, tokens, onBingWallpaperChange)
-                WallpaperNavRow("recent bing wallpapers", "browse ›", accent, tokens, onBingHistory)
-                if (customWallpaper) {
-                    WallpaperNavRow("adjust position", "reframe ›", accent, tokens, onAdjustWallpaper)
+                val currentWallpaper =
+                    currentWallpaperType(wallpaperId, customWallpaper, bingWallpaper, wallpaperSlideshowEnabled)
+
+                // Picking a type applies a sensible default immediately (opens the photo
+                // picker, turns slideshow/Bing on, picks the first stock gradient) — every
+                // transition reuses the same setters the old flat toggles called, which
+                // already clear the other, now-inactive types. The section below then asks
+                // for whatever more that type needs (which photo, which interval, …).
+                fun selectWallpaperType(type: WallpaperType) {
+                    if (type == currentWallpaper) return
+                    when (type) {
+                        WallpaperType.NONE -> onClearWallpaper()
+                        WallpaperType.PHOTO -> onPickCustomWallpaper()
+                        WallpaperType.SLIDESHOW -> onWallpaperSlideshowChange(true)
+                        WallpaperType.BING -> onBingWallpaperChange(true)
+                        WallpaperType.STOCK -> onWallpaperChange(Wallpapers.all.first().id)
+                    }
                 }
-                Spacer(Modifier.height(14.dp))
-                ToggleRow(
-                    "wallpaper slideshow",
-                    on = wallpaperSlideshowEnabled,
-                    accent = accent,
-                    tokens,
-                    onWallpaperSlideshowChange,
-                )
-                if (wallpaperSlideshowEnabled) {
-                    Spacer(Modifier.height(6.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Text(text = "every", color = tokens.fgDim, fontSize = 12.sp)
-                        Spacer(Modifier.weight(1f))
-                        listOf(15 to "15m", 30 to "30m", 60 to "1h", 180 to "3h").forEach { (min, label) ->
-                            val selected = wallpaperSlideshowIntervalMin == min
-                            Text(
-                                text = label,
-                                color = if (selected) Color.White else tokens.fgDim,
-                                fontSize = 12.sp,
-                                modifier = Modifier
-                                    .background(
-                                        if (selected) accent else tokens.fgDim.copy(alpha = 0.12f),
-                                        RoundedCornerShape(4.dp),
-                                    )
-                                    .clickable { onWallpaperSlideshowIntervalChange(min) }
-                                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                            )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, tokens.tileLine),
+                ) {
+                    val labels = listOf(
+                        WallpaperType.NONE to "none",
+                        WallpaperType.PHOTO to "photo",
+                        WallpaperType.SLIDESHOW to "slides",
+                        WallpaperType.BING to "bing",
+                        WallpaperType.STOCK to "stock",
+                    )
+                    labels.forEach { (type, label) ->
+                        SegCell(label, selected = type == currentWallpaper, accent = accent, fg = tokens.fg) {
+                            selectWallpaperType(type)
                         }
                     }
                 }
-                Spacer(Modifier.height(6.dp))
-                WallpaperNavRow(
-                    "slideshow photos",
-                    if (wallpaperSlideshowCount > 0) "$wallpaperSlideshowCount selected ›" else "choose ›",
-                    accent, tokens, onPickWallpaperSlideshowPhotos,
-                )
-                if (wallpaperSlideshowCount > 0) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(onClick = onClearWallpaperSlideshowPhotos)
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(text = "clear slideshow photos", color = tokens.fgDim, fontSize = 14.sp)
-                        Spacer(Modifier.weight(1f))
-                        Text(text = "✕", color = tokens.fgDim, fontSize = 13.sp)
-                    }
-                }
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    PhotoButton(tokens = tokens, onClick = onPickCustomWallpaper, modifier = Modifier.weight(1f))
-                    Wallpapers.all.take(3).forEach { wp ->
-                        WallpaperCell(
-                            wallpaper = wp,
-                            selected = !customWallpaper && wp.id == wallpaperId,
-                            ring = tokens.fg,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onWallpaperChange(wp.id) },
-                        )
-                    }
-                }
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Wallpapers.all.drop(3).forEach { wp ->
-                        WallpaperCell(
-                            wallpaper = wp,
-                            selected = !customWallpaper && wp.id == wallpaperId,
-                            ring = tokens.fg,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onWallpaperChange(wp.id) },
-                        )
-                    }
-                    NoneWallpaperCell(
-                        selected = !customWallpaper && wallpaperId == NONE_ID,
-                        tokens = tokens,
-                        modifier = Modifier.weight(1f),
-                        onClick = onClearWallpaper,
+                Spacer(Modifier.height(14.dp))
+
+                when (currentWallpaper) {
+                    WallpaperType.NONE -> Text(
+                        text = "flat theme background, no photo or pattern",
+                        color = tokens.fgDim,
+                        fontSize = 13.sp,
                     )
+                    WallpaperType.PHOTO -> {
+                        WallpaperNavRow(
+                            "photo",
+                            if (customWallpaper) "change ›" else "choose ›",
+                            accent, tokens, onPickCustomWallpaper,
+                        )
+                        if (customWallpaper) {
+                            WallpaperNavRow("adjust position", "reframe ›", accent, tokens, onAdjustWallpaper)
+                        }
+                    }
+                    WallpaperType.SLIDESHOW -> {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text(text = "every", color = tokens.fgDim, fontSize = 12.sp)
+                            Spacer(Modifier.weight(1f))
+                            listOf(15 to "15m", 30 to "30m", 60 to "1h", 180 to "3h").forEach { (min, label) ->
+                                val selected = wallpaperSlideshowIntervalMin == min
+                                Text(
+                                    text = label,
+                                    color = if (selected) Color.White else tokens.fgDim,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier
+                                        .background(
+                                            if (selected) accent else tokens.fgDim.copy(alpha = 0.12f),
+                                            RoundedCornerShape(4.dp),
+                                        )
+                                        .clickable { onWallpaperSlideshowIntervalChange(min) }
+                                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        WallpaperNavRow(
+                            "slideshow photos",
+                            if (wallpaperSlideshowCount > 0) "$wallpaperSlideshowCount selected ›" else "choose ›",
+                            accent, tokens, onPickWallpaperSlideshowPhotos,
+                        )
+                        if (wallpaperSlideshowCount > 0) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = onClearWallpaperSlideshowPhotos)
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(text = "clear slideshow photos", color = tokens.fgDim, fontSize = 14.sp)
+                                Spacer(Modifier.weight(1f))
+                                Text(text = "✕", color = tokens.fgDim, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                    WallpaperType.BING -> {
+                        WallpaperNavRow("recent bing wallpapers", "browse ›", accent, tokens, onBingHistory)
+                        if (customWallpaper) {
+                            WallpaperNavRow("adjust position", "reframe ›", accent, tokens, onAdjustWallpaper)
+                        }
+                    }
+                    WallpaperType.STOCK -> {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Wallpapers.all.take(3).forEach { wp ->
+                                WallpaperCell(
+                                    wallpaper = wp,
+                                    selected = wp.id == wallpaperId,
+                                    ring = tokens.fg,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { onWallpaperChange(wp.id) },
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Wallpapers.all.drop(3).forEach { wp ->
+                                WallpaperCell(
+                                    wallpaper = wp,
+                                    selected = wp.id == wallpaperId,
+                                    ring = tokens.fg,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { onWallpaperChange(wp.id) },
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -837,60 +898,6 @@ private fun ToggleRow(
                     .background(Color.White),
             )
         }
-    }
-}
-
-/** The "pick a photo" cell that opens the system picker (prototype `.w.add`). */
-@Composable
-private fun PhotoButton(
-    tokens: com.tileshell.core.design.ColorTokens,
-    onClick: () -> Unit,
-    modifier: Modifier,
-) {
-    Column(
-        modifier = modifier
-            .aspectRatio(1f)
-            .clip(RoundedCornerShape(4.dp))
-            .border(1.dp, tokens.tileLine, RoundedCornerShape(4.dp))
-            .clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Icon(
-            imageVector = TileIcons["image"],
-            contentDescription = "pick a photo",
-            tint = tokens.fg,
-            modifier = Modifier.size(22.dp),
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(text = "photo", color = tokens.fgDim, fontSize = 11.sp)
-    }
-}
-
-/** "No wallpaper" cell — shows a slashed circle on the theme bg colour. */
-@Composable
-private fun NoneWallpaperCell(
-    selected: Boolean,
-    tokens: com.tileshell.core.design.ColorTokens,
-    modifier: Modifier,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = modifier
-            .aspectRatio(1f)
-            .then(if (selected) Modifier.border(2.5.dp, tokens.fg).padding(4.dp) else Modifier)
-            .clip(RoundedCornerShape(4.dp))
-            .background(tokens.bg)
-            .border(1.dp, tokens.tileLine, RoundedCornerShape(4.dp))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = TileIcons["close"],
-            contentDescription = "remove wallpaper",
-            tint = tokens.fgDim,
-            modifier = Modifier.size(18.dp),
-        )
     }
 }
 

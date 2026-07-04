@@ -1727,3 +1727,31 @@ could only ever be one fixed photo, not a rotating set.
   photo works, but the crop is discarded at the next scheduled rotation by design (see the reset
   bullet above). Not fixed further since a rotating wallpaper's per-photo crop is inherently
   transient.
+
+## Wallpaper type selector (personalize reorganization)
+
+Follow-up ask: the wallpaper group had grown into a flat stack of toggles (Bing, slideshow, custom
+photo, bundled gradients all interleaved) with no way to tell at a glance which one was active —
+reorganize into "pick one of five wallpaper kinds, then configure that kind."
+
+- **No new persisted field.** `WallpaperType` (`NONE`/`PHOTO`/`SLIDESHOW`/`BING`/`STOCK`,
+  `PersonalizeSheet.kt`) is derived, not stored — `currentWallpaperType(wallpaperId, customWallpaper,
+  bingWallpaper, wallpaperSlideshowEnabled)` reads the same flags the data layer already treats as
+  mutually exclusive, in the same priority order (Bing > slideshow > photo > stock > none). This is
+  the same "no separate stored mode" approach the slideshow feature itself took reusing
+  `customWallpaperUri` — one more derived-from-existing-state layer, not a second source of truth.
+- **Selecting a type applies a sensible default immediately**, reusing the exact setters the old
+  flat toggles already called (`onClearWallpaper`, `onPickCustomWallpaper`,
+  `onWallpaperSlideshowChange(true)`, `onBingWallpaperChange(true)`,
+  `onWallpaperChange(Wallpapers.all.first().id)`) — no new callback plumbing needed. Each setter
+  already clears the other types' flags (mutual exclusion lives in `SettingsRepository`, not the
+  UI), so switching types is correct by construction rather than by the sheet re-deriving what to
+  clear. Tapping the already-active pill is a no-op (`if (type == currentWallpaper) return`).
+- **The five-way selector reuses `SegCell`**, the existing dark/light segmented-toggle cell, rather
+  than inventing a new pill component — one visual language for "choose exactly one of N" in this
+  sheet. Labels are kept short ("slides" not "slideshow") since `SegCell` divides the row width
+  evenly with `Modifier.weight(1f)` and has no built-in text truncation.
+- **`PhotoButton` and `NoneWallpaperCell` deleted.** Both were only ever used inline in the old
+  6-cell wallpaper grid (photo-picker button + "no wallpaper" cell mixed in with the 6 bundled
+  gradients); now that photo and none are their own top-level types, the STOCK section is a plain
+  3×2 grid of just the bundled gradients and neither composable has another caller.
