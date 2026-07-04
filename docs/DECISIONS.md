@@ -1921,3 +1921,9 @@ a phone has 20+ widgets spread across a handful of apps.
 - **Implementation is a plain `LazyListScope` `forEach`** (`groups.forEach { item {…}; items(…) {…} }`)
   — the same "loop emitting header + items per group" shape already used by quick search's app/
   contact sections, not a new pattern.
+- **Follow-up: groups are collapsible, collapsed by default.** A `Set<String>` of expanded package
+  names (`remember { mutableStateOf(setOf()) }`, reset each time the dialog reopens) drives whether
+  a group's `items(...)` are emitted at all; the header shows a `(count)` and a `▸`/`▾` indicator and
+  toggles that package in/out of the set on tap. Collapsed-by-default rather than expanded-by-default
+  because the whole point of grouping was taming a long list — leaving every group open by default
+  would have looked identical to the old flat list until the user manually collapsed something.

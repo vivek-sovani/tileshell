@@ -389,6 +389,10 @@ private fun WidgetPicker(
                 .sortedBy { it.appLabel.lowercase() }
         }.getOrDefault(emptyList())
     }
+    // Collapsed by default — with widgets spread across many apps, showing every
+    // app's full widget list at once is exactly the clutter grouping was meant to
+    // fix. Keyed by package name so expanding "Calendar" survives recomposition.
+    var expanded by remember { mutableStateOf(setOf<String>()) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             modifier = Modifier
@@ -404,14 +408,29 @@ private fun WidgetPicker(
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     groups.forEach { group ->
+                        val isExpanded = group.packageName in expanded
                         item(key = "header/${group.packageName}") {
-                            WidgetGroupHeader(group.appLabel, tokens)
+                            WidgetGroupHeader(
+                                appLabel = group.appLabel,
+                                count = group.providers.size,
+                                expanded = isExpanded,
+                                tokens = tokens,
+                                onClick = {
+                                    expanded = if (isExpanded) {
+                                        expanded - group.packageName
+                                    } else {
+                                        expanded + group.packageName
+                                    }
+                                },
+                            )
                         }
-                        items(
-                            group.providers,
-                            key = { "${group.packageName}/${it.provider.className}" },
-                        ) { p ->
-                            WidgetPickerRow(p, tokens) { onPick(p) }
+                        if (isExpanded) {
+                            items(
+                                group.providers,
+                                key = { "${group.packageName}/${it.provider.className}" },
+                            ) { p ->
+                                WidgetPickerRow(p, tokens) { onPick(p) }
+                            }
                         }
                     }
                 }
@@ -421,14 +440,34 @@ private fun WidgetPicker(
 }
 
 @Composable
-private fun WidgetGroupHeader(appLabel: String, tokens: ColorTokens) {
-    Text(
-        text = appLabel,
-        color = tokens.fgDim,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.Medium,
-        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
-    )
+private fun WidgetGroupHeader(
+    appLabel: String,
+    count: Int,
+    expanded: Boolean,
+    tokens: ColorTokens,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(top = 4.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "$appLabel ($count)",
+            color = tokens.fgDim,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = if (expanded) "▾" else "▸",
+            color = tokens.fgDim,
+            fontSize = 13.sp,
+        )
+    }
 }
 
 @Composable
