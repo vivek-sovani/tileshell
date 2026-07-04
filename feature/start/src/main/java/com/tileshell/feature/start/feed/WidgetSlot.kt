@@ -72,6 +72,23 @@ private const val WIDGET_MIN_H = 72
 private const val WIDGET_MAX_H = 720
 
 /**
+ * A squarish, small footprint (e.g. a 2x2 icon/toggle-style widget) reads oddly
+ * stretched edge-to-edge across the whole feed width — those render centered at
+ * half width instead. Anything wider or taller than roughly square (e.g. a 4-wide
+ * widget) keeps the full slot, since that's the shape it was actually designed for.
+ */
+private fun isSquareWidget(info: AppWidgetProviderInfo, density: Float): Boolean {
+    val (wCells, hCells) = if (android.os.Build.VERSION.SDK_INT >= 31 && info.targetCellWidth > 0 && info.targetCellHeight > 0) {
+        info.targetCellWidth.toFloat() to info.targetCellHeight.toFloat()
+    } else {
+        (info.minWidth / density) to (info.minHeight / density)
+    }
+    if (wCells <= 0f || hCells <= 0f) return false
+    val ratio = wCells / hCells
+    return ratio in 0.7f..1.4f
+}
+
+/**
  * Hosts any number of Android app widgets on the feed's glance tab. Self-contained:
  * owns an [AppWidgetHost] (started while composed), adds widgets through a custom
  * preview picker + the bind/configure flow (via activity-result launchers — the
@@ -119,7 +136,11 @@ fun WidgetSection(accent: Color, tokens: ColorTokens) {
         } else {
             null
         }
-        val preferred = aspect?.let { (widthDp * it).roundToInt() } ?: minHeightDp?.roundToInt() ?: 180
+        // Scale against the width it'll actually render at (half, for a square
+        // widget centered at half width) — scaling a square's aspect against the
+        // full slot width would store a height meant for twice the display width.
+        val contentWidthDp = if (isSquareWidget(provider, density)) widthDp / 2 else widthDp
+        val preferred = aspect?.let { (contentWidthDp * it).roundToInt() } ?: minHeightDp?.roundToInt() ?: 180
         val h = preferred.coerceIn(96, 480)
         scope.launch { store.add(HostedWidget(id, h)) }
     }
@@ -278,8 +299,15 @@ private fun WidgetView(
     var editing by remember(widget.widgetId) { mutableStateOf(false) }
     // Live height while dragging; reset to the persisted value when it changes.
     var liveHeight by remember(widget.widgetId, widget.heightDp) { mutableStateOf(widget.heightDp) }
+    // Small square widgets (2x2-style icon/toggle widgets) look stretched thin
+    // across the full feed width — render those centered at half width instead;
+    // everything else (wider or taller than roughly square) keeps the full slot.
+    val contentWidthDp = remember(widget.widgetId, info) {
+        if (isSquareWidget(info, density)) widthDp / 2 else widthDp
+    }
 
-    Box(modifier = Modifier.fillMaxWidth()) {
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+    Box(modifier = Modifier.width(contentWidthDp.dp)) {
         key(widget.widgetId) {
             AndroidView(
                 factory = { ctx ->
@@ -293,7 +321,7 @@ private fun WidgetView(
                         // on every call, so the provider never actually learned its real size
                         // and kept rendering its smallest/narrowest layout regardless of how
                         // big our container was. A fresh mutable Bundle fixes that.
-                        view.updateAppWidgetSize(Bundle(), widthDp, liveHeight, widthDp, liveHeight)
+                        view.updateAppWidgetSize(Bundle(), contentWidthDp, liveHeight, contentWidthDp, liveHeight)
                     }
                 },
                 modifier = Modifier
@@ -341,7 +369,7 @@ private fun WidgetView(
             ) {
                 Box(
                     modifier = Modifier
-                        .width(widthDp.dp)
+                        .width(contentWidthDp.dp)
                         .height(liveHeight.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
@@ -386,6 +414,7 @@ private fun WidgetView(
                 }
             }
         }
+    }
     }
 }
 

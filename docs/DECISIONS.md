@@ -2061,3 +2061,29 @@ literally every call, so the size update never once reached any provider. Fixed 
 shows a correct 316×316dp square) instead of an empty bundle — this was starving *every* hosted
 widget of size info, not just Samsung's, so Gmail/ChatGPT/Apple Music/etc. should all render more
 appropriately now too, not only the widget that happened to surface the bug.
+
+## Square widgets render centered at half width, not stretched full-width
+
+Improvement, once the previous two fixes got a real, correctly-sized square widget on screen:
+"it is spanning across width. can 2x2 be shown half size centrally. and 2x4 and 1x4 full width."
+Every hosted widget was rendered `fillMaxWidth()` regardless of its actual shape — fine for a
+widget designed to span wide (a 4-column-style layout), but a small squarish one (2x2-style
+icon/toggle widget) just looks stretched thin edge-to-edge.
+
+New `isSquareWidget(info, density)` (`WidgetSlot.kt`) classifies a provider's shape from its own
+reported footprint — API 31+ `targetCellWidth`/`targetCellHeight` ("recommended size" in the
+platform's own terms) when available, falling back to `minWidth`/`minHeight` on older providers —
+and treats a width:height ratio of roughly 0.7–1.4 as "square." `WidgetView` now renders square
+widgets in a `contentWidthDp = widthDp / 2` box centered in the feed-width slot (everything else
+keeps the full slot, unchanged); the edit-mode scrim, drag-resize handle, and reorder/edit/remove
+`Popup` were all switched from the old fixed `widthDp` to this same `contentWidthDp` so they stay
+aligned with whichever bounds the widget is actually rendered at. `commit()`'s height calculation
+was updated to scale a widget's aspect ratio against this same `contentWidthDp` (not the full slot
+width) when first adding it — otherwise a square widget's height would be sized for double its
+actual display width and come out as a tall rectangle instead of a square.
+
+Shape classification (`isSquareWidget`) is computed live from the provider's info on every
+composition, so it applies immediately to already-hosted widgets with no re-add needed. The stored
+*height*, however, is only computed once at add time (`commit()`) and persists in `WidgetStore` —
+a square widget added before this fix has a height sized for the old full-width rendering, so it'll
+now render at half width but keep its old (too-tall) height until removed and re-added.
