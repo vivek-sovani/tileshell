@@ -141,13 +141,12 @@ object AppCategories {
 
     /**
      * Whether a tile may cycle up to the 3×3 [TileSize.LARGE] size. Large is offered
-     * for **any** app tile, but only on a 5- or 6-column grid: large is reserved for
-     * the roomier grids; on a 4-column grid it is disallowed and large tiles
-     * auto-shrink to medium. ([iconKey]/[app] are unused now — kept for call-site
-     * compatibility.) Pure so the gating stays unit-testable.
+     * for **any** app tile on any grid density (4/5/6 columns) — a 3-wide tile still
+     * fits within the minimum 4-column grid, it just uses more of the row.
+     * ([iconKey]/[app]/[columns] are unused now — kept for call-site compatibility.)
+     * Pure so the gating stays unit-testable.
      */
-    fun allowsLargeTile(iconKey: String?, app: AppEntry?, columns: Int): Boolean =
-        columns >= 5
+    fun allowsLargeTile(iconKey: String?, app: AppEntry?, columns: Int): Boolean = true
 
     /** All installed [apps] that classify into the category with id [categoryId]. */
     fun match(categoryId: String, apps: List<AppEntry>): List<AppEntry> =

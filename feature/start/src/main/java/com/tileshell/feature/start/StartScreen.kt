@@ -2342,7 +2342,7 @@ private fun FolderOverlay(
             // "Make stack" shortcut: resize every child to a uniform WIDE or
             // LARGE size in one shot, turning the folder into a widget stack
             // carousel — the same end state as resizing every child by hand,
-            // or merging two large tiles (large only offered at columns>=5).
+            // or merging two large tiles (large is offered on any column count).
             // "keep as folder" is shown alongside as a plain, current-state chip
             // so the mini-grid isn't presented as if stacking were the only
             // option. Any of the three choices closes the overlay — it's a
@@ -2362,13 +2362,11 @@ private fun FolderOverlay(
                         label = "make wide stack",
                         onClick = { onMakeStack(TileSize.WIDE); onClose() },
                     )
-                    if (columns >= 5) {
-                        Spacer(Modifier.width(10.dp))
-                        StackModeChip(
-                            label = "make large stack",
-                            onClick = { onMakeStack(TileSize.LARGE); onClose() },
-                        )
-                    }
+                    Spacer(Modifier.width(10.dp))
+                    StackModeChip(
+                        label = "make large stack",
+                        onClick = { onMakeStack(TileSize.LARGE); onClose() },
+                    )
                 }
             }
 
@@ -2468,7 +2466,13 @@ private fun FolderOverlay(
                         canMoveBack = order.indexOf(spec.id) > 0,
                         canMoveForward = order.indexOf(spec.id) in 0 until order.size - 1,
                         showColorDot = true,
-                        nextSizeIsLarger = model.size.nextForFolderChild(columns >= 5).area > model.size.area,
+                        nextSizeIsLarger = model.size.nextForFolderChild(
+                            AppCategories.allowsLargeTile(
+                                iconKey = childByKey[spec.id]?.iconKey,
+                                app = null,
+                                columns = columns,
+                            ),
+                        ).area > model.size.area,
                         onTap = { if (!editMode) childByKey[spec.id]?.let(onLaunchChild) },
                         onLongPress = { if (!editMode) { editMode = true; selectedId = spec.id } },
                         onResize = { childByKey[spec.id]?.let(onResize) },

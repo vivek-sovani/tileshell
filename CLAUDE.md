@@ -10,7 +10,7 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Persistence: Room for tiles/folders (v5 schema, `tileshell.db`), flat key=value DataStore for settings (custom `SettingsCodec`, not Proto DataStore). All layout writes debounced + transactional.
 
 ## Normative behaviour values (from prototype — treat as constants)
-- Grid: 4 columns default (user-selectable 4/5/6 via `columns` setting), dense packing, sizes small 1×1 / medium 2×2 / wide 4×2 / large 3×3 (large is offered for **any** app, only on 5/6-column grids; auto-shrinks to MEDIUM when grid drops to 4 cols — `AppCategories.allowsLargeTile` now just checks `columns>=5`; news app's `NotificationTileFace` gets a full-area hero layout at LARGE; **a folder becomes a widget stack whenever every member is uniformly WIDE or LARGE** — merge two large tiles directly, or use the folder overlay's "make stack · wide/large" shortcut — see status); ref unit 90px, gap 3px, side 9px on 393px width → derive dp proportionally
+- Grid: 4 columns default (user-selectable 4/5/6 via `columns` setting), dense packing, sizes small 1×1 / medium 2×2 / wide 4×2 / large 3×3 (large is offered for **any** app on **any** column count, including 4 — `AppCategories.allowsLargeTile` now always returns `true`; news app's `NotificationTileFace` gets a full-area hero layout at LARGE; **a folder becomes a widget stack whenever every member is uniformly WIDE or LARGE** — merge two large tiles directly, or use the folder overlay's "make stack · wide/large" shortcut — see status); ref unit 90px, gap 3px, side 9px on 393px width → derive dp proportionally
 - Long-press: 430ms (tiles), 450ms (app list pin); move-cancel threshold 7px
 - Merge zone: inner 22–78% of target tile, both axes
 - Pager: app list slides in; Start translates −22% and fades to 0.4; commit at 50%; activate when |dx|>12px and |dx|>1.2|dy|
@@ -36,6 +36,15 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-S27 — LARGE tile allowed on 4-column grids too.** User-requested: dropped the
+  `columns >= 5` gate on the 3×3 LARGE size — `AppCategories.allowsLargeTile` now always returns
+  `true` (a 3-wide tile still fits inside the minimum 4-column grid). Removed the now-dead
+  `demoteLargeTiles` (`LayoutRepository`/`LayoutDao`) and the `setColumns` call that shrank every
+  LARGE tile back to MEDIUM whenever the grid dropped to 4 columns — no column transition needs
+  that anymore. `StartViewModel.resizeFolderChild` and the folder overlay's resize-indicator check
+  in `StartScreen.kt` (both previously hardcoded `columns >= 5`) now call
+  `AppCategories.allowsLargeTile` too, so folder children get the same treatment. See DECISIONS
+  "LARGE tile allowed on 4-column grids too." Build + tests green (updated `AppCategoriesTest`).
 - **Post-S27 — widget stack: swipe-to-flip confined to a right-edge zone (supersedes an
   in-session long-press-then-drag attempt).** Known issue on the widget-stack tile
   (`StackTileContent`, `StartScreen.kt`): its manual member-cycling gesture used to detect a vertical

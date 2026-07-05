@@ -501,11 +501,6 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Set the Start grid column count (4, 5, or 6 small-tile columns). */
     fun setColumns(columns: Int) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setColumns(columns) }
-        // The 3×3 large size is only allowed on 5/6-column grids; dropping to 4
-        // auto-shrinks any large tile back to medium.
-        if (columns < 5) {
-            viewModelScope.launch(writeContext) { repository.demoteLargeTiles() }
-        }
     }
 
     /** Subscribe a custom RSS/Atom feed and refresh so its articles appear soon. */
@@ -569,14 +564,17 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Resize a folder child. On a 5/6-column grid it cycles the full small→
-     * medium→wide→large steps (same as a top-level tile); on 4 columns it keeps
-     * the tighter small↔medium toggle. A LARGE child is a widget-stack member, so
-     * resizing it collapses the stack back to a normal folder (handled in the
-     * repository) regardless of column count.
+     * Resize a folder child. Cycles the full small→medium→wide→large steps (same
+     * as a top-level tile — see [AppCategories.allowsLargeTile]). A LARGE child is
+     * a widget-stack member, so resizing it collapses the stack back to a normal
+     * folder (handled in the repository).
      */
     fun resizeFolderChild(folderId: String, child: FolderChild) {
-        val largeAllowed = settings.value.columns >= 5
+        val largeAllowed = AppCategories.allowsLargeTile(
+            iconKey = child.iconKey,
+            app = apps.value.firstOrNull { it.packageName == child.packageName },
+            columns = settings.value.columns,
+        )
         viewModelScope.launch(writeContext) {
             repository.resizeFolderChild(folderId, child, largeAllowed)
         }
@@ -627,8 +625,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Cycle the tile's size (FR-3.4 resize): medium → small → wide → medium. Music
-     * and news app tiles on a 5/6-column grid also get the 3×3 large step
+     * Cycle the tile's size (FR-3.4 resize): medium → small → wide → medium. Any
+     * app tile, on any grid density, also gets the 3×3 large step
      * ([AppCategories.allowsLargeTile]).
      */
     fun resize(id: String) {

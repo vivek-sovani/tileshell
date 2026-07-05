@@ -158,7 +158,7 @@ fun AboutSheet(
                 tokens = tokens,
                 items = listOf(
                     "live tile grid in four sizes — small, medium, wide, and large",
-                    "large (3×3) tile available for any app on 5 and 6-column grids",
+                    "large (3×3) tile available for any app, on any column count",
                     "choose grid density — 4, 5, or 6 tiles across a row",
                     "long-press any tile to enter edit mode",
                     "drag to reorder, resize, or unpin tiles",

@@ -53,10 +53,6 @@ interface LayoutDao {
     @Query("UPDATE tiles SET size = :size WHERE id = :id")
     suspend fun updateTileSize(id: String, size: String)
 
-    /** Shrink every 3×3 LARGE tile to MEDIUM (grid dropped below 5 columns). */
-    @Query("UPDATE tiles SET size = 'MEDIUM' WHERE size = 'LARGE'")
-    suspend fun demoteLargeTiles()
-
     /** Set/clear a tile's per-tile accent override (null = follow global, FR-7). */
     @Query("UPDATE tiles SET accentOverride = :accentOverride WHERE id = :id")
     suspend fun updateTileAccent(id: String, accentOverride: String?)

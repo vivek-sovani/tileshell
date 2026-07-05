@@ -2,7 +2,6 @@ package com.tileshell.core.data
 
 import android.content.pm.ApplicationInfo
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -113,7 +112,7 @@ class AppCategoriesTest {
         AppCategories.ALL.forEach { assertEquals(it.label, it.label.lowercase()) }
     }
 
-    // ---- large-tile eligibility (any app, 5-6 columns) ----------------------
+    // ---- large-tile eligibility (any app, any column count) -----------------
 
     @Test
     fun `music role allows large on 5 and 6 columns`() {
@@ -151,27 +150,22 @@ class AppCategoriesTest {
     }
 
     @Test
-    fun `large is disallowed on a 4 column grid`() {
+    fun `large is allowed on a 4 column grid too`() {
         val music = app("x.music", role = AppCategories.ROLE_MUSIC)
-        assertFalse(AppCategories.allowsLargeTile(iconKey = "music", app = music, columns = 4))
+        assertTrue(AppCategories.allowsLargeTile(iconKey = "music", app = music, columns = 4))
     }
 
     @Test
-    fun `any app now allows large on 5 and 6 columns`() {
+    fun `any app allows large on any column count`() {
         // The media/news restriction was removed — large is offered for every app
-        // on the roomier grids; only the column gate remains.
+        // on every grid density, including the minimum 4 columns.
         val mail = app("x.mail", role = AppCategories.ROLE_EMAIL)
         assertTrue(AppCategories.allowsLargeTile(iconKey = "mail", app = mail, columns = 6))
         val game = app("x.game", category = ApplicationInfo.CATEGORY_GAME)
         assertTrue(AppCategories.allowsLargeTile(iconKey = null, app = game, columns = 5))
-        // even an unresolved tile (null app, no icon key) qualifies on 5/6.
+        assertTrue(AppCategories.allowsLargeTile(iconKey = null, app = game, columns = 4))
+        // even an unresolved tile (null app, no icon key) qualifies at any density.
         assertTrue(AppCategories.allowsLargeTile(iconKey = null, app = null, columns = 6))
-    }
-
-    @Test
-    fun `large is disallowed below 5 columns for any app`() {
-        val game = app("x.game", category = ApplicationInfo.CATEGORY_GAME)
-        assertFalse(AppCategories.allowsLargeTile(iconKey = null, app = game, columns = 4))
-        assertFalse(AppCategories.allowsLargeTile(iconKey = null, app = null, columns = 4))
+        assertTrue(AppCategories.allowsLargeTile(iconKey = null, app = null, columns = 4))
     }
 }

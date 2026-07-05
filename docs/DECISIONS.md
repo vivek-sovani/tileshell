@@ -2173,3 +2173,24 @@ added (half-slot-or-provider-minimum for square shapes, full slot otherwise), bu
 which resize directions are available afterward. The width handles share the same
 provider-minimum-width floor as before (`providerMinWidthDp`); the corner handle moves width and
 height independently based on the drag's x/y components, not locked to a shared square value.
+
+## LARGE tile allowed on 4-column grids too (drops the 5/6-column gate)
+
+User-requested: the 3×3 LARGE size was gated to 5/6-column grids (`AppCategories.allowsLargeTile`
+== `columns >= 5`, see "Post-S29 — re-enable the 4×4 LARGE tile" and the widget-stack decision
+above), with the grid auto-demoting every LARGE tile to MEDIUM whenever it dropped back to 4
+columns (`StartViewModel.setColumns` → `LayoutRepository.demoteLargeTiles`). No structural reason
+for the gate remains — a 3-wide-by-3-tall footprint still fits inside the minimum 4-column grid
+(it just takes 3 of the 4 columns for those rows, the same way WIDE already takes all 4), so
+`allowsLargeTile` now unconditionally returns `true` (`iconKey`/`app`/`columns` all unused, kept
+for call-site compatibility — same pattern as when the media/news restriction was dropped
+earlier). `demoteLargeTiles` had exactly one caller (`setColumns`); removed it, its `LayoutRepository`
+wrapper, and its DAO `@Query`, rather than leave dead code now that no column transition ever needs
+to shrink a LARGE tile. Folder-child resize (`StartViewModel.resizeFolderChild`, previously hardcoded
+`columns >= 5`) and the folder overlay's resize-indicator check (`StartScreen.kt`, same hardcoded
+check) were both switched to call `AppCategories.allowsLargeTile` too, so a folder member can now
+also reach LARGE on a 4-column grid — keeping the two code paths on one source of truth rather than
+duplicating the same boolean in three places. No schema change (`TileSize.LARGE` already existed);
+no migration. Widget stacks are unaffected structurally (still "every member uniformly WIDE or
+LARGE"), but merging two LARGE tiles into a stack — and the stack keeping its 3×3 footprint — now
+works the same way regardless of the current column count, since nothing ever demotes it back down.

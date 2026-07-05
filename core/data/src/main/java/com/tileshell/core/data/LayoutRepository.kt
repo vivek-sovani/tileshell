@@ -38,19 +38,13 @@ class LayoutRepository(
 
     /**
      * Cycle a tile's size (FR-3.4). [largeAllowed] adds the 3×3 [TileSize.LARGE]
-     * step (medium → small → wide → large → medium) for music/news tiles on a
-     * 5/6-column grid; otherwise the cycle is medium → small → wide → medium.
+     * step (medium → small → wide → large → medium); otherwise the cycle is
+     * medium → small → wide → medium.
      */
     suspend fun cycleTileSize(id: String, largeAllowed: Boolean = false) {
         val current = dao.tilesOnce().firstOrNull { it.tile.id == id }?.tile?.size ?: return
         dao.updateTileSize(id, current.next(largeAllowed).name)
     }
-
-    /**
-     * Shrink every 3×3 [TileSize.LARGE] tile back to [TileSize.MEDIUM]. Called when
-     * the grid drops to 4 columns, where large is disallowed.
-     */
-    suspend fun demoteLargeTiles() = dao.demoteLargeTiles()
 
     /** Set or clear a tile's per-tile accent override (null = follow global, FR-7). */
     suspend fun setTileAccent(id: String, accentOverride: String?) =
@@ -297,8 +291,8 @@ class LayoutRepository(
      *    folder — a stack resize is all-or-nothing (every member demotes, the
      *    tile returns to WIDE), not just this one child.
      *  - Otherwise the child cycles size on its own: the full small→medium→
-     *    wide→large steps when the grid has room ([largeAllowed], columns>=5),
-     *    else the tighter small↔medium toggle. If every child ends up
+     *    wide→large steps when [largeAllowed], else the tighter small↔medium
+     *    toggle. If every child ends up
      *    uniformly WIDE or LARGE, the folder tile promotes to match — a stack
      *    can form one individual resize at a time, not just via merge or the
      *    folder overlay's "make stack" action.
