@@ -36,6 +36,18 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-S27 — widget stack: fixed vertical-swipe-to-flip blocking screen scroll.** Known issue on the
+  widget-stack tile (`StackTileContent`, `StartScreen.kt`): its manual member-cycling gesture used to
+  detect a vertical drag at plain touch-slop, immediately consuming the touch — since the Start grid's
+  own scroll is on the same (vertical) axis, any swipe that started on a stack tile always flipped the
+  stack instead of scrolling the screen, no threshold tuning could disambiguate two gestures on the same
+  axis. Fixed by moving the drag-to-flip capture to **after** the tile's normal long-press timeout: any
+  movement (either axis) before the long-press timeout elapses now bails unconsumed, so a plain swipe is
+  always left for the enclosing scroll/pager; only a finger held still through the long-press window
+  becomes eligible to flip on a subsequent drag (mirrors the long-press-then-drag idiom already used for
+  pulling a member out of a folder overlay). Long-press with no follow-up drag still selects the tile for
+  edit, as before. Tap-to-launch and auto-rotate are unchanged. User-requested fix (option chosen over
+  two-finger-swipe / tap-the-indicator / drop-manual-cycling alternatives). Build + tests green.
 - **Post-S27 — Play Store update check + prompt on Start.** New ask, not in the WP prototype/spec
   — see DECISIONS "Play Store update prompt on Start". Uses Google Play Core's In-App Updates API,
   **flexible flow only** (never immediate/blocking — TileShell is Home, so a full-screen update
