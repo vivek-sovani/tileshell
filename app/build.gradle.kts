@@ -70,8 +70,11 @@ android {
         //   near the position indicator, so the rest of the tile never intercepts a plain
         //   scroll swipe — supersedes an initial long-press-then-drag attempt within the
         //   same version that felt sluggish on-device).
-        versionCode = 91
-        versionName = "1.8.1"
+        // v1.8.2 = 92 (large (3x3) tile is now available on 4-column grids too, not just
+        //   5/6 — both top-level tiles and folder children, plus the folder overlay's
+        //   "make large stack" shortcut).
+        versionCode = 92
+        versionName = "1.8.2"
     }
 
     if (keystoreFile.exists()) {
