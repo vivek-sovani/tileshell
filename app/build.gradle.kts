@@ -66,8 +66,10 @@ android {
         //   width, and three independent handles resize width/height/diagonal instead of one
         //   shape-guessed handle; widgets from slow-registering OEM providers get a longer
         //   grace period before being dropped as "uninstalled").
-        versionCode = 90
-        versionName = "1.8.0"
+        // v1.8.1 = 91 (widget stack: long-press-then-drag to flip members, so the stack no
+        //   longer steals a plain vertical swipe from the Start screen's own scroll).
+        versionCode = 91
+        versionName = "1.8.1"
     }
 
     if (keystoreFile.exists()) {
