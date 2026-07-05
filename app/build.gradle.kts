@@ -66,8 +66,10 @@ android {
         //   width, and three independent handles resize width/height/diagonal instead of one
         //   shape-guessed handle; widgets from slow-registering OEM providers get a longer
         //   grace period before being dropped as "uninstalled").
-        // v1.8.1 = 91 (widget stack: long-press-then-drag to flip members, so the stack no
-        //   longer steals a plain vertical swipe from the Start screen's own scroll).
+        // v1.8.1 = 91 (widget stack: swipe-to-flip confined to a 40dp right-edge drag zone
+        //   near the position indicator, so the rest of the tile never intercepts a plain
+        //   scroll swipe — supersedes an initial long-press-then-drag attempt within the
+        //   same version that felt sluggish on-device).
         versionCode = 91
         versionName = "1.8.1"
     }

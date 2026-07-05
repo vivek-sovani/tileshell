@@ -3348,6 +3348,7 @@ private fun FolderTileContent(
 
 /** Auto-rotate interval for a widget stack — long enough to read a notification snippet. */
 private const val STACK_ROTATE_MS = 6000L
+private const val STACK_EDGE_DRAG_ZONE_DP = 40
 
 /**
  * A **widget stack**: a folder whose members are all LARGE renders as a swipeable
@@ -3355,12 +3356,14 @@ private const val STACK_ROTATE_MS = 6000L
  * member's live face fills the tile (reusing [AppTileContent] with interactive=true, so
  * music play controls and other live-face gestures work); the stack auto-rotates every
  * [STACK_ROTATE_MS] while live, and members slide up/down. **Tap** → launch the current
- * member's app. **Long-press then drag up/down** → flip members (the drag only starts
- * capturing once the long-press timeout has elapsed with the finger held still; a plain
- * swipe — at any point before that — bails unconsumed so it's left for the enclosing
- * screen scroll/pager, instead of the stack stealing every vertical touch that starts on
- * it). **Long press with no drag** → selects the tile for edit, as on any other tile. A
- * thin right-edge indicator shows position.
+ * member's app. **Drag up/down starting in the right-edge strip** (where the position
+ * indicator lives, [STACK_EDGE_DRAG_ZONE_DP] wide — wider than the indicator itself for a
+ * comfortable hit target) → flip members immediately, at plain touch-slop. A touch that
+ * starts anywhere else on the tile never captures vertical movement — it bails unconsumed
+ * the moment it moves past slop, so the enclosing screen scroll/pager always wins there;
+ * only that touch supports **long-press → select for edit**. This keeps the flip gesture
+ * confined to a small corner instead of the whole tile fighting the screen for every
+ * vertical swipe. A thin right-edge indicator shows position.
  */
 @Composable
 private fun StackTileContent(
@@ -3447,80 +3450,84 @@ private fun StackTileContent(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            // In non-edit mode the stack owns all three gestures: vertical drag flips
-            // members immediately (exits withTimeoutOrNull as soon as slop is crossed —
-            // no wait); a quick tap launches the current member; a long hold opens the
-            // folder overlay. If a child (e.g. a music transport button) consumes the
-            // event the gesture bails without firing launch or overlay. In edit mode
-            // the grid drag owns interaction, so this block is removed.
+            // In non-edit mode a touch starting in the right-edge strip flips members
+            // on vertical drag (instant, at plain touch-slop); a touch starting
+            // anywhere else on the tile only supports tap-to-launch and long-press to
+            // select for edit — any movement there bails unconsumed so the enclosing
+            // screen scroll/pager always wins. If a child (e.g. a music transport
+            // button) consumes the event the gesture bails without firing launch or
+            // edit-select. In edit mode the grid drag owns interaction, so this block
+            // is removed.
             .then(
                 if (editMode) Modifier
                 else Modifier.pointerInput(count) {
                     val slop = viewConfiguration.touchSlop
                     val stepPx = 44.dp.toPx()
+                    val edgeZonePx = STACK_EDGE_DRAG_ZONE_DP.dp.toPx()
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
-                        // Any movement — either axis — before the long-press timeout
-                        // elapses bails without consuming, so a plain swipe (the screen
-                        // scroll / pager gesture) is always left for the enclosing
-                        // scrollable to claim. Only a finger held still for the whole
-                        // long-press window becomes eligible to flip on a later drag —
-                        // this is what stops the stack from hijacking ordinary scrolls.
-                        val phase = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
-                            while (true) {
+                        if (count > 1 && down.position.x >= size.width - edgeZonePx) {
+                            // Right-edge strip: confined enough that a drag starting
+                            // here is never the user trying to scroll the screen, so
+                            // it can flip immediately with no long-press wait.
+                            var anchorY = down.position.y
+                            var flipping = false
+                            loop@ while (true) {
                                 val event = awaitPointerEvent()
                                 val change = event.changes.firstOrNull { it.id == down.id }
-                                    ?: return@withTimeoutOrNull 1
-                                if (change.isConsumed) return@withTimeoutOrNull 1
-                                if (!change.pressed) return@withTimeoutOrNull 0
-                                val dy = change.position.y - down.position.y
-                                val dx = change.position.x - down.position.x
-                                if (abs(dx) > slop || abs(dy) > slop) return@withTimeoutOrNull 1
+                                    ?: break@loop
+                                if (change.isConsumed) break@loop
+                                if (!flipping) {
+                                    val dy = change.position.y - anchorY
+                                    val dx = change.position.x - down.position.x
+                                    if (abs(dy) > slop && abs(dy) > abs(dx)) {
+                                        flipping = true
+                                        anchorY = change.position.y
+                                    } else if (!change.pressed) {
+                                        launchCurrent.value()
+                                        break@loop
+                                    }
+                                }
+                                if (flipping) {
+                                    change.consume()
+                                    val dy = change.position.y - anchorY
+                                    if (dy <= -stepPx) {
+                                        lastDir.value = 1
+                                        pageIndex.value = (pageIndex.value + 1) % count
+                                        anchorY = change.position.y
+                                    } else if (dy >= stepPx) {
+                                        lastDir.value = -1
+                                        pageIndex.value = (pageIndex.value - 1 + count) % count
+                                        anchorY = change.position.y
+                                    }
+                                }
+                                if (!change.pressed) break@loop
                             }
-                            @Suppress("UNREACHABLE_CODE") 1
-                        }
-                        when (phase) {
-                            null -> {
-                                // Long-press achieved with the finger held still. A
-                                // drag from here on flips members — safe to consume
-                                // since a competing scroll gesture would already have
-                                // bailed out above well before this point. Releasing
-                                // without dragging selects the tile for edit, same as
-                                // the pre-existing long-press behaviour.
-                                var anchorY = down.position.y
-                                var flipping = false
-                                loop@ while (true) {
+                        } else {
+                            // Rest of the tile: any movement (either axis) before the
+                            // long-press timeout bails unconsumed, so a plain swipe is
+                            // always left for the enclosing scroll/pager.
+                            val phase = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                                while (true) {
                                     val event = awaitPointerEvent()
                                     val change = event.changes.firstOrNull { it.id == down.id }
-                                        ?: break@loop
-                                    if (change.isConsumed) break@loop
-                                    if (!flipping && count > 1) {
-                                        val dy = change.position.y - anchorY
-                                        val dx = change.position.x - down.position.x
-                                        if (abs(dy) > slop && abs(dy) > abs(dx)) {
-                                            flipping = true
-                                            anchorY = change.position.y
-                                        }
-                                    }
-                                    if (flipping) {
-                                        change.consume()
-                                        val dy = change.position.y - anchorY
-                                        if (dy <= -stepPx) {
-                                            lastDir.value = 1
-                                            pageIndex.value = (pageIndex.value + 1) % count
-                                            anchorY = change.position.y
-                                        } else if (dy >= stepPx) {
-                                            lastDir.value = -1
-                                            pageIndex.value = (pageIndex.value - 1 + count) % count
-                                            anchorY = change.position.y
-                                        }
-                                    }
-                                    if (!change.pressed) break@loop
+                                        ?: return@withTimeoutOrNull 1
+                                    if (change.isConsumed) return@withTimeoutOrNull 1
+                                    if (!change.pressed) return@withTimeoutOrNull 0
+                                    val dy = change.position.y - down.position.y
+                                    val dx = change.position.x - down.position.x
+                                    if (abs(dx) > slop || abs(dy) > slop) return@withTimeoutOrNull 1
                                 }
-                                if (!flipping) enterEditRef.value()
+                                @Suppress("UNREACHABLE_CODE") 1
                             }
-                            0 -> launchCurrent.value()
-                            else -> Unit
+                            when (phase) {
+                                null -> {
+                                    enterEditRef.value()
+                                    waitForUpOrCancellation()
+                                }
+                                0 -> launchCurrent.value()
+                                else -> Unit
+                            }
                         }
                     }
                 }
