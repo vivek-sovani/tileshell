@@ -54,6 +54,7 @@ fun WallpaperBackground(
     alignX: Float = 0.5f,
     alignY: Float = 0.5f,
     zoom: Float = 1f,
+    dark: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val layer = modifier
@@ -81,7 +82,7 @@ fun WallpaperBackground(
         }
         // URI unreadable (revoked/deleted) — fall through to the gradient.
     }
-    Box(modifier = layer.wallpaperBackground(gradient))
+    Box(modifier = layer.wallpaperBackground(gradient, dark))
 }
 
 /** Saturation [ColorMatrix] (1 = unchanged). */

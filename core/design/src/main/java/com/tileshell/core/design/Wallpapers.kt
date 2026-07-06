@@ -5,6 +5,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 
 /**
  * One radial layer of a mesh-gradient wallpaper, modelling a CSS
@@ -102,19 +103,42 @@ object Wallpapers {
 }
 
 /**
+ * All 6 bundled gradients are designed dark-base-first (a WP-style deep
+ * backdrop with colourful glows). In light theme that near-black base read as
+ * a flat black fill wherever a layer's glow hasn't reached — most of the
+ * gaps between tiles. [dark] blends the base most of the way toward the
+ * light theme's own background tone (rather than a plain "invert"), and eases
+ * each glow layer a little toward white so it stays legible against the
+ * lighter backdrop instead of muddying it.
+ */
+private fun themedBase(base: Color, dark: Boolean): Color =
+    if (dark) base else lerp(base, LightColorTokens.bg, 0.82f)
+
+private fun themedLayer(color: Color, dark: Boolean): Color =
+    if (dark) color else lerp(color, Color.White, 0.30f)
+
+/**
  * Paints [wallpaper] as the background of the modified node: the base colour
  * first, then each radial layer composited over it (matching the CSS layer
- * order, top gradient last).
+ * order, top gradient last). [dark] selects the theme-appropriate palette
+ * (see [themedBase]/[themedLayer]).
  */
-fun Modifier.wallpaperBackground(wallpaper: WallpaperGradient): Modifier = drawBehind {
-    drawRect(wallpaper.base)
+fun Modifier.wallpaperBackground(wallpaper: WallpaperGradient, dark: Boolean = true): Modifier = drawBehind {
+    drawRect(themedBase(wallpaper.base, dark))
     wallpaper.layers.forEach { layer ->
+        val color = themedLayer(layer.color, dark)
         val radius = (layer.radiusPct * size.width).coerceAtLeast(0.01f)
+        val fade = layer.fade.coerceIn(0.01f, 1f)
         drawRect(
             brush = Brush.radialGradient(
+                // A third, partially-faded stop midway through the falloff
+                // smooths the transition to transparent — a plain 2-stop
+                // gradient bands visibly across the large, mostly-flat areas
+                // these radial glows fall off into.
                 colorStops = arrayOf(
-                    0f to layer.color,
-                    layer.fade.coerceIn(0.01f, 1f) to Color.Transparent,
+                    0f to color,
+                    fade * 0.55f to color.copy(alpha = color.alpha * 0.35f),
+                    fade to Color.Transparent,
                 ),
                 center = Offset(layer.cx * size.width, layer.cy * size.height),
                 radius = radius,
@@ -137,16 +161,20 @@ fun Modifier.wallpaperWindow(
     fullWidth: Float,
     fullHeight: Float,
     origin: () -> Offset,
+    dark: Boolean = true,
 ): Modifier = drawBehind {
     val o = origin()
-    drawRect(wallpaper.base)
+    drawRect(themedBase(wallpaper.base, dark))
     wallpaper.layers.forEach { layer ->
+        val color = themedLayer(layer.color, dark)
         val radius = (layer.radiusPct * fullWidth).coerceAtLeast(0.01f)
+        val fade = layer.fade.coerceIn(0.01f, 1f)
         drawRect(
             brush = Brush.radialGradient(
                 colorStops = arrayOf(
-                    0f to layer.color,
-                    layer.fade.coerceIn(0.01f, 1f) to Color.Transparent,
+                    0f to color,
+                    fade * 0.55f to color.copy(alpha = color.alpha * 0.35f),
+                    fade to Color.Transparent,
                 ),
                 // Screen-space centre shifted into this tile's local space, so the
                 // gradient is continuous across tiles and fixed to the screen.

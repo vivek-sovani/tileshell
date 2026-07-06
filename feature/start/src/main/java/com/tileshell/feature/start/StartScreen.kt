@@ -224,9 +224,6 @@ import androidx.core.graphics.drawable.toBitmap
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-/** Flat dark screen behind "wallpaper behind tiles" mode (keeps gaps/borders dark). */
-private val TiledScreenDark = Color(0xFF0A0A0D)
-
 /** Hairline between show-through tiles so each reads as a distinct window. */
 private val TiledTileBorder = Color(0x66000000)
 
@@ -622,7 +619,7 @@ fun StartScreen(
         // through the tiles, keeping every gap/border dark. "none" skips the image
         // layer entirely and the theme bg colour shows through.
         if (tiledWallpaper) {
-            Box(modifier = Modifier.fillMaxSize().background(TiledScreenDark))
+            Box(modifier = Modifier.fillMaxSize().background(tokens.bg))
         } else if (noWallpaper) {
             Box(modifier = Modifier.fillMaxSize().background(tokens.bg))
         } else {
@@ -633,6 +630,7 @@ fun StartScreen(
                 alignX = settings.wallpaperAlignX,
                 alignY = settings.wallpaperAlignY,
                 zoom = settings.wallpaperZoom,
+                dark = dark,
             )
         }
 
@@ -1860,7 +1858,7 @@ private fun TileView(
                         image = wallpaperPhoto,
                         fullWidth = fullWidth,
                         fullHeight = fullHeight,
-                        darkBase = TiledScreenDark,
+                        darkBase = colorTokens(darkTheme).bg,
                         origin = wallpaperOrigin,
                         alignX = wallpaperAlignX,
                         alignY = wallpaperAlignY,
@@ -1871,6 +1869,7 @@ private fun TileView(
                         fullWidth = fullWidth,
                         fullHeight = fullHeight,
                         origin = wallpaperOrigin,
+                        dark = darkTheme,
                     )
                     else -> if (glassFill != null) {
                         Modifier.background(glassFill)
@@ -1953,6 +1952,7 @@ private fun TileView(
                         appIconColors = appIconColors,
                         glassFill = glassFill,
                         tiledWallpaper = tiledWallpaper,
+                        darkTheme = darkTheme,
                         wallpaper = wallpaper,
                         wallpaperPhoto = wallpaperPhoto,
                         wallpaperAlignX = wallpaperAlignX,
@@ -3379,6 +3379,7 @@ private fun StackTileContent(
     appIconColors: Boolean,
     glassFill: Color?,
     tiledWallpaper: Boolean,
+    darkTheme: Boolean,
     wallpaper: com.tileshell.core.design.WallpaperGradient,
     wallpaperPhoto: ImageBitmap?,
     wallpaperAlignX: Float,
@@ -3577,7 +3578,7 @@ private fun StackTileContent(
                                     image = wallpaperPhoto,
                                     fullWidth = fullWidth,
                                     fullHeight = fullHeight,
-                                    darkBase = TiledScreenDark,
+                                    darkBase = colorTokens(darkTheme).bg,
                                     origin = wallpaperOrigin,
                                     alignX = wallpaperAlignX,
                                     alignY = wallpaperAlignY,
@@ -3588,6 +3589,7 @@ private fun StackTileContent(
                                     fullWidth = fullWidth,
                                     fullHeight = fullHeight,
                                     origin = wallpaperOrigin,
+                                    dark = darkTheme,
                                 )
                                 glassFill != null -> Modifier.background(glassFill)
                                 useTileGradient -> Modifier.background(tileGradientBrush(memberAccent))

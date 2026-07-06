@@ -36,6 +36,22 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Pre-release polish — wallpaper light-theme adaptation + banding fix.** User-reported ahead
+  of production release (closed testing complete): the 6 bundled gradient wallpapers
+  (`Wallpapers.kt`, `:core:design`) are dark-base-first by design, so in light theme the
+  near-black base showed through unchanged wherever a glow layer hadn't reached — most of the
+  gaps between tiles read as flat black instead of the light theme's `#ece9e4`. Fixed
+  algorithmically rather than hand-authoring 6 new palettes: new `themedBase`/`themedLayer`
+  helpers blend each gradient's base 82% toward the light bg token and each glow layer 30%
+  toward white when rendering in light theme, via a new `dark: Boolean = true` param on
+  `wallpaperBackground`/`wallpaperWindow` (default preserves the personalize picker's swatch
+  previews, which intentionally always show the dark identity look). `TiledScreenDark` (a
+  hardcoded `#0A0A0D` used by "wallpaper behind tiles" mode's screen fill and both `photoWindow`
+  `darkBase` call sites) is removed entirely in favour of `colorTokens(darkTheme).bg`, so tiled
+  mode now respects theme too. Also fixed a separate, unrelated polish issue on the same
+  gradients: each radial layer's 2-stop color→transparent falloff banded visibly on 8-bit
+  panels; added a third half-alpha mid-stop to smooth it. See DECISIONS "Wallpaper theming:
+  light-theme adaptation + gradient banding fix." Build + tests green.
 - **Post-S27 — LARGE tile allowed on 4-column grids too.** User-requested: dropped the
   `columns >= 5` gate on the 3×3 LARGE size — `AppCategories.allowsLargeTile` now always returns
   `true` (a 3-wide tile still fits inside the minimum 4-column grid). Removed the now-dead

@@ -3,6 +3,31 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Wallpaper theming: light-theme adaptation + gradient banding fix
+
+- **Problem (user-reported, pre-release polish pass):** all 6 bundled gradient
+  wallpapers (`Wallpapers.kt`) are designed dark-base-first (a near-black base
+  with colourful radial glows). In light theme the base showed through
+  unchanged wherever a glow hadn't reached — most of the screen — reading as a
+  plain black backdrop behind/between tiles, clashing with the light theme's
+  `#ece9e4` bg. Separately, "wallpaper behind tiles" mode's screen-anchored
+  base (`TiledScreenDark`, a hardcoded `#0A0A0D`) never respected theme at all.
+- **Fix, not a redesign.** Rather than hand-author 6 new light palettes,
+  `themedBase`/`themedLayer` (`Wallpapers.kt`) algorithmically blend the base
+  82% toward `LightColorTokens.bg` and each glow layer 30% toward white when
+  `dark == false`, so every gradient keeps its identity (hue/composition) but
+  reads as a light backdrop instead of black. `wallpaperBackground`/
+  `wallpaperWindow` both take a `dark: Boolean = true` param (default keeps
+  every existing preview/picker-swatch caller, which intentionally always
+  shows the dark identity look, unchanged). `TiledScreenDark` was removed
+  entirely — the tiled-mode root fill and both `photoWindow` `darkBase` sites
+  now use `colorTokens(darkTheme).bg`, matching the non-tiled path.
+- **Banding fix, same session.** Each radial layer's `Brush.radialGradient`
+  gained a third colour stop (a half-alpha version of the layer colour at 55%
+  of the fade distance) instead of a hard 2-stop colour→transparent falloff —
+  visibly smoother on the large, mostly-flat areas these gradients fall off
+  into, on 8-bit-panel devices.
+
 ## Post-S29 — re-enable the 4×4 LARGE tile, gated to music/news on 5/6-column grids
 
 - **The 4×4 `LARGE` size (removed post-S24) is back, but conditionally.** It is
