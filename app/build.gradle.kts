@@ -73,8 +73,12 @@ android {
         // v1.8.2 = 92 (large (3x3) tile is now available on 4-column grids too, not just
         //   5/6 — both top-level tiles and folder children, plus the folder overlay's
         //   "make large stack" shortcut).
-        versionCode = 92
-        versionName = "1.8.2"
+        // v1.9.0 = 100 (bundled wallpaper gradients adapt to light theme instead of always
+        //   showing a near-black base between tiles; smoother gradient falloff, less banding;
+        //   glass/transparent tiles now tint with each tile's own resolved accent colour
+        //   instead of one shared neutral tint across the whole grid).
+        versionCode = 100
+        versionName = "1.9.0"
     }
 
     if (keystoreFile.exists()) {

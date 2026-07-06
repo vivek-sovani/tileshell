@@ -155,6 +155,18 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
+## Release notes (v1.9.0)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 1.9.0
+
+• Fixed: stock wallpapers no longer show black gaps between tiles in light theme — every gradient now adapts its tone to the active theme
+• Fixed: smoother wallpaper gradients, less visible banding
+• Fixed: transparent (glass) tiles now tint with each tile's own colour instead of all looking the same shade
+```
+
 ## Release notes (v1.8.2)
 
 *"What's new" — newest release first. Keep under Play's 500-character limit.*

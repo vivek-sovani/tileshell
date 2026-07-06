@@ -106,16 +106,19 @@ object Wallpapers {
  * All 6 bundled gradients are designed dark-base-first (a WP-style deep
  * backdrop with colourful glows). In light theme that near-black base read as
  * a flat black fill wherever a layer's glow hasn't reached — most of the
- * gaps between tiles. [dark] blends the base most of the way toward the
- * light theme's own background tone (rather than a plain "invert"), and eases
- * each glow layer a little toward white so it stays legible against the
- * lighter backdrop instead of muddying it.
+ * gaps between tiles. [dark] lifts the base toward the light theme's own
+ * background tone, but only partway — a full blend washed the base to almost
+ * pure `LightColorTokens.bg` with barely a hint of the original hue, which
+ * read as "too light"/washed out. A ~45% lift keeps a mid-tone version of the
+ * gradient's own colour (recognisably not black, not blown out). Layers get a
+ * much smaller lift, just enough that the glow doesn't sink into the now
+ * mid-toned base.
  */
 private fun themedBase(base: Color, dark: Boolean): Color =
-    if (dark) base else lerp(base, LightColorTokens.bg, 0.82f)
+    if (dark) base else lerp(base, LightColorTokens.bg, 0.45f)
 
 private fun themedLayer(color: Color, dark: Boolean): Color =
-    if (dark) color else lerp(color, Color.White, 0.30f)
+    if (dark) color else lerp(color, Color.White, 0.12f)
 
 /**
  * Paints [wallpaper] as the background of the modified node: the base colour

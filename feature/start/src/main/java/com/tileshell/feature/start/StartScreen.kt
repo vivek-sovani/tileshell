@@ -319,8 +319,6 @@ fun StartScreen(
     val accent = TileAccents.forId(settings.accentId)
     val noWallpaper = settings.wallpaperId == NONE_ID && settings.customWallpaperUri == null
     val wallpaper = Wallpapers.forId(settings.wallpaperId)
-    // Transparent-tile fill at the current slider (FR-7); null when glass is off.
-    val glassFill = if (settings.glass) Glass.fill(dark, settings.transparency) else null
     // Tile style: corner radius + gradient fill + font family.
     val tileFont = when (settings.fontStyle) {
         FontStyle.OUTFIT -> OutfitFamily
@@ -701,7 +699,8 @@ fun StartScreen(
                     } else {
                         with(density) { settings.tileGap.dp.toPx() }
                     },
-                    glassFill = glassFill,
+                    glass = settings.glass,
+                    transparency = settings.transparency,
                     glassLine = tokens.glassLine,
                     tiledWallpaper = tiledWallpaper,
                     wallpaper = wallpaper,
@@ -1215,7 +1214,8 @@ private fun StartPage(
     accentId: String,
     appIconColors: Boolean,
     tileGapPx: Float?,
-    glassFill: Color?,
+    glass: Boolean,
+    transparency: Float,
     glassLine: Color,
     tiledWallpaper: Boolean,
     wallpaper: com.tileshell.core.design.WallpaperGradient,
@@ -1425,7 +1425,8 @@ private fun StartPage(
                         dragging = dragging,
                         mergeTarget = model.id == mergeTargetId,
                         accent = tileAccent,
-                        glassFill = glassFill,
+                        glass = glass,
+                        transparency = transparency,
                         glassLine = glassLine,
                         tiledWallpaper = tiledWallpaper,
                         wallpaper = wallpaper,
@@ -1765,7 +1766,8 @@ private fun TileView(
     dragging: Boolean,
     mergeTarget: Boolean,
     accent: Color,
-    glassFill: Color?,
+    glass: Boolean,
+    transparency: Float,
     glassLine: Color,
     tiledWallpaper: Boolean,
     wallpaper: com.tileshell.core.design.WallpaperGradient,
@@ -1804,6 +1806,10 @@ private fun TileView(
 
     val tileCornerRadius = LocalTileCornerRadius.current
     val useTileGradient = LocalTileGradient.current
+    // Glass fill tinted by this tile's own resolved accent (see Glass.kt) —
+    // computed here, not passed in, so every tile (including each stack member
+    // / folder cell below) tints by its own colour rather than one shared value.
+    val glassFill = if (glass) Glass.fill(darkTheme, transparency, accent) else null
     // A widget stack owns its own tap/long-press (tap = launch current member,
     // long-press = enter edit mode), so the outer tile gesture is suppressed for it;
     // in edit mode the grid drag owns interaction for every tile.
@@ -1950,7 +1956,8 @@ private fun TileView(
                         liveActive = liveActive,
                         accent = accent,
                         appIconColors = appIconColors,
-                        glassFill = glassFill,
+                        glass = glass,
+                        transparency = transparency,
                         tiledWallpaper = tiledWallpaper,
                         darkTheme = darkTheme,
                         wallpaper = wallpaper,
@@ -1970,7 +1977,9 @@ private fun TileView(
                         editMode = editMode,
                         launchEnabled = inlineFolderLaunch,
                         appIconColors = appIconColors,
-                        glassFill = glassFill,
+                        glass = glass,
+                        transparency = transparency,
+                        darkTheme = darkTheme,
                         tiledWallpaper = tiledWallpaper,
                         onLaunchChild = onLaunchFolderChild,
                         onOpenFolder = onTap,
@@ -2445,7 +2454,8 @@ private fun FolderOverlay(
                         dragging = dragging,
                         mergeTarget = false,
                         accent = childAccent,
-                        glassFill = null,
+                        glass = false,
+                        transparency = 0f,
                         glassLine = Color.Transparent,
                         tiledWallpaper = false,
                         wallpaper = Wallpapers.forId(NONE_ID),
@@ -3258,7 +3268,9 @@ private fun FolderTileContent(
     editMode: Boolean,
     launchEnabled: Boolean,
     appIconColors: Boolean,
-    glassFill: Color?,
+    glass: Boolean,
+    transparency: Float,
+    darkTheme: Boolean,
     tiledWallpaper: Boolean,
     onLaunchChild: (FolderChild) -> Unit,
     onOpenFolder: () -> Unit,
@@ -3308,7 +3320,7 @@ private fun FolderTileContent(
                             ?: Color(0x2E000000)
                         val cellFill = when {
                             tiledWallpaper -> Modifier
-                            glassFill != null -> Modifier.background(glassFill)
+                            glass -> Modifier.background(Glass.fill(darkTheme, transparency, cellBg))
                             else -> Modifier.background(cellBg)
                         }
                         Box(
@@ -3377,7 +3389,8 @@ private fun StackTileContent(
     liveActive: Boolean,
     accent: Color,
     appIconColors: Boolean,
-    glassFill: Color?,
+    glass: Boolean,
+    transparency: Float,
     tiledWallpaper: Boolean,
     darkTheme: Boolean,
     wallpaper: com.tileshell.core.design.WallpaperGradient,
@@ -3562,6 +3575,9 @@ private fun StackTileContent(
                     ?: child.takeIf { appIconColors }
                         ?.let { rememberDominantIconColor(it.packageName, it.activityName) }
                     ?: accent
+                // Tinted by this member's own colour, not the stack tile's — each
+                // rotated member should read as its own glass tile.
+                val memberGlassFill = if (glass) Glass.fill(darkTheme, transparency, memberAccent) else null
                 // Render the member's live face at the stack tile's footprint by
                 // reusing the normal app-tile content. interactive=true so music
                 // transport buttons and other live-face controls are tappable.
@@ -3591,7 +3607,7 @@ private fun StackTileContent(
                                     origin = wallpaperOrigin,
                                     dark = darkTheme,
                                 )
-                                glassFill != null -> Modifier.background(glassFill)
+                                memberGlassFill != null -> Modifier.background(memberGlassFill)
                                 useTileGradient -> Modifier.background(tileGradientBrush(memberAccent))
                                 else -> Modifier.background(memberAccent)
                             },

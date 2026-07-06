@@ -3,6 +3,39 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Glass tint follows tile accent (v1.9.0)
+
+- **Problem (user-reported, same pre-release polish pass as the wallpaper fix
+  below):** transparent ("glass") tiles never reflected the tile's own colour,
+  in either theme. `Glass.fill(dark, transparency)` always returned one of two
+  fixed neutral colours (dark charcoal / near-white) at an alpha derived from
+  the transparency slider — a blue tile and a red tile rendered the identical
+  grey/white glass square. This is a real bug, not a WP-prototype-fidelity
+  choice: the prototype's `applyTransparency()` is genuinely accent-blind, but
+  the user explicitly asked for the tile's own colour to carry through the
+  glass effect, so this is a deliberate deviation from the ported prototype
+  behaviour, not a restoration of it.
+- **Fix:** `Glass.fill` gained an `accent: Color` param and blends it 65% into
+  the neutral frost colour before applying the transparency alpha, so glass
+  tiles are recognisably tinted per-tile instead of a single shared shade.
+- **Per-tile, not per-screen.** The bug's root cause was architectural as much
+  as the missing blend: `glassFill` was computed once in the top-level Start
+  composable (`Glass.fill(dark, transparency)`, no accent available there) and
+  handed down as a single `Color?` to every tile. Fixed by threading
+  `glass: Boolean` + `transparency: Float` instead all the way down to
+  `TileView`, `StackTileContent`, and `FolderTileContent`, each of which
+  computes its own tint from whichever accent it already has locally resolved
+  (`tileAccent`, `memberAccent` for the currently-visible stack member,
+  `cellBg` for a folder mini-grid cell) — so nested cases (a stack's rotating
+  members, a folder's child icons) each tint independently too, not just
+  top-level tiles.
+- **Wallpaper blend retuned in the same pass.** On-device testing of the
+  light-theme wallpaper fix (below) found the original 82%/30% base/layer
+  blend toward the light bg washed the gradients out almost to a flat light
+  colour — retuned to 45% (base) / 12% (layers), which keeps a legible
+  mid-tone version of the gradient's own hue instead of near-black (the
+  original bug) or near-white (the overcorrection).
+
 ## Wallpaper theming: light-theme adaptation + gradient banding fix
 
 - **Problem (user-reported, pre-release polish pass):** all 6 bundled gradient
@@ -14,9 +47,12 @@ rule 4. Newest first.
   base (`TiledScreenDark`, a hardcoded `#0A0A0D`) never respected theme at all.
 - **Fix, not a redesign.** Rather than hand-author 6 new light palettes,
   `themedBase`/`themedLayer` (`Wallpapers.kt`) algorithmically blend the base
-  82% toward `LightColorTokens.bg` and each glow layer 30% toward white when
-  `dark == false`, so every gradient keeps its identity (hue/composition) but
-  reads as a light backdrop instead of black. `wallpaperBackground`/
+  and each glow layer toward `LightColorTokens.bg`/white when `dark == false`
+  (originally 82%/30%, retuned to 45%/12% after on-device testing showed the
+  first pass washed the gradients out too far — see "Glass tint follows tile
+  accent (v1.9.0)" above), so every gradient keeps its identity
+  (hue/composition) but reads as a light backdrop instead of black.
+  `wallpaperBackground`/
   `wallpaperWindow` both take a `dark: Boolean = true` param (default keeps
   every existing preview/picker-swatch caller, which intentionally always
   shows the dark identity look, unchanged). `TiledScreenDark` was removed
