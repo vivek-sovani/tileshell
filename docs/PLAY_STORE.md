@@ -166,6 +166,7 @@ TileShell 2.0
 • Flip the tile to cycle through each pending message in turn, one at a time — no message hidden behind a count anymore
 • Works for mail, messaging apps, and every other app with notifications
 • Each message shows its sender's photo as you cycle through
+• New: in-app personalization guide with illustrated tips — find it in Personalize
 ```
 
 ## Release notes (v1.9.0)
