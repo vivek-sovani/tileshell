@@ -200,7 +200,7 @@ fun AboutSheet(
                     "folder shows overflow count (+N) when more than 4 apps are inside",
                     "resize, reorder, and remove tiles inside an open folder",
                     "give a tile inside a folder its own colour, just like on start",
-                    "pull an app out of a folder to unpin it back to start",
+                    "tap × on an app inside a folder to unpin it back to start",
                     "folder shows a combined badge; each app shows its own inside",
                     "music keeps playing controls and album art live inside a folder",
                 ),
@@ -220,7 +220,7 @@ fun AboutSheet(
                     "stack auto-rotates every 6 s; each stack runs on its own independent schedule",
                     "tap the stack to launch the current member's app",
                     "long-press to manage members in the overlay",
-                    "drag a member out of the overlay to return it to start",
+                    "tap × on a member inside the overlay to return it to start",
                     "live faces (music transport, clock flip) stay fully interactive inside a stack",
                 ),
             )
@@ -381,6 +381,7 @@ internal fun FeatureGroup(
     accent: Color,
     tokens: com.tileshell.core.design.ColorTokens,
     items: List<String>,
+    visual: (@Composable () -> Unit)? = null,
 ) {
     Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 18.dp)) {
         Text(
@@ -390,6 +391,10 @@ internal fun FeatureGroup(
             fontWeight = FontWeight.W500,
             modifier = Modifier.padding(bottom = 6.dp),
         )
+        if (visual != null) {
+            visual()
+            Spacer(Modifier.height(10.dp))
+        }
         items.forEach { item ->
             Row(
                 modifier = Modifier.padding(vertical = 2.dp),

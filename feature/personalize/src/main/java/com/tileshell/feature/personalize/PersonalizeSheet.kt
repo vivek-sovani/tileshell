@@ -275,7 +275,7 @@ fun PersonalizeSheet(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(text = "how to personalize", color = tokens.fg, fontSize = 14.sp)
                         Text(
-                            text = "colours, wallpaper, tiles, pinning apps, and the feed",
+                            text = "colours, wallpaper, tiles, pinning apps, the feed, and permissions",
                             color = tokens.fgDim,
                             fontSize = 12.sp,
                         )
@@ -1017,7 +1017,7 @@ private fun ToggleRow(
 
 /** One bundled-wallpaper preview cell (prototype `.wallrow .w`). */
 @Composable
-private fun WallpaperCell(
+internal fun WallpaperCell(
     wallpaper: WallpaperGradient,
     selected: Boolean,
     ring: Color,
@@ -1105,7 +1105,7 @@ private fun PermissionRow(
 
 /** One accent swatch (prototype .swatches i / .swatches i.sel). */
 @Composable
-private fun Swatch(
+internal fun Swatch(
     color: Color,
     selected: Boolean,
     ring: Color,
