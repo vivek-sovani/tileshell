@@ -3036,6 +3036,7 @@ private fun AppTileContent(
                 kind = face,
                 packageName = tile.packageName,
                 flipped = flipped,
+                active = liveActive,
                 fallback = staticGlyph,
                 size = tile.size,
                 modifier = Modifier.fillMaxSize(),
@@ -3088,6 +3089,7 @@ private fun AppTileContent(
                     fallback = {
                         NotificationTileFace(
                             packageName = tile.packageName,
+                            active = liveActive,
                             fallback = staticGlyph,
                             size = tile.size,
                             modifier = Modifier.fillMaxSize(),

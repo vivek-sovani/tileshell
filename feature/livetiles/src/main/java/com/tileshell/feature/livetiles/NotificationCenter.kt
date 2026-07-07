@@ -34,12 +34,28 @@ data class NotificationItem(
     val postTime: Long,
 )
 
-/** The latest conversation shown on a mail / messages live face (FR-2). */
+/** One pending notification's sender + snippet, as shown on a live face row. */
+data class ConversationItem(
+    val sender: String,
+    val snippet: String,
+)
+
+/**
+ * The conversation shown on a mail / messages (or generic notification) live face
+ * (FR-2). [sender]/[snippet] are the newest notification, kept for callers that only
+ * want the headline; [items] carries up to [MAX_CONVERSATION_ITEMS] pending
+ * notifications newest-first (including the newest as `items.first()`) so the face
+ * can cycle through them instead of collapsing straight to a bare count.
+ */
 data class ConversationPreview(
     val sender: String,
     val snippet: String,
     val count: Int,
+    val items: List<ConversationItem>,
 )
+
+/** Cap on how many pending notifications a live face keeps to cycle through. */
+const val MAX_CONVERSATION_ITEMS = 5
 
 /**
  * The newest notification's images for a package, shown on its live face like an
@@ -98,11 +114,15 @@ fun summarizeNotifications(items: List<NotificationItem>): NotificationSnapshot 
     val byPackage = relevant.groupBy { it.packageName }
     val badges = byPackage.mapValues { (_, list) -> list.size }
     val conversations = byPackage.mapValues { (_, list) ->
-        val latest = list.maxByOrNull { it.postTime } ?: list.first()
+        val newestFirst = list.sortedByDescending { it.postTime }
+        val latest = newestFirst.first()
         ConversationPreview(
             sender = latest.title.orEmpty().trim(),
             snippet = latest.text.orEmpty().trim(),
             count = list.size,
+            items = newestFirst.take(MAX_CONVERSATION_ITEMS).map {
+                ConversationItem(sender = it.title.orEmpty().trim(), snippet = it.text.orEmpty().trim())
+            },
         )
     }
     return NotificationSnapshot(badges, conversations)

@@ -92,7 +92,7 @@ fun PhotosTileFace(
         if (preview != null) {
             Box(modifier = modifier.fillMaxSize()) {
                 NotificationFaceContent(
-                    preview = preview,
+                    item = ConversationItem(sender = preview.sender, snippet = preview.snippet),
                     avatar = imgs?.avatar?.asImageBitmap(),
                     picture = imgs?.picture?.asImageBitmap(),
                     size = size,
@@ -185,7 +185,7 @@ fun PhotosTileFace(
             front = { photoFront() },
             back = {
                 NotificationFaceContent(
-                    preview = preview,
+                    item = ConversationItem(sender = preview.sender, snippet = preview.snippet),
                     avatar = imgs?.avatar?.asImageBitmap(),
                     picture = imgs?.picture?.asImageBitmap(),
                     size = size,

@@ -74,6 +74,39 @@ class NotificationSummaryTest {
         assertEquals("Aria", preview.sender)
         assertEquals("hi", preview.snippet)
     }
+
+    @Test
+    fun `items are ordered newest first`() {
+        val snapshot = summarizeNotifications(
+            listOf(
+                item("mail", "Aria", "old", postTime = 100),
+                item("mail", "Ben", "newest", postTime = 300),
+                item("mail", "Cy", "mid", postTime = 200),
+            ),
+        )
+        val items = snapshot.conversationFor("mail")!!.items
+        assertEquals(3, items.size)
+        assertEquals("Ben", items[0].sender)
+        assertEquals("Cy", items[1].sender)
+        assertEquals("Aria", items[2].sender)
+    }
+
+    @Test
+    fun `items are capped at MAX_CONVERSATION_ITEMS`() {
+        val notifications = (1..10).map { i -> item("mail", "Sender$i", "msg$i", postTime = i.toLong()) }
+        val items = summarizeNotifications(notifications).conversationFor("mail")!!.items
+        assertEquals(MAX_CONVERSATION_ITEMS, items.size)
+        assertEquals("Sender10", items[0].sender)
+    }
+
+    @Test
+    fun `single notification produces one item matching sender and snippet`() {
+        val preview = summarizeNotifications(listOf(item("mail", "Aria", "hello")))
+            .conversationFor("mail")!!
+        assertEquals(1, preview.items.size)
+        assertEquals("Aria", preview.items[0].sender)
+        assertEquals("hello", preview.items[0].snippet)
+    }
 }
 
 class TileNotificationActionsTest {
