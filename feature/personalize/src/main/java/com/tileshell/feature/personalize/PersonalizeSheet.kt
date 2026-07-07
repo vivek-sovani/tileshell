@@ -168,6 +168,7 @@ fun PersonalizeSheet(
     onRequestCalendar: () -> Unit,
     onRequestLocation: () -> Unit,
     onAbout: () -> Unit,
+    onPersonalizeGuide: () -> Unit,
     onFolders: () -> Unit,
     onHiddenApps: () -> Unit,
     onBackupRestore: () -> Unit,
@@ -261,6 +262,28 @@ fun PersonalizeSheet(
                 letterSpacing = (-1).sp,
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 14.dp),
             )
+
+            // ---- help ----
+            SettingGroup(label = "help", tokens.fgDim) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onPersonalizeGuide)
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "how to personalize", color = tokens.fg, fontSize = 14.sp)
+                        Text(
+                            text = "colours, wallpaper, tile look, organizing tiles",
+                            color = tokens.fgDim,
+                            fontSize = 12.sp,
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(text = "guide ›", color = accent, fontSize = 13.sp)
+                }
+            }
 
             // ---- theme ----
             SettingGroup(label = "theme", tokens.fgDim) {

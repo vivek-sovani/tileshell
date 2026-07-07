@@ -145,6 +145,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val _aboutOpen = MutableStateFlow(false)
     val aboutOpen: StateFlow<Boolean> = _aboutOpen.asStateFlow()
 
+    /** True while the how-to-personalize guide sheet is open (personalize → guide). */
+    private val _personalizeGuideOpen = MutableStateFlow(false)
+    val personalizeGuideOpen: StateFlow<Boolean> = _personalizeGuideOpen.asStateFlow()
+
     /** True while the layout history sheet is open (personalize → layout history). */
     private val _historyOpen = MutableStateFlow(false)
     val historyOpen: StateFlow<Boolean> = _historyOpen.asStateFlow()
@@ -275,6 +279,16 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Close the about sheet. */
     fun closeAbout() {
         _aboutOpen.value = false
+    }
+
+    /** Open the how-to-personalize guide sheet (personalize → guide). */
+    fun openPersonalizeGuide() {
+        _personalizeGuideOpen.value = true
+    }
+
+    /** Close the how-to-personalize guide sheet. */
+    fun closePersonalizeGuide() {
+        _personalizeGuideOpen.value = false
     }
 
     /** Open the layout history sheet (personalize → history). */
@@ -607,6 +621,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     fun goHome() {
         closePersonalize()
         closeAbout()
+        closePersonalizeGuide()
         closeFolders()
         closeHiddenApps()
         closeBackup()

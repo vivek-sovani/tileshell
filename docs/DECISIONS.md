@@ -3,6 +3,37 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## In-app "how to personalize" guide
+
+Not a WP prototype/spec feature — new, ad-hoc, user-reported: several users
+said they didn't know how to use the less-discoverable personalization
+interactions (per-tile colour override, merging tiles into folders/widget
+stacks, wallpaper reframing, tile background modes) even though every control
+lives in `PersonalizeSheet`. `AboutSheet`'s existing "personalization"
+`FeatureGroup` is a feature inventory, not a how-to, and `FirstRunHint` is a
+one-shot generic welcome card that never resurfaces once dismissed — neither
+addresses "how do I actually do this."
+
+Added a new static how-to sheet, `PersonalizeGuideSheet.kt`
+(`:feature:personalize`), reusing `AboutSheet`'s sheet chrome and its
+`FeatureGroup`/`SectionHeader` composables (widened from `private` to
+`internal`, same module, to avoid duplicating the bullet-list widget) — but
+phrased as instructions ("in edit mode, tap the colour dot on a selected tile
+to give just that tile its own colour") instead of feature statements.
+Considered interactive coach-marks/tooltips pointing at the live controls
+instead, but rejected for this pass: no spotlight/overlay system exists yet in
+the codebase, and the cost didn't match a "users want a guide" ask — a static
+sheet reusing existing patterns ships the same information for a fraction of
+the effort. Wired with the same open/close `StateFlow` + one-sheet-at-a-time
+visibility-gating convention as `aboutOpen`/`backupOpen`/`foldersOpen`
+(`StartViewModel.personalizeGuideOpen`, `StartScreen.personalizeVisible` now
+also excludes it). Two entry points: a permanent "how to personalize · guide
+›" row, placed as the very first `SettingGroup` in `PersonalizeSheet` (above
+even "theme") for maximum discoverability; and an auto-open-once the very
+first time Personalize is ever opened, tracked by a `PersonalizeGuidePrefs`
+flag (`tileshell.prefs`, key `personalize_guide_shown`) modeled exactly on
+`FirstRunHintPrefs`. No schema change, no new permission.
+
 ## Glass tint follows tile accent (v1.9.0)
 
 - **Problem (user-reported, same pre-release polish pass as the wallpaper fix

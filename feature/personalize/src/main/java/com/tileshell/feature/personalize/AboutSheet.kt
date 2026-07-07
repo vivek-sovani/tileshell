@@ -364,7 +364,7 @@ private fun TileLogoMark(accent: Color) {
 }
 
 @Composable
-private fun SectionHeader(text: String, color: Color) {
+internal fun SectionHeader(text: String, color: Color) {
     Text(
         text = text,
         color = color,
@@ -376,7 +376,7 @@ private fun SectionHeader(text: String, color: Color) {
 }
 
 @Composable
-private fun FeatureGroup(
+internal fun FeatureGroup(
     title: String,
     accent: Color,
     tokens: com.tileshell.core.design.ColorTokens,

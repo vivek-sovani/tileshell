@@ -191,6 +191,8 @@ import com.tileshell.feature.livetiles.LayoutAutoBackupWorker
 import com.tileshell.feature.personalize.CategoryFolderSheet
 import com.tileshell.feature.personalize.FeedSourceItem
 import com.tileshell.feature.personalize.HiddenAppsSheet
+import com.tileshell.feature.personalize.PersonalizeGuidePrefs
+import com.tileshell.feature.personalize.PersonalizeGuideSheet
 import com.tileshell.feature.personalize.PersonalizeSheet
 import com.tileshell.feature.system.AppUpdateState
 import com.tileshell.feature.system.rememberAppUpdateState
@@ -249,6 +251,7 @@ fun StartScreen(
     val openFolderId by viewModel.openFolderId.collectAsStateWithLifecycle()
     val personalizeOpen by viewModel.personalizeOpen.collectAsStateWithLifecycle()
     val aboutOpen by viewModel.aboutOpen.collectAsStateWithLifecycle()
+    val personalizeGuideOpen by viewModel.personalizeGuideOpen.collectAsStateWithLifecycle()
     val historyOpen by viewModel.historyOpen.collectAsStateWithLifecycle()
     val layoutHistory by viewModel.layoutHistory.collectAsStateWithLifecycle()
     val backupOpen by viewModel.backupOpen.collectAsStateWithLifecycle()
@@ -272,6 +275,16 @@ fun StartScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
+
+    // First time Personalize is ever opened, auto-surface the how-to guide on top
+    // of it (one-shot, mirrors FirstRunHintPrefs); a permanent row inside
+    // Personalize reopens it manually afterwards.
+    LaunchedEffect(personalizeOpen) {
+        if (personalizeOpen && !PersonalizeGuidePrefs.shown(context)) {
+            viewModel.openPersonalizeGuide()
+            PersonalizeGuidePrefs.markShown(context)
+        }
+    }
 
     // Keep the daily Bing wallpaper refresh enqueued across process restarts while
     // the user has it on (the worker no-ops once they turn it off).
@@ -891,7 +904,8 @@ fun StartScreen(
         // visible at once (a proper back-stack: closing a child reveals its parent again,
         // driven by each sheet's own BackHandler(enabled = visible)).
         val personalizeVisible =
-            personalizeOpen && !aboutOpen && !foldersOpen && !backupOpen && !hiddenAppsOpen
+            personalizeOpen && !aboutOpen && !foldersOpen && !backupOpen && !hiddenAppsOpen &&
+                !personalizeGuideOpen
         val backupVisible = backupOpen && !historyOpen
         // Update banner only over the plain Start/feed pages — never on top of edit
         // mode, an open folder, the app list, quick search, or a personalize sheet.
@@ -1012,6 +1026,7 @@ fun StartScreen(
             columns = settings.columns,
             onColumnsChange = viewModel::setColumns,
             onAbout = viewModel::openAbout,
+            onPersonalizeGuide = viewModel::openPersonalizeGuide,
             onFolders = viewModel::openFolders,
             onHiddenApps = viewModel::openHiddenApps,
             onBackupRestore = viewModel::openBackup,
@@ -1025,6 +1040,16 @@ fun StartScreen(
             dark = dark,
             accentId = settings.accentId,
             onDismiss = viewModel::closeAbout,
+        )
+
+        // How-to-personalize guide (personalize → guide; auto-shown once, see the
+        // LaunchedEffect(personalizeOpen) above).
+        PersonalizeGuideSheet(
+            visible = personalizeGuideOpen,
+            rightHalf = isLandscape,
+            dark = dark,
+            accentId = settings.accentId,
+            onDismiss = viewModel::closePersonalizeGuide,
         )
 
         // Hidden-apps sheet (personalize → hidden apps).
