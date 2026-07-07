@@ -48,8 +48,8 @@ fun NotificationTileFace(
 ) {
     val snapshot by NotificationCenter.snapshot.collectAsState()
     val preview = snapshot.conversationFor(packageName) ?: return fallback()
-    val images by NotificationCenter.images.collectAsState()
-    val imgs = images[packageName]
+    val itemImages by NotificationCenter.itemImages.collectAsState()
+    val fallbackImages by NotificationCenter.images.collectAsState()
 
     val itemCount = preview.items.size
     val itemIndex = remember(packageName) { mutableIntStateOf(0) }
@@ -73,6 +73,7 @@ fun NotificationTileFace(
     val current = preview.items.getOrElse(itemIndex.intValue) {
         ConversationItem(sender = preview.sender, snippet = preview.snippet)
     }
+    val imgs = itemImages[current.notificationKey] ?: fallbackImages[packageName]
 
     Box(modifier = modifier.fillMaxSize()) {
         FlipTile(

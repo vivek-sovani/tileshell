@@ -61,8 +61,8 @@ fun ConversationTileFace(
 ) {
     val snapshot by NotificationCenter.snapshot.collectAsState()
     val preview = snapshot.conversationFor(packageName) ?: return fallback()
-    val images by NotificationCenter.images.collectAsState()
-    val imgs = images[packageName]
+    val itemImages by NotificationCenter.itemImages.collectAsState()
+    val fallbackImages by NotificationCenter.images.collectAsState()
 
     // Cycle through notifications on the back face.
     val itemCount = preview.items.size
@@ -78,6 +78,9 @@ fun ConversationTileFace(
     val current = preview.items.getOrElse(itemIndex.intValue) {
         ConversationItem(sender = preview.sender, snippet = preview.snippet)
     }
+    // Use the per-notification image (correct group/sender avatar) falling back to
+    // the package-level image for notifications whose key predates this change.
+    val imgs = itemImages[current.notificationKey] ?: fallbackImages[packageName]
 
     val countWord = if (kind == LiveFace.MESSAGES) "new" else "unread"
     Box(modifier = modifier.fillMaxSize()) {

@@ -48,9 +48,12 @@ class TileNotificationListenerService : NotificationListenerService() {
         NotificationCenter.publish(summarizeNotifications(active.mapNotNull { it.toItem() }))
         // Parallel tap-action map: how each package's tile opens + clears on tap.
         NotificationCenter.publishActions(tileNotificationActions(active.map { it.toActionRow() }))
-        // Parallel image map: the newest notification's picture / contact photo per
-        // package, shown alongside the text on the live face.
+        // Per-package newest image (used by non-cycling faces like PhotosTileFace).
         NotificationCenter.publishImages(notificationImages(active))
+        // Per-notification-key images for the cycling back face — each group/sender
+        // in WhatsApp etc. has its own avatar, so we decode up to MAX_CONVERSATION_ITEMS
+        // images per package so the cycling face can show the right one for each item.
+        NotificationCenter.publishItemImages(notificationItemImages(active))
     }
 
     /** Newest dismissable notification's images per package (empty entries dropped). */
@@ -69,6 +72,35 @@ class TileNotificationListenerService : NotificationListenerService() {
                 if (images.avatar == null && images.picture == null) null else pkg to images
             }
             .toMap()
+
+    /**
+     * Per-notification-key images for the cycling back face. Decodes images for up to
+     * [MAX_CONVERSATION_ITEMS] notifications per package (newest first) so a cycling
+     * tile can show each group's / sender's own avatar instead of always using the
+     * newest one.
+     */
+    private fun notificationItemImages(
+        active: Array<out StatusBarNotification>,
+    ): Map<String, NotificationImages> {
+        val result = mutableMapOf<String, NotificationImages>()
+        active
+            .filter {
+                it.isClearable &&
+                    ((it.notification?.flags ?: 0) and Notification.FLAG_GROUP_SUMMARY) == 0
+            }
+            .groupBy { it.tilePackageName() }
+            .forEach { (_, list) ->
+                list.sortedByDescending { it.postTime }
+                    .take(MAX_CONVERSATION_ITEMS)
+                    .forEach { sbn ->
+                        val images = sbn.extractImages(this)
+                        if (images.avatar != null || images.picture != null) {
+                            result[sbn.key] = images
+                        }
+                    }
+            }
+        return result
+    }
 }
 
 /**
@@ -127,6 +159,7 @@ private fun StatusBarNotification.toItem(): NotificationItem? {
         isClearable = isClearable,
         isGroupSummary = (notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0,
         postTime = postTime,
+        notificationKey = key,
     )
 }
 

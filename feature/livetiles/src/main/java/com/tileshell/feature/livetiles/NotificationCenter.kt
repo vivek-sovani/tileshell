@@ -32,12 +32,14 @@ data class NotificationItem(
     val isClearable: Boolean,
     val isGroupSummary: Boolean,
     val postTime: Long,
+    val notificationKey: String = "",
 )
 
 /** One pending notification's sender + snippet, used for cycling on the back face. */
 data class ConversationItem(
     val sender: String,
     val snippet: String,
+    val notificationKey: String = "",
 )
 
 /**
@@ -119,7 +121,11 @@ fun summarizeNotifications(items: List<NotificationItem>): NotificationSnapshot 
             snippet = latest.text.orEmpty().trim(),
             count = list.size,
             items = newestFirst.take(MAX_CONVERSATION_ITEMS).map {
-                ConversationItem(sender = it.title.orEmpty().trim(), snippet = it.text.orEmpty().trim())
+                ConversationItem(
+                    sender = it.title.orEmpty().trim(),
+                    snippet = it.text.orEmpty().trim(),
+                    notificationKey = it.notificationKey,
+                )
             },
         )
     }
@@ -144,6 +150,12 @@ object NotificationCenter {
     private val _images = MutableStateFlow<Map<String, NotificationImages>>(emptyMap())
     val images: StateFlow<Map<String, NotificationImages>> = _images.asStateFlow()
 
+    // Per-notification-key images for cycling faces — each WhatsApp group has its own
+    // avatar, so the cycling back face looks up images by notification key rather than
+    // the single per-package image above.
+    private val _itemImages = MutableStateFlow<Map<String, NotificationImages>>(emptyMap())
+    val itemImages: StateFlow<Map<String, NotificationImages>> = _itemImages.asStateFlow()
+
     // Per-package tap actions (content intent + keys to clear), and the connected
     // listener used to cancel them. Read imperatively on a tile tap rather than via
     // StateFlow — these carry framework objects and must not drive recomposition.
@@ -163,6 +175,11 @@ object NotificationCenter {
     /** Publishes the latest per-package notification images (alongside [publish]). */
     fun publishImages(images: Map<String, NotificationImages>) {
         _images.value = images
+    }
+
+    /** Publishes per-notification-key images for cycling faces (alongside [publish]). */
+    fun publishItemImages(images: Map<String, NotificationImages>) {
+        _itemImages.value = images
     }
 
     /** Registers the connected listener so tile taps can cancel notifications. */
@@ -218,6 +235,7 @@ object NotificationCenter {
         _snapshot.value = NotificationSnapshot.EMPTY
         actions = emptyMap()
         _images.value = emptyMap()
+        _itemImages.value = emptyMap()
     }
 }
 
