@@ -77,8 +77,13 @@ android {
         //   showing a near-black base between tiles; smoother gradient falloff, less banding;
         //   glass/transparent tiles now tint with each tile's own resolved accent colour
         //   instead of one shared neutral tint across the whole grid).
-        versionCode = 100
-        versionName = "1.9.0"
+        // v2.0.0 = 200 (notification tiles overhaul: front face shows the total unread count
+        //   prominently (big number + label); back face cycles through each pending notification
+        //   in turn, newest first — mail/messages driven by the flip scheduler, generic apps
+        //   self-manage their flip; per-notification avatar shown when cycling through grouped
+        //   notifications from the same app).
+        versionCode = 200
+        versionName = "2.0.0"
     }
 
     if (keystoreFile.exists()) {

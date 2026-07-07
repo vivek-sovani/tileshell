@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v1.8.2 listing draft — update before each release*
+*v2.0.0 listing draft — update before each release*
 
 ---
 
@@ -154,6 +154,19 @@ data. Users can also clear app data via Android Settings at any time.
 | Feature graphic | 1024 × 500 px | Required for listing banner |
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
+
+## Release notes (v2.0.0)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 2.0
+
+• Notification tiles now show your unread count front-and-centre — big number, clear label ("3 unread", "5 new", "2 notifications")
+• Flip the tile to cycle through each pending message in turn, one at a time — no message hidden behind a count anymore
+• Works for mail, messaging apps, and every other app with notifications
+• Each message shows its sender's photo as you cycle through
+```
 
 ## Release notes (v1.9.0)
 
