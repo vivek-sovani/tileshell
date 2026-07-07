@@ -39,18 +39,15 @@ import kotlinx.coroutines.delay
 
 private val FaceText = Color.White
 
-// How long each notification is shown before cycling to the next one.
+// How long each notification is shown on the back face before cycling to the next.
 private const val NOTIF_CYCLE_MS = 2_600L
 
 /**
- * The live mail / messages tile (FR-2). Bound to the tile's own [packageName]:
- * the front cycles through each pending notification (sender + snippet) when there
- * are multiple — newest first, one every 2.6 s — and the back shows the total unread
- * count. With a single notification the tile behaves exactly as before (front = that
- * notification, back = "1 unread/new"). Reads [NotificationCenter] — when notification
- * access is off or nothing is pending it renders [fallback] (the static glyph).
- *
- * [kind] selects only the back-face wording ("unread" for mail, "new" for messages).
+ * The live mail / messages tile (FR-2). Front face shows the total notification count
+ * prominently (big number + "unread"/"new") so it is immediately visible. The back
+ * face cycles through each pending notification in turn (newest first, one every 2.6 s)
+ * so no message is missed. With a single notification the back face shows it without
+ * cycling. Reads [NotificationCenter] — when nothing is pending it renders [fallback].
  */
 @Composable
 fun ConversationTileFace(
@@ -67,7 +64,7 @@ fun ConversationTileFace(
     val images by NotificationCenter.images.collectAsState()
     val imgs = images[packageName]
 
-    // Cycle through notifications newest-first when there are multiple.
+    // Cycle through notifications on the back face.
     val itemCount = preview.items.size
     val itemIndex = remember(packageName) { mutableIntStateOf(0) }
     LaunchedEffect(active, itemCount) {
@@ -87,7 +84,8 @@ fun ConversationTileFace(
         FlipTile(
             flipped = flipped,
             modifier = Modifier.fillMaxSize(),
-            front = {
+            front = { ConversationCountFace(preview.count, countWord) },
+            back = {
                 NotificationFaceContent(
                     item = current,
                     avatar = imgs?.avatar?.asImageBitmap(),
@@ -95,7 +93,6 @@ fun ConversationTileFace(
                     size = size,
                 )
             },
-            back = { ConversationBack(preview.count, countWord) },
         )
         AppIconCorner(
             packageName = packageName,
@@ -105,14 +102,31 @@ fun ConversationTileFace(
 }
 
 /**
- * Shared front layout for the notification-style live faces (mail/messages and the
- * generic notification tile). Layout scales with [size]:
- *
- * - MEDIUM: compact single row — avatar + name/snippet + optional thumbnail.
- * - WIDE: two-column — text on the left (bigger avatar, more snippet lines),
- *   picture hero on the right half when present.
- * - LARGE: full-area hero — picture fills the tile, name + headline below (or
- *   headline fills the tile when there is no picture).
+ * Big count + label face — the front face for all notification-style tiles.
+ * Reused by [NotificationTileFace] for generic apps ("notifications") and by
+ * [ConversationTileFace] for mail ("unread") / messages ("new").
+ */
+@Composable
+internal fun ConversationCountFace(count: Int, word: String) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(11.dp),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = count.toString(),
+            color = FaceText,
+            fontSize = 34.sp,
+            fontWeight = FontWeight.Light,
+            maxLines = 1,
+        )
+        Text(text = word, color = FaceText.copy(alpha = 0.82f), fontSize = 13.sp, maxLines = 1)
+    }
+}
+
+/**
+ * Shared notification-content layout used on the back face of mail/messages/generic
+ * tiles. Layout scales with [size]: MEDIUM = compact row, WIDE = two-column with
+ * picture hero, LARGE = full-area hero.
  */
 @Composable
 internal fun NotificationFaceContent(
@@ -291,26 +305,9 @@ private fun NotificationFaceContentLarge(
     }
 }
 
-@Composable
-private fun ConversationBack(count: Int, word: String) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(11.dp),
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text = count.toString(),
-            color = FaceText,
-            fontSize = 34.sp,
-            fontWeight = FontWeight.Light,
-            maxLines = 1,
-        )
-        Text(text = word, color = FaceText.copy(alpha = 0.82f), fontSize = 13.sp, maxLines = 1)
-    }
-}
-
 /**
- * The sender thumbnail: the contact [photo] cropped to a circle when present, else
- * a tinted initials avatar (prototype `.av`). Used by both notification-style faces.
+ * Sender thumbnail: contact [photo] cropped to a circle when present, else a tinted
+ * initials avatar. Used by all notification-style faces.
  */
 @Composable
 internal fun SenderAvatar(name: String, photo: ImageBitmap?, sizeDp: Int = 28) {

@@ -34,18 +34,17 @@ data class NotificationItem(
     val postTime: Long,
 )
 
-/** One pending notification's sender + snippet, as shown on a live face row. */
+/** One pending notification's sender + snippet, used for cycling on the back face. */
 data class ConversationItem(
     val sender: String,
     val snippet: String,
 )
 
 /**
- * The conversation shown on a mail / messages (or generic notification) live face
- * (FR-2). [sender]/[snippet] are the newest notification, kept for callers that only
- * want the headline; [items] carries up to [MAX_CONVERSATION_ITEMS] pending
- * notifications newest-first (including the newest as `items.first()`) so the face
- * can cycle through them instead of collapsing straight to a bare count.
+ * The conversation shown on a mail / messages (or generic notification) live face.
+ * [sender]/[snippet] are the newest notification. [items] holds up to
+ * [MAX_CONVERSATION_ITEMS] pending notifications newest-first so the back face can
+ * cycle through each one in turn.
  */
 data class ConversationPreview(
     val sender: String,
@@ -54,7 +53,6 @@ data class ConversationPreview(
     val items: List<ConversationItem>,
 )
 
-/** Cap on how many pending notifications a live face keeps to cycle through. */
 const val MAX_CONVERSATION_ITEMS = 5
 
 /**
