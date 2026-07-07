@@ -275,7 +275,7 @@ fun PersonalizeSheet(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(text = "how to personalize", color = tokens.fg, fontSize = 14.sp)
                         Text(
-                            text = "colours, wallpaper, tile look, organizing tiles",
+                            text = "colours, wallpaper, tiles, pinning apps, and the feed",
                             color = tokens.fgDim,
                             fontSize = 12.sp,
                         )

@@ -120,7 +120,7 @@ fun PersonalizeGuideSheet(
                     letterSpacing = (-0.8).sp,
                 )
                 Text(
-                    text = "colours, wallpaper, tile look, and organizing tiles",
+                    text = "colours, wallpaper, tiles, pinning apps, and the feed",
                     color = tokens.fgDim,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.W300,
@@ -177,6 +177,32 @@ fun PersonalizeGuideSheet(
                     "merge two large tiles (or open a folder and use \"make stack · wide/large\") to turn them into a widget stack",
                     "use a selected tile's resize handle to cycle its size",
                     "drag a tile out of a folder or stack to unpin it back to start",
+                ),
+            )
+
+            FeatureGroup(
+                title = "pinning apps",
+                accent = accent,
+                tokens = tokens,
+                items = listOf(
+                    "tap the chevron at the bottom of start (or swipe left) to open the app list",
+                    "long-press any app for \"pin to start\", \"hide\", or \"uninstall\"",
+                    "before the alphabetical list: a \"recent\" section shows your most-used and newly-installed apps, plus any with a pending notification even if it isn't pinned",
+                    "tap a letter on the right for the jump grid, to skip straight to that part of the alphabet",
+                    "hid an app by mistake? personalize · app visibility · hidden apps brings it back with \"show\"",
+                ),
+            )
+
+            FeatureGroup(
+                title = "feed: glance & news",
+                accent = accent,
+                tokens = tokens,
+                items = listOf(
+                    "swipe right from start (or swipe left from the app list) to open the feed",
+                    "glance tab: live clock, weather, calendar events, and now-playing, plus any widgets you've added",
+                    "tap the search pill on glance to jump straight into quick search",
+                    "news tab: articles from 10+ sources",
+                    "tap the ⚙ next to the glance/news tabs to add your own rss/atom feeds and pick categories",
                 ),
             )
 
