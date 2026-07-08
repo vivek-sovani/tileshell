@@ -907,7 +907,6 @@ fun StartScreen(
             !editMode && openFolderId == null && !personalizeOpen && !searchOpen
         ) {
             EdgeStrip(
-                position = settings.edgeStripPosition,
                 apps = settings.edgeStripApps,
                 backgroundId = settings.edgeStripBackgroundId,
                 notifications = notifications,

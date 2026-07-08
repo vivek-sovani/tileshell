@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
@@ -86,6 +87,10 @@ fun EdgeStripSheet(
 
     val tokens = colorTokens(dark)
     val accent = TileAccents.forId(accentId)
+
+    val sortedApps = remember(installedApps) {
+        installedApps.distinctBy { it.packageName }.sortedBy { it.label.lowercase() }
+    }
 
     BackHandler(enabled = visible) { onDismiss() }
 
@@ -170,45 +175,6 @@ fun EdgeStripSheet(
                     }
 
                     if (enabled) {
-                        // ---- position picker ----
-                        item {
-                            Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
-                                Text(
-                                    "position",
-                                    color = tokens.fgDim,
-                                    fontSize = 13.sp,
-                                    modifier = Modifier.padding(bottom = 10.dp),
-                                )
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .border(1.dp, tokens.tileLine, RoundedCornerShape(8.dp))
-                                        .clip(RoundedCornerShape(8.dp)),
-                                ) {
-                                    listOf("bottom" to "bottom", "left" to "left").forEach { (id, label) ->
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .background(if (position == id) accent else Color.Transparent)
-                                                .clickable { onPositionChange(id) }
-                                                .padding(vertical = 10.dp),
-                                            contentAlignment = Alignment.Center,
-                                        ) {
-                                            Text(
-                                                text = label,
-                                                color = if (position == id) Color.White else tokens.fg,
-                                                fontSize = 14.sp,
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            HorizontalDivider(
-                                color = tokens.tileLine,
-                                modifier = Modifier.padding(horizontal = 20.dp),
-                            )
-                        }
-
                         // ---- background ----
                         item {
                             Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
@@ -263,6 +229,87 @@ fun EdgeStripSheet(
                             )
                         }
 
+                        // ---- strip order (reorder selected apps) ----
+                        if (selectedApps.isNotEmpty()) {
+                            item(key = "order_header") {
+                                Text(
+                                    "strip order",
+                                    color = tokens.fgDim,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.padding(
+                                        start = 20.dp, end = 20.dp, top = 12.dp, bottom = 6.dp,
+                                    ),
+                                )
+                            }
+                            itemsIndexed(selectedApps, key = { _, pkg -> "order_$pkg" }) { index, pkg ->
+                                val app = sortedApps.firstOrNull { it.packageName == pkg }
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 20.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Box(
+                                        modifier = Modifier.size(28.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        if (app != null) {
+                                            val icon = rememberEdgeStripAppIcon(
+                                                app.packageName, app.activityName,
+                                            )
+                                            if (icon != null) {
+                                                Image(
+                                                    bitmap = icon,
+                                                    contentDescription = null,
+                                                    contentScale = ContentScale.Fit,
+                                                    modifier = Modifier.size(24.dp),
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(
+                                        text = app?.label ?: pkg,
+                                        color = tokens.fg,
+                                        fontSize = 14.sp,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    val canUp = index > 0
+                                    val canDown = index < selectedApps.lastIndex
+                                    Text(
+                                        text = "↑",
+                                        color = if (canUp) accent else tokens.fgDim.copy(alpha = 0.25f),
+                                        fontSize = 20.sp,
+                                        modifier = Modifier
+                                            .clickable(enabled = canUp) {
+                                                val list = selectedApps.toMutableList()
+                                                list.add(index - 1, list.removeAt(index))
+                                                onAppsChange(list)
+                                            }
+                                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                                    )
+                                    Text(
+                                        text = "↓",
+                                        color = if (canDown) accent else tokens.fgDim.copy(alpha = 0.25f),
+                                        fontSize = 20.sp,
+                                        modifier = Modifier
+                                            .clickable(enabled = canDown) {
+                                                val list = selectedApps.toMutableList()
+                                                list.add(index + 1, list.removeAt(index))
+                                                onAppsChange(list)
+                                            }
+                                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                                    )
+                                }
+                            }
+                            item(key = "order_divider") {
+                                HorizontalDivider(
+                                    color = tokens.tileLine,
+                                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                                )
+                            }
+                        }
+
                         // ---- app selector header ----
                         item {
                             val count = selectedApps.size
@@ -298,8 +345,8 @@ fun EdgeStripSheet(
 
                         // ---- app rows ----
                         items(
-                            installedApps.sortedBy { it.label.lowercase() },
-                            key = { it.packageName },
+                            sortedApps,
+                            key = { it.key },
                         ) { app ->
                             val selected = app.packageName in selectedApps
                             EdgeStripAppRow(

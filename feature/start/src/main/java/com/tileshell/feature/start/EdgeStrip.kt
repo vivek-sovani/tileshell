@@ -6,25 +6,22 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -45,25 +42,24 @@ import com.tileshell.core.design.Wallpapers
 import com.tileshell.feature.livetiles.NotificationSnapshot
 import com.tileshell.feature.livetiles.rememberAppIconBitmap
 
-private val TILE_DP = 90.dp
+private val TILE_DP = 48.dp      // slot size — compact touch target
+private val STRIP_ICON = 34.dp   // matches Start screen glyph size for non-LARGE tiles
 private val STRIP_GAP = 3.dp
-private val STRIP_PAD = 9.dp
+private val STRIP_PAD = 6.dp
 
-// Total thickness (thin dimension): 20dp handle + 90dp tile + 9dp pad = 119dp.
-// When collapsed only the 20dp handle peeks at the edge.
-private val HANDLE_EXTENT = 20.dp
+// Total thickness: 28dp handle + 48dp slot + 6dp pad = 82dp.
+// When collapsed only the 28dp handle peeks at the edge.
+private val HANDLE_EXTENT = 28.dp
 private val STRIP_THICK = HANDLE_EXTENT + TILE_DP + STRIP_PAD
 
 /**
- * Optional edge-strip overlay: a horizontal row (bottom) or vertical column (left)
- * of small app-icon shortcuts with notification badges. Auto-hides to a 20dp
- * accent pull-tab at the screen edge; tap the tab to reveal or collapse.
- * Background is either one of the 6 bundled gradients or a translucent surface.
- * No live tile faces — static icon + badge only.
+ * Optional bottom edge-strip overlay: a horizontal row of small app-icon shortcuts
+ * with notification badges. Auto-hides to a 28dp accent pull-tab at the bottom edge;
+ * tap the tab to reveal or collapse. Background is either one of the 6 bundled
+ * gradients or a translucent surface. No live tile faces — static icon + badge only.
  */
 @Composable
 internal fun BoxScope.EdgeStrip(
-    position: String,
     apps: List<String>,
     backgroundId: String,
     notifications: NotificationSnapshot,
@@ -73,7 +69,6 @@ internal fun BoxScope.EdgeStrip(
 ) {
     if (apps.isEmpty()) return
 
-    val isBottom = position != "left"
     var expanded by rememberSaveable { mutableStateOf(true) }
 
     val slide by animateFloatAsState(
@@ -85,73 +80,41 @@ internal fun BoxScope.EdgeStrip(
     val wallpaper = if (backgroundId != Wallpapers.NONE_ID) Wallpapers.forId(backgroundId) else null
     val solidBg = if (dark) Color(0xF0111118) else Color(0xF0F0EDE8)
 
-    if (isBottom) {
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .graphicsLayer {
-                    translationY = (STRIP_THICK - HANDLE_EXTENT).toPx() * slide
-                }
-                .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp))
-                .then(if (wallpaper == null) Modifier.background(solidBg) else Modifier),
-        ) {
-            if (wallpaper != null) {
-                WallpaperBackground(
-                    gradient = wallpaper,
-                    customWallpaperUri = null,
-                    blur = false,
-                    dark = dark,
-                    modifier = Modifier.matchParentSize(),
-                )
+    Box(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .graphicsLayer {
+                translationY = (STRIP_THICK - HANDLE_EXTENT * 0.5f).toPx() * slide
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                StripHandle(isBottom = true, accent = accent) { expanded = !expanded }
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(STRIP_GAP),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Spacer(Modifier.width(STRIP_PAD))
-                    apps.forEach { pkg ->
-                        EdgeIconSlot(pkg, notifications, dark, onLaunch)
-                    }
-                    Spacer(Modifier.width(STRIP_PAD))
-                }
-                Spacer(Modifier.height(STRIP_PAD))
-            }
+            .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp))
+            .then(if (wallpaper == null) Modifier.background(solidBg) else Modifier)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {},
+            ),
+    ) {
+        if (wallpaper != null) {
+            WallpaperBackground(
+                gradient = wallpaper,
+                customWallpaperUri = null,
+                blur = false,
+                dark = dark,
+                modifier = Modifier.matchParentSize(),
+            )
         }
-    } else {
-        // Left strip: icons column + pull-tab at right edge.
-        Box(
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .graphicsLayer {
-                    translationX = -(STRIP_THICK - HANDLE_EXTENT).toPx() * slide
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            StripHandle(accent = accent) { expanded = !expanded }
+            // LazyRow gives proper scroll-vs-tap separation — items don't fire clicks
+            // when the user is scrolling through the strip.
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = STRIP_PAD, vertical = STRIP_PAD),
+                horizontalArrangement = Arrangement.spacedBy(STRIP_GAP),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                items(apps, key = { it }) { pkg ->
+                    EdgeIconSlot(pkg, notifications, dark, onLaunch)
                 }
-                .clip(RoundedCornerShape(topEnd = 10.dp, bottomEnd = 10.dp))
-                .then(if (wallpaper == null) Modifier.background(solidBg) else Modifier),
-        ) {
-            if (wallpaper != null) {
-                WallpaperBackground(
-                    gradient = wallpaper,
-                    customWallpaperUri = null,
-                    blur = false,
-                    dark = dark,
-                    modifier = Modifier.matchParentSize(),
-                )
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(STRIP_GAP),
-                ) {
-                    Spacer(Modifier.height(STRIP_PAD))
-                    apps.forEach { pkg ->
-                        EdgeIconSlot(pkg, notifications, dark, onLaunch)
-                    }
-                    Spacer(Modifier.height(STRIP_PAD))
-                }
-                StripHandle(isBottom = false, accent = accent) { expanded = !expanded }
             }
         }
     }
@@ -159,38 +122,28 @@ internal fun BoxScope.EdgeStrip(
 
 /** Pull tab that reveals/collapses the strip. */
 @Composable
-private fun StripHandle(isBottom: Boolean, accent: Color, onToggle: () -> Unit) {
+private fun StripHandle(accent: Color, onToggle: () -> Unit) {
     Box(
-        modifier = if (isBottom) {
-            Modifier.fillMaxWidth().height(HANDLE_EXTENT)
-        } else {
-            Modifier.width(HANDLE_EXTENT).fillMaxHeight()
-        }.clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-            onClick = onToggle,
-        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(HANDLE_EXTENT)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onToggle,
+            ),
         contentAlignment = Alignment.Center,
     ) {
-        if (isBottom) {
-            Box(
-                Modifier
-                    .width(36.dp)
-                    .height(4.dp)
-                    .background(accent.copy(alpha = 0.7f), RoundedCornerShape(2.dp)),
-            )
-        } else {
-            Box(
-                Modifier
-                    .width(4.dp)
-                    .height(36.dp)
-                    .background(accent.copy(alpha = 0.7f), RoundedCornerShape(2.dp)),
-            )
-        }
+        Box(
+            Modifier
+                .width(36.dp)
+                .height(4.dp)
+                .background(accent.copy(alpha = 0.7f), RoundedCornerShape(2.dp)),
+        )
     }
 }
 
-/** One 90×90dp app-icon slot with a notification badge pill. */
+/** One 48×48dp app-icon slot with a notification badge pill. */
 @Composable
 private fun EdgeIconSlot(
     packageName: String,
@@ -213,7 +166,7 @@ private fun EdgeIconSlot(
                 bitmap = icon,
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.size(TILE_DP * 0.72f),
+                modifier = Modifier.size(STRIP_ICON),
             )
         }
         if (badgeCount > 0) {
@@ -222,9 +175,9 @@ private fun EdgeIconSlot(
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = 5.dp, end = 5.dp)
-                    .defaultMinSize(minWidth = 18.dp, minHeight = 18.dp)
-                    .height(18.dp)
+                    .padding(top = 3.dp, end = 3.dp)
+                    .defaultMinSize(minWidth = 16.dp, minHeight = 16.dp)
+                    .height(16.dp)
                     .background(bg, CircleShape)
                     .padding(horizontal = 4.dp),
                 contentAlignment = Alignment.Center,
@@ -232,7 +185,7 @@ private fun EdgeIconSlot(
                 Text(
                     text = if (badgeCount > 99) "99+" else badgeCount.toString(),
                     color = fg,
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                 )
