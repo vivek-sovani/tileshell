@@ -836,6 +836,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setEdgeStripBackground(bgId) }
     }
 
+    fun setEdgeStripHandleSize(size: String) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setEdgeStripHandleSize(size) }
+    }
+
     fun setAutoBackupInterval(hours: Int) {
         viewModelScope.launch(Dispatchers.IO) {
             settingsRepository.setAutoBackupIntervalHours(hours)

@@ -290,6 +290,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(edgeStripBackgroundId = bgId) }
     }
 
+    suspend fun setEdgeStripHandleSize(size: String) {
+        if (size !in setOf("thin", "medium", "thick")) return
+        store.updateData { it.copy(edgeStripHandleSize = size) }
+    }
+
     companion object {
         fun create(context: Context): SettingsRepository =
             SettingsRepository(context.applicationContext.settingsDataStore)

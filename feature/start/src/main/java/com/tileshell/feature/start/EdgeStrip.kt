@@ -50,10 +50,12 @@ private val STRIP_ICON = 34.dp   // matches Start screen glyph size for non-LARG
 private val STRIP_GAP = 3.dp
 private val STRIP_PAD = 6.dp
 
-// Total thickness: 28dp handle + 48dp slot + 6dp pad = 82dp.
-// When collapsed only 14dp (half the handle) peeks at the edge.
-private val HANDLE_EXTENT = 28.dp
-private val STRIP_THICK = HANDLE_EXTENT + TILE_DP + STRIP_PAD
+/** Maps the persisted handle size token to a pull-tab height in dp. */
+internal fun handleExtentDp(handleSize: String) = when (handleSize) {
+    "thin" -> 16.dp
+    "thick" -> 44.dp
+    else  -> 28.dp  // "medium" is the default
+}
 
 /**
  * Optional bottom edge-strip overlay: search shortcut on the left, a horizontal
@@ -66,6 +68,7 @@ private val STRIP_THICK = HANDLE_EXTENT + TILE_DP + STRIP_PAD
 internal fun BoxScope.EdgeStrip(
     apps: List<String>,
     backgroundId: String,
+    handleSize: String,
     notifications: NotificationSnapshot,
     dark: Boolean,
     accent: Color,
@@ -74,6 +77,9 @@ internal fun BoxScope.EdgeStrip(
     onRecents: () -> Unit,
 ) {
     if (apps.isEmpty()) return
+
+    val handleExtent = handleExtentDp(handleSize)
+    val stripThick = handleExtent + TILE_DP + STRIP_PAD
 
     var expanded by rememberSaveable { mutableStateOf(true) }
 
@@ -91,7 +97,7 @@ internal fun BoxScope.EdgeStrip(
         modifier = Modifier
             .align(Alignment.BottomCenter)
             .graphicsLayer {
-                translationY = (STRIP_THICK - HANDLE_EXTENT * 0.5f).toPx() * slide
+                translationY = (stripThick - handleExtent * 0.5f).toPx() * slide
             }
             .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp))
             .then(if (wallpaper == null) Modifier.background(solidBg) else Modifier)
@@ -111,7 +117,7 @@ internal fun BoxScope.EdgeStrip(
             )
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            StripHandle(accent = accent) { expanded = !expanded }
+            StripHandle(accent = accent, extent = handleExtent) { expanded = !expanded }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -150,11 +156,11 @@ internal fun BoxScope.EdgeStrip(
 
 /** Pull tab that reveals/collapses the strip. */
 @Composable
-private fun StripHandle(accent: Color, onToggle: () -> Unit) {
+private fun StripHandle(accent: Color, extent: androidx.compose.ui.unit.Dp, onToggle: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(HANDLE_EXTENT)
+            .height(extent)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,

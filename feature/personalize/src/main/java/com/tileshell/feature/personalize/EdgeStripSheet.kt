@@ -70,10 +70,12 @@ fun EdgeStripSheet(
     selectedApps: List<String>,
     installedApps: List<AppEntry>,
     backgroundId: String,
+    handleSize: String,
     onEnabledChange: (Boolean) -> Unit,
     onPositionChange: (String) -> Unit,
     onAppsChange: (List<String>) -> Unit,
     onBackgroundChange: (String) -> Unit,
+    onHandleSizeChange: (String) -> Unit,
     onDismiss: () -> Unit,
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
@@ -220,6 +222,46 @@ fun EdgeStripSheet(
                                                 .wallpaperBackground(grad)
                                                 .clickable { onBackgroundChange(grad.id) },
                                         )
+                                    }
+                                }
+                            }
+                            HorizontalDivider(
+                                color = tokens.tileLine,
+                                modifier = Modifier.padding(horizontal = 20.dp),
+                            )
+                        }
+
+                        // ---- handle size ----
+                        item {
+                            Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
+                                Text(
+                                    "handle size",
+                                    color = tokens.fgDim,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.padding(bottom = 10.dp),
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    listOf("thin", "medium", "thick").forEach { size ->
+                                        val sel = handleSize == size
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(if (sel) accent else Color.Transparent)
+                                                .border(
+                                                    1.5.dp,
+                                                    if (sel) accent else tokens.fgDim.copy(alpha = 0.4f),
+                                                    RoundedCornerShape(6.dp),
+                                                )
+                                                .clickable { onHandleSizeChange(size) }
+                                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                                        ) {
+                                            Text(
+                                                text = size,
+                                                color = if (sel) Color.White else tokens.fg,
+                                                fontSize = 13.sp,
+                                                fontWeight = if (sel) FontWeight.W600 else FontWeight.W400,
+                                            )
+                                        }
                                     }
                                 }
                             }

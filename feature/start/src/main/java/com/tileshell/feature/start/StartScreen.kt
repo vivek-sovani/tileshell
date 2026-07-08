@@ -910,6 +910,7 @@ fun StartScreen(
             EdgeStrip(
                 apps = settings.edgeStripApps,
                 backgroundId = settings.edgeStripBackgroundId,
+                handleSize = settings.edgeStripHandleSize,
                 notifications = notifications,
                 dark = dark,
                 accent = TileAccents.forId(settings.accentId),
@@ -1098,10 +1099,12 @@ fun StartScreen(
             selectedApps = settings.edgeStripApps,
             installedApps = apps,
             backgroundId = settings.edgeStripBackgroundId,
+            handleSize = settings.edgeStripHandleSize,
             onEnabledChange = viewModel::setEdgeStripEnabled,
             onPositionChange = viewModel::setEdgeStripPosition,
             onAppsChange = viewModel::setEdgeStripApps,
             onBackgroundChange = viewModel::setEdgeStripBackground,
+            onHandleSizeChange = viewModel::setEdgeStripHandleSize,
             onDismiss = viewModel::closeEdgeStrip,
         )
 

@@ -111,6 +111,8 @@ data class LauncherSettings(
     val edgeStripApps: List<String> = emptyList(),
     /** Wallpaper id for the strip background, or "none" for a semi-transparent surface. */
     val edgeStripBackgroundId: String = "none",
+    /** Height of the pull-tab handle: "thin" (16dp), "medium" (28dp), or "thick" (44dp). */
+    val edgeStripHandleSize: String = "medium",
 ) {
     companion object {
         const val DEFAULT_COLUMNS = 4
@@ -162,7 +164,8 @@ object SettingsCodec {
         append("edgeStripEnabled=").append(settings.edgeStripEnabled).append('\n')
         append("edgeStripPosition=").append(settings.edgeStripPosition).append('\n')
         append("edgeStripApps=").append(settings.edgeStripApps.joinToString("|")).append('\n')
-        append("edgeStripBg=").append(settings.edgeStripBackgroundId)
+        append("edgeStripBg=").append(settings.edgeStripBackgroundId).append('\n')
+        append("edgeStripHandleSize=").append(settings.edgeStripHandleSize)
     }
 
     fun decode(text: String): LauncherSettings {
@@ -196,6 +199,7 @@ object SettingsCodec {
         var edgeStripPosition = d.edgeStripPosition
         var edgeStripApps = d.edgeStripApps
         var edgeStripBackgroundId = d.edgeStripBackgroundId
+        var edgeStripHandleSize = d.edgeStripHandleSize
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
             if (sep <= 0) return@forEach
@@ -243,6 +247,7 @@ object SettingsCodec {
                 "edgeStripApps" -> edgeStripApps = if (value.isEmpty()) emptyList()
                     else value.split("|").filter { it.isNotBlank() }
                 "edgeStripBg" -> if (value.isNotEmpty()) edgeStripBackgroundId = value
+                "edgeStripHandleSize" -> if (value in setOf("thin", "medium", "thick")) edgeStripHandleSize = value
             }
         }
         return LauncherSettings(
@@ -275,6 +280,7 @@ object SettingsCodec {
             edgeStripPosition = edgeStripPosition,
             edgeStripApps = edgeStripApps,
             edgeStripBackgroundId = edgeStripBackgroundId,
+            edgeStripHandleSize = edgeStripHandleSize,
         )
     }
 }
