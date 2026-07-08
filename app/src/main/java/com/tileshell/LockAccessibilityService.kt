@@ -26,5 +26,7 @@ class LockAccessibilityService : AccessibilityService() {
 
         @RequiresApi(Build.VERSION_CODES.P)
         fun lockScreen(): Boolean = instance?.performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN) == true
+
+        fun showRecents(): Boolean = instance?.performGlobalAction(GLOBAL_ACTION_RECENTS) == true
     }
 }

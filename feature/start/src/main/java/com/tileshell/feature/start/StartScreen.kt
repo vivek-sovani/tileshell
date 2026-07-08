@@ -244,6 +244,7 @@ fun StartScreen(
     modifier: Modifier = Modifier,
     viewModel: StartViewModel = viewModel(),
     onLockScreen: () -> Unit = {},
+    onRecents: () -> Unit = {},
 ) {
     val tiles by viewModel.tiles.collectAsStateWithLifecycle()
     val swipeEnabled by viewModel.swipeEnabled.collectAsStateWithLifecycle()
@@ -916,6 +917,8 @@ fun StartScreen(
                     val app = apps.firstOrNull { it.packageName == pkg }
                     if (app != null) AppLauncher.launch(context, app.packageName, app.activityName)
                 },
+                onSearch = viewModel::openSearch,
+                onRecents = onRecents,
             )
         }
 

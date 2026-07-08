@@ -58,6 +58,15 @@ class MainActivity : ComponentActivity() {
 
             StartScreen(
                 viewModel = startViewModel,
+                onRecents = {
+                    if (!LockAccessibilityService.showRecents()) {
+                        android.widget.Toast.makeText(
+                            ctx,
+                            "enable accessibility service for recents",
+                            android.widget.Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                },
                 onLockScreen = {
                     // If the accessibility service is already connected, lock immediately.
                     // Otherwise show the prominent disclosure required by Google Play before

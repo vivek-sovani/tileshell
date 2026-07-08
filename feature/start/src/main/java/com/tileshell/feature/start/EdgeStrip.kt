@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -38,6 +40,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.Wallpapers
 import com.tileshell.feature.livetiles.NotificationSnapshot
 import com.tileshell.feature.livetiles.rememberAppIconBitmap
@@ -48,15 +51,16 @@ private val STRIP_GAP = 3.dp
 private val STRIP_PAD = 6.dp
 
 // Total thickness: 28dp handle + 48dp slot + 6dp pad = 82dp.
-// When collapsed only the 28dp handle peeks at the edge.
+// When collapsed only 14dp (half the handle) peeks at the edge.
 private val HANDLE_EXTENT = 28.dp
 private val STRIP_THICK = HANDLE_EXTENT + TILE_DP + STRIP_PAD
 
 /**
- * Optional bottom edge-strip overlay: a horizontal row of small app-icon shortcuts
- * with notification badges. Auto-hides to a 28dp accent pull-tab at the bottom edge;
- * tap the tab to reveal or collapse. Background is either one of the 6 bundled
- * gradients or a translucent surface. No live tile faces — static icon + badge only.
+ * Optional bottom edge-strip overlay: search shortcut on the left, a horizontal
+ * row of pinned app-icon shortcuts in the middle, and a recents shortcut on the
+ * right. Auto-hides to a 14dp sliver at the bottom edge; tap to reveal/collapse.
+ * Background is either one of the 6 bundled gradients or a translucent surface.
+ * No live tile faces — static icon + badge only.
  */
 @Composable
 internal fun BoxScope.EdgeStrip(
@@ -66,6 +70,8 @@ internal fun BoxScope.EdgeStrip(
     dark: Boolean,
     accent: Color,
     onLaunch: (pkg: String) -> Unit,
+    onSearch: () -> Unit,
+    onRecents: () -> Unit,
 ) {
     if (apps.isEmpty()) return
 
@@ -79,6 +85,7 @@ internal fun BoxScope.EdgeStrip(
 
     val wallpaper = if (backgroundId != Wallpapers.NONE_ID) Wallpapers.forId(backgroundId) else null
     val solidBg = if (dark) Color(0xF0111118) else Color(0xF0F0EDE8)
+    val iconTint = if (dark) Color.White.copy(alpha = 0.85f) else Color(0xFF111111).copy(alpha = 0.85f)
 
     Box(
         modifier = Modifier
@@ -105,16 +112,37 @@ internal fun BoxScope.EdgeStrip(
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             StripHandle(accent = accent) { expanded = !expanded }
-            // LazyRow gives proper scroll-vs-tap separation — items don't fire clicks
-            // when the user is scrolling through the strip.
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = STRIP_PAD, vertical = STRIP_PAD),
-                horizontalArrangement = Arrangement.spacedBy(STRIP_GAP),
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = STRIP_PAD),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                items(apps, key = { it }) { pkg ->
-                    EdgeIconSlot(pkg, notifications, dark, onLaunch)
+                // Search button — left end
+                StripActionButton(
+                    iconKey = "search",
+                    tint = iconTint,
+                    onClick = onSearch,
+                )
+
+                // App shortcuts — scrollable middle section
+                LazyRow(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = STRIP_GAP),
+                    horizontalArrangement = Arrangement.spacedBy(STRIP_GAP),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    items(apps, key = { it }) { pkg ->
+                        EdgeIconSlot(pkg, notifications, dark, onLaunch)
+                    }
                 }
+
+                // Recents button — right end
+                StripActionButton(
+                    iconKey = "recents",
+                    tint = iconTint,
+                    onClick = onRecents,
+                )
             }
         }
     }
@@ -140,6 +168,28 @@ private fun StripHandle(accent: Color, onToggle: () -> Unit) {
                 .height(4.dp)
                 .background(accent.copy(alpha = 0.7f), RoundedCornerShape(2.dp)),
         )
+    }
+}
+
+/** Search / recents action button flanking the app row. */
+@Composable
+private fun StripActionButton(iconKey: String, tint: Color, onClick: () -> Unit) {
+    val icon = TileIcons[iconKey]
+    Box(
+        modifier = Modifier
+            .size(TILE_DP)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = iconKey,
+                tint = tint,
+                modifier = Modifier.size(STRIP_ICON),
+            )
+        }
     }
 }
 
