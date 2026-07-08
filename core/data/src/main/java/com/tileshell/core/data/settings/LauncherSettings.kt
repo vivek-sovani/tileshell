@@ -111,8 +111,8 @@ data class LauncherSettings(
     val edgeStripApps: List<String> = emptyList(),
     /** Wallpaper id for the strip background, or "none" for a semi-transparent surface. */
     val edgeStripBackgroundId: String = "none",
-    /** Height of the pull-tab handle: "thin" (16dp), "medium" (28dp), or "thick" (44dp). */
-    val edgeStripHandleSize: String = "medium",
+    /** Pull-tab handle pill weight: "thin" (subtle bar) or "thick" (bold bar). Panel height is constant. */
+    val edgeStripHandleSize: String = "thin",
 ) {
     companion object {
         const val DEFAULT_COLUMNS = 4
@@ -247,7 +247,7 @@ object SettingsCodec {
                 "edgeStripApps" -> edgeStripApps = if (value.isEmpty()) emptyList()
                     else value.split("|").filter { it.isNotBlank() }
                 "edgeStripBg" -> if (value.isNotEmpty()) edgeStripBackgroundId = value
-                "edgeStripHandleSize" -> if (value in setOf("thin", "medium", "thick")) edgeStripHandleSize = value
+                "edgeStripHandleSize" -> if (value in setOf("thin", "thick")) edgeStripHandleSize = value
             }
         }
         return LauncherSettings(

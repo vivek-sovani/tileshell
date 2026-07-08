@@ -50,16 +50,10 @@ private val STRIP_ICON = 34.dp   // matches Start screen glyph size for non-LARG
 private val STRIP_GAP = 3.dp
 private val STRIP_PAD = 6.dp
 
-/**
- * Maps the persisted handle size token to a pull-tab height in dp.
- * Collapsed-peek = handleExtent / 2, which always stays within the handle
- * area so icons (below handleExtent) never show when collapsed.
- */
-internal fun handleExtentDp(handleSize: String) = when (handleSize) {
-    "thin"  -> 28.dp   // 14dp peek when collapsed
-    "thick" -> 56.dp   // 28dp peek — capped so icon row stays fully hidden
-    else    -> 40.dp   // "medium" → 20dp peek
-}
+// Handle area is always the same height so the panel height never changes.
+// Only the pill bar's visual weight varies between thin/thick.
+private val HANDLE_EXTENT = 28.dp
+private val STRIP_THICK = HANDLE_EXTENT + TILE_DP + STRIP_PAD  // constant: 82dp
 
 /**
  * Optional bottom edge-strip overlay: search shortcut on the left, a horizontal
@@ -82,9 +76,6 @@ internal fun BoxScope.EdgeStrip(
 ) {
     if (apps.isEmpty()) return
 
-    val handleExtent = handleExtentDp(handleSize)
-    val stripThick = handleExtent + TILE_DP + STRIP_PAD
-
     var expanded by rememberSaveable { mutableStateOf(true) }
 
     val slide by animateFloatAsState(
@@ -101,7 +92,8 @@ internal fun BoxScope.EdgeStrip(
         modifier = Modifier
             .align(Alignment.BottomCenter)
             .graphicsLayer {
-                translationY = (stripThick - handleExtent * 0.5f).toPx() * slide
+                // Panel height is constant; collapsed leaves HANDLE_EXTENT/2 peeking.
+                translationY = (STRIP_THICK - HANDLE_EXTENT * 0.5f).toPx() * slide
             }
             .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp))
             .then(if (wallpaper == null) Modifier.background(solidBg) else Modifier)
@@ -121,7 +113,7 @@ internal fun BoxScope.EdgeStrip(
             )
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            StripHandle(accent = accent, extent = handleExtent) { expanded = !expanded }
+            StripHandle(accent = accent, thick = handleSize == "thick") { expanded = !expanded }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -158,13 +150,16 @@ internal fun BoxScope.EdgeStrip(
     }
 }
 
-/** Pull tab that reveals/collapses the strip. */
+/** Pull tab that reveals/collapses the strip. Pill bar grows for "thick" setting. */
 @Composable
-private fun StripHandle(accent: Color, extent: androidx.compose.ui.unit.Dp, onToggle: () -> Unit) {
+private fun StripHandle(accent: Color, thick: Boolean, onToggle: () -> Unit) {
+    val barWidth = if (thick) 48.dp else 32.dp
+    val barHeight = if (thick) 6.dp else 3.dp
+    val barAlpha = if (thick) 0.85f else 0.55f
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(extent)
+            .height(HANDLE_EXTENT)   // always constant — does not affect panel height
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -174,9 +169,9 @@ private fun StripHandle(accent: Color, extent: androidx.compose.ui.unit.Dp, onTo
     ) {
         Box(
             Modifier
-                .width(36.dp)
-                .height(4.dp)
-                .background(accent.copy(alpha = 0.7f), RoundedCornerShape(2.dp)),
+                .width(barWidth)
+                .height(barHeight)
+                .background(accent.copy(alpha = barAlpha), RoundedCornerShape(barHeight / 2)),
         )
     }
 }

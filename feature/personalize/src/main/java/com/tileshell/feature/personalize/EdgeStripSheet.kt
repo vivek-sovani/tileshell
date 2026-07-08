@@ -241,7 +241,7 @@ fun EdgeStripSheet(
                                     modifier = Modifier.padding(bottom = 10.dp),
                                 )
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    listOf("thin", "medium", "thick").forEach { size ->
+                                    listOf("thin", "thick").forEach { size ->
                                         val sel = handleSize == size
                                         Box(
                                             modifier = Modifier

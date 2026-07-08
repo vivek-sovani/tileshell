@@ -291,7 +291,7 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
     }
 
     suspend fun setEdgeStripHandleSize(size: String) {
-        if (size !in setOf("thin", "medium", "thick")) return
+        if (size !in setOf("thin", "thick")) return
         store.updateData { it.copy(edgeStripHandleSize = size) }
     }
 
