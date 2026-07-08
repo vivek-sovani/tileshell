@@ -162,8 +162,8 @@ data. Users can also clear app data via Android Settings at any time.
 ```
 TileShell 2.1
 
-• Fixed: widget stacks now wait longer before auto-rotating to the next tile — tapping a notification on a stack is no longer a race against the timer
-• Fixed: edge strip app shortcuts are now centred between the search and recents buttons instead of bunching to one side
+• New: Edge Strip — a quick-launch bar at the bottom of the screen; search on the left, recents on the right, your favourite apps in the centre; collapses to a thin sliver when not in use; pin apps and choose the style from Personalize
+• Fixed: widget stacks now wait longer before auto-rotating — tapping a notification is no longer a race against the timer
 ```
 
 ## Release notes (v2.0.0)
