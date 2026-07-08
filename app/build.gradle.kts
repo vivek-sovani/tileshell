@@ -82,8 +82,8 @@ android {
         //   in turn, newest first — mail/messages driven by the flip scheduler, generic apps
         //   self-manage their flip; per-notification avatar shown when cycling through grouped
         //   notifications from the same app).
-        versionCode = 200
-        versionName = "2.0.0"
+        versionCode = 210
+        versionName = "2.1.0"
     }
 
     if (keystoreFile.exists()) {

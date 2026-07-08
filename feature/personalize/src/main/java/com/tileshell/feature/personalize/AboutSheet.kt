@@ -190,6 +190,21 @@ fun AboutSheet(
             )
 
             FeatureGroup(
+                title = "edge strip",
+                accent = accent,
+                tokens = tokens,
+                items = listOf(
+                    "a quick-launch bar that lives at the bottom of the screen",
+                    "search shortcut on the left, recents on the right",
+                    "your pinned app shortcuts sit centred in between",
+                    "tap an app to launch it; unread badge shows pending notifications",
+                    "collapses to a thin sliver — tap the handle to expand or collapse",
+                    "configure handle size (thin / medium / thick) and background from personalize",
+                    "pin or remove apps from the strip in personalize → edge strip",
+                ),
+            )
+
+            FeatureGroup(
                 title = "folders",
                 accent = accent,
                 tokens = tokens,
@@ -217,7 +232,7 @@ fun AboutSheet(
                     "each member keeps its own tile colour while the stack rotates",
                     "swipe up or down near the right edge to flip through stack members instantly",
                     "swipe anywhere else on the stack to scroll the start screen as normal",
-                    "stack auto-rotates every 6 s; each stack runs on its own independent schedule",
+                    "stack auto-rotates every 10 s; each stack runs on its own independent schedule",
                     "tap the stack to launch the current member's app",
                     "long-press to manage members in the overlay",
                     "tap × on a member inside the overlay to return it to start",
@@ -269,6 +284,7 @@ fun AboutSheet(
                     "mail & messages — latest sender and message snippet",
                     "any app tile shows its latest notification as a preview",
                     "wide and large tiles show more notification content — bigger photos, more lines",
+                    "tiles with multiple notifications cycle through them one at a time on the flip side",
                     "clock back face leads with your next alarm time; date shown below",
                 ),
             )
@@ -292,6 +308,7 @@ fun AboutSheet(
                     "tile corner radius slider and gradient fill option",
                     "font style: outfit (default), nunito, or system",
                     "grid columns — pack 4, 5, or 6 tiles into a row",
+                    "edge strip — choose which apps appear, handle style, and background",
                 ),
             )
 

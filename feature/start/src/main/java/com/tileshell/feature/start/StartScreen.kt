@@ -3435,7 +3435,7 @@ private fun FolderTileContent(
 }
 
 /** Auto-rotate interval for a widget stack — long enough to read a notification snippet. */
-private const val STACK_ROTATE_MS = 6000L
+private const val STACK_ROTATE_MS = 10000L
 private const val STACK_EDGE_DRAG_ZONE_DP = 40
 
 /**

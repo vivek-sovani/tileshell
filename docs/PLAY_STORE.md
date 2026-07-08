@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v2.0.0 listing draft — update before each release*
+*v2.1.0 listing draft — update before each release*
 
 ---
 
@@ -154,6 +154,17 @@ data. Users can also clear app data via Android Settings at any time.
 | Feature graphic | 1024 × 500 px | Required for listing banner |
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
+
+## Release notes (v2.1.0)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 2.1
+
+• Fixed: widget stacks now wait longer before auto-rotating to the next tile — tapping a notification on a stack is no longer a race against the timer
+• Fixed: edge strip app shortcuts are now centred between the search and recents buttons instead of bunching to one side
+```
 
 ## Release notes (v2.0.0)
 

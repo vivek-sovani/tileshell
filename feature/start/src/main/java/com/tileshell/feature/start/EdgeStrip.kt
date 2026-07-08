@@ -131,7 +131,7 @@ internal fun BoxScope.EdgeStrip(
                 LazyRow(
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = STRIP_GAP),
-                    horizontalArrangement = Arrangement.spacedBy(STRIP_GAP),
+                    horizontalArrangement = Arrangement.spacedBy(STRIP_GAP, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     items(apps, key = { it }) { pkg ->
