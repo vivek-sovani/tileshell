@@ -50,11 +50,15 @@ private val STRIP_ICON = 34.dp   // matches Start screen glyph size for non-LARG
 private val STRIP_GAP = 3.dp
 private val STRIP_PAD = 6.dp
 
-/** Maps the persisted handle size token to a pull-tab height in dp. */
+/**
+ * Maps the persisted handle size token to a pull-tab height in dp.
+ * Collapsed-peek = handleExtent / 2, which always stays within the handle
+ * area so icons (below handleExtent) never show when collapsed.
+ */
 internal fun handleExtentDp(handleSize: String) = when (handleSize) {
-    "thin" -> 16.dp
-    "thick" -> 44.dp
-    else  -> 28.dp  // "medium" is the default
+    "thin"  -> 28.dp   // 14dp peek when collapsed
+    "thick" -> 56.dp   // 28dp peek — capped so icon row stays fully hidden
+    else    -> 40.dp   // "medium" → 20dp peek
 }
 
 /**

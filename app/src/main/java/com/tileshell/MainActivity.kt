@@ -55,16 +55,13 @@ class MainActivity : ComponentActivity() {
             RequestRuntimePermissionsOnStart()
             val ctx = LocalContext.current
             var showLockDisclosure by remember { mutableStateOf(false) }
+            var showRecentsDisclosure by remember { mutableStateOf(false) }
 
             StartScreen(
                 viewModel = startViewModel,
                 onRecents = {
                     if (!LockAccessibilityService.showRecents()) {
-                        android.widget.Toast.makeText(
-                            ctx,
-                            "enable accessibility service for recents",
-                            android.widget.Toast.LENGTH_SHORT,
-                        ).show()
+                        showRecentsDisclosure = true
                     }
                 },
                 onLockScreen = {
@@ -80,12 +77,21 @@ class MainActivity : ComponentActivity() {
             )
 
             if (showLockDisclosure) {
-                LockScreenDisclosureDialog(
+                AccessibilityDisclosureDialog(
                     onConfirm = {
                         showLockDisclosure = false
                         lockScreen(ctx)
                     },
                     onDismiss = { showLockDisclosure = false },
+                )
+            }
+            if (showRecentsDisclosure) {
+                AccessibilityDisclosureDialog(
+                    onConfirm = {
+                        showRecentsDisclosure = false
+                        openAccessibilitySettings(ctx)
+                    },
+                    onDismiss = { showRecentsDisclosure = false },
                 )
             }
         }
@@ -106,24 +112,26 @@ class MainActivity : ComponentActivity() {
 
 /**
  * Prominent disclosure dialog shown before directing the user to enable
- * TileShell's Accessibility Service for screen lock. Required by Google Play
- * policy for apps that declare an accessibility service.
+ * TileShell's Accessibility Service. Required by Google Play policy for apps
+ * that declare an accessibility service.
  *
- * Explains: what the service does, what it does NOT do, and how to enable it.
+ * Used for both screen-lock (gear long-press) and recent-apps (edge strip)
+ * since both rely on the same single Accessibility Service.
  */
 @Composable
-private fun LockScreenDisclosureDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+private fun AccessibilityDisclosureDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Enable screen lock") },
+        title = { Text("Enable accessibility service") },
         text = {
             Text(
-                "TileShell uses an Accessibility Service solely to lock your screen " +
-                "when you long-press the settings icon on Start.\n\n" +
+                "TileShell uses an Accessibility Service to lock your screen " +
+                "(long-press the settings icon) and to show the recent apps screen " +
+                "(edge strip).\n\n" +
                 "This service does not read, collect, or transmit any data from your " +
-                "screen, apps, or keystrokes. It performs one action only: lock the screen.\n\n" +
+                "screen, apps, or keystrokes. It performs these two actions only.\n\n" +
                 "Tap \"Go to Settings\" to enable the TileShell Accessibility Service, " +
-                "then return here to use the screen-lock feature.",
+                "then return here.",
             )
         },
         confirmButton = {
@@ -133,6 +141,12 @@ private fun LockScreenDisclosureDialog(onConfirm: () -> Unit, onDismiss: () -> U
             TextButton(onClick = onDismiss) { Text("Not now") }
         },
     )
+}
+
+private fun openAccessibilitySettings(context: Context) {
+    val intent = android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { context.startActivity(intent) }
 }
 
 @Composable

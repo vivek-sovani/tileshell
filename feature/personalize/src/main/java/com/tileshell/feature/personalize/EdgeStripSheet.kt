@@ -328,7 +328,7 @@ fun EdgeStripSheet(
                                                 list.add(index - 1, list.removeAt(index))
                                                 onAppsChange(list)
                                             }
-                                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                                            .padding(horizontal = 8.dp, vertical = 4.dp),
                                     )
                                     Text(
                                         text = "↓",
@@ -340,7 +340,18 @@ fun EdgeStripSheet(
                                                 list.add(index + 1, list.removeAt(index))
                                                 onAppsChange(list)
                                             }
-                                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    )
+                                    Text(
+                                        text = "−",
+                                        color = tokens.fgDim.copy(alpha = 0.6f),
+                                        fontSize = 22.sp,
+                                        fontWeight = FontWeight.W300,
+                                        modifier = Modifier
+                                            .clickable {
+                                                onAppsChange(selectedApps - pkg)
+                                            }
+                                            .padding(horizontal = 8.dp, vertical = 4.dp),
                                     )
                                 }
                             }
