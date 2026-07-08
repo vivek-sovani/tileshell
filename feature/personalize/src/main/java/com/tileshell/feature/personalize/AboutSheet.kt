@@ -199,7 +199,7 @@ fun AboutSheet(
                     "your pinned app shortcuts sit centred in between",
                     "tap an app to launch it; unread badge shows pending notifications",
                     "collapses to a thin sliver — tap the handle to expand or collapse",
-                    "configure handle size (thin / medium / thick) and background from personalize",
+                    "configure handle size (thin / thick) and background from personalize",
                     "pin or remove apps from the strip in personalize → edge strip",
                 ),
             )
