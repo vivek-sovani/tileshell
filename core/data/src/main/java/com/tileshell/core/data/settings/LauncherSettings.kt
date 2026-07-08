@@ -103,6 +103,14 @@ data class LauncherSettings(
     val autoBackupEnabled: Boolean = true,
     /** Hours between automatic snapshots: 1, 4, 6, 12, or 24. */
     val autoBackupIntervalHours: Int = 6,
+    /** Optional edge-strip overlay: a thin row/column of app shortcuts at a screen edge. */
+    val edgeStripEnabled: Boolean = false,
+    /** Edge where the strip appears: "bottom" (horizontal) or "left" (vertical). */
+    val edgeStripPosition: String = "bottom",
+    /** Ordered package names shown in the edge strip, pipe-separated in the codec. */
+    val edgeStripApps: List<String> = emptyList(),
+    /** Wallpaper id for the strip background, or "none" for a semi-transparent surface. */
+    val edgeStripBackgroundId: String = "none",
 ) {
     companion object {
         const val DEFAULT_COLUMNS = 4
@@ -150,7 +158,11 @@ object SettingsCodec {
         append("fontStyle=").append(settings.fontStyle.name).append('\n')
         append("columns=").append(settings.columns).append('\n')
         append("autoBackup=").append(settings.autoBackupEnabled).append('\n')
-        append("autoBackupInterval=").append(settings.autoBackupIntervalHours)
+        append("autoBackupInterval=").append(settings.autoBackupIntervalHours).append('\n')
+        append("edgeStripEnabled=").append(settings.edgeStripEnabled).append('\n')
+        append("edgeStripPosition=").append(settings.edgeStripPosition).append('\n')
+        append("edgeStripApps=").append(settings.edgeStripApps.joinToString("|")).append('\n')
+        append("edgeStripBg=").append(settings.edgeStripBackgroundId)
     }
 
     fun decode(text: String): LauncherSettings {
@@ -180,6 +192,10 @@ object SettingsCodec {
         var columns = d.columns
         var autoBackupEnabled = d.autoBackupEnabled
         var autoBackupIntervalHours = d.autoBackupIntervalHours
+        var edgeStripEnabled = d.edgeStripEnabled
+        var edgeStripPosition = d.edgeStripPosition
+        var edgeStripApps = d.edgeStripApps
+        var edgeStripBackgroundId = d.edgeStripBackgroundId
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
             if (sep <= 0) return@forEach
@@ -222,6 +238,11 @@ object SettingsCodec {
                 "autoBackupInterval" -> value.toIntOrNull()?.let {
                     autoBackupIntervalHours = it.coerceIn(1, 24)
                 }
+                "edgeStripEnabled" -> edgeStripEnabled = value.toBooleanStrictOrNull() ?: edgeStripEnabled
+                "edgeStripPosition" -> if (value == "bottom" || value == "left") edgeStripPosition = value
+                "edgeStripApps" -> edgeStripApps = if (value.isEmpty()) emptyList()
+                    else value.split("|").filter { it.isNotBlank() }
+                "edgeStripBg" -> if (value.isNotEmpty()) edgeStripBackgroundId = value
             }
         }
         return LauncherSettings(
@@ -250,6 +271,10 @@ object SettingsCodec {
             columns = columns,
             autoBackupEnabled = autoBackupEnabled,
             autoBackupIntervalHours = autoBackupIntervalHours,
+            edgeStripEnabled = edgeStripEnabled,
+            edgeStripPosition = edgeStripPosition,
+            edgeStripApps = edgeStripApps,
+            edgeStripBackgroundId = edgeStripBackgroundId,
         )
     }
 }

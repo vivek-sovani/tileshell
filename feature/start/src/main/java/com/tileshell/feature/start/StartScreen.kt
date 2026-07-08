@@ -190,6 +190,7 @@ import com.tileshell.feature.personalize.LayoutHistorySheet
 import com.tileshell.feature.livetiles.LayoutAutoBackupWorker
 import com.tileshell.feature.personalize.CategoryFolderSheet
 import com.tileshell.feature.personalize.FeedSourceItem
+import com.tileshell.feature.personalize.EdgeStripSheet
 import com.tileshell.feature.personalize.HiddenAppsSheet
 import com.tileshell.feature.personalize.PersonalizeGuidePrefs
 import com.tileshell.feature.personalize.PersonalizeGuideSheet
@@ -257,6 +258,7 @@ fun StartScreen(
     val backupOpen by viewModel.backupOpen.collectAsStateWithLifecycle()
     val foldersOpen by viewModel.foldersOpen.collectAsStateWithLifecycle()
     val hiddenAppsOpen by viewModel.hiddenAppsOpen.collectAsStateWithLifecycle()
+    val edgeStripOpen by viewModel.edgeStripOpen.collectAsStateWithLifecycle()
     val searchOpen by viewModel.searchOpen.collectAsStateWithLifecycle()
     val hiddenPackages by viewModel.hiddenPackages.collectAsStateWithLifecycle()
     val isAppList by viewModel.isAppList.collectAsStateWithLifecycle()
@@ -900,12 +902,30 @@ fun StartScreen(
             }
         }
 
+        // Edge-strip overlay: shown only when enabled and no overlay is on top.
+        if (settings.edgeStripEnabled && settings.edgeStripApps.isNotEmpty() &&
+            !editMode && openFolderId == null && !personalizeOpen && !searchOpen
+        ) {
+            EdgeStrip(
+                position = settings.edgeStripPosition,
+                apps = settings.edgeStripApps,
+                backgroundId = settings.edgeStripBackgroundId,
+                notifications = notifications,
+                dark = dark,
+                accent = TileAccents.forId(settings.accentId),
+                onLaunch = { pkg ->
+                    val app = apps.firstOrNull { it.packageName == pkg }
+                    if (app != null) AppLauncher.launch(context, app.packageName, app.activityName)
+                },
+            )
+        }
+
         // Each sub-sheet hides its parent while it's on top, so only one page is ever
         // visible at once (a proper back-stack: closing a child reveals its parent again,
         // driven by each sheet's own BackHandler(enabled = visible)).
         val personalizeVisible =
             personalizeOpen && !aboutOpen && !foldersOpen && !backupOpen && !hiddenAppsOpen &&
-                !personalizeGuideOpen
+                !personalizeGuideOpen && !edgeStripOpen
         val backupVisible = backupOpen && !historyOpen
         // Update banner only over the plain Start/feed pages — never on top of edit
         // mode, an open folder, the app list, quick search, or a personalize sheet.
@@ -1029,6 +1049,8 @@ fun StartScreen(
             onPersonalizeGuide = viewModel::openPersonalizeGuide,
             onFolders = viewModel::openFolders,
             onHiddenApps = viewModel::openHiddenApps,
+            edgeStripEnabled = settings.edgeStripEnabled,
+            onEdgeStrip = viewModel::openEdgeStrip,
             onBackupRestore = viewModel::openBackup,
             onDismiss = viewModel::closePersonalize,
         )
@@ -1061,6 +1083,24 @@ fun StartScreen(
             apps = hiddenAppEntries,
             onUnhide = { viewModel.unhide(it.packageName) },
             onDismiss = viewModel::closeHiddenApps,
+        )
+
+        // Edge-strip settings sheet (personalize → edge strip).
+        EdgeStripSheet(
+            visible = edgeStripOpen,
+            rightHalf = isLandscape,
+            dark = dark,
+            accentId = settings.accentId,
+            enabled = settings.edgeStripEnabled,
+            position = settings.edgeStripPosition,
+            selectedApps = settings.edgeStripApps,
+            installedApps = apps,
+            backgroundId = settings.edgeStripBackgroundId,
+            onEnabledChange = viewModel::setEdgeStripEnabled,
+            onPositionChange = viewModel::setEdgeStripPosition,
+            onAppsChange = viewModel::setEdgeStripApps,
+            onBackgroundChange = viewModel::setEdgeStripBackground,
+            onDismiss = viewModel::closeEdgeStrip,
         )
 
         // Quick search (two-finger swipe-down on Start): apps, contacts, web.

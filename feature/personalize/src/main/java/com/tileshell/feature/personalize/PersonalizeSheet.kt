@@ -171,6 +171,8 @@ fun PersonalizeSheet(
     onPersonalizeGuide: () -> Unit,
     onFolders: () -> Unit,
     onHiddenApps: () -> Unit,
+    edgeStripEnabled: Boolean,
+    onEdgeStrip: () -> Unit,
     onBackupRestore: () -> Unit,
     onDismiss: () -> Unit,
     // In landscape the launcher splits into a feed (left) + Start (right) panel;
@@ -821,6 +823,32 @@ fun PersonalizeSheet(
                     }
                     Spacer(Modifier.width(8.dp))
                     Text(text = "›", color = accent, fontSize = 16.sp)
+                }
+            }
+
+            // ---- edge strip ----
+            SettingGroup(label = "edge strip", tokens.fgDim) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onEdgeStrip)
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "edge strip", color = tokens.fg, fontSize = 14.sp)
+                        Text(
+                            text = if (edgeStripEnabled) "enabled · tap to configure" else "optional shortcut strip at a screen edge",
+                            color = tokens.fgDim,
+                            fontSize = 12.sp,
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = if (edgeStripEnabled) "on ›" else "›",
+                        color = accent,
+                        fontSize = 16.sp,
+                    )
                 }
             }
 

@@ -176,6 +176,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val _searchOpen = MutableStateFlow(false)
     val searchOpen: StateFlow<Boolean> = _searchOpen.asStateFlow()
 
+    /** True while the edge-strip settings sheet is open (personalize → edge strip). */
+    private val _edgeStripOpen = MutableStateFlow(false)
+    val edgeStripOpen: StateFlow<Boolean> = _edgeStripOpen.asStateFlow()
+
     fun setAppList(value: Boolean) {
         _isAppList.value = value
     }
@@ -324,6 +328,9 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Open quick search (two-finger swipe-down on Start). Disables the pager swipe. */
+    fun openEdgeStrip() { _edgeStripOpen.value = true }
+    fun closeEdgeStrip() { _edgeStripOpen.value = false }
+
     fun openSearch() {
         _searchOpen.value = true
         _swipeEnabled.value = false
@@ -625,6 +632,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         closeFolders()
         closeHiddenApps()
         closeBackup()
+        closeEdgeStrip()
         closeFolder()
         closeSearch()
         exitEdit()
@@ -810,6 +818,22 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             settingsRepository.setAutoBackupEnabled(enabled)
         }
+    }
+
+    fun setEdgeStripEnabled(enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setEdgeStripEnabled(enabled) }
+    }
+
+    fun setEdgeStripPosition(position: String) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setEdgeStripPosition(position) }
+    }
+
+    fun setEdgeStripApps(apps: List<String>) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setEdgeStripApps(apps) }
+    }
+
+    fun setEdgeStripBackground(bgId: String) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setEdgeStripBackground(bgId) }
     }
 
     fun setAutoBackupInterval(hours: Int) {

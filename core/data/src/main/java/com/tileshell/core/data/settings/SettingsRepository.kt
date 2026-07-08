@@ -274,6 +274,22 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(autoBackupIntervalHours = hours.coerceIn(1, 24)) }
     }
 
+    suspend fun setEdgeStripEnabled(enabled: Boolean) {
+        store.updateData { it.copy(edgeStripEnabled = enabled) }
+    }
+
+    suspend fun setEdgeStripPosition(position: String) {
+        store.updateData { it.copy(edgeStripPosition = position) }
+    }
+
+    suspend fun setEdgeStripApps(apps: List<String>) {
+        store.updateData { it.copy(edgeStripApps = apps) }
+    }
+
+    suspend fun setEdgeStripBackground(bgId: String) {
+        store.updateData { it.copy(edgeStripBackgroundId = bgId) }
+    }
+
     companion object {
         fun create(context: Context): SettingsRepository =
             SettingsRepository(context.applicationContext.settingsDataStore)
