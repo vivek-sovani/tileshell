@@ -235,7 +235,6 @@ fun FeedPage(
                         )
                     }
 
-                    SectionLabel("widgets", tokens.fgDim)
                     WidgetSection(accent = accent, tokens = tokens)
                 }
 
@@ -410,7 +409,7 @@ private fun SectionLabel(text: String, color: Color) {
  * [showPlus] is set.
  */
 @Composable
-private fun SectionHeader(
+internal fun SectionHeader(
     text: String,
     actionText: String,
     accent: Color,

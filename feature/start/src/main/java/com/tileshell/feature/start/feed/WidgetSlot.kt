@@ -227,6 +227,8 @@ fun WidgetSection(accent: Color, tokens: ColorTokens) {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SectionHeader("widgets", actionText = "add", accent = accent, tokens = tokens, showPlus = true, onAction = { showPicker = true })
+
         widgets.widgets.forEachIndexed { index, hw ->
             key(hw.widgetId) {
                 WidgetView(
@@ -253,18 +255,6 @@ fun WidgetSection(accent: Color, tokens: ColorTokens) {
                     },
                 )
             }
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .border(1.dp, tokens.tileLine, RoundedCornerShape(20.dp))
-                .clickable { showPicker = true }
-                .padding(vertical = 18.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("+ add a widget", color = accent, fontSize = 14.sp)
         }
     }
 
