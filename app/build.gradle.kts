@@ -91,8 +91,16 @@ android {
         //   dropped from history, so restoring an older snapshot could revert personalization
         //   even though the layout itself was unaffected; file export/import was never affected
         //   since it has no dedup).
-        versionCode = 211
-        versionName = "2.1.1"
+        // v2.1.2 = 212 (app category matching: dropped unreliable CATEGORY_MAPS/PRODUCTIVITY
+        //   OS signals, folded productivity into tools, fixed "smart"-prefixed app names
+        //   falsely matching the shopping "mart" token, widened banking/shopping tokens;
+        //   edge strip expand/collapse state now survives personalize/edit-mode/folder
+        //   remounts instead of resetting, quick search slides it fully away instead of
+        //   unmounting it, the Start app-list/gear affordance clears the strip's height
+        //   while it's expanded, default handle size is now thick; feed widgets section
+        //   header unified with the other feed sections).
+        versionCode = 212
+        versionName = "2.1.2"
     }
 
     if (keystoreFile.exists()) {
