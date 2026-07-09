@@ -80,13 +80,16 @@ object BackupManager {
     }.toString()
 
     /**
-     * Stable deduplication hash of the tile/folder structure (excludes settings so
-     * a theme change alone does not create a duplicate history entry).
+     * Stable deduplication hash of the tile/folder structure AND settings — a
+     * settings-only change (wallpaper, accent, tile style, columns, etc.) must also
+     * produce a new history entry, otherwise a stale head snapshot silently keeps
+     * old settings and "restore" appears to revert personalization on restore.
      */
     fun layoutHash(
         tiles: List<TileEntity>,
         folders: List<FolderEntity>,
         children: List<FolderChildEntity>,
+        settings: LauncherSettings,
     ): String = buildString {
         tiles.sortedBy { it.id }.forEach { t ->
             append(t.id).append(':').append(t.position).append(':')
@@ -100,6 +103,7 @@ object BackupManager {
             append(c.folderId).append(':').append(c.position).append(':')
                 .append(c.packageName).append(':').append(c.size.name).append('|')
         }
+        append("settings:").append(SettingsCodec.encode(settings))
     }.hashCode().toString()
 
     /**

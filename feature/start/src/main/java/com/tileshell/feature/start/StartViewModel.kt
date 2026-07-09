@@ -749,7 +749,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
                 val (tiles, folders, children) = repository.tilesForBackup()
                 val currentSettings = settingsRepository.settings.first()
                 val json = BackupManager.buildBackupJson(tiles, folders, children, currentSettings)
-                val hash = BackupManager.layoutHash(tiles, folders, children)
+                val hash = BackupManager.layoutHash(tiles, folders, children, currentSettings)
                 val ts = id.toLongOrNull() ?: System.currentTimeMillis()
                 historyRepository.addSnapshot(
                     LayoutSnapshot(
@@ -778,7 +778,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             runCatching {
                 val app = getApplication<Application>()
                 val (tiles, folders, children) = repository.tilesForBackup()
-                val hash = BackupManager.layoutHash(tiles, folders, children)
+                val currentSettings = settingsRepository.settings.first()
+                val hash = BackupManager.layoutHash(tiles, folders, children, currentSettings)
                 val previous = CachedScreenshotPrefs.currentPath(app)
                 CachedScreenshotPrefs.save(app, path, hash)
                 // Clean up the file we're superseding, unless a saved history entry still

@@ -8,6 +8,7 @@ import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -146,6 +147,25 @@ class BackupManagerTest {
     @Test(expected = IllegalArgumentException::class)
     fun `malformed json throws`() {
         BackupManager.parseBackup("not json at all")
+    }
+
+    @Test
+    fun `layoutHash changes when settings change with identical tiles`() {
+        val hash1 = BackupManager.layoutHash(sampleTiles, sampleFolders, sampleChildren, sampleSettings)
+        val hash2 = BackupManager.layoutHash(
+            sampleTiles, sampleFolders, sampleChildren,
+            sampleSettings.copy(accentId = "blue"),
+        )
+
+        assertNotEquals(hash1, hash2)
+    }
+
+    @Test
+    fun `layoutHash is stable for identical tiles and settings`() {
+        val hash1 = BackupManager.layoutHash(sampleTiles, sampleFolders, sampleChildren, sampleSettings)
+        val hash2 = BackupManager.layoutHash(sampleTiles, sampleFolders, sampleChildren, sampleSettings)
+
+        assertEquals(hash1, hash2)
     }
 
     @Test
