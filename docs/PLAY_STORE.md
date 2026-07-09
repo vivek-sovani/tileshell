@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v2.1.2 listing draft — update before each release*
+*v2.1.3 listing draft — update before each release*
 
 ---
 
@@ -141,6 +141,18 @@ data. Users can also clear app data via Android Settings at any time.
 | Feature graphic | 1024 × 500 px | Required for listing banner |
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
+
+## Release notes (v2.1.3)
+
+*Same content as 2.1.2 below — that upload failed on the Play Console, re-cut under a new version code with no functional change.*
+
+```
+TileShell 2.1.3
+
+• Fixed: better app category suggestions for folders — ride-hailing apps no longer land in Navigation, unrelated apps no longer swept into Productivity, "Smart"-named apps no longer miscategorized as Shopping
+• Fixed: edge strip no longer resets to expanded every time you open personalize, edit mode, or a folder
+• Edge strip: app list and settings buttons now move out of the way when the strip is expanded; small tap animation polish
+```
 
 ## Release notes (v2.1.2)
 

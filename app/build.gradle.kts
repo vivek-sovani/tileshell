@@ -99,8 +99,10 @@ android {
         //   unmounting it, the Start app-list/gear affordance clears the strip's height
         //   while it's expanded, default handle size is now thick; feed widgets section
         //   header unified with the other feed sections).
-        versionCode = 212
-        versionName = "2.1.2"
+        // v2.1.3 = 213 (no functional change — 2.1.2's Play Console upload failed;
+        //   re-cut under a new version code).
+        versionCode = 213
+        versionName = "2.1.3"
     }
 
     if (keystoreFile.exists()) {
