@@ -2,6 +2,7 @@ package com.tileshell.core.data
 
 import android.content.pm.ApplicationInfo
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -46,6 +47,7 @@ class AppCategoriesTest {
         listOf(
             AppCategories.ROLE_BROWSER, AppCategories.ROLE_CALCULATOR,
             AppCategories.ROLE_FILES, AppCategories.ROLE_WEATHER, AppCategories.ROLE_MARKET,
+            AppCategories.ROLE_CALENDAR,
         ).forEach { role ->
             assertEquals(role, "tools", AppCategories.classify(app("x.$role", role = role)))
         }
@@ -61,8 +63,25 @@ class AppCategoriesTest {
         assertEquals("entertainment", AppCategories.classify(app("x", category = ApplicationInfo.CATEGORY_AUDIO)))
         assertEquals("entertainment", AppCategories.classify(app("x", category = ApplicationInfo.CATEGORY_VIDEO)))
         assertEquals("photos", AppCategories.classify(app("x", category = ApplicationInfo.CATEGORY_IMAGE)))
-        assertEquals("navigation", AppCategories.classify(app("x", category = ApplicationInfo.CATEGORY_MAPS)))
-        assertEquals("productivity", AppCategories.classify(app("x", category = ApplicationInfo.CATEGORY_PRODUCTIVITY)))
+    }
+
+    @Test
+    fun `maps and productivity os categories are deliberately not trusted`() {
+        // CATEGORY_MAPS is commonly (mis)declared by ride-hailing apps and
+        // CATEGORY_PRODUCTIVITY is an overused Play Console catch-all — neither
+        // should classify an app on its own; only role/token evidence should.
+        assertNull(AppCategories.classify(app("x", label = "x", category = ApplicationInfo.CATEGORY_MAPS)))
+        assertNull(AppCategories.classify(app("x", label = "x", category = ApplicationInfo.CATEGORY_PRODUCTIVITY)))
+        // A cab app tagged CATEGORY_MAPS still resolves via the travel token, not navigation.
+        val cabApp = app("com.acme.rides", label = "Acme Cabs", category = ApplicationInfo.CATEGORY_MAPS)
+        assertEquals("travel", AppCategories.classify(cabApp))
+    }
+
+    @Test
+    fun `smart-prefixed app names do not fall into shopping via the mart token`() {
+        listOf("SmartThings", "Smart Launcher", "Smart Tutor", "SmartLife").forEach { label ->
+            assertNotEquals("shopping", AppCategories.classify(app("com.acme.smart", label = label)))
+        }
     }
 
     // ---- layer 3: generic dictionary tokens (no role, UNDEFINED) -----------

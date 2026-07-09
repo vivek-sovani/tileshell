@@ -14,12 +14,15 @@ import android.content.pm.ApplicationInfo
  *     given app is "an email app", so this cleanly separates communication from
  *     social without naming anyone.
  *  2. **declared OS category** ([AppEntry.category], `ApplicationInfo.CATEGORY_*`)
- *     — the coarse base (games, social, news, audio/video, image, maps,
- *     productivity).
+ *     — the coarse base (games, social, news, audio/video, image). Deliberately
+ *     excludes `CATEGORY_MAPS`/`CATEGORY_PRODUCTIVITY`: both are unreliable in
+ *     practice (ride-hailing apps commonly declare Maps for Play Store search
+ *     visibility; Productivity is a Play Console catch-all reached for by
+ *     unrelated apps), so they're left to role + token matching below instead.
  *  3. **generic dictionary tokens** in the package name + label — only as a last
  *     resort and only for buckets the OS models no category for (banking,
- *     payments, shopping, food, travel, health). These are plain English category
- *     words ("bank", "shop", "flight"), never brand or app names.
+ *     payments, shopping, food, travel, health, tools). These are plain English
+ *     category words ("bank", "shop", "flight"), never brand or app names.
  *
  * Matching only ever runs over apps installed on the device, so empty categories
  * are simply hidden by the UI. The review screen lets the user add a miss or
@@ -56,7 +59,6 @@ object AppCategories {
         Category("games", "games"),
         Category("news", "news"),
         Category("navigation", "navigation"),
-        Category("productivity", "productivity"),
         Category("tools", "tools"),
         Category("payments", "payments"),
         Category("banking", "banking"),
@@ -71,20 +73,28 @@ object AppCategories {
         ROLE_MUSIC -> "entertainment"
         ROLE_GALLERY -> "photos"
         ROLE_MAPS -> "navigation"
-        ROLE_BROWSER, ROLE_CALCULATOR, ROLE_FILES, ROLE_WEATHER, ROLE_MARKET -> "tools"
-        ROLE_CALENDAR -> "productivity"
+        ROLE_BROWSER, ROLE_CALCULATOR, ROLE_FILES, ROLE_WEATHER, ROLE_MARKET, ROLE_CALENDAR -> "tools"
         ROLE_FITNESS -> "health"
         else -> null
     }
 
+    // No "productivity" or "maps" entries here (deliberately dropped, not renamed):
+    // Play Store's own declared categories for these two are unreliable in practice —
+    // CATEGORY_PRODUCTIVITY is a Play Console catch-all developers reach for even for
+    // unrelated apps (finance, utilities, notes), so trusting it swept ~87 unrelated
+    // apps into one bucket on a real device and hid genuine finance apps from
+    // "payments"/"banking" (this OS layer runs before token matching, so it won the
+    // priority race); CATEGORY_MAPS is commonly declared by ride-hailing apps (Ola,
+    // Uber) for Play Store search visibility despite not being navigation apps, which
+    // put them in "navigation" instead of "travel". Removing both lets apps with no
+    // better signal fall through to token matching, which already has narrower,
+    // more accurate rules for both (tools' office/notes tokens; travel's cab/taxi).
     private fun fromOsCategory(category: Int): String? = when (category) {
         ApplicationInfo.CATEGORY_GAME -> "games"
         ApplicationInfo.CATEGORY_SOCIAL -> "social"
         ApplicationInfo.CATEGORY_NEWS -> "news"
         ApplicationInfo.CATEGORY_AUDIO, ApplicationInfo.CATEGORY_VIDEO -> "entertainment"
         ApplicationInfo.CATEGORY_IMAGE -> "photos"
-        ApplicationInfo.CATEGORY_MAPS -> "navigation"
-        ApplicationInfo.CATEGORY_PRODUCTIVITY -> "productivity"
         else -> null
     }
 
@@ -94,9 +104,12 @@ object AppCategories {
      * come up empty. Ordered so the distinctive, OS-unmodelled buckets win first.
      */
     private val TOKEN_RULES: List<Pair<String, List<String>>> = listOf(
-        "banking" to listOf("bank", "banking"),
-        "payments" to listOf("wallet", "upi", "payment", "paytm", "gpay", " pay"),
-        "shopping" to listOf("shop", "mart", "cart", "bazaar", "ecommerce", "retail", "grocery", "grocer"),
+        "banking" to listOf("bank", "banking", "finance", "financial"),
+        "payments" to listOf("wallet", "upi", "payment", "paytm", "gpay", " pay", "paisa"),
+        "shopping" to listOf(
+            "shop", "shopping", "store", "mall", "mart", "cart", "bazaar",
+            "commerce", "ecommerce", "retail", "grocery", "grocer",
+        ),
         "food" to listOf("food", "restaurant", "kitchen", "recipe", "cafe", "meal", "delivery", "diner"),
         "travel" to listOf(
             "travel", "trip", "flight", "hotel", "airline", "taxi", "cab", "train",
@@ -114,16 +127,23 @@ object AppCategories {
         ),
         "photos" to listOf("photo", "camera", "gallery", "selfie"),
         "navigation" to listOf("maps", "navigation", "gps", "route"),
-        "productivity" to listOf(
-            "office", "document", "docs", "note", "todo", "task", "calendar",
-            "spreadsheet", "scanner",
+        // Folded in what used to be a separate "productivity" bucket (removed —
+        // see the class doc) since these tokens are precise enough on their own
+        // without the noisy OS category riding along.
+        "tools" to listOf(
+            "browser", "weather", "calculator", "vpn", "cleaner", "flashlight",
+            "office", "document", "docs", "note", "todo", "task", "spreadsheet", "scanner",
         ),
-        "tools" to listOf("browser", "weather", "calculator", "vpn", "cleaner", "flashlight"),
         "social" to listOf("social", "community", "forum", "dating"),
     )
 
     private fun fromTokens(packageName: String, label: String): String? {
-        val hay = (packageName + " " + label).lowercase()
+        // "smart" is an extremely common Android/OEM app-name prefix that is never
+        // actually shopping-related (SmartThings, Smart Switch, Smart Manager, Smart
+        // Launcher, Smart Tutor, …) but happens to contain the "mart" shopping token
+        // as a trailing fragment with no word boundary between them; strip it before
+        // matching so those utility/app names don't get swept into "shopping".
+        val hay = (packageName + " " + label).lowercase().replace("smart", " ")
         for ((id, tokens) in TOKEN_RULES) {
             if (tokens.any { hay.contains(it) }) return id
         }
