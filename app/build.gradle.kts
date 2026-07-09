@@ -82,8 +82,17 @@ android {
         //   in turn, newest first — mail/messages driven by the flip scheduler, generic apps
         //   self-manage their flip; per-notification avatar shown when cycling through grouped
         //   notifications from the same app).
-        versionCode = 210
-        versionName = "2.1.0"
+        // v2.1.0 = 210 (Edge Strip: a collapsible quick-launch bar pinned to the bottom of
+        //   Start — search on the left, favourite apps in the centre, recent apps on the
+        //   right; widget stack auto-rotate interval increased so a tapped notification
+        //   isn't a race against the timer).
+        // v2.1.1 = 211 (fix: layout-history snapshot dedup hashed only tile/folder structure,
+        //   not settings — a settings-only change made after the last tile move was silently
+        //   dropped from history, so restoring an older snapshot could revert personalization
+        //   even though the layout itself was unaffected; file export/import was never affected
+        //   since it has no dedup).
+        versionCode = 211
+        versionName = "2.1.1"
     }
 
     if (keystoreFile.exists()) {

@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v2.1.0 listing draft — update before each release*
+*v2.1.1 listing draft — update before each release*
 
 ---
 
@@ -10,61 +10,48 @@
 `TileShell`
 
 ### Short description (80 chars max)
-`Windows Phone-style launcher with live tiles, feed, and deep personalization`
+`Windows Phone–style launcher with live tiles, feed, and deep personalization`
 
 ### Full description (4 000 chars max)
 
 ```
-TileShell brings the iconic Windows Phone / Windows 10 Mobile Start screen to Android.
+TileShell brings the iconic Windows Phone / Windows 10 Mobile Start screen to Android — rebuilt in Kotlin, faithful to the original.
 
 ★ LIVE TILES
-Tiles that actually flip and show real content — clock with date and day, weather
-with live forecast, calendar events, now-playing with album art and transport
-controls, people mosaic, photos slideshow, notification counts, and message previews.
-Every tile flips on a gentle 2.6 s schedule; pauses on battery saver and when you
-leave the screen.
+Clock with date, weekday, and your real next alarm. Live weather with temperature, forecast, and high/low. Next calendar event with title and time. Now-playing with album art and transport controls — works with any music app, or pin a dedicated music tile. People mosaic that cycles contact photos every 2 s. Photos slideshow. Notification counts and message previews on every app tile. All flip on a gentle 2.6 s cycle; pauses automatically in battery saver.
 
-★ START SCREEN
-Dense grid of Small, Medium, Wide, and Large (3×3) tiles — choose 4, 5, or 6 columns.
-Long-press to drag, merge into folders or widget stacks, resize, or unpin.
-TalkBack-accessible — every tile is a labelled button with custom actions.
-In landscape mode the feed and Start screen sit side by side.
-
-★ FEED PAGE (swipe right)
-A personal glance page: live weather card, today's calendar agenda, now-playing with
-transport controls, and an Android widget slot. Swipe to the News tab for live RSS
-articles across categories — news, sports, tech, cricket, business, entertainment —
-from sources you choose. Refresh on demand or let the 30-minute background worker keep
-it fresh.
-
-★ APP LIST (swipe left)
-Alphabetical grid with live letter headers and a full-screen A–Z jump grid. Search
-filters instantly. Recent apps float to the top. Long-press to pin to Start or uninstall.
+★ NOTIFICATIONS
+Unread count badge on every pinned tile. Notification tiles show a big number front-and-centre, then flip to cycle through each pending message in turn — sender, photo, and snippet. Gallery tile flips to show pending notifications. Unpinned apps with notifications appear in App List Recent with a badge count. Works with any app, no extra configuration needed.
 
 ★ WIDGET STACKS
-Drag two Large tiles together to form a widget stack — a 3×3 carousel of full-size
-live tiles. Swipe up or down to jump between members, or let each stack auto-rotate on
-its own independent schedule. Every live face stays interactive inside the stack.
+Merge two Large (3×3) tiles into a swipeable full-size carousel. Every live face stays interactive inside the stack. Swipe near the right edge to flip between members; swipe anywhere else to scroll the Start screen. Auto-rotates on its own independent schedule. Any folder can become a wide or large stack from its overlay.
+
+★ START SCREEN
+4, 5, or 6 columns. Small, Medium, Wide, and Large (3×3) tiles — Large is available on every grid size. Long-press to enter edit mode: drag, merge tiles into folders, resize, recolour per tile or from the app's own icon, or unpin. Drag below the last row to append a tile. Landscape mode puts the feed and Start side by side.
+
+★ QUICK SEARCH
+Two-finger swipe down on Start. Search apps, contacts, and the web in one gesture. Long-press a contact to call, message, or pin it to Start. Choose your search engine — Google, Bing, ChatGPT, Gemini, Claude, or Perplexity. Recent searches and suggested apps shown before you type.
+
+★ EDGE STRIP
+A quick-launch bar along the bottom of the screen. Search on the left, favourite apps in the centre, recent apps on the right. Collapses to a thin handle when not in use. Configure which apps appear from Personalize.
+
+★ FEED PAGE (swipe right)
+Live weather card, today's calendar agenda, now-playing with transport controls, and a resizable Android widget slot. Swipe to the News tab for RSS articles — news, sports, tech, cricket, business, entertainment. Add any custom RSS or Atom feed. Refreshes every 30 minutes in the background.
+
+★ APP LIST (swipe left)
+Alphabetical grid with A–Z jump grid and instant search that clears after each use. Recent and newly-installed apps at the top with badge counts — even for apps not pinned to Start. Long-press to pin, hide, or uninstall. Hidden apps managed from Personalize.
 
 ★ PERSONALIZATION
-14 accent colours · per-tile colour override · tile colour from the app's own icon ·
-dark/light themes (follows system) · glass transparent tiles · blur wallpaper ·
-wallpaper-behind-tiles window mode · 6 bundled gradient wallpapers + custom photo ·
-corner radius slider · gradient fill toggle · 3 font styles · adjustable tile spacing.
+14 accent colours · per-tile colour override · tile colour from the app's own icon · dark and light themes · glass tiles each tinted by the tile's own colour · blur · wallpaper-behind-tiles parallax mode · 6 gradient wallpapers with light-theme adaptation · custom photo wallpaper · wallpaper slideshow · daily Bing wallpaper with history picker · corner radius · gradient fill · 3 font styles · adjustable tile spacing · built-in personalization guide.
+
+★ BACKUP & RESTORE
+Auto-save on a schedule. Browse a visual history of snapshots and restore any version. Export to a file — save it to Google Drive to restore on your next device.
 
 ★ SCREEN LOCK
-Long-press the settings gear to lock the screen instantly — uses the Accessibility
-API so biometric unlock is preserved (fingerprint / face).
-
-★ BATTERY FRIENDLY
-Background workers (weather, news, Bing wallpaper) only run when your device has a
-network connection, so they never wake the radio on airplane mode or burn retries.
-Live-tile animations pause automatically in battery saver mode.
+Long-press the gear icon to lock the screen instantly. Uses the Accessibility API so biometric unlock (fingerprint / face) is preserved.
 
 ★ PRIVACY FIRST
-No accounts. No analytics. No ads. All your data stays on your device. Only weather
-requests leave your device (to the no-API-key Open-Meteo service), and only when you
-grant location permission.
+No accounts. No analytics. No ads. All data stays on your device. Only weather requests leave (Open-Meteo, no API key), and only when you grant location permission.
 
 Requires Android 8.0 (API 26) or higher.
 ```
@@ -154,6 +141,16 @@ data. Users can also clear app data via Android Settings at any time.
 | Feature graphic | 1024 × 500 px | Required for listing banner |
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
+
+## Release notes (v2.1.1)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 2.1.1
+
+• Fixed: a settings-only change (wallpaper, accent, tile style, etc.) made after the last time you moved a tile could be silently skipped when saving to layout history — restoring an older snapshot could revert your personalization even though tiles looked fine. File export/import backups were never affected.
+```
 
 ## Release notes (v2.1.0)
 
