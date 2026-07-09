@@ -1,12 +1,14 @@
 package com.tileshell.feature.start
 
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -29,7 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,6 +46,8 @@ import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.Wallpapers
 import com.tileshell.feature.livetiles.NotificationSnapshot
 import com.tileshell.feature.livetiles.rememberAppIconBitmap
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private val TILE_DP = 48.dp      // slot size — compact touch target
 private val STRIP_ICON = 34.dp   // matches Start screen glyph size for non-LARGE tiles
@@ -53,7 +57,9 @@ private val STRIP_PAD = 6.dp
 // Handle area is always the same height so the panel height never changes.
 // Only the pill bar's visual weight varies between thin/thick.
 private val HANDLE_EXTENT = 28.dp
-private val STRIP_THICK = HANDLE_EXTENT + TILE_DP + STRIP_PAD  // constant: 82dp
+// internal: StartScreen's app-list/gear affordance reserves clearance above this
+// so the edge strip never covers it when expanded.
+internal val STRIP_THICK = HANDLE_EXTENT + TILE_DP + STRIP_PAD  // constant: 82dp
 
 /**
  * Optional bottom edge-strip overlay: search shortcut on the left, a horizontal
@@ -70,18 +76,32 @@ internal fun BoxScope.EdgeStrip(
     notifications: NotificationSnapshot,
     dark: Boolean,
     accent: Color,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    suppressed: Boolean = false,
     onLaunch: (pkg: String) -> Unit,
     onSearch: () -> Unit,
     onRecents: () -> Unit,
 ) {
     if (apps.isEmpty()) return
 
-    var expanded by rememberSaveable { mutableStateOf(true) }
+    // Momentary self-clearing pulse: recents has no in-app "closing" state to key off
+    // (the system recents screen lives outside Compose), so tapping it fakes the same
+    // leave/return motion search gets for real — slide fully away, then spring back.
+    var recentsPulsing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
-    val slide by animateFloatAsState(
-        targetValue = if (expanded) 0f else 1f,
-        animationSpec = spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMediumLow),
-        label = "edgeStripSlide",
+    val collapsedOffset = STRIP_THICK - HANDLE_EXTENT * 0.5f
+    val fullyHiddenOffset = STRIP_THICK + 12.dp
+    val targetOffset = when {
+        suppressed || recentsPulsing -> fullyHiddenOffset
+        expanded -> 0.dp
+        else -> collapsedOffset
+    }
+    val offset by animateDpAsState(
+        targetValue = targetOffset,
+        animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow),
+        label = "edgeStripOffset",
     )
 
     val wallpaper = if (backgroundId != Wallpapers.NONE_ID) Wallpapers.forId(backgroundId) else null
@@ -91,10 +111,7 @@ internal fun BoxScope.EdgeStrip(
     Box(
         modifier = Modifier
             .align(Alignment.BottomCenter)
-            .graphicsLayer {
-                // Panel height is constant; collapsed leaves HANDLE_EXTENT/2 peeking.
-                translationY = (STRIP_THICK - HANDLE_EXTENT * 0.5f).toPx() * slide
-            }
+            .graphicsLayer { translationY = offset.toPx() }
             .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp))
             .then(if (wallpaper == null) Modifier.background(solidBg) else Modifier)
             .clickable(
@@ -113,7 +130,9 @@ internal fun BoxScope.EdgeStrip(
             )
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            StripHandle(accent = accent, thick = handleSize == "thick") { expanded = !expanded }
+            StripHandle(accent = accent, thick = handleSize == "thick") {
+                onExpandedChange(!expanded)
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -143,7 +162,14 @@ internal fun BoxScope.EdgeStrip(
                 StripActionButton(
                     iconKey = "recents",
                     tint = iconTint,
-                    onClick = onRecents,
+                    onClick = {
+                        onRecents()
+                        scope.launch {
+                            recentsPulsing = true
+                            delay(260)
+                            recentsPulsing = false
+                        }
+                    },
                 )
             }
         }
@@ -176,15 +202,23 @@ private fun StripHandle(accent: Color, thick: Boolean, onToggle: () -> Unit) {
     }
 }
 
-/** Search / recents action button flanking the app row. */
+/** Search / recents action button flanking the app row. Bounces on press for tap feedback. */
 @Composable
 private fun StripActionButton(iconKey: String, tint: Color, onClick: () -> Unit) {
     val icon = TileIcons[iconKey]
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.8f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessHigh),
+        label = "stripActionScale",
+    )
     Box(
         modifier = Modifier
             .size(TILE_DP)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick),
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         if (icon != null) {

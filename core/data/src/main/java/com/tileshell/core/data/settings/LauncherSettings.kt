@@ -112,7 +112,7 @@ data class LauncherSettings(
     /** Wallpaper id for the strip background, or "none" for a semi-transparent surface. */
     val edgeStripBackgroundId: String = "none",
     /** Pull-tab handle pill weight: "thin" (subtle bar) or "thick" (bold bar). Panel height is constant. */
-    val edgeStripHandleSize: String = "thin",
+    val edgeStripHandleSize: String = "thick",
 ) {
     companion object {
         const val DEFAULT_COLUMNS = 4

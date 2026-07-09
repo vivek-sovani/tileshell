@@ -26,6 +26,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntOffsetAsState
@@ -261,6 +262,10 @@ fun StartScreen(
     val hiddenAppsOpen by viewModel.hiddenAppsOpen.collectAsStateWithLifecycle()
     val edgeStripOpen by viewModel.edgeStripOpen.collectAsStateWithLifecycle()
     val searchOpen by viewModel.searchOpen.collectAsStateWithLifecycle()
+    // Hoisted above the EdgeStrip composable so its expanded/collapsed state survives
+    // being unmounted while personalize/edit-mode/a folder is on top (it used to live
+    // inside EdgeStrip itself and reset to expanded every time the strip remounted).
+    var edgeStripExpanded by remember { mutableStateOf(true) }
     val hiddenPackages by viewModel.hiddenPackages.collectAsStateWithLifecycle()
     val isAppList by viewModel.isAppList.collectAsStateWithLifecycle()
     val apps by viewModel.apps.collectAsStateWithLifecycle()
@@ -692,6 +697,12 @@ fun StartScreen(
         // Blur the Start surface behind the folder overlay (prototype
         // backdrop-filter; real blur only takes effect API 31+, harmless below).
         val behindBlur = if (openFolder != null) 14.dp else 0.dp
+        // Mirrors the EdgeStrip mount/suppress condition below — true exactly when the
+        // strip is actually rendered and expanded (not just collapsed to its sliver),
+        // so the app-list/gear affordance only rises to clear it when it's really there.
+        val edgeStripVisible = settings.edgeStripEnabled && settings.edgeStripApps.isNotEmpty() &&
+            !editMode && openFolderId == null && !personalizeOpen && !searchOpen && edgeStripExpanded
+
         // Page content reused by both layouts. `pageWidthPx` drives the Start grid
         // and its edit-drag hit-testing, so a half-width landscape panel keeps
         // tiles portrait-sized instead of stretching to fill the wide screen.
@@ -702,6 +713,7 @@ fun StartScreen(
                     apps = apps,
                     scrollState = scrollState,
                     chevronVisible = swipeEnabled,
+                    edgeStripVisible = edgeStripVisible,
                     editMode = editMode,
                     liveSuspended = liveSuspended,
                     selectedTileId = selectedTileId,
@@ -903,9 +915,11 @@ fun StartScreen(
             }
         }
 
-        // Edge-strip overlay: shown only when enabled and no overlay is on top.
+        // Edge-strip overlay: shown only when enabled and no overlay is on top. Quick
+        // search stays out of the mount condition — the strip stays composed and just
+        // slides fully away (suppressed) so its expanded/collapsed state isn't lost.
         if (settings.edgeStripEnabled && settings.edgeStripApps.isNotEmpty() &&
-            !editMode && openFolderId == null && !personalizeOpen && !searchOpen
+            !editMode && openFolderId == null && !personalizeOpen
         ) {
             EdgeStrip(
                 apps = settings.edgeStripApps,
@@ -914,6 +928,9 @@ fun StartScreen(
                 notifications = notifications,
                 dark = dark,
                 accent = TileAccents.forId(settings.accentId),
+                expanded = edgeStripExpanded,
+                onExpandedChange = { edgeStripExpanded = it },
+                suppressed = searchOpen,
                 onLaunch = { pkg ->
                     val app = apps.firstOrNull { it.packageName == pkg }
                     if (app != null) AppLauncher.launch(context, app.packageName, app.activityName)
@@ -1277,6 +1294,7 @@ private fun StartPage(
     apps: List<com.tileshell.core.data.AppEntry>,
     scrollState: androidx.compose.foundation.ScrollState,
     chevronVisible: Boolean,
+    edgeStripVisible: Boolean,
     editMode: Boolean,
     liveSuspended: Boolean,
     selectedTileId: String?,
@@ -1576,12 +1594,20 @@ private fun StartPage(
 
         // App-list affordance (prototype .allapps-btn) with a settings button just
         // below it; both hidden in edit mode (personalize is on the edit bar there).
+        // Original order restored (chevron above gear); bottom offset animates up to
+        // clear the edge strip's full expanded height only while it's actually visible,
+        // and eases back down to the original resting position once it isn't.
         if (chevronVisible) {
+            val iconsBottomOffset by animateDpAsState(
+                targetValue = if (edgeStripVisible) STRIP_THICK + 8.dp else 26.dp,
+                animationSpec = spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMediumLow),
+                label = "startIconsBottomOffset",
+            )
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .navigationBarsPadding()
-                    .padding(end = 14.dp, bottom = 26.dp),
+                    .padding(end = 14.dp, bottom = iconsBottomOffset),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
