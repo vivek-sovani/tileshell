@@ -36,6 +36,28 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v1.9 — Play Console rejection fixed: accessibility prominent
+  disclosure now itemizes all data the app collects.** Google Play rejected
+  a release with "Accessibility API policy: Insufficient data use declaration
+  in the prominent disclosure," flagging that the existing
+  `AccessibilityDisclosureDialog` (`MainActivity.kt`) only described what the
+  Accessibility Service itself does (nothing — it's `performGlobalAction`
+  only) and never mentioned the app's other data practices, even though Play
+  requires the disclosure shown before the Accessibility Settings redirect to
+  explain *all* data the app collects. Rewrote the dialog to itemize
+  approximate location (weather), calendar events, contacts, notification
+  content, the installed-apps list (inherent to being a launcher), and the
+  locally-tracked "recent apps" tap history — each with its purpose and
+  whether it leaves the device — plus a "Privacy policy" button linking to
+  the hosted policy (`https://vivek-sovani.github.io/tileshell/`, matches
+  `docs/PRIVACY_POLICY.md`). Verified on a physical device: dialog renders,
+  scrolls, and all three buttons (Go to Settings / Privacy policy / Not now)
+  work. **Still needed before resubmitting**: bump `versionCode`/`versionName`
+  (Play won't accept a re-upload at the same versionCode) and build/upload a
+  new signed release; separately, review the Play Console Data Safety form —
+  it flagged "Precise location" and "Page views and taps in app," but the app
+  only ever requests `ACCESS_COARSE_LOCATION` (never fine/precise), so that
+  checkbox may be a stale/incorrect declaration worth correcting there.
 - **Post-v1.9 — sticky-mode drag-drop onto an occupied cell now pushes it
   down instead of rejecting the drop.** Direct user follow-up on the sticky
   (gap-preserving) tile arrangement below: dropping a dragged tile onto a cell
