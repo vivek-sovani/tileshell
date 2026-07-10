@@ -24,6 +24,11 @@ import androidx.compose.ui.unit.IntSize
  * edit-mode drag lift one tile off its slot to follow the finger while the rest
  * animate to their new slots as the order re-flows. The container reports its
  * full packed height, so it sits inside a vertically scrolling parent.
+ *
+ * [slotOf], when non-null, switches to the windows-phone-style sticky
+ * (gap-preserving) arrangement ([GridPacker.packSticky]) instead of the default
+ * dense repack — a tile with a cell renders exactly there regardless of what
+ * else changed. Existing callers that don't pass it are unaffected.
  */
 @Composable
 fun DenseTileGrid(
@@ -31,9 +36,14 @@ fun DenseTileGrid(
     modifier: Modifier = Modifier,
     columns: Int = GridPacker.COLUMNS,
     gapPx: Float? = null,
+    slotOf: ((String) -> Int?)? = null,
     tileContent: @Composable (spec: TileSpec, slot: IntOffset, sizePx: IntSize) -> Unit,
 ) {
-    val placements = remember(tiles, columns) { GridPacker.pack(tiles, columns) }
+    val placements = if (slotOf != null) {
+        GridPacker.packSticky(tiles, slotOf, columns)
+    } else {
+        remember(tiles, columns) { GridPacker.pack(tiles, columns) }
+    }
 
     BoxWithConstraints(modifier = modifier) {
         val totalW = constraints.maxWidth.toFloat()

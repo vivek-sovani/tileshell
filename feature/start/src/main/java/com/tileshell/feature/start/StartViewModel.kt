@@ -24,6 +24,7 @@ import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.core.data.settings.SettingsRepository
+import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.feature.livetiles.DEFAULT_FEED_SOURCES
 import com.tileshell.feature.livetiles.FeedRefreshWorker
 import com.tileshell.feature.livetiles.FeedSource
@@ -238,7 +239,16 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val debouncedReorders = reorderRequests.debounce(REORDER_DEBOUNCE_MS)
 
     init {
-        viewModelScope.launch(writeContext) { repository.seedIfEmpty() }
+        viewModelScope.launch(writeContext) {
+            repository.seedIfEmpty()
+            // Sticky mode is the fresh-install default (LauncherSettings), so the
+            // very first layout needs its anchors seeded here too — not only on
+            // an explicit user toggle (see seedStickySlots).
+            val initialSettings = settingsRepository.settings.first()
+            if (initialSettings.tilePackMode == TilePackMode.STICKY) {
+                seedStickySlots(initialSettings.columns)
+            }
+        }
         // Pull in any news feeds/categories added in a newer app version (DataStore
         // keeps the first-seen list, so new defaults like state/entertainment need
         // an explicit reconcile to appear in existing installs).
@@ -524,6 +534,80 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setColumns(columns) }
     }
 
+    /**
+     * Switch the Start grid's gap-closing behaviour. Turning STICKY on seeds a
+     * grid cell only for tiles that have never been anchored (gridSlot == null),
+     * placed via [GridPacker.packSticky] around whatever is already anchored —
+     * so re-enabling sticky mode after a round-trip through dense mode doesn't
+     * discard an arrangement the user already built, and on first-ever use (every
+     * tile unanchored) this reduces to the current dense-packed layout, so the
+     * switch is visually seamless.
+     */
+    fun setTilePackMode(mode: TilePackMode) {
+        viewModelScope.launch(writeContext) {
+            if (mode == TilePackMode.STICKY) seedStickySlots(settings.value.columns)
+            settingsRepository.setTilePackMode(mode)
+        }
+    }
+
+    /**
+     * Anchor every currently-unslotted tile at its present (dense-packed)
+     * cell — called both when the user explicitly switches sticky mode on
+     * and once at startup if it's *already* the active mode (the fresh-install
+     * default). Without this, a tile that's never been dragged has no gridSlot
+     * at all, and an all-unanchored layout has nothing to hold anyone's
+     * position in place — every tile "floats," so `packSticky` re-derives
+     * everyone's cell fresh via the same append-only fallback dense packing
+     * uses, and the grid reads as plain auto-arrange (reported as "first time
+     * it behaves like auto-arrange") until something finally gets anchored —
+     * which an explicit off-then-on toggle happened to trigger as a side
+     * effect, masking the gap in the fresh-install case.
+     */
+    private suspend fun seedStickySlots(columns: Int) {
+        val current = repository.tiles.first()
+        val unslotted = current.filter { it.gridSlot == null }.mapTo(HashSet()) { it.id }
+        if (unslotted.isEmpty()) return
+        val specs = current.map { TileSpec(it.id, it.size) }
+        val slotOf: (String) -> Int? = { id -> current.firstOrNull { it.id == id }?.gridSlot }
+        val placements = GridPacker.packSticky(specs, slotOf, columns)
+        placements.filter { it.id in unslotted }.forEach { p ->
+            repository.setTileGridSlot(p.id, GridPacker.encodeSlot(p.col, p.row))
+        }
+    }
+
+    /**
+     * Anchor a tile at a grid cell after a sticky-mode drag-drop (FR-3.2 WP
+     * variant). A full row gap is never allowed: if leaving the tile's old
+     * cell empties out a whole row, [collapseEmptyRowsAfterMove] shifts
+     * everything below it up to close the row.
+     */
+    fun setTileGridSlot(id: String, slot: Int?) {
+        if (slot == null) return
+        val finalSlots = collapseEmptyRowsAfterMove(id, slot)
+        viewModelScope.launch(writeContext) {
+            finalSlots.forEach { (tid, s) -> repository.setTileGridSlot(tid, s) }
+        }
+    }
+
+    /**
+     * Every anchored tile's cell after [movedId] takes on [movedSlot] (all
+     * others keep their current cell), with any resulting fully-empty row
+     * collapsed ([GridPacker.collapseEmptyRows]) — the tiles whose row must
+     * actually change, including [movedId] itself. Empty (not a map entry) for
+     * a tile that doesn't move. Dense mode never calls this.
+     */
+    private fun collapseEmptyRowsAfterMove(movedId: String, movedSlot: Int): Map<String, Int> {
+        val current = tiles.value
+        val projected = current.mapNotNull { t ->
+            val slot = if (t.id == movedId) movedSlot else t.gridSlot
+            slot?.let {
+                TilePlacement(t.id, t.size, GridPacker.decodeSlotCol(it), GridPacker.decodeSlotRow(it))
+            }
+        }
+        val collapse = GridPacker.collapseEmptyRows(projected)
+        return if (movedId in collapse) collapse else collapse + (movedId to movedSlot)
+    }
+
     /** Subscribe a custom RSS/Atom feed and refresh so its articles appear soon. */
     fun addFeedSource(url: String, name: String) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -658,13 +742,133 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         // resize cycle (that would shrink the stack's footprint). Members are
         // resized individually inside the folder overlay instead.
         if (model is TileModel.Folder && model.isStack) return
-        val tile = model as? TileModel.App
-        val largeAllowed = tile != null && AppCategories.allowsLargeTile(
-            iconKey = tile.iconKey,
-            app = apps.value.firstOrNull { it.packageName == tile.packageName },
-            columns = settings.value.columns,
-        )
-        viewModelScope.launch(writeContext) { repository.cycleTileSize(id, largeAllowed) }
+        // A plain (non-stack) folder gets the same small→medium→wide→large cycle
+        // as an app tile — a bigger mini-grid is useful for a folder holding many
+        // apps. This is independent of the widget-stack mechanism: `isStack` only
+        // turns true when every *child* is uniformly WIDE/LARGE, so a large
+        // folder whose children aren't all large stays a normal (bigger) folder.
+        val largeAllowed = when (model) {
+            is TileModel.App -> AppCategories.allowsLargeTile(
+                iconKey = model.iconKey,
+                app = apps.value.firstOrNull { it.packageName == model.packageName },
+                columns = settings.value.columns,
+            )
+            is TileModel.Folder -> true
+            null -> false
+        }
+        // Sticky mode (FR-3.4 WP variant): an anchored tile stays put, so growing
+        // its footprint can collide with a neighbor that dense mode would've just
+        // reflowed around. First cut blocked the resize outright on any overlap
+        // (failed almost everywhere in a normally tightly-packed layout), then
+        // un-anchored the colliding tile entirely (flung it away to the bottom
+        // instead of staying nearby). Both reported as wrong — a directly
+        // adjacent tile should stay adjacent. Now: any tile(s) the new footprint
+        // would overlap are pushed straight down (same column, just below the
+        // resized tile's new bottom edge) rather than un-anchored, cascading to
+        // whatever they in turn now overlap — the resized tile always succeeds,
+        // and neighbors move the minimum needed to stay out of the way while
+        // staying right where they were otherwise.
+        val nextSize = model?.size?.next(largeAllowed)
+        val finalSlots = if (model != null && nextSize != null) {
+            stickyResizeSlots(model, nextSize)
+        } else {
+            emptyMap()
+        }
+        viewModelScope.launch(writeContext) {
+            finalSlots.forEach { (movedId, slot) -> repository.setTileGridSlot(movedId, slot) }
+            repository.cycleTileSize(id, largeAllowed)
+        }
+    }
+
+    /**
+     * All grid-cell writes sticky mode needs for [model] to resize to
+     * [nextSize]: the resized tile's own cell (its column shifts left just
+     * enough to keep the new, wider footprint inside the grid when it no
+     * longer fits starting at its original column — e.g. growing to WIDE from
+     * anywhere but column 0 always overflows otherwise; its row never moves
+     * for its own sake), every tile the resulting footprint displaces (pushed
+     * straight down, cascading until nothing overlaps), and any fully-empty
+     * row that leaves behind, collapsed. Always empty in dense mode or for a
+     * never-anchored tile.
+     *
+     * Before the column shift: any tile not already at column 0 that grew
+     * wider than the room to its right (most commonly resizing up to WIDE)
+     * hit an "impossible at this column" bail-out with no fallback other than
+     * leaving the DB's position/size alone — [GridPacker.packSticky] then
+     * couldn't place it at its stored, now-too-narrow cell and silently
+     * re-flowed it to the first free cell after the bottom row instead, which
+     * read as "resize teleports the tile away." It only showed up when there
+     * was a tile to the left holding this one off column 0 — one already at
+     * column 0 never needed the shift, so never hit the bug.
+     */
+    private fun stickyResizeSlots(model: TileModel, nextSize: TileSize): Map<String, Int> {
+        if (settings.value.tilePackMode != TilePackMode.STICKY) return emptyMap()
+        val ownSlot = model.gridSlot ?: return emptyMap()
+        val columns = settings.value.columns
+        val row = GridPacker.decodeSlotRow(ownSlot)
+        val w = nextSize.cols.coerceAtMost(columns)
+        val h = nextSize.rows
+        val effectiveCol = GridPacker.decodeSlotCol(ownSlot).coerceAtMost((columns - w).coerceAtLeast(0))
+        val effectiveSlot = GridPacker.encodeSlot(effectiveCol, row)
+
+        val pushDown = stickyPushDown(model.id, effectiveCol, row, w, h, columns)
+        // A full row gap is never allowed: pushing neighbors down (or shifting
+        // this tile's own column) can leave a row fully empty, so close it,
+        // shifting everything below up (may further adjust the just-pushed
+        // tiles, and even the resized tile itself if there's headroom to
+        // reclaim above it).
+        val projected = tiles.value.mapNotNull { t ->
+            val (size, slot) = when {
+                t.id == model.id -> nextSize to effectiveSlot
+                pushDown.containsKey(t.id) -> t.size to pushDown.getValue(t.id)
+                else -> t.size to (t.gridSlot ?: return@mapNotNull null)
+            }
+            TilePlacement(t.id, size, GridPacker.decodeSlotCol(slot), GridPacker.decodeSlotRow(slot))
+        }
+        val collapse = GridPacker.collapseEmptyRows(projected)
+        // The resized tile's own cell always needs writing — its column may
+        // have shifted even when collapse found no row to close.
+        val ownFinal = collapse[model.id] ?: effectiveSlot
+        return pushDown + collapse + (model.id to ownFinal)
+    }
+
+    /**
+     * New grid cells for every anchored tile that a resized footprint at
+     * ([col], [row], [w] x [h]) would displace, in sticky mode: each is pushed
+     * straight down (same column) to sit just below whatever it now overlaps,
+     * cascading until nothing overlaps. [excludeId] (the resizing tile itself)
+     * is never in the returned map — the caller already knows its own cell.
+     */
+    private fun stickyPushDown(excludeId: String, col: Int, row: Int, w: Int, h: Int, columns: Int): Map<String, Int> {
+        data class Box(val id: String, val col: Int, var row: Int, val w: Int, val h: Int)
+        fun overlaps(a: Box, b: Box) =
+            a.col < b.col + b.w && b.col < a.col + a.w && a.row < b.row + b.h && b.row < a.row + a.h
+
+        val resized = Box(excludeId, col, row, w, h)
+        // Every other *anchored* tile at its current cell — a never-anchored
+        // (floating) tile isn't part of the fixed layout, so it's left alone.
+        val boxes = tiles.value.filter { it.id != excludeId }.mapNotNull { t ->
+            val s = t.gridSlot ?: return@mapNotNull null
+            Box(t.id, GridPacker.decodeSlotCol(s), GridPacker.decodeSlotRow(s), t.size.cols.coerceAtMost(columns), t.size.rows)
+        }
+        val fixed = listOf(resized) + boxes
+        val moved = mutableMapOf<String, Int>()
+        var settled = false
+        var guard = 0
+        while (!settled && guard++ <= boxes.size) {
+            settled = true
+            for (box in boxes) {
+                val blockers = fixed.filter { it !== box && overlaps(it, box) }
+                if (blockers.isEmpty()) continue
+                val newRow = blockers.maxOf { it.row + it.h }
+                if (newRow > box.row) {
+                    box.row = newRow
+                    moved[box.id] = GridPacker.encodeSlot(box.col, box.row)
+                    settled = false
+                }
+            }
+        }
+        return moved
     }
 
     /** Set or clear a tile's per-tile accent override (null = follow global, FR-7). */
@@ -674,7 +878,27 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Unpin (remove) a tile from the Start grid (FR-3.5). */
     fun unpin(id: String) {
-        viewModelScope.launch(writeContext) { repository.removeTile(id) }
+        // A full row gap is never allowed: removing a tile can leave its row
+        // fully empty, so close it before the removal lands.
+        val collapse = collapseEmptyRowsAfterRemoval(id)
+        viewModelScope.launch(writeContext) {
+            collapse.forEach { (movedId, slot) -> repository.setTileGridSlot(movedId, slot) }
+            repository.removeTile(id)
+        }
+    }
+
+    /**
+     * The sticky layout with [removedId] gone, any fully-empty row it leaves
+     * behind collapsed. Empty in dense mode.
+     */
+    private fun collapseEmptyRowsAfterRemoval(removedId: String): Map<String, Int> {
+        if (settings.value.tilePackMode != TilePackMode.STICKY) return emptyMap()
+        val projected = tiles.value.mapNotNull { t ->
+            if (t.id == removedId) return@mapNotNull null
+            val slot = t.gridSlot ?: return@mapNotNull null
+            TilePlacement(t.id, t.size, GridPacker.decodeSlotCol(slot), GridPacker.decodeSlotRow(slot))
+        }
+        return GridPacker.collapseEmptyRows(projected)
     }
 
     /**

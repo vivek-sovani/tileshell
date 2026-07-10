@@ -261,6 +261,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         }
     }
 
+    /** Switch the Start grid's gap-closing behaviour (dense repack vs. WP-style sticky gaps). */
+    suspend fun setTilePackMode(mode: TilePackMode) {
+        store.updateData { it.copy(tilePackMode = mode) }
+    }
+
     /** Replace all settings with a restored backup value atomically. */
     suspend fun restoreSettings(settings: LauncherSettings) {
         store.updateData { settings }

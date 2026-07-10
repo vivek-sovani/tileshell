@@ -73,6 +73,19 @@ fun tileAt(placements: List<TilePlacement>, geom: GridGeometry, point: Offset): 
     placements.firstOrNull { geom.rect(it).contains(point) }?.id
 
 /**
+ * Nearest grid cell (col, row) for a tile's top-left corner at [topLeftPx] —
+ * the inverse of [GridGeometry.topLeft]. Used by the sticky (gap-preserving)
+ * arrangement to find which cell a drag-drop lands in; [w] clamps the column so
+ * a wider tile's footprint never overflows the grid, and row has no upper bound
+ * (the grid simply grows).
+ */
+fun GridGeometry.cellAt(topLeftPx: Offset, columns: Int, w: Int): IntOffset {
+    val col = ((topLeftPx.x - side) / step).roundToInt().coerceIn(0, (columns - w).coerceAtLeast(0))
+    val row = ((topLeftPx.y - topPad) / step).roundToInt().coerceAtLeast(0)
+    return IntOffset(col, row)
+}
+
+/**
  * Whether [point] falls inside the inner 22–78% (both axes) of a tile's [rect] —
  * the merge zone (FR-3.3). Edit-mode drag reorders only when *outside* it; the
  * centre is reserved for the folder-merge gesture landing in S14.

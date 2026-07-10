@@ -25,6 +25,12 @@ data class TileEntity(
     // accent, or null to follow it. Added in schema v4; existing rows decode to
     // null (= follow global), preserving the prior uniform-accent look.
     val accentOverride: String? = null,
+    // Absolute grid cell (row * 1000 + col, see GridPacker.encodeSlot in
+    // :feature:start), used only while LauncherSettings.tilePackMode is STICKY.
+    // Null means "never anchored" — the tile floats to the first free cell
+    // after the current bottom row rather than a fixed spot. Added in schema
+    // v6; ignored entirely in the default DENSE mode.
+    val gridSlot: Int? = null,
     val type: String,
     val packageName: String? = null,
     val activityName: String? = null,

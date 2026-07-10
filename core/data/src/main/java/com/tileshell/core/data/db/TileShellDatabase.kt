@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         FolderChildEntity::class,
         AppCacheEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -62,9 +62,22 @@ abstract class TileShellDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v5→v6: add the gap-preserving ("windows phone style") tile arrangement's
+         * persisted absolute grid cell. Nullable with no default, so every existing
+         * tile decodes to null (= never anchored) — a no-op until the user opts into
+         * sticky mode, at which point unanchored tiles get seeded from their current
+         * dense-packed position (StartViewModel.setTilePackMode).
+         */
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tiles ADD COLUMN gridSlot INTEGER")
+            }
+        }
+
         /** Versioned migrations, added as the schema evolves. */
         val MIGRATIONS: Array<Migration> =
-            arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
 
         @Volatile
         private var instance: TileShellDatabase? = null

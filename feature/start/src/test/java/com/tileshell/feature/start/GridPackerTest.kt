@@ -128,4 +128,133 @@ class GridPackerTest {
         }
         assertEquals(60, placements.size)
     }
+
+    // ---- slot encode/decode ----------------------------------------------
+
+    @Test
+    fun `slot encode-decode round-trips and is columns-invariant`() {
+        val slot = GridPacker.encodeSlot(col = 3, row = 7)
+        assertEquals(3, GridPacker.decodeSlotCol(slot))
+        assertEquals(7, GridPacker.decodeSlotRow(slot))
+    }
+
+    // ---- sticky (gap-preserving) packing ----------------------------------
+
+    @Test
+    fun `anchored tile renders exactly at its stored cell regardless of order`() {
+        val tiles = specs(TileSize.SMALL, TileSize.SMALL)
+        val slots = mapOf("t0" to GridPacker.encodeSlot(3, 5))
+        val p = GridPacker.packSticky(tiles, slots::get)
+        val anchored = p.first { it.id == "t0" }
+        assertEquals(3, anchored.col)
+        assertEquals(5, anchored.row)
+    }
+
+    @Test
+    fun `removing an anchored tile leaves a gap the others do not fill`() {
+        // Two anchored tiles with a gap between them at (1,0); a third,
+        // never-anchored tile must NOT back-fill that gap — it appends after
+        // the frontier row instead (real-WP: gaps only close via an explicit drag).
+        val tiles = specs(TileSize.SMALL, TileSize.SMALL, TileSize.SMALL)
+        val slots = mapOf("t0" to GridPacker.encodeSlot(0, 0), "t1" to GridPacker.encodeSlot(2, 0))
+        val p = GridPacker.packSticky(tiles, slots::get)
+        val unanchored = p.first { it.id == "t2" }
+        assertFalse("must not backfill the (1,0) gap", unanchored.col == 1 && unanchored.row == 0)
+        assertEquals(1, unanchored.row) // appended after the anchored tiles' row
+    }
+
+    @Test
+    fun `unanchored tiles append after the frontier row, never above it`() {
+        val tiles = specs(TileSize.WIDE, TileSize.SMALL, TileSize.SMALL)
+        val slots = mapOf("t0" to GridPacker.encodeSlot(0, 4)) // anchored far down the grid
+        val p = GridPacker.packSticky(tiles, slots::get)
+        val others = p.filter { it.id != "t0" }
+        assertTrue("new tiles must land at/after the anchored tile's bottom row", others.all { it.row >= 6 })
+    }
+
+    @Test
+    fun `an anchored tile that no longer fits the column count re-flows instead of overlapping`() {
+        // Anchored at col 3 with a MEDIUM (2-wide) footprint: fits at columns=5
+        // but overflows at columns=4 — must fall back to auto-placement, not overlap.
+        val tiles = specs(TileSize.MEDIUM, TileSize.SMALL)
+        val slots = mapOf("t0" to GridPacker.encodeSlot(3, 0))
+        val p = GridPacker.packSticky(tiles, slots::get, columns = 4)
+        val t0 = p.first { it.id == "t0" }
+        assertTrue("must fit within 4 columns", t0.col + t0.cols <= 4)
+    }
+
+    // ---- full-row-gap collapse ---------------------------------------------
+
+    @Test
+    fun `no fully empty row means nothing moves`() {
+        val placements = listOf(
+            TilePlacement("a", TileSize.SMALL, 0, 0),
+            TilePlacement("b", TileSize.SMALL, 1, 0),
+        )
+        assertTrue(GridPacker.collapseEmptyRows(placements).isEmpty())
+    }
+
+    @Test
+    fun `a row only partially occupied is not collapsed`() {
+        // Row 1 has only column 0 occupied (a gap at columns 1-3) — allowed.
+        val placements = listOf(
+            TilePlacement("a", TileSize.SMALL, 0, 0),
+            TilePlacement("b", TileSize.SMALL, 0, 1),
+        )
+        assertTrue(GridPacker.collapseEmptyRows(placements).isEmpty())
+    }
+
+    @Test
+    fun `a fully empty row collapses and everything below shifts up`() {
+        // Row 1 is fully empty (no tile touches any column there).
+        val placements = listOf(
+            TilePlacement("a", TileSize.SMALL, 0, 0),
+            TilePlacement("b", TileSize.SMALL, 1, 2),
+        )
+        val moved = GridPacker.collapseEmptyRows(placements)
+        assertEquals(setOf("b"), moved.keys)
+        assertEquals(GridPacker.encodeSlot(1, 1), moved.getValue("b"))
+    }
+
+    @Test
+    fun `consecutive fully empty rows collapse together`() {
+        val placements = listOf(
+            TilePlacement("a", TileSize.SMALL, 0, 0),
+            TilePlacement("b", TileSize.SMALL, 0, 4), // rows 1-3 fully empty
+        )
+        val moved = GridPacker.collapseEmptyRows(placements)
+        assertEquals(GridPacker.encodeSlot(0, 1), moved.getValue("b"))
+    }
+
+    @Test
+    fun `a tile spanning multiple rows keeps every row it touches from collapsing`() {
+        val placements = listOf(
+            TilePlacement("wide", TileSize.WIDE, 0, 0), // touches rows 0-1
+            TilePlacement("b", TileSize.SMALL, 0, 2),
+        )
+        assertTrue(GridPacker.collapseEmptyRows(placements).isEmpty())
+    }
+
+    @Test
+    fun `sticky packing never overlaps across a large mixed set`() {
+        val tiles = demoTiles(40)
+        // Anchor every third tile at a distinct, deliberately sparse cell so
+        // real gaps exist between them.
+        val slots = tiles.filterIndexed { i, _ -> i % 3 == 0 }
+            .mapIndexed { i, t -> t.id to GridPacker.encodeSlot(0, i * 3) }
+            .toMap()
+        val p = GridPacker.packSticky(tiles, slots::get)
+        val rows = GridPacker.rowCount(p)
+        val occupied = Array(rows) { BooleanArray(GridPacker.COLUMNS) }
+        for (placement in p) {
+            assertTrue(placement.col + placement.cols <= GridPacker.COLUMNS)
+            for (r in placement.row until placement.row + placement.rows) {
+                for (c in placement.col until placement.col + placement.cols) {
+                    assertFalse("tiles overlap at ($c,$r)", occupied[r][c])
+                    occupied[r][c] = true
+                }
+            }
+        }
+        assertEquals(40, p.size)
+    }
 }

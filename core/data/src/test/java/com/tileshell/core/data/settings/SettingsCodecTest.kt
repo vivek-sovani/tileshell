@@ -25,6 +25,7 @@ class SettingsCodecTest {
             tileFill = TileFill.GRADIENT,
             fontStyle = FontStyle.NUNITO,
             columns = 6,
+            tilePackMode = TilePackMode.STICKY,
         )
         assertEquals(settings, SettingsCodec.decode(SettingsCodec.encode(settings)))
     }
@@ -160,6 +161,13 @@ class SettingsCodecTest {
         assertEquals(6, SettingsCodec.decode("columns=9").columns)
         assertEquals(4, SettingsCodec.decode("columns=1").columns)
         assertEquals(LauncherSettings().columns, SettingsCodec.decode("columns=lots").columns)
+    }
+
+    @Test
+    fun `tilePackMode round-trips and unknown value keeps default`() {
+        assertEquals(TilePackMode.STICKY, SettingsCodec.decode("tilePackMode=STICKY").tilePackMode)
+        assertEquals(TilePackMode.DENSE, SettingsCodec.decode("tilePackMode=DENSE").tilePackMode)
+        assertEquals(LauncherSettings().tilePackMode, SettingsCodec.decode("tilePackMode=GARBLED").tilePackMode)
     }
 
     @Test

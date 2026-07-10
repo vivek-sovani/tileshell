@@ -49,6 +49,14 @@ interface LayoutDao {
     @Query("UPDATE tiles SET position = :position WHERE id = :id")
     suspend fun updateTilePosition(id: String, position: Int)
 
+    /**
+     * Set/clear a tile's anchored absolute grid cell (windows-phone-style
+     * gap-preserving arrangement). Null returns it to "never anchored" — it
+     * floats to the first free cell after the bottom row instead of a fixed spot.
+     */
+    @Query("UPDATE tiles SET gridSlot = :gridSlot WHERE id = :id")
+    suspend fun updateTileGridSlot(id: String, gridSlot: Int?)
+
     /** Set a tile's size (FR-3.4 resize). [size] is the stored [TileSize] name. */
     @Query("UPDATE tiles SET size = :size WHERE id = :id")
     suspend fun updateTileSize(id: String, size: String)

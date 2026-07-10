@@ -22,6 +22,12 @@ sealed interface TileModel {
     val position: Int
     val size: TileSize
     val colorId: String
+    /**
+     * Anchored absolute grid cell for the windows-phone-style gap-preserving
+     * arrangement (null = never anchored, floats to the first free cell);
+     * ignored entirely while the default dense-packing mode is active.
+     */
+    val gridSlot: Int?
 
     data class App(
         override val id: String,
@@ -34,6 +40,7 @@ sealed interface TileModel {
         val iconKey: String? = null,
         /** Per-tile accent override (FR-7); null = follow the global accent. */
         val accentOverride: String? = null,
+        override val gridSlot: Int? = null,
     ) : TileModel
 
     data class Folder(
@@ -45,6 +52,7 @@ sealed interface TileModel {
         val children: List<FolderChild>,
         /** Per-tile accent override (FR-7); null = follow the global accent. */
         val accentOverride: String? = null,
+        override val gridSlot: Int? = null,
     ) : TileModel {
         /**
          * A folder renders as a **widget stack** (a swipeable carousel of full-size

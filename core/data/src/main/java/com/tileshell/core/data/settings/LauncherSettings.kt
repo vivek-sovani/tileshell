@@ -6,6 +6,17 @@ enum class TileFill { FLAT, GRADIENT }
 enum class FontStyle { SYSTEM, OUTFIT, NUNITO }
 
 /**
+ * How the Start grid closes gaps left by a removed/resized tile (user-selectable
+ * "tile arrangement"): [DENSE] always repacks every tile toward the top-left on
+ * every change (the launcher's original behaviour, matching the HTML prototype's
+ * CSS `grid-auto-flow: dense`); [STICKY] mirrors real Windows Phone — a tile
+ * stays at its anchored grid cell and a gap it leaves behind stays open until the
+ * user drags something into it. A new tile always appends after the current
+ * bottom row in either mode (never backfills an earlier gap).
+ */
+enum class TilePackMode { DENSE, STICKY }
+
+/**
  * Default colour for a tile that has no explicit per-tile override (FR-7):
  * [GLOBAL_ACCENT] paints every tile the single global accent; [APP_ICON] tints
  * each app tile with the dominant colour of its launcher icon (a freshly pinned
@@ -99,6 +110,14 @@ data class LauncherSettings(
      * to 4..6 on decode.
      */
     val columns: Int = DEFAULT_COLUMNS,
+    /**
+     * Gap-closing behaviour for the Start grid. Defaults to [TilePackMode.STICKY]
+     * (windows phone style) per the user's own real-WP-device comparison — a
+     * fresh install's default layout has no anchored tiles yet, so it renders
+     * identically to dense packing until the user actually unpins/resizes/drags
+     * something, at which point gaps start being preserved rather than repacked.
+     */
+    val tilePackMode: TilePackMode = TilePackMode.STICKY,
     /** Periodic background layout snapshot saves (for LayoutHistorySheet). */
     val autoBackupEnabled: Boolean = true,
     /** Hours between automatic snapshots: 1, 4, 6, 12, or 24. */
@@ -159,6 +178,7 @@ object SettingsCodec {
         append("tileFill=").append(settings.tileFill.name).append('\n')
         append("fontStyle=").append(settings.fontStyle.name).append('\n')
         append("columns=").append(settings.columns).append('\n')
+        append("tilePackMode=").append(settings.tilePackMode.name).append('\n')
         append("autoBackup=").append(settings.autoBackupEnabled).append('\n')
         append("autoBackupInterval=").append(settings.autoBackupIntervalHours).append('\n')
         append("edgeStripEnabled=").append(settings.edgeStripEnabled).append('\n')
@@ -193,6 +213,7 @@ object SettingsCodec {
         var tileFill = d.tileFill
         var fontStyle = d.fontStyle
         var columns = d.columns
+        var tilePackMode = d.tilePackMode
         var autoBackupEnabled = d.autoBackupEnabled
         var autoBackupIntervalHours = d.autoBackupIntervalHours
         var edgeStripEnabled = d.edgeStripEnabled
@@ -238,6 +259,7 @@ object SettingsCodec {
                 "columns" -> value.toIntOrNull()?.let {
                     columns = it.coerceIn(LauncherSettings.MIN_COLUMNS, LauncherSettings.MAX_COLUMNS)
                 }
+                "tilePackMode" -> TilePackMode.entries.find { it.name == value }?.let { tilePackMode = it }
                 "autoBackup" -> autoBackupEnabled = value.toBooleanStrictOrNull() ?: autoBackupEnabled
                 "autoBackupInterval" -> value.toIntOrNull()?.let {
                     autoBackupIntervalHours = it.coerceIn(1, 24)
@@ -274,6 +296,7 @@ object SettingsCodec {
             tileFill = tileFill,
             fontStyle = fontStyle,
             columns = columns,
+            tilePackMode = tilePackMode,
             autoBackupEnabled = autoBackupEnabled,
             autoBackupIntervalHours = autoBackupIntervalHours,
             edgeStripEnabled = edgeStripEnabled,

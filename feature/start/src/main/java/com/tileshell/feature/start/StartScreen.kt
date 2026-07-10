@@ -201,6 +201,7 @@ import com.tileshell.feature.system.rememberAppUpdateState
 import com.tileshell.core.data.settings.FontStyle
 import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
+import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.design.DarkColorTokens
 import com.tileshell.core.design.Glass
 import com.tileshell.core.design.LocalAccent
@@ -742,6 +743,8 @@ fun StartScreen(
                     viewportHeightPx = viewportHeightPx,
                     statusBarTopPx = statusBarTopPx,
                     columns = settings.columns,
+                    sticky = settings.tilePackMode == TilePackMode.STICKY,
+                    onSetTileSlot = viewModel::setTileGridSlot,
                     onLockScreen = onLockScreen,
                     onTile = { tile ->
                         when (tile) {
@@ -1065,6 +1068,8 @@ fun StartScreen(
             onFontStyleChange = viewModel::setFontStyle,
             columns = settings.columns,
             onColumnsChange = viewModel::setColumns,
+            tilePackMode = settings.tilePackMode,
+            onTilePackModeChange = viewModel::setTilePackMode,
             onAbout = viewModel::openAbout,
             onPersonalizeGuide = viewModel::openPersonalizeGuide,
             onFolders = viewModel::openFolders,
@@ -1317,6 +1322,8 @@ private fun StartPage(
     viewportHeightPx: Float,
     statusBarTopPx: Float,
     columns: Int,
+    sticky: Boolean,
+    onSetTileSlot: (id: String, slot: Int?) -> Unit,
     onLockScreen: () -> Unit,
     onTile: (TileModel) -> Unit,
     onLaunchFolderChild: (FolderChild) -> Unit,
@@ -1469,12 +1476,15 @@ private fun StartPage(
                 viewportHeightPx = viewportHeightPx,
                 scrollOffsetPx = { scrollState.value.toFloat() },
                 edgeZonePx = with(density) { 64.dp.toPx() },
+                slotOf = if (sticky) { id -> byId[id]?.gridSlot } else null,
+                onStickyDrop = { id, slot -> if (slot != null) onSetTileSlot(id, slot) },
             )
 
             DenseTileGrid(
                 tiles = displaySpecs,
                 columns = columns,
                 gapPx = tileGapPx,
+                slotOf = if (sticky) { id -> byId[id]?.gridSlot } else null,
                 modifier = Modifier.fillMaxWidth().then(editDrag),
             ) { spec, slot, sizePx ->
                 val model = byId[spec.id] ?: return@DenseTileGrid
@@ -1548,8 +1558,12 @@ private fun StartPage(
                                 .sumOf { notifications.badgeFor(it) }
                         },
                         darkTheme = darkTheme,
-                        canMoveBack = order.indexOf(model.id) > 0,
-                        canMoveForward = order.indexOf(model.id) in 0 until order.size - 1,
+                        // "Move back/forward" (TalkBack custom actions) reorder the
+                        // list-backed order — meaningless once a sticky-mode tile sits
+                        // at its own anchored cell instead of a sequence position, so
+                        // they're hidden there (drag-drop to any free cell replaces them).
+                        canMoveBack = !sticky && order.indexOf(model.id) > 0,
+                        canMoveForward = !sticky && order.indexOf(model.id) in 0 until order.size - 1,
                         showColorDot = true,
                         // Inline tap-to-launch: always for medium/wide folders
                         // (cells stay tappable); for a small folder only on the
@@ -1557,13 +1571,17 @@ private fun StartPage(
                         inlineFolderLaunch = model.size != TileSize.SMALL || columns == 4,
                         appIconColors = appIconColors,
                         nextSizeIsLarger = model.size.nextIsLarger(
-                            largeAllowed = (model as? TileModel.App)?.let { appTile ->
-                                AppCategories.allowsLargeTile(
-                                    iconKey = appTile.iconKey,
-                                    app = apps.firstOrNull { entry -> entry.packageName == appTile.packageName },
+                            // A plain folder gets the same large step as an app tile
+                            // (see StartViewModel.resize) — only a widget stack (whose
+                            // resize is a no-op) doesn't, so it doesn't matter here.
+                            largeAllowed = when (model) {
+                                is TileModel.App -> AppCategories.allowsLargeTile(
+                                    iconKey = model.iconKey,
+                                    app = apps.firstOrNull { entry -> entry.packageName == model.packageName },
                                     columns = columns,
                                 )
-                            } ?: false,
+                                is TileModel.Folder -> true
+                            },
                         ),
                         onTap = { if (!editMode) onTile(model) },
                         onLongPress = { if (!editMode) onEnterEdit(model.id) },
@@ -2828,6 +2846,11 @@ private fun Modifier.editDragGesture(
     scrollOffsetPx: () -> Float,
     edgeZonePx: Float,
     allowMerge: Boolean = true,
+    // Windows-phone-style sticky (gap-preserving) arrangement: non-null switches
+    // placement + drop mechanics (see below); null (the default) is the original
+    // dense-repack behaviour, unchanged for every existing caller.
+    slotOf: ((String) -> Int?)? = null,
+    onStickyDrop: (dragId: String, slot: Int?) -> Unit = { _, _ -> },
 ): Modifier = pointerInput(editMode, widthPx, columns, gapPx, byId, selectedId()) {
     // Re-keyed on byId so a resize/unpin mid-session refreshes the captured tile
     // sizes, and on the selected id so an in-edit selection switch refreshes the
@@ -2842,19 +2865,20 @@ private fun Modifier.editDragGesture(
     val mergeDwellMs = 250L
     val dwellMoveTol = 14.dp.toPx()
 
-    fun placementsNow(): List<TilePlacement> =
-        GridPacker.pack(order.mapNotNull { id -> byId[id]?.let { TileSpec(id, it.size) } }, columns)
+    fun placementsNow(): List<TilePlacement> {
+        val specs = order.mapNotNull { id -> byId[id]?.let { TileSpec(id, it.size) } }
+        return slotOf?.let { GridPacker.packSticky(specs, it, columns) } ?: GridPacker.pack(specs, columns)
+    }
 
     // The other tiles packed *without* [exclude] (the dragged tile). Because a
     // drag only ever moves the dragged tile within the order, this layout is
     // invariant for the whole gesture — so a merge target never slips out from
     // under the finger the way it does in the dragged-included layout.
-    fun othersPacked(exclude: String): List<TilePlacement> =
-        GridPacker.pack(
-            order.filter { it != exclude }
-                .mapNotNull { id -> byId[id]?.let { TileSpec(id, it.size) } },
-            columns,
-        )
+    fun othersPacked(exclude: String): List<TilePlacement> {
+        val specs = order.filter { it != exclude }
+            .mapNotNull { id -> byId[id]?.let { TileSpec(id, it.size) } }
+        return slotOf?.let { GridPacker.packSticky(specs, it, columns) } ?: GridPacker.pack(specs, columns)
+    }
 
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
@@ -2869,10 +2893,19 @@ private fun Modifier.editDragGesture(
         if (selPlacement != null) {
             val r = geom.rect(selPlacement)
             val zone = 30.dp.toPx()
-            val inUnpin = down.position.x <= r.left + zone && down.position.y <= r.top + zone
-            val inResize = down.position.x >= r.right - zone && down.position.y >= r.bottom - zone
+            // Each corner check must also confirm the tap actually landed
+            // *inside* the selected tile's own rect — otherwise a one-sided
+            // threshold like "x <= r.left + zone" is satisfied by any point up
+            // and to the left of that corner, however far away, including taps
+            // on a completely different tile. That let tapping another tile
+            // (especially one above/left of the selected one) misfire unpin,
+            // resize, or the colour picker on the *previously* selected tile
+            // instead of switching the selection to the tapped one.
+            val inTile = r.contains(down.position)
+            val inUnpin = inTile && down.position.x <= r.left + zone && down.position.y <= r.top + zone
+            val inResize = inTile && down.position.x >= r.right - zone && down.position.y >= r.bottom - zone
             val inColor =
-                down.position.x <= r.left + zone && down.position.y >= r.bottom - zone
+                inTile && down.position.x <= r.left + zone && down.position.y >= r.bottom - zone
             if (inUnpin || inResize || inColor) {
                 var movedCtl = false
                 while (true) {
@@ -2910,6 +2943,9 @@ private fun Modifier.editDragGesture(
         // Half-extent of the dragged tile, captured at lift, so merge can be
         // judged from where the floating tile's CENTRE sits (not the finger).
         var dragHalf = Offset.Zero
+        // Sticky mode only: the free cell currently under the dragged tile's
+        // top-left corner, or null when that cell is occupied (invalid drop).
+        var pendingSlot: Int? = null
 
         while (true) {
             val event = awaitPointerEvent()
@@ -2981,25 +3017,41 @@ private fun Modifier.editDragGesture(
                     }
                 } else {
                     if (mergeId != null) { mergeId = null; onMergeTarget(null) }
-                    val placements = placementsNow()
-                    val target = placements.firstOrNull {
-                        it.id != startId && geom.rect(it).contains(pos)
-                    }
-                    if (target != null) {
-                        if (target.id != lastTarget) {
-                            lastTarget = target.id
-                            startId?.let { onReorderTo(it, target.id) }
+                    if (slotOf != null && startId != null) {
+                        // Sticky mode: the tile floats to wherever the finger drops
+                        // it — any free cell, not just another tile's slot — so
+                        // gaps stay open instead of everything reflowing.
+                        val tileSize = byId[startId]?.size ?: TileSize.SMALL
+                        val w = tileSize.cols.coerceAtMost(columns)
+                        val h = tileSize.rows
+                        val cell = geom.cellAt(pos - grab, columns, w)
+                        val blockers = othersPacked(startId)
+                        val free = blockers.none { p ->
+                            cell.x < p.col + p.cols && p.col < cell.x + w &&
+                                cell.y < p.row + p.rows && p.row < cell.y + h
                         }
+                        pendingSlot = if (free) GridPacker.encodeSlot(cell.x, cell.y) else null
                     } else {
-                        lastTarget = null
-                        // Finger in the trailing empty region below every tile:
-                        // send the dragged tile to the end of the order so it packs
-                        // into the bottom rows. Dense-pack can't strand a gap, but a
-                        // tile *can* be ordered last — this makes "drop it at the
-                        // bottom" reachable (the empty area is otherwise no tile's
-                        // hit-target, so a plain drop there would snap back).
-                        val contentBottom = placements.maxOfOrNull { geom.rect(it).bottom } ?: 0f
-                        if (pos.y > contentBottom) startId?.let { onMoveToEnd(it) }
+                        val placements = placementsNow()
+                        val target = placements.firstOrNull {
+                            it.id != startId && geom.rect(it).contains(pos)
+                        }
+                        if (target != null) {
+                            if (target.id != lastTarget) {
+                                lastTarget = target.id
+                                startId?.let { onReorderTo(it, target.id) }
+                            }
+                        } else {
+                            lastTarget = null
+                            // Finger in the trailing empty region below every tile:
+                            // send the dragged tile to the end of the order so it packs
+                            // into the bottom rows. Dense-pack can't strand a gap, but a
+                            // tile *can* be ordered last — this makes "drop it at the
+                            // bottom" reachable (the empty area is otherwise no tile's
+                            // hit-target, so a plain drop there would snap back).
+                            val contentBottom = placements.maxOfOrNull { geom.rect(it).bottom } ?: 0f
+                            if (pos.y > contentBottom) startId?.let { onMoveToEnd(it) }
+                        }
                     }
                 }
 
@@ -3016,13 +3068,25 @@ private fun Modifier.editDragGesture(
 
             if (!change.pressed) {
                 when {
-                    lifted || draggingId() != null -> onDrop(mergeId)
+                    lifted || draggingId() != null -> {
+                        if (slotOf != null && mergeId == null) {
+                            startId?.let { onStickyDrop(it, pendingSlot) }
+                        }
+                        onDrop(mergeId)
+                    }
                     moved -> Unit
                     // A tap on another tile switches which tile is being edited
-                    // (its corner controls move to it); a tap on open space (no
-                    // tile hit) exits edit mode. Tapping the already-selected tile
-                    // keeps it selected — only open space leaves edit.
-                    startId != null -> if (startId != selectedId()) onSelect(startId)
+                    // (its corner controls move to it); a tap on the
+                    // already-selected tile, or on open space (no tile hit),
+                    // exits edit mode. Consumed so the sibling emptySpaceExit
+                    // gesture (attached to the whole screen) doesn't *also* see
+                    // this same unconsumed release and fire its own exit right
+                    // behind onSelect — which previously undid every tile-switch
+                    // the instant it happened.
+                    startId != null -> {
+                        change.consume()
+                        if (startId != selectedId()) onSelect(startId) else onTapExit()
+                    }
                     else -> onTapExit()
                 }
                 break
@@ -3375,15 +3439,20 @@ private fun FolderTileContent(
     onEnterEdit: () -> Unit,
 ) {
     // Inline iOS-style folder face: a mini-grid of the child app icons. A wide
-    // folder shows a 4×2 grid (more apps); medium/small show 2×2. When
+    // folder shows a 4×2 grid (more apps); a large folder shows 3×3 (even more —
+    // useful once a folder holds a lot of apps); medium/small show 2×2. When
     // [launchEnabled] (only on the roomy 4-column grid) each icon is tappable to
     // launch out of edit mode, and an overflow cell becomes "+N" that opens the
     // overlay; on denser 5/6-column grids the cells are too small to tap, so they
     // are display-only and the whole tile opens the overlay on tap. In edit mode
     // the cells are always inert so the grid-level drag owns the tile.
     val children = tile.children
-    val cols = if (tile.size == TileSize.WIDE) 4 else 2
-    val rows = 2
+    val cols = when (tile.size) {
+        TileSize.WIDE -> 4
+        TileSize.LARGE -> 3
+        else -> 2
+    }
+    val rows = if (tile.size == TileSize.LARGE) 3 else 2
     val maxCells = cols * rows
     val overflow = children.size > maxCells
     val lastIndex = maxCells - 1

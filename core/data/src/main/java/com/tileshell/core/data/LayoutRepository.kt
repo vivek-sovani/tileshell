@@ -50,6 +50,14 @@ class LayoutRepository(
     suspend fun setTileAccent(id: String, accentOverride: String?) =
         dao.updateTileAccent(id, accentOverride)
 
+    /**
+     * Anchor (or, with null, un-anchor) a tile at an absolute grid cell —
+     * windows-phone-style gap-preserving arrangement. No-op in dense mode
+     * (nothing reads gridSlot there).
+     */
+    suspend fun setTileGridSlot(id: String, gridSlot: Int?) =
+        dao.updateTileGridSlot(id, gridSlot)
+
     /** Unpin a top-level tile, removing it (and any folder meta) (FR-3.5). */
     suspend fun removeTile(id: String) = dao.removeTile(id)
 
@@ -89,6 +97,10 @@ class LayoutRepository(
             colorId = result.colorId,
             type = TileEntity.TYPE_FOLDER,
             folderId = result.folderId,
+            // Carry over the target's anchored cell (sticky mode) — the folder
+            // takes the target's spot; the dragged tile's cell (deleted below)
+            // becomes a gap, not something to backfill.
+            gridSlot = target.gridSlot,
         )
         val folder = FolderEntity(id = result.folderId, name = result.name)
         val children = result.children.mapIndexed { index, child ->
@@ -472,6 +484,7 @@ class LayoutRepository(
                 name = row.folder.folder.name,
                 children = children,
                 accentOverride = t.accentOverride,
+                gridSlot = t.gridSlot,
             )
         } else {
             TileModel.App(
@@ -484,6 +497,7 @@ class LayoutRepository(
                 label = t.label,
                 iconKey = t.iconKey,
                 accentOverride = t.accentOverride,
+                gridSlot = t.gridSlot,
             )
         }
     }

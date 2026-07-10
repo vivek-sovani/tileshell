@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.settings.FontStyle
 import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
+import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.WallpaperGradient
@@ -160,6 +161,8 @@ fun PersonalizeSheet(
     onFontStyleChange: (FontStyle) -> Unit,
     columns: Int,
     onColumnsChange: (Int) -> Unit,
+    tilePackMode: TilePackMode,
+    onTilePackModeChange: (TilePackMode) -> Unit,
     onClearPhotos: () -> Unit,
     contactsGranted: Boolean,
     calendarGranted: Boolean,
@@ -351,6 +354,52 @@ fun PersonalizeSheet(
                                 )
                             }
                         }
+                    }
+                }
+            }
+
+            // ---- tile arrangement ----
+            SettingGroup(label = "tile arrangement", tokens.fgDim) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "how the grid closes gaps when a tile is removed or resized",
+                        color = tokens.fgDim,
+                        fontSize = 13.sp,
+                    )
+                    listOf(
+                        TilePackMode.STICKY to Pair("windows phone style", "a gap stays open until you drag a tile into it"),
+                        TilePackMode.DENSE to Pair("auto-arrange", "tiles always slide up to fill any gap"),
+                    ).forEach { (mode, labels) ->
+                        val (title, subtitle) = labels
+                        val selected = tilePackMode == mode
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (selected) accent.copy(alpha = 0.18f) else Color.Transparent)
+                                .border(
+                                    1.dp,
+                                    if (selected) accent else tokens.tileLine,
+                                    RoundedCornerShape(14.dp),
+                                )
+                                .clickable { onTilePackModeChange(mode) }
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(title, color = tokens.fg, fontSize = 14.sp)
+                                Text(subtitle, color = tokens.fgDim, fontSize = 12.sp)
+                            }
+                            if (selected) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(accent),
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(2.dp))
                     }
                 }
             }

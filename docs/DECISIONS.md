@@ -3,6 +3,273 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Sticky mode wasn't actually active until the setting was toggled off and on
+
+User-reported, right after making sticky the fresh-install default: the very
+first time, the grid still behaved like auto-arrange — switching to
+auto-arrange and back to windows phone style is what made it start working.
+
+Root cause: gap preservation only works for tiles that have an anchored
+`gridSlot`; a tile is anchored either by being dragged, or by
+`StartViewModel.seedStickySlots` (previously inlined in `setTilePackMode`),
+which stamps a `gridSlot` onto every currently-*unslotted* tile at its present
+cell. That seeding only ever ran as a side effect of the user flipping the
+setting *off, then back on* — never merely because sticky was already the
+active mode. Since the fresh-install default layout's tiles all start
+`gridSlot = null` and nothing else anchors them, every tile stayed
+unanchored — and `GridPacker.packSticky`'s fallback for a fully-unanchored set
+degenerates to the exact same append-only scan `pack` uses, so gap
+preservation had nothing to hold anyone's position and the grid behaved like
+plain auto-arrange until an explicit toggle round-trip happened to seed
+everything at once.
+
+Fix: `seedStickySlots` extracted out of `setTilePackMode` into its own
+suspend function, called both there (explicit toggle) and once more at
+`StartViewModel` init — right after `repository.seedIfEmpty()` completes, if
+the persisted settings' `tilePackMode` is already `STICKY` (reads
+`repository.tiles.first()` directly rather than the `tiles` StateFlow, which
+may not have an active collector yet during init). Idempotent and cheap to
+re-run every launch (a no-op once nothing is left unslotted), so no "only seed
+once ever" flag was needed. Verified with `pm clear` on an emulator: unpinning
+a tile on a truly fresh install now leaves the gap open on the very first try,
+no toggle round-trip required.
+
+## Windows-phone-style tile arrangement is now the default on a fresh install
+
+User-requested: after verifying sticky mode against a real device, the
+gap-preserving arrangement should be what a new install gets, not an opt-in
+buried in Personalize. `LauncherSettings.tilePackMode` default changed from
+`DENSE` to `STICKY`.
+
+No seeding change was needed: the default layout's tiles all start
+`gridSlot = null` (never anchored) regardless of which mode is active, and
+`GridPacker.packSticky` renders an all-unanchored set identically to
+`GridPacker.pack` (both just scan top-left-first with nothing already
+placed) — so a fresh install looks pixel-identical to the old dense default
+until the user actually unpins, resizes, or drags a tile, at which point gaps
+start being preserved instead of repacked. Verified with `pm clear` on an
+emulator: fresh install renders the same layout as before, and Personalize →
+tile arrangement shows "windows phone style" already selected.
+
+## Sticky-mode resize: shift the growing tile's own column instead of bailing out
+
+User-reported: in windows-phone-style mode, resizing "finds first available
+space on top or bottom" instead of expanding in place — but only for a tile
+on the right with another tile to its left; never for a tile already on the
+left. Also: the full-row-gap collapse wasn't kicking in either.
+
+Root cause: `stickyPushDown` (the collision-resolution helper from the
+earlier push-down fix) bailed out entirely — `if (col + w > columns) return
+emptyMap()` — whenever the tile's *own* anchored column didn't leave enough
+room to the right for the new, wider size. This is the common case for any
+tile not already at column 0: growing to WIDE (which always needs the full
+grid width) overflows from *any* other column. With the bail-out, nothing
+about the resize was computed — no push, no collapse — so the DB just grew
+the tile's size while its column stayed put; `GridPacker.packSticky` then
+found that stored cell literally didn't fit the new footprint and silently
+re-flowed it through its own unanchored-tile fallback (first free cell after
+the bottom row) — which is exactly "finds first available space on top or
+bottom." A tile already at column 0 never overflows this way, so it never hit
+the bug — matching the "only on the right, with a tile on the left" report
+precisely (a tile with nothing to its left is normally the one already at
+column 0).
+
+Fix: replaced the bail-out with an *effective column* — `col.coerceAtMost
+(columns - w)` — that shifts the tile's own left edge just enough to keep the
+new footprint inside the grid, closest to its original position. This
+effective cell (not the stale stored one) now feeds both the push-down
+collision search (so a former left-neighbor now inside the shifted footprint
+gets pushed down like any other collision) and the full-row collapse check,
+and is unconditionally written back as the resized tile's own new cell — not
+just for tiles whose neighbors moved, but also when only its own column
+shifted with no neighbor to push. Old `stickyPushDown(model, nextSize)` (which
+derived col/row from the tile's stored slot) is now `stickyResizeSlots`
+(computes the effective column and orchestrates push-down + collapse
+together) calling a lower-level `stickyPushDown(excludeId, col, row, w, h,
+columns)` that just does collision resolution against an already-decided box.
+
+Verified on an emulator with a clean sticky-mode layout (phone at column 0,
+camera at column 1): resizing camera from small straight to WIDE now shifts
+it to column 0 and pushes phone down to the next row — staying in place and
+displacing its neighbor, instead of jumping to the bottom of the grid.
+
+## Corner-control zones weren't bounded to the selected tile's own rect
+
+User-reported: tapping a *different* tile while editing unreliably fired
+unpin, resize, or the colour picker instead of switching the selection — "many
+times it opens colour palette or resizes or removes the tile." This is
+separate from (and in addition to) the tap-to-switch `change.consume()` fix
+below.
+
+Root cause, in `editDragGesture`'s corner-control hit-test
+(`StartScreen.kt`): each check was a one-sided threshold against the
+*selected* tile's rect edges — e.g. `inUnpin = x <= r.left + zone && y <= r.top
++ zone` — with no matching lower/upper bound tying it to actually being
+*inside* that tile. `x <= r.left + zone` is satisfied by any `x` all the way
+to the left edge of the screen, and `y <= r.top + zone` by any `y` up to the
+top — so a tap anywhere in the quadrant up-and-left of the selected tile's
+top-left corner (however far away, including squarely inside a *different*
+tile) counted as "unpin." Same for resize (down-right quadrant) and colour
+(down-left quadrant). Depending on which tile was selected and where the next
+tap landed relative to it, this could misfire any of the three actions on the
+*previously* selected tile instead of switching to the tapped one.
+
+Fix: each check now first requires `r.contains(down.position)` (the tap must
+actually be inside the selected tile's own rect), so a zone only ever applies
+within its own corner of its own tile, never spilling into a neighbor.
+Verified on an emulator: selected phone, tapped camera right at the shared
+border (a position that used to satisfy phone's resize-zone threshold) — now
+correctly switches the selection to camera instead of resizing phone.
+
+## Sticky mode: a full empty row is never allowed; edit-mode tap-to-exit fix
+
+Two follow-ups from on-device testing of the sticky (gap-preserving) tile
+arrangement (two entries below).
+
+**Full-row-gap collapse.** User-stated invariant: a gap *within* a row (some
+columns empty, others occupied) is the whole point of sticky mode, but a
+**fully empty row** — one no tile's vertical span touches in any column — must
+never persist; anything below it shifts up to close it. New pure
+`GridPacker.collapseEmptyRows(placements)` (unit-tested: no-op when nothing's
+fully empty, leaves a partially-occupied row alone, closes a single or several
+consecutive fully-empty rows, and correctly treats a multi-row tile as
+touching every row it spans) computes, for a given projected set of absolute
+cells, which tiles' rows must decrease and by how much. Wired into every
+sticky-mode mutation that can vacate a row:
+- **Drag-drop** (`StartViewModel.collapseEmptyRowsAfterMove`): the tile's old
+  cell is dropped from the projected set (replaced by its new one) before
+  collapsing, so a row it alone occupied closes immediately.
+- **Resize** (`collapseEmptyRowsAfterResize`): runs after `stickyPushDown`
+  fully converges, over the complete projected layout (resized tile at its new
+  footprint + pushed tiles at their settled cells + everyone else unchanged) —
+  catches a row a pushed tile vacated, and, in principle, could even pull the
+  resized tile itself up if a row above it were empty (shouldn't normally
+  happen if the invariant already held, but the general computation covers it
+  for free rather than special-casing).
+- **Unpin** (`collapseEmptyRowsAfterRemoval`): the removed tile is dropped from
+  the projected set first.
+All three compute the projection *synchronously* from the current `tiles.value`
+before launching any write — avoids a read-after-write race against Room's Flow
+re-emission (which isn't guaranteed to land before the next statement in the
+same coroutine). Merge isn't wired up (dragged tile removal there follows a
+different code path); revisit if it's reported as a gap too.
+
+**Edit-mode tap-to-switch (real fix — see below for the wrong first attempt).**
+User confirmed on-device that tapping a different tile while editing still
+exited edit mode entirely instead of switching the selection to it — the
+`if (startId != selectedId()) onSelect(startId) else onTapExit()` fix (below)
+was necessary but not sufficient. Root cause, found by adding temporary
+`Log.d` calls at the `editDragGesture` release site and in
+`enterEdit`/`exitEdit` and reproducing on-device via `adb shell input tap`:
+`onSelect(startId)` *did* fire correctly, but `exitEdit()` fired immediately
+after it, in the same instant — both for every tile tap, not just the
+already-selected one. Cause: `editDragGesture`'s tap-handling branches never
+called `change.consume()` (only the drag/lift path and the corner-controls
+path did), so the plain-tap release event stayed unconsumed and was *also*
+independently seen by the sibling `emptySpaceExit` gesture (attached higher up
+on the whole screen, which exits edit mode whenever it sees an unconsumed,
+un-moved release — this is exactly how it already knows to stay out of the
+way of the edit-bar and corner controls, which do consume). Fix: consume the
+change whenever `startId != null` (a genuine tile tap, whichever of the two
+outcomes), so `emptySpaceExit` never gets a look at it. Verified end-to-end on
+an emulator via `adb shell input swipe`/`tap` + screenshots: tapping a
+different tile now switches the selection and *stays* in edit mode; tapping
+the same tile (or true empty space) exits, as intended.
+
+**Edit-mode tap-to-exit (first, incomplete attempt).** `editDragGesture`'s tap
+handling already switched the edit selection to another tapped tile, and
+exited edit mode on an open-space tap — but tapping the *already-selected*
+tile did neither (silently no-op, stayed in edit mode). Added
+`else onTapExit()` to also exit on that case — necessary, but this alone
+didn't fix the actually-reported bug (see above), since the real defect was
+the missing `change.consume()`, not the branch structure.
+
+## Tile arrangement: user-selectable dense repack vs. WP-style gap-preserving grid
+
+User-reported after checking a real Windows Phone device: the Start grid's
+dense packing (`GridPacker.pack`, mirroring the HTML prototype's CSS
+`grid-auto-flow: dense`) always repacks every tile toward the top-left the
+instant anything changes — removing a tile, resizing one, changing column
+count — so a gap left behind never stays open. Real WP doesn't do this: each
+tile sits at a fixed cell, and a gap stays empty until the user drags
+something into it. This is a genuine behavioural difference from the prototype
+(which is otherwise the authoritative visual/behavioural reference per
+CLAUDE.md) — the prototype relies on the browser's native dense-grid engine
+for a simplification the real OS doesn't share, so this deliberately deviates
+from it in favour of the verified real-device behaviour.
+
+Rather than replace dense packing outright, added a **user-selectable**
+"tile arrangement" setting (`LauncherSettings.tilePackMode`: `DENSE` default /
+`STICKY`) in Personalize, next to "grid columns" — existing installs see no
+change until they opt in. Scoped to the top-level Start grid only this
+session; folder overlays keep dense packing unconditionally (a much larger,
+separate change — replacing the current modal `FolderOverlay` with real WP's
+inline-expand-in-place folder model — deferred to its own session).
+
+**Data model**: rather than a schema overhaul, added one nullable
+`TileEntity.gridSlot: Int?` (schema v5→v6 migration) encoding an absolute grid
+cell (`row * 1000 + col`, `GridPacker.encodeSlot`/`decodeSlotCol`/
+`decodeSlotRow`) — deliberately independent of the 4/5/6 column-count setting,
+so changing columns can't corrupt a stored cell. `null` means "never
+anchored." The existing `position: Int` (sequential rank, `ORDER BY
+position`) is completely untouched and still drives dense mode and the
+append-order tie-break among never-anchored tiles in sticky mode — no
+migration risk to the existing behaviour.
+
+**`GridPacker.packSticky`**: anchored tiles render exactly at their stored
+cell; unanchored tiles (new pins, or an anchored tile whose cell no longer
+fits after a column-count change) auto-place starting *after* every anchored
+tile's bottom row — never backfilling an earlier gap. This also matches how
+the user confirmed real WP places new tiles: always appended at the bottom,
+never inserted into an existing gap, in *either* mode.
+
+**Ambiguous mechanics resolved WP-faithfully**:
+- **Resize collision (revised twice)**: growing an anchored tile in sticky
+  mode can collide with a neighbor that dense mode would've silently repacked
+  around. Attempt 1 blocked the resize outright on any overlap; user-reported
+  this made growing a tile fail almost everywhere ("only medium to small
+  working"), because a freshly-toggled sticky layout starts fully packed with
+  no gaps. Attempt 2 un-anchored the colliding tile entirely so it floated to
+  the bottom of the grid; user-reported this was also wrong — two adjacent
+  tiles should stay adjacent, not have one flung away. Landed on **push-down**
+  (`StartViewModel.stickyPushDown`): every tile the new, larger footprint would
+  overlap is shifted straight down — same column, to just below whichever
+  fixed tile(s) it now overlaps — cascading to whatever it in turn newly
+  overlaps below (a small fixed-point relaxation loop, bounded by the tile
+  count so it can't spin). Two side-by-side smalls, one resized to medium: the
+  other tile moves one row down, staying directly adjacent below, instead of
+  teleporting to the end of the grid. Only tiles in the affected column band
+  move; everything else on the grid is untouched. Still not real WP's exact
+  reading-order cascade, but keeps neighbors visually adjacent, which is what
+  both reports were actually asking for.
+- **Drag-and-drop**: in sticky mode, `editDragGesture`'s reorder-by-splice
+  mechanic (`onReorderTo`/`onMoveToEnd`) is replaced by "drop the tile at
+  whatever free cell the finger is over" (`onStickyDrop`, computed via the new
+  `GridGeometry.cellAt`); dragging onto another tile's merge zone still merges
+  exactly as before. A drop over an occupied, non-merge-zone cell is invalid
+  and the tile stays where it was (no snap-back animation added — the next
+  recomposition just re-renders it at its unchanged anchored cell).
+- **Merge preserves the anchor**: `LayoutRepository.mergeTiles` now carries
+  `target.gridSlot` into the newly-formed folder tile — otherwise the folder
+  would silently "float" back to an unanchored position after every merge.
+- **Re-enabling sticky mode doesn't discard a prior arrangement**:
+  `StartViewModel.setTilePackMode` only seeds a `gridSlot` for tiles that have
+  *never* been anchored (via `packSticky` around whatever's already anchored),
+  not a blanket re-seed from the current dense layout — so toggling
+  dense→sticky→dense→sticky again preserves whatever the user built in the
+  first sticky session.
+- **Accessibility**: sticky mode hides the "move back/forward" TalkBack custom
+  actions (`canMoveBack`/`canMoveForward` forced false) — they reorder the
+  list-backed sequence, which has no meaning once a tile sits at an
+  independent anchored cell; drag-to-any-free-cell is sticky mode's equivalent
+  gesture, but has no TalkBack-accessible substitute yet (revisit later).
+
+Build + tests green (`GridPackerTest`/`SettingsCodecTest` extended). Verified
+on an emulator: fresh install migrates cleanly (v5→v6, existing layout
+renders unchanged with the setting defaulting to DENSE); app launches with no
+crash. Interactive drag/resize verification in sticky mode is the user's own
+on-device pass before deciding whether to commit.
+
 ## In-app "how to personalize" guide
 
 Not a WP prototype/spec feature — new, ad-hoc, user-reported: several users
