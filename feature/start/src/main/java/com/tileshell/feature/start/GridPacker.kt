@@ -94,6 +94,36 @@ object GridPacker {
     fun decodeSlotRow(slot: Int): Int = slot / SLOT_ROW_STRIDE
 
     /**
+     * Windows-Phone-style inline folder expansion: a purely render-time
+     * transform applied *after* the normal pack/packSticky computation, so it
+     * works identically in either arrangement mode without touching how either
+     * is computed. [expandedId]'s own placement is left exactly where it is
+     * (the caller renders it as a collapse affordance instead of its usual
+     * face); [children] are laid out as their own dense block starting
+     * immediately below it (row = its bottom edge), and every placement at or
+     * below that row shifts down by the block's height to make room. Nothing
+     * here is persisted — collapsing is just calling this with a null/absent
+     * [expandedId] and getting [placements] back unchanged.
+     */
+    fun expandFolderInline(
+        placements: List<TilePlacement>,
+        expandedId: String,
+        children: List<TileSpec>,
+        columns: Int = COLUMNS,
+    ): List<TilePlacement> {
+        val expanded = placements.firstOrNull { it.id == expandedId } ?: return placements
+        if (children.isEmpty()) return placements
+        val insertAtRow = expanded.row + expanded.rows
+        val childPlacements = pack(children, columns)
+        val childRows = rowCount(childPlacements)
+        val shifted = placements.map { p ->
+            if (p.id != expandedId && p.row >= insertAtRow) p.copy(row = p.row + childRows) else p
+        }
+        val offsetChildren = childPlacements.map { it.copy(row = it.row + insertAtRow) }
+        return shifted + offsetChildren
+    }
+
+    /**
      * The sticky (gap-preserving) arrangement allows a gap *within* a row (some
      * columns empty, others occupied) but never a fully empty row — a row no
      * tile's vertical span touches in any column collapses, and every tile below

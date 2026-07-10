@@ -255,8 +255,8 @@ interface LayoutDao {
 
     @Query(
         "UPDATE tiles SET type = '" + TileEntity.TYPE_APP + "', packageName = :packageName, " +
-            "activityName = :activityName, label = :label, iconKey = :iconKey, folderId = NULL " +
-            "WHERE id = :id",
+            "activityName = :activityName, label = :label, iconKey = :iconKey, size = :size, " +
+            "accentOverride = :accentOverride, folderId = NULL WHERE id = :id",
     )
     suspend fun convertFolderTileToApp(
         id: String,
@@ -264,6 +264,8 @@ interface LayoutDao {
         activityName: String,
         label: String?,
         iconKey: String?,
+        size: TileSize,
+        accentOverride: String?,
     )
 
     /**
@@ -320,6 +322,8 @@ interface LayoutDao {
                     activityName = survivor.activityName,
                     label = survivor.label,
                     iconKey = survivor.iconKey,
+                    size = survivor.size,
+                    accentOverride = survivor.accentOverride,
                 )
                 deleteFolderById(folderId) // cascade removes the survivor's child row
             }

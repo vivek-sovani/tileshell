@@ -42,7 +42,7 @@ class MainActivity : ComponentActivity() {
                 override fun handleOnBackPressed() {
                     when {
                         startViewModel.personalizeOpen.value -> startViewModel.closePersonalize()
-                        startViewModel.openFolderId.value != null -> startViewModel.closeFolder()
+                        startViewModel.expandedFolderId.value != null -> startViewModel.collapseFolder()
                         startViewModel.editMode.value -> startViewModel.exitEdit()
                         startViewModel.isAppList.value -> startViewModel.goHome()
                     }

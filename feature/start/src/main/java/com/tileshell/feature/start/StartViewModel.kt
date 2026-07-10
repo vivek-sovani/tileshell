@@ -134,9 +134,15 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedTileId = MutableStateFlow<String?>(null)
     val selectedTileId: StateFlow<String?> = _selectedTileId.asStateFlow()
 
-    /** The id of the folder whose full-screen overlay is open (FR-4), or null. */
-    private val _openFolderId = MutableStateFlow<String?>(null)
-    val openFolderId: StateFlow<String?> = _openFolderId.asStateFlow()
+    /**
+     * The id of the folder currently expanded inline on Start (FR-4, WP-style:
+     * the folder tile becomes an up-arrow placeholder and its children appear
+     * as extra rows right below it, pushing everything under it down), or
+     * null. Only one at a time — expanding a different folder collapses this
+     * one first.
+     */
+    private val _expandedFolderId = MutableStateFlow<String?>(null)
+    val expandedFolderId: StateFlow<String?> = _expandedFolderId.asStateFlow()
 
     /** True while the personalize sheet is open (edit bar → personalize, FR-7). */
     private val _personalizeOpen = MutableStateFlow(false)
@@ -260,19 +266,19 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Open the full-screen overlay for a folder tile (FR-4). Disables the pager
-     * swipe while it is up.
+     * Toggle a folder's inline expansion (FR-4, WP-style): tapping a collapsed
+     * folder expands it (and collapses whatever else was expanded); tapping
+     * the expanded placeholder again collapses it. Unlike the previous modal
+     * overlay, this doesn't touch the pager swipe — there's no full-screen
+     * surface to protect, so only edit mode gates that (as usual).
      */
-    fun openFolder(id: String) {
-        _openFolderId.value = id
-        _swipeEnabled.value = false
+    fun toggleFolder(id: String) {
+        _expandedFolderId.value = if (_expandedFolderId.value == id) null else id
     }
 
-    /** Close the folder overlay and re-enable the swipe. Safe when none is open. */
-    fun closeFolder() {
-        if (_openFolderId.value == null) return
-        _openFolderId.value = null
-        _swipeEnabled.value = true
+    /** Collapse whichever folder is expanded. Safe when none is. */
+    fun collapseFolder() {
+        _expandedFolderId.value = null
     }
 
     /** Open the personalize sheet (FR-7). Reachable from the edit bar. */
@@ -577,35 +583,26 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Anchor a tile at a grid cell after a sticky-mode drag-drop (FR-3.2 WP
-     * variant). A full row gap is never allowed: if leaving the tile's old
-     * cell empties out a whole row, [collapseEmptyRowsAfterMove] shifts
-     * everything below it up to close the row.
+     * variant). Dropping onto a cell that's already occupied pushes the
+     * occupant(s) straight down to make room — the same push-down +
+     * empty-row-collapse [stickySlotsForPlacement] already does for a resize
+     * — rather than rejecting the drop or leaving two tiles overlapping.
+     * Real auto-arrange (a full dense repack) never runs: only the tiles the
+     * dropped footprint actually displaces move, cascading the minimum
+     * amount needed.
      */
     fun setTileGridSlot(id: String, slot: Int?) {
         if (slot == null) return
-        val finalSlots = collapseEmptyRowsAfterMove(id, slot)
+        val model = tiles.value.firstOrNull { it.id == id } ?: return
+        val finalSlots = stickySlotsForPlacement(
+            movedId = id,
+            size = model.size,
+            targetCol = GridPacker.decodeSlotCol(slot),
+            targetRow = GridPacker.decodeSlotRow(slot),
+        )
         viewModelScope.launch(writeContext) {
             finalSlots.forEach { (tid, s) -> repository.setTileGridSlot(tid, s) }
         }
-    }
-
-    /**
-     * Every anchored tile's cell after [movedId] takes on [movedSlot] (all
-     * others keep their current cell), with any resulting fully-empty row
-     * collapsed ([GridPacker.collapseEmptyRows]) — the tiles whose row must
-     * actually change, including [movedId] itself. Empty (not a map entry) for
-     * a tile that doesn't move. Dense mode never calls this.
-     */
-    private fun collapseEmptyRowsAfterMove(movedId: String, movedSlot: Int): Map<String, Int> {
-        val current = tiles.value
-        val projected = current.mapNotNull { t ->
-            val slot = if (t.id == movedId) movedSlot else t.gridSlot
-            slot?.let {
-                TilePlacement(t.id, t.size, GridPacker.decodeSlotCol(it), GridPacker.decodeSlotRow(it))
-            }
-        }
-        val collapse = GridPacker.collapseEmptyRows(projected)
-        return if (movedId in collapse) collapse else collapse + (movedId to movedSlot)
     }
 
     /** Subscribe a custom RSS/Atom feed and refresh so its articles appear soon. */
@@ -687,10 +684,21 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Turn a folder into a widget stack in one shot: every child resized to
-     * [size] (WIDE or LARGE), the folder tile matching.
+     * [size] (WIDE or LARGE), the folder tile matching. In sticky mode this
+     * grows the folder tile's own footprint exactly like [resize] does, so it
+     * needs the same anchored-slot handling (column shift + push-down +
+     * empty-row collapse) — otherwise the folder's stale anchored cell (sized
+     * for its old, smaller footprint) no longer fits the new size and
+     * [GridPacker.packSticky] silently re-flows it to the bottom of the grid,
+     * same "teleports away" bug [stickyResizeSlots] was written to prevent.
      */
     fun convertFolderToStack(folderId: String, size: TileSize) {
-        viewModelScope.launch(writeContext) { repository.convertFolderToStack(folderId, size) }
+        val model = tiles.value.firstOrNull { it.id == folderId }
+        val finalSlots = if (model != null) stickyResizeSlots(model, size) else emptyMap()
+        viewModelScope.launch(writeContext) {
+            finalSlots.forEach { (movedId, slot) -> repository.setTileGridSlot(movedId, slot) }
+            repository.convertFolderToStack(folderId, size)
+        }
     }
 
     /** Set or clear a folder child's own accent override (null = follow global, FR-7). */
@@ -706,8 +714,9 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Home pressed on Start: closes the folder overlay (FR-4), leaves edit mode
-     * (FR-3.1) and asks the screen to collapse the pager and scroll to the top.
+     * Home pressed on Start: collapses any expanded folder (FR-4), leaves edit
+     * mode (FR-3.1) and asks the screen to collapse the pager and scroll to
+     * the top.
      */
     fun goHome() {
         closePersonalize()
@@ -717,7 +726,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         closeHiddenApps()
         closeBackup()
         closeEdgeStrip()
-        closeFolder()
+        collapseFolder()
         closeSearch()
         exitEdit()
         _homeRequests.tryEmit(Unit)
@@ -804,32 +813,53 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private fun stickyResizeSlots(model: TileModel, nextSize: TileSize): Map<String, Int> {
         if (settings.value.tilePackMode != TilePackMode.STICKY) return emptyMap()
         val ownSlot = model.gridSlot ?: return emptyMap()
-        val columns = settings.value.columns
-        val row = GridPacker.decodeSlotRow(ownSlot)
-        val w = nextSize.cols.coerceAtMost(columns)
-        val h = nextSize.rows
-        val effectiveCol = GridPacker.decodeSlotCol(ownSlot).coerceAtMost((columns - w).coerceAtLeast(0))
-        val effectiveSlot = GridPacker.encodeSlot(effectiveCol, row)
+        return stickySlotsForPlacement(
+            movedId = model.id,
+            size = nextSize,
+            targetCol = GridPacker.decodeSlotCol(ownSlot),
+            targetRow = GridPacker.decodeSlotRow(ownSlot),
+        )
+    }
 
-        val pushDown = stickyPushDown(model.id, effectiveCol, row, w, h, columns)
+    /**
+     * All grid-cell writes sticky mode needs to place [movedId] (already/about
+     * to be sized [size]) at ([targetCol], [targetRow]): the tile's own cell
+     * (column clamped so its footprint stays inside the grid), every other
+     * anchored tile the resulting footprint displaces — pushed straight down,
+     * cascading until nothing overlaps ([stickyPushDown]) — and any
+     * fully-empty row that leaves behind, collapsed. Shared by
+     * [stickyResizeSlots] (grows a tile in place, so [targetCol]/[targetRow]
+     * come from the tile's own current cell) and [setTileGridSlot] (moves a
+     * tile to wherever a drag-drop released it, including on top of an
+     * already-occupied cell — the occupant gets pushed down here exactly like
+     * a resize's neighbor would).
+     */
+    private fun stickySlotsForPlacement(movedId: String, size: TileSize, targetCol: Int, targetRow: Int): Map<String, Int> {
+        val columns = settings.value.columns
+        val w = size.cols.coerceAtMost(columns)
+        val h = size.rows
+        val effectiveCol = targetCol.coerceIn(0, (columns - w).coerceAtLeast(0))
+        val effectiveSlot = GridPacker.encodeSlot(effectiveCol, targetRow)
+
+        val pushDown = stickyPushDown(movedId, effectiveCol, targetRow, w, h, columns)
         // A full row gap is never allowed: pushing neighbors down (or shifting
         // this tile's own column) can leave a row fully empty, so close it,
         // shifting everything below up (may further adjust the just-pushed
-        // tiles, and even the resized tile itself if there's headroom to
+        // tiles, and even the moved/resized tile itself if there's headroom to
         // reclaim above it).
         val projected = tiles.value.mapNotNull { t ->
-            val (size, slot) = when {
-                t.id == model.id -> nextSize to effectiveSlot
+            val (sz, slot) = when {
+                t.id == movedId -> size to effectiveSlot
                 pushDown.containsKey(t.id) -> t.size to pushDown.getValue(t.id)
                 else -> t.size to (t.gridSlot ?: return@mapNotNull null)
             }
-            TilePlacement(t.id, size, GridPacker.decodeSlotCol(slot), GridPacker.decodeSlotRow(slot))
+            TilePlacement(t.id, sz, GridPacker.decodeSlotCol(slot), GridPacker.decodeSlotRow(slot))
         }
         val collapse = GridPacker.collapseEmptyRows(projected)
-        // The resized tile's own cell always needs writing — its column may
-        // have shifted even when collapse found no row to close.
-        val ownFinal = collapse[model.id] ?: effectiveSlot
-        return pushDown + collapse + (model.id to ownFinal)
+        // The moved/resized tile's own cell always needs writing — its column
+        // may have shifted even when collapse found no row to close.
+        val ownFinal = collapse[movedId] ?: effectiveSlot
+        return pushDown + collapse + (movedId to ownFinal)
     }
 
     /**

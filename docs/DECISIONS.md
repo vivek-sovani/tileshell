@@ -3,6 +3,70 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Folders: inline expand-in-place replaces the modal FolderOverlay
+
+User-requested follow-up to the sticky-mode session (deliberately deferred
+earlier, see "Tile arrangement" below): tapping a folder no longer opens a
+full-screen overlay. It expands in place on the Start grid — the folder tile
+becomes an up-arrow placeholder at its existing cell, and its children appear
+as extra rows directly below it, pushing everything further down out of the
+way. Tapping the placeholder again collapses it. Real WP doesn't literally
+have this (WP's Start groups are always-visible sections, not collapsible
+tiles), but it's what the user asked for and it fits this launcher's grid
+model better than a modal ever did.
+
+**Mechanism — render-time only, nothing persisted.** `StartViewModel.
+expandedFolderId` (accordion: expanding one collapses whatever else was open)
+is the only new state. Children are given synthetic ids
+(`folderChildTileId(folderId, rowId)`, format `folderchild:<folderId>:
+<rowId>`, parsed back with `parseFolderChildId`) and rendered via a real
+[`FolderChild.asTileModel`] stand-in `TileModel.App` — this is what lets a
+folder child flow through the *exact* same `TileView`/`AppTileContent`
+rendering, corner-control zones, and accessibility semantics as any pinned
+app, with no parallel code path to maintain. New pure `GridPacker.
+expandFolderInline(placements, expandedId, children, columns)` runs *after*
+the normal `pack`/`packSticky` computation (as a `postProcess` hook added to
+both `DenseTileGrid` and `editDragGesture`): the expanded folder's own
+placement is left untouched, its children are packed as their own local dense
+block starting at its bottom row, and everything at or below that row shifts
+down by the block's height. Because this only transforms the *output*
+placements, it works identically regardless of whether dense or sticky mode
+produced them, and reverses for free on collapse (no gridSlot/position is
+ever written for the expansion itself) — verified with `GridPackerTest` cases
+for "nothing above moves," "only what's strictly below shifts," and "children
+land right after."
+
+**Editing scoped to what's cheap and safe, not full parity.** Resize, the
+colour picker, and pull-back-to-Start (unpin) all route through
+`folderChildRef(id)` (parses a synthetic id back to its real `FolderChild`) at
+the exact three points that already existed for top-level tiles —
+`editDragGesture`'s corner-zone taps, its TalkBack-accessibility twin, and the
+colour-picker's `onPick`. All three are pure "act on this one id" operations,
+so they're safe to enable immediately. **Deliberately deferred**: drag-to-
+reorder within an expanded section, rename, and the "make stack" chip. The
+existing `order: List<String>` (top-level ids only, used for `reorderTiles`
+splicing) never contains synthetic child ids by design, so a drag lift on a
+child harmlessly no-ops (visually follows the finger, then snaps back on
+release since nothing in `order` changed) rather than corrupting anything —
+correct default behaviour, not a bug, but not full parity with the old
+overlay's in-place reorder either. Revisit if this is reported as a gap.
+Merging is disabled outright (`allowMerge = expandedFolderId == null`) while
+any folder is expanded, since a folder child is never a valid merge
+participant and without the guard a drag hovering near one would show a
+confusing "merge target" highlight for a merge that would silently no-op.
+
+**Verified on an emulator** via both a visual screenshot and cross-checked
+`uiautomator dump` accessibility-tree snapshots (bounds before/after): tapping
+a 3-child "social" folder correctly renders the up-arrow placeholder at the
+folder's unchanged cell, with two children appearing in the row immediately
+below (third off-screen) and unrelated neighbor tiles undisturbed; tapping the
+placeholder again correctly removes the children and returns to the
+collapsed layout, confirmed by both the screenshot and the accessibility
+dump matching the pre-expansion state exactly. `FolderOverlay`,
+`StackModeChip`, and `FolderTitleEditor` (the entire modal + its exclusive
+helpers) are deleted outright, not left dead. Build + tests green (304 total,
+`GridPackerTest` extended for `expandFolderInline`).
+
 ## Sticky mode wasn't actually active until the setting was toggled off and on
 
 User-reported, right after making sticky the fresh-install default: the very
@@ -2553,3 +2617,44 @@ duplicating the same boolean in three places. No schema change (`TileSize.LARGE`
 no migration. Widget stacks are unaffected structurally (still "every member uniformly WIDE or
 LARGE"), but merging two LARGE tiles into a stack — and the stack keeping its 3×3 footprint — now
 works the same way regardless of the current column count, since nothing ever demotes it back down.
+
+## Sticky-mode drag-drop onto an occupied cell pushes it down, instead of rejecting the drop
+
+User-requested, checked against real Windows Phone behaviour: dropping a tile onto a cell that
+already holds another tile used to be a no-op — `editDragGesture` only ever set `pendingSlot` when
+the target cell was entirely free (`blockers.none { ... overlap ... }`), so landing on an occupied
+tile just snapped the drag back to its start, and the only way to actually place a tile there was
+to first find a genuinely empty cell. Real WP instead makes room: dropping onto an occupied spot
+pushes the occupant down, exactly like growing a tile via resize already displaces a neighbor
+(`StartViewModel.stickyResizeSlots`/`stickyPushDown`, see "Tile arrangement: user-selectable dense
+repack vs. WP-style gap-preserving grid" above) — it must not, however, turn into a full
+`GridPacker.pack`-style auto-arrange repack of the whole grid, which is the behaviour sticky mode
+exists to avoid in the first place.
+
+Fixed by reusing the resize push-down machinery for a plain move instead of inventing a second
+mechanism. `editDragGesture` (`StartScreen.kt`) no longer computes a `free` check at all — the
+sticky-mode branch always sets `pendingSlot` to whatever cell the finger is over, occupied or not.
+`StartViewModel.stickyResizeSlots`'s push-down + empty-row-collapse body was extracted into a new
+shared `stickySlotsForPlacement(movedId, size, targetCol, targetRow)`: the tile's own cell (column
+clamped to stay in-grid), every anchored tile the resulting footprint displaces (`stickyPushDown`,
+unchanged — straight down, same column, cascading until nothing overlaps), and
+`GridPacker.collapseEmptyRows` over the result so a push can never leave a fully-empty row behind.
+`stickyResizeSlots` now just calls it with the tile's *own* current cell as the target (a resize
+never changes position, only size); `setTileGridSlot` (the drag-drop write path) calls it with the
+cell the drag released over as the target — the only difference between the two call sites is where
+the target cell comes from, so the actual displacement logic is identical and no longer duplicated
+in a resize-only place and a would-be drop-only place. `setTileGridSlot`'s old
+`collapseEmptyRowsAfterMove` helper (which only ever repositioned the *dragged* tile, with no
+push-down — silently overlapping two tiles if the target was occupied) is deleted outright, replaced
+by this shared helper.
+
+Only the tiles a placement genuinely displaces ever move — a resize/drop that lands somewhere with
+no neighbors in the way still touches nothing else, and unrelated tiles (folders, tiles in the other
+column, tiles above the target) are provably untouched since `stickyPushDown` only walks tiles whose
+box overlaps the moved footprint. Verified on an emulator (`adb shell input swipe` to drag one
+medium tile onto another's cell, plus `uiautomator dump` bounds checks): the dropped tile lands
+exactly where released, the tile that was there cascades down just far enough to clear it (and, when
+a further tile was already sitting in the way, that one shifts the minimum needed too), no two tiles
+end up overlapping, and no fully-empty row is left standing. A separate drop onto a genuinely empty
+cell (the pre-existing case) is unaffected — `stickyPushDown` finds nothing to displace and the tile
+just lands there.

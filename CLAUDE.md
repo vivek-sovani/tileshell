@@ -36,6 +36,67 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v1.9 — sticky-mode drag-drop onto an occupied cell now pushes it
+  down instead of rejecting the drop.** Direct user follow-up on the sticky
+  (gap-preserving) tile arrangement below: dropping a dragged tile onto a cell
+  that already held another tile used to silently snap back to the drag's
+  start (`editDragGesture` only ever set a placement when the target cell was
+  entirely free) — the only way to actually place a tile somewhere occupied
+  was to first clear a free cell by hand. Real WP makes room instead: the
+  occupant is pushed down, the same way growing a tile via resize already
+  displaces a neighbor, but this must never turn into a full dense-repack
+  auto-arrange (the whole point of sticky mode is that unrelated tiles never
+  move). Fixed by extracting `StartViewModel.stickyResizeSlots`'s push-down +
+  empty-row-collapse body into a shared `stickySlotsForPlacement(movedId,
+  size, targetCol, targetRow)`, called both by resize (target = the tile's own
+  current cell) and by the drag-drop write path, `setTileGridSlot` (target =
+  wherever the drag was released — replacing the old `collapseEmptyRowsAfterMove`,
+  which repositioned only the dragged tile with no push-down, silently
+  overlapping two tiles if the target was occupied). `editDragGesture` no
+  longer computes a "is the cell free" check at all — it always reports the
+  cell under the finger; occupied-or-not is resolved entirely on the write
+  side. Verified on an emulator (`adb shell input swipe` drag one medium tile
+  onto another's cell + `uiautomator dump` bounds checks): the dropped tile
+  lands exactly where released, the displaced tile(s) cascade down the minimum
+  amount needed, no overlaps, no fully-empty row left standing, and unrelated
+  tiles (folder, clock, tiles in the other column) are untouched. Dropping
+  onto a genuinely free cell is unaffected. See DECISIONS "Sticky-mode
+  drag-drop onto an occupied cell pushes it down, instead of rejecting the
+  drop." Build + tests green.
+- **Post-v1.9 — folders: inline expand-in-place replaces the modal
+  FolderOverlay.** Deliberately
+  deferred during the tile-arrangement session below ("we will do gap
+  preserving grid first, folders later"); user requested it as a direct
+  follow-up. Tapping a folder no longer opens a full-screen overlay — it
+  expands in place on the Start grid: the folder tile becomes an up-arrow
+  placeholder at its existing cell, its children appear as extra rows directly
+  below it (pushing everything further down to make room), and tapping the
+  placeholder again collapses it. New pure `GridPacker.expandFolderInline`
+  applies this as a render-time-only transform *after* the normal
+  `pack`/`packSticky` computation (added as an optional `postProcess` hook to
+  both `DenseTileGrid` and `editDragGesture`) — the expanded folder's own
+  placement never moves, its children pack as their own local block right
+  below it, everything at/below that row shifts down, and nothing is
+  persisted, so it works identically in dense or sticky mode and collapsing
+  is free. Children get synthetic ids (`folderChildTileId`) and render as a
+  stand-in `TileModel.App` (`FolderChild.asTileModel`), so they flow through
+  the *exact* same `TileView`/`AppTileContent` rendering, corner controls, and
+  accessibility semantics as any pinned app — no parallel rendering path.
+  Resize, colour-picker, and pull-out-to-Start all work on expanded children
+  (routed via a new `folderChildRef(id)` lookup at the three spots that
+  already existed for top-level tiles); merging is disabled while any folder
+  is expanded (a child is never a valid merge target). **Deliberately not
+  carried over**: drag-to-reorder within an expanded section, rename, and the
+  "make stack" chip — the existing `order` list never contains synthetic child
+  ids, so a drag-lift on a child harmlessly snaps back rather than corrupting
+  anything, but it's not full parity with the old overlay yet. `FolderOverlay`
+  + its exclusive helpers (`StackModeChip`, `FolderTitleEditor`) are deleted
+  outright. Verified on an emulator via both a screenshot and cross-checked
+  `uiautomator dump` accessibility-tree snapshots: expand shows the up-arrow +
+  children inline with neighbors undisturbed, collapse cleanly reverts (dump
+  matches the pre-expansion state exactly), no crashes. See DECISIONS "Folders:
+  inline expand-in-place replaces the modal FolderOverlay" for the full
+  mechanism. Build + tests green (`GridPackerTest` extended, 304 total).
 - **Post-v1.9 — tile arrangement: dense repack vs. WP-style gap-preserving grid
   (user-selectable, awaiting on-device verification before commit).** User
   checked a real Windows Phone device: unlike this launcher's always-repack
@@ -135,8 +196,8 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   device for real-hardware testing (required uninstalling a differently-signed
   prior build first, with the user's explicit go-ahead, since Android won't
   update over a mismatched signature — wiped that device's existing layout).
-  **Not yet committed** — the user is verifying drag/resize/merge
-  interactively in the sticky mode before deciding whether to commit and push.
+  **Committed and pushed** (`feat(start): windows-phone-style gap-preserving
+  tile arrangement`).
 - **v1.9.0 (versionCode 100) — glass tiles now tint by their own accent + wallpaper blend
   retuned.** Follow-up in the same pre-release polish pass, after on-device testing of the
   light-theme wallpaper fix below turned up two more issues. (1) **Wallpaper blend was too

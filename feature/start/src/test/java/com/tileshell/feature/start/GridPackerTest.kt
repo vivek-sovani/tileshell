@@ -257,4 +257,81 @@ class GridPackerTest {
         }
         assertEquals(40, p.size)
     }
+
+    // ---- inline folder expansion -------------------------------------------
+
+    @Test
+    fun `expanding leaves the folder's own placement untouched`() {
+        val placements = GridPacker.pack(specs(TileSize.MEDIUM, TileSize.MEDIUM))
+        val folder = placements[0]
+        val expanded = GridPacker.expandFolderInline(
+            placements, folder.id, listOf(TileSpec("child0", TileSize.SMALL)),
+        )
+        assertEquals(folder, expanded.first { it.id == folder.id })
+    }
+
+    @Test
+    fun `expanding inserts children right below the folder and pushes what is strictly below down`() {
+        // t0 (medium, rows 0-1, col 0), t1 (medium, rows 0-1, col 2 — beside
+        // t0, same rows), t2 (medium, rows 2-3, col 0 — strictly below t0).
+        // Expanding t0 with a 1-row child block must push t2 down by 1 row but
+        // leave t1 (which never overlapped the inserted rows) untouched.
+        val placements = GridPacker.pack(specs(TileSize.MEDIUM, TileSize.MEDIUM, TileSize.MEDIUM))
+        val expanded = GridPacker.expandFolderInline(
+            placements, "t0",
+            listOf(TileSpec("child0", TileSize.SMALL), TileSpec("child1", TileSize.SMALL)),
+        )
+        val t1 = expanded.first { it.id == "t1" }
+        assertEquals(0, t1.row) // beside the folder, never touched the inserted rows
+        val t2 = expanded.first { it.id == "t2" }
+        assertEquals(3, t2.row) // was row 2, pushed down by the 1-row child block
+        val child0 = expanded.first { it.id == "child0" }
+        assertEquals(2, child0.row) // right below the medium folder (rows 0-1)
+        assertEquals(0, child0.col)
+    }
+
+    @Test
+    fun `nothing above the folder moves when it expands`() {
+        val placements = GridPacker.pack(specs(TileSize.SMALL, TileSize.MEDIUM))
+        val expanded = GridPacker.expandFolderInline(
+            placements, "t1", listOf(TileSpec("child0", TileSize.SMALL)),
+        )
+        val t0 = expanded.first { it.id == "t0" }
+        assertEquals(0, t0.row)
+        assertEquals(0, t0.col)
+    }
+
+    @Test
+    fun `collapsing (no children) is a no-op`() {
+        val placements = GridPacker.pack(specs(TileSize.MEDIUM, TileSize.MEDIUM))
+        val expanded = GridPacker.expandFolderInline(placements, "t0", emptyList())
+        assertEquals(placements, expanded)
+    }
+
+    @Test
+    fun `expanding an unknown id is a no-op`() {
+        val placements = GridPacker.pack(specs(TileSize.MEDIUM))
+        val expanded = GridPacker.expandFolderInline(
+            placements, "does-not-exist", listOf(TileSpec("child0", TileSize.SMALL)),
+        )
+        assertEquals(placements, expanded)
+    }
+
+    @Test
+    fun `expanded layout never overlaps`() {
+        val placements = GridPacker.pack(demoTiles(20))
+        val children = List(9) { TileSpec("child$it", TileSize.SMALL) }
+        val expanded = GridPacker.expandFolderInline(placements, "t5", children)
+        val rows = GridPacker.rowCount(expanded)
+        val occupied = Array(rows) { BooleanArray(GridPacker.COLUMNS) }
+        for (p in expanded) {
+            for (r in p.row until p.row + p.rows) {
+                for (c in p.col until p.col + p.cols) {
+                    assertFalse("tiles overlap at ($c,$r)", occupied[r][c])
+                    occupied[r][c] = true
+                }
+            }
+        }
+        assertEquals(placements.size + children.size, expanded.size)
+    }
 }
