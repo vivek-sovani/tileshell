@@ -142,6 +142,18 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
+## Release notes (v2.2.0)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 2.2.0
+
+• New: folders open in place on the Start screen — tap a folder to expand its apps right where it sits, tap again to collapse; no more separate folder screen
+• New: Windows Phone-style tile arrangement (Personalize → tile arrangement) — gaps stay open where a tile was, instead of everything sliding to fill it
+• Fixed: dragging a tile onto another now pushes it aside to make room, instead of snapping back
+```
+
 ## Release notes (v2.1.3)
 
 *Same content as 2.1.2 below — that upload failed on the Play Console, re-cut under a new version code with no functional change.*

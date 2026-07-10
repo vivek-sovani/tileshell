@@ -101,8 +101,16 @@ android {
         //   header unified with the other feed sections).
         // v2.1.3 = 213 (no functional change — 2.1.2's Play Console upload failed;
         //   re-cut under a new version code).
-        versionCode = 213
-        versionName = "2.1.3"
+        // v2.2.0 = 220 (folders: inline expand-in-place replaces the modal FolderOverlay;
+        //   Windows-Phone-style gap-preserving "sticky" tile arrangement (user-selectable,
+        //   now the fresh-install default) — a removed/resized tile's gap stays open
+        //   instead of the grid always repacking; dragging a tile onto an occupied cell
+        //   now pushes the occupant down to make room instead of rejecting the drop;
+        //   Accessibility API prominent-disclosure fix for a Play Console policy rejection
+        //   — itemizes all data TileShell collects, not just the accessibility service's
+        //   own no-op data use, and narrows the service's declared event-type scope).
+        versionCode = 220
+        versionName = "2.2.0"
     }
 
     if (keystoreFile.exists()) {
