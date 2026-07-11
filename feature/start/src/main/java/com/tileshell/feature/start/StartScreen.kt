@@ -202,6 +202,7 @@ import com.tileshell.feature.personalize.PersonalizeGuideSheet
 import com.tileshell.feature.personalize.PersonalizeSheet
 import com.tileshell.feature.system.AppUpdateState
 import com.tileshell.feature.system.rememberAppUpdateState
+import com.tileshell.feature.system.rememberDefaultLauncherState
 import com.tileshell.core.data.settings.FontStyle
 import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
@@ -284,6 +285,7 @@ fun StartScreen(
     val contactsGranted = rememberPermissionGranted(android.Manifest.permission.READ_CONTACTS)
     val calendarGranted = rememberPermissionGranted(android.Manifest.permission.READ_CALENDAR)
     val locationGranted = rememberPermissionGranted(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+    val (isDefaultLauncher, onSetDefaultLauncher) = rememberDefaultLauncherState()
     val (updateState, onUpdateAction) = rememberAppUpdateState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -775,8 +777,16 @@ fun StartScreen(
                     onMakeStack = { folderId, size -> viewModel.convertFolderToStack(folderId, size) },
                     onChevron = { settleTo(1f) },
                     onEnterEdit = { id ->
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        viewModel.enterEdit(id)
+                        if (settings.lockLayout) {
+                            Toast.makeText(
+                                context,
+                                "layout is locked — unlock it in personalize to edit",
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        } else {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            viewModel.enterEdit(id)
+                        }
                     },
                     // In-edit tap on another tile switches the selection (no
                     // long-press haptic — it's a light tap, not a fresh lift).
@@ -1076,6 +1086,8 @@ fun StartScreen(
             batteryOptimizationExempt = batteryExempt,
             batteryGuidanceNote = OemBatteryGuard.guidanceNote(),
             onBatteryExemption = { OemBatteryGuard.requestExemption(context) },
+            isDefaultLauncher = isDefaultLauncher,
+            onSetDefaultLauncher = onSetDefaultLauncher,
             cornerRadius = settings.cornerRadius,
             onCornerRadiusChange = viewModel::setCornerRadius,
             tileGap = settings.tileGap,
@@ -1090,6 +1102,8 @@ fun StartScreen(
             onColumnsChange = viewModel::setColumns,
             tilePackMode = settings.tilePackMode,
             onTilePackModeChange = viewModel::setTilePackMode,
+            lockLayout = settings.lockLayout,
+            onLockLayoutChange = viewModel::setLockLayout,
             onAbout = viewModel::openAbout,
             onPersonalizeGuide = viewModel::openPersonalizeGuide,
             onFolders = viewModel::openFolders,
@@ -1427,6 +1441,16 @@ private fun StartPage(
     var mergeTargetId by remember { mutableStateOf<String?>(null) }
     // Tile whose accent-colour picker is open (edit-mode colour dot tapped), or null.
     var colorPickerFor by remember { mutableStateOf<String?>(null) }
+    // Sticky-mode drag preview: id -> live push-down cell, recomputed on every
+    // pointer move so the tiles a drop would displace visibly slide out of the
+    // way *during* the drag (dense mode already got this for free via `order`
+    // mutation; sticky mode's real placement only ever lived in the DB, so
+    // nothing reflowed until release). Cleared once the underlying tile data
+    // changes — i.e. right after a drop's DB write lands — since by then the
+    // real gridSlot values already match what the preview showed, so clearing
+    // it causes no visible jump.
+    var stickyPreview by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
+    LaunchedEffect(byId) { stickyPreview = emptyMap() }
     // Reconcile the working order with the persisted layout: keep the existing
     // relative order of surviving ids, drop removed ones, append new ones in
     // persisted order. This preserves a just-dropped reorder (the async DB write
@@ -1511,9 +1535,12 @@ private fun StartPage(
         }
     // Memoized for the same reason as expandTransform above — a fresh lambda
     // every recomposition would defeat DenseTileGrid's own `remember` around
-    // the (non-trivial) sticky-pack computation.
+    // the (non-trivial) sticky-pack computation. A live drag's push-down
+    // preview (stickyPreview) takes priority over the persisted cell so
+    // other tiles visibly slide out of the way while the finger is still
+    // down, not just after the drop commits.
     val slotOf: ((String) -> Int?)? = remember(byId, sticky) {
-        if (sticky) { id: String -> byId[id]?.gridSlot } else null
+        if (sticky) { id: String -> stickyPreview[id] ?: byId[id]?.gridSlot } else null
     }
     // Resolves a synthetic child id back to its folder id + real FolderChild,
     // for routing unpin/resize/colour to the folder-child ViewModel calls
@@ -1680,6 +1707,7 @@ private fun StartPage(
                 edgeZonePx = with(density) { 64.dp.toPx() },
                 slotOf = slotOf,
                 onStickyDrop = { id, slot -> if (slot != null) onSetTileSlot(id, slot) },
+                onStickyPreview = { stickyPreview = it },
             )
 
             DenseTileGrid(
@@ -1687,6 +1715,7 @@ private fun StartPage(
                 columns = columns,
                 gapPx = tileGapPx,
                 slotOf = slotOf,
+                slotOfKey = stickyPreview,
                 postProcess = expandTransform,
                 modifier = Modifier.fillMaxWidth().then(editDrag),
             ) { spec, slot, sizePx ->
@@ -2859,6 +2888,11 @@ private fun Modifier.editDragGesture(
     // dense-repack behaviour, unchanged for every existing caller.
     slotOf: ((String) -> Int?)? = null,
     onStickyDrop: (dragId: String, slot: Int?) -> Unit = { _, _ -> },
+    // Live push-down preview while a sticky-mode drag is in progress — called
+    // with every tile that would be displaced (plus the dragged tile's own
+    // resolved cell) each time the hovered cell changes, and with an empty
+    // map when a merge is entered (no push-down applies while merging).
+    onStickyPreview: (Map<String, Int>) -> Unit = {},
     // Inline folder expansion (GridPacker.expandFolderInline) applied after the
     // normal pack/packSticky computation — null for every caller that doesn't
     // support expansion (unchanged behaviour).
@@ -3028,22 +3062,38 @@ private fun Modifier.editDragGesture(
                         mergeId = hovered.id
                         onMergeTarget(hovered.id)
                         onMergeMode(startId)
+                        // No push-down preview while merging — the drop won't
+                        // land in a grid cell at all, so nothing should look
+                        // displaced.
+                        if (slotOf != null) onStickyPreview(emptyMap())
                     }
                 } else {
                     if (mergeId != null) { mergeId = null; onMergeTarget(null) }
                     if (slotOf != null && startId != null) {
                         // Sticky mode: the tile floats to wherever the finger drops
                         // it. Landing on an already-occupied cell is fine — the
-                        // occupant(s) get pushed straight down to make room
-                        // (onStickyDrop → StartViewModel's shared push-down +
-                        // empty-row-collapse helper, the same mechanism a resize
-                        // already uses), instead of the drop being rejected or a
-                        // full auto-arrange repack running. Only the *dropped*
-                        // tile's own gap stays open — nothing else reflows.
+                        // occupant(s) get nudged sideways within their own row if
+                        // there's a free gap there, else pushed straight down to
+                        // make room (the same GridPacker.stickyPlacement
+                        // computation onStickyDrop → StartViewModel's write path
+                        // uses), instead of the drop being rejected or a full
+                        // auto-arrange repack running. Recomputed live on every
+                        // move (not just at drop) so the displaced tile(s)
+                        // visibly slide out of the way while the finger is
+                        // still down — matching dense mode's live reflow hint.
                         val tileSize = byId[startId]?.size ?: TileSize.SMALL
                         val w = tileSize.cols.coerceAtMost(columns)
                         val cell = geom.cellAt(pos - grab, columns, w)
                         pendingSlot = GridPacker.encodeSlot(cell.x, cell.y)
+                        val anchored = order.mapNotNull { id ->
+                            if (id == startId) return@mapNotNull null
+                            val t = byId[id] ?: return@mapNotNull null
+                            val slot = t.gridSlot ?: return@mapNotNull null
+                            TilePlacement(id, t.size, GridPacker.decodeSlotCol(slot), GridPacker.decodeSlotRow(slot))
+                        }
+                        onStickyPreview(
+                            GridPacker.stickyPlacement(anchored, startId, tileSize, cell.x, cell.y, columns),
+                        )
                     } else {
                         val placements = placementsNow()
                         val target = placements.firstOrNull {

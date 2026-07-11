@@ -199,8 +199,12 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      * Enter edit mode with [tileId] selected (FR-3.1, fired by the 430 ms tile
      * long-press). Disables the pager swipe and pauses live-tile animations
      * (the latter is a no-op until `:feature:livetiles` is wired into Start).
+     * A no-op while [LauncherSettings.lockLayout] is on — this is the single
+     * choke point every long-press/edit-mode entry routes through, so gating
+     * here blocks all of them at once without touching each call site.
      */
     fun enterEdit(tileId: String) {
+        if (settings.value.lockLayout) return
         _selectedTileId.value = tileId
         _editMode.value = true
         _swipeEnabled.value = false
@@ -795,7 +799,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      * enough to keep the new, wider footprint inside the grid when it no
      * longer fits starting at its original column — e.g. growing to WIDE from
      * anywhere but column 0 always overflows otherwise; its row never moves
-     * for its own sake), every tile the resulting footprint displaces (pushed
+     * for its own sake), every tile the resulting footprint displaces (nudged
+     * sideways within its own row if there's a free gap there, else pushed
      * straight down, cascading until nothing overlaps), and any fully-empty
      * row that leaves behind, collapsed. Always empty in dense mode or for a
      * never-anchored tile.
@@ -825,80 +830,26 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      * All grid-cell writes sticky mode needs to place [movedId] (already/about
      * to be sized [size]) at ([targetCol], [targetRow]): the tile's own cell
      * (column clamped so its footprint stays inside the grid), every other
-     * anchored tile the resulting footprint displaces — pushed straight down,
-     * cascading until nothing overlaps ([stickyPushDown]) — and any
-     * fully-empty row that leaves behind, collapsed. Shared by
-     * [stickyResizeSlots] (grows a tile in place, so [targetCol]/[targetRow]
-     * come from the tile's own current cell) and [setTileGridSlot] (moves a
-     * tile to wherever a drag-drop released it, including on top of an
-     * already-occupied cell — the occupant gets pushed down here exactly like
-     * a resize's neighbor would).
+     * anchored tile the resulting footprint displaces — nudged sideways
+     * within its own row if there's a free gap there, else pushed straight
+     * down, cascading until nothing overlaps — and any fully-empty row that
+     * leaves behind, collapsed. Shared by [stickyResizeSlots] (grows a tile
+     * in place, so [targetCol]/[targetRow] come from the tile's own current
+     * cell) and [setTileGridSlot] (moves a tile to wherever a drag-drop
+     * released it, including on top of an already-occupied cell — the
+     * occupant gets displaced here exactly like a resize's neighbor would).
+     * Delegates to [GridPacker.stickyPlacement], the same pure computation
+     * StartScreen's drag gesture calls to render a live preview before the
+     * drop actually commits.
      */
     private fun stickySlotsForPlacement(movedId: String, size: TileSize, targetCol: Int, targetRow: Int): Map<String, Int> {
         val columns = settings.value.columns
-        val w = size.cols.coerceAtMost(columns)
-        val h = size.rows
-        val effectiveCol = targetCol.coerceIn(0, (columns - w).coerceAtLeast(0))
-        val effectiveSlot = GridPacker.encodeSlot(effectiveCol, targetRow)
-
-        val pushDown = stickyPushDown(movedId, effectiveCol, targetRow, w, h, columns)
-        // A full row gap is never allowed: pushing neighbors down (or shifting
-        // this tile's own column) can leave a row fully empty, so close it,
-        // shifting everything below up (may further adjust the just-pushed
-        // tiles, and even the moved/resized tile itself if there's headroom to
-        // reclaim above it).
-        val projected = tiles.value.mapNotNull { t ->
-            val (sz, slot) = when {
-                t.id == movedId -> size to effectiveSlot
-                pushDown.containsKey(t.id) -> t.size to pushDown.getValue(t.id)
-                else -> t.size to (t.gridSlot ?: return@mapNotNull null)
-            }
-            TilePlacement(t.id, sz, GridPacker.decodeSlotCol(slot), GridPacker.decodeSlotRow(slot))
+        val anchored = tiles.value.mapNotNull { t ->
+            if (t.id == movedId) return@mapNotNull null
+            val slot = t.gridSlot ?: return@mapNotNull null
+            TilePlacement(t.id, t.size, GridPacker.decodeSlotCol(slot), GridPacker.decodeSlotRow(slot))
         }
-        val collapse = GridPacker.collapseEmptyRows(projected)
-        // The moved/resized tile's own cell always needs writing — its column
-        // may have shifted even when collapse found no row to close.
-        val ownFinal = collapse[movedId] ?: effectiveSlot
-        return pushDown + collapse + (movedId to ownFinal)
-    }
-
-    /**
-     * New grid cells for every anchored tile that a resized footprint at
-     * ([col], [row], [w] x [h]) would displace, in sticky mode: each is pushed
-     * straight down (same column) to sit just below whatever it now overlaps,
-     * cascading until nothing overlaps. [excludeId] (the resizing tile itself)
-     * is never in the returned map — the caller already knows its own cell.
-     */
-    private fun stickyPushDown(excludeId: String, col: Int, row: Int, w: Int, h: Int, columns: Int): Map<String, Int> {
-        data class Box(val id: String, val col: Int, var row: Int, val w: Int, val h: Int)
-        fun overlaps(a: Box, b: Box) =
-            a.col < b.col + b.w && b.col < a.col + a.w && a.row < b.row + b.h && b.row < a.row + a.h
-
-        val resized = Box(excludeId, col, row, w, h)
-        // Every other *anchored* tile at its current cell — a never-anchored
-        // (floating) tile isn't part of the fixed layout, so it's left alone.
-        val boxes = tiles.value.filter { it.id != excludeId }.mapNotNull { t ->
-            val s = t.gridSlot ?: return@mapNotNull null
-            Box(t.id, GridPacker.decodeSlotCol(s), GridPacker.decodeSlotRow(s), t.size.cols.coerceAtMost(columns), t.size.rows)
-        }
-        val fixed = listOf(resized) + boxes
-        val moved = mutableMapOf<String, Int>()
-        var settled = false
-        var guard = 0
-        while (!settled && guard++ <= boxes.size) {
-            settled = true
-            for (box in boxes) {
-                val blockers = fixed.filter { it !== box && overlaps(it, box) }
-                if (blockers.isEmpty()) continue
-                val newRow = blockers.maxOf { it.row + it.h }
-                if (newRow > box.row) {
-                    box.row = newRow
-                    moved[box.id] = GridPacker.encodeSlot(box.col, box.row)
-                    settled = false
-                }
-            }
-        }
-        return moved
+        return GridPacker.stickyPlacement(anchored, movedId, size, targetCol, targetRow, columns)
     }
 
     /** Set or clear a tile's per-tile accent override (null = follow global, FR-7). */
@@ -1093,6 +1044,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setEdgeStripHandleSize(size: String) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setEdgeStripHandleSize(size) }
+    }
+
+    /** Toggle "lock layout" (Personalize): while on, [enterEdit] is a no-op. */
+    fun setLockLayout(locked: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setLockLayout(locked) }
     }
 
     fun setAutoBackupInterval(hours: Int) {

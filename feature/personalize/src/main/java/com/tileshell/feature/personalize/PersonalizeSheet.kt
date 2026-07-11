@@ -149,6 +149,8 @@ fun PersonalizeSheet(
     batteryOptimizationExempt: Boolean,
     batteryGuidanceNote: String,
     onBatteryExemption: () -> Unit,
+    isDefaultLauncher: Boolean,
+    onSetDefaultLauncher: () -> Unit,
     cornerRadius: Float,
     onCornerRadiusChange: (Float) -> Unit,
     tileGap: Float,
@@ -163,6 +165,8 @@ fun PersonalizeSheet(
     onColumnsChange: (Int) -> Unit,
     tilePackMode: TilePackMode,
     onTilePackModeChange: (TilePackMode) -> Unit,
+    lockLayout: Boolean,
+    onLockLayoutChange: (Boolean) -> Unit,
     onClearPhotos: () -> Unit,
     contactsGranted: Boolean,
     calendarGranted: Boolean,
@@ -401,6 +405,13 @@ fun PersonalizeSheet(
                         }
                         Spacer(Modifier.height(2.dp))
                     }
+                    Spacer(Modifier.height(6.dp))
+                    ToggleRow("lock layout", on = lockLayout, accent = accent, tokens, onLockLayoutChange)
+                    Text(
+                        "when on, long-pressing a tile never opens edit mode — nothing can be moved, resized, or removed by accident",
+                        color = tokens.fgDim,
+                        fontSize = 12.sp,
+                    )
                 }
             }
 
@@ -981,16 +992,44 @@ fun PersonalizeSheet(
 
             // ---- system ----
             SettingGroup(label = "system", tokens.fgDim) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onSystemSettings)
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(text = "android settings", color = tokens.fg, fontSize = 14.sp)
-                    Spacer(Modifier.weight(1f))
-                    Text(text = "open ›", color = accent, fontSize = 13.sp)
+                Column {
+                    // Hidden entirely once TileShell is already default — there's
+                    // nothing left to ask. Re-checked live on every ON_RESUME
+                    // ([rememberIsDefaultLauncher]) so backing out to Settings,
+                    // changing it there, and returning updates this without
+                    // reopening the sheet.
+                    if (!isDefaultLauncher) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(onClick = onSetDefaultLauncher)
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(text = "default launcher", color = tokens.fg, fontSize = 14.sp)
+                                Text(
+                                    text = "make tileshell your home screen",
+                                    color = tokens.fgDim,
+                                    fontSize = 12.sp,
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text(text = "set ›", color = accent, fontSize = 13.sp)
+                        }
+                        Spacer(Modifier.height(10.dp))
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onSystemSettings)
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(text = "android settings", color = tokens.fg, fontSize = 14.sp)
+                        Spacer(Modifier.weight(1f))
+                        Text(text = "open ›", color = accent, fontSize = 13.sp)
+                    }
                 }
             }
 

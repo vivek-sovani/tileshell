@@ -227,4 +227,90 @@ object GridPacker {
         }
         return result
     }
+
+    /**
+     * Sticky mode's shared "where would this land" computation: [movedId]
+     * (sized [size]) targets absolute cell ([targetCol], [targetRow]);
+     * returns its own resolved cell plus every other anchored tile in
+     * [anchored] that has to move to make room, plus any fully-empty row
+     * that leaves behind, collapsed ([collapseEmptyRows]). A blocked tile is
+     * nudged sideways within its own row-band first, if the row has a free
+     * gap of its width somewhere else — so dropping onto a tile in a row
+     * that isn't full just slides that tile over, instead of always bumping
+     * it down into a whole new row. Only when no such gap exists does it
+     * fall back to a straight push straight down (same column), cascading
+     * until nothing overlaps. Pure — the caller supplies every other tile's
+     * current cell via [anchored] (never including [movedId] itself) — so
+     * the exact same logic drives both the actual write (a resize or a
+     * drag-drop's commit) and a live drag-preview recomputed on every
+     * pointer move with no DB write.
+     */
+    fun stickyPlacement(
+        anchored: List<TilePlacement>,
+        movedId: String,
+        size: TileSize,
+        targetCol: Int,
+        targetRow: Int,
+        columns: Int = COLUMNS,
+    ): Map<String, Int> {
+        val w = size.cols.coerceAtMost(columns)
+        val h = size.rows
+        val effectiveCol = targetCol.coerceIn(0, (columns - w).coerceAtLeast(0))
+        val effectiveSlot = encodeSlot(effectiveCol, targetRow)
+
+        data class Box(val id: String, var col: Int, var row: Int, val w: Int, val h: Int)
+        fun overlaps(a: Box, b: Box) =
+            a.col < b.col + b.w && b.col < a.col + a.w && a.row < b.row + b.h && b.row < a.row + a.h
+
+        val moving = Box(movedId, effectiveCol, targetRow, w, h)
+        val boxes = anchored.map { Box(it.id, it.col, it.row, it.cols.coerceAtMost(columns), it.rows) }
+        val fixed = listOf(moving) + boxes
+
+        // The nearest free column for [box] at its own row/height, checked
+        // against every other box's *current* (possibly already-shifted)
+        // position — nearest first so a small nudge is preferred over a
+        // far one, ties broken toward the lower column for determinism.
+        fun freeColumnNear(box: Box, others: List<Box>): Int? {
+            val candidates = (0..(columns - box.w)).sortedBy { kotlin.math.abs(it - box.col) }
+            for (c in candidates) {
+                if (c == box.col) continue
+                val trial = Box(box.id, c, box.row, box.w, box.h)
+                if (others.none { it !== box && overlaps(it, trial) }) return c
+            }
+            return null
+        }
+
+        val displaced = mutableMapOf<String, Int>()
+        var settled = false
+        var guard = 0
+        while (!settled && guard++ <= boxes.size * 4 + 4) {
+            settled = true
+            for (box in boxes) {
+                val others = fixed.filter { it !== box }
+                val blockers = others.filter { overlaps(it, box) }
+                if (blockers.isEmpty()) continue
+                val newCol = freeColumnNear(box, others)
+                if (newCol != null) {
+                    box.col = newCol
+                    displaced[box.id] = encodeSlot(box.col, box.row)
+                    settled = false
+                } else {
+                    val newRow = blockers.maxOf { it.row + it.h }
+                    if (newRow > box.row) {
+                        box.row = newRow
+                        displaced[box.id] = encodeSlot(box.col, box.row)
+                        settled = false
+                    }
+                }
+            }
+        }
+
+        val projected = anchored.map { p ->
+            val slot = displaced[p.id]
+            if (slot != null) p.copy(col = decodeSlotCol(slot), row = decodeSlotRow(slot)) else p
+        } + TilePlacement(movedId, size, effectiveCol, targetRow)
+        val collapse = collapseEmptyRows(projected)
+        val ownFinal = collapse[movedId] ?: effectiveSlot
+        return displaced + collapse + (movedId to ownFinal)
+    }
 }

@@ -205,4 +205,15 @@ class SettingsCodecTest {
             SettingsCodec.decode("slideshowEnabled=maybe").wallpaperSlideshowEnabled,
         )
     }
+
+    @Test
+    fun `lockLayout decodes and bad value keeps default`() {
+        assertEquals(true, SettingsCodec.decode("lockLayout=true").lockLayout)
+        assertEquals(
+            LauncherSettings().lockLayout,
+            SettingsCodec.decode("lockLayout=nope").lockLayout,
+        )
+        val s = LauncherSettings(lockLayout = true)
+        assertEquals(true, SettingsCodec.decode(SettingsCodec.encode(s)).lockLayout)
+    }
 }

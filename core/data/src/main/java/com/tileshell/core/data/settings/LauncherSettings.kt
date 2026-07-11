@@ -74,6 +74,10 @@ enum class TileColorSource { GLOBAL_ACCENT, APP_ICON }
  *   periodic-work floor is 15 min).
  * @property wallpaperSlideshowIndex index of the currently shown photo within
  *   the slideshow list, so the worker knows which one to advance past.
+ * @property lockLayout when true, a long-press on Start never enters edit
+ *   mode — no jiggle, no drag/resize/unpin/colour-picker — so the layout
+ *   can't be changed by accident. Toggled from Personalize; unrelated to the
+ *   settings-gear device screen lock.
  */
 data class LauncherSettings(
     val followSystemTheme: Boolean = true,
@@ -132,6 +136,7 @@ data class LauncherSettings(
     val edgeStripBackgroundId: String = "none",
     /** Pull-tab handle pill weight: "thin" (subtle bar) or "thick" (bold bar). Panel height is constant. */
     val edgeStripHandleSize: String = "thick",
+    val lockLayout: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_COLUMNS = 4
@@ -185,7 +190,8 @@ object SettingsCodec {
         append("edgeStripPosition=").append(settings.edgeStripPosition).append('\n')
         append("edgeStripApps=").append(settings.edgeStripApps.joinToString("|")).append('\n')
         append("edgeStripBg=").append(settings.edgeStripBackgroundId).append('\n')
-        append("edgeStripHandleSize=").append(settings.edgeStripHandleSize)
+        append("edgeStripHandleSize=").append(settings.edgeStripHandleSize).append('\n')
+        append("lockLayout=").append(settings.lockLayout)
     }
 
     fun decode(text: String): LauncherSettings {
@@ -221,6 +227,7 @@ object SettingsCodec {
         var edgeStripApps = d.edgeStripApps
         var edgeStripBackgroundId = d.edgeStripBackgroundId
         var edgeStripHandleSize = d.edgeStripHandleSize
+        var lockLayout = d.lockLayout
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
             if (sep <= 0) return@forEach
@@ -270,6 +277,7 @@ object SettingsCodec {
                     else value.split("|").filter { it.isNotBlank() }
                 "edgeStripBg" -> if (value.isNotEmpty()) edgeStripBackgroundId = value
                 "edgeStripHandleSize" -> if (value in setOf("thin", "thick")) edgeStripHandleSize = value
+                "lockLayout" -> lockLayout = value.toBooleanStrictOrNull() ?: lockLayout
             }
         }
         return LauncherSettings(
@@ -304,6 +312,7 @@ object SettingsCodec {
             edgeStripApps = edgeStripApps,
             edgeStripBackgroundId = edgeStripBackgroundId,
             edgeStripHandleSize = edgeStripHandleSize,
+            lockLayout = lockLayout,
         )
     }
 }

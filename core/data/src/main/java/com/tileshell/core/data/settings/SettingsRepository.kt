@@ -300,6 +300,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(edgeStripHandleSize = size) }
     }
 
+    /** Toggle "lock layout": while on, Start never enters edit mode on a long-press. */
+    suspend fun setLockLayout(locked: Boolean) {
+        store.updateData { it.copy(lockLayout = locked) }
+    }
+
     companion object {
         fun create(context: Context): SettingsRepository =
             SettingsRepository(context.applicationContext.settingsDataStore)

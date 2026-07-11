@@ -75,7 +75,12 @@ class AppCatalogRepository(context: Context) {
     /** One-shot snapshot of the current catalogue. */
     fun query(): List<AppEntry> {
         val roles = resolveRoles()
+        // TileShell's own MainActivity declares LAUNCHER (required to be
+        // set-as-home) alongside HOME, so getActivityList's unscoped query
+        // would otherwise include it — the launcher listing itself in its
+        // own app drawer / recent section.
         val activities = launcherApps.getActivityList(null, Process.myUserHandle())
+            .filter { it.componentName.packageName != appContext.packageName }
         val entries = activities.map { info ->
             val pkg = info.componentName.packageName
             AppEntry(

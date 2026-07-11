@@ -183,6 +183,93 @@ class GridPackerTest {
         assertTrue("must fit within 4 columns", t0.col + t0.cols <= 4)
     }
 
+    // ---- sticky live drag-preview (push-down) computation ------------------
+
+    @Test
+    fun `dropping onto a free cell moves only the dropped tile`() {
+        val anchored = listOf(TilePlacement("a", TileSize.SMALL, 0, 0))
+        val moved = GridPacker.stickyPlacement(
+            anchored = anchored, movedId = "b", size = TileSize.SMALL, targetCol = 2, targetRow = 0, columns = 4,
+        )
+        assertEquals(setOf("b"), moved.keys)
+        assertEquals(GridPacker.encodeSlot(2, 0), moved.getValue("b"))
+    }
+
+    @Test
+    fun `dropping onto an occupied cell nudges the occupant sideways when its row has room`() {
+        // 4 columns wide, only column 0 taken — "a" has three free columns to
+        // slide into, so it must NOT grow the grid downward at all.
+        val anchored = listOf(TilePlacement("a", TileSize.SMALL, 0, 0))
+        val moved = GridPacker.stickyPlacement(
+            anchored = anchored, movedId = "b", size = TileSize.SMALL, targetCol = 0, targetRow = 0, columns = 4,
+        )
+        assertEquals(GridPacker.encodeSlot(0, 0), moved.getValue("b"))
+        assertEquals("must stay in the same row", 0, GridPacker.decodeSlotRow(moved.getValue("a")))
+        assertEquals("nearest free column", 1, GridPacker.decodeSlotCol(moved.getValue("a")))
+    }
+
+    @Test
+    fun `dropping onto an occupied cell pushes straight down when its row is already full`() {
+        val anchored = listOf(
+            TilePlacement("a", TileSize.SMALL, 0, 0),
+            TilePlacement("x", TileSize.SMALL, 1, 0),
+            TilePlacement("y", TileSize.SMALL, 2, 0),
+            TilePlacement("z", TileSize.SMALL, 3, 0),
+        )
+        val moved = GridPacker.stickyPlacement(
+            anchored = anchored, movedId = "b", size = TileSize.SMALL, targetCol = 0, targetRow = 0, columns = 4,
+        )
+        assertEquals(GridPacker.encodeSlot(0, 0), moved.getValue("b"))
+        assertEquals(GridPacker.encodeSlot(0, 1), moved.getValue("a"))
+        assertFalse("x/y/z were never touched by the drop", moved.containsKey("x"))
+    }
+
+    @Test
+    fun `push-down cascades through a stack of occupants when there is no room to go sideways`() {
+        // A single-column grid rules out any sideways nudge, isolating the
+        // vertical-cascade behaviour.
+        val anchored = listOf(
+            TilePlacement("a", TileSize.SMALL, 0, 0),
+            TilePlacement("b", TileSize.SMALL, 0, 1),
+        )
+        val moved = GridPacker.stickyPlacement(
+            anchored = anchored, movedId = "c", size = TileSize.SMALL, targetCol = 0, targetRow = 0, columns = 1,
+        )
+        assertEquals(GridPacker.encodeSlot(0, 0), moved.getValue("c"))
+        assertEquals(GridPacker.encodeSlot(0, 1), moved.getValue("a"))
+        assertEquals(GridPacker.encodeSlot(0, 2), moved.getValue("b"))
+    }
+
+    @Test
+    fun `a tile pushed off leaving a fully empty row collapses back up`() {
+        // Single-column grid (no sideways room) so dropping onto "a" pushes
+        // it to row 1, which was already fully empty — collapse must NOT
+        // leave a gap at row 0.
+        val anchored = listOf(TilePlacement("a", TileSize.SMALL, 0, 0))
+        val moved = GridPacker.stickyPlacement(
+            anchored = anchored, movedId = "b", size = TileSize.SMALL, targetCol = 0, targetRow = 0, columns = 1,
+        )
+        // Both tiles land in the top two rows with nothing collapsible below.
+        assertEquals(GridPacker.encodeSlot(0, 0), moved.getValue("b"))
+        assertEquals(GridPacker.encodeSlot(0, 1), moved.getValue("a"))
+    }
+
+    @Test
+    fun `an untouched tile elsewhere on the grid is not part of the result`() {
+        // "far" shares row 0 with "a" so no fully-empty row ever exists between
+        // them — isolating the assertion to "does an unrelated, non-displaced
+        // tile get left out of the result" rather than incidentally exercising
+        // empty-row collapse too.
+        val anchored = listOf(
+            TilePlacement("a", TileSize.SMALL, 0, 0),
+            TilePlacement("far", TileSize.SMALL, 3, 0),
+        )
+        val moved = GridPacker.stickyPlacement(
+            anchored = anchored, movedId = "b", size = TileSize.SMALL, targetCol = 1, targetRow = 0, columns = 4,
+        )
+        assertFalse("an unrelated tile should never move", moved.containsKey("far"))
+    }
+
     // ---- full-row-gap collapse ---------------------------------------------
 
     @Test

@@ -61,7 +61,7 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
-            DefaultLauncherPromptOnFirstRun()
+            DefaultLauncherPrompt()
             RequestRuntimePermissionsOnStart()
             val ctx = LocalContext.current
             var showLockDisclosure by remember { mutableStateOf(false) }
@@ -196,19 +196,23 @@ private fun openAccessibilitySettings(context: Context) {
     runCatching { context.startActivity(intent) }
 }
 
+/**
+ * Asks the user to make TileShell the default launcher every time the app
+ * opens fresh (not just the very first run) while it still isn't one —
+ * `LaunchedEffect(Unit)` runs once per [MainActivity] composition, i.e. once
+ * per process/open, not on every resume, so switching away and back doesn't
+ * re-trigger it mid-session.
+ */
 @Composable
-private fun DefaultLauncherPromptOnFirstRun() {
+private fun DefaultLauncherPrompt() {
     val context = LocalContext.current
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { /* outcome read via DefaultLauncher.isDefault when needed */ }
 
     LaunchedEffect(Unit) {
-        val prefs = context.getSharedPreferences("tileshell.prefs", Context.MODE_PRIVATE)
         if (DefaultLauncher.isDefault(context)) return@LaunchedEffect
-        if (prefs.getBoolean("asked_default_launcher", false)) return@LaunchedEffect
         val intent = DefaultLauncher.createPromptIntent(context) ?: return@LaunchedEffect
-        prefs.edit().putBoolean("asked_default_launcher", true).apply()
         runCatching { launcher.launch(intent) }
     }
 }
