@@ -109,8 +109,18 @@ android {
         //   Accessibility API prominent-disclosure fix for a Play Console policy rejection
         //   — itemizes all data TileShell collects, not just the accessibility service's
         //   own no-op data use, and narrows the service's declared event-type scope).
-        versionCode = 220
-        versionName = "2.2.0"
+        // v2.2.1 = 221 (sticky-mode drag now shows a live push-down/push-sideways preview
+        //   as the finger moves, instead of only reflowing after the drop — a colliding
+        //   tile prefers sliding into a free column in the same row before falling back to
+        //   a straight push down; new "lock layout" toggle in Personalize blocks entering
+        //   edit mode entirely, with a toast pointing to where to unlock it; TileShell no
+        //   longer lists itself in its own App List (its LAUNCHER-category MainActivity was
+        //   leaking into the unscoped activity query); new "default launcher" row in
+        //   Personalize, shown only while TileShell isn't already default; the existing
+        //   first-run default-launcher prompt now re-asks on every fresh app open instead
+        //   of only ever once).
+        versionCode = 221
+        versionName = "2.2.1"
     }
 
     if (keystoreFile.exists()) {

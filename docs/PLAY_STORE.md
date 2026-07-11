@@ -142,6 +142,19 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
+## Release notes (v2.2.1)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 2.2.1
+
+• New: "lock layout" toggle in Personalize prevents accidental tile edits — long-press does nothing until you unlock it
+• New: quick "set as default launcher" option in Personalize
+• Fixed: dragging a tile in Windows Phone-style arrangement now previews live as you drag, and slides sideways into free space in the same row before pushing down
+• Fixed: TileShell no longer lists itself in its own app list
+```
+
 ## Release notes (v2.2.0)
 
 *"What's new" — newest release first. Keep under Play's 500-character limit.*
