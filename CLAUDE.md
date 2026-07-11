@@ -36,6 +36,25 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.2.1 — second Accessibility API rejection: the demo video, not the
+  disclosure text, was the actual problem.** After the v2.2.0 disclosure fix
+  (below), Play rejected the resubmission again under the same policy, but
+  this time flagged only **Calendar events** and **Contacts** as missing from
+  the prominent disclosure — even though `AccessibilityDisclosureDialog`
+  already itemized both, at positions 2–3 of a 6-item list. Confirmed with
+  the developer: reviewers grade this from the demo video required in the
+  Play Console submission, not by running the app themselves, and the
+  uploaded video scrolled past the calendar/contacts bullets too quickly to
+  read while the other four items happened to stay on-screen long enough.
+  **v2.2.2 (versionCode 222)**: reordered the six-item list so Contacts and
+  Calendar come first, tightened the wording so less scrolling is needed
+  overall, and split the dialog's one giant concatenated string into three
+  `Text()` calls matching its actual sections — a defensive improvement, not
+  the real fix. **The real fix is process, not code**: re-record the
+  disclosure-dialog walkthrough video, scrolling slowly and pausing on every
+  bullet (especially Contacts and Calendar), and upload it with this build
+  when resubmitting. See DECISIONS.md "Second Accessibility API rejection."
+  Build green.
 - **Post-v1.9 — Play Console rejection fixed: accessibility prominent
   disclosure now itemizes all data the app collects.** Google Play rejected
   a release with "Accessibility API policy: Insufficient data use declaration

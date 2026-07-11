@@ -2658,3 +2658,32 @@ a further tile was already sitting in the way, that one shifts the minimum neede
 end up overlapping, and no fully-empty row is left standing. A separate drop onto a genuinely empty
 cell (the pre-existing case) is unaffected — `stickyPushDown` finds nothing to displace and the tile
 just lands there.
+
+## Second Accessibility API rejection: the disclosure text was fine, the demo video wasn't
+
+`v2.2.0` (versionCode 220) fixed a Play Console "Accessibility API policy: Insufficient data use
+declaration in the prominent disclosure" rejection by itemizing all data TileShell collects —
+location, calendar, contacts, notification content, installed apps, recent-apps taps — in
+`AccessibilityDisclosureDialog` (`MainActivity.kt`). Google rejected the resubmission again under the
+same policy, but this time flagged only two of the six items as still missing: Calendar events and
+Contacts. The dialog already listed both, in items 2 and 3 of the six-item list.
+
+Root cause, confirmed with the developer: reviewers grade this policy from the demo video required
+in the Play Console submission (per the rejection email: "include... a link to an updated video
+showcasing the core functionality feature that uses the AccessibilityService API"), not by installing
+and scrolling the app themselves. The recorded video scrolled through the disclosure dialog's
+scrollable `Column` too quickly, past the calendar/contacts bullets, without pausing long enough for
+a reviewer to read them — while the items before and after (location, notification content, installed
+apps, taps) happened to be on-screen long enough to register. The app itself was never wrong; the
+video evidence just didn't show what the app does.
+
+Fixed on both sides. Code (`v2.2.2`, versionCode 222): reordered the six-item list so Contacts and
+Calendar are first (previously buried at positions 2-3), on the theory that whatever a reviewer/video
+covers first is least likely to get scrolled past; tightened the wording so the whole dialog needs
+less scrolling; split the one giant concatenated string into three separate `Text()` calls, matching
+its actual visual sections (accessibility-service explanation / itemized data list / privacy-policy
++ CTA line) — no functional change, easier to audit which sentence covers which data type next time.
+Process: re-record the disclosure-dialog walkthrough video for this resubmission, scrolling slowly
+and pausing on every bullet — especially Contacts and Calendar — before uploading it to Play Console
+alongside the new build. This is the change that actually fixes the rejection; the code changes are
+a defensive improvement against the same failure mode recurring with a future rushed recording.

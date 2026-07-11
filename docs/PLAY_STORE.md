@@ -142,6 +142,21 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
+## Release notes (v2.2.2)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 2.2.2
+
+• Minor fixes and improvements
+```
+
+*(Internal: this build clarifies the accessibility prominent-disclosure wording ahead of Play
+Console resubmission — see DECISIONS.md "Second Accessibility API rejection." Remember to
+re-record and re-upload the disclosure walkthrough video, scrolling slowly and pausing on every
+bullet, especially Contacts and Calendar.)*
+
 ## Release notes (v2.2.1)
 
 *"What's new" — newest release first. Keep under Play's 500-character limit.*

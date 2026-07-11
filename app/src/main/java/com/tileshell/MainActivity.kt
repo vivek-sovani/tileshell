@@ -143,29 +143,32 @@ private fun AccessibilityDisclosureDialog(onConfirm: () -> Unit, onDismiss: () -
         onDismissRequest = onDismiss,
         title = { Text("Before you enable accessibility") },
         text = {
-            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+            Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState())) {
                 Text(
-                    "TileShell uses Android's Accessibility Service for one narrow purpose: " +
+                    "TileShell's Accessibility Service is used for one narrow purpose only: " +
                     "locking the screen (long-press the settings icon) and opening recent apps " +
-                    "(edge strip). The service itself never reads your screen content, other " +
-                    "apps, or keystrokes — it only issues those two system actions.\n\n" +
-                    "Separately from Accessibility, and only if you grant each permission, " +
-                    "TileShell also accesses:\n\n" +
-                    "• Approximate location — to show local weather on the Weather tile. Sent " +
-                    "to Open-Meteo (a weather API) as coordinates only; never precise/GPS-level " +
-                    "location.\n\n" +
-                    "• Calendar events — to show your next events on the Calendar tile. Stays " +
-                    "on this device.\n\n" +
-                    "• Contacts (names and photos) — for the People tile and Quick Search. " +
+                    "(edge strip). It never reads your screen content, other apps, or " +
+                    "keystrokes.\n\n" +
+                    "Separately from Accessibility — and only if you grant each permission — " +
+                    "TileShell also collects this data. All of it below:",
+                )
+                Text(
+                    "\n• Contacts (name + photo) — People tile, Quick Search. Stays on this " +
+                    "device.\n\n" +
+                    "• Calendar events (title + time) — Calendar tile's next-event display. " +
                     "Stays on this device.\n\n" +
-                    "• Notification content — to show badges and message previews on live " +
-                    "tiles, if you enable notification access. Stays on this device.\n\n" +
-                    "• Installed apps — TileShell reads your app list to display and launch " +
-                    "them, as any home-screen launcher must. Stays on this device.\n\n" +
+                    "• Approximate location — Weather tile forecast. Sent to Open-Meteo as " +
+                    "coordinates only; never precise/GPS-level location.\n\n" +
+                    "• Notification content — badges and message previews on live tiles, if " +
+                    "you enable notification access. Stays on this device.\n\n" +
+                    "• Installed apps — read to display and launch them, as any home-screen " +
+                    "launcher must. Stays on this device.\n\n" +
                     "• Which apps you tap — remembered locally to power the \"recent\" section " +
-                    "of the App List and Quick Search. Never leaves this device.\n\n" +
-                    "TileShell has no analytics or ad SDKs, no account system, and never sells " +
-                    "or shares this data. Full privacy policy: $PRIVACY_POLICY_URL\n\n" +
+                    "of the App List and Quick Search. Never leaves this device.",
+                )
+                Text(
+                    "\nTileShell has no analytics or ad SDKs, no account system, and never " +
+                    "sells or shares this data. Full privacy policy: $PRIVACY_POLICY_URL\n\n" +
                     "Tap \"Go to Settings\" to enable the TileShell Accessibility Service, " +
                     "then return here.",
                 )

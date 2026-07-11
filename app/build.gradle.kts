@@ -119,8 +119,17 @@ android {
         //   Personalize, shown only while TileShell isn't already default; the existing
         //   first-run default-launcher prompt now re-asks on every fresh app open instead
         //   of only ever once).
-        versionCode = 221
-        versionName = "2.2.1"
+        // v2.2.2 = 222 (second Accessibility API policy rejection — reviewer flagged the
+        //   prominent disclosure as still missing Calendar events + Contacts, even though
+        //   the v2.2.0 fix already itemized both; root cause was the submitted demo video,
+        //   which scrolled past those two bullets too fast to read, not the app itself.
+        //   Reordered the disclosure so Contacts + Calendar are the first two data items
+        //   listed (previously buried at positions 2-3 of 6), tightened the wording so less
+        //   scrolling is needed overall, and split the one giant string into three Text()
+        //   calls for readability. Re-recording the disclosure video — pausing on every
+        //   bullet this time — is the actual fix for the rejection; see DECISIONS.md).
+        versionCode = 222
+        versionName = "2.2.2"
     }
 
     if (keystoreFile.exists()) {
