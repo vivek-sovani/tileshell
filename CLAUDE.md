@@ -39,30 +39,30 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - **Post-v2.2.2 — fixed a real regression: merge-to-folder was silently unreachable
   in sticky (WP-style gap-preserving) tile arrangement mode.** User report: "app merge
   in folder and another app to create folder functionality is lost in windows phone
-  style tile arrangement." Root-caused (an Explore agent traced it first; independently
-  re-verified by reading `editDragGesture` directly, `StartScreen.kt`) to a feedback
-  loop introduced by the earlier "sticky-mode drag-drop pushes occupants down" feature:
-  each pointer-move tick was `if (mergeNow) {…} else {…}`, and while dwelling inside a
-  merge target's centre zone but *before* the 250ms `mergeDwellMs` had elapsed,
-  `mergeNow` is still false, so the tick fell into the `else` branch — which in sticky
-  mode computes and applies a **live push-down preview** via `onStickyPreview`. That
-  preview displaces the very tile being hovered over; since `hovered` is computed from
-  `othersPacked()`, which packs using the same `slotOf` closure the preview just wrote
-  into, the target's on-screen rect moves out from under the drag centre on the very
-  next tick — `inCentre` flips false, the dwell timer resets, and the cycle repeats
-  every tick, forever. The 250ms dwell required to ever set `mergeNow = true` could
-  never survive past its first tick, so a merge could never commit — while the
-  merge-zone detection, `TileMerge.computeMerge`, and the write path
-  (`onDrop(mergeId)`) were all still fully intact and correct. Dense mode never hit
-  this because its equivalent branch (`onReorderTo`) doesn't mutate the shared
-  placement function driving `othersPacked`. Fixed by gating the whole
-  merge-target-tracking block on `inCentre` (not just `mergeNow`) so the sticky preview
-  is cleared once, right when dwelling starts, and never recomputed again until the
-  centre actually leaves the merge zone — the target tile now stays stationary for the
-  full dwell duration. Build + tests green; this is a gesture-timing bug with no unit
-  test harness for touch dwell sequences, so verify by hand: edit mode → drag one tile
-  onto another → hold briefly → releases into a folder, in sticky mode specifically
-  (dense mode was never affected).
+  style tile arrangement." Two rounds: a first fix (gating the merge-tracking block on
+  `inCentre` so the push-down preview is cleared at dwell start) was committed but the
+  user reported it still didn't work — "it pushes the destination tile, not allowing to
+  stable." **Root-caused for real via on-device diagnostic logging** (temporary
+  `Log.d` in `editDragGesture`, `adb logcat`, reproduced by hand): the merge-target
+  hit-test (`hovered`) was computed from `othersPacked()`, whose doc comment claims the
+  layout is "invariant for the whole gesture" — but in sticky mode that's **false**. It
+  packs using the shared `slotOf` closure, which reads `stickyPreview` — the very live
+  push-down preview this same gesture rewrites on every tick. So a tile the drag brushed
+  earlier stays rendered (and hit-tested) at a *displaced* position even once the finger
+  lines up over its true cell; the merge-zone check compares the drag centre against a
+  hitbox that has drifted elsewhere and never matches. Fixed by adding
+  `othersPackedStable()` — identical to `othersPacked()` but in sticky mode packs from
+  each tile's real persisted `gridSlot` (never the live `slotOf`/preview) — and using it
+  for merge hit-testing only; the push-down preview itself still works normally for its
+  own (drop-onto-occupied) purpose. `TileMerge.computeMerge` and the write path
+  (`onDrop(mergeId)`) were always intact; the whole bug was that the hitbox used to
+  *detect* a merge target moved out from under the finger. Dense mode was never affected
+  (no `slotOf`, so `othersPacked` genuinely is invariant there). The first-round
+  `inCentre` gating was kept — it's a correct, complementary guard. **Verified working
+  on the user's physical device** after the second fix. All temporary logging removed.
+  Build + tests green; gesture-timing/hit-test bug with no unit-test harness for touch
+  dwell sequences, so verify by hand in sticky mode: edit mode → drag one tile onto
+  another → hold briefly → releases into a folder.
 - **Post-v2.2.2 — fixed a real bug: one high-volume region crowded out every other
   selected region's articles.** User report after multi-select landed: "though multi
   select is allowed. feed only loads one country at a time check." Verified by pulling

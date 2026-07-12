@@ -3014,6 +3014,25 @@ private fun Modifier.editDragGesture(
         return postProcess?.invoke(base) ?: base
     }
 
+    // Same as [othersPacked], but in sticky mode packed from each tile's real
+    // persisted `gridSlot` only — never the live [slotOf] (which reads the
+    // in-progress push-down preview). Merge-target hit-testing must use this:
+    // othersPacked() is *not* actually invariant in sticky mode the way the
+    // comment above claims — the live preview it packs with is being rewritten
+    // by this very gesture's own push-down computation (see the `else` branch
+    // below), so a tile the drag brushed past earlier can still be sitting
+    // displaced when the finger later lines up over its true position, and the
+    // merge zone check would miss it entirely. Packing from persisted slots
+    // only guarantees every target's hitbox stays exactly where it visually
+    // belongs, regardless of what the preview is doing elsewhere.
+    fun othersPackedStable(exclude: String): List<TilePlacement> {
+        val specs = order.filter { it != exclude }
+            .mapNotNull { id -> byId[id]?.let { TileSpec(id, it.size) } }
+        val stableSlotOf: ((String) -> Int?)? = if (slotOf != null) ({ id -> byId[id]?.gridSlot }) else null
+        val base = stableSlotOf?.let { GridPacker.packSticky(specs, it, columns) } ?: GridPacker.pack(specs, columns)
+        return postProcess?.invoke(base) ?: base
+    }
+
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
 
@@ -3120,7 +3139,7 @@ private fun Modifier.editDragGesture(
                 // sliding off it breaks back into a reorder.
                 val dragCentre = (pos - grab) + dragHalf
                 val hovered = startId?.let { drag ->
-                    othersPacked(drag).firstOrNull { geom.rect(it).contains(dragCentre) }
+                    othersPackedStable(drag).firstOrNull { geom.rect(it).contains(dragCentre) }
                 }
                 val inCentre = allowMerge && hovered != null &&
                     inMergeZone(geom.rect(hovered), dragCentre) &&

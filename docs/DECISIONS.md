@@ -2875,3 +2875,30 @@ sticky preview is cleared exactly once, at the moment dwelling begins, and the w
 target once `mergeNow` does flip true) instead of ever reaching the preview-recomputing branch again
 until the finger genuinely leaves the zone. The target tile now stays visually and positionally
 stationary for the entire dwell, so the 250ms window can actually complete.
+
+### Second round: the merge hitbox itself was reading the live preview layout
+
+The `inCentre`-gating fix above was correct but insufficient — the user tested it and reported merge
+still didn't work ("it pushes the destination tile, not allowing to stable"). On-device diagnostic
+logging (temporary `Log.d` in `editDragGesture`, read via `adb logcat`) pinned the actual blocker: the
+merge-target hit-test computes `hovered` from `othersPacked(startId)`, whose doc comment asserts the
+packed layout is "invariant for the whole gesture … so a merge target never slips out from under the
+finger." In **dense** mode that's true. In **sticky** mode it is not: `othersPacked` packs via the
+shared `slotOf` closure, and `slotOf` is `{ id -> stickyPreview[id] ?: byId[id]?.gridSlot }` — it reads
+`stickyPreview`, the live push-down preview this same gesture rewrites every tick. So a tile that got
+displaced into the preview earlier in the drag keeps being hit-tested at its *displaced* rect; when the
+finger later lines up over that tile's true on-screen cell, the merge-zone check is still comparing
+against the moved hitbox and never registers a hit. (This is a different, deeper instance of the same
+"preview feeds the hit-test" coupling — the first fix stopped the preview from being *written* during a
+dwell, but any displacement already present from before the dwell started still poisoned the hitbox.)
+
+Fixed by introducing `othersPackedStable(exclude)`: identical to `othersPacked`, except in sticky mode
+it packs from a slot function that reads each tile's real persisted `gridSlot` only (`{ id ->
+byId[id]?.gridSlot }`), never `stickyPreview`. Merge-target detection uses `othersPackedStable`; the
+push-down preview computation (its legitimate separate job) still uses the live `slotOf`. This
+guarantees every candidate merge target's hitbox sits exactly where the tile visually and persistently
+belongs, regardless of what the in-progress preview is doing to other tiles. Verified working on the
+user's physical device. The lesson worth keeping: *hit-testing for one interaction must never read a
+layout that a concurrent interaction is actively mutating* — merge detection and push-down preview are
+two such interactions sharing `editDragGesture`, and they need independent, non-interfering views of
+the grid.
