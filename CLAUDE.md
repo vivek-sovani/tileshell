@@ -36,6 +36,46 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.2.2 — news feed gets a locale-aware region preset (India vs.
+  international), first step toward feed-placement ad monetization.** User
+  context: before adding AdMob native ads to the feed, wanted the feed itself
+  localized beyond the hardcoded 10 India RSS sources — both for relevance to
+  non-India users and because ad eCPM is far higher outside India. `RssFeed.kt`
+  gains `INTERNATIONAL_FEED_SOURCES` (BBC World/Entertainment/Sport/Tech/
+  Business + Google News global edition + NYT Food, tagged with the same
+  `FEED_CATEGORIES` as the India list; "state"/"cricket" have no international
+  equivalent and are simply left empty) and a pure `defaultFeedSourcesForCountry
+  (countryCode)` (India → `DEFAULT_FEED_SOURCES`, everything else →
+  international; unit-tested). `FeedData` gains a persisted `region: String`
+  field (`""` = unresolved; round-tripped by `FeedCodec` as a new `R` line,
+  omitted from output when unset so existing exports don't grow a stray line).
+  `FeedStore.seedRegionDefaults(deviceCountryCode)` resolves the region **once
+  per install** from `Locale.getDefault().country` (called from
+  `StartViewModel.init`, before `reconcileDefaults` — order matters, since
+  reconcile now reads the resolved region): a no-op if the region was already
+  set (never re-seeds after a manual choice or later travel), and only
+  replaces `sources` wholesale when they still exactly match the built-in
+  India default (i.e. genuinely never customized) — otherwise it just records
+  the region so future reconciles target the right preset, leaving any
+  existing customization untouched. `reconcileDefaults` itself was a **latent
+  bug fix**: it always diffed against the India list regardless of region, so
+  a hypothetical international install would have had every India feed
+  silently re-added as "missing" on first reconcile — now diffs against
+  `defaultFeedSourcesForCountry(current.region)`. A manual **"news region"**
+  chip pair (india / international) in `FeedSettingsSheet` (`FeedPage.kt`)
+  calls the new `StartViewModel.setFeedRegion(region)` → `FeedStore
+  .applyRegionPreset`, replacing the subscribed list outright — the
+  user-facing override for whenever the locale guess is wrong, with no
+  confirmation dialog (matches this project's existing un-confirmed reset
+  actions, e.g. "reset tile style"). Deliberately scoped to **exactly two**
+  presets this session (India + one generic international set), not a
+  per-country library — extend `INTERNATIONAL_FEED_SOURCES`/add more presets
+  only when a specific country is actually requested. **Ad monetization
+  itself (AdMob native ads in the feed) is explicitly out of scope this
+  session** — this was step one of that plan; adding the SDK, AdMob
+  registration/app-ads.txt, UMP consent flow, and the Play Data Safety +
+  Accessibility-disclosure updates it requires are still to come. Build +
+  tests green (`RssFeedTest`/`FeedCodecTest` extended).
 - **Post-v2.2.2 — closed folder's mini-grid shows a per-app badge alongside the
   existing aggregate.** User-requested: a closed folder tile already summed its
   children's notification counts into one badge (`TileView`'s `badgeCount`),

@@ -86,6 +86,40 @@ val DEFAULT_FEED_SOURCES: List<FeedSource> = listOf(
     FeedSource("https://feeds.feedburner.com/ndtvcooks-latest", "NDTV Food", "food", enabled = false),
 )
 
+/**
+ * Generic international default feeds (English-language, globally reachable), used
+ * for any device country other than India. Tagged by the same [FEED_CATEGORIES] as
+ * [DEFAULT_FEED_SOURCES] so they drop into the same category UI/toggles; "state" and
+ * "cricket" have no sensible global equivalent and are simply left unpopulated.
+ */
+val INTERNATIONAL_FEED_SOURCES: List<FeedSource> = listOf(
+    FeedSource("https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en", "Google News", "nation", enabled = true),
+    FeedSource("http://feeds.bbci.co.uk/news/world/rss.xml", "BBC World", "nation", enabled = true),
+    FeedSource("http://feeds.bbci.co.uk/news/entertainment_arts/rss.xml", "BBC Entertainment", "entertainment", enabled = true),
+    FeedSource("http://feeds.bbci.co.uk/sport/rss.xml?edition=int", "BBC Sport", "sports", enabled = true),
+    FeedSource("http://feeds.bbci.co.uk/news/technology/rss.xml", "BBC Technology", "tech", enabled = true),
+    FeedSource("http://feeds.bbci.co.uk/news/business/rss.xml", "BBC Business", "business", enabled = false),
+    FeedSource("https://rss.nytimes.com/services/xml/rss/nyt/Food.xml", "NYT Food", "food", enabled = false),
+)
+
+/** Two-letter ISO country code the India-specific default feeds are tuned for. */
+const val INDIA_COUNTRY_CODE = "IN"
+
+/**
+ * Region code stored for the manual "international" choice in feed settings — not a
+ * real ISO country, just a value `defaultFeedSourcesForCountry` treats as non-India.
+ */
+const val INTERNATIONAL_REGION_CODE = "INTL"
+
+/**
+ * Picks the default feed preset for a device/locale [countryCode]: the curated India
+ * list for `IN`, else the generic [INTERNATIONAL_FEED_SOURCES] set. Pure + exhaustive
+ * (any unrecognised/blank code falls back to international) so it's unit-testable
+ * without Android's Locale machinery.
+ */
+fun defaultFeedSourcesForCountry(countryCode: String): List<FeedSource> =
+    if (countryCode.equals(INDIA_COUNTRY_CODE, ignoreCase = true)) DEFAULT_FEED_SOURCES else INTERNATIONAL_FEED_SOURCES
+
 private val RSS_DATE_FORMATS = listOf(
     "EEE, dd MMM yyyy HH:mm:ss Z",   // RFC-822 with numeric offset
     "EEE, dd MMM yyyy HH:mm:ss zzz", // RFC-822 with zone name (GMT/UTC)

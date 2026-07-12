@@ -71,6 +71,8 @@ import com.tileshell.feature.livetiles.FeedArticle
 import com.tileshell.feature.livetiles.FeedData
 import com.tileshell.feature.livetiles.FeedRefreshWorker
 import com.tileshell.feature.livetiles.FeedStore
+import com.tileshell.feature.livetiles.INDIA_COUNTRY_CODE
+import com.tileshell.feature.livetiles.INTERNATIONAL_REGION_CODE
 import com.tileshell.feature.livetiles.feedAgo
 import com.tileshell.feature.livetiles.MediaCenter
 import com.tileshell.feature.livetiles.MediaTransportControls
@@ -113,6 +115,8 @@ fun FeedPage(
     onToggleCategory: (category: String, enabled: Boolean) -> Unit,
     onRemoveFeed: (url: String) -> Unit,
     onAddFeed: (url: String, name: String) -> Unit,
+    feedRegion: String,
+    onFeedRegionChange: (String) -> Unit,
     onOpenQuickSearch: () -> Unit,
     onWeatherDetails: (String) -> Unit,
     onAddSchedule: () -> Unit,
@@ -273,6 +277,8 @@ fun FeedPage(
         onToggleCategory = onToggleCategory,
         onRemoveFeed = onRemoveFeed,
         onAddFeed = onAddFeed,
+        feedRegion = feedRegion,
+        onFeedRegionChange = onFeedRegionChange,
         onDismiss = { feedSettingsOpen = false },
     )
     }  // Box
@@ -739,6 +745,8 @@ private fun FeedSettingsSheet(
     onToggleCategory: (category: String, enabled: Boolean) -> Unit,
     onRemoveFeed: (url: String) -> Unit,
     onAddFeed: (url: String, name: String) -> Unit,
+    feedRegion: String,
+    onFeedRegionChange: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val progress by animateFloatAsState(
@@ -805,6 +813,28 @@ private fun FeedSettingsSheet(
                     tokens = tokens,
                     onChange = onFeedEnabledChange,
                 )
+            }
+
+            // News region: swaps the whole subscribed-feed list for a curated preset
+            // (India vs a generic international set) — an explicit override of the
+            // locale-detected default seeded on first run (StartViewModel.init).
+            FeedSheetGroup(label = "news region", labelColor = tokens.fgDim) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FeedSourceChip(
+                        label = "india",
+                        on = feedRegion == INDIA_COUNTRY_CODE,
+                        accent = accent,
+                        tokens = tokens,
+                        onClick = { onFeedRegionChange(INDIA_COUNTRY_CODE) },
+                    )
+                    FeedSourceChip(
+                        label = "international",
+                        on = feedRegion != INDIA_COUNTRY_CODE,
+                        accent = accent,
+                        tokens = tokens,
+                        onClick = { onFeedRegionChange(INTERNATIONAL_REGION_CODE) },
+                    )
+                }
             }
 
             // Feed sources section.

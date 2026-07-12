@@ -131,4 +131,13 @@ class RssFeedTest {
         assertEquals("2d", feedAgo(now - 2 * 86_400_000L, now))
         assertEquals("now", feedAgo(0L, now)) // missing date
     }
+
+    @Test
+    fun `default feed sources for country picks india list only for IN`() {
+        assertEquals(DEFAULT_FEED_SOURCES, defaultFeedSourcesForCountry("IN"))
+        assertEquals(DEFAULT_FEED_SOURCES, defaultFeedSourcesForCountry("in")) // case-insensitive
+        assertEquals(INTERNATIONAL_FEED_SOURCES, defaultFeedSourcesForCountry("US"))
+        assertEquals(INTERNATIONAL_FEED_SOURCES, defaultFeedSourcesForCountry("GB"))
+        assertEquals(INTERNATIONAL_FEED_SOURCES, defaultFeedSourcesForCountry("")) // unresolved locale
+    }
 }

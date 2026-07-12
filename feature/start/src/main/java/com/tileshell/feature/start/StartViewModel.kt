@@ -29,6 +29,7 @@ import com.tileshell.feature.livetiles.DEFAULT_FEED_SOURCES
 import com.tileshell.feature.livetiles.FeedRefreshWorker
 import com.tileshell.feature.livetiles.FeedSource
 import com.tileshell.feature.livetiles.FeedStore
+import com.tileshell.feature.livetiles.INDIA_COUNTRY_CODE
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -101,6 +102,15 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = DEFAULT_FEED_SOURCES,
+        )
+
+    /** The active news-region preset ("IN" or "INTL"), for feed settings' region toggle. */
+    val feedRegion: StateFlow<String> = feedStore.data
+        .map { it.region.ifEmpty { INDIA_COUNTRY_CODE } }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = INDIA_COUNTRY_CODE,
         )
 
     /** Emitted when the user presses Home while already on Start. */
@@ -259,10 +269,16 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
                 seedStickySlots(initialSettings.columns)
             }
         }
-        // Pull in any news feeds/categories added in a newer app version (DataStore
-        // keeps the first-seen list, so new defaults like state/entertainment need
-        // an explicit reconcile to appear in existing installs).
-        viewModelScope.launch(Dispatchers.IO) { feedStore.reconcileDefaults() }
+        // Resolve the news-region preset from the device locale before reconciling
+        // (order matters: reconcileDefaults reads FeedData.region, so it must run
+        // after seedRegionDefaults has had a chance to set it) — then pull in any
+        // news feeds/categories added in a newer app version (DataStore keeps the
+        // first-seen list, so new defaults like state/entertainment need an explicit
+        // reconcile to appear in existing installs).
+        viewModelScope.launch(Dispatchers.IO) {
+            feedStore.seedRegionDefaults(java.util.Locale.getDefault().country)
+            feedStore.reconcileDefaults()
+        }
         viewModelScope.launch(writeContext) {
             debouncedReorders.collect { repository.reorderTiles(it) }
         }
@@ -634,6 +650,18 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     fun setFeedCategoryEnabled(category: String, enabled: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             feedStore.setCategoryEnabled(category, enabled)
+            FeedRefreshWorker.refreshNow(getApplication())
+        }
+    }
+
+    /**
+     * Manual override of the news-region preset (feed settings): replaces the
+     * subscribed feeds outright with [region]'s defaults — the explicit-choice
+     * counterpart to the locale-based auto-seed in `StartViewModel.init`.
+     */
+    fun setFeedRegion(region: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            feedStore.applyRegionPreset(region)
             FeedRefreshWorker.refreshNow(getApplication())
         }
     }

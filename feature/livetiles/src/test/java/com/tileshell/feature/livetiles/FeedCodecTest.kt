@@ -43,6 +43,15 @@ class FeedCodecTest {
         val decoded = FeedCodec.decode("")
         assertEquals(emptyList<FeedSource>(), decoded.sources)
         assertEquals(emptyList<FeedArticle>(), decoded.articles)
+        assertEquals("", decoded.region)
+    }
+
+    @Test
+    fun `region round-trips and is omitted when unset`() {
+        val withRegion = FeedData(region = "INTL")
+        assertEquals("INTL", FeedCodec.decode(FeedCodec.encode(withRegion)).region)
+        assertEquals("", FeedCodec.decode(FeedCodec.encode(FeedData())).region)
+        assertEquals("R", FeedCodec.encode(withRegion).lineSequence().first().substringBefore('\t'))
     }
 
     @Test
