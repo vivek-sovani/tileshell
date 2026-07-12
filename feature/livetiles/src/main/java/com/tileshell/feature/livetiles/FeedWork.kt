@@ -20,16 +20,36 @@ import java.util.concurrent.TimeUnit
 const val FEED_ARTICLE_CAP = 40
 
 /**
- * Merges per-feed article lists into one feed: de-duplicates by link (falling back
- * to title when a link is missing), sorts newest-first by published time, and caps
- * the total. Pure so the ordering/dedup is unit-testable.
+ * Per-feed ceiling applied before the global merge (FR — multi-region selection):
+ * without this, a handful of very-frequently-posting sources (e.g. India's 10 default
+ * feeds) can supply more than [FEED_ARTICLE_CAP] recent articles on their own, crowding
+ * out every other enabled source/region entirely before the global cap is even
+ * reached — confirmed live: selecting India + UK + US left the cache 39/40 Indian
+ * articles, 1 US, 0 UK, even though the UK feed fetched fine. Capping each feed's own
+ * contribution first guarantees every enabled source gets a chance to place.
  */
-fun mergeFeedArticles(perFeed: List<List<FeedArticle>>, cap: Int = FEED_ARTICLE_CAP): List<FeedArticle> {
+const val FEED_PER_SOURCE_CAP = 8
+
+/**
+ * Merges per-feed article lists into one feed: each feed's own list is first sorted
+ * newest-first and truncated to [perSourceCap] (see [FEED_PER_SOURCE_CAP]) so no
+ * single prolific source can crowd out the others, then the combined list is
+ * de-duplicated by link (falling back to title when a link is missing), sorted
+ * newest-first again, and capped at [cap]. Pure so the ordering/dedup/fairness is
+ * unit-testable.
+ */
+fun mergeFeedArticles(
+    perFeed: List<List<FeedArticle>>,
+    cap: Int = FEED_ARTICLE_CAP,
+    perSourceCap: Int = FEED_PER_SOURCE_CAP,
+): List<FeedArticle> {
     val seen = HashSet<String>()
     val merged = ArrayList<FeedArticle>()
-    perFeed.flatten().forEach { a ->
-        val key = a.link.ifBlank { a.title }
-        if (seen.add(key)) merged.add(a)
+    perFeed.forEach { feedArticles ->
+        feedArticles.sortedByDescending { it.publishedAtMillis }.take(perSourceCap).forEach { a ->
+            val key = a.link.ifBlank { a.title }
+            if (seen.add(key)) merged.add(a)
+        }
     }
     return merged.sortedByDescending { it.publishedAtMillis }.take(cap)
 }

@@ -2813,3 +2813,30 @@ not impossible, e.g. two presets could coincidentally reference the same underly
 drops urls unique to the region being turned off. `reconcileDefaults` (run on every launch to backfill
 newly-added default feeds) was updated the same way: it now unions all active regions' presets
 (`distinctBy { it.url }` to dedupe) instead of reconciling against a single region.
+
+## Per-source article cap, so one high-volume region can't crowd out the others
+
+Landing multi-select regions surfaced a real bug, not a perception issue: the user reported the feed
+"only loads one country at a time" even with several selected. Pulling the actual on-device
+`news_feed.pb` (via `adb shell run-as com.tileshell cat files/datastore/news_feed.pb`) with India + UK
++ US all active proved the subscriptions themselves were correct — every region's feeds were enabled —
+but the *cached articles* were 39/40 Indian, 1 American, 0 British.
+
+The cause was in `mergeFeedArticles`, not in region selection: it merged every enabled feed's articles,
+sorted the combined list purely by `publishedAtMillis` descending, and took the top
+`FEED_ARTICLE_CAP` (40) — no per-source or per-region floor. India's 10 default feeds (The Hindu, NDTV,
+TOI, etc.) post frequently enough that their own newest articles alone exceed 40, so nothing from a
+less prolific region's feed could ever rank high enough to survive the cut, however many other regions
+were also subscribed. Live-curling BBC UK's feed directly (outside the merge logic) confirmed it was
+never a fetch failure — the feed had recent, valid articles that simply lost every recency comparison
+against India's higher-frequency output.
+
+Fixed with a `FEED_PER_SOURCE_CAP` (8): each individual feed's article list is now sorted and truncated
+to its own top 8 *before* the global merge/sort/final-cap runs. This guarantees every enabled source
+gets a chance to place in the final cache regardless of how prolific its neighbors are, at the cost of
+capping how many of any one (very active) source's articles can appear even when it's the only region
+selected — an acceptable trade given the alternative was silently excluding entire regions. A per-region
+quota (rather than per-source) was considered but rejected as unnecessary complexity: since each
+generated country preset already contributes a small, roughly-even number of feeds (~5), capping at the
+feed level achieves fair regional representation without needing to track which region a `FeedSource`
+originated from.

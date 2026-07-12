@@ -36,6 +36,24 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.2.2 — fixed a real bug: one high-volume region crowded out every other
+  selected region's articles.** User report after multi-select landed: "though multi
+  select is allowed. feed only loads one country at a time check." Verified by pulling
+  the actual `news_feed.pb` off the connected physical device (`adb shell run-as
+  com.tileshell cat files/datastore/news_feed.pb`) with India + UK + US all selected:
+  every region's feeds *were* correctly enabled and subscribed (multi-select itself
+  works), but of the 40 cached articles, 39 were Indian and only 1 was American — zero
+  from the UK, even though live-curling the BBC UK feed directly confirmed it fetches
+  fine and has recent articles. Root cause: `mergeFeedArticles` (`FeedWork.kt`) did a
+  flat global top-40 sort purely by recency with no per-source ceiling — India's 10
+  default feeds post so frequently that their own newest articles alone exceed 40,
+  so slower-posting regions' articles never survive the cut regardless of how many
+  regions are actively subscribed. Fixed by capping each individual feed's
+  contribution to `FEED_PER_SOURCE_CAP` (8) newest articles *before* the global
+  merge/sort/final-cap — every enabled source now gets a chance to place in the
+  cache, however many other high-volume sources are also active. Unit-tested
+  directly (`FeedCodecTest`: a 50-article prolific feed no longer fully crowds out a
+  3-article slow feed). Build + tests green.
 - **Post-v2.2.2 — news-region picker is multi-select, not single-choice.** User
   request: "multiple country selection should be allowed" — until now, tapping a
   region chip in `FeedSettingsSheet` replaced the whole subscribed-feed list with
