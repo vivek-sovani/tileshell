@@ -1848,6 +1848,7 @@ private fun StartPage(
                         jigglePhase = jigglePhase,
                         flipped = flipState.isFlipped(model.id),
                         liveActive = liveActive,
+                        notifications = notifications,
                         badgeCount = when (model) {
                             is TileModel.App -> notifications.badgeFor(model.packageName)
                             // A folder aggregates the unread counts of its children,
@@ -2225,6 +2226,7 @@ private fun TileView(
     jigglePhase: Float,
     flipped: Boolean,
     liveActive: Boolean,
+    notifications: NotificationSnapshot,
     badgeCount: Int,
     darkTheme: Boolean,
     canMoveBack: Boolean,
@@ -2438,6 +2440,7 @@ private fun TileView(
                         transparency = transparency,
                         darkTheme = darkTheme,
                         tiledWallpaper = tiledWallpaper,
+                        notifications = notifications,
                         onLaunchChild = onLaunchFolderChild,
                         onOpenFolder = onTap,
                         onEnterEdit = onLongPress,
@@ -2607,6 +2610,33 @@ private fun NotificationBadge(
             text = if (count > 99) "99+" else count.toString(),
             color = fg,
             fontSize = if (small) 11.sp else 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+        )
+    }
+}
+
+/**
+ * A tiny per-app count dot for one cell of a closed folder's mini-grid
+ * (`FolderTileContent`) — same white/dark-inverted pill as [NotificationBadge],
+ * scaled down further to fit inside an icon-sized cell.
+ */
+@Composable
+private fun FolderChildBadge(count: Int, dark: Boolean, modifier: Modifier = Modifier) {
+    val bg = if (dark) Color.White else Color(0xFF111111)
+    val fg = if (dark) Color(0xFF111111) else Color.White
+    Box(
+        modifier = modifier
+            .padding(top = 1.dp, end = 1.dp)
+            .defaultMinSize(minWidth = 12.dp, minHeight = 12.dp)
+            .background(bg, CircleShape)
+            .padding(horizontal = 2.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = if (count > 9) "9+" else count.toString(),
+            color = fg,
+            fontSize = 8.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
         )
@@ -3579,6 +3609,7 @@ private fun FolderTileContent(
     transparency: Float,
     darkTheme: Boolean,
     tiledWallpaper: Boolean,
+    notifications: NotificationSnapshot,
     onLaunchChild: (FolderChild) -> Unit,
     onOpenFolder: () -> Unit,
     onEnterEdit: () -> Unit,
@@ -3663,6 +3694,18 @@ private fun FolderTileContent(
                                 )
                             } else {
                                 FolderChildIcon(child)
+                            }
+                            // Per-app count alongside the folder's own aggregate
+                            // badge (TileView) — lets a closed folder be scanned
+                            // for *which* app has unread items, not just how many
+                            // in total.
+                            val childBadge = child?.let { notifications.badgeFor(it.packageName) } ?: 0
+                            if (!isPlus && childBadge > 0) {
+                                FolderChildBadge(
+                                    count = childBadge,
+                                    dark = darkTheme,
+                                    modifier = Modifier.align(Alignment.TopEnd),
+                                )
                             }
                         }
                     }

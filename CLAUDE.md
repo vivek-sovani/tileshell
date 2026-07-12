@@ -36,6 +36,19 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.2.2 — closed folder's mini-grid shows a per-app badge alongside the
+  existing aggregate.** User-requested: a closed folder tile already summed its
+  children's notification counts into one badge (`TileView`'s `badgeCount`),
+  but couldn't tell you which app the count came from. `FolderTileContent`'s
+  icon mini-grid now also draws a small `FolderChildBadge` (shrunk
+  `NotificationBadge` pill) on each child cell whose package has a pending
+  count > 0, via a newly-threaded `NotificationSnapshot` (`TileView` →
+  `FolderTileContent`). The folder's own aggregate badge is unchanged — this is
+  additive. Out of scope (already covered by the existing per-tile badge logic,
+  since both render children as full `TileView`/`AppTileContent` tiles rather
+  than mini-grid cells): the widget-stack carousel and the inline-expanded
+  folder view. See DECISIONS "Closed folder's mini-grid shows a per-app badge,
+  not just the folder's total." Build + tests green.
 - **Post-v2.2.1 — second Accessibility API rejection: the demo video, not the
   disclosure text, was the actual problem.** After the v2.2.0 disclosure fix
   (below), Play rejected the resubmission again under the same policy, but

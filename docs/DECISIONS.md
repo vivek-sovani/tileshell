@@ -3,6 +3,31 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Closed folder's mini-grid shows a per-app badge, not just the folder's total
+
+User-requested follow-up: a closed folder tile already showed one aggregate
+notification count (`TileView`'s `badgeCount`, summed across all children by
+package — see the "notification listener" work). That tells you *how many*
+pending notifications the folder holds but not *which* app they belong to,
+so a folder with mail+chat apps looked the same whether it was one app with
+many unread or several apps each with one. Real WP folders don't show
+per-child badges at all (a WP group is just a section of always-visible
+tiles, each already showing its own badge in place) — this launcher's closed
+folder collapses its children into a small icon mini-grid instead, so the
+per-child badge has nowhere to live unless the mini-grid itself draws one.
+
+Added a small `FolderChildBadge` (same white/dark-inverted pill as the
+existing `NotificationBadge`, shrunk to fit an icon-sized mini-grid cell) in
+`FolderTileContent`, positioned top-end of each non-"+N" cell whenever
+`NotificationCenter`'s badge count for that child's package is > 0. The
+folder tile's own aggregate badge (`TileView`) is unchanged — this is
+additive, not a replacement. Threaded `NotificationSnapshot` one level
+further down (`TileView` → `FolderTileContent`) since only the aggregate sum
+was previously computed at the `StartPage` level. Does not extend to the
+widget-stack carousel (`StackTileContent`) or the inline-expanded folder
+view — both already show each member/child as its own full tile via
+`AppTileContent`, which the top-level per-tile badge logic already covers.
+
 ## Folders: inline expand-in-place replaces the modal FolderOverlay
 
 User-requested follow-up to the sticky-mode session (deliberately deferred
