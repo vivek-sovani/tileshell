@@ -29,7 +29,6 @@ import com.tileshell.feature.livetiles.DEFAULT_FEED_SOURCES
 import com.tileshell.feature.livetiles.FeedRefreshWorker
 import com.tileshell.feature.livetiles.FeedSource
 import com.tileshell.feature.livetiles.FeedStore
-import com.tileshell.feature.livetiles.INDIA_COUNTRY_CODE
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -104,13 +103,13 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = DEFAULT_FEED_SOURCES,
         )
 
-    /** The active news-region preset ("IN" or "INTL"), for feed settings' region toggle. */
-    val feedRegion: StateFlow<String> = feedStore.data
-        .map { it.region.ifEmpty { INDIA_COUNTRY_CODE } }
+    /** The active news-region presets (multi-select), for feed settings' region chips. */
+    val feedRegions: StateFlow<Set<String>> = feedStore.data
+        .map { it.regions }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = INDIA_COUNTRY_CODE,
+            initialValue = emptySet(),
         )
 
     /** Emitted when the user presses Home while already on Start. */
@@ -655,13 +654,13 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Manual override of the news-region preset (feed settings): replaces the
-     * subscribed feeds outright with [region]'s defaults — the explicit-choice
-     * counterpart to the locale-based auto-seed in `StartViewModel.init`.
+     * Manual multi-select toggle of a news-region preset (feed settings): additively
+     * merges/removes [region]'s feeds — several regions can be active at once, the
+     * explicit-choice counterpart to the locale-based auto-seed in `StartViewModel.init`.
      */
-    fun setFeedRegion(region: String) {
+    fun setFeedRegionEnabled(region: String, enabled: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
-            feedStore.applyRegionPreset(region)
+            feedStore.toggleRegion(region, enabled)
             FeedRefreshWorker.refreshNow(getApplication())
         }
     }

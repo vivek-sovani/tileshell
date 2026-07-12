@@ -277,7 +277,7 @@ fun StartScreen(
     val apps by viewModel.apps.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val feedSources by viewModel.feedSources.collectAsStateWithLifecycle()
-    val feedRegion by viewModel.feedRegion.collectAsStateWithLifecycle()
+    val feedRegions by viewModel.feedRegions.collectAsStateWithLifecycle()
     // Live notification state (FR-1.2 badges, FR-2 mail/messages). Empty until the
     // user enables notification access, which keeps every tile static / un-badged.
     val notifications by NotificationCenter.snapshot.collectAsStateWithLifecycle()
@@ -834,8 +834,8 @@ fun StartScreen(
                 onToggleCategory = viewModel::setFeedCategoryEnabled,
                 onRemoveFeed = viewModel::removeFeedSource,
                 onAddFeed = viewModel::addFeedSource,
-                feedRegion = feedRegion,
-                onFeedRegionChange = viewModel::setFeedRegion,
+                feedRegions = feedRegions,
+                onFeedRegionToggle = viewModel::setFeedRegionEnabled,
                 onOpenQuickSearch = viewModel::openSearch,
                 onWeatherDetails = { query -> launchWebSearch(context, query) },
                 onAddSchedule = { launchAddEvent(context) },

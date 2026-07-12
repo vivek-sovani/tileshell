@@ -2795,3 +2795,21 @@ are https` asserts every `FeedSource` across `DEFAULT_FEED_SOURCES`, `INTERNATIO
 every generated `SELECTABLE_COUNTRIES` preset starts with `https://` — a plain JVM test, so it can't
 catch a feed being reachable-but-wrong (only `curl` during development catches that), but it makes
 the cleartext class of bug specifically impossible to reintroduce silently.
+
+## News regions are multi-select, additive/subtractive by url
+
+The region picker started as a single choice — selecting a country replaced the entire subscribed
+feed list with that country's preset. The user asked for multiple countries to be selectable at once
+(e.g. India + UK together), which rules out "replace wholesale" as the toggle semantics.
+
+`FeedData.regions` is a `Set<String>` rather than one `String`. Toggling a region **on** merges its
+preset's feeds into the existing `sources` list, skipping any url already present — so it can never
+duplicate a feed another active region already contributes, and never touches manually-added custom
+feeds or another region's enable/disable choices. Toggling a region **off** is the trickier direction:
+it must not blindly remove every url in that region's preset, because a url could be shared with
+another still-active region (unlikely given each preset is generated from a distinct country code, but
+not impossible, e.g. two presets could coincidentally reference the same underlying source) — so the
+"off" path recomputes the union of every *other* currently-active region's preset urls first, and only
+drops urls unique to the region being turned off. `reconcileDefaults` (run on every launch to backfill
+newly-added default feeds) was updated the same way: it now unions all active regions' presets
+(`distinctBy { it.url }` to dedupe) instead of reconciling against a single region.

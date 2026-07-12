@@ -11,16 +11,18 @@ import java.io.OutputStream
 
 /**
  * Persisted news-feed state (left feed discover section): the subscribed [sources],
- * the last fetched [articles] cache, and the resolved [region] preset (`""` means
- * "not yet resolved for this install" — see `FeedStore.seedRegionDefaults`). Seeded
- * with [DEFAULT_FEED_SOURCES] until the user edits the list or the region is
+ * the last fetched [articles] cache, and the active [regions] presets (empty means
+ * "not yet resolved for this install" — see `FeedStore.seedRegionDefaults`). Multiple
+ * regions can be active at once (FR — user asked for multi-country selection, not a
+ * single switch): each toggled-on region's feeds are additively merged into [sources].
+ * Seeded with [DEFAULT_FEED_SOURCES] until the user edits the list or a region is
  * resolved. Kept in its own DataStore (mirroring WeatherCache) so the feature is
  * self-contained.
  */
 data class FeedData(
     val sources: List<FeedSource> = DEFAULT_FEED_SOURCES,
     val articles: List<FeedArticle> = emptyList(),
-    val region: String = "",
+    val regions: Set<String> = emptySet(),
 )
 
 /**
@@ -36,9 +38,7 @@ object FeedCodec {
     private fun clean(s: String?): String = s.orEmpty().replace(Regex("[\\t\\n\\r]"), " ").trim()
 
     fun encode(data: FeedData): String = buildString {
-        if (data.region.isNotEmpty()) {
-            append("R").append(TAB).append(clean(data.region)).append('\n')
-        }
+        data.regions.forEach { r -> append("R").append(TAB).append(clean(r)).append('\n') }
         data.sources.forEach { s ->
             append("S").append(TAB).append(if (s.enabled) "1" else "0")
                 .append(TAB).append(clean(s.url)).append(TAB).append(clean(s.name))
@@ -55,12 +55,12 @@ object FeedCodec {
     fun decode(text: String): FeedData {
         val sources = ArrayList<FeedSource>()
         val articles = ArrayList<FeedArticle>()
-        var region = ""
+        val regions = LinkedHashSet<String>()
         text.lineSequence().forEach { line ->
             if (line.isBlank()) return@forEach
             val f = line.split(TAB)
             when (f.getOrNull(0)) {
-                "R" -> region = f.getOrNull(1).orEmpty()
+                "R" -> f.getOrNull(1)?.takeIf { it.isNotEmpty() }?.let { regions.add(it) }
                 "S" -> if (f.size >= 4 && f[2].isNotEmpty()) {
                     val url = f[2]
                     // Backfill the category for sources stored before categories
@@ -84,7 +84,7 @@ object FeedCodec {
                 }
             }
         }
-        return FeedData(sources = sources, articles = articles, region = region)
+        return FeedData(sources = sources, articles = articles, regions = regions)
     }
 }
 
@@ -151,12 +151,14 @@ class FeedStore(private val store: DataStore<FeedData>) {
      * newer version appear in existing installs (DataStore keeps the first-seen list
      * and never picks up new defaults on its own). Existing feeds — including the
      * user's enable/disable choices and custom feeds — are untouched. Reconciles
-     * against the install's active [FeedData.region] preset, not always the India
-     * list, so an international install doesn't have every India feed re-added here.
+     * against the union of the install's active [FeedData.regions] presets (deduped by
+     * url), not always the India list, so an international install doesn't have every
+     * India feed re-added here.
      */
     suspend fun reconcileDefaults() {
         store.updateData { current ->
-            val preset = defaultFeedSourcesForCountry(current.region.ifEmpty { INDIA_COUNTRY_CODE })
+            val activeRegions = current.regions.ifEmpty { setOf(INDIA_COUNTRY_CODE) }
+            val preset = activeRegions.flatMap { defaultFeedSourcesForCountry(it) }.distinctBy { it.url }
             // Drop former-default feeds removed in a newer version, then add any
             // current defaults not yet present (by url).
             val kept = current.sources.filterNot { it.url in DEPRECATED_FEED_URLS }
@@ -168,27 +170,54 @@ class FeedStore(private val store: DataStore<FeedData>) {
     }
 
     /**
-     * Resolves the news-region preset once per install (FR — locale-specific feed
-     * defaults). A no-op if [FeedData.region] is already set — including on repeat
-     * calls, so it never overrides a later manual choice (see [applyRegionPreset]) or
-     * re-runs after the user travels. Only replaces [FeedData.sources] wholesale when
-     * they still exactly match the built-in India default (i.e. nothing was ever
-     * customized); otherwise it just records the region so `reconcileDefaults` stops
-     * reconciling against the wrong preset, leaving the user's own selection intact.
+     * Resolves the initial news-region preset once per install (FR — locale-specific
+     * feed defaults). A no-op if any [FeedData.regions] is already set — including on
+     * repeat calls, so it never overrides a later manual choice (see [toggleRegion]) or
+     * re-runs after the user travels. An unlisted/blank device country resolves to
+     * [INTERNATIONAL_REGION_CODE] explicitly (rather than storing the raw, meaningless
+     * code) so the feed-settings chips always have a matching entry highlighted. Only
+     * replaces [FeedData.sources] wholesale when they still exactly match the built-in
+     * India default (i.e. nothing was ever customized); otherwise it just records the
+     * region so `reconcileDefaults` stops reconciling against the wrong preset, leaving
+     * the user's own selection intact.
      */
     suspend fun seedRegionDefaults(deviceCountryCode: String) {
         store.updateData { current ->
-            if (current.region.isNotEmpty()) return@updateData current
-            val resolved = deviceCountryCode.uppercase().ifEmpty { INDIA_COUNTRY_CODE }
+            if (current.regions.isNotEmpty()) return@updateData current
+            val cc = deviceCountryCode.uppercase()
+            val resolved = when {
+                cc == INDIA_COUNTRY_CODE -> INDIA_COUNTRY_CODE
+                SELECTABLE_COUNTRIES.any { it.code == cc } -> cc
+                else -> INTERNATIONAL_REGION_CODE
+            }
             val next = if (current.sources == DEFAULT_FEED_SOURCES) defaultFeedSourcesForCountry(resolved) else current.sources
-            current.copy(region = resolved, sources = next)
+            current.copy(regions = setOf(resolved), sources = next)
         }
     }
 
-    /** Explicit user override (feed settings): replace feeds with [region]'s preset. */
-    suspend fun applyRegionPreset(region: String) {
-        val resolved = region.uppercase()
-        store.updateData { it.copy(region = resolved, sources = defaultFeedSourcesForCountry(resolved)) }
+    /**
+     * Manual multi-select toggle (feed settings): turning a region on additively merges
+     * its preset feeds into [FeedData.sources] (skipping urls already present, so it
+     * never disturbs another active region's feeds, custom feeds, or existing
+     * enable/disable choices); turning it off removes only the urls unique to that
+     * region's preset — anything still claimed by another currently-active region (or
+     * a manually-added custom feed) stays untouched.
+     */
+    suspend fun toggleRegion(regionCode: String, enabled: Boolean) {
+        val code = regionCode.uppercase()
+        store.updateData { current ->
+            val regions = if (enabled) current.regions + code else current.regions - code
+            val preset = defaultFeedSourcesForCountry(code)
+            val sources = if (enabled) {
+                val present = current.sources.mapTo(HashSet()) { it.url }
+                current.sources + preset.filterNot { it.url in present }
+            } else {
+                val stillWanted = regions.flatMap { defaultFeedSourcesForCountry(it) }.mapTo(HashSet()) { it.url }
+                val presetUrls = preset.mapTo(HashSet()) { it.url }
+                current.sources.filterNot { it.url in presetUrls && it.url !in stillWanted }
+            }
+            current.copy(regions = regions, sources = sources)
+        }
     }
 
     companion object {

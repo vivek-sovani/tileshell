@@ -36,6 +36,30 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.2.2 — news-region picker is multi-select, not single-choice.** User
+  request: "multiple country selection should be allowed" — until now, tapping a
+  region chip in `FeedSettingsSheet` replaced the whole subscribed-feed list with
+  that one region's preset (India *or* UK *or* US, never several). `FeedData.region:
+  String` → `regions: Set<String>`; `FeedCodec` now writes/reads one `R` line per
+  active region instead of at most one. `FeedStore.toggleRegion(code, enabled)`
+  replaces `applyRegionPreset`: turning a region **on** additively merges its preset's
+  feeds into `sources` (skipping urls already present, so it never disturbs another
+  active region's feeds or custom feeds); turning one **off** removes only the urls
+  unique to that region's preset — anything still claimed by another currently-active
+  region stays. `reconcileDefaults` now reconciles against the **union** of all active
+  regions' presets (deduped by url via `distinctBy`), not just one.
+  `seedRegionDefaults` seeds a single-element set at first run as before, but now
+  explicitly resolves an unlisted/blank device country to `INTERNATIONAL_REGION_CODE`
+  rather than storing the raw locale code — a latent gap the old single-`region`
+  design had (an unrecognised locale like `"CN"` would've persisted as-is, and since
+  the picker only ever renders chips for India/International/the 19 named countries,
+  no chip would ever show as selected for that install). `StartViewModel.feedRegion:
+  StateFlow<String>` → `feedRegions: StateFlow<Set<String>>`,
+  `setFeedRegion(region)` → `setFeedRegionEnabled(region, enabled)`; the
+  `FeedSettingsSheet` chip row (`FeedPage.kt`) is now a true toggle set (each chip's
+  `on` state = `code in feedRegions`, independent of the others) instead of a
+  single-selection switch. Build + tests green (`FeedCodecTest` updated for repeated
+  `R` lines / multiple regions round-tripping).
 - **Post-v2.2.2 — real image-bearing top-stories source for US/UK/Australia/Canada/
   UAE + a live-verified cleartext bug fix.** Direct follow-up: user asked "google feed
   is without pictures.. will it be useful?" — confirmed by fetching a live Google News

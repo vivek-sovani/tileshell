@@ -117,8 +117,8 @@ fun FeedPage(
     onToggleCategory: (category: String, enabled: Boolean) -> Unit,
     onRemoveFeed: (url: String) -> Unit,
     onAddFeed: (url: String, name: String) -> Unit,
-    feedRegion: String,
-    onFeedRegionChange: (String) -> Unit,
+    feedRegions: Set<String>,
+    onFeedRegionToggle: (region: String, enabled: Boolean) -> Unit,
     onOpenQuickSearch: () -> Unit,
     onWeatherDetails: (String) -> Unit,
     onAddSchedule: () -> Unit,
@@ -279,8 +279,8 @@ fun FeedPage(
         onToggleCategory = onToggleCategory,
         onRemoveFeed = onRemoveFeed,
         onAddFeed = onAddFeed,
-        feedRegion = feedRegion,
-        onFeedRegionChange = onFeedRegionChange,
+        feedRegions = feedRegions,
+        onFeedRegionToggle = onFeedRegionToggle,
         onDismiss = { feedSettingsOpen = false },
     )
     }  // Box
@@ -747,8 +747,8 @@ private fun FeedSettingsSheet(
     onToggleCategory: (category: String, enabled: Boolean) -> Unit,
     onRemoveFeed: (url: String) -> Unit,
     onAddFeed: (url: String, name: String) -> Unit,
-    feedRegion: String,
-    onFeedRegionChange: (String) -> Unit,
+    feedRegions: Set<String>,
+    onFeedRegionToggle: (region: String, enabled: Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val progress by animateFloatAsState(
@@ -820,7 +820,7 @@ private fun FeedSettingsSheet(
             // News region: swaps the whole subscribed-feed list for a curated preset
             // (India vs a generic international set) — an explicit override of the
             // locale-detected default seeded on first run (StartViewModel.init).
-            FeedSheetGroup(label = "news region", labelColor = tokens.fgDim) {
+            FeedSheetGroup(label = "news regions (select any number)", labelColor = tokens.fgDim) {
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -828,12 +828,13 @@ private fun FeedSettingsSheet(
                 ) {
                     (listOf(INDIA_COUNTRY_CODE, INTERNATIONAL_REGION_CODE) + SELECTABLE_COUNTRIES.map { it.code })
                         .forEach { code ->
+                            val on = code in feedRegions
                             FeedSourceChip(
                                 label = regionDisplayName(code),
-                                on = feedRegion.equals(code, ignoreCase = true),
+                                on = on,
                                 accent = accent,
                                 tokens = tokens,
-                                onClick = { onFeedRegionChange(code) },
+                                onClick = { onFeedRegionToggle(code, !on) },
                             )
                         }
                 }
