@@ -3134,6 +3134,16 @@ private fun Modifier.editDragGesture(
                         dwellId = hovered.id
                         dwellAnchor = pos
                         dwellStartMs = change.uptimeMillis
+                        // Sticky mode: clear any live push-down preview the instant
+                        // dwelling starts — leaving it applied (or letting the
+                        // sticky-preview branch below keep recomputing it while
+                        // *not yet* dwelled long enough) displaces the very tile
+                        // being hovered. That moves its packed rect out from under
+                        // the drag centre on the next tick, `hovered` stops
+                        // matching, and the dwell timer resets before it can ever
+                        // reach [mergeDwellMs] — merge-to-folder was silently
+                        // unreachable in sticky mode because of this feedback loop.
+                        if (slotOf != null) onStickyPreview(emptyMap())
                     }
                 } else {
                     dwellId = null
@@ -3142,16 +3152,18 @@ private fun Modifier.editDragGesture(
                     change.uptimeMillis - dwellStartMs >= mergeDwellMs
                 val mergeNow = inCentre && (dwelled || mergeId == hovered!!.id)
 
-                if (mergeNow && startId != null) {
+                if (inCentre && startId != null) {
+                    // Dwelling toward a merge (or already merging): never fall
+                    // through to the sticky-preview/reorder branch below while the
+                    // centre sits in a target's merge zone, for the same reason
+                    // the preview is cleared above — recomputing it here would
+                    // reintroduce the feedback loop tick-by-tick instead of just
+                    // once at dwell start.
                     lastTarget = null
-                    if (mergeId != hovered!!.id) {
+                    if (mergeNow && mergeId != hovered!!.id) {
                         mergeId = hovered.id
                         onMergeTarget(hovered.id)
                         onMergeMode(startId)
-                        // No push-down preview while merging — the drop won't
-                        // land in a grid cell at all, so nothing should look
-                        // displaced.
-                        if (slotOf != null) onStickyPreview(emptyMap())
                     }
                 } else {
                     if (mergeId != null) { mergeId = null; onMergeTarget(null) }

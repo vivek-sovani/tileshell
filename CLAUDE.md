@@ -36,6 +36,33 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.2.2 — fixed a real regression: merge-to-folder was silently unreachable
+  in sticky (WP-style gap-preserving) tile arrangement mode.** User report: "app merge
+  in folder and another app to create folder functionality is lost in windows phone
+  style tile arrangement." Root-caused (an Explore agent traced it first; independently
+  re-verified by reading `editDragGesture` directly, `StartScreen.kt`) to a feedback
+  loop introduced by the earlier "sticky-mode drag-drop pushes occupants down" feature:
+  each pointer-move tick was `if (mergeNow) {…} else {…}`, and while dwelling inside a
+  merge target's centre zone but *before* the 250ms `mergeDwellMs` had elapsed,
+  `mergeNow` is still false, so the tick fell into the `else` branch — which in sticky
+  mode computes and applies a **live push-down preview** via `onStickyPreview`. That
+  preview displaces the very tile being hovered over; since `hovered` is computed from
+  `othersPacked()`, which packs using the same `slotOf` closure the preview just wrote
+  into, the target's on-screen rect moves out from under the drag centre on the very
+  next tick — `inCentre` flips false, the dwell timer resets, and the cycle repeats
+  every tick, forever. The 250ms dwell required to ever set `mergeNow = true` could
+  never survive past its first tick, so a merge could never commit — while the
+  merge-zone detection, `TileMerge.computeMerge`, and the write path
+  (`onDrop(mergeId)`) were all still fully intact and correct. Dense mode never hit
+  this because its equivalent branch (`onReorderTo`) doesn't mutate the shared
+  placement function driving `othersPacked`. Fixed by gating the whole
+  merge-target-tracking block on `inCentre` (not just `mergeNow`) so the sticky preview
+  is cleared once, right when dwelling starts, and never recomputed again until the
+  centre actually leaves the merge zone — the target tile now stays stationary for the
+  full dwell duration. Build + tests green; this is a gesture-timing bug with no unit
+  test harness for touch dwell sequences, so verify by hand: edit mode → drag one tile
+  onto another → hold briefly → releases into a folder, in sticky mode specifically
+  (dense mode was never affected).
 - **Post-v2.2.2 — fixed a real bug: one high-volume region crowded out every other
   selected region's articles.** User report after multi-select landed: "though multi
   select is allowed. feed only loads one country at a time check." Verified by pulling

@@ -2840,3 +2840,38 @@ quota (rather than per-source) was considered but rejected as unnecessary comple
 generated country preset already contributes a small, roughly-even number of feeds (~5), capping at the
 feed level achieves fair regional representation without needing to track which region a `FeedSource`
 originated from.
+
+## Merge-to-folder silently broken in sticky mode: a live-preview feedback loop
+
+Unrelated to the feed work above — a user report that dragging one Start-screen tile onto another to
+create a folder ("merge") no longer worked, specifically in sticky (WP-style gap-preserving) tile
+arrangement mode. Dense mode was unaffected.
+
+Root cause traced in `editDragGesture` (`StartScreen.kt`): merge requires a 250ms dwell
+(`mergeDwellMs`) with the drag centre held inside a target tile's inner merge zone before it commits
+(`mergeNow`). Every pointer-move tick was structured as `if (mergeNow) { …merge bookkeeping… } else {
+…sticky push-down preview / reorder… }`. During the dwell window itself — after entering the merge
+zone but before 250ms has elapsed — `mergeNow` is still false, so the tick falls into the `else`
+branch. In sticky mode that branch computes and applies a **live push-down preview**
+(`onStickyPreview`) reflecting "if you dropped right here, this is who gets displaced" — and the tile
+currently being hovered for a potential merge is exactly the tile that preview displaces. The next
+tick's hit-test (`othersPacked`, which packs using the same `slotOf` closure the preview just wrote
+into) sees that target at its new, pushed-down position — the drag centre no longer falls inside it,
+`inCentre` flips false, and the dwell timer resets to zero. This repeats every single tick for as long
+as the finger holds still, so the 250ms window could never elapse: not a rare race, a guaranteed
+100%-repro loop the instant a drag entered any tile's merge zone in sticky mode. The merge-zone
+detection, `TileMerge.computeMerge`, and the release-time write path (`onDrop(mergeId)`) were all
+completely intact — the bug was purely in this one live-tick branch, which is why the underlying
+merge *machinery* worked fine once the loop was fixed and never needed to change.
+
+Dense mode's equivalent `else` branch (`onReorderTo`) never had this problem: it only fires once per
+newly-hovered target and doesn't mutate any shared state `othersPacked` depends on, so the dense-packed
+position of a hovered tile never moves out from under the drag.
+
+Fixed by re-gating the merge-tracking block on `inCentre` (the "are we currently inside a merge zone at
+all," true throughout the dwell) rather than `mergeNow` (true only once the dwell finishes) — so the
+sticky preview is cleared exactly once, at the moment dwelling begins, and the whole tick is then
+"claimed" by the merge-tracking branch (doing nothing further while still dwelling, recording the
+target once `mergeNow` does flip true) instead of ever reaching the preview-recomputing branch again
+until the finger genuinely leaves the zone. The target tile now stays visually and positionally
+stationary for the entire dwell, so the 250ms window can actually complete.
