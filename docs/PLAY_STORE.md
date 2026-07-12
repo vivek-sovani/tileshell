@@ -142,6 +142,22 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
+## Release notes (v2.2.3)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 2.2.3
+
+• New: localized news feed — pick one or more countries in feed settings (20+ supported), with rich image-led sources for the US, UK, Australia, Canada, and UAE
+• New: drag to reorder apps inside an open folder
+• New: a closed folder shows which app inside it has a notification, not just the total
+• Fixed: merging two tiles into a folder now works in Windows Phone-style arrangement
+• Fixed: with several news regions on, one country no longer crowds out the others
+```
+
+*(Character count ~460, under Play's 500 limit.)*
+
 ## Release notes (v2.2.2)
 
 *"What's new" — newest release first. Keep under Play's 500-character limit.*

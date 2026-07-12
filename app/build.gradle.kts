@@ -128,8 +128,13 @@ android {
         //   scrolling is needed overall, and split the one giant string into three Text()
         //   calls for readability. Re-recording the disclosure video — pausing on every
         //   bullet this time — is the actual fix for the rejection; see DECISIONS.md).
-        versionCode = 222
-        versionName = "2.2.2"
+        // v2.2.3 (code 223): localized news feed — per-country region picker
+        //   (~20 countries, multi-select), rich image-led sources for US/UK/AU/CA/UAE,
+        //   fixed one high-volume region crowding out the others; reorder apps inside an
+        //   open folder by dragging; closed folders show which app a notification came
+        //   from; fixed merge-two-tiles-into-a-folder in Windows Phone tile arrangement.
+        versionCode = 223
+        versionName = "2.2.3"
     }
 
     if (keystoreFile.exists()) {
