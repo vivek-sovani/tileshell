@@ -2737,3 +2737,61 @@ already happened and reads noticeably richer than a Google-News-only set would),
 "international" bucket is kept too — not as the auto-seed fallback's only option anymore, but as an
 explicit choice for whoever prefers the generic BBC-based set over their own country's Google News
 edition, and as the fallback for any locale that resolves to a country outside the curated 19.
+
+## Curated top-stories override for the highest-value country presets
+
+Google News RSS's tradeoff (see above) turned out to have a real cost the "no curation, zero dead-URL
+risk" framing didn't account for: fetching a live Google News feed directly and inspecting its raw
+XML confirmed it carries **no per-article image whatsoever** — no `media:content`, no `enclosure`,
+and the `<description>` is just an HTML list of links to the same story at different outlets, no
+`<img>`. `ArticleCard` (`FeedPage.kt`) only renders its hero-image block when `article.imageUrl !=
+null` — and the category tag chip is nested inside that same block — so every article from a
+Google-News-only country degrades to a bare text row with no tag, no thumbnail.
+
+Rather than solving this for all ~19 generated countries (real per-country curation effort — the
+exact cost the Google News approach was chosen to avoid), the user asked for it specifically for the
+5 requested markets (US/UK/Australia/Canada/UAE — not coincidentally the highest-eCPM markets plus
+UAE). `countryFeedSources`' "nation" slot now overrides to a `CURATED_TOP_STORIES` entry for just
+those 5 codes, leaving the other 14 (and every other category slot, even for these 5) on the
+zero-curation Google News template. Each override was live-verified this session, not guessed:
+
+- **US** → NYT Home Page (`rss.nytimes.com/services/xml/rss/nyt/HomePage.xml`) — CNN
+  (`rss.cnn.com/rss/cnn_topstories.rss`) was tried first and rejected: its feed only serves over
+  plain `http://` (the `https://` handshake fails outright — `SSL_ERROR_SYSCALL`), which is a
+  non-starter given the cleartext policy below.
+- **UK** → BBC UK (`feeds.bbci.co.uk/news/uk/rss.xml`, already a trusted domain elsewhere in
+  `INTERNATIONAL_FEED_SOURCES`).
+- **Australia** → ABC News "Just In" (`abc.net.au/news/feed/51120/rss.xml`).
+- **Canada** → CBC Top Stories (`cbc.ca/webfeed/rss/rss-topstories`) — its images arrive as a plain
+  inline `<img>` inside the CDATA `<description>` rather than a `media:`/`enclosure` tag, which the
+  existing parser's content-encoded/description `<img>` fallback (added for a different feed
+  originally) already extracts with no code changes needed.
+- **UAE** → Gulf Today (`gulftoday.ae/rssFeed/0/`) — Gulf News, Khaleej Times, The National, and a
+  handful of other obvious UAE outlets were tried first and all 404'd or blocked automated fetches;
+  Gulf Today was the one that actually worked, confirmed carrying both `enclosure` and `media:content`
+  image tags.
+
+## Feed sources must be https and dead-link verified
+
+Verifying the CNN candidate above (previous decision) surfaced a real, pre-existing bug: four BBC
+feeds in `INTERNATIONAL_FEED_SOURCES` (added the previous session) were on plain `http://`. Android
+blocks cleartext traffic by default once `targetSdk` is 28+, and neither the manifest nor
+`FeedRefreshWorker`'s fetch (a plain `HttpURLConnection`) declares any cleartext exception — so on a
+real device, an `http://` feed source would throw a cleartext exception on connect, get swallowed by
+the surrounding `runCatching` (the project's standard "a broken feed source degrades to `null`, never
+crashes" pattern), and just silently never populate. No test had ever caught this because JVM unit
+tests never make a real network call — the previous session's "build + tests green" was true and
+still meant a partially non-functional default.
+
+The same live-curl pass also caught a second, unrelated bug in the same list: the BBC entertainment
+URL's path segment was wrong (`entertainment_arts`, missing "`_and`") — it 302-redirected to the
+correctly-named `https://` URL, which then 404'd, meaning that feed was dead over *either* protocol.
+
+Fixed both: all four BBC URLs switched `http://` → `https://` (each individually re-curled to confirm
+the https version actually serves 200 with image tags intact, not just protocol-swapped blindly), and
+the entertainment path corrected to `entertainment_and_arts`. Added a permanent guard rather than
+relying on manual verification catching it next time: `RssFeedTest`'s `all built-in feed source urls
+are https` asserts every `FeedSource` across `DEFAULT_FEED_SOURCES`, `INTERNATIONAL_FEED_SOURCES`, and
+every generated `SELECTABLE_COUNTRIES` preset starts with `https://` — a plain JVM test, so it can't
+catch a feed being reachable-but-wrong (only `curl` during development catches that), but it makes
+the cleartext class of bug specifically impossible to reintroduce silently.

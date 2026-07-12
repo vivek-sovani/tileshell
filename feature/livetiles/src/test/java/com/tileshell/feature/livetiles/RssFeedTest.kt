@@ -144,12 +144,37 @@ class RssFeedTest {
 
     @Test
     fun `country feed sources are per-country google news urls tagged by category`() {
-        val sources = countryFeedSources("us")
+        // Germany has no curated top-stories override, so every slot is Google News.
+        val sources = countryFeedSources("de")
         assertEquals(5, sources.size)
         assertTrue(sources.all { it.url.startsWith("https://news.google.com/rss") })
-        assertTrue(sources.all { it.url.contains("gl=US") && it.url.contains("ceid=US:en") })
+        assertTrue(sources.all { it.url.contains("gl=DE") && it.url.contains("ceid=DE:en") })
         assertEquals(setOf("nation", "entertainment", "sports", "tech", "business"), sources.map { it.category }.toSet())
-        assertEquals("Google News · United States", sources.first { it.category == "nation" }.name)
+        assertEquals("Google News · Germany", sources.first { it.category == "nation" }.name)
+    }
+
+    @Test
+    fun `curated countries get a real image-bearing nation source instead of google news`() {
+        val expectedHost = mapOf(
+            "US" to "rss.nytimes.com",
+            "GB" to "feeds.bbci.co.uk",
+            "AU" to "abc.net.au",
+            "CA" to "cbc.ca",
+            "AE" to "gulftoday.ae",
+        )
+        expectedHost.forEach { (code, host) ->
+            val nation = countryFeedSources(code).first { it.category == "nation" }
+            assertTrue("$code nation source should come from $host, was ${nation.url}", nation.url.contains(host))
+            assertTrue("$code nation source must be https", nation.url.startsWith("https://"))
+        }
+    }
+
+    @Test
+    fun `all built-in feed source urls are https (cleartext is blocked on-device)`() {
+        val all = DEFAULT_FEED_SOURCES + INTERNATIONAL_FEED_SOURCES +
+            SELECTABLE_COUNTRIES.flatMap { countryFeedSources(it.code) }
+        val cleartext = all.filterNot { it.url.startsWith("https://") }
+        assertTrue("cleartext feed URLs found (blocked by default on-device): ${cleartext.map { it.url }}", cleartext.isEmpty())
     }
 
     @Test

@@ -90,15 +90,21 @@ val DEFAULT_FEED_SOURCES: List<FeedSource> = listOf(
  * Generic international default feeds (English-language, globally reachable), used
  * for any device country other than India. Tagged by the same [FEED_CATEGORIES] as
  * [DEFAULT_FEED_SOURCES] so they drop into the same category UI/toggles; "state" and
- * "cricket" have no sensible global equivalent and are simply left unpopulated.
+ * "cricket" have no sensible global equivalent and are simply left unpopulated. All
+ * `https://` — plain `http://` is blocked by Android's default cleartext policy
+ * (targetSdk ≥ 28) and `FeedRefreshWorker`'s fetch sets no network security config
+ * exception, so an `http://` source would silently never populate (verified live: the
+ * former `entertainment_arts` path here also 302'd to a 404 over https — both bugs
+ * fixed in the same pass, see DECISIONS "Feed sources must be https and dead-link
+ * verified").
  */
 val INTERNATIONAL_FEED_SOURCES: List<FeedSource> = listOf(
     FeedSource("https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en", "Google News", "nation", enabled = true),
-    FeedSource("http://feeds.bbci.co.uk/news/world/rss.xml", "BBC World", "nation", enabled = true),
-    FeedSource("http://feeds.bbci.co.uk/news/entertainment_arts/rss.xml", "BBC Entertainment", "entertainment", enabled = true),
-    FeedSource("http://feeds.bbci.co.uk/sport/rss.xml?edition=int", "BBC Sport", "sports", enabled = true),
-    FeedSource("http://feeds.bbci.co.uk/news/technology/rss.xml", "BBC Technology", "tech", enabled = true),
-    FeedSource("http://feeds.bbci.co.uk/news/business/rss.xml", "BBC Business", "business", enabled = false),
+    FeedSource("https://feeds.bbci.co.uk/news/world/rss.xml", "BBC World", "nation", enabled = true),
+    FeedSource("https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml", "BBC Entertainment", "entertainment", enabled = true),
+    FeedSource("https://feeds.bbci.co.uk/sport/rss.xml?edition=int", "BBC Sport", "sports", enabled = true),
+    FeedSource("https://feeds.bbci.co.uk/news/technology/rss.xml", "BBC Technology", "tech", enabled = true),
+    FeedSource("https://feeds.bbci.co.uk/news/business/rss.xml", "BBC Business", "business", enabled = false),
     FeedSource("https://rss.nytimes.com/services/xml/rss/nyt/Food.xml", "NYT Food", "food", enabled = false),
 )
 
@@ -156,17 +162,41 @@ private fun googleNewsFeed(countryCode: String, topic: String? = null): String {
 }
 
 /**
+ * Real, image-bearing top-stories source overriding the generated Google News
+ * edition in [countryFeedSources]'s "nation" slot, for the handful of countries this
+ * matters most for (requested explicitly: US/UK/Australia/Canada/UAE — the highest-
+ * eCPM markets plus UAE). Google News RSS carries **no per-article image at all**
+ * (verified directly against a live feed — no `media:content`/`enclosure`, and the
+ * `<description>` is just a text link list), so every article from a Google-News-only
+ * country renders as a bare text card. Each of these was live-verified: reachable over
+ * https (not just http — see [INTERNATIONAL_FEED_SOURCES]'s doc comment) and actually
+ * carrying `media:content`/`media:thumbnail`/`enclosure` or an inline `<img>` the
+ * existing parser already extracts. CNN was tried for the US and rejected — its feed
+ * only serves over plain http (https handshake fails), which cleartext policy blocks.
+ */
+private val CURATED_TOP_STORIES: Map<String, FeedSource> = mapOf(
+    "US" to FeedSource("https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml", "NYT", "nation", enabled = true),
+    "GB" to FeedSource("https://feeds.bbci.co.uk/news/uk/rss.xml", "BBC UK", "nation", enabled = true),
+    "AU" to FeedSource("https://www.abc.net.au/news/feed/51120/rss.xml", "ABC News", "nation", enabled = true),
+    "CA" to FeedSource("https://www.cbc.ca/webfeed/rss/rss-topstories", "CBC News", "nation", enabled = true),
+    "AE" to FeedSource("https://www.gulftoday.ae/rssFeed/0/", "Gulf Today", "nation", enabled = true),
+)
+
+/**
  * Generates a small feed set for a [SELECTABLE_COUNTRIES] entry, purely from its ISO
- * [countryCode] — no per-country manual curation, so there's no dead-URL risk beyond
- * Google News itself. Enabled defaults mirror [INTERNATIONAL_FEED_SOURCES]'s: nation/
- * entertainment/sports/tech on, business off. No food/state/cricket equivalent, same
- * as the other non-India presets.
+ * [countryCode] for most countries — no per-country manual curation, so there's no
+ * dead-URL risk beyond Google News itself. The "nation" slot uses [CURATED_TOP_STORIES]
+ * instead where one exists (real images, vs. Google News' text-only articles).
+ * Enabled defaults mirror [INTERNATIONAL_FEED_SOURCES]'s: nation/entertainment/sports/
+ * tech on, business off. No food/state/cricket equivalent, same as the other non-India
+ * presets.
  */
 fun countryFeedSources(countryCode: String): List<FeedSource> {
     val cc = countryCode.uppercase()
     val name = SELECTABLE_COUNTRIES.firstOrNull { it.code == cc }?.displayName ?: cc
+    val nation = CURATED_TOP_STORIES[cc] ?: FeedSource(googleNewsFeed(cc), "Google News · $name", "nation", enabled = true)
     return listOf(
-        FeedSource(googleNewsFeed(cc), "Google News · $name", "nation", enabled = true),
+        nation,
         FeedSource(googleNewsFeed(cc, "ENTERTAINMENT"), "Google News · Entertainment", "entertainment", enabled = true),
         FeedSource(googleNewsFeed(cc, "SPORTS"), "Google News · Sports", "sports", enabled = true),
         FeedSource(googleNewsFeed(cc, "TECHNOLOGY"), "Google News · Technology", "tech", enabled = true),

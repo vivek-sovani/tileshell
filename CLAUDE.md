@@ -36,6 +36,33 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.2.2 — real image-bearing top-stories source for US/UK/Australia/Canada/
+  UAE + a live-verified cleartext bug fix.** Direct follow-up: user asked "google feed
+  is without pictures.. will it be useful?" — confirmed by fetching a live Google News
+  RSS feed that it truly carries **no per-article image** at all (no `media:content`/
+  `enclosure`, description is just a text link list), so every country-preset article
+  rendered as a bare text card in `ArticleCard` (whose image block — and the category
+  tag chip nested inside it — only renders when `imageUrl != null`). Rather than fixing
+  this everywhere, only the 5 requested countries' "nation" slot in `countryFeedSources`
+  now overrides to a real, hand-picked source (`CURATED_TOP_STORIES` map in
+  `RssFeed.kt`): NYT Home Page (US), BBC UK (GB), ABC News "Just In" (AU), CBC Top
+  Stories (CA), Gulf Today (AE) — every one live-curled during this session to confirm
+  reachability over https and the presence of `media:content`/`media:thumbnail`/
+  `enclosure` or (CBC's case) an inline `<img>` the existing parser already extracts.
+  CNN was tried first for the US and rejected: its feed only serves over plain http
+  (the https handshake fails outright), which Android's default cleartext policy
+  blocks. **That check surfaced a real, pre-existing bug**: `INTERNATIONAL_FEED_SOURCES`
+  (added last session) had four BBC feeds on `http://`, which — same cleartext policy —
+  would have silently never populated on a real device (`FeedRefreshWorker` wraps the
+  fetch in `runCatching`, so a `CleartextNotPermittedException` there just degrades to
+  "no articles," with no visible error); switched all to `https://`, and separately
+  found + fixed a wrong URL path (`entertainment_arts` → `entertainment_and_arts` —
+  the old one 302-redirected to a 404 over https). Added a permanent regression test,
+  `all built-in feed source urls are https`, over every built-in `FeedSource` (India +
+  international + all 19 country presets) so this class of bug fails the build next
+  time instead of silently degrading on-device. See DECISIONS "Feed sources must be
+  https and dead-link verified" + "Curated top-stories override for the highest-value
+  country presets." Build + tests green (`RssFeedTest` extended).
 - **Post-v2.2.2 — feed region picker expanded from India/International to ~20
   named countries.** Direct follow-up to the locale-aware region entry below,
   after the user asked for "default country + select other countries" rather
