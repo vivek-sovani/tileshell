@@ -52,6 +52,12 @@ fun DenseTileGrid(
     // invalidate the cache. Pass the data driving that change here (e.g. the
     // preview map itself) so it participates in the memoization key.
     slotOfKey: Any? = null,
+    // Same idea as [slotOfKey], for [postProcess]: e.g. inline folder
+    // expansion's child order can change (a live in-folder drag reorder)
+    // without postProcess's own identity changing, since it's memoized on
+    // the expanded folder/columns, not on child order. Pass the data driving
+    // that change here so it participates in the memoization key below.
+    postProcessKey: Any? = null,
     tileContent: @Composable (spec: TileSpec, slot: IntOffset, sizePx: IntSize) -> Unit,
 ) {
     // Memoized: both packSticky and postProcess (inline folder expansion) do
@@ -69,7 +75,7 @@ fun DenseTileGrid(
     } else {
         remember(tiles, columns) { GridPacker.pack(tiles, columns) }
     }
-    val placements = remember(basePlacements, postProcess) {
+    val placements = remember(basePlacements, postProcess, postProcessKey) {
         postProcess?.invoke(basePlacements) ?: basePlacements
     }
 

@@ -775,6 +775,7 @@ fun StartScreen(
                     },
                     onRenameFolder = { folderId, name -> viewModel.renameFolder(folderId, name) },
                     onMakeStack = { folderId, size -> viewModel.convertFolderToStack(folderId, size) },
+                    onReorderFolderChildren = viewModel::reorderFolderChildren,
                     onChevron = { settleTo(1f) },
                     onEnterEdit = { id ->
                         if (settings.lockLayout) {
@@ -1414,6 +1415,7 @@ private fun StartPage(
     onSetFolderChildColor: (folderId: String, rowId: Long, colorId: String?) -> Unit,
     onRenameFolder: (folderId: String, name: String) -> Unit,
     onMakeStack: (folderId: String, size: TileSize) -> Unit,
+    onReorderFolderChildren: (List<FolderChild>) -> Unit,
     onChevron: () -> Unit,
     onEnterEdit: (String) -> Unit,
     onSelectTile: (String) -> Unit,
@@ -1516,14 +1518,38 @@ private fun StartPage(
             }
         }
     }
+    // Working order of the currently-expanded folder's children, as synthetic
+    // child ids — mirrors the persisted order except during a drag on one of
+    // them, when reorder mutates it live (same pattern, and the same
+    // GridGeometry.reorderTiles helper, as the top-level `order` list). Reset
+    // to the persisted order whenever the expanded folder or its children
+    // change, unless a drag is in progress (matches `order`'s own
+    // reconciliation effect above).
+    val folderChildOrder = remember { mutableStateListOf<String>() }
+    LaunchedEffect(expandedFolder?.id, expandedFolder?.children) {
+        if (draggingId != null) return@LaunchedEffect
+        val ids = expandedFolder?.let { folder ->
+            folder.children.map { folderChildTileId(folder.id, it.rowId) }
+        } ?: emptyList()
+        if (ids != folderChildOrder.toList()) {
+            folderChildOrder.clear()
+            folderChildOrder.addAll(ids)
+        }
+    }
     val expandTransform: ((List<TilePlacement>) -> List<TilePlacement>)? =
         remember(expandedFolder, expandedFolderActionSizes, columns) {
             expandedFolder?.let { folder ->
                 { placements: List<TilePlacement> ->
+                    val childById = folder.children.associateBy { folderChildTileId(folder.id, it.rowId) }
+                    // Read live so a mid-drag reorder shows up on every call —
+                    // folderChildOrder's identity never changes, only its
+                    // contents, so this always reflects the current order
+                    // even though this outer closure isn't recreated for it.
+                    val orderedChildren = folderChildOrder.mapNotNull { childById[it] }
                     GridPacker.expandFolderInline(
                         placements = placements,
                         expandedId = folder.id,
-                        children = folder.children.map { child ->
+                        children = orderedChildren.map { child ->
                             TileSpec(folderChildTileId(folder.id, child.rowId), child.size)
                         } + expandedFolderActionSizes.map { size ->
                             TileSpec(folderActionTileId(folder.id, size), TileSize.SMALL)
@@ -1550,6 +1576,17 @@ private fun StartPage(
         val folder = byId[folderId] as? TileModel.Folder ?: return null
         val child = folder.children.firstOrNull { it.rowId == rowId } ?: return null
         return folderId to child
+    }
+
+    // Persists a live in-folder drag reorder (folderChildOrder) once the drop
+    // completes, provided it actually changed something.
+    fun commitFolderChildReorder() {
+        val folder = expandedFolder ?: return
+        val childById = folder.children.associateBy { folderChildTileId(folder.id, it.rowId) }
+        val newOrder = folderChildOrder.mapNotNull { childById[it] }
+        if (newOrder.size == folder.children.size && newOrder != folder.children) {
+            onReorderFolderChildren(newOrder)
+        }
     }
 
     // Live tiles (FR-2). The flip scheduler turns one of the visible flippable
@@ -1708,6 +1745,14 @@ private fun StartPage(
                 slotOf = slotOf,
                 onStickyDrop = { id, slot -> if (slot != null) onSetTileSlot(id, slot) },
                 onStickyPreview = { stickyPreview = it },
+                onReorderFolderChildTo = { dragId, targetId ->
+                    val next = reorderTiles(folderChildOrder.toList(), dragId, targetId)
+                    if (next != folderChildOrder.toList()) {
+                        folderChildOrder.clear()
+                        folderChildOrder.addAll(next)
+                    }
+                },
+                onFolderChildDrop = ::commitFolderChildReorder,
             )
 
             DenseTileGrid(
@@ -1717,6 +1762,7 @@ private fun StartPage(
                 slotOf = slotOf,
                 slotOfKey = stickyPreview,
                 postProcess = expandTransform,
+                postProcessKey = folderChildOrder.toList(),
                 modifier = Modifier.fillMaxWidth().then(editDrag),
             ) { spec, slot, sizePx ->
                 // "Make wide/large stack" action tile (see expandedFolderActionSizes
@@ -2897,6 +2943,13 @@ private fun Modifier.editDragGesture(
     // normal pack/packSticky computation — null for every caller that doesn't
     // support expansion (unchanged behaviour).
     postProcess: ((List<TilePlacement>) -> List<TilePlacement>)? = null,
+    // Dragging a folder child (a synthetic id, see parseFolderChildId) reorders
+    // within the expanded folder's own block instead of the top-level
+    // order/sticky-slot machinery above — children have their own persisted
+    // position, independent of whichever top-level arrangement mode is active.
+    // Both no-op by default for every caller that doesn't support expansion.
+    onReorderFolderChildTo: (dragId: String, targetId: String) -> Unit = { _, _ -> },
+    onFolderChildDrop: () -> Unit = {},
 ): Modifier = pointerInput(editMode, widthPx, columns, gapPx, byId, selectedId()) {
     // Re-keyed on byId so a resize/unpin mid-session refreshes the captured tile
     // sizes, and on the selected id so an in-edit selection switch refreshes the
@@ -3069,7 +3122,22 @@ private fun Modifier.editDragGesture(
                     }
                 } else {
                     if (mergeId != null) { mergeId = null; onMergeTarget(null) }
-                    if (slotOf != null && startId != null) {
+                    val folderChildDrag = startId != null && parseFolderChildId(startId) != null
+                    if (folderChildDrag && startId != null) {
+                        // In-folder reorder: children have their own persisted
+                        // order, independent of whichever top-level arrangement
+                        // mode is active — swap within the expanded folder's own
+                        // block instead of touching the top-level order or
+                        // computing a sticky push-down preview.
+                        val placements = placementsNow()
+                        val target = placements.firstOrNull {
+                            it.id != startId && parseFolderChildId(it.id) != null && geom.rect(it).contains(pos)
+                        }
+                        if (target != null && target.id != lastTarget) {
+                            lastTarget = target.id
+                            onReorderFolderChildTo(startId, target.id)
+                        }
+                    } else if (slotOf != null && startId != null) {
                         // Sticky mode: the tile floats to wherever the finger drops
                         // it. Landing on an already-occupied cell is fine — the
                         // occupant(s) get nudged sideways within their own row if
@@ -3132,7 +3200,9 @@ private fun Modifier.editDragGesture(
             if (!change.pressed) {
                 when {
                     lifted || draggingId() != null -> {
-                        if (slotOf != null && mergeId == null) {
+                        if (startId != null && parseFolderChildId(startId) != null) {
+                            onFolderChildDrop()
+                        } else if (slotOf != null && mergeId == null) {
                             startId?.let { onStickyDrop(it, pendingSlot) }
                         }
                         onDrop(mergeId)
