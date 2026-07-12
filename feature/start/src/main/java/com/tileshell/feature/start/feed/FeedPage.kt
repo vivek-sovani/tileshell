@@ -73,6 +73,8 @@ import com.tileshell.feature.livetiles.FeedRefreshWorker
 import com.tileshell.feature.livetiles.FeedStore
 import com.tileshell.feature.livetiles.INDIA_COUNTRY_CODE
 import com.tileshell.feature.livetiles.INTERNATIONAL_REGION_CODE
+import com.tileshell.feature.livetiles.SELECTABLE_COUNTRIES
+import com.tileshell.feature.livetiles.regionDisplayName
 import com.tileshell.feature.livetiles.feedAgo
 import com.tileshell.feature.livetiles.MediaCenter
 import com.tileshell.feature.livetiles.MediaTransportControls
@@ -819,21 +821,21 @@ private fun FeedSettingsSheet(
             // (India vs a generic international set) — an explicit override of the
             // locale-detected default seeded on first run (StartViewModel.init).
             FeedSheetGroup(label = "news region", labelColor = tokens.fgDim) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FeedSourceChip(
-                        label = "india",
-                        on = feedRegion == INDIA_COUNTRY_CODE,
-                        accent = accent,
-                        tokens = tokens,
-                        onClick = { onFeedRegionChange(INDIA_COUNTRY_CODE) },
-                    )
-                    FeedSourceChip(
-                        label = "international",
-                        on = feedRegion != INDIA_COUNTRY_CODE,
-                        accent = accent,
-                        tokens = tokens,
-                        onClick = { onFeedRegionChange(INTERNATIONAL_REGION_CODE) },
-                    )
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    (listOf(INDIA_COUNTRY_CODE, INTERNATIONAL_REGION_CODE) + SELECTABLE_COUNTRIES.map { it.code })
+                        .forEach { code ->
+                            FeedSourceChip(
+                                label = regionDisplayName(code),
+                                on = feedRegion.equals(code, ignoreCase = true),
+                                accent = accent,
+                                tokens = tokens,
+                                onClick = { onFeedRegionChange(code) },
+                            )
+                        }
                 }
             }
 

@@ -36,6 +36,31 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.2.2 — feed region picker expanded from India/International to ~20
+  named countries.** Direct follow-up to the locale-aware region entry below,
+  after the user asked for "default country + select other countries" rather
+  than just a binary choice. Rather than hand-curating a source list per
+  country (dead-URL risk, real curation effort for 20 countries), `RssFeed.kt`
+  adds `SELECTABLE_COUNTRIES` (19 major markets — US/UK/Australia/Canada/
+  Germany/France/Japan/Brazil/Singapore/UAE/Pakistan/Bangladesh/South Africa/
+  Nigeria/Indonesia/Philippines/Mexico/Italy/Spain) with feeds **generated**
+  per country via `countryFeedSources(countryCode)`: five Google News RSS
+  URLs (`googleNewsFeed`, private — plain top-stories + BUSINESS/TECHNOLOGY/
+  ENTERTAINMENT/SPORTS topic sections, `hl` pinned to `en-US` since the app's
+  UI/parsing assumes English throughout, only `gl`/`ceid` vary by country) —
+  zero manual curation, since it's all Google's own domain. `defaultFeedSourcesForCountry`
+  now routes India → its existing rich 10-feed list, any `SELECTABLE_COUNTRIES`
+  code → `countryFeedSources`, anything else (including the manual
+  `INTERNATIONAL_REGION_CODE`/unresolved locale) → the existing generic
+  `INTERNATIONAL_FEED_SOURCES` fallback — `FeedStore`/`StartViewModel`'s
+  region-seeding and reconcile logic needed **no changes**, since they already
+  treated the region as an opaque string key. `FeedSettingsSheet`'s two-chip
+  india/international row (`FeedPage.kt`) is now a `FlowRow` of ~21 chips
+  (India, International, then each named country by `regionDisplayName`),
+  wrapping onto multiple lines. Build + tests green (`RssFeedTest` extended:
+  `countryFeedSources` URL/category shape, `regionDisplayName`, and
+  `defaultFeedSourcesForCountry` routing updated now that named countries like
+  US/GB no longer fall through to the generic international list).
 - **Post-v2.2.2 — news feed gets a locale-aware region preset (India vs.
   international), first step toward feed-placement ad monetization.** User
   context: before adding AdMob native ads to the feed, wanted the feed itself

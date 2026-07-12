@@ -2712,3 +2712,28 @@ Process: re-record the disclosure-dialog walkthrough video for this resubmission
 and pausing on every bullet — especially Contacts and Calendar — before uploading it to Play Console
 alongside the new build. This is the change that actually fixes the rejection; the code changes are
 a defensive improvement against the same failure mode recurring with a future rushed recording.
+
+## Feed region: Google News-templated country presets, not hand-curated lists
+
+The feed's default RSS sources started India-only (10 hand-picked sources). A first pass added a
+locale-detected binary choice — India vs. a small hand-curated "international" set (BBC + NYT Food)
+— seeded once per install from the device's `Locale` country. The user then asked for a proper
+per-country picker ("default country + select other countries"), not just a binary switch.
+
+Hand-curating a source list for each of ~20 requested countries was rejected as the implementation
+approach: it's real per-country research effort, and independent news sites' RSS feeds go dead far
+more often than a single reliable domain would. Instead, `RssFeed.kt`'s `countryFeedSources
+(countryCode)` generates five feeds per country purely from its ISO code, all on `news.google.com`:
+the plain top-stories edition plus `BUSINESS`/`TECHNOLOGY`/`ENTERTAINMENT`/`SPORTS` topic-section
+editions (Google's own well-known topic slugs). `hl` is pinned to `en-US` for every country rather
+than varying by language — the app's UI and RSS parsing assume English content throughout, and
+`gl`/`ceid` alone are enough to scope an edition to a given country. This trades "the single best
+local sources per country" for "guaranteed-reachable, zero-curation, works for effectively any
+country Google supports" — the right trade for a picker that needs to cover ~20 markets in one
+session without an ongoing dead-feed maintenance burden.
+
+India keeps its original hand-curated 10-feed list untouched (it's the one country where curation
+already happened and reads noticeably richer than a Google-News-only set would), and the earlier
+"international" bucket is kept too — not as the auto-seed fallback's only option anymore, but as an
+explicit choice for whoever prefers the generic BBC-based set over their own country's Google News
+edition, and as the fallback for any locale that resolves to a country outside the curated 19.

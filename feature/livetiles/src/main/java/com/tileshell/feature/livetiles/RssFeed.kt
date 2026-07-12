@@ -107,18 +107,95 @@ const val INDIA_COUNTRY_CODE = "IN"
 
 /**
  * Region code stored for the manual "international" choice in feed settings — not a
- * real ISO country, just a value `defaultFeedSourcesForCountry` treats as non-India.
+ * real ISO country, just a value [defaultFeedSourcesForCountry] treats as "none of the
+ * named countries below", falling back to the generic [INTERNATIONAL_FEED_SOURCES].
  */
 const val INTERNATIONAL_REGION_CODE = "INTL"
 
+/** A selectable country preset: its ISO code and display name for the region picker. */
+data class CountryPreset(val code: String, val displayName: String)
+
 /**
- * Picks the default feed preset for a device/locale [countryCode]: the curated India
- * list for `IN`, else the generic [INTERNATIONAL_FEED_SOURCES] set. Pure + exhaustive
- * (any unrecognised/blank code falls back to international) so it's unit-testable
- * without Android's Locale machinery.
+ * Countries with a generated (Google News-templated) feed preset, beyond India's own
+ * hand-curated list — the ~20-country spread requested for the region picker. Kept to
+ * major markets rather than an exhaustive country list, per DECISIONS "Feed region:
+ * Google News-templated country presets".
  */
-fun defaultFeedSourcesForCountry(countryCode: String): List<FeedSource> =
-    if (countryCode.equals(INDIA_COUNTRY_CODE, ignoreCase = true)) DEFAULT_FEED_SOURCES else INTERNATIONAL_FEED_SOURCES
+val SELECTABLE_COUNTRIES: List<CountryPreset> = listOf(
+    CountryPreset("US", "United States"),
+    CountryPreset("GB", "United Kingdom"),
+    CountryPreset("AU", "Australia"),
+    CountryPreset("CA", "Canada"),
+    CountryPreset("DE", "Germany"),
+    CountryPreset("FR", "France"),
+    CountryPreset("JP", "Japan"),
+    CountryPreset("BR", "Brazil"),
+    CountryPreset("SG", "Singapore"),
+    CountryPreset("AE", "United Arab Emirates"),
+    CountryPreset("PK", "Pakistan"),
+    CountryPreset("BD", "Bangladesh"),
+    CountryPreset("ZA", "South Africa"),
+    CountryPreset("NG", "Nigeria"),
+    CountryPreset("ID", "Indonesia"),
+    CountryPreset("PH", "Philippines"),
+    CountryPreset("MX", "Mexico"),
+    CountryPreset("IT", "Italy"),
+    CountryPreset("ES", "Spain"),
+)
+
+/**
+ * A Google News RSS URL for [countryCode], optionally scoped to a [topic] section
+ * (`"BUSINESS"`/`"TECHNOLOGY"`/`"ENTERTAINMENT"`/`"SPORTS"` — Google's own topic
+ * slugs); `topic = null` is the plain top-stories edition. `hl` is pinned to
+ * `en-US` (rather than varying per country) since the app's UI/parsing assumes
+ * English content throughout; `gl`/`ceid` alone scope the edition to the country.
+ */
+private fun googleNewsFeed(countryCode: String, topic: String? = null): String {
+    val section = topic?.let { "/headlines/section/topic/$it" }.orEmpty()
+    return "https://news.google.com/rss$section?hl=en-US&gl=$countryCode&ceid=$countryCode:en"
+}
+
+/**
+ * Generates a small feed set for a [SELECTABLE_COUNTRIES] entry, purely from its ISO
+ * [countryCode] — no per-country manual curation, so there's no dead-URL risk beyond
+ * Google News itself. Enabled defaults mirror [INTERNATIONAL_FEED_SOURCES]'s: nation/
+ * entertainment/sports/tech on, business off. No food/state/cricket equivalent, same
+ * as the other non-India presets.
+ */
+fun countryFeedSources(countryCode: String): List<FeedSource> {
+    val cc = countryCode.uppercase()
+    val name = SELECTABLE_COUNTRIES.firstOrNull { it.code == cc }?.displayName ?: cc
+    return listOf(
+        FeedSource(googleNewsFeed(cc), "Google News · $name", "nation", enabled = true),
+        FeedSource(googleNewsFeed(cc, "ENTERTAINMENT"), "Google News · Entertainment", "entertainment", enabled = true),
+        FeedSource(googleNewsFeed(cc, "SPORTS"), "Google News · Sports", "sports", enabled = true),
+        FeedSource(googleNewsFeed(cc, "TECHNOLOGY"), "Google News · Technology", "tech", enabled = true),
+        FeedSource(googleNewsFeed(cc, "BUSINESS"), "Google News · Business", "business", enabled = false),
+    )
+}
+
+/** Display name for any region code the picker/settings UI shows (India/International/a named country). */
+fun regionDisplayName(regionCode: String): String = when {
+    regionCode.equals(INDIA_COUNTRY_CODE, ignoreCase = true) -> "India"
+    regionCode.equals(INTERNATIONAL_REGION_CODE, ignoreCase = true) -> "International"
+    else -> SELECTABLE_COUNTRIES.firstOrNull { it.code.equals(regionCode, ignoreCase = true) }?.displayName ?: regionCode
+}
+
+/**
+ * Picks the default feed preset for a device/locale or manually-chosen [countryCode]:
+ * the curated India list for `IN`, a generated [countryFeedSources] set for any of
+ * [SELECTABLE_COUNTRIES], else the generic [INTERNATIONAL_FEED_SOURCES] fallback (also
+ * what an unrecognised/blank locale resolves to). Pure + exhaustive so it's
+ * unit-testable without Android's Locale machinery.
+ */
+fun defaultFeedSourcesForCountry(countryCode: String): List<FeedSource> {
+    val cc = countryCode.uppercase()
+    return when {
+        cc == INDIA_COUNTRY_CODE -> DEFAULT_FEED_SOURCES
+        SELECTABLE_COUNTRIES.any { it.code == cc } -> countryFeedSources(cc)
+        else -> INTERNATIONAL_FEED_SOURCES
+    }
+}
 
 private val RSS_DATE_FORMATS = listOf(
     "EEE, dd MMM yyyy HH:mm:ss Z",   // RFC-822 with numeric offset

@@ -136,8 +136,27 @@ class RssFeedTest {
     fun `default feed sources for country picks india list only for IN`() {
         assertEquals(DEFAULT_FEED_SOURCES, defaultFeedSourcesForCountry("IN"))
         assertEquals(DEFAULT_FEED_SOURCES, defaultFeedSourcesForCountry("in")) // case-insensitive
-        assertEquals(INTERNATIONAL_FEED_SOURCES, defaultFeedSourcesForCountry("US"))
-        assertEquals(INTERNATIONAL_FEED_SOURCES, defaultFeedSourcesForCountry("GB"))
+        assertEquals(countryFeedSources("US"), defaultFeedSourcesForCountry("US"))
+        assertEquals(countryFeedSources("GB"), defaultFeedSourcesForCountry("GB"))
+        assertEquals(INTERNATIONAL_FEED_SOURCES, defaultFeedSourcesForCountry("ZZ")) // unsupported code
         assertEquals(INTERNATIONAL_FEED_SOURCES, defaultFeedSourcesForCountry("")) // unresolved locale
+    }
+
+    @Test
+    fun `country feed sources are per-country google news urls tagged by category`() {
+        val sources = countryFeedSources("us")
+        assertEquals(5, sources.size)
+        assertTrue(sources.all { it.url.startsWith("https://news.google.com/rss") })
+        assertTrue(sources.all { it.url.contains("gl=US") && it.url.contains("ceid=US:en") })
+        assertEquals(setOf("nation", "entertainment", "sports", "tech", "business"), sources.map { it.category }.toSet())
+        assertEquals("Google News · United States", sources.first { it.category == "nation" }.name)
+    }
+
+    @Test
+    fun `region display name covers india international and named countries`() {
+        assertEquals("India", regionDisplayName("IN"))
+        assertEquals("International", regionDisplayName("INTL"))
+        assertEquals("United States", regionDisplayName("US"))
+        assertEquals("XX", regionDisplayName("XX")) // unknown code falls back to itself
     }
 }
