@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v2.1.3 listing draft — update before each release*
+*v2.2.3 listing draft — update before each release*
 
 ---
 
@@ -18,31 +18,31 @@
 TileShell brings the iconic Windows Phone / Windows 10 Mobile Start screen to Android — rebuilt in Kotlin, faithful to the original.
 
 ★ LIVE TILES
-Clock with date, weekday, and your real next alarm. Live weather with temperature, forecast, and high/low. Next calendar event with title and time. Now-playing with album art and transport controls — works with any music app, or pin a dedicated music tile. People mosaic that cycles contact photos every 2 s. Photos slideshow. Notification counts and message previews on every app tile. All flip on a gentle 2.6 s cycle; pauses automatically in battery saver.
+Clock with date, weekday, and your real next alarm. Live weather with temperature, forecast, and high/low. Next calendar event. Now-playing with album art and transport controls — works with any music app, or pin a dedicated music tile. People mosaic that cycles contact photos. Photos slideshow. Notification counts and message previews on every app tile. All flip on a gentle cycle; pauses automatically in battery saver.
 
 ★ NOTIFICATIONS
-Unread count badge on every pinned tile. Notification tiles show a big number front-and-centre, then flip to cycle through each pending message in turn — sender, photo, and snippet. Gallery tile flips to show pending notifications. Unpinned apps with notifications appear in App List Recent with a badge count. Works with any app, no extra configuration needed.
+Unread count badge on every pinned tile. Notification tiles flip to cycle through each pending message — sender, photo, and snippet. A closed folder shows both its combined total and which app inside actually has something pending. Unpinned apps with notifications appear in App List Recent with a badge count. Works with any app, no configuration needed.
 
 ★ WIDGET STACKS
-Merge two Large (3×3) tiles into a swipeable full-size carousel. Every live face stays interactive inside the stack. Swipe near the right edge to flip between members; swipe anywhere else to scroll the Start screen. Auto-rotates on its own independent schedule. Any folder can become a wide or large stack from its overlay.
+Merge two Large (3×3) tiles into a swipeable full-size carousel, or open a folder and choose "make stack · wide" or "· large" — "keep as folder" sits right alongside so you're never one accidental tap from converting. Each member keeps its own colour and shows its own notification badge as it rotates. Every live face stays interactive inside. Swipe near the right edge to flip members; swipe anywhere else scrolls Start as normal.
 
 ★ START SCREEN
-4, 5, or 6 columns. Small, Medium, Wide, and Large (3×3) tiles — Large is available on every grid size. Long-press to enter edit mode: drag, merge tiles into folders, resize, recolour per tile or from the app's own icon, or unpin. Drag below the last row to append a tile. Landscape mode puts the feed and Start side by side.
+4, 5, or 6 columns. Small, Medium, Wide, and Large (3×3) tiles on every grid size. Long-press to enter edit mode: drag, merge into folders, resize, recolour per tile or from the app's own icon, or unpin. Lock the layout from Personalize so nothing moves by accident. Landscape mode puts the feed and Start side by side.
 
 ★ QUICK SEARCH
-Two-finger swipe down on Start. Search apps, contacts, and the web in one gesture. Long-press a contact to call, message, or pin it to Start. Choose your search engine — Google, Bing, ChatGPT, Gemini, Claude, or Perplexity. Recent searches and suggested apps shown before you type.
+Two-finger swipe down on Start. Search apps, contacts, and the web in one gesture. Long-press a contact to call, message, or pin it to Start. Choose your search engine — Google, Bing, ChatGPT, Gemini, Claude, or Perplexity.
 
 ★ EDGE STRIP
-A quick-launch bar along the bottom of the screen. Search on the left, favourite apps in the centre, recent apps on the right. Collapses to a thin handle when not in use. Configure which apps appear from Personalize.
+A quick-launch bar along the bottom of the screen. Search on the left, favourite apps in the centre, recent apps on the right. Collapses to a thin handle when not in use.
 
 ★ FEED PAGE (swipe right)
-Live weather card, today's calendar agenda, now-playing with transport controls, and a resizable Android widget slot. Swipe to the News tab for RSS articles — news, sports, tech, cricket, business, entertainment. Add any custom RSS or Atom feed. Refreshes every 30 minutes in the background.
+Live weather card, today's calendar agenda, now-playing, and a resizable Android widget slot. News tab with RSS articles across 8 categories. Pick any number of news regions — India plus ~20 other countries — defaulting to your device's own. Add any custom RSS or Atom feed.
 
 ★ APP LIST (swipe left)
-Alphabetical grid with A–Z jump grid and instant search that clears after each use. Recent and newly-installed apps at the top with badge counts — even for apps not pinned to Start. Long-press to pin, hide, or uninstall. Hidden apps managed from Personalize.
+Alphabetical grid with A–Z jump grid and instant search. Recent and newly-installed apps at the top with badge counts, even unpinned. Long-press to pin, hide, or uninstall.
 
 ★ PERSONALIZATION
-14 accent colours · per-tile colour override · tile colour from the app's own icon · dark and light themes · glass tiles each tinted by the tile's own colour · blur · wallpaper-behind-tiles parallax mode · 6 gradient wallpapers with light-theme adaptation · custom photo wallpaper · wallpaper slideshow · daily Bing wallpaper with history picker · corner radius · gradient fill · 3 font styles · adjustable tile spacing · built-in personalization guide.
+14 accent colours · per-tile colour override · colour from the app's own icon · dark/light themes · glass tiles tinted by each tile's own colour · blur · wallpaper-behind-tiles mode · 6 gradient wallpapers · custom photo wallpaper · slideshow · daily Bing wallpaper with history · corner radius · gradient fill · 3 font styles · adjustable tile spacing · lock layout · quick "set as default launcher" · built-in guide.
 
 ★ BACKUP & RESTORE
 Auto-save on a schedule. Browse a visual history of snapshots and restore any version. Export to a file — save it to Google Drive to restore on your next device.
@@ -55,6 +55,8 @@ No accounts. No analytics. No ads. All data stays on your device. Only weather r
 
 Requires Android 8.0 (API 26) or higher.
 ```
+
+*(~3 650 chars, under Play's 4 000 limit.)*
 
 ### Category
 Personalization
