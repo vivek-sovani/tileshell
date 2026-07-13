@@ -188,9 +188,10 @@ fun PersonalizeGuideSheet(
                 items = listOf(
                     "long-press any tile to enter edit mode",
                     "drag one tile onto another, centre to centre, to merge them into a folder",
-                    "merge two large tiles (or open a folder and use \"make stack · wide/large\") to turn them into a widget stack",
+                    "merge two large tiles (or open a folder and use \"make stack · wide/large\") to turn them into a widget stack — \"keep as folder\" sits right alongside, so you won't convert by accident",
                     "use a selected tile's resize handle to cycle its size",
-                    "tap × on a selected tile inside the overlay to unpin it back to start",
+                    "tap the folder icon on a selected folder or stack to expand it in place and manage its members",
+                    "tap × on a selected tile to unpin it — inside an open folder or stack, that sends the member back to start",
                 ),
             )
 
@@ -217,7 +218,7 @@ fun PersonalizeGuideSheet(
                     "swipe right from start (or swipe left from the app list) to open the feed",
                     "glance tab: live clock, weather, calendar events, and now-playing, plus any widgets you've added",
                     "tap the search pill on glance to jump straight into quick search",
-                    "news tab: articles from 10+ sources",
+                    "news tab: pick any number of regions — india plus ~20 other countries, defaulting to your device's own",
                     "tap the ⚙ next to the glance/news tabs to add your own rss/atom feeds and pick categories",
                 ),
             )
