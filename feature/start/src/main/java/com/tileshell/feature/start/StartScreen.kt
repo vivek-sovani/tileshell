@@ -2631,7 +2631,7 @@ private fun FolderChildBadge(count: Int, dark: Boolean, modifier: Modifier = Mod
     val fg = if (dark) Color(0xFF111111) else Color.White
     Box(
         modifier = modifier
-            .padding(top = 1.dp, end = 1.dp)
+            .padding(top = 1.dp, start = 1.dp)
             .defaultMinSize(minWidth = 12.dp, minHeight = 12.dp)
             .background(bg, CircleShape)
             .padding(horizontal = 2.dp),
@@ -3733,13 +3733,16 @@ private fun FolderTileContent(
                             // Per-app count alongside the folder's own aggregate
                             // badge (TileView) — lets a closed folder be scanned
                             // for *which* app has unread items, not just how many
-                            // in total.
+                            // in total. Anchored top-LEFT of the cell (not top-right)
+                            // so the top-right cell's badge never collides with the
+                            // folder's consolidated total, which TileView draws in
+                            // the tile's top-right corner.
                             val childBadge = child?.let { notifications.badgeFor(it.packageName) } ?: 0
                             if (!isPlus && childBadge > 0) {
                                 FolderChildBadge(
                                     count = childBadge,
                                     dark = darkTheme,
-                                    modifier = Modifier.align(Alignment.TopEnd),
+                                    modifier = Modifier.align(Alignment.TopStart),
                                 )
                             }
                         }
