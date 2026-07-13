@@ -2454,7 +2454,10 @@ private fun TileView(
         }
         // Per-app notification badge (FR-1.2). Top-right pill, count from the
         // notification listener; sized down on small tiles (prototype .badge).
-        if (badgeCount > 0) {
+        // App tiles only: a closed folder shows its consolidated total beside its
+        // name label instead (so it never collides with the per-app cell badges),
+        // and a widget stack shows only per-member badges (no consolidated total).
+        if (badgeCount > 0 && tile is TileModel.App) {
             NotificationBadge(
                 count = badgeCount,
                 dark = darkTheme,
@@ -3751,7 +3754,21 @@ private fun FolderTileContent(
             }
         }
         Spacer(Modifier.height(6.dp))
-        TileLabel(tile.name)
+        // The folder's consolidated total sits beside its name (not in the tile's
+        // top-right corner, where it used to collide with the top-right cell's
+        // per-app badge). De-duped by package, matching TileView's old aggregate.
+        val folderTotal = tile.children.map { it.packageName }.distinct()
+            .sumOf { notifications.badgeFor(it) }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TileLabel(tile.name, modifier = Modifier.weight(1f, fill = false))
+            if (folderTotal > 0) {
+                Spacer(Modifier.width(4.dp))
+                FolderChildBadge(count = folderTotal, dark = darkTheme)
+            }
+        }
     }
 }
 
