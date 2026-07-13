@@ -732,6 +732,28 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * The "keep as folder" action offered alongside the two "make stack"
+     * shortcuts in an expanded folder (FR-4). For a plain folder it's the
+     * explicit no-op — just collapse the expansion, so a user who opened the
+     * folder can back out without accidentally converting it to a stack. For a
+     * widget stack it reverts to a normal folder ([repository.collapseStack]),
+     * needing the same sticky-mode slot handling as [convertFolderToStack]
+     * since the folder tile's footprint returns to WIDE.
+     */
+    fun keepAsFolder(folderId: String) {
+        val model = tiles.value.firstOrNull { it.id == folderId } as? TileModel.Folder
+        if (model != null && model.isStack) {
+            val stackSize = model.children.firstOrNull()?.size ?: TileSize.WIDE
+            val finalSlots = stickyResizeSlots(model, TileSize.WIDE)
+            viewModelScope.launch(writeContext) {
+                finalSlots.forEach { (movedId, slot) -> repository.setTileGridSlot(movedId, slot) }
+                repository.collapseStack(folderId, stackSize)
+            }
+        }
+        collapseFolder()
+    }
+
     /** Set or clear a folder child's own accent override (null = follow global, FR-7). */
     fun setFolderChildAccent(child: FolderChild, colorId: String?) {
         viewModelScope.launch(writeContext) { repository.setFolderChildAccent(child.rowId, colorId) }

@@ -333,6 +333,15 @@ class LayoutRepository(
     suspend fun convertFolderToStack(folderId: String, size: TileSize) =
         dao.convertFolderToStack(folderId, size)
 
+    /**
+     * Collapse a widget stack back to a normal folder (folder overlay's "keep as
+     * folder" action): every member demotes one tier and the folder tile returns
+     * to WIDE. [stackSize] is the members' current uniform WIDE/LARGE size. The
+     * reverse of [convertFolderToStack].
+     */
+    suspend fun collapseStack(folderId: String, stackSize: TileSize) =
+        dao.collapseStack(folderId, stackSize)
+
     /** Set or clear a folder child's own accent override (null = follow global, FR-7). */
     suspend fun setFolderChildAccent(rowId: Long, accentOverride: String?) =
         dao.updateFolderChildAccent(rowId, accentOverride)

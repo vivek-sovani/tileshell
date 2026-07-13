@@ -776,6 +776,7 @@ fun StartScreen(
                     },
                     onRenameFolder = { folderId, name -> viewModel.renameFolder(folderId, name) },
                     onMakeStack = { folderId, size -> viewModel.convertFolderToStack(folderId, size) },
+                    onKeepAsFolder = { folderId -> viewModel.keepAsFolder(folderId) },
                     onReorderFolderChildren = viewModel::reorderFolderChildren,
                     onChevron = { settleTo(1f) },
                     onEnterEdit = { id ->
@@ -1351,26 +1352,48 @@ private fun FolderChild.asTileModel(id: String): TileModel.App = TileModel.App(
 )
 
 /**
- * Synthetic id for a "make wide/large stack" action tile, shown inline
- * alongside a non-stack folder's expanded children (mirrors the old overlay's
- * `StackModeChip` row, since converted to two extra tiles in the expanded
- * section rather than a separate chip UI). Rendered by a small dedicated
+ * The three actions offered inline alongside an expanded folder's children
+ * (mirrors the old overlay's `StackModeChip` row, since converted to extra
+ * tiles in the expanded section rather than a separate chip UI): turn every
+ * member wide or large to form a widget stack, or keep the tile a plain
+ * folder. [KeepAsFolder] is always shown so the two conversions read as
+ * deliberate choices — a user who opened the folder can back out without
+ * accidentally converting it — and, on a stack, it reverts back to a folder.
+ */
+private sealed interface FolderAction {
+    data class MakeStack(val size: TileSize) : FolderAction
+    data object KeepAsFolder : FolderAction
+}
+
+/**
+ * Synthetic id for a folder action tile. Rendered by a small dedicated
  * composable, not through [TileView] — it isn't an app and has no size/drag/
  * colour of its own.
  */
 private const val FOLDER_ACTION_ID_PREFIX = "folderaction:"
+private const val FOLDER_KEEP_TOKEN = "keep"
 
-private fun folderActionTileId(folderId: String, size: TileSize): String =
-    "$FOLDER_ACTION_ID_PREFIX$folderId:${size.name}"
+private fun folderActionTileId(folderId: String, action: FolderAction): String {
+    val token = when (action) {
+        is FolderAction.MakeStack -> action.size.name
+        FolderAction.KeepAsFolder -> FOLDER_KEEP_TOKEN
+    }
+    return "$FOLDER_ACTION_ID_PREFIX$folderId:$token"
+}
 
 /** Reverses [folderActionTileId], or null if [id] isn't a synthetic action id. */
-private fun parseFolderActionId(id: String): Pair<String, TileSize>? {
+private fun parseFolderActionId(id: String): Pair<String, FolderAction>? {
     if (!id.startsWith(FOLDER_ACTION_ID_PREFIX)) return null
     val rest = id.removePrefix(FOLDER_ACTION_ID_PREFIX)
     val sep = rest.lastIndexOf(':')
     if (sep <= 0) return null
-    val size = runCatching { TileSize.valueOf(rest.substring(sep + 1)) }.getOrNull() ?: return null
-    return rest.substring(0, sep) to size
+    val token = rest.substring(sep + 1)
+    val action = if (token == FOLDER_KEEP_TOKEN) {
+        FolderAction.KeepAsFolder
+    } else {
+        runCatching { TileSize.valueOf(token) }.getOrNull()?.let(FolderAction::MakeStack) ?: return null
+    }
+    return rest.substring(0, sep) to action
 }
 
 @Composable
@@ -1418,6 +1441,7 @@ private fun StartPage(
     onSetFolderChildColor: (folderId: String, rowId: Long, colorId: String?) -> Unit,
     onRenameFolder: (folderId: String, name: String) -> Unit,
     onMakeStack: (folderId: String, size: TileSize) -> Unit,
+    onKeepAsFolder: (folderId: String) -> Unit,
     onReorderFolderChildren: (List<FolderChild>) -> Unit,
     onChevron: () -> Unit,
     onEnterEdit: (String) -> Unit,
@@ -1500,15 +1524,22 @@ private fun StartPage(
     val expandedFolder = remember(byId, expandedFolderId) {
         expandedFolderId?.let { byId[it] as? TileModel.Folder }
     }
-    // "Make wide/large stack" (mirrors the old overlay's StackModeChip row):
-    // offered inline as two extra small tiles right alongside the expanded
-    // children, whenever there are enough members to actually form a stack
-    // and it isn't already one.
-    val expandedFolderActionSizes: List<TileSize> = remember(expandedFolder) {
-        if (expandedFolder != null && !expandedFolder.isStack && expandedFolder.children.size >= 2) {
-            listOf(TileSize.WIDE, TileSize.LARGE)
-        } else {
-            emptyList()
+    // Folder action tiles (mirrors the old overlay's StackModeChip row): offered
+    // inline as extra small tiles right alongside the expanded children.
+    //  - a plain folder with ≥2 members → both "make stack" conversions plus
+    //    "keep as folder" (so the conversions read as deliberate opt-in choices,
+    //    not something an accidental tap triggers);
+    //  - a widget stack → just "keep as folder", which reverts it to a folder.
+    val expandedFolderActions: List<FolderAction> = remember(expandedFolder) {
+        when {
+            expandedFolder == null -> emptyList()
+            expandedFolder.isStack -> listOf(FolderAction.KeepAsFolder)
+            expandedFolder.children.size >= 2 -> listOf(
+                FolderAction.MakeStack(TileSize.WIDE),
+                FolderAction.MakeStack(TileSize.LARGE),
+                FolderAction.KeepAsFolder,
+            )
+            else -> emptyList()
         }
     }
     val augmentedById: Map<String, TileModel> = remember(byId, expandedFolder) {
@@ -1540,7 +1571,7 @@ private fun StartPage(
         }
     }
     val expandTransform: ((List<TilePlacement>) -> List<TilePlacement>)? =
-        remember(expandedFolder, expandedFolderActionSizes, columns) {
+        remember(expandedFolder, expandedFolderActions, columns) {
             expandedFolder?.let { folder ->
                 { placements: List<TilePlacement> ->
                     val childById = folder.children.associateBy { folderChildTileId(folder.id, it.rowId) }
@@ -1554,8 +1585,8 @@ private fun StartPage(
                         expandedId = folder.id,
                         children = orderedChildren.map { child ->
                             TileSpec(folderChildTileId(folder.id, child.rowId), child.size)
-                        } + expandedFolderActionSizes.map { size ->
-                            TileSpec(folderActionTileId(folder.id, size), TileSize.SMALL)
+                        } + expandedFolderActions.map { action ->
+                            TileSpec(folderActionTileId(folder.id, action), TileSize.SMALL)
                         },
                         columns = columns,
                     )
@@ -1768,13 +1799,13 @@ private fun StartPage(
                 postProcessKey = folderChildOrder.toList(),
                 modifier = Modifier.fillMaxWidth().then(editDrag),
             ) { spec, slot, sizePx ->
-                // "Make wide/large stack" action tile (see expandedFolderActionSizes
-                // above) — not a real app, so it renders through its own small
-                // composable instead of TileView and skips every tile-edit concern
-                // (drag/resize/colour/badges) that doesn't apply to it.
+                // Folder action tile (see expandedFolderActions above) — not a real
+                // app, so it renders through its own small composable instead of
+                // TileView and skips every tile-edit concern (drag/resize/colour/
+                // badges) that doesn't apply to it.
                 val actionRef = parseFolderActionId(spec.id)
                 if (actionRef != null) {
-                    val (actionFolderId, actionSize) = actionRef
+                    val (actionFolderId, action) = actionRef
                     val slotState = animateIntOffsetAsState(slot, label = "slot")
                     Box(
                         modifier = Modifier
@@ -1784,8 +1815,11 @@ private fun StartPage(
                                 with(density) { sizePx.height.toDp() },
                             ),
                     ) {
-                        FolderStackActionTile(size = actionSize, accent = accent) {
-                            onMakeStack(actionFolderId, actionSize)
+                        FolderActionTile(action = action, accent = accent) {
+                            when (action) {
+                                is FolderAction.MakeStack -> onMakeStack(actionFolderId, action.size)
+                                FolderAction.KeepAsFolder -> onKeepAsFolder(actionFolderId)
+                            }
                         }
                     }
                     return@DenseTileGrid
@@ -2559,27 +2593,36 @@ private fun FolderNameEditor(initial: String, onCommit: (String) -> Unit) {
 }
 
 /**
- * "Make wide/large stack" (FR-4, mirrors the old overlay's `StackModeChip`
- * row): one of two small action tiles offered inline alongside an expanded
- * folder's children whenever it has enough members to form a widget stack
- * and isn't one already (see StartPage's expandedFolderActionSizes). Not a
- * real app — a distinct dashed-outline pill so it doesn't read as a pinned
- * tile — tapping it converts every child to [size] in one shot.
+ * A folder action tile (FR-4, mirrors the old overlay's `StackModeChip` row):
+ * a small action offered inline alongside an expanded folder's children (see
+ * StartPage's expandedFolderActions). Not a real app — a distinct pill so it
+ * doesn't read as a pinned tile. The two "make stack" actions are accent-tinted
+ * (a deliberate conversion), while "keep as folder" is a neutral outline so it
+ * reads as the safe/cancel choice, not another conversion.
  */
 @Composable
-private fun FolderStackActionTile(size: TileSize, accent: Color, onClick: () -> Unit) {
+private fun FolderActionTile(action: FolderAction, accent: Color, onClick: () -> Unit) {
+    val label = when (action) {
+        is FolderAction.MakeStack ->
+            if (action.size == TileSize.LARGE) "make\nlarge stack" else "make\nbig stack"
+        FolderAction.KeepAsFolder -> "keep as\nfolder"
+    }
+    val fill = when (action) {
+        is FolderAction.MakeStack -> accent.copy(alpha = 0.35f)
+        FolderAction.KeepAsFolder -> Color.White.copy(alpha = 0.08f)
+    }
     Box(
         modifier = Modifier
             .fillMaxSize()
             .padding(3.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(accent.copy(alpha = 0.35f))
+            .background(fill)
             .border(1.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = if (size == TileSize.LARGE) "make\nlarge stack" else "make\nbig stack",
+            text = label,
             color = Color.White,
             fontSize = 11.sp,
             lineHeight = 13.sp,
