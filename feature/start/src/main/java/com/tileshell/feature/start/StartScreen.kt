@@ -2677,7 +2677,7 @@ private fun FolderChildBadge(count: Int, dark: Boolean, modifier: Modifier = Mod
     val fg = if (dark) Color(0xFF111111) else Color.White
     Box(
         modifier = modifier
-            .padding(top = 1.dp, start = 1.dp)
+            .padding(top = 1.dp, end = 1.dp)
             .defaultMinSize(minWidth = 12.dp, minHeight = 12.dp)
             .background(bg, CircleShape)
             .padding(horizontal = 2.dp),
@@ -3776,19 +3776,16 @@ private fun FolderTileContent(
                             } else {
                                 FolderChildIcon(child)
                             }
-                            // Per-app count alongside the folder's own aggregate
-                            // badge (TileView) — lets a closed folder be scanned
-                            // for *which* app has unread items, not just how many
-                            // in total. Anchored top-LEFT of the cell (not top-right)
-                            // so the top-right cell's badge never collides with the
-                            // folder's consolidated total, which TileView draws in
-                            // the tile's top-right corner.
+                            // Per-app count — lets a closed folder be scanned for
+                            // *which* app has unread items, not just how many in
+                            // total (the folder's own combined count sits beside its
+                            // name label instead, so it never collides with this).
                             val childBadge = child?.let { notifications.badgeFor(it.packageName) } ?: 0
                             if (!isPlus && childBadge > 0) {
                                 FolderChildBadge(
                                     count = childBadge,
                                     dark = darkTheme,
-                                    modifier = Modifier.align(Alignment.TopStart),
+                                    modifier = Modifier.align(Alignment.TopEnd),
                                 )
                             }
                         }
@@ -4084,21 +4081,17 @@ private fun StackTileContent(
                         interactive = true,
                         photosStackIndex = if (child.iconKey == "photos") photosStackIndex.value else null,
                     )
-                    // Per-member notification count, alongside the stack's own
-                    // consolidated aggregate (drawn at the tile's top-right by
-                    // TileView). The consolidated badge only tells you the stack's
-                    // total; this small pill sits over the currently-shown member's
-                    // app icon (top-left, where AppIconCorner lives) so you can tell
-                    // *which* member the count belongs to as the stack rotates —
-                    // parity with the closed folder's per-app FolderChildBadge.
+                    // Per-member notification count — top-right, same corner as a
+                    // plain app tile's badge (AppIconCorner, when a live face draws
+                    // one, sits top-left, so there's no collision). Lets you tell
+                    // *which* member the count belongs to as the stack rotates — no
+                    // separate consolidated total exists for a stack.
                     val memberBadge = notifications.badgeFor(child.packageName)
                     if (memberBadge > 0) {
                         FolderChildBadge(
                             count = memberBadge,
                             dark = darkTheme,
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(start = 20.dp, top = 6.dp),
+                            modifier = Modifier.align(Alignment.TopEnd),
                         )
                     }
                 }
