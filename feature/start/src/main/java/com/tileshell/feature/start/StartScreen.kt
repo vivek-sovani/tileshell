@@ -2618,14 +2618,14 @@ private fun FolderNameEditor(initial: String, onCommit: (String) -> Unit) {
  * outline so it reads as the safe/cancel choice, not another conversion.
  * [isStack] only affects that action's label: on a plain folder it reads
  * "keep as folder" (a bail-out — it already is one), but on a widget stack
- * the same action actually converts it back, so it reads "make normal folder".
+ * the same action actually converts it back, so it reads "back to folder".
  */
 @Composable
 private fun FolderActionTile(action: FolderAction, accent: Color, isStack: Boolean, onClick: () -> Unit) {
     val label = when (action) {
         is FolderAction.MakeStack ->
-            if (action.size == TileSize.LARGE) "make\nlarge stack" else "make\nbig stack"
-        FolderAction.KeepAsFolder -> if (isStack) "make normal\nfolder" else "keep as\nfolder"
+            if (action.size == TileSize.LARGE) "make ·\nlarge stack" else "make ·\nwide stack"
+        FolderAction.KeepAsFolder -> if (isStack) "back to\nfolder" else "keep as\nfolder"
     }
     val fill = when (action) {
         is FolderAction.MakeStack -> accent.copy(alpha = 0.35f)

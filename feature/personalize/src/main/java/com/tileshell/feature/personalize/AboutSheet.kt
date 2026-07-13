@@ -237,7 +237,7 @@ fun AboutSheet(
                     "stack auto-rotates every 10 s; each stack runs on its own independent schedule",
                     "tap the stack to launch the current member's app",
                     "select a stack in edit mode and tap its folder icon to expand it in place and manage members",
-                    "an open stack offers switching to the other size (wide ↔ large) or \"make normal folder\" to turn it back into a regular folder",
+                    "an open stack offers switching to the other size (wide ↔ large) or \"back to folder\" to turn it back into a regular folder",
                     "tap × on a member to send it back to start",
                     "live faces (music transport, clock flip) stay fully interactive inside a stack",
                 ),

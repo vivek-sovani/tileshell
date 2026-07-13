@@ -191,7 +191,7 @@ fun PersonalizeGuideSheet(
                     "merge two large tiles (or open a folder and use \"make stack · wide/large\") to turn them into a widget stack — \"keep as folder\" sits right alongside, so you won't convert by accident",
                     "use a selected tile's resize handle to cycle its size",
                     "tap the folder icon on a selected folder or stack to expand it in place and manage its members",
-                    "an open stack offers switching to the other size (wide ↔ large) or \"make normal folder\" to revert it",
+                    "an open stack offers switching to the other size (wide ↔ large) or \"back to folder\" to revert it",
                     "tap × on a selected tile to unpin it — inside an open folder or stack, that sends the member back to start",
                 ),
             )
