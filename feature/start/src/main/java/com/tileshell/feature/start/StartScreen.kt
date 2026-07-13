@@ -2430,6 +2430,7 @@ private fun TileView(
                         wallpaperOrigin = wallpaperOrigin,
                         fullWidth = fullWidth,
                         fullHeight = fullHeight,
+                        notifications = notifications,
                         onLaunchChild = onLaunchFolderChild,
                         onEnterEdit = onLongPress,
                     )
@@ -3790,6 +3791,7 @@ private fun StackTileContent(
     wallpaperOrigin: () -> Offset,
     fullWidth: Float,
     fullHeight: Float,
+    notifications: NotificationSnapshot,
     onLaunchChild: (FolderChild) -> Unit,
     onEnterEdit: () -> Unit,
 ) {
@@ -4019,6 +4021,23 @@ private fun StackTileContent(
                         interactive = true,
                         photosStackIndex = if (child.iconKey == "photos") photosStackIndex.value else null,
                     )
+                    // Per-member notification count, alongside the stack's own
+                    // consolidated aggregate (drawn at the tile's top-right by
+                    // TileView). The consolidated badge only tells you the stack's
+                    // total; this small pill sits over the currently-shown member's
+                    // app icon (top-left, where AppIconCorner lives) so you can tell
+                    // *which* member the count belongs to as the stack rotates —
+                    // parity with the closed folder's per-app FolderChildBadge.
+                    val memberBadge = notifications.badgeFor(child.packageName)
+                    if (memberBadge > 0) {
+                        FolderChildBadge(
+                            count = memberBadge,
+                            dark = darkTheme,
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(start = 20.dp, top = 6.dp),
+                        )
+                    }
                 }
             }
         }
