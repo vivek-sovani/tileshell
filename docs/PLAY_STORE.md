@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v2.2.3 listing draft — update before each release*
+*v2.2.4 listing draft — update before each release*
 
 ---
 
@@ -143,6 +143,21 @@ data. Users can also clear app data via Android Settings at any time.
 | Feature graphic | 1024 × 500 px | Required for listing banner |
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
+
+## Release notes (v2.2.4)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 2.2.4
+
+• New: an open widget stack can switch directly between wide and large, or go back to a regular folder
+• New: each stack member shows its own notification badge, not just one combined total for the whole stack
+• Fixed: a closed folder's notification total no longer overlaps the per-app badge on its top-right app icon
+• Fixed: merging two tiles into a folder in Windows Phone-style arrangement
+```
+
+*(Character count ~410, under Play's 500 limit.)*
 
 ## Release notes (v2.2.3)
 

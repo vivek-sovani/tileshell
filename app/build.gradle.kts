@@ -133,8 +133,15 @@ android {
         //   fixed one high-volume region crowding out the others; reorder apps inside an
         //   open folder by dragging; closed folders show which app a notification came
         //   from; fixed merge-two-tiles-into-a-folder in Windows Phone tile arrangement.
-        versionCode = 223
-        versionName = "2.2.3"
+        // v2.2.4 (code 224): widget stacks gain a "back to folder" action plus switching
+        //   directly between wide/large sizes without collapsing first; each rotating
+        //   stack member shows its own notification badge (previously only a single
+        //   consolidated total for the whole stack); a closed folder's combined
+        //   notification total moved beside its name label so it no longer overlaps the
+        //   per-app badge on its top-right mini-grid cell; fixed a real merge-to-folder
+        //   regression in sticky (Windows-Phone-style) tile arrangement.
+        versionCode = 224
+        versionName = "2.2.4"
     }
 
     if (keystoreFile.exists()) {
