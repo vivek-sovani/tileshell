@@ -2662,6 +2662,7 @@ private fun NotificationBadge(
     dark: Boolean,
     small: Boolean,
     modifier: Modifier = Modifier,
+    cornerInset: Boolean = true,
 ) {
     val bg = if (dark) Color.White else Color(0xFF111111)
     val fg = if (dark) Color(0xFF111111) else Color.White
@@ -2669,7 +2670,7 @@ private fun NotificationBadge(
     val inset = if (small) 5.dp else 8.dp
     Box(
         modifier = modifier
-            .padding(top = inset, end = inset)
+            .then(if (cornerInset) Modifier.padding(top = inset, end = inset) else Modifier)
             .defaultMinSize(minWidth = diameter, minHeight = diameter)
             .height(diameter)
             .background(bg, CircleShape)
@@ -3826,7 +3827,12 @@ private fun FolderTileContent(
             TileLabel(tile.name, modifier = Modifier.weight(1f, fill = false))
             if (folderTotal > 0) {
                 Spacer(Modifier.width(4.dp))
-                FolderChildBadge(count = folderTotal, dark = darkTheme)
+                NotificationBadge(
+                    count = folderTotal,
+                    dark = darkTheme,
+                    small = tile.size == TileSize.SMALL,
+                    cornerInset = false,
+                )
             }
         }
     }
