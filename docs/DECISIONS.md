@@ -2993,3 +2993,20 @@ Deliberately left alone: text drawn over an actual photo with its own dark scrim
 photo content already, unrelated to this condition; the tile-colour-picker sheet, which paints its own
 fixed overlay background; and the colour-swatch selection ring, deliberately always white as a
 fixed-contrast ring against the swatch's own (arbitrary) colour.
+
+## Closed folder's mini-grid: an empty slot gets no backdrop, not a dark square
+
+Bug fix, user-reported: a folder with fewer apps than its mini-grid's capacity (e.g. 2 apps in a 2×2
+grid) rendered every unused cell with the same neutral `rgba(0,0,0,.18)` tint used for a real app
+cell — `FolderTileContent`'s `cellBg` fallback chain (`child?.accentOverride ?: child?.let {
+dominantColor } ?: Color(0x2E000000)`) always resolved to that default `0x2E000000` neutral even when
+`child` was null, since a null-safe `?.` chain on a null receiver just short-circuits straight to the
+final `?:` fallback — there was no separate "nothing to show here" branch. The result: 1-2 unused
+cells per folder rendered as ugly dark/black squares with no icon in them. Confirmed against the
+prototype's own markup (`tiles.js`'s group-tile renderer, `kids.map(...)` over the *actual* children
+only) — it never generates a `.gm` div for a non-existent child at all, so an empty slot is simply
+absent, not a tinted placeholder. Fixed by adding an `isEmptySlot = !isPlus && child == null` check
+in `FolderTileContent` that skips the `cellFill` background modifier entirely for such a slot —
+it now just shows the folder tile's own fill (accent/gradient/glass/wallpaper-window) showing through,
+matching a slot that was never drawn. The "+N" overflow cell and any real app cell are unaffected.
+Build + tests green.

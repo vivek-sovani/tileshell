@@ -3848,12 +3848,20 @@ private fun FolderTileContent(
                         // takes the same translucent glass tint as any other tile
                         // instead of a fully opaque colour that would otherwise mask
                         // the frosted background just for this one cell.
+                        // A grid slot with no child at all (folder has fewer apps
+                        // than the mini-grid's capacity) gets no backdrop whatsoever
+                        // — painting the neutral tint there too left unused slots as
+                        // ugly dark squares; the prototype's own markup never
+                        // generates a `.gm` cell for a non-existent child either, so
+                        // an empty slot should just show the folder tile's own fill.
+                        val isEmptySlot = !isPlus && child == null
                         val cellBg = child?.accentOverride
                             ?.let { TileAccents.colorForOverride(it, "blue") }
                             ?: child?.takeIf { appIconColors }
                                 ?.let { rememberDominantIconColor(it.packageName, it.activityName) }
                             ?: Color(0x2E000000)
                         val cellFill = when {
+                            isEmptySlot -> Modifier
                             tiledWallpaper -> Modifier
                             glass -> Modifier.background(Glass.fill(darkTheme, transparency, cellBg))
                             else -> Modifier.background(cellBg)
