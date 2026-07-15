@@ -2917,3 +2917,19 @@ chips rather than square photo tiles. The back face (`big = true`, a single full
 the "‹name› posted" caption) is unchanged — that's a photo-post treatment, not an avatar grid, so it
 stays a full-bleed rectangle. The colour-tint fallback (while a photo decodes, or for an unreadable
 URI) is clipped to the same shape as whichever face it's standing in for.
+
+## Clock tile: 12-hour am/pm, matching the glance screen
+
+User-requested: the clock live tile's time should read 12-hour with an am/pm suffix, the same format
+already used by the feed/glance screen's clock (`feedClock12` in `feature/start/feed/FeedFormat.kt`).
+The prototype's own `clockNow()` (`launcher/tiles.js`) is 24-hour (`d.getHours()` with no 12-hour
+conversion), which is what `ClockTile.kt`'s `clockFace` faithfully matched through S20 — so this is a
+deliberate deviation from the prototype, not a bug fix, made for consistency with the glance screen
+that was added later and already reads 12-hour.
+
+`clockFace` now builds `hm` as `"$hour12:${minute} $suffix"` (unpadded hour, zero-padded minute,
+lowercase am/pm) instead of raw 24-hour `hour24:minute` — same shape as `feedClock12`, computed
+independently rather than shared, since the two live in different Gradle modules
+(`:feature:livetiles` has no dependency on `:feature:start`). Only the front face's time string
+changes; the back face's date and `nextAlarmString` were already 12-hour am/pm and are untouched.
+`ClockSmallFace` (the 1×1 tile) reads the same `ClockFace.hm`, so it picks up the format for free.

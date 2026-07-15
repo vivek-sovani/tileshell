@@ -47,9 +47,12 @@ private val MONTHS = listOf(
 )
 
 /**
- * The text shown on the clock tile's two faces (prototype `clockNow()`). 24-hour
- * `h:mm` with full lowercase weekday and date; the back shows the date again with
- * the next alarm. Empty string means no alarm is set (back omits the alarm line).
+ * The text shown on the clock tile's two faces. 12-hour `h:mm am/pm` (matching the
+ * feed/glance screen's clock, [com.tileshell.feature.start.feed.feedClock12] — a
+ * deliberate deviation from the prototype's `clockNow()`, which is 24-hour; see
+ * DECISIONS.md "Clock tile: 12-hour am/pm, matching the glance screen") with full
+ * lowercase weekday and date; the back shows the date again with the next alarm.
+ * Empty string means no alarm is set (back omits the alarm line).
  */
 data class ClockFace(
     val hm: String,
@@ -82,9 +85,9 @@ fun nextAlarmString(context: Context): String {
 
 /**
  * Builds a [ClockFace] from calendar fields. Pure (no `Calendar.getInstance()`)
- * so the formatting — 24-hour, zero-padded minutes, lowercase names — is
- * unit-testable. [dayOfWeek] is Calendar's 1=Sunday convention; [month0] is
- * 0-based (0=January), matching both Calendar and the prototype's JS `Date`.
+ * so the formatting — 12-hour am/pm, unpadded hour, zero-padded minutes, lowercase
+ * names — is unit-testable. [dayOfWeek] is Calendar's 1=Sunday convention; [month0]
+ * is 0-based (0=January), matching both Calendar and the prototype's JS `Date`.
  * [alarm] is the formatted next-alarm string; empty means no alarm is set.
  */
 fun clockFace(
@@ -95,12 +98,16 @@ fun clockFace(
     month0: Int,
     year: Int,
     alarm: String = "",
-): ClockFace = ClockFace(
-    hm = "$hour24:${minute.toString().padStart(2, '0')}",
-    weekday = WEEKDAYS[dayOfWeek - 1],
-    fullDate = "$dayOfMonth ${MONTHS[month0]} $year",
-    alarm = alarm,
-)
+): ClockFace {
+    val hour12 = (hour24 % 12).let { if (it == 0) 12 else it }
+    val suffix = if (hour24 < 12) "am" else "pm"
+    return ClockFace(
+        hm = "$hour12:${minute.toString().padStart(2, '0')} $suffix",
+        weekday = WEEKDAYS[dayOfWeek - 1],
+        fullDate = "$dayOfMonth ${MONTHS[month0]} $year",
+        alarm = alarm,
+    )
+}
 
 private fun currentClockFace(context: Context): ClockFace {
     val c = Calendar.getInstance()

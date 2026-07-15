@@ -75,13 +75,19 @@ class ClockFaceTest {
     )
 
     @Test
-    fun `time is 24-hour with zero-padded minutes`() {
-        assertEquals("14:05", sunday.hm)
+    fun `time is 12-hour am pm with zero-padded minutes`() {
+        assertEquals("2:05 pm", sunday.hm)
     }
 
     @Test
     fun `hours are not padded`() {
-        assertEquals("9:30", clockFace(9, 30, 1, 1, 0, 2026).hm)
+        assertEquals("9:30 am", clockFace(9, 30, 1, 1, 0, 2026).hm)
+    }
+
+    @Test
+    fun `noon is 12pm and midnight is 12am`() {
+        assertEquals("12:00 pm", clockFace(12, 0, 1, 1, 0, 2026).hm)
+        assertEquals("12:00 am", clockFace(0, 0, 1, 1, 0, 2026).hm)
     }
 
     @Test
