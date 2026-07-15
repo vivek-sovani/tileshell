@@ -23,8 +23,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.TileSize
+import com.tileshell.core.design.LocalTileFaceColor
 
-private val FaceText = Color.White
+private val FaceText: Color
+    @Composable get() = LocalTileFaceColor.current
 
 /**
  * The live weather tile (FR-2). Schedules the background refresh, asks for coarse

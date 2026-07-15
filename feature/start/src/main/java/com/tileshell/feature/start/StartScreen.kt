@@ -212,6 +212,7 @@ import com.tileshell.core.design.Glass
 import com.tileshell.core.design.LocalAccent
 import com.tileshell.core.design.LocalColorTokens
 import com.tileshell.core.design.LocalTileCornerRadius
+import com.tileshell.core.design.LocalTileFaceColor
 import com.tileshell.core.design.LocalTileFont
 import com.tileshell.core.design.LocalTileGradient
 import com.tileshell.core.design.NunitoFamily
@@ -634,6 +635,7 @@ fun StartScreen(
         LocalTileGradient provides (settings.tileFill == TileFill.GRADIENT),
         LocalTileFont provides tileFont,
         LocalTextStyle provides baseTextStyle.copy(fontFamily = tileFont),
+        LocalTileFaceColor provides Glass.faceTextColor(dark = dark, glass = settings.glass),
     ) {
     BoxWithConstraints(modifier = modifier.fillMaxSize().then(quickSearchGesture)) {
         val widthPx = constraints.maxWidth.toFloat()
@@ -2011,7 +2013,7 @@ private fun StartPage(
                     Icon(
                         imageVector = TileIcons["chevron"],
                         contentDescription = "open app list",
-                        tint = Color.White.copy(alpha = 0.72f),
+                        tint = colorTokens(darkTheme).fg.copy(alpha = 0.72f),
                         modifier = Modifier.size(28.dp),
                     )
                 }
@@ -2026,7 +2028,7 @@ private fun StartPage(
                     Icon(
                         imageVector = TileIcons["settings"],
                         contentDescription = "settings",
-                        tint = Color.White.copy(alpha = 0.72f),
+                        tint = colorTokens(darkTheme).fg.copy(alpha = 0.72f),
                         modifier = Modifier.size(26.dp),
                     )
                 }
@@ -2556,7 +2558,7 @@ private fun FolderExpandedPlaceholder(
             Icon(
                 imageVector = TileIcons["chevron"],
                 contentDescription = null,
-                tint = Color.White,
+                tint = LocalTileFaceColor.current,
                 modifier = Modifier.size(28.dp).rotate(-90f),
             )
         }
@@ -2594,11 +2596,11 @@ private fun FolderNameEditor(initial: String, onCommit: (String) -> Unit) {
         onValueChange = { draft = it },
         singleLine = true,
         textStyle = TextStyle(
-            color = Color.White,
+            color = LocalTileFaceColor.current,
             fontSize = 13.sp,
             textAlign = TextAlign.Center,
         ),
-        cursorBrush = SolidColor(Color.White),
+        cursorBrush = SolidColor(LocalTileFaceColor.current),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { onCommit(draft.text) }),
         modifier = Modifier
@@ -2769,7 +2771,7 @@ private fun BoxScope.StackEditControls() {
 @Composable
 private fun TileControl(iconKey: String, description: String, modifier: Modifier) {
     // No background chip — the close/resize glyphs sit directly on the tile's own
-    // fill, tinted white like the tile's icon/label.
+    // fill, tinted to match the tile's icon/label.
     Box(
         modifier = modifier.size(26.dp),
         contentAlignment = Alignment.Center,
@@ -2777,7 +2779,7 @@ private fun TileControl(iconKey: String, description: String, modifier: Modifier
         Icon(
             imageVector = TileIcons[iconKey],
             contentDescription = description,
-            tint = Color.White,
+            tint = LocalTileFaceColor.current,
             modifier = Modifier.size(18.dp),
         )
     }
@@ -3523,7 +3525,7 @@ private fun StaticTileGlyph(tile: TileModel.App) {
             Icon(
                 imageVector = TileIcons[tile.iconKey],
                 contentDescription = tile.label,
-                tint = Color.White,
+                tint = LocalTileFaceColor.current,
                 modifier = Modifier.size(monolineSize.dp),
             )
         }
@@ -3583,12 +3585,12 @@ private fun ContactTileFace(contactId: Long, name: String, size: TileSize, modif
         }
     } else if (size == TileSize.SMALL) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            Icon(TileIcons["people"], null, tint = Color.White, modifier = Modifier.size(30.dp))
+            Icon(TileIcons["people"], null, tint = LocalTileFaceColor.current, modifier = Modifier.size(30.dp))
         }
     } else {
         val glyphSize = if (size == TileSize.LARGE) 46 else 34
         Column(modifier = modifier.padding(11.dp)) {
-            Icon(TileIcons["people"], null, tint = Color.White, modifier = Modifier.size(glyphSize.dp))
+            Icon(TileIcons["people"], null, tint = LocalTileFaceColor.current, modifier = Modifier.size(glyphSize.dp))
             Spacer(Modifier.weight(1f))
             TileLabel(name)
         }
@@ -3695,7 +3697,7 @@ private fun FolderChildIcon(child: FolderChild?) {
         Icon(
             imageVector = TileIcons[child.iconKey],
             contentDescription = null,
-            tint = Color.White,
+            tint = LocalTileFaceColor.current,
             modifier = Modifier.size(18.dp),
         )
     }
@@ -3790,7 +3792,7 @@ private fun FolderTileContent(
                             if (isPlus) {
                                 Text(
                                     text = "+${children.size - lastIndex}",
-                                    color = Color.White,
+                                    color = LocalTileFaceColor.current,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Medium,
                                 )
@@ -4161,7 +4163,7 @@ private fun StackTileContent(
 private fun TileLabel(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text.lowercase(),
-        color = Color.White,
+        color = LocalTileFaceColor.current,
         fontSize = 13.sp,
         fontWeight = FontWeight.Normal,
         maxLines = 1,

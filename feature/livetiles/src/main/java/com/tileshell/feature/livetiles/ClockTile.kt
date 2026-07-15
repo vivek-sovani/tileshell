@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.TileSize
+import com.tileshell.core.design.LocalTileFaceColor
 import kotlinx.coroutines.delay
 import java.util.Calendar
 
@@ -183,7 +184,8 @@ fun ClockTileFace(
     )
 }
 
-private val FaceText = Color.White
+private val FaceText: Color
+    @Composable get() = LocalTileFaceColor.current
 
 /**
  * WIDE and MEDIUM clock tiles both occupy a 2-row footprint (`GridGeometry`), whose

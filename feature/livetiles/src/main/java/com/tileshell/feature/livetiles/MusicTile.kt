@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import com.tileshell.core.design.LocalTileFaceColor
 import com.tileshell.core.design.TileIcons
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -54,7 +55,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlin.random.Random
 
-private val FaceText = Color.White
+private val FaceText: Color
+    @Composable get() = LocalTileFaceColor.current
 private const val POLL_MS = 3_000L
 private const val EQ_STEP_MS = 240L
 

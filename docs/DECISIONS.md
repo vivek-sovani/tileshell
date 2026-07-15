@@ -2933,3 +2933,37 @@ independently rather than shared, since the two live in different Gradle modules
 (`:feature:livetiles` has no dependency on `:feature:start`). Only the front face's time string
 changes; the back face's date and `nextAlarmString` were already 12-hour am/pm and are untouched.
 `ClockSmallFace` (the 1×1 tile) reads the same `ClockFace.hm`, so it picks up the format for free.
+
+## Live tile text: black on glass tiles in light theme
+
+Known caveat called out since S21/S22 ("live face text is Color.White regardless of glass+light
+theme … revisit when glass + light + live overlap looks off") and finally addressed on direct user
+request. Confirmed the prototype's own `.tile { color:#fff }` (`styles.css`) is unconditional — no
+`#screen.light .tile` override exists — because a *solid* tile's fill is always the user's saturated
+accent colour, never actually light, regardless of screen theme; that case is correctly left as
+white. The only genuine contrast problem is **glass (transparent) tiles in light theme**: `Glass.fill`
+blends the tile's accent 65% into a near-white neutral (`rgba(250,250,252,·)`, see `Glass.kt`) before
+applying the transparency alpha, so with "transparent tiles" on and the theme light, the fill itself
+washes out toward near-white and white text/icons nearly disappear — confirmed with the user before
+implementing (a blanket "black text whenever theme is light" would have broken contrast on solid
+accent tiles instead, which was explicitly ruled out).
+
+Added `Glass.faceTextColor(dark, glass)` (`core/design/Glass.kt`): white unless `glass && !dark`, in
+which case a near-black (`rgb(20,20,26)`, matching `LightColorTokens.fg`). Rather than threading a new
+`glass`/`darkTheme` parameter through every live-tile face composable and every call site (`:feature:
+livetiles` has no dependency on the settings/theme-owning `:feature:start`), added a
+`CompositionLocalProvider`-based value, `LocalTileFaceColor` (`core/design/ThemeLocals.kt`, alongside
+the existing `LocalColorTokens`/`LocalAccent`), provided once at the Start root
+(`Glass.faceTextColor(dark, settings.glass)`) and read by every tile-face text/icon: each live-tile
+file's module-level `FaceText` constant became a `@Composable get()` reading the local instead of a
+fixed `Color.White`, and every other hardcoded white tile-face tint/text in `StartScreen.kt`
+(`StaticTileGlyph`'s monoline icon, `TileLabel`, `TileControl`'s edit-mode corner glyphs, the folder
+inline-expand chevron + rename field, the contact-tile people-glyph fallback, and a closed folder's
+per-cell icon/"+N" overflow text) now reads the same local.
+
+Deliberately left alone: text drawn over an actual photo with its own dark scrim (the photos-tile
+"photos" caption, a pinned contact's name over their photo) — that's contrast-safe against arbitrary
+photo content already, unrelated to the tile-fill/theme condition; the small `FolderActionTile` action
+chip ("make stack"/"keep as folder") and the tile-colour-picker sheet, which paint their own fixed
+overlay backgrounds unrelated to a tile's glass fill; and the colour-swatch selection ring, which is
+deliberately always white as a fixed-contrast ring against the swatch's own (arbitrary) colour.

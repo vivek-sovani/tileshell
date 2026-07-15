@@ -24,12 +24,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.TileSize
+import com.tileshell.core.design.LocalTileFaceColor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.util.Calendar
 
-private val FaceText = Color.White
+private val FaceText: Color
+    @Composable get() = LocalTileFaceColor.current
 private const val REFRESH_MS = 5 * 60_000L
 
 private fun currentCalendarToday(): CalendarToday {

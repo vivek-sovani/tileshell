@@ -17,3 +17,12 @@ val LocalColorTokens = staticCompositionLocalOf<ColorTokens> { DarkColorTokens }
  * own per-tile colours (see docs/DECISIONS.md S11), so this never recolours them.
  */
 val LocalAccent = staticCompositionLocalOf<Color> { TileAccents.Blue }
+
+/**
+ * Colour for tile face text/icons — live-tile faces, the static glyph, and tile
+ * labels — see [Glass.faceTextColor]. Provided at the Start root from the active
+ * theme + transparent-tiles setting so every tile composable (including deep in
+ * `:feature:livetiles`, which has no direct access to those settings) reads the
+ * right colour without threading new parameters through every face composable.
+ */
+val LocalTileFaceColor = staticCompositionLocalOf<Color> { Color.White }

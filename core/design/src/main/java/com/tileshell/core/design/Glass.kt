@@ -34,4 +34,15 @@ object Glass {
         val tinted = lerp(neutral(dark), accent, 0.65f)
         return tinted.copy(alpha = alpha(transparency))
     }
+
+    /**
+     * Colour for tile face text/icons (live-tile faces, the static glyph, tile
+     * labels). A solid tile's fill is always the user's saturated accent colour
+     * regardless of theme, so white stays right there. Only when [glass] (transparent
+     * tiles) is on *and* the theme is light does the tile fill itself wash out toward
+     * near-white (see [fill]/[neutral]), where white text loses contrast — user-requested,
+     * see docs/DECISIONS.md "Live tile text: black on glass tiles in light theme".
+     */
+    fun faceTextColor(dark: Boolean, glass: Boolean): Color =
+        if (glass && !dark) Color(red = 20f / 255f, green = 20f / 255f, blue = 26f / 255f) else Color.White
 }

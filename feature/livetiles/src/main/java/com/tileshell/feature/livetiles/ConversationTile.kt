@@ -35,9 +35,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.TileSize
+import com.tileshell.core.design.LocalTileFaceColor
 import kotlinx.coroutines.delay
 
-private val FaceText = Color.White
+private val FaceText: Color
+    @Composable get() = LocalTileFaceColor.current
 
 // How long each notification is shown on the back face before cycling to the next.
 private const val NOTIF_CYCLE_MS = 2_600L
