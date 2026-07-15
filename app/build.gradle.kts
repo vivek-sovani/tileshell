@@ -140,8 +140,19 @@ android {
         //   notification total moved beside its name label so it no longer overlaps the
         //   per-app badge on its top-right mini-grid cell; fixed a real merge-to-folder
         //   regression in sticky (Windows-Phone-style) tile arrangement.
-        versionCode = 224
-        versionName = "2.2.4"
+        // v2.2.5 (code 225): widget-stack and closed-folder notification badges now
+        //   render at the same size as a regular app tile's badge instead of the tiny
+        //   folder-mini-grid dot; people tile's photo mosaic shows circular avatars
+        //   instead of square crops; clock tile shows 12-hour am/pm time, matching the
+        //   feed/glance screen's clock; live-tile text/icons, the static tile glyph,
+        //   tile labels, the Start screen's chevron/gear, and the open-folder action
+        //   chip now switch to dark text automatically when the wallpaper actually
+        //   showing through them (glass tiles, "wallpaper behind tiles" mode, or the
+        //   plain screen background) is light, based on an actual brightness sample
+        //   rather than the theme setting; fixed a closed folder's unused mini-grid
+        //   slots (fewer apps than the grid's capacity) rendering as dark squares.
+        versionCode = 225
+        versionName = "2.2.5"
     }
 
     if (keystoreFile.exists()) {

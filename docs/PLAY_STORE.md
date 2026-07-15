@@ -144,6 +144,22 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
+## Release notes (v2.2.5)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 2.2.5
+
+• Fixed: live tile text and icons stayed white and hard to read on light wallpapers — now switch to dark automatically
+• Fixed: notification badges on stack tiles and closed folders were too small — now match regular tile badges
+• Fixed: an empty slot in a closed folder's icon grid showed as an ugly dark square
+• People tile photos now show as circles instead of square crops
+• Clock tile now shows 12-hour am/pm time, matching the feed's clock
+```
+
+*(Character count ~463, under Play's 500 limit.)*
+
 ## Release notes (v2.2.4)
 
 *"What's new" — newest release first. Keep under Play's 500-character limit.*
