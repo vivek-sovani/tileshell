@@ -2934,36 +2934,62 @@ independently rather than shared, since the two live in different Gradle modules
 changes; the back face's date and `nextAlarmString` were already 12-hour am/pm and are untouched.
 `ClockSmallFace` (the 1×1 tile) reads the same `ClockFace.hm`, so it picks up the format for free.
 
-## Live tile text: black on glass tiles in light theme
+## Live tile text: black when the wallpaper behind it is light
 
 Known caveat called out since S21/S22 ("live face text is Color.White regardless of glass+light
-theme … revisit when glass + light + live overlap looks off") and finally addressed on direct user
-request. Confirmed the prototype's own `.tile { color:#fff }` (`styles.css`) is unconditional — no
+theme … revisit when glass + light + live overlap looks off"), addressed on direct user request in
+two passes. Confirmed the prototype's own `.tile { color:#fff }` (`styles.css`) is unconditional — no
 `#screen.light .tile` override exists — because a *solid* tile's fill is always the user's saturated
-accent colour, never actually light, regardless of screen theme; that case is correctly left as
-white. The only genuine contrast problem is **glass (transparent) tiles in light theme**: `Glass.fill`
-blends the tile's accent 65% into a near-white neutral (`rgba(250,250,252,·)`, see `Glass.kt`) before
-applying the transparency alpha, so with "transparent tiles" on and the theme light, the fill itself
-washes out toward near-white and white text/icons nearly disappear — confirmed with the user before
-implementing (a blanket "black text whenever theme is light" would have broken contrast on solid
-accent tiles instead, which was explicitly ruled out).
+accent colour, never actually light, regardless of screen theme; that case is correctly left as white.
 
-Added `Glass.faceTextColor(dark, glass)` (`core/design/Glass.kt`): white unless `glass && !dark`, in
-which case a near-black (`rgb(20,20,26)`, matching `LightColorTokens.fg`). Rather than threading a new
-`glass`/`darkTheme` parameter through every live-tile face composable and every call site (`:feature:
-livetiles` has no dependency on the settings/theme-owning `:feature:start`), added a
-`CompositionLocalProvider`-based value, `LocalTileFaceColor` (`core/design/ThemeLocals.kt`, alongside
-the existing `LocalColorTokens`/`LocalAccent`), provided once at the Start root
-(`Glass.faceTextColor(dark, settings.glass)`) and read by every tile-face text/icon: each live-tile
-file's module-level `FaceText` constant became a `@Composable get()` reading the local instead of a
-fixed `Color.White`, and every other hardcoded white tile-face tint/text in `StartScreen.kt`
-(`StaticTileGlyph`'s monoline icon, `TileLabel`, `TileControl`'s edit-mode corner glyphs, the folder
-inline-expand chevron + rename field, the contact-tile people-glyph fallback, and a closed folder's
-per-cell icon/"+N" overflow text) now reads the same local.
+**First pass** shipped `Glass.faceTextColor(dark, glass)`: white unless `glass && !dark` (transparent
+tiles on, theme light) — confirmed the scope with the user before implementing, since a blanket
+"black whenever theme is light" would have broken contrast on solid accent tiles instead. **Second
+pass**, prompted by direct user follow-up ("behind the tiles should also be addressed … talking about
+the text colour if tile background is light because of chosen wallpaper"): the theme flag was the
+wrong signal. A glass tile is translucent, so its *effective* appearance is the computed glass tint
+alpha-composited over whatever the real wallpaper layer draws underneath — if the user picks a bright
+custom photo (or a light Bing daily image), the glass tile reads as light regardless of the dark/light
+theme setting; conversely a dark bundled gradient wallpaper stays fairly dark even with "theme light"
+(the gradients are dark-base-first and `Wallpapers.themedBase` only lifts them ~45% toward the light
+theme's own bg — confirmed via `LuminanceTest`'s Aurora-lifted-45%-still-not-light case). "Wallpaper
+behind tiles" mode has the identical problem for the same reason (each tile is a literal window onto
+the wallpaper/photo).
+
+Replaced the theme-based check with an actual-brightness one. `core/design/Luminance.kt` adds a pure,
+unit-tested `perceivedLuminance(Color)` (simple 0.299/0.587/0.114 weighting — a UI heuristic, not
+WCAG-exact) and `isLightBackground(Color)` (>0.6 threshold; verified against both screen tokens).
+`StartScreen.kt`'s `rememberChosenWallpaperIsLight` resolves what the user's actual background reads
+as: a custom/Bing photo's sampled average brightness (`averageLuminance`, a coarse ~48×48-sample scan
+— fast enough for a one-off `remember`, no need to scan every pixel of a multi-megapixel photo) when
+one is set, else the plain screen bg (no wallpaper), else a bundled gradient's own `themedBase`.
+`Glass.faceTextColor` now just takes the resolved `useDarkText: Boolean` instead of `(dark, glass)` —
+the caller (`StartScreen.kt`) combines `(glass || tiledWallpaper) && chosenWallpaperIsLight`, since
+solid, non-tiled tiles never show the wallpaper at all. The custom-photo bitmap is now decoded
+unconditionally when a custom wallpaper is set (previously only in tiled mode, for the tile-window
+use) so it's available for the brightness sample in the more common untiled-glass case too; this adds
+one redundant decode alongside `WallpaperBackground`'s own internal one in that specific case, judged
+an acceptable one-time (per wallpaper-change) IO cost rather than a bigger refactor to share a single
+decode across composables.
+
+The Start screen's own chevron ("open app list") and settings gear sit directly on the general screen
+area, not a tile's fill — a related but distinct condition, `screenBackgroundIsLight`, since in
+"wallpaper behind tiles" mode the general screen area is always flat `tokens.bg` (the real
+photo/gradient is windowed *only* into each tile there), diverging from what a tile itself shows. The
+open-folder's `FolderActionTile` ("make stack"/"keep as folder" chip) draws directly over that same
+general screen area too (not a tile fill) — user-requested follow-up — so it takes the same
+`screenBackgroundIsLight` signal for its text, neutral fill, and border, rather than the tile-fill
+condition.
+
+`LocalTileFaceColor` (`core/design/ThemeLocals.kt`) still carries the resolved colour down to every
+tile-face composable exactly as before (each live-tile file's module-level `FaceText` reads it via a
+`@Composable get()`; `StaticTileGlyph`'s monoline icon, `TileLabel`, `TileControl`'s edit-mode corner
+glyphs, the folder inline-expand chevron + rename field, the contact-tile people-glyph fallback, and a
+closed folder's per-cell icon/"+N" overflow text all read the same local) — only *how* the provided
+value is computed changed.
 
 Deliberately left alone: text drawn over an actual photo with its own dark scrim (the photos-tile
 "photos" caption, a pinned contact's name over their photo) — that's contrast-safe against arbitrary
-photo content already, unrelated to the tile-fill/theme condition; the small `FolderActionTile` action
-chip ("make stack"/"keep as folder") and the tile-colour-picker sheet, which paint their own fixed
-overlay backgrounds unrelated to a tile's glass fill; and the colour-swatch selection ring, which is
-deliberately always white as a fixed-contrast ring against the swatch's own (arbitrary) colour.
+photo content already, unrelated to this condition; the tile-colour-picker sheet, which paints its own
+fixed overlay background; and the colour-swatch selection ring, deliberately always white as a
+fixed-contrast ring against the swatch's own (arbitrary) colour.

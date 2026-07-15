@@ -209,6 +209,7 @@ import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.design.DarkColorTokens
 import com.tileshell.core.design.Glass
+import com.tileshell.core.design.LIGHT_BACKGROUND_LUMINANCE_THRESHOLD
 import com.tileshell.core.design.LocalAccent
 import com.tileshell.core.design.LocalColorTokens
 import com.tileshell.core.design.LocalTileCornerRadius
@@ -221,7 +222,10 @@ import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.Wallpapers
 import com.tileshell.core.design.Wallpapers.NONE_ID
+import com.tileshell.core.design.WallpaperGradient
 import com.tileshell.core.design.colorTokens
+import com.tileshell.core.design.isLightBackground
+import com.tileshell.core.design.themedBase
 import com.tileshell.core.design.tileGradientBrush
 import com.tileshell.core.design.tiltOnPress
 import com.tileshell.core.design.wallpaperWindow
@@ -355,15 +359,31 @@ fun StartScreen(
     }
     val baseTextStyle = LocalTextStyle.current
     // "Wallpaper behind tiles" mode: the screen goes dark and the wallpaper shows
-    // only through the tiles. Decode the custom photo here (when set) so the tiles
-    // can window into it; a bundled gradient is drawn directly by the window modifier.
+    // only through the tiles. Decode the custom photo here (when set, regardless of
+    // tiled mode — also used by backgroundIsLight below) so tiled mode can window
+    // into it; a bundled gradient is drawn directly by the window modifier.
     val tiledWallpaper = settings.tiledWallpaper
-    val tiledPhoto =
-        if (tiledWallpaper && settings.customWallpaperUri != null) {
-            rememberWallpaperBitmap(settings.customWallpaperUri!!)
-        } else {
-            null
-        }
+    val customWallpaperBitmap = settings.customWallpaperUri?.let { rememberWallpaperBitmap(it) }
+    val tiledPhoto = if (tiledWallpaper) customWallpaperBitmap else null
+
+    // Whether the user's actual chosen background — the plain screen bg (no
+    // wallpaper), a bundled gradient's themed base, or a custom/Bing photo's
+    // sampled brightness — reads as light. A solid tile's fill never shows this
+    // (always the saturated accent colour), but glass (transparent) tiles and
+    // "wallpaper behind tiles" mode both let it show through, where white
+    // text/icons would lose contrast — user-requested, see docs/DECISIONS.md
+    // "Live tile text: black when the wallpaper behind it is light".
+    val chosenWallpaperIsLight = rememberChosenWallpaperIsLight(
+        customPhoto = customWallpaperBitmap,
+        noWallpaper = noWallpaper,
+        wallpaper = wallpaper,
+        dark = dark,
+        screenBg = tokens.bg,
+    )
+    // The general screen area outside any tile (behind the chevron/gear) always
+    // shows tokens.bg in tiled mode (the real photo/gradient is only windowed
+    // *into* each tile there), so it needs its own, slightly different check.
+    val screenBackgroundIsLight = if (tiledWallpaper) isLightBackground(tokens.bg) else chosenWallpaperIsLight
 
     // URI of a just-picked wallpaper photo waiting for the user to crop/position it.
     // Set by the picker callback; cleared when the crop overlay is confirmed or cancelled.
@@ -635,7 +655,7 @@ fun StartScreen(
         LocalTileGradient provides (settings.tileFill == TileFill.GRADIENT),
         LocalTileFont provides tileFont,
         LocalTextStyle provides baseTextStyle.copy(fontFamily = tileFont),
-        LocalTileFaceColor provides Glass.faceTextColor(dark = dark, glass = settings.glass),
+        LocalTileFaceColor provides Glass.faceTextColor((settings.glass || tiledWallpaper) && chosenWallpaperIsLight),
     ) {
     BoxWithConstraints(modifier = modifier.fillMaxSize().then(quickSearchGesture)) {
         val widthPx = constraints.maxWidth.toFloat()
@@ -740,6 +760,7 @@ fun StartScreen(
                     tiledWallpaper = tiledWallpaper,
                     wallpaper = wallpaper,
                     wallpaperPhoto = tiledPhoto,
+                    screenBackgroundIsLight = screenBackgroundIsLight,
                     wallpaperAlignX = settings.wallpaperAlignX,
                     wallpaperAlignY = settings.wallpaperAlignY,
                     wallpaperZoom = settings.wallpaperZoom,
@@ -1423,6 +1444,7 @@ private fun StartPage(
     tiledWallpaper: Boolean,
     wallpaper: com.tileshell.core.design.WallpaperGradient,
     wallpaperPhoto: ImageBitmap?,
+    screenBackgroundIsLight: Boolean,
     wallpaperAlignX: Float,
     wallpaperAlignY: Float,
     wallpaperZoom: Float,
@@ -1834,6 +1856,7 @@ private fun StartPage(
                             // folder (see expandedFolderActions), so this is always
                             // that folder's own isStack.
                             isStack = expandedFolder?.isStack == true,
+                            textIsDark = screenBackgroundIsLight,
                         ) {
                             when (action) {
                                 is FolderAction.MakeStack -> onMakeStack(actionFolderId, action.size)
@@ -2013,7 +2036,7 @@ private fun StartPage(
                     Icon(
                         imageVector = TileIcons["chevron"],
                         contentDescription = "open app list",
-                        tint = colorTokens(darkTheme).fg.copy(alpha = 0.72f),
+                        tint = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.72f),
                         modifier = Modifier.size(28.dp),
                     )
                 }
@@ -2028,7 +2051,7 @@ private fun StartPage(
                     Icon(
                         imageVector = TileIcons["settings"],
                         contentDescription = "settings",
-                        tint = colorTokens(darkTheme).fg.copy(alpha = 0.72f),
+                        tint = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.72f),
                         modifier = Modifier.size(26.dp),
                     )
                 }
@@ -2621,17 +2644,28 @@ private fun FolderNameEditor(initial: String, onCommit: (String) -> Unit) {
  * [isStack] only affects that action's label: on a plain folder it reads
  * "keep as folder" (a bail-out — it already is one), but on a widget stack
  * the same action actually converts it back, so it reads "back to folder".
+ * [textIsDark] (the same signal driving the Start screen's chevron/gear tint —
+ * see [rememberChosenWallpaperIsLight]) darkens the text/neutral fill/border
+ * when this chip sits on a light background, since — like the chevron/gear —
+ * it draws directly over the screen's own wallpaper, not a tile fill.
  */
 @Composable
-private fun FolderActionTile(action: FolderAction, accent: Color, isStack: Boolean, onClick: () -> Unit) {
+private fun FolderActionTile(
+    action: FolderAction,
+    accent: Color,
+    isStack: Boolean,
+    textIsDark: Boolean,
+    onClick: () -> Unit,
+) {
     val label = when (action) {
         is FolderAction.MakeStack ->
             if (action.size == TileSize.LARGE) "make ·\nlarge stack" else "make ·\nwide stack"
         FolderAction.KeepAsFolder -> if (isStack) "back to\nfolder" else "keep as\nfolder"
     }
+    val neutral = Glass.faceTextColor(textIsDark)
     val fill = when (action) {
         is FolderAction.MakeStack -> accent.copy(alpha = 0.35f)
-        FolderAction.KeepAsFolder -> Color.White.copy(alpha = 0.08f)
+        FolderAction.KeepAsFolder -> neutral.copy(alpha = 0.08f)
     }
     Box(
         modifier = Modifier
@@ -2639,13 +2673,13 @@ private fun FolderActionTile(action: FolderAction, accent: Color, isStack: Boole
             .padding(3.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(fill)
-            .border(1.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+            .border(1.dp, neutral.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = label,
-            color = Color.White,
+            color = neutral,
             fontSize = 11.sp,
             lineHeight = 13.sp,
             textAlign = TextAlign.Center,
@@ -3674,6 +3708,60 @@ private fun dominantIconColor(bitmap: ImageBitmap): Color? {
         aN > 0 -> Color((ar / aN).toInt(), (ag / aN).toInt(), (ab / aN).toInt())
         else -> null
     }
+}
+
+/**
+ * Whether the user's actual chosen background reads as light: a custom/Bing
+ * photo's sampled average brightness when one is set, else the plain screen
+ * background (no wallpaper), else a bundled gradient's own themed base colour.
+ * Drives [LocalTileFaceColor] and the Start screen's chevron/gear tint — see
+ * docs/DECISIONS.md "Live tile text: black when the wallpaper behind it is light".
+ */
+@Composable
+private fun rememberChosenWallpaperIsLight(
+    customPhoto: ImageBitmap?,
+    noWallpaper: Boolean,
+    wallpaper: WallpaperGradient,
+    dark: Boolean,
+    screenBg: Color,
+): Boolean {
+    val photoLuminance = remember(customPhoto) { customPhoto?.let(::averageLuminance) }
+    return when {
+        photoLuminance != null -> photoLuminance > LIGHT_BACKGROUND_LUMINANCE_THRESHOLD
+        noWallpaper -> isLightBackground(screenBg)
+        else -> isLightBackground(themedBase(wallpaper.base, dark))
+    }
+}
+
+/**
+ * Cheap average perceived luminance (0..1) sampled across a coarse ~48×48 grid
+ * of [bitmap] — fast enough to run once per wallpaper change even on a large
+ * decoded photo, and plenty precise for a light/dark backdrop classification.
+ */
+private fun averageLuminance(bitmap: ImageBitmap): Float {
+    val w = bitmap.width
+    val h = bitmap.height
+    if (w <= 0 || h <= 0) return 0f
+    val android = bitmap.asAndroidBitmap()
+    val strideX = (w / 48).coerceAtLeast(1)
+    val strideY = (h / 48).coerceAtLeast(1)
+    var sum = 0.0
+    var n = 0
+    var y = 0
+    while (y < h) {
+        var x = 0
+        while (x < w) {
+            val p = android.getPixel(x, y)
+            val r = (p ushr 16) and 0xff
+            val g = (p ushr 8) and 0xff
+            val b = p and 0xff
+            sum += 0.299 * r + 0.587 * g + 0.114 * b
+            n++
+            x += strideX
+        }
+        y += strideY
+    }
+    return if (n > 0) (sum / n / 255.0).toFloat() else 0f
 }
 
 @Composable

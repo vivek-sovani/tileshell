@@ -38,11 +38,16 @@ object Glass {
     /**
      * Colour for tile face text/icons (live-tile faces, the static glyph, tile
      * labels). A solid tile's fill is always the user's saturated accent colour
-     * regardless of theme, so white stays right there. Only when [glass] (transparent
-     * tiles) is on *and* the theme is light does the tile fill itself wash out toward
-     * near-white (see [fill]/[neutral]), where white text loses contrast — user-requested,
-     * see docs/DECISIONS.md "Live tile text: black on glass tiles in light theme".
+     * regardless of theme, so white stays right there. The only case where a tile's
+     * fill can genuinely read as light is when the wallpaper actually shows through
+     * it — glass (transparent) tiles, or "wallpaper behind tiles" mode — *and* that
+     * wallpaper is itself light (the plain theme background in light theme, or a
+     * light custom photo; the bundled gradients are dark-base-first and stay
+     * mid-toned even lifted for light theme, so they never trigger this). The
+     * caller resolves that full condition into [useDarkText] — see
+     * docs/DECISIONS.md "Live tile text: black when the wallpaper behind it is
+     * light".
      */
-    fun faceTextColor(dark: Boolean, glass: Boolean): Color =
-        if (glass && !dark) Color(red = 20f / 255f, green = 20f / 255f, blue = 26f / 255f) else Color.White
+    fun faceTextColor(useDarkText: Boolean): Color =
+        if (useDarkText) Color(red = 20f / 255f, green = 20f / 255f, blue = 26f / 255f) else Color.White
 }

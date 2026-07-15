@@ -114,7 +114,7 @@ object Wallpapers {
  * much smaller lift, just enough that the glow doesn't sink into the now
  * mid-toned base.
  */
-private fun themedBase(base: Color, dark: Boolean): Color =
+fun themedBase(base: Color, dark: Boolean): Color =
     if (dark) base else lerp(base, LightColorTokens.bg, 0.45f)
 
 private fun themedLayer(color: Color, dark: Boolean): Color =
