@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -22,7 +23,9 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
@@ -143,21 +146,32 @@ private fun PeopleBack(person: Person) {
 }
 
 /**
- * One avatar cell: the contact photo cropped to fill. While the photo decodes (or
- * if its URI is briefly unreadable) the cell shows a plain colour tint — never
- * initials, per the photos-only requirement.
+ * One avatar cell. The back face ([big]) is a single full-bleed photo behind the
+ * "posted" caption, like a photo post. Mosaic cells (front face, ![big]) instead
+ * show the contact's photo as a circular avatar chip, inset within the square cell
+ * so the tile's own fill shows through the corners — the familiar round contact-photo
+ * look, rather than a grid of square crops (a deliberate deviation from the
+ * prototype's square avatars — user-requested, see DECISIONS.md). While the photo
+ * decodes (or if its URI is briefly unreadable) the shape shows a plain colour tint
+ * — never initials, per the photos-only requirement.
  */
 @Composable
 private fun Avatar(person: Person, big: Boolean) {
     val bitmap = rememberTileBitmap(person.photoUri, targetPx = if (big) 300 else 120)
+    val shape = if (big) RectangleShape else CircleShape
+    val shapeModifier = if (big) {
+        Modifier.fillMaxSize()
+    } else {
+        Modifier.fillMaxSize().padding(3.dp).clip(shape)
+    }
     if (bitmap != null) {
         Image(
             bitmap = bitmap,
             contentDescription = person.name,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
+            modifier = shapeModifier,
         )
     } else {
-        Box(modifier = Modifier.fillMaxSize().background(colorFor(person.name)))
+        Box(modifier = shapeModifier.background(colorFor(person.name)))
     }
 }

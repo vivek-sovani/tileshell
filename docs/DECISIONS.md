@@ -2902,3 +2902,18 @@ user's physical device. The lesson worth keeping: *hit-testing for one interacti
 layout that a concurrent interaction is actively mutating* — merge detection and push-down preview are
 two such interactions sharing `editDragGesture`, and they need independent, non-interfering views of
 the grid.
+
+## People tile mosaic: circular avatars, not the prototype's square crops
+
+User-requested follow-up: the people live tile's photo mosaic should show each contact's profile
+photo as a circle, matching the familiar round contact-photo convention. The HTML prototype's `.av`
+avatar cells (`styles.css`) are plain squares with no `border-radius` — WP's own People tile is
+square-cropped — so this is a deliberate deviation from the prototype, not a bug fix.
+
+`PeopleTile.kt`'s `Avatar` composable now clips the mosaic (front-face, `big = false`) cells to
+`CircleShape` with a small 3dp inset, so the tile's own fill (accent/gradient/glass) shows through
+each cell's corners instead of the crop touching the cell edges — reads as a grid of round avatar
+chips rather than square photo tiles. The back face (`big = true`, a single full-bleed photo behind
+the "‹name› posted" caption) is unchanged — that's a photo-post treatment, not an avatar grid, so it
+stays a full-bleed rectangle. The colour-tint fallback (while a photo decodes, or for an unreadable
+URI) is clipped to the same shape as whichever face it's standing in for.
