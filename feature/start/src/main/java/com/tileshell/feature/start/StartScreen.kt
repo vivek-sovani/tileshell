@@ -4105,12 +4105,17 @@ private fun StackTileContent(
                     // plain app tile's badge (AppIconCorner, when a live face draws
                     // one, sits top-left, so there's no collision). Lets you tell
                     // *which* member the count belongs to as the stack rotates — no
-                    // separate consolidated total exists for a stack.
+                    // separate consolidated total exists for a stack. Rendered at the
+                    // same full size as a regular (non-folder) app tile's badge, since
+                    // a stack member fills the whole tile just like a pinned app —
+                    // not the shrunk FolderChildBadge used for closed folders' tiny
+                    // mini-grid cells.
                     val memberBadge = notifications.badgeFor(child.packageName)
                     if (memberBadge > 0) {
-                        FolderChildBadge(
+                        NotificationBadge(
                             count = memberBadge,
                             dark = darkTheme,
+                            small = tile.size == TileSize.SMALL,
                             modifier = Modifier.align(Alignment.TopEnd),
                         )
                     }
