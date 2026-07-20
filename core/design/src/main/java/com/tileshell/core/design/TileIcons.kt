@@ -399,5 +399,15 @@ object TileIcons {
             p(line(4.0, 16.0, 20.0, 16.0)),
             p(circle(15.0, 16.0, 1.8)),
         ))
+
+        put("rotate", vector("rotate",
+            p("M4 12a8 8 0 0 1 8-8c2 0 4 1 5.5 2.5"),
+            p("M20 6v4h-4"),
+        ))
+
+        put("brightness", vector("brightness",
+            p(circle(12.0, 12.0, 4.0)),
+            p("M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"),
+        ))
     }
 }

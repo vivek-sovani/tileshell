@@ -114,7 +114,31 @@ feed page already exists for. Directly fixes the alarm-clock placeholder
 value noted in current project status (`AlarmManager.getNextAlarmClock()`,
 zero new permission).
 
-## 6. Out of scope for this spec
+## 6. Rotation lock, brightness, screen timeout (`WRITE_SETTINGS`)
+
+Verified against Google's official Play Console documentation (the
+restricted-permissions list requiring the Permissions Declaration Form:
+SMS/Call Log, location, broad photo/video, `MANAGE_EXTERNAL_STORAGE`,
+`QUERY_ALL_PACKAGES`, body sensors, `SYSTEM_ALERT_WINDOW`, exact alarms,
+full-screen intent, AccessibilityService, VpnService, Health Connect) —
+`WRITE_SETTINGS` appears in none of these categories. It's a special app-op,
+granted the same way as the DND/notification-listener flows (one-time
+Settings deep link via `ACTION_MANAGE_WRITE_SETTINGS`), not a manifest
+dangerous permission, so it needs no Play Console declaration. Unlocks:
+
+| Item | Behavior | API |
+|---|---|---|
+| Rotation lock | read always works; **true toggle** once granted, else tap deep-links to the grant screen | `Settings.System.ACCELEROMETER_ROTATION` |
+| Screen brightness | slider, read always works, **write** needs the grant | `Settings.System.SCREEN_BRIGHTNESS` |
+| Screen timeout | tap-to-cycle through presets (15s…30m), read always works, **write** needs the grant | `Settings.System.SCREEN_OFF_TIMEOUT` |
+
+Rotation lock is a chip in the grid (own inline fallback: tap deep-links to
+the grant screen when not yet granted). Brightness and screen timeout are
+full rows below the volume sliders — while access isn't granted, both are
+replaced by a single "allow modify system settings" row that deep-links,
+rather than showing disabled/dead controls.
+
+## 7. Out of scope for this spec
 Anything from `docs/NO-EXTRA-PERMISSION-FEATURES.md`'s "explicitly out of
-scope" list (`WRITE_SETTINGS`, `PACKAGE_USAGE_STATS`, etc.) is unaffected by
-this design and remains excluded.
+scope" list (`PACKAGE_USAGE_STATS`, etc.) is unaffected by this design and
+remains excluded.

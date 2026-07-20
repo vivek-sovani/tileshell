@@ -48,15 +48,23 @@ import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.colorTokens
+import com.tileshell.feature.livetiles.nextScreenTimeoutPreset
+import com.tileshell.feature.livetiles.openWriteSettingsAccess
 import com.tileshell.feature.livetiles.rememberAirplaneModeOn
 import com.tileshell.feature.livetiles.rememberBatterySaverOn
 import com.tileshell.feature.livetiles.rememberDndAccessGranted
 import com.tileshell.feature.livetiles.rememberDndOn
 import com.tileshell.feature.livetiles.rememberLocationEnabled
 import com.tileshell.feature.livetiles.rememberRingerVibrate
+import com.tileshell.feature.livetiles.rememberRotationLockOn
+import com.tileshell.feature.livetiles.rememberScreenBrightness
+import com.tileshell.feature.livetiles.rememberScreenTimeoutMs
 import com.tileshell.feature.livetiles.rememberStreamVolume
 import com.tileshell.feature.livetiles.rememberTorchOn
 import com.tileshell.feature.livetiles.rememberWifiEnabled
+import com.tileshell.feature.livetiles.rememberWriteSettingsGranted
+import com.tileshell.feature.livetiles.screenTimeoutLabel
+import com.tileshell.feature.livetiles.setRotationLock
 import com.tileshell.feature.livetiles.toggleDnd
 
 /**
@@ -99,6 +107,10 @@ fun QuickPanelOverlay(
     val (torchOn, toggleTorch) = rememberTorchOn()
     val dndGranted = rememberDndAccessGranted()
     val dndOn = rememberDndOn()
+    val writeSettingsGranted = rememberWriteSettingsGranted()
+    val rotationLockOn = rememberRotationLockOn()
+    val (brightness, setBrightness) = rememberScreenBrightness()
+    val (screenTimeoutMs, setScreenTimeoutMs) = rememberScreenTimeoutMs()
 
     SheetStage(rightHalf = rightHalf, modifier = modifier) {
         Box(
@@ -139,11 +151,16 @@ fun QuickPanelOverlay(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp, vertical = 12.dp)
-                    .height(210.dp),
+                    .height(260.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(quickPanelChips(context, wifiOn, airplaneOn, locationOn, batterySaverOn, torchOn, toggleTorch, dndGranted, dndOn)) { chip ->
+                items(
+                    quickPanelChips(
+                        context, wifiOn, airplaneOn, locationOn, batterySaverOn, torchOn, toggleTorch,
+                        dndGranted, dndOn, writeSettingsGranted, rotationLockOn,
+                    ),
+                ) { chip ->
                     QuickPanelChip(chip, tokens = tokens, accent = accent)
                 }
             }
@@ -159,6 +176,17 @@ fun QuickPanelOverlay(
                 // Alarm deliberately gets no mute action — a muted alarm is a
                 // genuine footgun (see docs/QUICK-PANEL-SPEC.md §3a).
                 VolumeRow("alarm", AudioManager.STREAM_ALARM, accent, tokens, muteable = false)
+
+                if (writeSettingsGranted) {
+                    BrightnessRow(brightness, setBrightness, accent, tokens)
+                    ScreenTimeoutRow(
+                        screenTimeoutMs,
+                        onTap = { setScreenTimeoutMs(nextScreenTimeoutPreset(screenTimeoutMs)) },
+                        tokens = tokens,
+                    )
+                } else {
+                    SystemSettingsAccessRow(tokens) { openWriteSettingsAccess(context) }
+                }
             }
 
             Box(modifier = Modifier.height(8.dp))
@@ -183,6 +211,8 @@ private fun quickPanelChips(
     toggleTorch: () -> Unit,
     dndGranted: Boolean,
     dndOn: Boolean,
+    writeSettingsGranted: Boolean,
+    rotationLockOn: Boolean,
 ): List<QuickPanelChipSpec> = listOf(
     QuickPanelChipSpec("wifi", "wifi", wifiOn) { openWifiSettings(context) },
     // Bluetooth: no live state (reading it needs BLUETOOTH_CONNECT on API 31+,
@@ -200,6 +230,11 @@ private fun quickPanelChips(
     },
     QuickPanelChipSpec("airplane", "airplane", airplaneOn) { deepLink(context, Settings.ACTION_AIRPLANE_MODE_SETTINGS) },
     QuickPanelChipSpec("maps", "location", locationOn) { deepLink(context, Settings.ACTION_LOCATION_SOURCE_SETTINGS) },
+    QuickPanelChipSpec("rotate", "rotation lock", rotationLockOn) {
+        // A genuine toggle once WRITE_SETTINGS is granted; until then, tapping
+        // deep-links to the grant screen instead of silently no-op'ing.
+        if (writeSettingsGranted) setRotationLock(context, !rotationLockOn) else openWriteSettingsAccess(context)
+    },
 )
 
 @Composable
@@ -276,6 +311,78 @@ private fun VolumeRow(
                 inactiveTrackColor = tokens.tileLine,
             ),
         )
+    }
+}
+
+@Composable
+private fun BrightnessRow(
+    level: Float,
+    setLevel: (Float) -> Unit,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+) {
+    var draft by remember { mutableStateOf(level) }
+    LaunchedEffect(level) { draft = level }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(TileIcons["brightness"], null, tint = tokens.fgDim, modifier = Modifier.size(18.dp))
+        Text(
+            "brightness",
+            color = tokens.fgDim,
+            fontSize = 12.sp,
+            modifier = Modifier.width(64.dp).padding(start = 8.dp),
+        )
+        Slider(
+            value = draft,
+            onValueChange = { draft = it },
+            onValueChangeFinished = { setLevel(draft) },
+            modifier = Modifier.fillMaxWidth(),
+            colors = SliderDefaults.colors(
+                thumbColor = accent,
+                activeTrackColor = accent,
+                inactiveTrackColor = tokens.tileLine,
+            ),
+        )
+    }
+}
+
+/** Tap cycles through [SCREEN_TIMEOUT_PRESETS_MS] — simpler than a picker dialog for a small preset list. */
+@Composable
+private fun ScreenTimeoutRow(currentMs: Long, onTap: () -> Unit, tokens: com.tileshell.core.design.ColorTokens) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onTap)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(TileIcons["clock"], null, tint = tokens.fgDim, modifier = Modifier.size(18.dp))
+        Text(
+            "screen timeout",
+            color = tokens.fgDim,
+            fontSize = 12.sp,
+            modifier = Modifier.weight(1f).padding(start = 8.dp),
+        )
+        Text(screenTimeoutLabel(currentMs), color = tokens.fg, fontSize = 13.sp)
+    }
+}
+
+/** Shown instead of brightness/screen-timeout until WRITE_SETTINGS is granted (rotation lock's chip has its own inline fallback). */
+@Composable
+private fun SystemSettingsAccessRow(tokens: com.tileshell.core.design.ColorTokens, onRequest: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onRequest)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "allow modify system settings for brightness & screen timeout",
+            color = tokens.fgDim,
+            fontSize = 12.sp,
+            modifier = Modifier.weight(1f),
+        )
+        Text("allow", color = tokens.fg, fontSize = 12.sp)
     }
 }
 

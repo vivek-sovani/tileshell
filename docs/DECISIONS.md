@@ -3,6 +3,29 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Quick panel: rotation lock, brightness, screen timeout via WRITE_SETTINGS
+
+Direct follow-up to "what more settings could be added" — researched whether
+`WRITE_SETTINGS` would trigger a new Play Console declaration before
+implementing (user explicitly asked to check first). Confirmed via Google's
+own Play Console Help docs (fetched live, not from training-data memory) that
+the restricted-permissions list requiring the Permissions Declaration Form —
+SMS/Call Log, location, broad photo/video, `MANAGE_EXTERNAL_STORAGE`,
+`QUERY_ALL_PACKAGES`, body sensors, `SYSTEM_ALERT_WINDOW`, exact alarms,
+full-screen intent, AccessibilityService, VpnService, Health Connect — never
+mentions `WRITE_SETTINGS` anywhere. It's architecturally identical to the
+already-shipped DND/notification-listener special-access pattern (one-time
+Settings deep link, `Settings.System.canWrite()`/`ACTION_MANAGE_WRITE_
+SETTINGS`, no manifest dangerous permission), so it's safe under the same
+no-new-declaration constraint the whole quick panel feature is scoped to.
+Added a rotation-lock chip (inline fallback: tap deep-links to the grant
+screen until access is granted) plus brightness and screen-timeout rows
+below the volume sliders — both replaced by a single "allow modify system
+settings" row while ungranted, rather than rendering dead/disabled controls.
+Screen timeout is tap-to-cycle through a small preset list (15s…30m) instead
+of a picker dialog — simpler for 7 discrete values. See
+`docs/QUICK-PANEL-SPEC.md` §6. Build + tests green (new `ScreenTimeoutTest`).
+
 ## Quick panel follow-up fixes: thicker pills, general DND settings, mute buttons, reachable feed toggle
 
 Four user-reported issues after the first on-device pass of the quick panel

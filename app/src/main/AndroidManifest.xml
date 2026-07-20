@@ -32,6 +32,12 @@
          Wi-Fi on/off state and the active network's transport type. -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Quick panel: rotation lock / brightness / screen timeout. WRITE_SETTINGS is
+         a special app-op (granted via a one-time Settings deep link, same shape as
+         the notification-listener/DND flows), not a manifest "dangerous" permission
+         — confirmed absent from Play Console's restricted-permissions list, so it
+         needs no Permissions Declaration Form / extended review. -->
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" />
 
     <queries>
         <intent>

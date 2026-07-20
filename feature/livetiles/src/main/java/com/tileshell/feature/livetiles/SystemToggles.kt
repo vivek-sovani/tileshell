@@ -9,6 +9,7 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.location.LocationManager
 import android.media.AudioManager
+import android.net.Uri
 import android.net.wifi.WifiManager
 import android.os.Handler
 import android.os.Looper
@@ -21,6 +22,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 
 /**
  * Live-updating system state readers + true-toggle actions for the quick panel
@@ -242,4 +246,149 @@ fun rememberStreamVolume(stream: Int): Pair<Float, (Float) -> Unit> {
         runCatching { audio.setStreamVolume(stream, value, 0) }
     }
     return level to setLevel
+}
+
+/**
+ * Rotation lock, screen brightness, and screen timeout — all three read fine
+ * with no permission at all, but *writing* any of them needs `WRITE_SETTINGS`,
+ * a special app-op (like notification-listener/DND access: a one-time
+ * Settings deep link, not a manifest "dangerous" permission — confirmed
+ * absent from Play Console's restricted-permissions list). Until granted,
+ * these read-only and the caller should deep-link to
+ * [Settings.ACTION_MANAGE_WRITE_SETTINGS] instead of calling the setters.
+ */
+
+/** Whether WRITE_SETTINGS has been granted. No change broadcast exists for this app-op, so it's re-checked on every ON_RESUME (mirrors [rememberPermissionGranted]'s convention for runtime permissions). */
+@Composable
+fun rememberWriteSettingsGranted(): Boolean {
+    val context = LocalContext.current
+    val owner = LocalLifecycleOwner.current
+    var granted by remember { mutableStateOf(Settings.System.canWrite(context)) }
+    DisposableEffect(owner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) granted = Settings.System.canWrite(context)
+        }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
+    }
+    return granted
+}
+
+/** Deep-links to the WRITE_SETTINGS grant screen, scoped to this app. */
+fun openWriteSettingsAccess(context: Context) {
+    runCatching {
+        context.startActivity(
+            Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:${context.packageName}")),
+        )
+    }
+}
+
+/** Rotation lock on/off (the inverse of Android's own "auto-rotate" setting). */
+@Composable
+fun rememberRotationLockOn(): Boolean {
+    val context = LocalContext.current
+    fun read(): Boolean =
+        Settings.System.getInt(context.contentResolver, Settings.System.ACCELEROMETER_ROTATION, 1) == 0
+    var locked by remember { mutableStateOf(read()) }
+    DisposableEffect(context) {
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                locked = read()
+            }
+        }
+        context.contentResolver.registerContentObserver(
+            Settings.System.getUriFor(Settings.System.ACCELEROMETER_ROTATION), false, observer,
+        )
+        onDispose { context.contentResolver.unregisterContentObserver(observer) }
+    }
+    return locked
+}
+
+/** Sets rotation lock. No-op (silently) without WRITE_SETTINGS — the caller should deep-link instead. */
+fun setRotationLock(context: Context, locked: Boolean) {
+    if (!Settings.System.canWrite(context)) return
+    runCatching {
+        Settings.System.putInt(
+            context.contentResolver,
+            Settings.System.ACCELEROMETER_ROTATION,
+            if (locked) 0 else 1,
+        )
+    }
+}
+
+/** Screen brightness 0..1 (of the system's 0..255 range) and a setter (writes back only on release). */
+@Composable
+fun rememberScreenBrightness(): Pair<Float, (Float) -> Unit> {
+    val context = LocalContext.current
+    fun read(): Float =
+        Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128) / 255f
+    var level by remember { mutableStateOf(read()) }
+    DisposableEffect(context) {
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                level = read()
+            }
+        }
+        context.contentResolver.registerContentObserver(
+            Settings.System.getUriFor(Settings.System.SCREEN_BRIGHTNESS), false, observer,
+        )
+        onDispose { context.contentResolver.unregisterContentObserver(observer) }
+    }
+    val setLevel: (Float) -> Unit = { fraction ->
+        if (Settings.System.canWrite(context)) {
+            runCatching {
+                Settings.System.putInt(
+                    context.contentResolver,
+                    Settings.System.SCREEN_BRIGHTNESS,
+                    (fraction.coerceIn(0f, 1f) * 255).toInt(),
+                )
+            }
+        }
+    }
+    return level to setLevel
+}
+
+/** Screen-off timeout in milliseconds and a setter. */
+@Composable
+fun rememberScreenTimeoutMs(): Pair<Long, (Long) -> Unit> {
+    val context = LocalContext.current
+    fun read(): Long =
+        Settings.System.getLong(context.contentResolver, Settings.System.SCREEN_OFF_TIMEOUT, 60_000L)
+    var timeout by remember { mutableStateOf(read()) }
+    DisposableEffect(context) {
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                timeout = read()
+            }
+        }
+        context.contentResolver.registerContentObserver(
+            Settings.System.getUriFor(Settings.System.SCREEN_OFF_TIMEOUT), false, observer,
+        )
+        onDispose { context.contentResolver.unregisterContentObserver(observer) }
+    }
+    val setTimeout: (Long) -> Unit = { ms ->
+        if (Settings.System.canWrite(context)) {
+            runCatching {
+                Settings.System.putLong(context.contentResolver, Settings.System.SCREEN_OFF_TIMEOUT, ms)
+            }
+        }
+    }
+    return timeout to setTimeout
+}
+
+/** Ascending screen-timeout presets the quick panel's row cycles through on tap. */
+val SCREEN_TIMEOUT_PRESETS_MS = listOf(15_000L, 30_000L, 60_000L, 120_000L, 300_000L, 600_000L, 1_800_000L)
+
+/** The next preset after [current] (wraps to the first once past the last) — pure, unit-tested. */
+fun nextScreenTimeoutPreset(current: Long): Long {
+    val idx = SCREEN_TIMEOUT_PRESETS_MS.indexOfFirst { it >= current }
+    val nextIdx = if (idx == -1) 0 else (idx + 1) % SCREEN_TIMEOUT_PRESETS_MS.size
+    return SCREEN_TIMEOUT_PRESETS_MS[nextIdx]
+}
+
+/** Compact label for a screen-timeout value ("30s" / "2m" / "1h") — pure, unit-tested. */
+fun screenTimeoutLabel(ms: Long): String = when {
+    ms < 60_000L -> "${ms / 1000L}s"
+    ms < 3_600_000L -> "${ms / 60_000L}m"
+    else -> "${ms / 3_600_000L}h"
 }
