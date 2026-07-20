@@ -152,7 +152,7 @@ fun QuickPanelOverlay(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp, vertical = 12.dp)
-                    .height(260.dp),
+                    .height(290.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -249,15 +249,15 @@ private fun QuickPanelChip(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 52.dp)
+            .heightIn(min = 58.dp)
             .background(bg, shape = RoundedCornerShape(12.dp))
             .clickable(onClick = chip.onClick)
             .padding(horizontal = 14.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(TileIcons[chip.icon], null, tint = tint, modifier = Modifier.size(20.dp))
+        Icon(TileIcons[chip.icon], null, tint = tint, modifier = Modifier.size(26.dp))
         androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp))
-        Text(chip.label, color = tint, fontSize = 13.sp)
+        Text(chip.label, color = tint, fontSize = 14.sp)
     }
 }
 
@@ -341,8 +341,8 @@ private fun PillSlider(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(40.dp)
-            .clip(RoundedCornerShape(20.dp))
+            .height(48.dp)
+            .clip(RoundedCornerShape(24.dp))
             .background(tokens.chip),
     ) {
         Slider(
@@ -352,7 +352,7 @@ private fun PillSlider(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.CenterStart)
-                .padding(start = 34.dp, end = 10.dp),
+                .padding(start = 44.dp, end = 12.dp),
             colors = SliderDefaults.colors(
                 thumbColor = accent,
                 activeTrackColor = accent,
@@ -365,8 +365,8 @@ private fun PillSlider(
             tint = tokens.fgDim,
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .padding(start = 10.dp)
-                .size(16.dp)
+                .padding(start = 12.dp)
+                .size(22.dp)
                 .then(if (iconClickable) Modifier.clickable(onClick = onIconClick) else Modifier),
         )
     }
@@ -382,14 +382,14 @@ private fun ScreenTimeoutRow(currentMs: Long, onTap: () -> Unit, tokens: com.til
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(TileIcons["clock"], null, tint = tokens.fgDim, modifier = Modifier.size(18.dp))
+        Icon(TileIcons["clock"], null, tint = tokens.fgDim, modifier = Modifier.size(22.dp))
         Text(
             "screen timeout",
             color = tokens.fgDim,
-            fontSize = 12.sp,
-            modifier = Modifier.weight(1f).padding(start = 8.dp),
+            fontSize = 13.sp,
+            modifier = Modifier.weight(1f).padding(start = 10.dp),
         )
-        Text(screenTimeoutLabel(currentMs), color = tokens.fg, fontSize = 13.sp)
+        Text(screenTimeoutLabel(currentMs), color = tokens.fg, fontSize = 14.sp)
     }
 }
 
