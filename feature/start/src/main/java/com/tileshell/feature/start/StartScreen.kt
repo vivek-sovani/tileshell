@@ -272,6 +272,7 @@ fun StartScreen(
     val foldersOpen by viewModel.foldersOpen.collectAsStateWithLifecycle()
     val hiddenAppsOpen by viewModel.hiddenAppsOpen.collectAsStateWithLifecycle()
     val edgeStripOpen by viewModel.edgeStripOpen.collectAsStateWithLifecycle()
+    val quickPanelOpen by viewModel.quickPanelOpen.collectAsStateWithLifecycle()
     val searchOpen by viewModel.searchOpen.collectAsStateWithLifecycle()
     // Hoisted above the EdgeStrip composable so its expanded/collapsed state survives
     // being unmounted while personalize/edit-mode/a folder is on top (it used to live
@@ -606,9 +607,10 @@ fun StartScreen(
     // nothing else already up (edit mode / a folder already disables swipeEnabled;
     // the sheet flags are checked directly since they don't touch it).
     val restingAtStart = abs(progress.value) < 0.05f
-    val quickSearchEnabled = swipeEnabled && restingAtStart && !searchOpen &&
-        !personalizeOpen && !aboutOpen && !historyOpen && !backupOpen &&
-        !foldersOpen && !hiddenAppsOpen
+    val anySheetOpen = personalizeOpen || aboutOpen || historyOpen || backupOpen ||
+        foldersOpen || hiddenAppsOpen
+    val quickSearchEnabled = swipeEnabled && restingAtStart && !searchOpen && !quickPanelOpen && !anySheetOpen
+    val quickPanelEnabled = swipeEnabled && restingAtStart && !searchOpen && !quickPanelOpen && !anySheetOpen
     // Runs in the Initial pass like the pager, but keys off pointer *count* (2)
     // rather than direction, so it never competes with the single-finger pager /
     // tile-drag gestures below it — those simply never see a second pointer.
@@ -647,6 +649,46 @@ fun StartScreen(
         }
     }
 
+    // Two-finger swipe-up opens the quick panel (Wi-Fi/Bluetooth/flashlight/DND/
+    // airplane/location chips + volume sliders — see docs/QUICK-PANEL-SPEC.md).
+    // Identical shape to quickSearchGesture with the vertical sign flipped —
+    // "up" vs. quick search's "down" means the two gestures can never both
+    // fire for the same swipe.
+    val quickPanelGesture = Modifier.pointerInput(quickPanelEnabled) {
+        if (!quickPanelEnabled) return@pointerInput
+        val thresholdPx = 40.dp.toPx()
+        awaitEachGesture {
+            val first = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            val startA = first.position
+            var secondId: PointerId? = null
+            var startB = Offset.Zero
+            var triggered = false
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                val pressed = event.changes.filter { it.pressed }
+                if (pressed.isEmpty()) break
+                if (secondId == null) {
+                    pressed.firstOrNull { it.id != first.id }?.let {
+                        secondId = it.id
+                        startB = it.position
+                    }
+                }
+                val second = secondId
+                if (!triggered && second != null) {
+                    val a = pressed.firstOrNull { it.id == first.id } ?: break
+                    val b = pressed.firstOrNull { it.id == second } ?: break
+                    val dy = ((a.position.y - startA.y) + (b.position.y - startB.y)) / 2f
+                    val dx = ((a.position.x - startA.x) + (b.position.x - startB.x)) / 2f
+                    if (isQuickPanelSwipe(dy, dx, thresholdPx)) {
+                        triggered = true
+                        viewModel.openQuickPanel()
+                    }
+                }
+                if (triggered) event.changes.forEach { it.consume() }
+            }
+        }
+    }
+
     val density = LocalDensity.current
     CompositionLocalProvider(
         LocalColorTokens provides tokens,
@@ -657,7 +699,7 @@ fun StartScreen(
         LocalTextStyle provides baseTextStyle.copy(fontFamily = tileFont),
         LocalTileFaceColor provides Glass.faceTextColor((settings.glass || tiledWallpaper) && chosenWallpaperIsLight),
     ) {
-    BoxWithConstraints(modifier = modifier.fillMaxSize().then(quickSearchGesture)) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize().then(quickSearchGesture).then(quickPanelGesture)) {
         val widthPx = constraints.maxWidth.toFloat()
         val viewportHeightPx = constraints.maxHeight.toFloat()
         val statusBarTopPx = WindowInsets.statusBars.getTop(density).toFloat()
@@ -833,6 +875,7 @@ fun StartScreen(
                             .show()
                     },
                     onPersonalize = viewModel::openPersonalize,
+                    onQuickPanel = viewModel::openQuickPanel,
                 )
         }
 
@@ -1206,6 +1249,15 @@ fun StartScreen(
             onDismiss = viewModel::closeSearch,
         )
 
+        // Quick panel (two-finger swipe-up on Start, or its tap affordance):
+        // Wi-Fi/Bluetooth/flashlight/DND/airplane/location chips + volume sliders.
+        QuickPanelOverlay(
+            visible = quickPanelOpen,
+            dark = dark,
+            accentId = settings.accentId,
+            onDismiss = viewModel::closeQuickPanel,
+        )
+
         // Layout history sheet (personalize → history).
         LayoutHistorySheet(
             visible = historyOpen,
@@ -1482,6 +1534,7 @@ private fun StartPage(
     onSetTileColor: (id: String, colorId: String?) -> Unit,
     onAdd: () -> Unit,
     onPersonalize: () -> Unit,
+    onQuickPanel: () -> Unit = {},
 ) {
     // Single jiggle phase shared by every tile (only composed while editing, so
     // it costs nothing on a resting Start screen). Even/odd tiles use opposite
@@ -2053,6 +2106,20 @@ private fun StartPage(
                         contentDescription = "settings",
                         tint = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.72f),
                         modifier = Modifier.size(26.dp),
+                    )
+                }
+                // Tap affordance for the quick panel (two-finger swipe-up is the
+                // primary gesture; this is the discoverable fallback for users who
+                // don't find it — see docs/QUICK-PANEL-SPEC.md §4).
+                Box(
+                    modifier = Modifier.size(48.dp).clickable(onClick = onQuickPanel),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = TileIcons["panel"],
+                        contentDescription = "quick panel",
+                        tint = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.72f),
+                        modifier = Modifier.size(24.dp),
                     )
                 }
             }

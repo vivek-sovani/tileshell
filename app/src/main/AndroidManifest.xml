@@ -26,6 +26,12 @@
          TileShell to the Doze whitelist so the notification listener service
          keeps running on OEM devices with aggressive battery killers. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Quick panel (two-finger swipe-up on Start) + glance device-status card:
+         both normal-protection permissions, auto-granted at install with no
+         runtime prompt and no Play Console Data Safety disclosure — reading
+         Wi-Fi on/off state and the active network's transport type. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <queries>
         <intent>

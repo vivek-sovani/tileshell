@@ -3,6 +3,27 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Quick panel: two-finger swipe-up, Bluetooth has no live state
+
+New feature, not in the WP prototype/spec — user-requested after a discussion
+of which Android settings a launcher can control without declaring new Play
+Console permissions (see `docs/NO-EXTRA-PERMISSION-FEATURES.md` and
+`docs/QUICK-PANEL-SPEC.md` for the full design). Two decisions worth
+recording: **(1)** the open gesture is two-finger swipe-**up**, sliding a
+sheet up from the bottom edge — deliberately the mirror of quick search's
+existing two-finger swipe-**down** (`QuickSearchGesture.kt`), so the two can
+never both fire for the same swipe and neither collides with Android's own
+status-bar-anchored pull-down. **(2)** the Bluetooth chip shows no live
+on/off state at all, tap-only to `ACTION_BLUETOOTH_SETTINGS` — reading
+`BluetoothAdapter.isEnabled()` requires the dangerous `BLUETOOTH_CONNECT`
+permission on API 31+, which would need a new Play Console "Nearby devices"
+declaration; every other chip (Wi-Fi, airplane mode, location, battery saver,
+flashlight, DND, volume) needed either an already-declared permission, a
+normal-protection permission (`ACCESS_WIFI_STATE`, `ACCESS_NETWORK_STATE` —
+auto-granted, no Data Safety entry), or a special-access settings deep-link
+identical in shape to the already-shipped notification-listener flow. Build
++ tests green (`QuickPanelGestureTest`).
+
 ## Closed folder's mini-grid shows a per-app badge, not just the folder's total
 
 User-requested follow-up: a closed folder tile already showed one aggregate

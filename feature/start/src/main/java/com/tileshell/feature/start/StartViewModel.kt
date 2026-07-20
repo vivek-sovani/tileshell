@@ -196,6 +196,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val _edgeStripOpen = MutableStateFlow(false)
     val edgeStripOpen: StateFlow<Boolean> = _edgeStripOpen.asStateFlow()
 
+    /** True while the quick panel is open (two-finger swipe-up on Start, or its settings-gear-area tap affordance). */
+    private val _quickPanelOpen = MutableStateFlow(false)
+    val quickPanelOpen: StateFlow<Boolean> = _quickPanelOpen.asStateFlow()
+
     fun setAppList(value: Boolean) {
         _isAppList.value = value
     }
@@ -377,6 +381,12 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         _searchOpen.value = false
         _swipeEnabled.value = true
     }
+
+    /** Open the quick panel (two-finger swipe-up on Start). Doesn't touch the pager swipe — mirrors openBackup/openPersonalize, not openSearch. */
+    fun openQuickPanel() { _quickPanelOpen.value = true }
+
+    /** Close the quick panel. Safe when not open. */
+    fun closeQuickPanel() { _quickPanelOpen.value = false }
 
     /** Unhide [packageName], returning it to the app list. */
     fun unhide(packageName: String) {
@@ -779,6 +789,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         closeHiddenApps()
         closeBackup()
         closeEdgeStrip()
+        closeQuickPanel()
         collapseFolder()
         closeSearch()
         exitEdit()

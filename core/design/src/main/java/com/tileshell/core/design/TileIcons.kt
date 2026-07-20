@@ -357,5 +357,41 @@ object TileIcons {
             circle(12.0, 12.0, 3.0) to 1f,
             circle(12.0, 12.0, 7.0) to 0.5f,
         ))
+
+        // Quick panel (S-followup: two-finger swipe-up chip grid + volume sliders).
+        put("wifi", vector("wifi",
+            p("M4.5 9.5a12 12 0 0 1 15 0"),
+            p("M7.5 13a8 8 0 0 1 9 0"),
+            p("M10.5 16.5a4 4 0 0 1 3 0"),
+            p(circle(12.0, 19.5, 0.6)),
+        ))
+
+        put("bluetooth", vector("bluetooth",
+            p(line(12.0, 4.0, 12.0, 20.0)),
+            p("M12 4l5 4-5 4 5 4-5 4"),
+        ))
+
+        put("flashlight", vector("flashlight",
+            p("M8 2h8l-1 5H9z"),
+            p(rect(8.0, 8.0, 8.0, 12.0, 1.5)),
+            p(line(12.0, 11.0, 12.0, 17.0)),
+        ))
+
+        put("dnd", vector("dnd", p("M15 3a9 9 0 1 0 6 15 7 7 0 0 1-6-15z")))
+
+        put("airplane", vector("airplane", p("M3 12l18-8-8 18-2-8z")))
+
+        put("volume", vector("volume",
+            p("M4 10v4h4l5 4V6l-5 4z"),
+            p("M15 9a4 4 0 0 1 0 6"),
+            p("M17.5 7a8 8 0 0 1 0 10"),
+        ))
+
+        put("panel", vector("panel",
+            p(line(4.0, 8.0, 20.0, 8.0)),
+            p(circle(9.0, 8.0, 1.8)),
+            p(line(4.0, 16.0, 20.0, 16.0)),
+            p(circle(15.0, 16.0, 1.8)),
+        ))
     }
 }
