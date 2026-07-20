@@ -332,8 +332,8 @@ private fun LiveTileSlider(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .height(44.dp)
+            .clip(RoundedCornerShape(10.dp))
             .background(accent)
             .onSizeChanged { widthPx = it.width.toFloat().coerceAtLeast(1f) }
             .pointerInput(Unit) {
@@ -358,18 +358,14 @@ private fun LiveTileSlider(
                 .align(Alignment.CenterEnd)
                 .background(Color.Black.copy(alpha = 0.35f)),
         )
-        Icon(
-            TileIcons[icon],
-            contentDescription = label,
-            tint = Color.White,
-            modifier = Modifier.align(Alignment.CenterStart).padding(start = 14.dp).size(22.dp),
-        )
-        Text(
-            label,
-            color = Color.White,
-            fontSize = 11.sp,
-            modifier = Modifier.align(Alignment.BottomStart).padding(start = 12.dp, bottom = 6.dp),
-        )
+        Row(
+            modifier = Modifier.align(Alignment.CenterStart).padding(start = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(TileIcons[icon], contentDescription = label, tint = Color.White, modifier = Modifier.size(20.dp))
+            androidx.compose.foundation.layout.Spacer(Modifier.width(8.dp))
+            Text(label, color = Color.White, fontSize = 12.sp)
+        }
     }
 }
 
