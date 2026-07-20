@@ -393,6 +393,17 @@ object TileIcons {
             p(line(19.5, 9.0, 15.0, 15.0)),
         ))
 
+        put("bell", vector("bell",
+            p("M6 17h12l-1.5-2V11a4.5 4.5 0 0 0-9 0v4z"),
+            p("M10 19a2 2 0 0 0 4 0"),
+        ))
+
+        put("bell-mute", vector("bell-mute",
+            p("M6 17h12l-1.5-2V11a4.5 4.5 0 0 0-9 0v4z"),
+            p("M10 19a2 2 0 0 0 4 0"),
+            p(line(4.0, 5.0, 20.0, 19.0)),
+        ))
+
         put("panel", vector("panel",
             p(line(4.0, 8.0, 20.0, 8.0)),
             p(circle(9.0, 8.0, 1.8)),

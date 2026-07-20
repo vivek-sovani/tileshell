@@ -77,16 +77,19 @@ own row(s) below the chip grid, each a labeled slider:
 
 - **Media** (`STREAM_MUSIC`) — always shown; the stream users adjust most,
   and it doubles as a fast path for the now-playing tile's transport
-  controls already on the feed page.
+  controls already on the feed page. Own mute/unmute icon (`volume`/
+  `volume-mute`, distinct from ring's).
 - **Ring** (`STREAM_RING`) — shown only when not already in a
   vibrate/silent policy state that would make a ring slider misleading
   (checked via `AudioManager.getRingerMode()` before rendering); dragging
   it to 0 does **not** silently flip ringer mode — Android already blocks
   that without notification-policy access, so the slider clamps at a
   low-but-audible minimum in that case, same as the system's own quick
-  settings does without DND access.
-- **Alarm** (`STREAM_ALARM`) — shown, since a muted alarm is a genuine
-  footgun; deliberately never auto-hidden even when other streams are.
+  settings does without DND access. Own mute/unmute icon (`bell`/
+  `bell-mute`) so it reads distinctly from media at a glance.
+- **Alarm** deliberately **not included** — user-requested removal; a
+  volume slider for the one stream where a silent/muted state is a genuine
+  footgun (a missed alarm) isn't worth the risk for a "quick" panel control.
 
 Each slider reads its current level via
 `AudioManager.getStreamVolume()`/`getStreamMaxVolume()` on panel open and

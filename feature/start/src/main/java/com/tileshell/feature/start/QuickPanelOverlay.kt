@@ -172,11 +172,8 @@ fun QuickPanelOverlay(
                     .padding(horizontal = 18.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                VolumeRow("media", AudioManager.STREAM_MUSIC, accent, tokens, muteable = true)
-                VolumeRow("ring", AudioManager.STREAM_RING, accent, tokens, muteable = true)
-                // Alarm deliberately gets no mute action — a muted alarm is a
-                // genuine footgun (see docs/QUICK-PANEL-SPEC.md §3a).
-                VolumeRow("alarm", AudioManager.STREAM_ALARM, accent, tokens, muteable = false)
+                VolumeRow("media", AudioManager.STREAM_MUSIC, "volume", "volume-mute", accent, tokens)
+                VolumeRow("ring", AudioManager.STREAM_RING, "bell", "bell-mute", accent, tokens)
 
                 if (writeSettingsGranted) {
                     BrightnessRow(brightness, setBrightness, accent, tokens)
@@ -265,9 +262,10 @@ private fun QuickPanelChip(
 private fun VolumeRow(
     label: String,
     stream: Int,
+    icon: String,
+    mutedIcon: String,
     accent: Color,
     tokens: com.tileshell.core.design.ColorTokens,
-    muteable: Boolean,
 ) {
     val (level, setLevel) = rememberStreamVolume(stream)
     var draft by remember { mutableStateOf(level) }
@@ -279,10 +277,10 @@ private fun VolumeRow(
         draft = level
         if (level > 0f) preMuteLevel = level
     }
-    val muted = muteable && draft <= 0f
+    val muted = draft <= 0f
     PillSlider(
-        icon = if (muted) "volume-mute" else "volume",
-        iconClickable = muteable,
+        icon = if (muted) mutedIcon else icon,
+        iconClickable = true,
         iconDescription = if (muted) "unmute $label" else "mute $label",
         onIconClick = {
             val next = if (muted) preMuteLevel else 0f
@@ -322,7 +320,7 @@ private fun BrightnessRow(
 /**
  * A slider drawn as a pill (rounded-rect bar) with its icon overlaid *inside*
  * the bar at the leading edge — instead of a separate text label column, the
- * icon itself identifies which control this is (media/ring/alarm/brightness).
+ * icon itself identifies which control this is (media/ring/brightness).
  * The slider's own inactive track is transparent so the pill background shows
  * through, and its start inset keeps the thumb/track clear of the icon.
  */
