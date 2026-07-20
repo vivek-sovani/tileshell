@@ -39,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -278,40 +279,22 @@ private fun VolumeRow(
         draft = level
         if (level > 0f) preMuteLevel = level
     }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        if (muteable) {
-            val muted = draft <= 0f
-            Icon(
-                TileIcons[if (muted) "volume-mute" else "volume"],
-                contentDescription = if (muted) "unmute $label" else "mute $label",
-                tint = tokens.fgDim,
-                modifier = Modifier.size(18.dp).clickable {
-                    val next = if (muted) preMuteLevel else 0f
-                    draft = next
-                    setLevel(next)
-                },
-            )
-        } else {
-            Icon(TileIcons["volume"], null, tint = tokens.fgDim, modifier = Modifier.size(18.dp))
-        }
-        Text(
-            label,
-            color = tokens.fgDim,
-            fontSize = 12.sp,
-            modifier = Modifier.width(48.dp).padding(start = 8.dp),
-        )
-        Slider(
-            value = draft,
-            onValueChange = { draft = it },
-            onValueChangeFinished = { setLevel(draft) },
-            modifier = Modifier.fillMaxWidth(),
-            colors = SliderDefaults.colors(
-                thumbColor = accent,
-                activeTrackColor = accent,
-                inactiveTrackColor = tokens.tileLine,
-            ),
-        )
-    }
+    val muted = muteable && draft <= 0f
+    PillSlider(
+        icon = if (muted) "volume-mute" else "volume",
+        iconClickable = muteable,
+        iconDescription = if (muted) "unmute $label" else "mute $label",
+        onIconClick = {
+            val next = if (muted) preMuteLevel else 0f
+            draft = next
+            setLevel(next)
+        },
+        value = draft,
+        onValueChange = { draft = it },
+        onValueChangeFinished = { setLevel(draft) },
+        accent = accent,
+        tokens = tokens,
+    )
 }
 
 @Composable
@@ -323,24 +306,68 @@ private fun BrightnessRow(
 ) {
     var draft by remember { mutableStateOf(level) }
     LaunchedEffect(level) { draft = level }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(TileIcons["brightness"], null, tint = tokens.fgDim, modifier = Modifier.size(18.dp))
-        Text(
-            "brightness",
-            color = tokens.fgDim,
-            fontSize = 12.sp,
-            modifier = Modifier.width(64.dp).padding(start = 8.dp),
-        )
+    PillSlider(
+        icon = "brightness",
+        iconClickable = false,
+        iconDescription = "brightness",
+        onIconClick = {},
+        value = draft,
+        onValueChange = { draft = it },
+        onValueChangeFinished = { setLevel(draft) },
+        accent = accent,
+        tokens = tokens,
+    )
+}
+
+/**
+ * A slider drawn as a pill (rounded-rect bar) with its icon overlaid *inside*
+ * the bar at the leading edge — instead of a separate text label column, the
+ * icon itself identifies which control this is (media/ring/alarm/brightness).
+ * The slider's own inactive track is transparent so the pill background shows
+ * through, and its start inset keeps the thumb/track clear of the icon.
+ */
+@Composable
+private fun PillSlider(
+    icon: String,
+    iconClickable: Boolean,
+    iconDescription: String,
+    onIconClick: () -> Unit,
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    onValueChangeFinished: () -> Unit,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(tokens.chip),
+    ) {
         Slider(
-            value = draft,
-            onValueChange = { draft = it },
-            onValueChangeFinished = { setLevel(draft) },
-            modifier = Modifier.fillMaxWidth(),
+            value = value,
+            onValueChange = onValueChange,
+            onValueChangeFinished = onValueChangeFinished,
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.CenterStart)
+                .padding(start = 34.dp, end = 10.dp),
             colors = SliderDefaults.colors(
                 thumbColor = accent,
                 activeTrackColor = accent,
-                inactiveTrackColor = tokens.tileLine,
+                inactiveTrackColor = Color.Transparent,
             ),
+        )
+        Icon(
+            TileIcons[icon],
+            contentDescription = iconDescription,
+            tint = tokens.fgDim,
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = 10.dp)
+                .size(16.dp)
+                .then(if (iconClickable) Modifier.clickable(onClick = onIconClick) else Modifier),
         )
     }
 }
