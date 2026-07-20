@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -86,6 +85,9 @@ import com.tileshell.feature.livetiles.toggleDnd
  * tap-to-settings deep link (Wi-Fi, Bluetooth, airplane mode, location,
  * battery saver) — visually identical either way.
  */
+/** Shared row height for every toggle tile and slider bar — one proportional grid, not mixed sizes. */
+private val QuickPanelRowHeight = 44.dp
+
 @Composable
 fun QuickPanelOverlay(
     visible: Boolean,
@@ -172,7 +174,7 @@ fun QuickPanelOverlay(
                                 chip,
                                 tokens = tokens,
                                 accent = accent,
-                                modifier = Modifier.weight(1f).aspectRatio(1f),
+                                modifier = Modifier.weight(1f).height(QuickPanelRowHeight),
                             )
                         }
                         repeat(3 - row.size) { Box(modifier = Modifier.weight(1f)) }
@@ -249,7 +251,13 @@ private fun quickPanelChips(
     },
 )
 
-/** A small colour-filled Start-tile-style toggle: accent fill when on, a neutral dark tile when off. */
+/**
+ * A small colour-filled Start-tile-style toggle: accent fill when on, a
+ * neutral dark tile when off. Same height as [LiveTileSlider]'s bar
+ * ([QuickPanelRowHeight]) so every row in the panel — toggles and
+ * volume/brightness alike — reads as one proportional grid rather than
+ * chunky squares up top and thin bars below.
+ */
 @Composable
 private fun QuickPanelTile(
     chip: QuickPanelChipSpec,
@@ -259,18 +267,17 @@ private fun QuickPanelTile(
 ) {
     val bg = if (chip.active) accent else tokens.chip
     val fg = if (chip.active) Color.White else tokens.fgDim
-    Box(
+    Row(
         modifier = modifier
             .clip(RoundedCornerShape(10.dp))
             .background(bg)
             .clickable(onClick = chip.onClick)
-            .padding(10.dp),
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            TileIcons[chip.icon], null, tint = fg,
-            modifier = Modifier.align(Alignment.TopStart).size(22.dp),
-        )
-        Text(chip.label, color = fg, fontSize = 11.sp, modifier = Modifier.align(Alignment.BottomStart))
+        Icon(TileIcons[chip.icon], null, tint = fg, modifier = Modifier.size(18.dp))
+        androidx.compose.foundation.layout.Spacer(Modifier.width(6.dp))
+        Text(chip.label, color = fg, fontSize = 11.sp, maxLines = 1)
     }
 }
 
@@ -332,7 +339,7 @@ private fun LiveTileSlider(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(44.dp)
+            .height(QuickPanelRowHeight)
             .clip(RoundedCornerShape(10.dp))
             .background(accent)
             .onSizeChanged { widthPx = it.width.toFloat().coerceAtLeast(1f) }
