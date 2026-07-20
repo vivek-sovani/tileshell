@@ -3,6 +3,38 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Quick panel follow-up fixes: thicker pills, general DND settings, mute buttons, reachable feed toggle
+
+Four user-reported issues after the first on-device pass of the quick panel
+(see the entry below). **(1)** Chip pills were visually thin — bumped to a
+52dp min height with more generous padding. **(2)** The DND chip, when access
+isn't yet granted, was deep-linking to `ACTION_NOTIFICATION_POLICY_ACCESS_
+SETTINGS` — technically correct (that's the screen that actually grants the
+permission) but it renders as a per-app access list, not the general DND
+settings a user tapping a "dnd" chip expects. Switched to the literal action
+string `"android.settings.ZEN_MODE_SETTINGS"` (there's no public `Settings`
+SDK constant for it, but it's a stable AOSP intent-filter present since
+Marshmallow — verified live on the test device via `adb shell am start`),
+falling back to the access-grant screen if a device's Settings app doesn't
+expose it. **(3)** Media/ring volume rows gained a mute/unmute icon button
+(remembers the pre-mute level to restore); alarm deliberately gets none —
+already called out in `docs/QUICK-PANEL-SPEC.md` §3a as a footgun to avoid.
+**(4)** Real bug, not a polish item: the user turned "show feed page" off
+from inside the feed page's own gear-icon settings sheet — and then had no
+way to turn it back on, since that toggle only ever existed inside the feed
+page itself, which stops being composed (and thus reachable) the moment it's
+off. `PersonalizeSheet` had actually been receiving a `feedEnabled: Boolean`
+parameter all along with no setter and no UI row rendering it — a dead
+param, presumably a gap from whenever the toggle was moved into the feed's
+own sheet. Added `onFeedEnabledChange` + a new "feed & glance" `SettingGroup`
+in `PersonalizeSheet` (reachable regardless of the feed's on/off state, since
+Personalize is opened from the settings gear, not the feed page) with both
+"show feed page" and "show device status card" toggles — the latter was also
+only reachable from inside the same now-provably-unreliable feed settings
+sheet. Both toggles are left in place in the feed's own sheet too (harmless
+duplication) since they're convenient there when the feed is already on.
+Build + tests green.
+
 ## Quick panel: two-finger swipe-up, Bluetooth has no live state
 
 New feature, not in the WP prototype/spec — user-requested after a discussion

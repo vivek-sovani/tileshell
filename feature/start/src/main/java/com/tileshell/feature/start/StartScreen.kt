@@ -912,6 +912,8 @@ fun StartScreen(
                     Toast.makeText(context, "refreshing news", Toast.LENGTH_SHORT).show()
                 },
                 active = active,
+                deviceStatusCardEnabled = settings.deviceStatusCardEnabled,
+                onDeviceStatusCardEnabledChange = viewModel::setDeviceStatusCardEnabled,
             )
         }
 
@@ -1095,6 +1097,9 @@ fun StartScreen(
             tiledWallpaper = settings.tiledWallpaper,
             onTiledWallpaperChange = viewModel::setTiledWallpaper,
             feedEnabled = settings.feedEnabled,
+            onFeedEnabledChange = viewModel::setFeedEnabled,
+            deviceStatusCardEnabled = settings.deviceStatusCardEnabled,
+            onDeviceStatusCardEnabledChange = viewModel::setDeviceStatusCardEnabled,
             onAddLiveTile = { appId ->
                 viewModel.addLiveTile(appId)
                 Toast.makeText(context, "added $appId tile", Toast.LENGTH_SHORT).show()

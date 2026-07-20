@@ -127,6 +127,8 @@ fun FeedPage(
     onOpenArticle: (String) -> Unit,
     onRefresh: () -> Unit,
     active: Boolean,
+    deviceStatusCardEnabled: Boolean = true,
+    onDeviceStatusCardEnabledChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val tokens = LocalColorTokens.current
@@ -243,8 +245,10 @@ fun FeedPage(
                         )
                     }
 
-                    SectionLabel("device status", tokens.fgDim)
-                    DeviceStatusCard(tokens = tokens)
+                    if (deviceStatusCardEnabled) {
+                        SectionLabel("device status", tokens.fgDim)
+                        DeviceStatusCard(tokens = tokens)
+                    }
 
                     WidgetSection(accent = accent, tokens = tokens)
                 }
@@ -279,6 +283,8 @@ fun FeedPage(
         tokens = tokens,
         feedEnabled = feedEnabled,
         onFeedEnabledChange = onFeedEnabledChange,
+        deviceStatusCardEnabled = deviceStatusCardEnabled,
+        onDeviceStatusCardEnabledChange = onDeviceStatusCardEnabledChange,
         feeds = feeds,
         onToggleFeed = onToggleFeed,
         onToggleCategory = onToggleCategory,
@@ -803,6 +809,8 @@ private fun FeedSettingsSheet(
     tokens: com.tileshell.core.design.ColorTokens,
     feedEnabled: Boolean,
     onFeedEnabledChange: (Boolean) -> Unit,
+    deviceStatusCardEnabled: Boolean,
+    onDeviceStatusCardEnabledChange: (Boolean) -> Unit,
     feeds: List<FeedSourceItem>,
     onToggleFeed: (url: String, enabled: Boolean) -> Unit,
     onToggleCategory: (category: String, enabled: Boolean) -> Unit,
@@ -875,6 +883,14 @@ private fun FeedSettingsSheet(
                     accent = accent,
                     tokens = tokens,
                     onChange = onFeedEnabledChange,
+                )
+                Spacer(Modifier.height(6.dp))
+                FeedSettingToggle(
+                    label = "show device status card",
+                    on = deviceStatusCardEnabled,
+                    accent = accent,
+                    tokens = tokens,
+                    onChange = onDeviceStatusCardEnabledChange,
                 )
             }
 

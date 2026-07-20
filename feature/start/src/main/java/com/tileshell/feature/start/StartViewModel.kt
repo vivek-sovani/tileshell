@@ -534,6 +534,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setFeedEnabled(enabled) }
     }
 
+    /** Toggle the feed page glance tab's read-only device status card. */
+    fun setDeviceStatusCardEnabled(enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setDeviceStatusCardEnabled(enabled) }
+    }
+
     /** Set the tile corner radius 0–12 dp. */
     fun setCornerRadius(radius: Float) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setCornerRadius(radius) }

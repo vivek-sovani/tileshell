@@ -204,6 +204,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(feedEnabled = enabled) }
     }
 
+    /** Toggle the feed page glance tab's read-only device status card. */
+    suspend fun setDeviceStatusCardEnabled(enabled: Boolean) {
+        store.updateData { it.copy(deviceStatusCardEnabled = enabled) }
+    }
+
     /** Toggle following the device dark-mode setting (vs. the manual [dark] choice). */
     suspend fun setFollowSystemTheme(follow: Boolean) {
         store.updateData { it.copy(followSystemTheme = follow) }

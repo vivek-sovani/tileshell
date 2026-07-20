@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -138,7 +139,7 @@ fun QuickPanelOverlay(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp, vertical = 12.dp)
-                    .height(160.dp),
+                    .height(210.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -153,9 +154,11 @@ fun QuickPanelOverlay(
                     .padding(horizontal = 18.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                VolumeRow("media", AudioManager.STREAM_MUSIC, accent, tokens)
-                VolumeRow("ring", AudioManager.STREAM_RING, accent, tokens)
-                VolumeRow("alarm", AudioManager.STREAM_ALARM, accent, tokens)
+                VolumeRow("media", AudioManager.STREAM_MUSIC, accent, tokens, muteable = true)
+                VolumeRow("ring", AudioManager.STREAM_RING, accent, tokens, muteable = true)
+                // Alarm deliberately gets no mute action — a muted alarm is a
+                // genuine footgun (see docs/QUICK-PANEL-SPEC.md §3a).
+                VolumeRow("alarm", AudioManager.STREAM_ALARM, accent, tokens, muteable = false)
             }
 
             Box(modifier = Modifier.height(8.dp))
@@ -187,8 +190,13 @@ private fun quickPanelChips(
     QuickPanelChipSpec("bluetooth", "bluetooth", false) { deepLink(context, Settings.ACTION_BLUETOOTH_SETTINGS) },
     QuickPanelChipSpec("flashlight", "flashlight", torchOn, toggleTorch),
     QuickPanelChipSpec("dnd", "dnd", dndOn) {
-        if (dndGranted) toggleDnd(context, !dndOn)
-        else deepLink(context, Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+        // Once access is granted this is a genuine toggle; until then, deep-link
+        // to the general "Do Not Disturb" settings screen (which also surfaces
+        // the access-grant prompt itself) rather than straight to
+        // ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS — that screen is an
+        // app-by-app access list, not the DND settings a user tapping this chip
+        // actually expects to land on.
+        if (dndGranted) toggleDnd(context, !dndOn) else openDndSettings(context)
     },
     QuickPanelChipSpec("airplane", "airplane", airplaneOn) { deepLink(context, Settings.ACTION_AIRPLANE_MODE_SETTINGS) },
     QuickPanelChipSpec("maps", "location", locationOn) { deepLink(context, Settings.ACTION_LOCATION_SOURCE_SETTINGS) },
@@ -205,24 +213,52 @@ private fun QuickPanelChip(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(bg, shape = RoundedCornerShape(10.dp))
+            .heightIn(min = 52.dp)
+            .background(bg, shape = RoundedCornerShape(12.dp))
             .clickable(onClick = chip.onClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(TileIcons[chip.icon], null, tint = tint, modifier = Modifier.size(18.dp))
-        androidx.compose.foundation.layout.Spacer(Modifier.width(8.dp))
-        Text(chip.label, color = tint, fontSize = 12.sp)
+        Icon(TileIcons[chip.icon], null, tint = tint, modifier = Modifier.size(20.dp))
+        androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp))
+        Text(chip.label, color = tint, fontSize = 13.sp)
     }
 }
 
 @Composable
-private fun VolumeRow(label: String, stream: Int, accent: Color, tokens: com.tileshell.core.design.ColorTokens) {
+private fun VolumeRow(
+    label: String,
+    stream: Int,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+    muteable: Boolean,
+) {
     val (level, setLevel) = rememberStreamVolume(stream)
     var draft by remember { mutableStateOf(level) }
-    LaunchedEffect(level) { draft = level }
+    // Remembers the level to restore on unmute — updated whenever the stream is
+    // audibly above zero, so muting-then-unmuting always comes back to the last
+    // level the user actually chose, not a fixed default.
+    var preMuteLevel by remember { mutableStateOf(if (level > 0f) level else 0.5f) }
+    LaunchedEffect(level) {
+        draft = level
+        if (level > 0f) preMuteLevel = level
+    }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(TileIcons["volume"], null, tint = tokens.fgDim, modifier = Modifier.size(16.dp))
+        if (muteable) {
+            val muted = draft <= 0f
+            Icon(
+                TileIcons[if (muted) "volume-mute" else "volume"],
+                contentDescription = if (muted) "unmute $label" else "mute $label",
+                tint = tokens.fgDim,
+                modifier = Modifier.size(18.dp).clickable {
+                    val next = if (muted) preMuteLevel else 0f
+                    draft = next
+                    setLevel(next)
+                },
+            )
+        } else {
+            Icon(TileIcons["volume"], null, tint = tokens.fgDim, modifier = Modifier.size(18.dp))
+        }
         Text(
             label,
             color = tokens.fgDim,
@@ -246,6 +282,18 @@ private fun VolumeRow(label: String, stream: Int, accent: Color, tokens: com.til
 private fun openWifiSettings(context: Context) {
     val panel = runCatching { context.startActivity(Intent("android.settings.panel.action.WIFI")) }
     if (panel.isFailure) deepLink(context, Settings.ACTION_WIFI_SETTINGS)
+}
+
+/**
+ * The general "Do Not Disturb" settings screen — not part of the public SDK
+ * (there's no `Settings.ACTION_ZEN_MODE_SETTINGS` constant), but the action
+ * string itself is a stable AOSP intent-filter present since Marshmallow.
+ * Falls back to the access-grant screen (which also lets the user turn DND on
+ * from there) if a device's Settings app doesn't expose it.
+ */
+private fun openDndSettings(context: Context) {
+    val general = runCatching { context.startActivity(Intent("android.settings.ZEN_MODE_SETTINGS")) }
+    if (general.isFailure) deepLink(context, Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
 }
 
 private fun deepLink(context: Context, action: String) {

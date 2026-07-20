@@ -129,6 +129,9 @@ fun PersonalizeSheet(
     tiledWallpaper: Boolean,
     onTiledWallpaperChange: (Boolean) -> Unit,
     feedEnabled: Boolean,
+    onFeedEnabledChange: (Boolean) -> Unit,
+    deviceStatusCardEnabled: Boolean,
+    onDeviceStatusCardEnabledChange: (Boolean) -> Unit,
     onAddLiveTile: (appId: String) -> Unit,
     onSystemSettings: () -> Unit,
     followSystemTheme: Boolean,
@@ -883,6 +886,22 @@ fun PersonalizeSheet(
                     }
                     Spacer(Modifier.width(8.dp))
                     Text(text = "›", color = accent, fontSize = 16.sp)
+                }
+            }
+
+            // ---- feed & glance ---- (always reachable here, unlike the feed
+            // page's own gear-icon settings sheet, which becomes unreachable
+            // the moment "show feed page" is turned off from inside it)
+            SettingGroup(label = "feed & glance", tokens.fgDim) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ToggleRow("show feed page", on = feedEnabled, accent = accent, tokens, onFeedEnabledChange)
+                    ToggleRow(
+                        "show device status card",
+                        on = deviceStatusCardEnabled,
+                        accent = accent,
+                        tokens,
+                        onDeviceStatusCardEnabledChange,
+                    )
                 }
             }
 

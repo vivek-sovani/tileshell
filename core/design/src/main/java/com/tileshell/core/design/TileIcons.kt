@@ -387,6 +387,12 @@ object TileIcons {
             p("M17.5 7a8 8 0 0 1 0 10"),
         ))
 
+        put("volume-mute", vector("volume-mute",
+            p("M4 10v4h4l5 4V6l-5 4z"),
+            p(line(15.0, 9.0, 19.5, 15.0)),
+            p(line(19.5, 9.0, 15.0, 15.0)),
+        ))
+
         put("panel", vector("panel",
             p(line(4.0, 8.0, 20.0, 8.0)),
             p(circle(9.0, 8.0, 1.8)),

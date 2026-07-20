@@ -216,4 +216,15 @@ class SettingsCodecTest {
         val s = LauncherSettings(lockLayout = true)
         assertEquals(true, SettingsCodec.decode(SettingsCodec.encode(s)).lockLayout)
     }
+
+    @Test
+    fun `deviceStatusCardEnabled decodes and bad value keeps default`() {
+        assertEquals(false, SettingsCodec.decode("deviceStatusCard=false").deviceStatusCardEnabled)
+        assertEquals(
+            LauncherSettings().deviceStatusCardEnabled,
+            SettingsCodec.decode("deviceStatusCard=nope").deviceStatusCardEnabled,
+        )
+        val s = LauncherSettings(deviceStatusCardEnabled = false)
+        assertEquals(false, SettingsCodec.decode(SettingsCodec.encode(s)).deviceStatusCardEnabled)
+    }
 }

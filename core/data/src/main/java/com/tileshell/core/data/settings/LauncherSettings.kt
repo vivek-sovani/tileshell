@@ -78,6 +78,9 @@ enum class TileColorSource { GLOBAL_ACCENT, APP_ICON }
  *   mode — no jiggle, no drag/resize/unpin/colour-picker — so the layout
  *   can't be changed by accident. Toggled from Personalize; unrelated to the
  *   settings-gear device screen lock.
+ * @property deviceStatusCardEnabled whether the feed page's glance tab shows the
+ *   read-only device status card (battery, storage, connectivity, next alarm —
+ *   see docs/QUICK-PANEL-SPEC.md §5). Default on; toggled from Personalize.
  */
 data class LauncherSettings(
     val followSystemTheme: Boolean = true,
@@ -137,6 +140,7 @@ data class LauncherSettings(
     /** Pull-tab handle pill weight: "thin" (subtle bar) or "thick" (bold bar). Panel height is constant. */
     val edgeStripHandleSize: String = "thick",
     val lockLayout: Boolean = false,
+    val deviceStatusCardEnabled: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_COLUMNS = 4
@@ -191,7 +195,8 @@ object SettingsCodec {
         append("edgeStripApps=").append(settings.edgeStripApps.joinToString("|")).append('\n')
         append("edgeStripBg=").append(settings.edgeStripBackgroundId).append('\n')
         append("edgeStripHandleSize=").append(settings.edgeStripHandleSize).append('\n')
-        append("lockLayout=").append(settings.lockLayout)
+        append("lockLayout=").append(settings.lockLayout).append('\n')
+        append("deviceStatusCard=").append(settings.deviceStatusCardEnabled)
     }
 
     fun decode(text: String): LauncherSettings {
@@ -228,6 +233,7 @@ object SettingsCodec {
         var edgeStripBackgroundId = d.edgeStripBackgroundId
         var edgeStripHandleSize = d.edgeStripHandleSize
         var lockLayout = d.lockLayout
+        var deviceStatusCardEnabled = d.deviceStatusCardEnabled
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
             if (sep <= 0) return@forEach
@@ -278,6 +284,8 @@ object SettingsCodec {
                 "edgeStripBg" -> if (value.isNotEmpty()) edgeStripBackgroundId = value
                 "edgeStripHandleSize" -> if (value in setOf("thin", "thick")) edgeStripHandleSize = value
                 "lockLayout" -> lockLayout = value.toBooleanStrictOrNull() ?: lockLayout
+                "deviceStatusCard" -> deviceStatusCardEnabled =
+                    value.toBooleanStrictOrNull() ?: deviceStatusCardEnabled
             }
         }
         return LauncherSettings(
@@ -313,6 +321,7 @@ object SettingsCodec {
             edgeStripBackgroundId = edgeStripBackgroundId,
             edgeStripHandleSize = edgeStripHandleSize,
             lockLayout = lockLayout,
+            deviceStatusCardEnabled = deviceStatusCardEnabled,
         )
     }
 }
