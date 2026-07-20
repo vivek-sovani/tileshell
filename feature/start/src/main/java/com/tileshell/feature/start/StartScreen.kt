@@ -894,8 +894,6 @@ fun StartScreen(
             FeedPage(
                 accent = accent,
                 statusBarTopPx = statusBarTopPx,
-                feedEnabled = settings.feedEnabled,
-                onFeedEnabledChange = viewModel::setFeedEnabled,
                 feeds = feedSources.map { FeedSourceItem(it.url, it.name, it.category, it.enabled) },
                 onToggleFeed = viewModel::setFeedSourceEnabled,
                 onToggleCategory = viewModel::setFeedCategoryEnabled,
@@ -913,7 +911,6 @@ fun StartScreen(
                 },
                 active = active,
                 deviceStatusCardEnabled = settings.deviceStatusCardEnabled,
-                onDeviceStatusCardEnabledChange = viewModel::setDeviceStatusCardEnabled,
             )
         }
 

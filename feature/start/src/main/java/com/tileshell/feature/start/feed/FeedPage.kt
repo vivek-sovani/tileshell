@@ -112,8 +112,6 @@ import java.util.Calendar
 fun FeedPage(
     accent: Color,
     statusBarTopPx: Float,
-    feedEnabled: Boolean,
-    onFeedEnabledChange: (Boolean) -> Unit,
     feeds: List<FeedSourceItem>,
     onToggleFeed: (url: String, enabled: Boolean) -> Unit,
     onToggleCategory: (category: String, enabled: Boolean) -> Unit,
@@ -128,7 +126,6 @@ fun FeedPage(
     onRefresh: () -> Unit,
     active: Boolean,
     deviceStatusCardEnabled: Boolean = true,
-    onDeviceStatusCardEnabledChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val tokens = LocalColorTokens.current
@@ -281,10 +278,6 @@ fun FeedPage(
         visible = feedSettingsOpen,
         accent = accent,
         tokens = tokens,
-        feedEnabled = feedEnabled,
-        onFeedEnabledChange = onFeedEnabledChange,
-        deviceStatusCardEnabled = deviceStatusCardEnabled,
-        onDeviceStatusCardEnabledChange = onDeviceStatusCardEnabledChange,
         feeds = feeds,
         onToggleFeed = onToggleFeed,
         onToggleCategory = onToggleCategory,
@@ -807,10 +800,6 @@ private fun FeedSettingsSheet(
     visible: Boolean,
     accent: Color,
     tokens: com.tileshell.core.design.ColorTokens,
-    feedEnabled: Boolean,
-    onFeedEnabledChange: (Boolean) -> Unit,
-    deviceStatusCardEnabled: Boolean,
-    onDeviceStatusCardEnabledChange: (Boolean) -> Unit,
     feeds: List<FeedSourceItem>,
     onToggleFeed: (url: String, enabled: Boolean) -> Unit,
     onToggleCategory: (category: String, enabled: Boolean) -> Unit,
@@ -874,25 +863,6 @@ private fun FeedSettingsSheet(
                 letterSpacing = (-1).sp,
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 14.dp),
             )
-
-            // Toggle: show feed page.
-            Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
-                FeedSettingToggle(
-                    label = "show feed page",
-                    on = feedEnabled,
-                    accent = accent,
-                    tokens = tokens,
-                    onChange = onFeedEnabledChange,
-                )
-                Spacer(Modifier.height(6.dp))
-                FeedSettingToggle(
-                    label = "show device status card",
-                    on = deviceStatusCardEnabled,
-                    accent = accent,
-                    tokens = tokens,
-                    onChange = onDeviceStatusCardEnabledChange,
-                )
-            }
 
             // News region: swaps the whole subscribed-feed list for a curated preset
             // (India vs a generic international set) — an explicit override of the
