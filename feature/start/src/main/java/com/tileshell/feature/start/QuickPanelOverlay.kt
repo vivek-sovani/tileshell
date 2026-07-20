@@ -10,26 +10,24 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,6 +40,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -73,11 +73,18 @@ import com.tileshell.feature.livetiles.toggleDnd
  * bottom edge (motion follows the finger, same physical logic as the classic
  * iOS Control Center gesture — chosen so it can never collide with quick
  * search's two-finger swipe-**down**). See docs/QUICK-PANEL-SPEC.md for the
- * full design rationale and the no-new-Play-Console-permission scoping. Every
- * chip is either a genuine toggle (flashlight, DND once access is granted,
- * ringer normal/vibrate) or a read state + tap-to-settings deep link (Wi-Fi,
- * Bluetooth, airplane mode, location, battery saver) — visually identical
- * either way, since the user never needs to know which is which.
+ * full design rationale and the no-new-Play-Console-permission scoping.
+ *
+ * Styled as a miniature Start screen rather than a generic Android settings
+ * sheet: each toggle is a small colour-filled tile (accent when on, a neutral
+ * dark tile when off) with a monoline icon and a lowercase corner label, the
+ * same visual language as every Start tile. Volume/brightness render as wide
+ * accent tiles with a dark scrim covering the "unfilled" remainder — a live
+ * WP-tile-style progress fill instead of a Material slider — draggable
+ * anywhere across the tile to set the level. Every toggle is either a
+ * genuine toggle (flashlight, DND once access is granted) or a read state +
+ * tap-to-settings deep link (Wi-Fi, Bluetooth, airplane mode, location,
+ * battery saver) — visually identical either way.
  */
 @Composable
 fun QuickPanelOverlay(
@@ -147,22 +154,29 @@ fun QuickPanelOverlay(
                     .background(tokens.fgDim, shape = RoundedCornerShape(2.dp)),
             )
 
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 12.dp)
-                    .height(290.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            val chips = quickPanelChips(
+                context, wifiOn, airplaneOn, locationOn, batterySaverOn, torchOn, toggleTorch,
+                dndGranted, dndOn, writeSettingsGranted, rotationLockOn,
+            )
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(
-                    quickPanelChips(
-                        context, wifiOn, airplaneOn, locationOn, batterySaverOn, torchOn, toggleTorch,
-                        dndGranted, dndOn, writeSettingsGranted, rotationLockOn,
-                    ),
-                ) { chip ->
-                    QuickPanelChip(chip, tokens = tokens, accent = accent)
+                chips.chunked(3).forEach { row ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        row.forEach { chip ->
+                            QuickPanelTile(
+                                chip,
+                                tokens = tokens,
+                                accent = accent,
+                                modifier = Modifier.weight(1f).aspectRatio(1f),
+                            )
+                        }
+                        repeat(3 - row.size) { Box(modifier = Modifier.weight(1f)) }
+                    }
                 }
             }
 
@@ -170,13 +184,13 @@ fun QuickPanelOverlay(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 18.dp, vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                VolumeRow("media", AudioManager.STREAM_MUSIC, "volume", "volume-mute", accent, tokens)
-                VolumeRow("ring", AudioManager.STREAM_RING, "bell", "bell-mute", accent, tokens)
+                VolumeTile("media", AudioManager.STREAM_MUSIC, "volume", "volume-mute", accent)
+                VolumeTile("ring", AudioManager.STREAM_RING, "bell", "bell-mute", accent)
 
                 if (writeSettingsGranted) {
-                    BrightnessRow(brightness, setBrightness, accent, tokens)
+                    BrightnessTile(brightness, setBrightness, accent)
                     ScreenTimeoutRow(
                         screenTimeoutMs,
                         onTap = { setScreenTimeoutMs(nextScreenTimeoutPreset(screenTimeoutMs)) },
@@ -235,137 +249,126 @@ private fun quickPanelChips(
     },
 )
 
+/** A small colour-filled Start-tile-style toggle: accent fill when on, a neutral dark tile when off. */
 @Composable
-private fun QuickPanelChip(
+private fun QuickPanelTile(
     chip: QuickPanelChipSpec,
     tokens: com.tileshell.core.design.ColorTokens,
     accent: Color,
+    modifier: Modifier = Modifier,
 ) {
-    val bg = if (chip.active) accent.copy(alpha = 0.18f) else tokens.chip
-    val tint = if (chip.active) accent else tokens.fgDim
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 58.dp)
-            .background(bg, shape = RoundedCornerShape(12.dp))
+    val bg = if (chip.active) accent else tokens.chip
+    val fg = if (chip.active) Color.White else tokens.fgDim
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(bg)
             .clickable(onClick = chip.onClick)
-            .padding(horizontal = 14.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(10.dp),
     ) {
-        Icon(TileIcons[chip.icon], null, tint = tint, modifier = Modifier.size(26.dp))
-        androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp))
-        Text(chip.label, color = tint, fontSize = 14.sp)
+        Icon(
+            TileIcons[chip.icon], null, tint = fg,
+            modifier = Modifier.align(Alignment.TopStart).size(22.dp),
+        )
+        Text(chip.label, color = fg, fontSize = 11.sp, modifier = Modifier.align(Alignment.BottomStart))
     }
 }
 
+/**
+ * Volume as a wide accent tile (a real toggle, not read-only): the icon swaps
+ * between on/muted state; dragging anywhere across the tile all the way to
+ * the left edge is the mute gesture — the fill reaching zero already reads as
+ * "muted", so there's no separate mute button competing for touch area with
+ * the drag-to-set gesture.
+ */
 @Composable
-private fun VolumeRow(
-    label: String,
-    stream: Int,
-    icon: String,
-    mutedIcon: String,
-    accent: Color,
-    tokens: com.tileshell.core.design.ColorTokens,
-) {
+private fun VolumeTile(label: String, stream: Int, icon: String, mutedIcon: String, accent: Color) {
     val (level, setLevel) = rememberStreamVolume(stream)
     var draft by remember { mutableStateOf(level) }
-    // Remembers the level to restore on unmute — updated whenever the stream is
-    // audibly above zero, so muting-then-unmuting always comes back to the last
-    // level the user actually chose, not a fixed default.
-    var preMuteLevel by remember { mutableStateOf(if (level > 0f) level else 0.5f) }
-    LaunchedEffect(level) {
-        draft = level
-        if (level > 0f) preMuteLevel = level
-    }
-    val muted = draft <= 0f
-    PillSlider(
-        icon = if (muted) mutedIcon else icon,
-        iconClickable = true,
-        iconDescription = if (muted) "unmute $label" else "mute $label",
-        onIconClick = {
-            val next = if (muted) preMuteLevel else 0f
-            draft = next
-            setLevel(next)
-        },
+    LaunchedEffect(level) { draft = level }
+    LiveTileSlider(
+        icon = if (draft <= 0f) mutedIcon else icon,
+        label = label,
+        accent = accent,
         value = draft,
         onValueChange = { draft = it },
         onValueChangeFinished = { setLevel(draft) },
-        accent = accent,
-        tokens = tokens,
     )
 }
 
 @Composable
-private fun BrightnessRow(
-    level: Float,
-    setLevel: (Float) -> Unit,
-    accent: Color,
-    tokens: com.tileshell.core.design.ColorTokens,
-) {
+private fun BrightnessTile(level: Float, setLevel: (Float) -> Unit, accent: Color) {
     var draft by remember { mutableStateOf(level) }
     LaunchedEffect(level) { draft = level }
-    PillSlider(
+    LiveTileSlider(
         icon = "brightness",
-        iconClickable = false,
-        iconDescription = "brightness",
-        onIconClick = {},
+        label = "brightness",
+        accent = accent,
         value = draft,
         onValueChange = { draft = it },
         onValueChangeFinished = { setLevel(draft) },
-        accent = accent,
-        tokens = tokens,
     )
 }
 
 /**
- * A slider drawn as a pill (rounded-rect bar) with its icon overlaid *inside*
- * the bar at the leading edge — instead of a separate text label column, the
- * icon itself identifies which control this is (media/ring/brightness).
- * The slider's own inactive track is transparent so the pill background shows
- * through, and its start inset keeps the thumb/track clear of the icon.
+ * A wide accent tile whose fill doubles as the slider — the WP live-tile
+ * "progress" look instead of a Material slider: a dark scrim covers the
+ * unfilled remainder from the right edge, and the filled (accent-visible)
+ * portion grows from the left as [value] increases. Draggable anywhere
+ * across the tile; the value updates live during the drag and commits via
+ * [onValueChangeFinished] on release (matches the volume/brightness APIs'
+ * own "write on release, not per-frame" contract).
  */
 @Composable
-private fun PillSlider(
+private fun LiveTileSlider(
     icon: String,
-    iconClickable: Boolean,
-    iconDescription: String,
-    onIconClick: () -> Unit,
+    label: String,
+    accent: Color,
     value: Float,
     onValueChange: (Float) -> Unit,
     onValueChangeFinished: () -> Unit,
-    accent: Color,
-    tokens: com.tileshell.core.design.ColorTokens,
 ) {
+    var widthPx by remember { mutableStateOf(1f) }
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(48.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(tokens.chip),
+            .height(52.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(accent)
+            .onSizeChanged { widthPx = it.width.toFloat().coerceAtLeast(1f) }
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    onValueChange((down.position.x / widthPx).coerceIn(0f, 1f))
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) break
+                        onValueChange((change.position.x / widthPx).coerceIn(0f, 1f))
+                        change.consume()
+                    }
+                    onValueChangeFinished()
+                }
+            },
     ) {
-        Slider(
-            value = value,
-            onValueChange = onValueChange,
-            onValueChangeFinished = onValueChangeFinished,
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.CenterStart)
-                .padding(start = 44.dp, end = 12.dp),
-            colors = SliderDefaults.colors(
-                thumbColor = accent,
-                activeTrackColor = accent,
-                inactiveTrackColor = Color.Transparent,
-            ),
+                .fillMaxHeight()
+                .fillMaxWidth(1f - value)
+                .align(Alignment.CenterEnd)
+                .background(Color.Black.copy(alpha = 0.35f)),
         )
         Icon(
             TileIcons[icon],
-            contentDescription = iconDescription,
-            tint = tokens.fgDim,
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .padding(start = 12.dp)
-                .size(22.dp)
-                .then(if (iconClickable) Modifier.clickable(onClick = onIconClick) else Modifier),
+            contentDescription = label,
+            tint = Color.White,
+            modifier = Modifier.align(Alignment.CenterStart).padding(start = 14.dp).size(22.dp),
+        )
+        Text(
+            label,
+            color = Color.White,
+            fontSize = 11.sp,
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 12.dp, bottom = 6.dp),
         )
     }
 }

@@ -48,6 +48,32 @@ down check — same block, opposite vertical sign, both gated off during edit
 mode / open folder / personalize / app list (matching every other overlay's
 gating convention).
 
+## 2a. Visual style: mini Start screen, not a generic settings sheet
+
+Direct follow-up to "the UI doesn't look interesting" — rather than a
+generic Android chip-and-slider settings sheet, the panel is styled as a
+miniature Start screen, reusing the app's own tile visual language instead
+of introducing a second UI paradigm:
+
+- Each toggle is a small colour-filled Start-tile-style square: **accent
+  fill when on**, a neutral dark tile when off — monoline icon top-left,
+  lowercase label bottom-left corner, exactly like a real Start tile's
+  small-size layout.
+- Volume/brightness render as **wide accent tiles with a dark scrim over
+  the "unfilled" remainder** — a live-tile-style progress fill instead of a
+  Material `Slider` — draggable anywhere across the tile to set the level.
+- Two alternatives were sketched and compared visually before picking this
+  one: (A) the WP-tile style above, and (B) a grouped "glass panel" look
+  (frosted glassmorphism clusters, closer to iOS Control Center). (A) was
+  chosen because it reuses the app's actual tile language rather than
+  adding a second visual system alongside it.
+- Trade-off accepted: the earlier explicit per-icon mute-tap button on the
+  volume tiles was dropped — dragging a volume tile all the way to the
+  left already reads as "muted" (the fill hits zero), and a wide
+  drag-anywhere-to-set tile can't cleanly host a separate small tap target
+  without touch-region conflicts. The icon still swaps to a muted glyph
+  once the value reaches zero.
+
 ## 3. Quick panel contents — scope: no new permission, no new Play Console declaration
 
 Per `docs/NO-EXTRA-PERMISSION-FEATURES.md`, only:

@@ -3,6 +3,31 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Quick panel restyled as a mini Start screen (WP tile style)
+
+User feedback: the quick panel's generic grey-chip-and-slider look "does
+not look interesting." Sketched and showed two visual directions before
+implementing (per the user's own established "show visuals first"
+preference): (A) recolour every toggle as a small Start-tile-style square —
+accent fill when on, neutral dark tile when off, monoline icon + lowercase
+corner label, matching the real Start grid's small-tile layout; volume/
+brightness as wide accent tiles with a dark scrim covering the unfilled
+portion (a live-tile-style progress fill) instead of a Material slider. (B)
+a grouped glassmorphism/iOS-Control-Center look reusing the existing "glass
+tiles" transparency mode. User picked (A) — it reuses the app's own tile
+visual language instead of introducing a second UI system alongside it.
+`QuickPanelChip`/`PillSlider` (Material `Slider`-based) replaced by
+`QuickPanelTile` (plain colour-filled `Box`, chunked 3-per-row instead of
+`LazyVerticalGrid` since 7 items never need lazy layout) and
+`LiveTileSlider` (a raw `pointerInput` drag reads touch-x as a fraction of
+tile width, mirroring the drag-gesture style already used elsewhere in this
+codebase — e.g. `StartScreen.kt`'s pager/tile-drag gestures — rather than a
+Compose `Slider`). Trade-off: the standalone mute-tap icon on volume tiles
+is gone (a full-width drag-to-set tile can't also host a small competing
+tap target without touch-region conflicts) — dragging to the left edge
+already reads as "muted," and the icon still swaps to its muted glyph at
+zero. See `docs/QUICK-PANEL-SPEC.md` §2a. Build + tests green.
+
 ## Quick panel: rotation lock, brightness, screen timeout via WRITE_SETTINGS
 
 Direct follow-up to "what more settings could be added" — researched whether
