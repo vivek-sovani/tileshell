@@ -87,8 +87,8 @@ class SampleSizeTest {
 class PeoplePhotosFaceMappingTest {
 
     @Test
-    fun `people flips and photos does not`() {
-        assertTrue(LiveFace.PEOPLE.flips)
+    fun `neither people nor photos flips`() {
+        assertTrue(!LiveFace.PEOPLE.flips)
         assertTrue(!LiveFace.PHOTOS.flips)
     }
 

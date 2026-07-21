@@ -3551,7 +3551,6 @@ private fun AppTileContent(
         LiveFace.PEOPLE -> {
             PeopleTileFace(
                 size = tile.size,
-                flipped = flipped,
                 active = liveActive,
                 fallback = staticGlyph,
                 modifier = Modifier.fillMaxSize(),

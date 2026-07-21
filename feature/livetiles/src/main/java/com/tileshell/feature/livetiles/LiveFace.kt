@@ -20,7 +20,9 @@ import kotlin.random.Random
  * stays permission-agnostic.
  *
  * @property flips whether the face has a back side that the flip scheduler may
- *   turn to. Photos (a cross-fade slideshow) never flip; the clock does.
+ *   turn to. Photos (a cross-fade slideshow) never flip; the clock does. People
+ *   also never flips — its own bubble cluster cross-fades and pops
+ *   independently (user-requested removal of the flip, see DECISIONS.md).
  */
 enum class LiveFace(val flips: Boolean) {
     CLOCK(flips = true),
@@ -28,7 +30,7 @@ enum class LiveFace(val flips: Boolean) {
     CALENDAR(flips = true),
     MAIL(flips = true),
     MESSAGES(flips = true),
-    PEOPLE(flips = true),
+    PEOPLE(flips = false),
     PHOTOS(flips = false),
     MUSIC(flips = true),
     ;
