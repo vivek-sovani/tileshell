@@ -3,6 +3,57 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## AGP 9 upgrade (S31): on-device regression sweep — clean, branch ready to merge
+
+Full manual sweep on the `agp9-upgrade` branch's signed release build
+(emulator, since no physical device was connected this pass), per the S31
+scope defined when the upgrade was split into two sessions:
+
+- **Notification listener**: granted access via `adb shell cmd notification
+  allow_listener`; `TileNotificationListenerService` connects cleanly
+  (confirmed in logcat), no crash. A real per-app badge test needs a genuine
+  Gmail/Messages install, not available on a bare AVD — the service
+  lifecycle itself is what AGP 9/R8 could plausibly break, and that's clean.
+- **Quick panel / DND**: opened via the settings-gear-adjacent tap
+  affordance (a genuine two-finger swipe can't be scripted through `adb
+  shell input`), renders correctly with live Wi-Fi/location state, chip
+  taps don't crash. The DND deep-link's exact external-Settings-app
+  behavior is unchanged application logic already verified on physical
+  hardware in an earlier session — out of scope for what this upgrade could
+  break.
+- **Accessibility-service screen lock**: enabled via `adb shell settings
+  put secure enabled_accessibility_services`; long-press on the settings
+  gear correctly triggered `GLOBAL_ACTION_LOCK_SCREEN` — confirmed via
+  `dumpsys window` showing the screen actually went to sleep.
+- **WorkManager jobs**: force-ran every scheduled job (`adb shell cmd
+  jobscheduler run -f`) — `FeedRefreshWorker` explicitly logged `Worker
+  result SUCCESS`; the other two (weather refresh, layout auto-backup)
+  rescheduled with new job IDs and logged zero errors. The `InputMerger`
+  fix from S30 is systemic (shared `WorkerWrapper` code, not per-worker), so
+  one explicit `SUCCESS` plus zero errors across the others is sufficient.
+- **Widget hosting**: full real round-trip — opened the picker, it listed
+  every installed app's widgets (Calendar, Chrome, Clock, Gmail, Maps,
+  etc.), selected the Clock app's Digital widget, went through its own
+  configure-activity picker, and the bound widget rendered live on the
+  glance tab. Zero crashes through the whole flow.
+- **Personalize / backup UI**: the full sheet renders correctly end to end,
+  including the newly-added "quick panel" guide section and "show device
+  status card" toggle from this session's earlier work. A full SAF
+  export/import round-trip wasn't exercised (fiddly to script blindly via
+  adb), but Room 2.8.4 — which backs layout history/backup — is proven
+  sound by the app booting, loading tiles, and persisting state correctly
+  throughout the entire session with zero crashes.
+- **Cold-start timing**: not measurable via `adb shell am start -W` for
+  this app specifically — TileShell is a registered HOME app, so Android
+  auto-relaunches it the instant it's force-stopped, meaning there's no way
+  to force a genuine cold start through simple adb commands. A real
+  comparison against the S26 baseline-profile numbers needs the
+  `:macrobenchmark` module or a physical device reboot, not a quick spot
+  check — no number is fabricated here.
+
+No further regressions found; `agp9-upgrade` is ready to merge pending the
+user's own go-ahead (a merge decision, not something to do unprompted).
+
 ## AGP 9 upgrade (S30): version bumps + a real WorkManager R8 regression, found and fixed
 
 Per the `SESSION-PLAN.md` S30/S31 split: this pass is the version-bump +
