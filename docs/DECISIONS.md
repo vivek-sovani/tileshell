@@ -3,6 +3,33 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Play Console "deprecated edge-to-edge APIs" — fixed in themes.xml, not code
+
+Play Console's pre-launch report flagged deprecated `Window.setStatusBarColor`/
+`setNavigationBarColor`/`LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES` usage,
+attributed to `FeedStoreKt.<clinit>`, `WidgetStoreKt.<clinit>`, and an
+obfuscated `A0.y.m`. Investigated by decoding the release build's own R8
+mapping file (`app/build/outputs/mapping/release/mapping.txt`): `A0.y.m` is
+Compose's own internal text-layout API-level shim
+(`StaticLayoutFactory28$$ExternalSyntheticApiModelOutline0`), and the two
+`<clinit>` hits are just `androidx.datastore.dataStore(...)` property
+delegate initializers with no Window code at all — a misattributed stack
+trace, not a real hit in either file. A repo-wide grep for the literal
+deprecated method/constant names across every module's Kotlin/Java source
+found zero hits. The actual (if minor) source was
+`app/src/main/res/values/themes.xml`'s theme attributes —
+`android:statusBarColor`/`navigationBarColor` (deprecated as of API 35, a
+no-op once `enableEdgeToEdge()` — already called correctly in
+`MainActivity.kt` — enforces edge-to-edge) and
+`android:windowLayoutInDisplayCutoutMode="shortEdges"` (Android's own
+edge-to-edge guidance recommends `"always"` over `"shortEdges"` for a fully
+edge-to-edge app). Removed the two color attributes outright and switched
+the cutout mode to `"always"`. The separate "edge-to-edge may not display
+for all users" advisory needed no change at all — `enableEdgeToEdge()` was
+already in place with extensive `statusBarsPadding()`/`navigationBarsPadding()`
+handling throughout Start, the app list, and every personalize sheet.
+Build + tests green.
+
 ## Quick panel restyled as a mini Start screen (WP tile style)
 
 User feedback: the quick panel's generic grey-chip-and-slider look "does

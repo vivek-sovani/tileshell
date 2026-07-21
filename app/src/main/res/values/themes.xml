@@ -2,13 +2,16 @@
 <resources>
     <!--
         No action bar; dark window background (no white flash before Compose
-        draws); transparent system bars; draw into display cutouts.
-        enableEdgeToEdge() in MainActivity handles inset dispatch.
+        draws); draw into display cutouts. enableEdgeToEdge() in MainActivity
+        handles inset dispatch and system bar transparency at runtime — the
+        android:statusBarColor/navigationBarColor theme attributes are dropped
+        (deprecated as of API 35, a no-op once edge-to-edge is enforced), and
+        the cutout mode is "always" rather than "shortEdges" (the mode Android
+        15+ edge-to-edge guidance recommends — shortEdges only extends into
+        the cutout on some orientations).
     -->
     <style name="Theme.TileShell" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/screen_bg</item>
-        <item name="android:statusBarColor">@color/transparent</item>
-        <item name="android:navigationBarColor">@color/transparent</item>
-        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">always</item>
     </style>
 </resources>
