@@ -136,6 +136,51 @@ Each session is scoped to finish comfortably inside one Pro 5-hour window, and e
 
 ---
 
+## Phase 8 — Build tooling maintenance (deliberately scheduled, not urgent)
+
+Triggered by Play Console's post-launch recommendation to upgrade AGP to
+9.0+ for optimized resource shrinking. Current versions (as of v2.2.6):
+AGP 8.9.1, Kotlin 2.0.21, KSP 2.0.21-1.0.28, Compose BOM 2024.12.01. Not
+urgent — 8.9.1 works fine today — but AGP 10 (mid-2026) removes the DSL
+opt-out AGP 9.x still offers, so this isn't indefinitely deferrable either.
+Split into two sessions on purpose: the migration itself is a chain of
+interdependent version bumps that either compiles or doesn't, but the real
+risk (R8/resource-shrinker + Compose-compiler behavior changes) is only
+visible on a real device, not in a green build.
+
+### S30 · AGP 9 migration (build + tests only)
+> Bump AGP 8.9.1 → 9.x. This drags Kotlin 2.0.21 → 2.2.10+ with it (AGP 9's
+> hard KGP floor — Gradle force-upgrades a lower one anyway), which drags a
+> matching KSP version and a Compose BOM validated against the newer
+> in-Kotlin-plugin Compose compiler. Migrate to AGP 9's new required
+> build-script DSL rather than relying on the opt-out flag (it's removed in
+> AGP 10). Confirm the `:macrobenchmark`/baselineprofile plugin (1.3.4)
+> still resolves against AGP 9 (androidx's own release notes list it
+> compatible). Enable `android.r8.optimizedResourceShrinking=true` in
+> `gradle.properties` (or confirm it's on by default at 9.0+) — the actual
+> fix for Play Console's "optimised resource shrinking isn't enabled" note.
+> Re-read `proguard-rules.pro` against every reflectively-referenced class
+> (`LockAccessibilityService`, `TileNotificationListenerService`,
+> `LockAdminReceiver`, WorkManager workers, Room DAOs/entities) since the
+> new shrinker traces references across the DEX/resource boundary more
+> aggressively than today's. Exit bar for this session is
+> `./gradlew :app:assembleDebug` + `testDebugUnitTest` green — no on-device
+> testing yet, that's S31.
+
+### S31 · AGP 9 on-device regression pass
+> Before trusting the new shrinker/compiler in a production build, a full
+> manual sweep on a physical device: notification badges + mail/messages
+> live faces, accessibility-service screen lock (biometric preserved), DND
+> toggle from the quick panel, every WorkManager-driven refresh (feed,
+> weather, Bing wallpaper, wallpaper slideshow), widget hosting
+> (bind/resize/remove), backup/restore round-trip, and a cold-start/scroll
+> spot-check against the S26 baseline-profile numbers — the Compose
+> compiler bump is the change most likely to quietly regress that
+> stability-annotation tuning. Fix anything broken; only then is the AGP 9
+> upgrade actually release-ready, not just "it builds." Build, commit.
+
+---
+
 ## Getting the most out of Pro (read once)
 
 1. **Chat and Claude Code share the same 5-hour pool** — avoid heavy claude.ai chats on coding days.
