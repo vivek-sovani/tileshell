@@ -3,6 +3,33 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## People tile: flip removed, replaced with an animated bubble cluster
+
+User-requested, two complaints in one: the flip's back face showed the
+contact photo as a full square crop (`Avatar(big = true)` used
+`RectangleShape` + no clip, unlike the front mosaic's circular cells — an
+inconsistency, not a deliberate design choice), and more fundamentally the
+user didn't want a flip on this tile at all — instead, circles of varied
+size with their own animations and alternating photos. Rather than just
+fixing the back face's shape, removed the flip entirely: `LiveFace.PEOPLE`
+now has `flips = false` (excluded from the shared 2.6s flip scheduler, the
+same opt-out `PHOTOS` already used), and `PeopleTile.kt`'s uniform
+`MosaicGrid` (a `Column`/`Row` of equal-`weight(1f)` cells) is replaced with
+a scattered cluster of circular "bubbles" at fixed relative positions/sizes
+(`CircleSlot(cx, cy, d)` — 5 bubbles for the wide tile, 4 for medium/large,
+each a different diameter, positioned via `BoxWithConstraints` so the
+fractional layout scales to the tile's actual rendered size). Each bubble
+runs its own independent timer (still ~2.1s, staggered per bubble by
+`300ms + seed*260ms` so they don't all swap in visual lockstep like the old
+grid did), cross-fading to a different contact and popping with a bouncy
+`Animatable` scale animation (0.82 → 1.0, `Spring.DampingRatioMediumBouncy`)
+on every swap — both "various sizes" and "animations" from the request, plus
+the alternating photos the old mosaic already did. `mosaicCells` is reused
+unchanged for each bubble's *initial* photo assignment (same distinct-
+coverage cycling as before); only the ongoing per-bubble swap logic is new.
+Build + tests green (one pre-existing test, `PeoplePhotosFaceMappingTest`,
+updated to assert `PEOPLE.flips == false`).
+
 ## Play Console "deprecated edge-to-edge APIs" — fixed in themes.xml, not code
 
 Play Console's pre-launch report flagged deprecated `Window.setStatusBarColor`/
