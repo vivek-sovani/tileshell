@@ -151,8 +151,21 @@ android {
         //   plain screen background) is light, based on an actual brightness sample
         //   rather than the theme setting; fixed a closed folder's unused mini-grid
         //   slots (fewer apps than the grid's capacity) rendering as dark squares.
-        versionCode = 225
-        versionName = "2.2.5"
+        // v2.2.6 (code 226): new quick panel — a two-finger swipe-up on Start (mirrors
+        //   quick search's swipe-down) opens a WP-tile-style bottom sheet: coloured
+        //   toggle tiles for wi-fi, bluetooth, flashlight, dnd, airplane mode, location,
+        //   and rotation lock, plus wide live-tile-style bars for media/ring volume,
+        //   brightness, and a tap-to-cycle screen-timeout row — all built with
+        //   permissions already declared or special-access grants (WRITE_SETTINGS,
+        //   notification policy access) confirmed absent from Play Console's
+        //   restricted-permissions list, so no new Play Console declaration is needed.
+        //   Also adds a read-only device-status card (battery, storage, connectivity,
+        //   next alarm) on the feed's glance tab, toggleable from Personalize · feed &
+        //   glance alongside the feed page itself (fixing a pre-existing bug where
+        //   turning "show feed page" off from inside the feed's own settings left no
+        //   way to turn it back on).
+        versionCode = 226
+        versionName = "2.2.6"
     }
 
     if (keystoreFile.exists()) {

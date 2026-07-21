@@ -129,7 +129,7 @@ fun PersonalizeGuideSheet(
                     letterSpacing = (-0.8).sp,
                 )
                 Text(
-                    text = "colours, wallpaper, tiles, pinning apps, the feed, and permissions",
+                    text = "colours, wallpaper, tiles, pinning apps, the feed, the quick panel, and permissions",
                     color = tokens.fgDim,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.W300,
@@ -235,6 +235,20 @@ fun PersonalizeGuideSheet(
                     "the first time, this opens android's accessibility settings so you can turn on tileshell's lock service once — it's a one-time manual step, the launcher can't enable it for you",
                     "turning it on preserves biometric unlock (android 9 and up); without it, locking falls back to a plain device-admin lock with no biometrics",
                     "personalize · permissions also lists contacts (people tile, quick search), calendar (calendar tile), and location (weather tile) — tap any of them to grant",
+                ),
+            )
+
+            FeatureGroup(
+                title = "quick panel",
+                accent = accent,
+                tokens = tokens,
+                visual = { QuickPanelVisual(accent, tokens) },
+                items = listOf(
+                    "swipe up with two fingers anywhere on start to open the quick panel",
+                    "tap a tile to toggle wi-fi, bluetooth, flashlight, dnd, airplane mode, location, or rotation lock",
+                    "drag the media, ring, and brightness tiles to set the level — drag to the edge to mute",
+                    "tap the screen-timeout row to cycle through presets",
+                    "no gesture? tap the small panel icon next to the settings gear instead",
                 ),
             )
 
@@ -507,6 +521,37 @@ private fun PermissionsVisual(accent: Color, tokens: com.tileshell.core.design.C
             tint = tokens.fgDim,
             modifier = Modifier.size(18.dp),
         )
+    }
+}
+
+/** Two small WP-tile-style toggles (on/off) plus a wide partially-filled bar, mirroring the real quick panel. */
+@Composable
+private fun QuickPanelVisual(accent: Color, tokens: com.tileshell.core.design.ColorTokens) {
+    GuideVisualCard(tokens) {
+        Box(
+            modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)).background(accent),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(TileIcons["wifi"], contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+        }
+        Box(
+            modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)).background(tokens.tileLine.copy(alpha = 0.6f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(TileIcons["bluetooth"], contentDescription = null, tint = tokens.fgDim, modifier = Modifier.size(14.dp))
+        }
+        Spacer(Modifier.weight(1f))
+        Box(
+            modifier = Modifier.width(60.dp).height(20.dp).clip(RoundedCornerShape(5.dp)).background(accent),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(0.4f)
+                    .align(Alignment.CenterEnd)
+                    .background(Color.Black.copy(alpha = 0.35f)),
+            )
+        }
     }
 }
 

@@ -190,6 +190,19 @@ fun AboutSheet(
             )
 
             FeatureGroup(
+                title = "quick panel",
+                accent = accent,
+                tokens = tokens,
+                items = listOf(
+                    "swipe up with two fingers on start to open the quick panel",
+                    "wp-style coloured tiles toggle wi-fi, bluetooth, flashlight, dnd, airplane mode, location, and rotation lock",
+                    "drag the media and ring volume tiles to set the level, or drag to the edge to mute",
+                    "drag the brightness tile, and tap the screen-timeout row to cycle presets",
+                    "tap the small panel icon next to the settings gear if you don't want to use the gesture",
+                ),
+            )
+
+            FeatureGroup(
                 title = "edge strip",
                 accent = accent,
                 tokens = tokens,
