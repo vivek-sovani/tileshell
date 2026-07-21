@@ -13,6 +13,17 @@
     public <init>(android.content.Context, androidx.work.WorkerParameters);
 }
 
+# WorkManager's WorkerWrapper reflectively instantiates the request's
+# InputMerger (OverwritingInputMerger by default — every WorkRequest has one,
+# not just chained work) via Class.forName(...).getDeclaredConstructor(),
+# invisible to R8's static analysis. Found via on-device testing after the
+# AGP 9 upgrade (S30/S31, docs/DECISIONS.md): without this, every worker's
+# first run logs "NoSuchMethodException: OverwritingInputMerger.<init> []"
+# and silently fails to merge input data.
+-keep class * extends androidx.work.InputMerger {
+    public <init>();
+}
+
 # ── Room entities and DAOs ─────────────────────────────────────────────────────
 # KSP-generated _Impl classes derive SQL table names from @Entity class names.
 # The AGP 8+ built-in rules already keep @Entity/@Dao/@Database, but belt-and-

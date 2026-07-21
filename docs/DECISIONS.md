@@ -3,6 +3,51 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## AGP 9 upgrade (S30): version bumps + a real WorkManager R8 regression, found and fixed
+
+Per the `SESSION-PLAN.md` S30/S31 split: this pass is the version-bump +
+build/test session, done on an isolated `agp9-upgrade` branch (not merged to
+`main` without an explicit decision — the revert provision the user asked
+for) so a bad upgrade never touches the working tree. Bumped AGP 8.9.1 →
+9.0.1 (the minimum satisfying Play Console's "9.0+" ask, not the newest
+9.3.0, to keep the version jump smaller), which drags Kotlin 2.0.21 → 2.2.10
+(AGP 9's hard KGP floor) and a matching KSP 2.2.10-2.0.2; Gradle wrapper
+8.11.1 → 9.1.0 (AGP 9.0.1's minimum); Compose BOM → 2026.06.00. Deliberately
+opted **out** of AGP 9's new build DSL and built-in-Kotlin defaults
+(`android.newDsl=false`, `android.builtInKotlin=false` in `gradle.properties`
+— both documented as safe until AGP 10 removes them) since a repo-wide grep
+found zero usage of the legacy APIs that migration actually replaces
+(`applicationVariants`, `variantFilter`, direct task access) — no reason to
+take on that migration's surface area in the same pass as everything else.
+Enabled `android.r8.optimizedResourceShrinking=true` (confirmed active: the
+release build's `optimizeReleaseResources` task ran) — the actual fix for
+Play Console's resource-shrinking recommendation.
+
+Room 2.6.1 → 2.8.4 was an unplanned but required addition: the initial
+build hit `[ksp] java.lang.IllegalStateException: unexpected jvm signature
+V` in `:core:data:kspDebugKotlin` — a documented KSP2 bug when processing
+Room DAOs under newer Kotlin, fixed upstream in Room 2.7.0+.
+
+**On-device verification caught a real regression a green build/test run
+never would have**: installing the signed release build on an emulator and
+watching logcat showed every WorkManager worker logging
+`NoSuchMethodException: androidx.work.OverwritingInputMerger.<init> []` on
+first run — R8 had stripped the no-arg constructor of WorkManager's default
+`InputMerger` (used by *every* work request, not just chained ones), since
+nothing in our code references it directly; only WorkManager's own internal
+`Class.forName(...).getDeclaredConstructor()` reaches it, invisible to R8's
+static analysis. This is exactly the "passes a green build, breaks silently
+at runtime" risk category called out when S30/S31 were split. Fixed with an
+explicit `-keep class * extends androidx.work.InputMerger { public <init>();
+}` in `proguard-rules.pro`; re-verified via `adb shell cmd jobscheduler run
+-f` to force a worker immediately rather than waiting out its real schedule
+— `FeedRefreshWorker` now logs `Worker result SUCCESS` with zero
+`InputMerger` errors. Debug build + full unit test suite green throughout.
+S31 (the fuller on-device regression sweep — notification badges,
+accessibility lock, DND, widget hosting, backup/restore, baseline-profile
+cold-start check) is still outstanding before this is genuinely
+release-ready; the branch stays unmerged until then.
+
 ## Play Console "deprecated edge-to-edge APIs" — fixed in themes.xml, not code
 
 Play Console's pre-launch report flagged deprecated `Window.setStatusBarColor`/
