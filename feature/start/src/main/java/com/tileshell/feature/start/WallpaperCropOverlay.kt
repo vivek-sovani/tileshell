@@ -1,7 +1,6 @@
 package com.tileshell.feature.start
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -21,16 +20,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.design.SheetStage
-import kotlin.math.max
 
 private const val MIN_ZOOM = 1f
 private const val MAX_ZOOM = 3f
@@ -72,43 +72,52 @@ fun WallpaperCropOverlay(
         val screenW = constraints.maxWidth.toFloat()
         val screenH = constraints.maxHeight.toFloat()
 
-        // Overflow in px for each axis: how many px the cover-scaled photo extends
-        // beyond the screen, determining how far the user can pan in that direction.
-        val overflowX: Float
-        val overflowY: Float
-        if (image != null && screenW > 0f && screenH > 0f) {
-            val imgW = image.width.toFloat()
-            val imgH = image.height.toFloat()
-            val scale = if (imgW > 0f && imgH > 0f) max(screenW / imgW, screenH / imgH) else 1f
-            overflowX = max(0f, imgW * scale - screenW)
-            overflowY = max(0f, imgH * scale - screenH)
-        } else {
-            overflowX = 0f
-            overflowY = 0f
-        }
-
         if (image != null) {
-            Image(
-                bitmap = image,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                alignment = BiasAlignment(alignX * 2f - 1f, alignY * 2f - 1f),
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .pointerInput(overflowX, overflowY) {
+                    // Keyed only on stable inputs (image/screen size) — never on
+                    // alignX/alignY/zoomLevel, which change *during* the very
+                    // gesture this detector is tracking. Re-keying on those would
+                    // cancel and restart the gesture mid-pinch/drag.
+                    .pointerInput(image, screenW, screenH) {
                         detectTransformGestures { _, pan, zoomChange, _ ->
                             zoomLevel = (zoomLevel * zoomChange).coerceIn(MIN_ZOOM, MAX_ZOOM)
+                            // Recomputed fresh every callback from the *current*
+                            // zoomLevel, so the pan range grows as soon as the
+                            // user starts zooming in — previously this was
+                            // computed once from the zoom-1 cover fit only, so
+                            // whichever axis had zero overflow there stayed
+                            // permanently un-pannable no matter how far zoomed in.
+                            val geo = wallpaperCropGeometry(
+                                image.width.toFloat(), image.height.toFloat(), screenW, screenH, alignX, alignY, zoomLevel,
+                            )
+                            val slackX = geo.dstWidth - screenW
+                            val slackY = geo.dstHeight - screenH
                             // Dragging right/down moves the photo right/down, showing
                             // the left/top part → alignX/Y decreases. The pan delta is
                             // in raw (unzoomed) screen px, but at higher zoom the same
                             // finger travel reveals less of the underlying image.
-                            if (overflowX > 0f)
-                                alignX = (alignX - (pan.x / zoomLevel) / overflowX).coerceIn(0f, 1f)
-                            if (overflowY > 0f)
-                                alignY = (alignY - (pan.y / zoomLevel) / overflowY).coerceIn(0f, 1f)
+                            if (slackX > 0f)
+                                alignX = (alignX - (pan.x / zoomLevel) / slackX).coerceIn(0f, 1f)
+                            if (slackY > 0f)
+                                alignY = (alignY - (pan.y / zoomLevel) / slackY).coerceIn(0f, 1f)
                         }
                     }
-                    .graphicsLayer { scaleX = zoomLevel; scaleY = zoomLevel },
+                    .drawWithCache {
+                        val geo = wallpaperCropGeometry(
+                            image.width.toFloat(), image.height.toFloat(), size.width, size.height, alignX, alignY, zoomLevel,
+                        )
+                        onDrawBehind {
+                            clipRect {
+                                translate(left = geo.left, top = geo.top) {
+                                    scale(geo.scale, pivot = Offset.Zero) {
+                                        drawImage(image)
+                                    }
+                                }
+                            }
+                        }
+                    },
             )
         }
 

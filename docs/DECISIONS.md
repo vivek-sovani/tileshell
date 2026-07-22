@@ -3261,3 +3261,30 @@ in `FolderTileContent` that skips the `cellFill` background modifier entirely fo
 it now just shows the folder tile's own fill (accent/gradient/glass/wallpaper-window) showing through,
 matching a slot that was never drawn. The "+N" overflow cell and any real app cell are unaffected.
 Build + tests green.
+
+## Wallpaper reframe: zoom now actually opens up pan room on the tight axis
+
+Bug fix, user-reported: "when photo is reframed for wallpaper zooming centrally is only a
+possibility if i want to show only upper portion of the photo or lower portion of the photo that is
+not feasible." Root cause found in three places (`WallpaperCropOverlay`'s pinch/drag handler,
+`WallpaperBackground`'s custom-photo render, and `photoWindow()`'s tiled-wallpaper variant): the
+cover-fit "overflow"/pan-slack on each axis was computed once from the zoom-1 cover scale only, and
+`zoom` was then applied as a wholly separate transform on top. A cover-fit photo has zero slack on
+whichever axis exactly matches the box at zoom 1 (the "tight" axis) — since that slack was never
+recomputed as zoom increased, panning the tight axis stayed a no-op no matter how far the user
+pinched in, which is exactly the "can't reveal just the top or bottom" complaint.
+
+Fixed with one shared pure function, `wallpaperCropGeometry(imageWidth, imageHeight, boxWidth,
+boxHeight, alignX, alignY, zoom)` (`feature/start/WallpaperGeometry.kt`, unit-tested), that folds
+zoom into the *same* scale used to compute slack (`scale = coverScale * zoom`) before deriving the
+draw offset — so zooming in genuinely creates proportional pan room on both axes, and the existing
+alignX/alignY (0..1) semantics are unchanged. Applied consistently at all three call sites, replacing
+`Image(contentScale = Crop, alignment = BiasAlignment(...))` (which computes its own slack once at
+layout time and can't be corrected by an outer zoom transform) with manual `drawWithCache`/
+`drawBehind` + `translate`/`scale` drawing. `WallpaperCropOverlay`'s pinch-drag gesture also had a
+related bug fixed in the same pass: its `pointerInput` was keyed on the old (now zoom-independent)
+overflow values, which would have restarted the gesture detector mid-pinch once zoom started
+affecting slack — the key is now the stable `(image, screenW, screenH)`, and the pan-to-alignment
+math recomputes slack fresh from the live `zoomLevel` on every gesture callback. Build + tests green
+(`WallpaperGeometryTest`, 5 cases covering the tight-axis-has-zero-slack property, zoom opening up
+slack on the previously-tight axis, alignment coercion, and degenerate-dimension fallback).

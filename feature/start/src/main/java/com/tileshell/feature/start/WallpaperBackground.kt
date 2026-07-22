@@ -6,16 +6,15 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.ExifInterface
 import android.net.Uri
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -26,14 +25,12 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.tileshell.core.design.WallpaperGradient
 import com.tileshell.core.design.wallpaperBackground
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlin.math.max
 
 /**
  * The full-screen wallpaper layer behind Start (FR-7). Renders either the
@@ -70,13 +67,22 @@ fun WallpaperBackground(
     if (customWallpaperUri != null) {
         val image = rememberWallpaperBitmap(customWallpaperUri)
         if (image != null) {
-            Image(
-                bitmap = image,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                alignment = BiasAlignment(alignX * 2f - 1f, alignY * 2f - 1f),
-                colorFilter = if (blur) ColorFilter.colorMatrix(saturation(1.1f)) else null,
-                modifier = layer.graphicsLayer { scaleX = zoom; scaleY = zoom },
+            val filter = if (blur) ColorFilter.colorMatrix(saturation(1.1f)) else null
+            Box(
+                modifier = layer.drawWithCache {
+                    val geo = wallpaperCropGeometry(
+                        image.width.toFloat(), image.height.toFloat(), size.width, size.height, alignX, alignY, zoom,
+                    )
+                    onDrawBehind {
+                        clipRect {
+                            translate(left = geo.left, top = geo.top) {
+                                scale(geo.scale, pivot = Offset.Zero) {
+                                    drawImage(image, colorFilter = filter)
+                                }
+                            }
+                        }
+                    }
+                },
             )
             return
         }
@@ -98,9 +104,10 @@ private fun saturation(value: Float): ColorMatrix =
  * first, so any tile beyond the photo stays dark rather than empty.
  * [alignX]/[alignY] shift the photo's position within the screen rectangle (same
  * semantics as [WallpaperBackground]): 0 = left/top edge, 0.5 = centred, 1 = right/bottom.
- * [zoom] (1 = none) additionally magnifies the photo around the *screen's* centre
- * (not this tile's own centre), same semantics as [WallpaperBackground] so every
- * tile's window magnifies consistently.
+ * [zoom] (1 = none) magnifies the photo — folded into the same scale
+ * [wallpaperCropGeometry] uses to compute alignX/Y's pan range, so zooming in
+ * is what creates room to reveal just the top/bottom (or left/right) of a
+ * photo whose aspect ratio leaves no slack at zoom 1 (see docs/DECISIONS.md).
  */
 fun Modifier.photoWindow(
     image: ImageBitmap,
@@ -113,25 +120,12 @@ fun Modifier.photoWindow(
     zoom: Float = 1f,
 ): Modifier = drawBehind {
     drawRect(darkBase)
-    val imgW = image.width.toFloat()
-    val imgH = image.height.toFloat()
-    if (imgW <= 0f || imgH <= 0f) return@drawBehind
     val o = origin()
-    val scale = max(fullWidth / imgW, fullHeight / imgH)
-    val dstW = imgW * scale
-    val dstH = imgH * scale
-    // alignX/Y in [0,1] map into the photo's overflow space: 0 = left/top edge
-    // visible, 0.5 = centred (the original behaviour), 1 = right/bottom edge.
-    val left = alignX * (fullWidth - dstW) - o.x
-    val top  = alignY * (fullHeight - dstH) - o.y
-    // The screen's centre, expressed in this tile's local draw coordinates.
-    val zoomPivot = Offset(fullWidth / 2f - o.x, fullHeight / 2f - o.y)
+    val geo = wallpaperCropGeometry(image.width.toFloat(), image.height.toFloat(), fullWidth, fullHeight, alignX, alignY, zoom)
     clipRect {
-        scale(zoom, pivot = zoomPivot) {
-            translate(left = left, top = top) {
-                scale(scale, pivot = Offset.Zero) {
-                    drawImage(image)
-                }
+        translate(left = geo.left - o.x, top = geo.top - o.y) {
+            scale(geo.scale, pivot = Offset.Zero) {
+                drawImage(image)
             }
         }
     }
