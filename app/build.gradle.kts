@@ -164,8 +164,24 @@ android {
         //   glance alongside the feed page itself (fixing a pre-existing bug where
         //   turning "show feed page" off from inside the feed's own settings left no
         //   way to turn it back on).
-        versionCode = 226
-        versionName = "2.2.6"
+        // v2.2.7 (code 227): quick panel visual pass — toggles/sliders restyled as
+        //   Start-tile-style coloured tiles (a mini Start screen, not a generic
+        //   settings sheet), volume/brightness bars show the icon inside the bar
+        //   instead of beside it, media/ring get distinct icons, alarm volume
+        //   removed; people tile drops its flip (the back face's photo rendered as
+        //   an inconsistent square crop) for a small physics-based cluster of
+        //   circular bubbles that drift and bounce off each other and the tile
+        //   edges, swapping photos on an instant cut rather than a fade; dropped
+        //   the deprecated statusBarColor/navigationBarColor theme attributes
+        //   (Android 15 edge-to-edge no-ops) and switched the cutout mode to
+        //   "always"; upgraded AGP 8.9.1 -> 9.0.1 (Kotlin -> 2.2.10, Room -> 2.8.4,
+        //   Gradle -> 9.1.0) with optimized resource shrinking enabled — the fix
+        //   for Play Console's resource-shrinking recommendation — and fixed a
+        //   real WorkManager regression the upgrade's more aggressive R8 pass
+        //   introduced (a stripped InputMerger constructor silently broke every
+        //   background worker's first run).
+        versionCode = 227
+        versionName = "2.2.7"
     }
 
     if (keystoreFile.exists()) {

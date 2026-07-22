@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v2.2.6 listing draft — update before each release*
+*v2.2.7 listing draft — update before each release*
 
 ---
 
@@ -143,6 +143,21 @@ data. Users can also clear app data via Android Settings at any time.
 | Feature graphic | 1024 × 500 px | Required for listing banner |
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
+
+## Release notes (v2.2.7)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 2.2.7
+
+• Quick panel redesigned as colourful start-tile-style toggles instead of plain switches
+• People tile: no more flip — a small cluster of bubbles drifts, bounces, and swaps photos
+• Fixed: background refresh (feed, weather, layout backups) could silently fail to run
+• Under-the-hood performance and stability improvements
+```
+
+*(Character count 339, under Play's 500 limit.)*
 
 ## Release notes (v2.2.6)
 
