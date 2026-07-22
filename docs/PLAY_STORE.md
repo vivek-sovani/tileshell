@@ -153,11 +153,12 @@ TileShell 2.2.7
 
 • Quick panel redesigned as colourful start-tile-style toggles instead of plain switches
 • People tile: no more flip — a small cluster of bubbles drifts, bounces, and swaps photos
+• Fixed: wallpaper reframe tool now lets you pan to just the top or bottom (or side) of a photo, not only zoom centrally
 • Fixed: background refresh (feed, weather, layout backups) could silently fail to run
 • Under-the-hood performance and stability improvements
 ```
 
-*(Character count 339, under Play's 500 limit.)*
+*(Character count 460, under Play's 500 limit.)*
 
 ## Release notes (v2.2.6)
 
