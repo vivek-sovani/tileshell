@@ -24,6 +24,14 @@ data class BackupData(
  * Version 1 schema: { version, settings, tiles, folders, folderChildren }
  * FolderChildEntity.rowId is always stored as 0 so Room auto-generates new
  * IDs on restore (avoids any collision with existing rows in a clean DB).
+ *
+ * `tile.gridSlot` (added without a version bump — purely additive/optional,
+ * so old backups still parse fine and decode it as null) was previously
+ * omitted here entirely: since STICKY is the default tile-arrangement mode
+ * and `gridSlot` is exactly what anchors a tile to its own cell in that mode,
+ * every restore silently dropped it and let tiles re-flow to different
+ * positions than what was actually backed up — the direct cause of a
+ * user-reported "restore isn't the same as backup" bug.
  */
 object BackupManager {
 
@@ -45,6 +53,7 @@ object BackupManager {
                     put("size", t.size.name)
                     put("colorId", t.colorId)
                     putOpt("accentOverride", t.accentOverride)
+                    putOpt("gridSlot", t.gridSlot)
                     put("type", t.type)
                     putOpt("packageName", t.packageName)
                     putOpt("activityName", t.activityName)
@@ -94,7 +103,8 @@ object BackupManager {
         tiles.sortedBy { it.id }.forEach { t ->
             append(t.id).append(':').append(t.position).append(':')
                 .append(t.size.name).append(':').append(t.type).append(':')
-                .append(t.packageName).append(':').append(t.folderId).append('|')
+                .append(t.packageName).append(':').append(t.folderId).append(':')
+                .append(t.gridSlot).append('|')
         }
         folders.sortedBy { it.id }.forEach { f ->
             append(f.id).append(':').append(f.name).append('|')
@@ -132,6 +142,7 @@ object BackupManager {
                         ?: TileSize.MEDIUM,
                     colorId = o.getString("colorId"),
                     accentOverride = o.optString("accentOverride", "").ifEmpty { null },
+                    gridSlot = if (o.has("gridSlot") && !o.isNull("gridSlot")) o.getInt("gridSlot") else null,
                     type = o.getString("type"),
                     packageName = o.optString("packageName", "").ifEmpty { null },
                     activityName = o.optString("activityName", "").ifEmpty { null },

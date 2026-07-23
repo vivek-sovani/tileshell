@@ -184,5 +184,31 @@ class BackupManagerTest {
         assertNull(data.tiles[0].iconKey)
         assertNull(data.tiles[0].accentOverride)
         assertNull(data.tiles[0].folderId)
+        assertNull(data.tiles[0].gridSlot)
+    }
+
+    @Test
+    fun `round-trip preserves gridSlot for sticky-mode anchored tiles`() {
+        val tile = TileEntity(
+            id = "anchored", position = 0, size = TileSize.MEDIUM, colorId = "blue",
+            type = TileEntity.TYPE_APP, packageName = "com.example", activityName = null,
+            label = null, iconKey = null, accentOverride = null, folderId = null,
+            gridSlot = 2003,
+        )
+        val json = BackupManager.buildBackupJson(listOf(tile), emptyList(), emptyList(), sampleSettings)
+        val data = BackupManager.parseBackup(json)
+
+        assertEquals(2003, data.tiles[0].gridSlot)
+    }
+
+    @Test
+    fun `layoutHash changes when only gridSlot changes`() {
+        val anchored = sampleTiles[0].copy(gridSlot = 1002)
+        val hash1 = BackupManager.layoutHash(sampleTiles, sampleFolders, sampleChildren, sampleSettings)
+        val hash2 = BackupManager.layoutHash(
+            listOf(anchored, sampleTiles[1]), sampleFolders, sampleChildren, sampleSettings,
+        )
+
+        assertNotEquals(hash1, hash2)
     }
 }
