@@ -8,36 +8,46 @@ import java.util.Calendar
  * UI / Compose so the date, pager-commit, and search-url logic are JVM unit-testable.
  */
 
-/** The glance row's date: a full weekday plus a compact "16 Jun 2026" subtitle. */
-data class GlanceDate(val weekday: String, val sub: String)
+/** The glance row's date: a single uppercase "WEDNESDAY · 23 JULY" line, no year. */
+data class GlanceDate(val dateLine: String)
 
 private val FEED_WEEKDAYS = listOf(
-    "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
+    "SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY",
 )
 private val FEED_MONTHS = listOf(
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY",
+    "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER",
 )
 
-/** Formats the glance-row date from [calendar] (prototype `glanceRow`). */
+/** Formats the glance row's date from [calendar] (mockup: "WEDNESDAY · 23 JULY"). */
 fun feedGlanceDate(calendar: Calendar): GlanceDate {
     val weekday = FEED_WEEKDAYS[calendar.get(Calendar.DAY_OF_WEEK) - 1]
     val day = calendar.get(Calendar.DAY_OF_MONTH)
     val month = FEED_MONTHS[calendar.get(Calendar.MONTH)]
-    val year = calendar.get(Calendar.YEAR)
-    return GlanceDate(weekday = weekday, sub = "$day $month $year")
+    return GlanceDate(dateLine = "$weekday · $day $month")
 }
 
-/**
- * The glance row's clock in 12-hour `h:mm am/pm` form (unpadded hour, zero-padded
- * minutes, lowercase suffix to match the launcher's lowercase styling).
- */
-fun feedClock12(calendar: Calendar): String {
+/** `h:mm` (unpadded hour, zero-padded minutes), shared by both clock formats below. */
+private fun clock12Digits(calendar: Calendar): String {
     val hour24 = calendar.get(Calendar.HOUR_OF_DAY)
     val minute = calendar.get(Calendar.MINUTE)
     val hour12 = (hour24 % 12).let { if (it == 0) 12 else it }
-    val suffix = if (hour24 < 12) "am" else "pm"
-    return "$hour12:${minute.toString().padStart(2, '0')} $suffix"
+    return "$hour12:${minute.toString().padStart(2, '0')}"
 }
+
+/**
+ * 12-hour `h:mm am/pm` form (lowercase suffix to match the launcher's lowercase
+ * styling) — used wherever the am/pm distinction actually matters, e.g. an
+ * alarm time on the device status card.
+ */
+fun feedClock12(calendar: Calendar): String {
+    val hour24 = calendar.get(Calendar.HOUR_OF_DAY)
+    val suffix = if (hour24 < 12) "am" else "pm"
+    return "${clock12Digits(calendar)} $suffix"
+}
+
+/** The glance row's big clock: same 12-hour time, no am/pm suffix (mockup: "9:41"). */
+fun feedGlanceClock(calendar: Calendar): String = clock12Digits(calendar)
 
 /**
  * The pager page to settle to after a horizontal drag, given the [base] page the

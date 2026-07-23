@@ -9,12 +9,11 @@ import java.util.GregorianCalendar
 class FeedFormatTest {
 
     @Test
-    fun `glance date formats weekday and compact sub`() {
+    fun `glance date is a single uppercase line with no year`() {
         // 16 June 2026 is a Tuesday.
         val cal: Calendar = GregorianCalendar(2026, Calendar.JUNE, 16)
         val glance = feedGlanceDate(cal)
-        assertEquals("Tuesday", glance.weekday)
-        assertEquals("16 Jun 2026", glance.sub)
+        assertEquals("TUESDAY · 16 JUNE", glance.dateLine)
     }
 
     @Test
@@ -23,6 +22,14 @@ class FeedFormatTest {
         assertEquals("12:00 pm", feedClock12(GregorianCalendar(2026, Calendar.JUNE, 16, 12, 0)))
         assertEquals("12:30 am", feedClock12(GregorianCalendar(2026, Calendar.JUNE, 16, 0, 30)))
         assertEquals("11:59 pm", feedClock12(GregorianCalendar(2026, Calendar.JUNE, 16, 23, 59)))
+    }
+
+    @Test
+    fun `glance clock omits the am_pm suffix`() {
+        assertEquals("9:05", feedGlanceClock(GregorianCalendar(2026, Calendar.JUNE, 16, 9, 5)))
+        assertEquals("12:00", feedGlanceClock(GregorianCalendar(2026, Calendar.JUNE, 16, 12, 0)))
+        assertEquals("12:30", feedGlanceClock(GregorianCalendar(2026, Calendar.JUNE, 16, 0, 30)))
+        assertEquals("11:59", feedGlanceClock(GregorianCalendar(2026, Calendar.JUNE, 16, 23, 59)))
     }
 
     @Test

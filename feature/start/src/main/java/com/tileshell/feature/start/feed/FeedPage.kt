@@ -192,7 +192,7 @@ fun FeedPage(
         }
     }
     val glance = feedGlanceDate(now)
-    val clock = feedClock12(now)
+    val clock = feedGlanceClock(now)
     val topPad = with(density) { statusBarTopPx.toDp() } + 8.dp
 
     var feedSettingsOpen by rememberSaveable { mutableStateOf(false) }
@@ -475,10 +475,7 @@ private fun GlanceRow(glance: GlanceDate, clock: String, tokens: com.tileshell.c
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Column {
-            Text(glance.weekday, color = tokens.fg, fontSize = 22.sp, fontWeight = FontWeight.Light)
-            Text(glance.sub, color = tokens.fgDim, fontSize = 13.sp)
-        }
+        Text(glance.dateLine, color = tokens.fgDim, fontSize = 13.sp, letterSpacing = 0.5.sp)
         Text(clock, color = tokens.fg, fontSize = 22.sp, fontWeight = FontWeight.Light)
     }
 }
