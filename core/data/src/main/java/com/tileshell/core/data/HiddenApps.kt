@@ -27,6 +27,11 @@ object HiddenApps {
     suspend fun unhide(context: Context, packageName: String) {
         context.applicationContext.hiddenAppsStore.updateData { it - packageName }
     }
+
+    /** Wholesale replace, for backup restore — see `BackupManager`/`StartViewModel.importBackup`. */
+    suspend fun replaceAll(context: Context, hidden: Set<String>) {
+        context.applicationContext.hiddenAppsStore.updateData { hidden }
+    }
 }
 
 /** Newline-delimited codec for the hidden-package set (tolerant of empties). */

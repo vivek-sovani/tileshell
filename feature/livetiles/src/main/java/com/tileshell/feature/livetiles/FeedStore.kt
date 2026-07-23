@@ -220,6 +220,16 @@ class FeedStore(private val store: DataStore<FeedData>) {
         }
     }
 
+    /**
+     * Wholesale replace of subscriptions + regions, for backup restore — see
+     * `BackupManager`/`StartViewModel.importBackup`. Clears the cached [FeedData
+     * .articles] too, since they're stale against the newly-restored source list;
+     * the next scheduled/one-off `FeedRefreshWorker` run repopulates them.
+     */
+    suspend fun replaceSourcesAndRegions(sources: List<FeedSource>, regions: Set<String>) {
+        store.updateData { it.copy(sources = sources, regions = regions, articles = emptyList()) }
+    }
+
     companion object {
         fun create(context: Context): FeedStore =
             FeedStore(context.applicationContext.feedDataStore)

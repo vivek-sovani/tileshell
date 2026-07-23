@@ -8,12 +8,36 @@ import com.tileshell.core.data.settings.SettingsCodec
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Serialized snapshot of the Start layout + settings for export/import. */
+/**
+ * A subscribed feed source, mirroring `feature.livetiles.FeedSource` — kept as a
+ * plain local copy rather than an import so :core:data never depends on a feature
+ * module; callers on the feature side map to/from their own type.
+ */
+data class BackupFeedSource(val url: String, val name: String, val category: String, val enabled: Boolean)
+
+/** A hosted feed widget, mirroring `feature.start.feed.HostedWidget` — see [BackupFeedSource]. */
+data class BackupWidget(val widgetId: Int, val heightDp: Int, val widthDp: Int)
+
+/**
+ * Serialized snapshot of the Start layout + settings for export/import. The
+ * trailing fields (default empty) cover domains added well after the original
+ * tiles/folders/settings backup and are populated only by the manual
+ * export/import path (`StartViewModel.exportBackup`/`importBackup`), not by the
+ * automatic rolling layout-history snapshots (`saveLayoutSnapshot`/
+ * `restoreFromSnapshot`) — those stay scoped to layout + settings, since
+ * feed subscriptions/hidden apps/etc. aren't really part of "the layout."
+ */
 data class BackupData(
     val tiles: List<TileEntity>,
     val folders: List<FolderEntity>,
     val folderChildren: List<FolderChildEntity>,
     val settings: LauncherSettings,
+    val hiddenApps: Set<String> = emptySet(),
+    val feedSources: List<BackupFeedSource> = emptyList(),
+    val feedRegions: Set<String> = emptySet(),
+    val widgets: List<BackupWidget> = emptyList(),
+    val photoUris: List<String> = emptyList(),
+    val wallpaperSlideshowUris: List<String> = emptyList(),
 )
 
 /**
@@ -31,7 +55,11 @@ data class BackupData(
  * and `gridSlot` is exactly what anchors a tile to its own cell in that mode,
  * every restore silently dropped it and let tiles re-flow to different
  * positions than what was actually backed up — the direct cause of a
- * user-reported "restore isn't the same as backup" bug.
+ * user-reported "restore isn't the same as backup" bug. `hiddenApps`,
+ * `feedSources`/`feedRegions`, `widgets`, `photoUris`, and
+ * `wallpaperSlideshowUris` were added the same way (additive, no version
+ * bump) after a fuller audit found those entire domains — added in later
+ * sessions — were never wired into backup/restore at all.
  */
 object BackupManager {
 
@@ -42,6 +70,12 @@ object BackupManager {
         folders: List<FolderEntity>,
         children: List<FolderChildEntity>,
         settings: LauncherSettings,
+        hiddenApps: Set<String> = emptySet(),
+        feedSources: List<BackupFeedSource> = emptyList(),
+        feedRegions: Set<String> = emptySet(),
+        widgets: List<BackupWidget> = emptyList(),
+        photoUris: List<String> = emptyList(),
+        wallpaperSlideshowUris: List<String> = emptyList(),
     ): String = JSONObject().apply {
         put("version", CURRENT_VERSION)
         put("settings", SettingsCodec.encode(settings))
@@ -86,6 +120,29 @@ object BackupManager {
                 })
             }
         })
+        put("hiddenApps", JSONArray(hiddenApps.toList()))
+        put("feedSources", JSONArray().also { arr ->
+            feedSources.forEach { s ->
+                arr.put(JSONObject().apply {
+                    put("url", s.url)
+                    put("name", s.name)
+                    put("category", s.category)
+                    put("enabled", s.enabled)
+                })
+            }
+        })
+        put("feedRegions", JSONArray(feedRegions.toList()))
+        put("widgets", JSONArray().also { arr ->
+            widgets.forEach { w ->
+                arr.put(JSONObject().apply {
+                    put("widgetId", w.widgetId)
+                    put("heightDp", w.heightDp)
+                    put("widthDp", w.widthDp)
+                })
+            }
+        })
+        put("photoUris", JSONArray(photoUris))
+        put("wallpaperSlideshowUris", JSONArray(wallpaperSlideshowUris))
     }.toString()
 
     /**
@@ -178,6 +235,48 @@ object BackupManager {
             }
         }
 
-        return BackupData(tiles, folders, folderChildren, settings)
+        val hiddenApps = root.optJSONArray("hiddenApps")?.let { arr ->
+            (0 until arr.length()).map { arr.getString(it) }.toSet()
+        } ?: emptySet()
+
+        val feedSources = root.optJSONArray("feedSources")?.let { arr ->
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                BackupFeedSource(
+                    url = o.getString("url"),
+                    name = o.getString("name"),
+                    category = o.getString("category"),
+                    enabled = o.optBoolean("enabled", true),
+                )
+            }
+        } ?: emptyList()
+
+        val feedRegions = root.optJSONArray("feedRegions")?.let { arr ->
+            (0 until arr.length()).map { arr.getString(it) }.toSet()
+        } ?: emptySet()
+
+        val widgets = root.optJSONArray("widgets")?.let { arr ->
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                BackupWidget(
+                    widgetId = o.getInt("widgetId"),
+                    heightDp = o.getInt("heightDp"),
+                    widthDp = o.optInt("widthDp", 0),
+                )
+            }
+        } ?: emptyList()
+
+        val photoUris = root.optJSONArray("photoUris")?.let { arr ->
+            (0 until arr.length()).map { arr.getString(it) }
+        } ?: emptyList()
+
+        val wallpaperSlideshowUris = root.optJSONArray("wallpaperSlideshowUris")?.let { arr ->
+            (0 until arr.length()).map { arr.getString(it) }
+        } ?: emptyList()
+
+        return BackupData(
+            tiles, folders, folderChildren, settings,
+            hiddenApps, feedSources, feedRegions, widgets, photoUris, wallpaperSlideshowUris,
+        )
     }
 }

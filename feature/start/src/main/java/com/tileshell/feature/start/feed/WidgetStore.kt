@@ -93,6 +93,18 @@ class WidgetStore(private val store: DataStore<WidgetData>) {
         }
     }
 
+    /**
+     * Wholesale replace, for backup restore — see `BackupManager`/`StartViewModel
+     * .importBackup`. Callers should first drop any [HostedWidget] whose id no
+     * longer resolves via `AppWidgetManager` (a foreign/stale id from a
+     * cross-device restore or a reinstall) — widget ids are bound to this
+     * specific `AppWidgetHost` instance and aren't portable like the rest of a
+     * backup.
+     */
+    suspend fun replaceAll(data: WidgetData) {
+        store.updateData { data }
+    }
+
     companion object {
         fun create(context: Context): WidgetStore =
             WidgetStore(context.applicationContext.widgetDataStore)

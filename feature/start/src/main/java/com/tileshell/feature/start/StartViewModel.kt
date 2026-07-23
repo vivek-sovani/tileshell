@@ -1,6 +1,7 @@
 package com.tileshell.feature.start
 
 import android.app.Application
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.pm.LauncherApps
 import android.net.Uri
@@ -12,7 +13,9 @@ import androidx.lifecycle.viewModelScope
 import com.tileshell.core.data.AppCatalogRepository
 import com.tileshell.core.data.AppCategories
 import com.tileshell.core.data.AppEntry
+import com.tileshell.core.data.BackupFeedSource
 import com.tileshell.core.data.BackupManager
+import com.tileshell.core.data.BackupWidget
 import com.tileshell.core.data.CachedScreenshotPrefs
 import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.HiddenApps
@@ -29,6 +32,11 @@ import com.tileshell.feature.livetiles.DEFAULT_FEED_SOURCES
 import com.tileshell.feature.livetiles.FeedRefreshWorker
 import com.tileshell.feature.livetiles.FeedSource
 import com.tileshell.feature.livetiles.FeedStore
+import com.tileshell.feature.livetiles.PhotosStore
+import com.tileshell.feature.livetiles.WallpaperSlideshowStore
+import com.tileshell.feature.start.feed.HostedWidget
+import com.tileshell.feature.start.feed.WidgetData
+import com.tileshell.feature.start.feed.WidgetStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -979,14 +987,35 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Export the current layout + settings to the SAF URI chosen by the user. */
+    /**
+     * Export the current layout + settings to the SAF URI chosen by the user.
+     * Also captures hidden apps, feed subscriptions/regions, feed widget layout,
+     * the photos-tile selection, and the wallpaper slideshow's photo list —
+     * domains added well after the original tiles/folders/settings backup that a
+     * completeness audit found were silently never included (user-reported:
+     * "restore is not exactly the same as backup").
+     */
     fun exportBackup(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
+                val application = getApplication<Application>()
                 val (tiles, folders, children) = repository.tilesForBackup()
                 val currentSettings = settingsRepository.settings.first()
-                val json = BackupManager.buildBackupJson(tiles, folders, children, currentSettings)
-                getApplication<Application>().contentResolver
+                val hiddenApps = HiddenApps.hidden(application).first()
+                val feed = feedStore.read()
+                val widgets = WidgetStore.create(application).read().widgets
+                val photoUris = PhotosStore.create(application).read().uris
+                val wallpaperUris = WallpaperSlideshowStore.create(application).read().uris
+                val json = BackupManager.buildBackupJson(
+                    tiles, folders, children, currentSettings,
+                    hiddenApps = hiddenApps,
+                    feedSources = feed.sources.map { BackupFeedSource(it.url, it.name, it.category, it.enabled) },
+                    feedRegions = feed.regions,
+                    widgets = widgets.map { BackupWidget(it.widgetId, it.heightDp, it.widthDp) },
+                    photoUris = photoUris,
+                    wallpaperSlideshowUris = wallpaperUris,
+                )
+                application.contentResolver
                     .openOutputStream(uri)?.use { it.write(json.encodeToByteArray()) }
                 _backupMessage.tryEmit("backup saved")
             }.onFailure {
@@ -995,16 +1024,39 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Import a layout + settings backup from the SAF URI chosen by the user. */
+    /**
+     * Import a layout + settings backup from the SAF URI chosen by the user, plus
+     * the extra domains [exportBackup] now captures. Hosted feed widgets are the
+     * one exception restored selectively: a `HostedWidget.widgetId` is bound to
+     * this specific `AppWidgetHost` instance, not portable like the rest of a
+     * backup, so any id that no longer resolves via `AppWidgetManager` (a
+     * cross-device restore, or after a reinstall) is dropped rather than kept as
+     * a broken slot.
+     */
     fun importBackup(uri: Uri) {
         viewModelScope.launch(writeContext) {
             runCatching {
-                val json = getApplication<Application>().contentResolver
+                val application = getApplication<Application>()
+                val json = application.contentResolver
                     .openInputStream(uri)?.use { it.readBytes().decodeToString() }
                     ?: error("could not read backup file")
                 val backup = BackupManager.parseBackup(json)
                 repository.restoreFromBackup(backup.tiles, backup.folders, backup.folderChildren)
                 settingsRepository.restoreSettings(backup.settings)
+                HiddenApps.replaceAll(application, backup.hiddenApps)
+                feedStore.replaceSourcesAndRegions(
+                    backup.feedSources.map { FeedSource(it.url, it.name, it.category, it.enabled) },
+                    backup.feedRegions,
+                )
+                val widgetManager = AppWidgetManager.getInstance(application)
+                val liveWidgets = backup.widgets.filter {
+                    runCatching { widgetManager.getAppWidgetInfo(it.widgetId) != null }.getOrDefault(false)
+                }
+                WidgetStore.create(application).replaceAll(
+                    WidgetData(liveWidgets.map { HostedWidget(it.widgetId, it.heightDp, it.widthDp) }),
+                )
+                PhotosStore.create(application).setUris(backup.photoUris)
+                WallpaperSlideshowStore.create(application).setUris(backup.wallpaperSlideshowUris)
                 _backupMessage.tryEmit("layout restored")
             }.onFailure {
                 _backupMessage.tryEmit("restore failed")

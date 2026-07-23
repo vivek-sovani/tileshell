@@ -211,4 +211,48 @@ class BackupManagerTest {
 
         assertNotEquals(hash1, hash2)
     }
+
+    @Test
+    fun `round-trip preserves hidden apps, feed sources and regions, widgets, and photo uris`() {
+        val json = BackupManager.buildBackupJson(
+            sampleTiles, sampleFolders, sampleChildren, sampleSettings,
+            hiddenApps = setOf("com.a", "com.b"),
+            feedSources = listOf(
+                BackupFeedSource(url = "https://a.example/feed", name = "A", category = "nation", enabled = true),
+                BackupFeedSource(url = "https://b.example/feed", name = "B", category = "custom", enabled = false),
+            ),
+            feedRegions = setOf("IN", "US"),
+            widgets = listOf(BackupWidget(widgetId = 7, heightDp = 200, widthDp = 0)),
+            photoUris = listOf("content://a", "content://b"),
+            wallpaperSlideshowUris = listOf("content://w1"),
+        )
+        val data = BackupManager.parseBackup(json)
+
+        assertEquals(setOf("com.a", "com.b"), data.hiddenApps)
+        assertEquals(2, data.feedSources.size)
+        assertEquals("https://a.example/feed", data.feedSources[0].url)
+        assertEquals("nation", data.feedSources[0].category)
+        assertEquals(true, data.feedSources[0].enabled)
+        assertEquals(false, data.feedSources[1].enabled)
+        assertEquals(setOf("IN", "US"), data.feedRegions)
+        assertEquals(1, data.widgets.size)
+        assertEquals(7, data.widgets[0].widgetId)
+        assertEquals(200, data.widgets[0].heightDp)
+        assertEquals(listOf("content://a", "content://b"), data.photoUris)
+        assertEquals(listOf("content://w1"), data.wallpaperSlideshowUris)
+    }
+
+    @Test
+    fun `backup without the new domains decodes them as empty`() {
+        // Simulates parsing an old (pre-extension) backup file missing these keys.
+        val json = BackupManager.buildBackupJson(sampleTiles, sampleFolders, sampleChildren, sampleSettings)
+        val data = BackupManager.parseBackup(json)
+
+        assertEquals(emptySet<String>(), data.hiddenApps)
+        assertEquals(emptyList<BackupFeedSource>(), data.feedSources)
+        assertEquals(emptySet<String>(), data.feedRegions)
+        assertEquals(emptyList<BackupWidget>(), data.widgets)
+        assertEquals(emptyList<String>(), data.photoUris)
+        assertEquals(emptyList<String>(), data.wallpaperSlideshowUris)
+    }
 }

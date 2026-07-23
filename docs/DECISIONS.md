@@ -3288,3 +3288,56 @@ affecting slack — the key is now the stable `(image, screenW, screenH)`, and t
 math recomputes slack fresh from the live `zoomLevel` on every gesture callback. Build + tests green
 (`WallpaperGeometryTest`, 5 cases covering the tight-axis-has-zero-slack property, zoom opening up
 slack on the previously-tight axis, alignment coercion, and degenerate-dimension fallback).
+
+## Backup/restore completeness audit — scope of what's covered, and what deliberately isn't
+
+Bug fix, user-reported: "restore is not exactly the same as backup." Root cause #1, and the direct
+match for the report: `TileEntity.gridSlot` — the absolute grid cell that anchors a tile's position
+in the default STICKY (WP-style gap-preserving) tile-arrangement mode — was never read or written by
+`BackupManager`'s JSON codec at all, so every restore silently dropped it and let tiles re-flow to
+different positions than what was actually exported. Fixed additively (no version bump — old backups
+without the field still decode it as null, same as before).
+
+A fuller audit (agent-driven, read-only) then surfaced several entire domains added in later sessions
+that were never wired into backup/restore either: feed subscriptions/custom URLs/regions
+(`FeedStore`), hidden apps (`HiddenApps`), feed widget layout (`WidgetStore`), the photos-tile
+selection (`PhotosStore`), and the wallpaper slideshow's photo list (`WallpaperSlideshowStore`).
+Extended `BackupData`/`BackupManager.buildBackupJson`/`parseBackup` (`:core:data`) with new,
+additive/optional fields for all of these — plain local mirror types (`BackupFeedSource`,
+`BackupWidget`) rather than importing the feature-owned `FeedSource`/`HostedWidget` types directly,
+since `:core:data` must not depend on feature modules; `StartViewModel` (which already depends on
+both) maps between them at the export/import call sites. Added a bulk-replace function to each store
+that only had incremental mutators (`HiddenApps.replaceAll`, `FeedStore.replaceSourcesAndRegions`,
+`WidgetStore.replaceAll`) — `PhotosStore`/`WallpaperSlideshowStore` already had a whole-list
+`setUris`, reused as-is.
+
+Deliberately scoped out:
+- **Recent apps / recent searches** — excluded on purpose. These are MRU history, not user
+  configuration; restoring them would overwrite the *current* device's actual usage history with
+  whatever was captured at export time, which is the wrong direction for a "restore my personalization"
+  feature. Their own stores also expose no bulk-replace, reinforcing that they were never meant to be
+  bulk-written.
+- **Feed article cache** — not backed up (refetchable, and `FeedStore.replaceSourcesAndRegions`
+  explicitly clears it on restore so stale articles don't linger against a newly-restored source
+  list; the next scheduled/one-off `FeedRefreshWorker` run repopulates it).
+- **Weather cache** — unchanged, still excluded; refetchable, not user state.
+- **The automatic rolling layout-history snapshots** (`saveLayoutSnapshot`/`restoreFromSnapshot`)
+  deliberately still only cover tiles/folders/settings, at their existing defaults for the new
+  `BackupData` fields (empty) — feed subscriptions/hidden apps/etc. aren't really part of "the
+  layout," and history entries are frequent/automatic, not the deliberate act export/import is.
+  Only the manual SAF export/import path (`StartViewModel.exportBackup`/`importBackup`) captures and
+  restores the full extended set.
+- **Feed widget ids are restored selectively, not wholesale**: a `HostedWidget.widgetId` is bound to
+  this specific `AppWidgetHost` instance and isn't portable like the rest of a backup (a cross-device
+  restore, or a reinstall, invalidates every existing id). `importBackup` filters the restored list
+  to ids that still resolve via `AppWidgetManager.getAppWidgetInfo` before writing, so a foreign/stale
+  id is dropped rather than kept as a broken slot — same-device history-style recovery works fully,
+  cross-device restore gracefully loses just the widgets (sizes/order for everything else is intact).
+- **Photo URIs (photos tile + wallpaper slideshow) are backed up as plain content URI strings with
+  the same known caveat as the existing custom-wallpaper URI**: persistable grants are best-effort
+  and may not resolve after a reinstall or on a new device; a broken URI degrades the same way an
+  already-revoked custom wallpaper URI does elsewhere in the app, not a crash.
+
+Build + tests green (`BackupManagerTest` extended: gridSlot round-trip + hash sensitivity, and a new
+round-trip test for hidden apps/feed sources+regions/widgets/photo URIs, plus a "missing keys decode
+as empty" test for old-backup compatibility).
