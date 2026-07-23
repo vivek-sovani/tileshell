@@ -52,43 +52,36 @@ private val MONTHS = listOf(
  * feed/glance screen's clock, [com.tileshell.feature.start.feed.feedClock12] — a
  * deliberate deviation from the prototype's `clockNow()`, which is 24-hour; see
  * DECISIONS.md "Clock tile: 12-hour am/pm, matching the glance screen") with full
- * lowercase weekday and date; the back shows the date again with the next alarm.
- * Empty string means no alarm is set (back omits the alarm line).
+ * lowercase weekday and date; the back shows the date again with the next
+ * reminder/alarm. Empty [alarm] means none is set (back omits the line).
  */
 data class ClockFace(
     val hm: String,
     val weekday: String,
     val fullDate: String,
     val alarm: String = "",
+    val reminderTitle: String = "",
 )
 
 /**
- * Packages of known alarm-clock apps (Google Clock, Samsung Clock) whose
- * [AlarmManager.AlarmClockInfo] entries are trusted as real alarms. Some other
- * apps (notably calendar/reminder apps) also call `setAlarmClock()` for their
- * own reminders — purely to bypass Doze/battery restrictions on exact timing —
- * which would otherwise surface on the clock tile mislabeled as "alarm / bedtime"
- * (see the user report: a 2:50pm calendar meeting reminder showed up as the
- * tile's next alarm). Deliberately a small explicit whitelist, not a heuristic:
- * only devices whose stock clock app is one of these two show the alarm/bedtime
- * face at all; other OEM clock apps simply never populate it, per the user's
- * own call — extend only for another confirmed, specific clock app package.
- */
-private val KNOWN_ALARM_CLOCK_PACKAGES = setOf(
-    "com.google.android.deskclock",
-    "com.sec.android.app.clockpackage",
-)
-
-/**
- * Returns the next system alarm-clock event as "h:mm am/pm", or empty string if
- * none is set or it wasn't registered by a [KNOWN_ALARM_CLOCK_PACKAGES] app.
- * Reads [AlarmManager.getNextAlarmClock] — no permission required.
+ * [AlarmManager.getNextAlarmClock] is a single system-wide "next" value, not
+ * queryable per app — there's no public API to ask "what's Google Clock's next
+ * alarm specifically." Non-clock apps (notably calendar apps) also register via
+ * `setAlarmClock()` for their own reminders, purely to bypass Doze/battery
+ * restrictions on exact timing; whichever is chronologically soonest wins the
+ * single global slot, so a same-day calendar reminder routinely eclipses a real
+ * alarm set for later. A prior attempt to filter this to known clock-app
+ * packages (Google/Samsung) just made the tile go blank whenever a calendar
+ * reminder was the sooner entry — worse than the ambiguity, since a real alarm
+ * further out then never showed. So: always show whatever's next, generically
+ * labelled "next reminder/alarm" (see [ClockBack]) rather than claiming it's an
+ * alarm; when it matches an upcoming calendar event's start time (within
+ * [REMINDER_MATCH_TOLERANCE_MS]) — see [reminderTitleFor] — show that event's
+ * title in place of the generic label.
  */
 fun nextAlarmString(context: Context): String {
     val am = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return ""
     val info = am.nextAlarmClock ?: return ""
-    val creator = runCatching { info.showIntent?.creatorPackage }.getOrNull()
-    if (creator !in KNOWN_ALARM_CLOCK_PACKAGES) return ""
     val cal = Calendar.getInstance().apply { timeInMillis = info.triggerTime }
     val hour = cal.get(Calendar.HOUR_OF_DAY)
     val minute = cal.get(Calendar.MINUTE)
@@ -100,6 +93,48 @@ fun nextAlarmString(context: Context): String {
     }
     return "$h12:${minute.toString().padStart(2, '0')} $ampm"
 }
+
+private const val REMINDER_MATCH_TOLERANCE_MS = 2 * 60_000L
+
+/**
+ * If [triggerMillis] (the system's next alarm-clock trigger time) lines up with
+ * an upcoming calendar event's start — within [REMINDER_MATCH_TOLERANCE_MS], to
+ * absorb rounding — returns that event's title so the tile can show real
+ * reminder text instead of a generic label. Requires READ_CALENDAR; silently
+ * returns "" when denied (no new permission ask from the clock tile — this only
+ * activates if the user already granted it, e.g. via the calendar tile) or when
+ * nothing matches (the alarm is probably a real Clock-app alarm, or the
+ * reminder is offset earlier than the event's start — a known limitation, since
+ * resolving a reminder-minutes offset needs a further `CalendarContract
+ * .Reminders` join not done here).
+ */
+private fun reminderTitleFor(context: Context, triggerMillis: Long): String =
+    runCatching {
+        val uri = android.provider.CalendarContract.Instances.CONTENT_URI.buildUpon()
+            .appendPath((triggerMillis - REMINDER_MATCH_TOLERANCE_MS).toString())
+            .appendPath((triggerMillis + REMINDER_MATCH_TOLERANCE_MS).toString())
+            .build()
+        var title = ""
+        context.contentResolver.query(
+            uri,
+            arrayOf(
+                android.provider.CalendarContract.Instances.TITLE,
+                android.provider.CalendarContract.Instances.BEGIN,
+            ),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            while (cursor.moveToNext()) {
+                val begin = cursor.getLong(1)
+                if (kotlin.math.abs(begin - triggerMillis) <= REMINDER_MATCH_TOLERANCE_MS) {
+                    title = cursor.getString(0).orEmpty()
+                    break
+                }
+            }
+        }
+        title
+    }.getOrDefault("")
 
 /**
  * Builds a [ClockFace] from calendar fields. Pure (no `Calendar.getInstance()`)
@@ -116,6 +151,7 @@ fun clockFace(
     month0: Int,
     year: Int,
     alarm: String = "",
+    reminderTitle: String = "",
 ): ClockFace {
     val hour12 = (hour24 % 12).let { if (it == 0) 12 else it }
     val suffix = if (hour24 < 12) "am" else "pm"
@@ -124,11 +160,14 @@ fun clockFace(
         weekday = WEEKDAYS[dayOfWeek - 1],
         fullDate = "$dayOfMonth ${MONTHS[month0]} $year",
         alarm = alarm,
+        reminderTitle = reminderTitle,
     )
 }
 
 private fun currentClockFace(context: Context): ClockFace {
     val c = Calendar.getInstance()
+    val am = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+    val info = am?.nextAlarmClock
     return clockFace(
         hour24 = c.get(Calendar.HOUR_OF_DAY),
         minute = c.get(Calendar.MINUTE),
@@ -137,6 +176,7 @@ private fun currentClockFace(context: Context): ClockFace {
         month0 = c.get(Calendar.MONTH),
         year = c.get(Calendar.YEAR),
         alarm = nextAlarmString(context),
+        reminderTitle = info?.let { reminderTitleFor(context, it.triggerTime) }.orEmpty(),
     )
 }
 
@@ -300,12 +340,13 @@ private fun ClockBack(face: ClockFace) {
             horizontalAlignment = Alignment.End,
         ) {
             if (face.alarm.isNotEmpty()) {
-                // Alarm gets the hero slot — user set it, they want to see it.
-                // Labelled "alarm / bedtime" because Android's getNextAlarmClock reports
-                // the next alarm-clock *event*, which includes the clock app's Bedtime
-                // schedule, and gives no way to tell the two apart.
+                // Alarm/reminder gets the hero slot — user set it, they want to see it.
+                // Labelled generically because Android's getNextAlarmClock reports a
+                // single system-wide next value that any app (not just a clock app —
+                // e.g. a calendar reminder) may have registered; shows the matched
+                // calendar event's own title instead when one lines up (reminderTitleFor).
                 Text(
-                    text = "alarm / bedtime",
+                    text = face.reminderTitle.ifEmpty { "next reminder / alarm" },
                     color = FaceText.copy(alpha = 0.65f),
                     fontSize = 11.sp * scale,
                     maxLines = 1,
