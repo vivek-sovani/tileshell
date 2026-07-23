@@ -180,8 +180,27 @@ android {
         //   real WorkManager regression the upgrade's more aggressive R8 pass
         //   introduced (a stripped InputMerger constructor silently broke every
         //   background worker's first run).
-        versionCode = 227
-        versionName = "2.2.7"
+        // v2.2.8 (code 228): clock tile alarm/reminder fixes, plus the still-unreleased
+        //   v2.2.7 changes above (2.2.7 never got a signed build submitted to Play, so
+        //   2.2.8 supersedes it rather than being skipped). User-reported: a 2:50pm
+        //   calendar meeting reminder showed up mislabeled as the tile's alarm; a follow-up
+        //   fix (whitelisting Google/Samsung Clock packages) then made a real Google Clock
+        //   alarm stop showing entirely whenever a sooner calendar reminder existed.
+        //   Root-caused via on-device `adb shell dumpsys alarm`: AlarmManager
+        //   .getNextAlarmClock() is a single system-wide "next" value with no per-app
+        //   query, and calendar apps also register via setAlarmClock() (to bypass Doze),
+        //   so a same-day meeting reminder routinely eclipses a real, later alarm — the
+        //   whitelist attempt just went blank in that case instead of showing either.
+        //   Reverted to always showing the next entry, and resolve its real source by
+        //   matching the trigger time against CalendarContract.CalendarAlerts.ALARM_TIME
+        //   (the reminder's actual scheduled fire time — not Instances.BEGIN, the event's
+        //   start, which doesn't match for all-day events or reminders offset earlier than
+        //   the event start): shows the matched event's own title when found, else falls
+        //   back to "alarm / bedtime" as before. The date line under it now shows the
+        //   alarm/reminder's own date rather than always today's, for one set on a
+        //   different day. Verified end-to-end on a physical device at each step.
+        versionCode = 228
+        versionName = "2.2.8"
     }
 
     if (keystoreFile.exists()) {

@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v2.2.7 listing draft — update before each release*
+*v2.2.8 listing draft — update before each release*
 
 ---
 
@@ -144,9 +144,29 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
+## Release notes (v2.2.8)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.
+2.2.7 never got a signed build submitted to Play, so 2.2.8 supersedes it and
+folds in its changes too.*
+
+```
+TileShell 2.2.8
+
+• Quick panel redesigned as colourful start-tile-style toggles
+• People tile: no flip — bubbles now drift, bounce, and swap photos
+• Fixed: clock tile alarm/reminder shows the right title & date, no longer confused with calendar reminders
+• Fixed: wallpaper reframe tool can now pan to the top/bottom/side of a photo, not just zoom centrally
+• Fixed: background refresh (feed, weather, backups) could silently fail
+• Performance and stability improvements
+```
+
+*(Character count 472, under Play's 500 limit.)*
+
 ## Release notes (v2.2.7)
 
-*"What's new" — newest release first. Keep under Play's 500-character limit.*
+*"What's new" — newest release first. Keep under Play's 500-character limit.
+Superseded by v2.2.8 — never submitted to Play as its own release.*
 
 ```
 TileShell 2.2.7
