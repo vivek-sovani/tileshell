@@ -113,7 +113,7 @@ private fun squareContentWidthDp(info: AppWidgetProviderInfo, widthDp: Int, dens
  * blocks third-party hosting just shows the "add a widget" prompt.
  */
 @Composable
-fun WidgetSection(accent: Color, tokens: ColorTokens) {
+fun WidgetSection(accent: Color, tokens: ColorTokens, labelColor: Color = tokens.fgDim) {
     val context = LocalContext.current
     val appContext = context.applicationContext
     val host = remember { FeedAppWidgetHost(appContext, WIDGET_HOST_ID) }
@@ -227,7 +227,7 @@ fun WidgetSection(accent: Color, tokens: ColorTokens) {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionHeader("widgets", actionText = "add", accent = accent, tokens = tokens, showPlus = true, onAction = { showPicker = true })
+        SectionHeader("widgets", actionText = "add", accent = accent, labelColor = labelColor, showPlus = true, onAction = { showPicker = true })
 
         widgets.widgets.forEachIndexed { index, hw ->
             key(hw.widgetId) {

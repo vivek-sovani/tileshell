@@ -3804,7 +3804,7 @@ private fun dominantIconColor(bitmap: ImageBitmap): Color? {
  * docs/DECISIONS.md "Live tile text: black when the wallpaper behind it is light".
  */
 @Composable
-private fun rememberChosenWallpaperIsLight(
+internal fun rememberChosenWallpaperIsLight(
     customPhoto: ImageBitmap?,
     noWallpaper: Boolean,
     wallpaper: WallpaperGradient,

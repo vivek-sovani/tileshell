@@ -65,11 +65,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tileshell.core.design.Glass
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.WallpaperGradient
 import com.tileshell.feature.personalize.FeedSourceItem
 import com.tileshell.core.design.LocalColorTokens
 import com.tileshell.feature.start.WallpaperBackground
+import com.tileshell.feature.start.rememberChosenWallpaperIsLight
+import com.tileshell.feature.start.rememberWallpaperBitmap
 import com.tileshell.feature.livetiles.CalendarFace
 import com.tileshell.feature.livetiles.Connectivity
 import com.tileshell.feature.livetiles.rememberDeviceStatus
@@ -144,6 +147,28 @@ fun FeedPage(
     val tokens = LocalColorTokens.current
     val context = LocalContext.current
     val density = androidx.compose.ui.platform.LocalDensity.current
+
+    // Text sitting directly on the wallpaper (greeting, date/clock, section
+    // labels, the news filter chips) can't use the fixed theme fg/fgDim —
+    // those are white in dark theme regardless of what's actually behind them,
+    // and a light custom photo (or a light "none" background while the app
+    // theme is dark) would render them unreadably pale. Reuses the same
+    // brightness classification Start already applies to glass/tiled tile
+    // faces (see docs/DECISIONS.md "Live tile text: black when the wallpaper
+    // behind it is light") so the two surfaces behave consistently. Text
+    // inside the page's own opaque cards (AccentCard/GCard/ArticleCard) is
+    // unaffected — those already guarantee their own contrast.
+    val feedCustomPhoto = customWallpaperUri?.let { rememberWallpaperBitmap(it) }
+    val feedBackgroundIsLight = rememberChosenWallpaperIsLight(
+        customPhoto = feedCustomPhoto,
+        noWallpaper = noWallpaper,
+        wallpaper = wallpaper,
+        dark = dark,
+        screenBg = tokens.bg,
+    )
+    val feedFg = Glass.faceTextColor(feedBackgroundIsLight)
+    val feedFgDim = feedFg.copy(alpha = 0.62f)
+    val feedLine = feedFg.copy(alpha = 0.12f)
 
     // Weather (FR-2): the cached snapshot the weather tile already maintains.
     val weatherCache = remember(context) { WeatherCache.create(context) }
@@ -224,8 +249,8 @@ fun FeedPage(
             .padding(start = 14.dp, end = 14.dp, top = topPad),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        GreetingHeader(userName = userName, hour = now.get(Calendar.HOUR_OF_DAY), tokens = tokens)
-        GlanceRow(glance = glance, clock = clock, tokens = tokens)
+        GreetingHeader(userName = userName, hour = now.get(Calendar.HOUR_OF_DAY), fg = feedFg, fgDim = feedFgDim)
+        GlanceRow(glance = glance, clock = clock, fg = feedFg, fgDim = feedFgDim)
         SearchPill(accent = accent, tokens = tokens, onOpenQuickSearch = onOpenQuickSearch)
 
         // Everything below scrolls as one continuous feed — no more glance/news
@@ -270,16 +295,17 @@ fun FeedPage(
                 )
             }
 
-            WidgetSection(accent = accent, tokens = tokens)
+            WidgetSection(accent = accent, tokens = tokens, labelColor = feedFgDim)
 
             if (deviceStatusCardEnabled) {
-                SectionLabel("device status", tokens.fgDim)
+                SectionLabel("device status", feedFgDim)
                 DeviceStatusCard(tokens = tokens)
             }
 
             NewsHeader(
                 accent = accent,
-                tokens = tokens,
+                fg = feedFg,
+                fgDim = feedFgDim,
                 onRefresh = onRefresh,
                 onSettings = { feedSettingsOpen = true },
             )
@@ -301,9 +327,9 @@ fun FeedPage(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        FeedSourceChip("all", categoryFilter == null, accent, tokens) { categoryFilter = null }
+                        NewsFilterChip("all", categoryFilter == null, accent, feedFgDim, feedLine) { categoryFilter = null }
                         categories.forEach { tag ->
-                            FeedSourceChip(tag, categoryFilter == tag, accent, tokens) { categoryFilter = tag }
+                            NewsFilterChip(tag, categoryFilter == tag, accent, feedFgDim, feedLine) { categoryFilter = tag }
                         }
                     }
                 }
@@ -353,15 +379,18 @@ fun FeedPage(
  * convention (weather/calendar do the same when a permission is denied).
  */
 @Composable
-private fun GreetingHeader(userName: String, hour: Int, tokens: com.tileshell.core.design.ColorTokens) {
+private fun GreetingHeader(userName: String, hour: Int, fg: Color, fgDim: Color) {
     val greeting = greetingFor(hour)
     // A deliberate one-off display treatment (serif, unlike the app's own
     // Outfit/Nunito tile typography) to match the mockup's hero greeting —
     // FontFamily.Serif is a built-in generic family, no new font assets needed.
+    // [fg]/[fgDim] adapt to the actual wallpaper's brightness (not the fixed
+    // theme colour) since this sits directly on it — see the brightness
+    // classification computed once in FeedPage.
     Column(modifier = Modifier.padding(horizontal = 6.dp)) {
         Text(
             text = if (userName.isBlank()) greeting else "$greeting,",
-            color = tokens.fg,
+            color = fg,
             fontSize = 28.sp,
             fontFamily = FontFamily.Serif,
             fontWeight = FontWeight.Normal,
@@ -369,7 +398,7 @@ private fun GreetingHeader(userName: String, hour: Int, tokens: com.tileshell.co
         if (userName.isNotBlank()) {
             Text(
                 text = userName,
-                color = tokens.fgDim,
+                color = fgDim,
                 fontSize = 34.sp,
                 fontFamily = FontFamily.Serif,
                 fontStyle = FontStyle.Italic,
@@ -382,7 +411,8 @@ private fun GreetingHeader(userName: String, hour: Int, tokens: com.tileshell.co
 @Composable
 private fun NewsHeader(
     accent: Color,
-    tokens: com.tileshell.core.design.ColorTokens,
+    fg: Color,
+    fgDim: Color,
     onRefresh: () -> Unit,
     onSettings: () -> Unit,
 ) {
@@ -392,7 +422,7 @@ private fun NewsHeader(
     ) {
         Text(
             "news",
-            color = tokens.fgDim,
+            color = fgDim,
             fontSize = 13.sp,
             modifier = Modifier.padding(start = 6.dp).weight(1f),
         )
@@ -420,7 +450,7 @@ private fun NewsHeader(
             Icon(
                 imageVector = TileIcons["settings"],
                 contentDescription = "feed settings",
-                tint = tokens.fgDim,
+                tint = fgDim,
                 modifier = Modifier.size(18.dp),
             )
         }
@@ -469,14 +499,14 @@ private fun SearchPill(
 }
 
 @Composable
-private fun GlanceRow(glance: GlanceDate, clock: String, tokens: com.tileshell.core.design.ColorTokens) {
+private fun GlanceRow(glance: GlanceDate, clock: String, fg: Color, fgDim: Color) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(glance.dateLine, color = tokens.fgDim, fontSize = 13.sp, letterSpacing = 0.5.sp)
-        Text(clock, color = tokens.fg, fontSize = 22.sp, fontWeight = FontWeight.Light)
+        Text(glance.dateLine, color = fgDim, fontSize = 13.sp, letterSpacing = 0.5.sp)
+        Text(clock, color = fg, fontSize = 22.sp, fontWeight = FontWeight.Light)
     }
 }
 
@@ -486,16 +516,19 @@ private fun SectionLabel(text: String, color: Color) {
 }
 
 /**
- * A section label with a trailing text action (e.g. "+ add" on the today header,
- * "refresh" on the discover header). The leading plus glyph shows only when
- * [showPlus] is set.
+ * A section label with a trailing text action (e.g. the widgets header's
+ * "+ add"). The leading plus glyph shows only when [showPlus] is set. Takes an
+ * explicit [labelColor] rather than a [com.tileshell.core.design.ColorTokens]
+ * since its caller (the widgets section) sits directly on the feed's
+ * wallpaper, so the label needs to adapt to the wallpaper's brightness, not
+ * the fixed theme colour.
  */
 @Composable
 internal fun SectionHeader(
     text: String,
     actionText: String,
     accent: Color,
-    tokens: com.tileshell.core.design.ColorTokens,
+    labelColor: Color,
     showPlus: Boolean = false,
     onAction: () -> Unit,
 ) {
@@ -504,7 +537,7 @@ internal fun SectionHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(text, color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp))
+        Text(text, color = labelColor, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp))
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(12.dp))
@@ -1105,6 +1138,36 @@ private fun FeedSourceChip(
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(label, color = if (on) Color.White else tokens.fgDim, fontSize = 13.sp)
+    }
+}
+
+/**
+ * The news quick-filter chip (mirrors [FeedSourceChip]'s look) — takes explicit
+ * [fgDim]/[line] instead of [com.tileshell.core.design.ColorTokens] since it
+ * sits directly on the feed's wallpaper rather than an opaque sheet, so its
+ * off-state colours must adapt to the wallpaper's brightness, not the fixed
+ * theme.
+ */
+@Composable
+private fun NewsFilterChip(
+    label: String,
+    on: Boolean,
+    accent: Color,
+    fgDim: Color,
+    line: Color,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .then(
+                if (on) Modifier.background(accent)
+                else Modifier.border(1.dp, line, RoundedCornerShape(16.dp)),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Text(label, color = if (on) Color.White else fgDim, fontSize = 13.sp)
     }
 }
 
