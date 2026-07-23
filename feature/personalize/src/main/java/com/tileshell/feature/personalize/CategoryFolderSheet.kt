@@ -73,6 +73,8 @@ fun CategoryFolderSheet(
     apps: List<AppEntry>,
     onCreate: (name: String, apps: List<AppEntry>) -> Unit,
     onDismiss: () -> Unit,
+    /** Re-adds a deleted clock/weather/calendar live tile to the Start screen. */
+    onAddLiveTile: (appId: String) -> Unit,
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
     /**
@@ -148,6 +150,7 @@ fun CategoryFolderSheet(
                     existingFolderPackages = existingFolderPackages,
                     onPick = { reviewId = it },
                     onBack = onDismiss,
+                    onAddLiveTile = onAddLiveTile,
                 )
             } else {
                 CategoryReview(
@@ -174,6 +177,7 @@ private fun CategoryList(
     existingFolderPackages: (String) -> Set<String>,
     onPick: (String) -> Unit,
     onBack: () -> Unit,
+    onAddLiveTile: (String) -> Unit,
 ) {
     val counts = remember(apps) { AppCategories.categorize(apps).mapValues { it.value.size } }
 
@@ -215,6 +219,40 @@ private fun CategoryList(
                 fontSize = 13.sp,
                 fontWeight = FontWeight.W300,
             )
+        }
+
+        // Live tiles: re-add a deleted clock/weather/calendar tile (moved here
+        // from Personalize's old "live tiles" group, which now just hosts the
+        // master on/off toggle).
+        Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 18.dp)) {
+            Text(
+                text = "live tiles",
+                color = tokens.fgDim,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+            Text(
+                "re-add a deleted live tile to the start screen",
+                color = tokens.fgDim,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("clock" to "clock", "weather" to "weather", "calendar" to "calendar")
+                    .forEach { (appId, label) ->
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .border(1.dp, tokens.tileLine, RoundedCornerShape(10.dp))
+                                .clickable { onAddLiveTile(appId) }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("+ $label", color = accent, fontSize = 13.sp)
+                        }
+                    }
+            }
         }
 
         HorizontalDivider(color = tokens.tileLine, modifier = Modifier.padding(horizontal = 20.dp))

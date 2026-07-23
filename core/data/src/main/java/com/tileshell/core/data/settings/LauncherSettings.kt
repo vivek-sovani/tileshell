@@ -85,6 +85,11 @@ enum class TileColorSource { GLOBAL_ACCENT, APP_ICON }
  *   greeting. Blank by default; best-effort auto-seeded once from the device's
  *   own contact profile (see `StartViewModel.init`), and freely editable from
  *   Personalize afterward. Blank renders the greeting with no name/comma.
+ * @property liveTilesEnabled master on/off switch for live-tile flipping/
+ *   updates (clock, weather, notifications, etc.). Default on; folded into
+ *   the existing `rememberLiveTilesActive` gate alongside battery saver and
+ *   system animation settings when off — a purely cosmetic pause, not a data
+ *   toggle (badges/counts still update, only the flip animation stops).
  */
 data class LauncherSettings(
     val followSystemTheme: Boolean = true,
@@ -146,6 +151,7 @@ data class LauncherSettings(
     val lockLayout: Boolean = false,
     val deviceStatusCardEnabled: Boolean = true,
     val userName: String = "",
+    val liveTilesEnabled: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_COLUMNS = 4
@@ -202,7 +208,8 @@ object SettingsCodec {
         append("edgeStripHandleSize=").append(settings.edgeStripHandleSize).append('\n')
         append("lockLayout=").append(settings.lockLayout).append('\n')
         append("deviceStatusCard=").append(settings.deviceStatusCardEnabled).append('\n')
-        append("userName=").append(settings.userName)
+        append("userName=").append(settings.userName).append('\n')
+        append("liveTiles=").append(settings.liveTilesEnabled)
     }
 
     fun decode(text: String): LauncherSettings {
@@ -241,6 +248,7 @@ object SettingsCodec {
         var lockLayout = d.lockLayout
         var deviceStatusCardEnabled = d.deviceStatusCardEnabled
         var userName = d.userName
+        var liveTilesEnabled = d.liveTilesEnabled
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
             if (sep <= 0) return@forEach
@@ -294,6 +302,7 @@ object SettingsCodec {
                 "deviceStatusCard" -> deviceStatusCardEnabled =
                     value.toBooleanStrictOrNull() ?: deviceStatusCardEnabled
                 "userName" -> userName = value
+                "liveTiles" -> liveTilesEnabled = value.toBooleanStrictOrNull() ?: liveTilesEnabled
             }
         }
         return LauncherSettings(
@@ -331,6 +340,7 @@ object SettingsCodec {
             lockLayout = lockLayout,
             deviceStatusCardEnabled = deviceStatusCardEnabled,
             userName = userName,
+            liveTilesEnabled = liveTilesEnabled,
         )
     }
 }

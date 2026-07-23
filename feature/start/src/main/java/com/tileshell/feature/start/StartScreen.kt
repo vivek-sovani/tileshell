@@ -184,7 +184,11 @@ import com.tileshell.feature.livetiles.WeatherSmallFace
 import com.tileshell.feature.livetiles.WeatherTileFace
 import com.tileshell.feature.livetiles.rememberFlipState
 import com.tileshell.feature.livetiles.rememberLiveTilesActive
+import com.tileshell.feature.livetiles.INDIA_COUNTRY_CODE
+import com.tileshell.feature.livetiles.INTERNATIONAL_REGION_CODE
 import com.tileshell.feature.livetiles.OemBatteryGuard
+import com.tileshell.feature.livetiles.SELECTABLE_COUNTRIES
+import com.tileshell.feature.livetiles.regionDisplayName
 import com.tileshell.feature.livetiles.rememberBatteryOptimizationExempt
 import com.tileshell.feature.livetiles.rememberNotificationAccess
 import com.tileshell.feature.livetiles.rememberPermissionGranted
@@ -197,9 +201,12 @@ import com.tileshell.feature.personalize.CategoryFolderSheet
 import com.tileshell.feature.personalize.FeedSourceItem
 import com.tileshell.feature.personalize.EdgeStripSheet
 import com.tileshell.feature.personalize.HiddenAppsSheet
+import com.tileshell.feature.personalize.NewsRegionSheet
+import com.tileshell.feature.personalize.NotificationsPermissionsSheet
 import com.tileshell.feature.personalize.PersonalizeGuidePrefs
 import com.tileshell.feature.personalize.PersonalizeGuideSheet
 import com.tileshell.feature.personalize.PersonalizeSheet
+import com.tileshell.feature.personalize.RegionOption
 import com.tileshell.feature.system.AppUpdateState
 import com.tileshell.feature.system.rememberAppUpdateState
 import com.tileshell.feature.system.rememberDefaultLauncherState
@@ -271,6 +278,8 @@ fun StartScreen(
     val backupOpen by viewModel.backupOpen.collectAsStateWithLifecycle()
     val foldersOpen by viewModel.foldersOpen.collectAsStateWithLifecycle()
     val hiddenAppsOpen by viewModel.hiddenAppsOpen.collectAsStateWithLifecycle()
+    val notificationsPermissionsOpen by viewModel.notificationsPermissionsOpen.collectAsStateWithLifecycle()
+    val newsRegionOpen by viewModel.newsRegionOpen.collectAsStateWithLifecycle()
     val edgeStripOpen by viewModel.edgeStripOpen.collectAsStateWithLifecycle()
     val quickPanelOpen by viewModel.quickPanelOpen.collectAsStateWithLifecycle()
     val searchOpen by viewModel.searchOpen.collectAsStateWithLifecycle()
@@ -785,6 +794,7 @@ fun StartScreen(
                     edgeStripVisible = edgeStripVisible,
                     editMode = editMode,
                     liveSuspended = liveSuspended,
+                    liveTilesEnabled = settings.liveTilesEnabled,
                     selectedTileId = selectedTileId,
                     accent = accent,
                     accentId = settings.accentId,
@@ -1115,10 +1125,8 @@ fun StartScreen(
             onDeviceStatusCardEnabledChange = viewModel::setDeviceStatusCardEnabled,
             userName = settings.userName,
             onUserNameChange = viewModel::setUserName,
-            onAddLiveTile = { appId ->
-                viewModel.addLiveTile(appId)
-                Toast.makeText(context, "added $appId tile", Toast.LENGTH_SHORT).show()
-            },
+            liveTilesEnabled = settings.liveTilesEnabled,
+            onLiveTilesEnabledChange = viewModel::setLiveTilesEnabled,
             onSystemSettings = {
                 runCatching {
                     context.startActivity(
@@ -1154,29 +1162,6 @@ fun StartScreen(
                     withContext(Dispatchers.IO) { MediaImport.clearPhotos(context) }
                 }
             },
-            contactsGranted = contactsGranted,
-            calendarGranted = calendarGranted,
-            locationGranted = locationGranted,
-            onRequestContacts = {
-                contactsLauncher.launch(android.Manifest.permission.READ_CONTACTS)
-            },
-            onRequestCalendar = {
-                calendarLauncher.launch(android.Manifest.permission.READ_CALENDAR)
-            },
-            onRequestLocation = {
-                locationLauncher.launch(android.Manifest.permission.ACCESS_COARSE_LOCATION)
-            },
-            notificationsEnabled = notificationAccess,
-            onNotificationAccess = {
-                runCatching { context.startActivity(NotificationAccess.settingsIntent()) }
-                    .onFailure {
-                        Toast.makeText(context, "open settings to allow access", Toast.LENGTH_SHORT)
-                            .show()
-                    }
-            },
-            batteryOptimizationExempt = batteryExempt,
-            batteryGuidanceNote = OemBatteryGuard.guidanceNote(),
-            onBatteryExemption = { OemBatteryGuard.requestExemption(context) },
             isDefaultLauncher = isDefaultLauncher,
             onSetDefaultLauncher = onSetDefaultLauncher,
             cornerRadius = settings.cornerRadius,
@@ -1202,6 +1187,9 @@ fun StartScreen(
             edgeStripEnabled = settings.edgeStripEnabled,
             onEdgeStrip = viewModel::openEdgeStrip,
             onBackupRestore = viewModel::openBackup,
+            onNotificationsPermissions = viewModel::openNotificationsPermissions,
+            onNewsRegion = viewModel::openNewsRegion,
+            newsRegionCount = 1 + SELECTABLE_COUNTRIES.size,
             onDismiss = viewModel::closePersonalize,
         )
 
@@ -1320,7 +1308,7 @@ fun StartScreen(
                 }
         }
 
-        // Category-folders sheet (personalize → folders).
+        // Category-folders sheet (personalize → folders & categories).
         CategoryFolderSheet(
             visible = foldersOpen,
             rightHalf = isLandscape,
@@ -1333,7 +1321,56 @@ fun StartScreen(
                 Toast.makeText(context, "$verb \"$name\" folder", Toast.LENGTH_SHORT).show()
             },
             onDismiss = viewModel::closeFolders,
+            onAddLiveTile = { appId ->
+                viewModel.addLiveTile(appId)
+                Toast.makeText(context, "added $appId tile", Toast.LENGTH_SHORT).show()
+            },
             existingFolderPackages = { name -> existingFoldersByName[name.lowercase()] ?: emptySet() },
+        )
+
+        // Notifications & permissions sheet (personalize → notifications & permissions).
+        NotificationsPermissionsSheet(
+            visible = notificationsPermissionsOpen,
+            rightHalf = isLandscape,
+            dark = dark,
+            accentId = settings.accentId,
+            onDismiss = viewModel::closeNotificationsPermissions,
+            contactsGranted = contactsGranted,
+            calendarGranted = calendarGranted,
+            locationGranted = locationGranted,
+            onRequestContacts = {
+                contactsLauncher.launch(android.Manifest.permission.READ_CONTACTS)
+            },
+            onRequestCalendar = {
+                calendarLauncher.launch(android.Manifest.permission.READ_CALENDAR)
+            },
+            onRequestLocation = {
+                locationLauncher.launch(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+            },
+            notificationsEnabled = notificationAccess,
+            onNotificationAccess = {
+                runCatching { context.startActivity(NotificationAccess.settingsIntent()) }
+                    .onFailure {
+                        Toast.makeText(context, "open settings to allow access", Toast.LENGTH_SHORT)
+                            .show()
+                    }
+            },
+            batteryOptimizationExempt = batteryExempt,
+            batteryGuidanceNote = OemBatteryGuard.guidanceNote(),
+            onBatteryExemption = { OemBatteryGuard.requestExemption(context) },
+        )
+
+        // News-region sheet (personalize → news region) — same subscribed-region
+        // set the feed page's own gear-icon sheet already edits.
+        NewsRegionSheet(
+            visible = newsRegionOpen,
+            rightHalf = isLandscape,
+            dark = dark,
+            accentId = settings.accentId,
+            regions = (listOf(INDIA_COUNTRY_CODE, INTERNATIONAL_REGION_CODE) + SELECTABLE_COUNTRIES.map { it.code })
+                .map { code -> RegionOption(code, regionDisplayName(code), code in feedRegions) },
+            onToggleRegion = viewModel::setFeedRegionEnabled,
+            onDismiss = viewModel::closeNewsRegion,
         )
 
         // Play Store update prompt: a thin dismissible strip pinned to the top,
@@ -1505,6 +1542,7 @@ private fun StartPage(
     edgeStripVisible: Boolean,
     editMode: Boolean,
     liveSuspended: Boolean,
+    liveTilesEnabled: Boolean,
     selectedTileId: String?,
     accent: Color,
     accentId: String,
@@ -1733,7 +1771,7 @@ private fun StartPage(
     // Live tiles (FR-2). The flip scheduler turns one of the visible flippable
     // tiles every ~2.6 s, paused whenever live tiles are gated off (edit mode,
     // off-screen, screen off, battery saver, animations off).
-    val liveActive = rememberLiveTilesActive(suspended = editMode || liveSuspended)
+    val liveActive = rememberLiveTilesActive(suspended = editMode || liveSuspended || !liveTilesEnabled)
     // Publish active media sessions into MediaCenter so the music tile and any
     // music-app tile (Apple Music, YT Music, …) can show their now-playing track.
     MediaSessionsEffect(active = liveActive)

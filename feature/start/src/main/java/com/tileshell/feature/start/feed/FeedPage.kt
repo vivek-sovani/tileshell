@@ -69,6 +69,8 @@ import com.tileshell.core.design.Glass
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.WallpaperGradient
 import com.tileshell.feature.personalize.FeedSourceItem
+import com.tileshell.feature.personalize.RegionChipGrid
+import com.tileshell.feature.personalize.RegionOption
 import com.tileshell.core.design.LocalColorTokens
 import com.tileshell.feature.start.WallpaperBackground
 import com.tileshell.feature.start.rememberChosenWallpaperIsLight
@@ -972,23 +974,13 @@ private fun FeedSettingsSheet(
             // (India vs a generic international set) — an explicit override of the
             // locale-detected default seeded on first run (StartViewModel.init).
             FeedSheetGroup(label = "news regions (select any number)", labelColor = tokens.fgDim) {
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    (listOf(INDIA_COUNTRY_CODE, INTERNATIONAL_REGION_CODE) + SELECTABLE_COUNTRIES.map { it.code })
-                        .forEach { code ->
-                            val on = code in feedRegions
-                            FeedSourceChip(
-                                label = regionDisplayName(code),
-                                on = on,
-                                accent = accent,
-                                tokens = tokens,
-                                onClick = { onFeedRegionToggle(code, !on) },
-                            )
-                        }
-                }
+                RegionChipGrid(
+                    regions = (listOf(INDIA_COUNTRY_CODE, INTERNATIONAL_REGION_CODE) + SELECTABLE_COUNTRIES.map { it.code })
+                        .map { code -> RegionOption(code, regionDisplayName(code), code in feedRegions) },
+                    accent = accent,
+                    tokens = tokens,
+                    onToggle = onFeedRegionToggle,
+                )
             }
 
             // Feed sources section.

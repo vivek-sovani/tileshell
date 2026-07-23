@@ -214,6 +214,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(userName = name) }
     }
 
+    /** Master on/off switch for live-tile flipping/updates. */
+    suspend fun setLiveTilesEnabled(enabled: Boolean) {
+        store.updateData { it.copy(liveTilesEnabled = enabled) }
+    }
+
     /** Toggle following the device dark-mode setting (vs. the manual [dark] choice). */
     suspend fun setFollowSystemTheme(follow: Boolean) {
         store.updateData { it.copy(followSystemTheme = follow) }

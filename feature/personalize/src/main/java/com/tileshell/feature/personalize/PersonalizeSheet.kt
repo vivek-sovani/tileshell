@@ -63,11 +63,12 @@ import com.tileshell.core.design.Wallpapers
 import com.tileshell.core.design.Wallpapers.NONE_ID
 import com.tileshell.core.design.colorTokens
 import com.tileshell.core.design.wallpaperBackground
+import kotlin.math.roundToInt
 
 /**
  * The personalize bottom sheet (FR-7): a slide-up panel over a fading scrim with
  * a grip, a lowercase "personalize" title and the full prototype `buildSettings`
- * groups — dark/light segmented toggle, 14 accent swatches, transparent-tiles +
+ * groups — dark/light/auto segmented toggle, 14 accent swatches, transparent-tiles +
  * blur-wallpaper toggles, a tile-transparency slider, the wallpaper row (custom
  * photo + 6 bundled gradients) and a reset-start-layout action. Stateless — it
  * renders the passed values and reports changes via the callbacks, so the host
@@ -139,7 +140,6 @@ fun PersonalizeSheet(
     onDeviceStatusCardEnabledChange: (Boolean) -> Unit,
     userName: String,
     onUserNameChange: (String) -> Unit,
-    onAddLiveTile: (appId: String) -> Unit,
     onSystemSettings: () -> Unit,
     followSystemTheme: Boolean,
     onFollowSystemThemeChange: (Boolean) -> Unit,
@@ -154,11 +154,6 @@ fun PersonalizeSheet(
     onResetTileStyle: () -> Unit,
     photosSelected: Int,
     onPickPhotos: () -> Unit,
-    notificationsEnabled: Boolean,
-    onNotificationAccess: () -> Unit,
-    batteryOptimizationExempt: Boolean,
-    batteryGuidanceNote: String,
-    onBatteryExemption: () -> Unit,
     isDefaultLauncher: Boolean,
     onSetDefaultLauncher: () -> Unit,
     cornerRadius: Float,
@@ -178,12 +173,9 @@ fun PersonalizeSheet(
     lockLayout: Boolean,
     onLockLayoutChange: (Boolean) -> Unit,
     onClearPhotos: () -> Unit,
-    contactsGranted: Boolean,
-    calendarGranted: Boolean,
-    locationGranted: Boolean,
-    onRequestContacts: () -> Unit,
-    onRequestCalendar: () -> Unit,
-    onRequestLocation: () -> Unit,
+    /** Master on/off switch for live-tile flipping/updates. */
+    liveTilesEnabled: Boolean,
+    onLiveTilesEnabledChange: (Boolean) -> Unit,
     onAbout: () -> Unit,
     onPersonalizeGuide: () -> Unit,
     onFolders: () -> Unit,
@@ -191,6 +183,12 @@ fun PersonalizeSheet(
     edgeStripEnabled: Boolean,
     onEdgeStrip: () -> Unit,
     onBackupRestore: () -> Unit,
+    /** Opens the consolidated contacts/calendar/location/notifications sub-sheet. */
+    onNotificationsPermissions: () -> Unit,
+    /** Opens the news-region picker sub-sheet. */
+    onNewsRegion: () -> Unit,
+    /** Total selectable news regions (static descriptive count, not a live selection count). */
+    newsRegionCount: Int,
     onDismiss: () -> Unit,
     // In landscape the launcher splits into a feed (left) + Start (right) panel;
     // the sheet then docks to the right half over Start instead of full width.
@@ -304,124 +302,24 @@ fun PersonalizeSheet(
                 }
             }
 
-            // ---- theme ----
+            // ---- theme: flat dark/light/auto segmented row ----
             SettingGroup(label = "theme", tokens.fgDim) {
-                Column {
-                    ToggleRow(
-                        "follow system",
-                        on = followSystemTheme,
-                        accent = accent,
-                        tokens,
-                        onFollowSystemThemeChange,
-                    )
-                    if (!followSystemTheme) {
-                        Spacer(Modifier.height(14.dp))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(1.dp, tokens.tileLine),
-                        ) {
-                            SegCell("dark", selected = dark, accent = accent, fg = tokens.fg) {
-                                onThemeChange(true)
-                            }
-                            SegCell("light", selected = !dark, accent = accent, fg = tokens.fg) {
-                                onThemeChange(false)
-                            }
-                        }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, tokens.tileLine),
+                ) {
+                    SegCell("dark", selected = !followSystemTheme && dark, accent = accent, fg = tokens.fg) {
+                        onFollowSystemThemeChange(false)
+                        onThemeChange(true)
                     }
-                }
-            }
-
-            // ---- grid columns ----
-            SettingGroup(label = "grid columns", tokens.fgDim) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "how many small tiles fit across a row",
-                        color = tokens.fgDim,
-                        fontSize = 13.sp,
-                    )
-                    Text(
-                        "a medium tile spans 2 columns, a wide tile spans 4",
-                        color = tokens.fgDim,
-                        fontSize = 12.sp,
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(4, 5, 6).forEach { count ->
-                            val selected = columns == count
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(if (selected) accent else Color.Transparent)
-                                    .border(
-                                        1.dp,
-                                        if (selected) accent else tokens.tileLine,
-                                        RoundedCornerShape(20.dp),
-                                    )
-                                    .clickable { onColumnsChange(count) }
-                                    .padding(horizontal = 18.dp, vertical = 7.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    text = count.toString(),
-                                    color = if (selected) Color.White else tokens.fg,
-                                    fontSize = 13.sp,
-                                )
-                            }
-                        }
+                    SegCell("light", selected = !followSystemTheme && !dark, accent = accent, fg = tokens.fg) {
+                        onFollowSystemThemeChange(false)
+                        onThemeChange(false)
                     }
-                }
-            }
-
-            // ---- tile arrangement ----
-            SettingGroup(label = "tile arrangement", tokens.fgDim) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "how the grid closes gaps when a tile is removed or resized",
-                        color = tokens.fgDim,
-                        fontSize = 13.sp,
-                    )
-                    listOf(
-                        TilePackMode.STICKY to Pair("windows phone style", "a gap stays open until you drag a tile into it"),
-                        TilePackMode.DENSE to Pair("auto-arrange", "tiles always slide up to fill any gap"),
-                    ).forEach { (mode, labels) ->
-                        val (title, subtitle) = labels
-                        val selected = tilePackMode == mode
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(if (selected) accent.copy(alpha = 0.18f) else Color.Transparent)
-                                .border(
-                                    1.dp,
-                                    if (selected) accent else tokens.tileLine,
-                                    RoundedCornerShape(14.dp),
-                                )
-                                .clickable { onTilePackModeChange(mode) }
-                                .padding(horizontal = 14.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(title, color = tokens.fg, fontSize = 14.sp)
-                                Text(subtitle, color = tokens.fgDim, fontSize = 12.sp)
-                            }
-                            if (selected) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(10.dp)
-                                        .clip(CircleShape)
-                                        .background(accent),
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(2.dp))
+                    SegCell("auto", selected = followSystemTheme, accent = accent, fg = tokens.fg) {
+                        onFollowSystemThemeChange(true)
                     }
-                    Spacer(Modifier.height(6.dp))
-                    ToggleRow("lock layout", on = lockLayout, accent = accent, tokens, onLockLayoutChange)
-                    Text(
-                        "when on, long-pressing a tile never opens edit mode — nothing can be moved, resized, or removed by accident",
-                        color = tokens.fgDim,
-                        fontSize = 12.sp,
-                    )
                 }
             }
 
@@ -445,58 +343,41 @@ fun PersonalizeSheet(
                 }
             }
 
-            // ---- colour & fill ----
-            SettingGroup(label = "colour & fill", tokens.fgDim) {
-                ToggleRow(
-                    "tile colour from app icon",
-                    on = tileColorSource == TileColorSource.APP_ICON,
-                    accent = accent,
-                    tokens,
-                    onChange = { on ->
-                        onTileColorSourceChange(
-                            if (on) TileColorSource.APP_ICON else TileColorSource.GLOBAL_ACCENT,
-                        )
-                    },
-                )
-                Spacer(Modifier.height(14.dp))
-                ToggleRow(
-                    "gradient fill",
-                    on = tileFill == TileFill.GRADIENT,
-                    accent = accent,
-                    tokens,
-                    onChange = { on -> onTileFillChange(if (on) TileFill.GRADIENT else TileFill.FLAT) },
-                )
-            }
-
-            // ---- typography ----
-            SettingGroup(label = "typography", tokens.fgDim) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(
-                        FontStyle.SYSTEM to "system",
-                        FontStyle.OUTFIT to "outfit",
-                        FontStyle.NUNITO to "nunito",
-                    ).forEach { entry ->
-                        val style = entry.first
-                        val label = entry.second
-                        val selected = fontStyle == style
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(if (selected) accent else Color.Transparent)
-                                .border(
-                                    1.dp,
-                                    if (selected) accent else tokens.tileLine,
-                                    RoundedCornerShape(20.dp),
+            // ---- tile color source: label + compact pill, one inline row
+            // (mirrors ToggleRow's layout — no separate caps group label,
+            // matching the mockup's single-line presentation) ----
+            Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 18.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text("tile color source", color = tokens.fg, fontSize = 14.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(
+                            TileColorSource.GLOBAL_ACCENT to "accent",
+                            TileColorSource.APP_ICON to "app icon",
+                        ).forEach { (source, label) ->
+                            val selected = tileColorSource == source
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(if (selected) accent else Color.Transparent)
+                                    .border(
+                                        1.dp,
+                                        if (selected) accent else tokens.tileLine,
+                                        RoundedCornerShape(20.dp),
+                                    )
+                                    .clickable { onTileColorSourceChange(source) }
+                                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = label,
+                                    color = if (selected) Color.White else tokens.fg,
+                                    fontSize = 13.sp,
                                 )
-                                .clickable { onFontStyleChange(style) }
-                                .padding(horizontal = 14.dp, vertical = 7.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = label,
-                                color = if (selected) Color.White else tokens.fg,
-                                fontSize = 13.sp,
-                            )
+                            }
                         }
                     }
                 }
@@ -638,8 +519,9 @@ fun PersonalizeSheet(
 
             }
 
-            // ---- tile background ----
-            SettingGroup(label = "tile background", tokens.fgDim) {
+            // ---- tile style (merged: background style + transparency/blur +
+            // shape/spacing + gradient fill + reset) ----
+            SettingGroup(label = "tile style", tokens.fgDim) {
                 val currentBackground = currentTileBackgroundStyle(glass, tiledWallpaper)
 
                 // Same pattern as the wallpaper type selector above: picking an option
@@ -684,7 +566,10 @@ fun PersonalizeSheet(
                 // visible tile — tried it, caused an ANR).
                 if (currentBackground == TileBackgroundStyle.TRANSPARENT) {
                     Spacer(Modifier.height(14.dp))
-                    Text("tile transparency", color = tokens.fgDim, fontSize = 13.sp)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("tile transparency", color = tokens.fgDim, fontSize = 13.sp)
+                        Text("${(transparency * 100).roundToInt()}%", color = tokens.fgDim, fontSize = 13.sp)
+                    }
                     Spacer(Modifier.height(4.dp))
                     Slider(
                         value = transparency,
@@ -700,14 +585,15 @@ fun PersonalizeSheet(
                     Spacer(Modifier.height(14.dp))
                     ToggleRow("blur wallpaper", on = blur, accent = accent, tokens, onBlurChange)
                 }
-            }
 
-            // ---- tile style ----
-            SettingGroup(label = "tile style", tokens.fgDim) {
-                // -- shape & spacing --
-                Text("shape & spacing", color = tokens.fgDim, fontSize = 12.sp)
-                Spacer(Modifier.height(10.dp))
-                Text("corner radius", color = tokens.fgDim, fontSize = 13.sp)
+                Spacer(Modifier.height(18.dp))
+                HorizontalDivider(color = tokens.tileLine)
+                Spacer(Modifier.height(18.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("corner radius", color = tokens.fgDim, fontSize = 13.sp)
+                    Text("${cornerRadius.roundToInt()}", color = tokens.fgDim, fontSize = 13.sp)
+                }
                 Spacer(Modifier.height(4.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -740,7 +626,10 @@ fun PersonalizeSheet(
                 // gaps never fragment the show-through wallpaper.
                 if (!tiledWallpaper) {
                     Spacer(Modifier.height(14.dp))
-                    Text("tile spacing", color = tokens.fgDim, fontSize = 13.sp)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("tile spacing", color = tokens.fgDim, fontSize = 13.sp)
+                        Text("${tileGap.roundToInt()}", color = tokens.fgDim, fontSize = 13.sp)
+                    }
                     Spacer(Modifier.height(4.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -768,6 +657,15 @@ fun PersonalizeSheet(
                     }
                 }
 
+                Spacer(Modifier.height(14.dp))
+                ToggleRow(
+                    "gradient fill",
+                    on = tileFill == TileFill.GRADIENT,
+                    accent = accent,
+                    tokens,
+                    onChange = { on -> onTileFillChange(if (on) TileFill.GRADIENT else TileFill.FLAT) },
+                )
+
                 Spacer(Modifier.height(18.dp))
                 HorizontalDivider(color = tokens.tileLine)
                 Spacer(Modifier.height(18.dp))
@@ -792,30 +690,119 @@ fun PersonalizeSheet(
                 }
             }
 
-            // ---- live tiles (re-add a deleted clock/weather/calendar tile) ----
-            SettingGroup(label = "live tiles", tokens.fgDim) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            // ---- grid columns ----
+            SettingGroup(label = "grid columns", tokens.fgDim) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        "re-add a deleted live tile to the start screen",
+                        "how many small tiles fit across a row",
                         color = tokens.fgDim,
                         fontSize = 13.sp,
                     )
+                    Text(
+                        "a medium tile spans 2 columns, a wide tile spans 4",
+                        color = tokens.fgDim,
+                        fontSize = 12.sp,
+                    )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("clock" to "clock", "weather" to "weather", "calendar" to "calendar")
-                            .forEach { (appId, label) ->
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .border(1.dp, tokens.tileLine, RoundedCornerShape(10.dp))
-                                        .clickable { onAddLiveTile(appId) }
-                                        .padding(vertical = 10.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text("+ $label", color = accent, fontSize = 13.sp)
-                                }
+                        listOf(4, 5, 6).forEach { count ->
+                            val selected = columns == count
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(if (selected) accent else Color.Transparent)
+                                    .border(
+                                        1.dp,
+                                        if (selected) accent else tokens.tileLine,
+                                        RoundedCornerShape(20.dp),
+                                    )
+                                    .clickable { onColumnsChange(count) }
+                                    .padding(horizontal = 18.dp, vertical = 7.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = count.toString(),
+                                    color = if (selected) Color.White else tokens.fg,
+                                    fontSize = 13.sp,
+                                )
                             }
+                        }
                     }
+                }
+            }
+
+            // ---- arrangement: compact sticky | dense segmented pill ----
+            SettingGroup(label = "arrangement", tokens.fgDim) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "how the grid closes gaps when a tile is removed or resized",
+                        color = tokens.fgDim,
+                        fontSize = 13.sp,
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, tokens.tileLine),
+                    ) {
+                        SegCell("sticky", selected = tilePackMode == TilePackMode.STICKY, accent = accent, fg = tokens.fg) {
+                            onTilePackModeChange(TilePackMode.STICKY)
+                        }
+                        SegCell("dense", selected = tilePackMode == TilePackMode.DENSE, accent = accent, fg = tokens.fg) {
+                            onTilePackModeChange(TilePackMode.DENSE)
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    ToggleRow("lock layout", on = lockLayout, accent = accent, tokens, onLockLayoutChange)
+                    Text(
+                        "when on, long-pressing a tile never opens edit mode — nothing can be moved, resized, or removed by accident",
+                        color = tokens.fgDim,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
+
+            // ---- typography ----
+            SettingGroup(label = "typography", tokens.fgDim) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        FontStyle.SYSTEM to "system",
+                        FontStyle.OUTFIT to "outfit",
+                        FontStyle.NUNITO to "nunito",
+                    ).forEach { entry ->
+                        val style = entry.first
+                        val label = entry.second
+                        val selected = fontStyle == style
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(if (selected) accent else Color.Transparent)
+                                .border(
+                                    1.dp,
+                                    if (selected) accent else tokens.tileLine,
+                                    RoundedCornerShape(20.dp),
+                                )
+                                .clickable { onFontStyleChange(style) }
+                                .padding(horizontal = 14.dp, vertical = 7.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (selected) Color.White else tokens.fg,
+                                fontSize = 13.sp,
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ---- live tiles: master on/off switch ----
+            SettingGroup(label = "live tiles", tokens.fgDim) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ToggleRow("live tile updates", on = liveTilesEnabled, accent = accent, tokens, onLiveTilesEnabledChange)
+                    Text(
+                        "pauses clock/weather/notification flipping when off — badges and counts keep updating",
+                        color = tokens.fgDim,
+                        fontSize = 12.sp,
+                    )
                 }
             }
 
@@ -852,8 +839,8 @@ fun PersonalizeSheet(
                 }
             }
 
-            // ---- folders (category folders) ----
-            SettingGroup(label = "folders", tokens.fgDim) {
+            // ---- folders & categories ----
+            SettingGroup(label = "folders & categories", tokens.fgDim) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -865,6 +852,50 @@ fun PersonalizeSheet(
                         Text(text = "create category folders", color = tokens.fg, fontSize = 14.sp)
                         Text(
                             text = "group apps by what they do — communication, social, shopping…",
+                            color = tokens.fgDim,
+                            fontSize = 12.sp,
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(text = "›", color = accent, fontSize = 16.sp)
+                }
+            }
+
+            // ---- notifications & permissions (consolidated sub-sheet) ----
+            SettingGroup(label = "notifications & permissions", tokens.fgDim) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onNotificationsPermissions)
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "contacts, calendar, location & badges", color = tokens.fg, fontSize = 14.sp)
+                        Text(
+                            text = "manage permissions and notification access",
+                            color = tokens.fgDim,
+                            fontSize = 12.sp,
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(text = "›", color = accent, fontSize = 16.sp)
+                }
+            }
+
+            // ---- news region (sub-sheet) ----
+            SettingGroup(label = "news region", tokens.fgDim) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onNewsRegion)
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "choose news regions", color = tokens.fg, fontSize = 14.sp)
+                        Text(
+                            text = "$newsRegionCount countries available",
                             color = tokens.fgDim,
                             fontSize = 12.sp,
                         )
@@ -958,84 +989,6 @@ fun PersonalizeSheet(
                         color = accent,
                         fontSize = 16.sp,
                     )
-                }
-            }
-
-            // ---- permissions (live-tile data sources) ----
-            SettingGroup(label = "permissions", tokens.fgDim) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    PermissionRow(
-                        label = "contacts",
-                        description = "people tile · quick search",
-                        granted = contactsGranted,
-                        accent = accent,
-                        tokens = tokens,
-                        onClick = onRequestContacts,
-                    )
-                    PermissionRow(
-                        label = "calendar",
-                        description = "calendar tile",
-                        granted = calendarGranted,
-                        accent = accent,
-                        tokens = tokens,
-                        onClick = onRequestCalendar,
-                    )
-                    PermissionRow(
-                        label = "location",
-                        description = "weather tile",
-                        granted = locationGranted,
-                        accent = accent,
-                        tokens = tokens,
-                        onClick = onRequestLocation,
-                    )
-                }
-            }
-
-            // ---- notifications (FR-1.2 / FR-2 opt-in) ----
-            SettingGroup(label = "notifications", tokens.fgDim) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onNotificationAccess)
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(text = "badges & live mail", color = tokens.fg, fontSize = 14.sp)
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        text = if (notificationsEnabled) "on ›" else "allow access ›",
-                        color = if (notificationsEnabled) accent else tokens.fgDim,
-                        fontSize = 13.sp,
-                    )
-                }
-                if (notificationsEnabled && !batteryOptimizationExempt) {
-                    Spacer(Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(onClick = onBatteryExemption)
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "background activity",
-                                color = tokens.fg,
-                                fontSize = 14.sp,
-                            )
-                            Text(
-                                text = if (batteryGuidanceNote.isNotEmpty()) {
-                                    batteryGuidanceNote
-                                } else {
-                                    "exempt from battery optimisation for reliable badges"
-                                },
-                                color = tokens.fgDim,
-                                fontSize = 12.sp,
-                            )
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        Text(text = "fix ›", color = accent, fontSize = 13.sp)
-                    }
                 }
             }
 
@@ -1235,35 +1188,6 @@ private fun RowScope.SegCell(
             color = if (selected) Color.White else fg,
             fontSize = 14.sp,
             textAlign = TextAlign.Center,
-        )
-    }
-}
-
-/** A permission row: label + description on the left, status / "allow" on the right. */
-@Composable
-private fun PermissionRow(
-    label: String,
-    description: String,
-    granted: Boolean,
-    accent: Color,
-    tokens: com.tileshell.core.design.ColorTokens,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = !granted, onClick = onClick)
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = label, color = tokens.fg, fontSize = 14.sp)
-            Text(text = description, color = tokens.fgDim, fontSize = 12.sp)
-        }
-        Text(
-            text = if (granted) "allowed ✓" else "allow ›",
-            color = if (granted) accent else tokens.fgDim,
-            fontSize = 13.sp,
         )
     }
 }

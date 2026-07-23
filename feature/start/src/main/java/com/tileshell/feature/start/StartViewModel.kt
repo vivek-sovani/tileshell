@@ -200,6 +200,14 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val _hiddenAppsOpen = MutableStateFlow(false)
     val hiddenAppsOpen: StateFlow<Boolean> = _hiddenAppsOpen.asStateFlow()
 
+    /** True while the notifications & permissions sheet is open (personalize → notifications & permissions). */
+    private val _notificationsPermissionsOpen = MutableStateFlow(false)
+    val notificationsPermissionsOpen: StateFlow<Boolean> = _notificationsPermissionsOpen.asStateFlow()
+
+    /** True while the news-region sheet is open (personalize → news region). */
+    private val _newsRegionOpen = MutableStateFlow(false)
+    val newsRegionOpen: StateFlow<Boolean> = _newsRegionOpen.asStateFlow()
+
     /** True while quick search is open (two-finger swipe-down on Start). */
     private val _searchOpen = MutableStateFlow(false)
     val searchOpen: StateFlow<Boolean> = _searchOpen.asStateFlow()
@@ -391,6 +399,26 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         _hiddenAppsOpen.value = false
     }
 
+    /** Open the notifications & permissions sheet (personalize → notifications & permissions). */
+    fun openNotificationsPermissions() {
+        _notificationsPermissionsOpen.value = true
+    }
+
+    /** Close the notifications & permissions sheet. */
+    fun closeNotificationsPermissions() {
+        _notificationsPermissionsOpen.value = false
+    }
+
+    /** Open the news-region sheet (personalize → news region). */
+    fun openNewsRegion() {
+        _newsRegionOpen.value = true
+    }
+
+    /** Close the news-region sheet. */
+    fun closeNewsRegion() {
+        _newsRegionOpen.value = false
+    }
+
     /** Open quick search (two-finger swipe-down on Start). Disables the pager swipe. */
     fun openEdgeStrip() { _edgeStripOpen.value = true }
     fun closeEdgeStrip() { _edgeStripOpen.value = false }
@@ -567,6 +595,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Set the name shown in the feed's "good morning, `<name>`" greeting. */
     fun setUserName(name: String) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setUserName(name) }
+    }
+
+    /** Master on/off switch for live-tile flipping/updates. */
+    fun setLiveTilesEnabled(enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setLiveTilesEnabled(enabled) }
     }
 
     /** Set the tile corner radius 0–12 dp. */
@@ -823,6 +856,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         closeFolders()
         closeHiddenApps()
         closeBackup()
+        closeNotificationsPermissions()
+        closeNewsRegion()
         closeEdgeStrip()
         closeQuickPanel()
         collapseFolder()

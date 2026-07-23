@@ -235,4 +235,16 @@ class SettingsCodecTest {
         assertEquals("vivek", SettingsCodec.decode(SettingsCodec.encode(s)).userName)
         assertEquals("", SettingsCodec.decode("userName=").userName)
     }
+
+    @Test
+    fun `liveTilesEnabled decodes and bad value keeps default, default is on`() {
+        assertEquals(true, LauncherSettings().liveTilesEnabled)
+        assertEquals(false, SettingsCodec.decode("liveTiles=false").liveTilesEnabled)
+        assertEquals(
+            LauncherSettings().liveTilesEnabled,
+            SettingsCodec.decode("liveTiles=nope").liveTilesEnabled,
+        )
+        val s = LauncherSettings(liveTilesEnabled = false)
+        assertEquals(false, SettingsCodec.decode(SettingsCodec.encode(s)).liveTilesEnabled)
+    }
 }
