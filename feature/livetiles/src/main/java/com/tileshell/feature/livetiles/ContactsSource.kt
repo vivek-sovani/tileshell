@@ -170,6 +170,20 @@ fun primaryPhoneNumber(context: Context, contactId: Long): String? {
     }.getOrNull()
 }
 
+/**
+ * The device owner's own name (the "me" contact,
+ * [ContactsContract.Profile]), or null if unset/inaccessible. Used to
+ * best-effort seed the feed greeting's name once on first grant — caller must
+ * hold READ_CONTACTS; a denied/missing profile just contributes nothing.
+ */
+fun queryProfileName(context: Context): String? {
+    val projection = arrayOf(ContactsContract.Profile.DISPLAY_NAME_PRIMARY)
+    return runCatching {
+        context.contentResolver.query(ContactsContract.Profile.CONTENT_URI, projection, null, null, null)
+            ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0)?.trim()?.ifBlank { null } else null }
+    }.getOrNull()
+}
+
 /** The contact's current profile-photo thumbnail URI, or null if it has none. */
 fun photoUriFor(context: Context, contactId: Long): String? {
     val projection = arrayOf(ContactsContract.Contacts.PHOTO_THUMBNAIL_URI)

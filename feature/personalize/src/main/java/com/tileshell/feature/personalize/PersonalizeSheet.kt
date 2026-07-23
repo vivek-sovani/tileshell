@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
@@ -42,8 +44,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -132,6 +137,8 @@ fun PersonalizeSheet(
     onFeedEnabledChange: (Boolean) -> Unit,
     deviceStatusCardEnabled: Boolean,
     onDeviceStatusCardEnabledChange: (Boolean) -> Unit,
+    userName: String,
+    onUserNameChange: (String) -> Unit,
     onAddLiveTile: (appId: String) -> Unit,
     onSystemSettings: () -> Unit,
     followSystemTheme: Boolean,
@@ -902,6 +909,29 @@ fun PersonalizeSheet(
                         tokens,
                         onDeviceStatusCardEnabledChange,
                     )
+                    Column {
+                        Text("your name", color = tokens.fgDim, fontSize = 13.sp)
+                        Spacer(Modifier.height(6.dp))
+                        BasicTextField(
+                            value = userName,
+                            onValueChange = onUserNameChange,
+                            singleLine = true,
+                            textStyle = TextStyle(color = tokens.fg, fontSize = 14.sp),
+                            cursorBrush = SolidColor(accent),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(tokens.tileLine.copy(alpha = 0.3f))
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            decorationBox = { inner ->
+                                if (userName.isEmpty()) {
+                                    Text("shown in the feed's greeting", color = tokens.fgDim, fontSize = 14.sp)
+                                }
+                                inner()
+                            },
+                        )
+                    }
                 }
             }
 

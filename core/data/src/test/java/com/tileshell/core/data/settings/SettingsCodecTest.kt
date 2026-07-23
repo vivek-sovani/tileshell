@@ -227,4 +227,12 @@ class SettingsCodecTest {
         val s = LauncherSettings(deviceStatusCardEnabled = false)
         assertEquals(false, SettingsCodec.decode(SettingsCodec.encode(s)).deviceStatusCardEnabled)
     }
+
+    @Test
+    fun `userName round-trips and defaults to blank`() {
+        assertEquals("", LauncherSettings().userName)
+        val s = LauncherSettings(userName = "vivek")
+        assertEquals("vivek", SettingsCodec.decode(SettingsCodec.encode(s)).userName)
+        assertEquals("", SettingsCodec.decode("userName=").userName)
+    }
 }

@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -64,8 +65,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tileshell.core.design.TileIcons
+import com.tileshell.core.design.WallpaperGradient
 import com.tileshell.feature.personalize.FeedSourceItem
 import com.tileshell.core.design.LocalColorTokens
+import com.tileshell.feature.start.WallpaperBackground
 import com.tileshell.feature.livetiles.CalendarFace
 import com.tileshell.feature.livetiles.Connectivity
 import com.tileshell.feature.livetiles.rememberDeviceStatus
@@ -108,10 +111,19 @@ import java.util.Calendar
  *   poll so now-playing (art + play state) stays fresh here, since this surface
  *   sits outside the live-tile gate and per-app media callbacks are unreliable.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun FeedPage(
     accent: Color,
     statusBarTopPx: Float,
+    userName: String,
+    wallpaper: WallpaperGradient,
+    customWallpaperUri: String?,
+    wallpaperAlignX: Float,
+    wallpaperAlignY: Float,
+    wallpaperZoom: Float,
+    dark: Boolean,
+    noWallpaper: Boolean,
     feeds: List<FeedSourceItem>,
     onToggleFeed: (url: String, enabled: Boolean) -> Unit,
     onToggleCategory: (category: String, enabled: Boolean) -> Unit,
@@ -182,31 +194,41 @@ fun FeedPage(
     val clock = feedClock12(now)
     val topPad = with(density) { statusBarTopPx.toDp() } + 8.dp
 
-    var tab by rememberSaveable { mutableStateOf(FeedTab.GLANCE) }
     var feedSettingsOpen by rememberSaveable { mutableStateOf(false) }
+    var categoryFilter by rememberSaveable { mutableStateOf<String?>(null) }
 
     Box(
         modifier = modifier
-            .fillMaxSize()
-            .background(tokens.bg),
+            .fillMaxSize(),
     ) {
+    if (noWallpaper) {
+        Box(modifier = Modifier.fillMaxSize().background(tokens.bg))
+    } else {
+        // Always blurred regardless of Start's own "blur" toggle — this is a
+        // denser reading surface where a sharp photo/gradient behind small text
+        // cards would compete for attention (see docs/DECISIONS.md).
+        WallpaperBackground(
+            gradient = wallpaper,
+            customWallpaperUri = customWallpaperUri,
+            blur = true,
+            alignX = wallpaperAlignX,
+            alignY = wallpaperAlignY,
+            zoom = wallpaperZoom,
+            dark = dark,
+        )
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(start = 14.dp, end = 14.dp, top = topPad),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        SearchPill(accent = accent, tokens = tokens, onOpenQuickSearch = onOpenQuickSearch)
+        GreetingHeader(userName = userName, hour = now.get(Calendar.HOUR_OF_DAY), tokens = tokens)
         GlanceRow(glance = glance, clock = clock, tokens = tokens)
-        FeedTabs(
-            selected = tab,
-            accent = accent,
-            tokens = tokens,
-            onSelect = { tab = it },
-            onSettings = { feedSettingsOpen = true },
-        )
+        SearchPill(accent = accent, tokens = tokens, onOpenQuickSearch = onOpenQuickSearch)
 
-        // Tab content scrolls independently below the persistent header.
+        // Everything below scrolls as one continuous feed — no more glance/news
+        // tab switch.
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -215,58 +237,91 @@ fun FeedPage(
                 .navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            when (tab) {
-                FeedTab.GLANCE -> {
-                    SectionLabel("weather", tokens.fgDim)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
                     WeatherCard(
                         snapshot = snapshot,
                         accent = accent,
                         onClick = { onWeatherDetails(("weather " + (snapshot?.place ?: "")).trim()) },
                     )
-
-                    SectionHeader("today", actionText = "add", accent = accent, tokens = tokens, showPlus = true, onAction = onAddSchedule)
+                }
+                Box(modifier = Modifier.weight(1f)) {
                     AgendaCard(
                         agenda = agenda,
                         granted = calGranted,
                         accent = accent,
+                        onAddSchedule = onAddSchedule,
                         onClick = { openCalendar(context) },
                     )
+                }
+            }
 
-                    if (nowPlaying != null) {
-                        NowPlayingCard(
-                            nowPlaying = nowPlaying,
-                            packageName = nowPlayingPackage,
-                            art = nowPlayingPackage?.let { artwork[it] },
-                            accent = accent,
-                            onClick = nowPlayingPackage?.let { pkg -> { launchPackage(context, pkg) } },
+            if (nowPlaying != null) {
+                NowPlayingCard(
+                    nowPlaying = nowPlaying,
+                    packageName = nowPlayingPackage,
+                    art = nowPlayingPackage?.let { artwork[it] },
+                    accent = accent,
+                    onClick = nowPlayingPackage?.let { pkg -> { launchPackage(context, pkg) } },
+                )
+            }
+
+            WidgetSection(accent = accent, tokens = tokens)
+
+            if (deviceStatusCardEnabled) {
+                SectionLabel("device status", tokens.fgDim)
+                DeviceStatusCard(tokens = tokens)
+            }
+
+            NewsHeader(
+                accent = accent,
+                tokens = tokens,
+                onRefresh = onRefresh,
+                onSettings = { feedSettingsOpen = true },
+            )
+            val articles = feedData.articles
+            if (articles.isEmpty()) {
+                GCard(tokens) {
+                    Text(
+                        "no articles yet — add news feeds via feed settings ⚙",
+                        color = tokens.fgDim,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(16.dp),
+                    )
+                }
+            } else {
+                val categories = remember(articles) { articles.map { it.tag }.distinct() }
+                if (categories.size > 1) {
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        FeedSourceChip("all", categoryFilter == null, accent, tokens) { categoryFilter = null }
+                        categories.forEach { tag ->
+                            FeedSourceChip(tag, categoryFilter == tag, accent, tokens) { categoryFilter = tag }
+                        }
+                    }
+                }
+                val filteredArticles = remember(articles, categoryFilter) {
+                    articles.filter { categoryFilter == null || it.tag == categoryFilter }
+                }
+                if (filteredArticles.isEmpty()) {
+                    GCard(tokens) {
+                        Text(
+                            "no articles in this category",
+                            color = tokens.fgDim,
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(16.dp),
                         )
                     }
-
-                    if (deviceStatusCardEnabled) {
-                        SectionLabel("device status", tokens.fgDim)
-                        DeviceStatusCard(tokens = tokens)
-                    }
-
-                    WidgetSection(accent = accent, tokens = tokens)
-                }
-
-                FeedTab.NEWS -> {
-                    SectionHeader("discover", actionText = "refresh", accent = accent, tokens = tokens, onAction = onRefresh)
-                    val articles = feedData.articles
-                    if (articles.isEmpty()) {
-                        GCard(tokens) {
-                            Text(
-                                "no articles yet — add news feeds via feed settings ⚙",
-                                color = tokens.fgDim,
-                                fontSize = 14.sp,
-                                modifier = Modifier.padding(16.dp),
-                            )
-                        }
-                    } else {
-                        val nowMs = now.timeInMillis
-                        articles.forEach { article ->
-                            ArticleCard(article, nowMs, accent, tokens) { onOpenArticle(article.link) }
-                        }
+                } else {
+                    val nowMs = now.timeInMillis
+                    filteredArticles.forEach { article ->
+                        ArticleCard(article, nowMs, accent, tokens) { onOpenArticle(article.link) }
                     }
                 }
             }
@@ -290,52 +345,65 @@ fun FeedPage(
     }  // Box
 }
 
-private enum class FeedTab { GLANCE, NEWS }
-
-/** Two-segment tab selector (glance | news) with a trailing settings icon. */
+/**
+ * "good morning, `<name>`" — the time-of-day bucket from [greetingFor], with the
+ * name (if any) rendered in an emphasized italic. No comma/name at all when
+ * [userName] is blank, matching the launcher's existing graceful-degrade
+ * convention (weather/calendar do the same when a permission is denied).
+ */
 @Composable
-private fun FeedTabs(
-    selected: FeedTab,
+private fun GreetingHeader(userName: String, hour: Int, tokens: com.tileshell.core.design.ColorTokens) {
+    val greeting = greetingFor(hour)
+    Row(modifier = Modifier.padding(horizontal = 6.dp)) {
+        Text(
+            text = if (userName.isBlank()) greeting else "$greeting, ",
+            color = tokens.fg,
+            fontSize = 26.sp,
+            fontWeight = FontWeight.Light,
+        )
+        if (userName.isNotBlank()) {
+            Text(
+                text = userName,
+                color = tokens.fg,
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Light,
+                fontStyle = FontStyle.Italic,
+            )
+        }
+    }
+}
+
+/** The inline "news" section header: label + refresh action + settings gear. */
+@Composable
+private fun NewsHeader(
     accent: Color,
     tokens: com.tileshell.core.design.ColorTokens,
-    onSelect: (FeedTab) -> Unit,
+    onRefresh: () -> Unit,
     onSettings: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        FeedTab.values().forEach { t ->
-            val on = t == selected
-            Column(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { onSelect(t) }
-                    .padding(vertical = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    if (t == FeedTab.GLANCE) "glance" else "news",
-                    color = if (on) accent else tokens.fgDim,
-                    fontSize = 16.sp,
-                    fontWeight = if (on) FontWeight.Medium else FontWeight.Normal,
-                )
-                Spacer(Modifier.height(3.dp))
-                Box(
-                    modifier = Modifier
-                        .height(2.dp)
-                        .width(if (on) 22.dp else 0.dp)
-                        .clip(RoundedCornerShape(1.dp))
-                        .background(if (on) accent else Color.Transparent),
-                )
-            }
-        }
-        Spacer(Modifier.weight(1f))
-        // Settings gear — opens FeedSettingsSheet.
+        Text(
+            "news",
+            color = tokens.fgDim,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(start = 6.dp).weight(1f),
+        )
+        Text(
+            "refresh",
+            color = accent,
+            fontSize = 13.sp,
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(onClick = onRefresh)
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+        Spacer(Modifier.width(2.dp))
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .size(32.dp)
                 .clip(CircleShape)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -348,7 +416,7 @@ private fun FeedTabs(
                 imageVector = TileIcons["settings"],
                 contentDescription = "feed settings",
                 tint = tokens.fgDim,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(18.dp),
             )
         }
     }
@@ -391,7 +459,7 @@ private fun SearchPill(
             )
         }
         Spacer(Modifier.width(11.dp))
-        Text("search or ask ai", color = tokens.fgDim, fontSize = 16.sp)
+        Text("search apps, contacts, web", color = tokens.fgDim, fontSize = 16.sp)
     }
 }
 
@@ -490,6 +558,11 @@ private fun AccentCard(
     ) { content() }
 }
 
+/**
+ * Condensed for the half-width weather+today row (FR-7 glance restyle): icon +
+ * big temp + condition + one "h/l" line — no room at half width for the
+ * separate now/high/low stat trio the full-width version used to show.
+ */
 @Composable
 private fun WeatherCard(
     snapshot: com.tileshell.feature.livetiles.WeatherSnapshot?,
@@ -497,13 +570,13 @@ private fun WeatherCard(
     onClick: () -> Unit,
 ) {
     AccentCard(accent, onClick = onClick) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
             if (snapshot == null) {
-                Text("weather unavailable", color = OnAccent, fontSize = 16.sp)
+                Text("weather unavailable", color = OnAccent, fontSize = 14.sp)
                 Text(
                     "set a location or allow location access",
                     color = OnAccentDim,
-                    fontSize = 13.sp,
+                    fontSize = 11.sp,
                     modifier = Modifier.padding(top = 3.dp),
                 )
                 return@Column
@@ -513,23 +586,28 @@ private fun WeatherCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top,
             ) {
-                Column {
-                    Text(snapshot.place.ifEmpty { "your location" }, color = OnAccent, fontSize = 18.sp)
-                    Text(snapshot.condition, color = OnAccentDim, fontSize = 13.sp, modifier = Modifier.padding(top = 3.dp))
-                }
-                Text("${snapshot.tempC}°", color = OnAccent, fontSize = 42.sp, fontWeight = FontWeight.Thin)
+                Text("${snapshot.tempC}°", color = OnAccent, fontSize = 34.sp, fontWeight = FontWeight.Thin)
+                Icon(
+                    imageVector = TileIcons["weather"],
+                    contentDescription = null,
+                    tint = OnAccent,
+                    modifier = Modifier.size(20.dp),
+                )
             }
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                StatCol("now", "${snapshot.tempC}°")
-                StatCol("high", "${snapshot.highC}°")
-                StatCol("low", "${snapshot.lowC}°")
-            }
-            if (snapshot.detail.isNotEmpty()) {
-                Text(snapshot.detail, color = OnAccentDim, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
-            }
+            Text(
+                snapshot.condition,
+                color = OnAccentDim,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+            Text(
+                "h ${snapshot.highC}° · l ${snapshot.lowC}°",
+                color = OnAccentDim,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(top = 6.dp),
+            )
         }
     }
 }
@@ -590,41 +668,62 @@ private fun DeviceStatusStat(icon: String, text: String, tokens: com.tileshell.c
     }
 }
 
-@Composable
-private fun StatCol(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, color = OnAccentDim, fontSize = 12.sp)
-        Spacer(Modifier.height(6.dp))
-        Text(value, color = OnAccent, fontSize = 14.sp)
-    }
-}
-
+/**
+ * Condensed for the half-width weather+today row: the "today" caption + add
+ * action now live inside the card itself (mirrors the mockup) instead of a
+ * separate [SectionHeader] above it.
+ */
 @Composable
 private fun AgendaCard(
     agenda: CalendarFace,
     granted: Boolean,
     accent: Color,
+    onAddSchedule: () -> Unit,
     onClick: () -> Unit,
 ) {
     AccentCard(accent, onClick = onClick) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("today", color = OnAccentDim, fontSize = 12.sp)
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onAddSchedule,
+                        )
+                        .padding(4.dp),
+                ) {
+                    Canvas(modifier = Modifier.size(12.dp)) {
+                        val s = size.width
+                        drawLine(OnAccent, Offset(s / 2f, s * 0.1f), Offset(s / 2f, s * 0.9f), strokeWidth = s * 0.14f, cap = StrokeCap.Round)
+                        drawLine(OnAccent, Offset(s * 0.1f, s / 2f), Offset(s * 0.9f, s / 2f), strokeWidth = s * 0.14f, cap = StrokeCap.Round)
+                    }
+                }
+            }
+            Spacer(Modifier.height(6.dp))
             val events = listOfNotNull(agenda.next, agenda.following)
             when {
-                !granted -> Text("allow calendar to see your day", color = OnAccentDim, fontSize = 14.sp)
-                events.isEmpty() -> Text("nothing on your calendar today", color = OnAccentDim, fontSize = 14.sp)
+                !granted -> Text("allow calendar to see your day", color = OnAccentDim, fontSize = 12.sp)
+                events.isEmpty() -> Text("nothing on your calendar today", color = OnAccentDim, fontSize = 12.sp)
                 else -> events.forEachIndexed { i, e ->
-                    if (i > 0) Spacer(Modifier.height(12.dp))
+                    if (i > 0) Spacer(Modifier.height(10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
                                 .width(3.dp)
-                                .height(34.dp)
+                                .height(30.dp)
                                 .clip(RoundedCornerShape(2.dp))
                                 .background(OnAccent),
                         )
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(10.dp))
                         Column {
-                            Text(e.title.ifEmpty { "(busy)" }, color = OnAccent, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(e.title.ifEmpty { "(busy)" }, color = OnAccent, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(e.timeLine, color = OnAccentDim, fontSize = 11.sp)
                         }
                     }

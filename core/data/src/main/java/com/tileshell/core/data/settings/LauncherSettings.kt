@@ -81,6 +81,10 @@ enum class TileColorSource { GLOBAL_ACCENT, APP_ICON }
  * @property deviceStatusCardEnabled whether the feed page's glance tab shows the
  *   read-only device status card (battery, storage, connectivity, next alarm —
  *   see docs/QUICK-PANEL-SPEC.md §5). Default on; toggled from Personalize.
+ * @property userName the name shown in the feed's "good morning, `<name>`"
+ *   greeting. Blank by default; best-effort auto-seeded once from the device's
+ *   own contact profile (see `StartViewModel.init`), and freely editable from
+ *   Personalize afterward. Blank renders the greeting with no name/comma.
  */
 data class LauncherSettings(
     val followSystemTheme: Boolean = true,
@@ -141,6 +145,7 @@ data class LauncherSettings(
     val edgeStripHandleSize: String = "thick",
     val lockLayout: Boolean = false,
     val deviceStatusCardEnabled: Boolean = true,
+    val userName: String = "",
 ) {
     companion object {
         const val DEFAULT_COLUMNS = 4
@@ -196,7 +201,8 @@ object SettingsCodec {
         append("edgeStripBg=").append(settings.edgeStripBackgroundId).append('\n')
         append("edgeStripHandleSize=").append(settings.edgeStripHandleSize).append('\n')
         append("lockLayout=").append(settings.lockLayout).append('\n')
-        append("deviceStatusCard=").append(settings.deviceStatusCardEnabled)
+        append("deviceStatusCard=").append(settings.deviceStatusCardEnabled).append('\n')
+        append("userName=").append(settings.userName)
     }
 
     fun decode(text: String): LauncherSettings {
@@ -234,6 +240,7 @@ object SettingsCodec {
         var edgeStripHandleSize = d.edgeStripHandleSize
         var lockLayout = d.lockLayout
         var deviceStatusCardEnabled = d.deviceStatusCardEnabled
+        var userName = d.userName
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
             if (sep <= 0) return@forEach
@@ -286,6 +293,7 @@ object SettingsCodec {
                 "lockLayout" -> lockLayout = value.toBooleanStrictOrNull() ?: lockLayout
                 "deviceStatusCard" -> deviceStatusCardEnabled =
                     value.toBooleanStrictOrNull() ?: deviceStatusCardEnabled
+                "userName" -> userName = value
             }
         }
         return LauncherSettings(
@@ -322,6 +330,7 @@ object SettingsCodec {
             edgeStripHandleSize = edgeStripHandleSize,
             lockLayout = lockLayout,
             deviceStatusCardEnabled = deviceStatusCardEnabled,
+            userName = userName,
         )
     }
 }

@@ -209,6 +209,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(deviceStatusCardEnabled = enabled) }
     }
 
+    /** Set the name shown in the feed's "good morning, `<name>`" greeting. */
+    suspend fun setUserName(name: String) {
+        store.updateData { it.copy(userName = name) }
+    }
+
     /** Toggle following the device dark-mode setting (vs. the manual [dark] choice). */
     suspend fun setFollowSystemTheme(follow: Boolean) {
         store.updateData { it.copy(followSystemTheme = follow) }

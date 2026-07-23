@@ -1,13 +1,16 @@
 package com.tileshell.feature.start
 
+import android.Manifest
 import android.app.Application
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.pm.LauncherApps
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.os.UserHandle
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tileshell.core.data.AppCatalogRepository
@@ -34,6 +37,7 @@ import com.tileshell.feature.livetiles.FeedSource
 import com.tileshell.feature.livetiles.FeedStore
 import com.tileshell.feature.livetiles.PhotosStore
 import com.tileshell.feature.livetiles.WallpaperSlideshowStore
+import com.tileshell.feature.livetiles.queryProfileName
 import com.tileshell.feature.start.feed.HostedWidget
 import com.tileshell.feature.start.feed.WidgetData
 import com.tileshell.feature.start.feed.WidgetStore
@@ -290,6 +294,19 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             feedStore.seedRegionDefaults(java.util.Locale.getDefault().country)
             feedStore.reconcileDefaults()
         }
+        // Best-effort, one-time: seed the feed greeting's name from the device's
+        // own contact profile, same shape as seedRegionDefaults above — only
+        // while the setting is still blank, so it never overwrites a name the
+        // user has since typed in or deliberately cleared from Personalize.
+        viewModelScope.launch(Dispatchers.IO) {
+            val current = settingsRepository.settings.first()
+            if (current.userName.isBlank() &&
+                ContextCompat.checkSelfPermission(application, Manifest.permission.READ_CONTACTS) ==
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                queryProfileName(application)?.let { settingsRepository.setUserName(it) }
+            }
+        }
         viewModelScope.launch(writeContext) {
             debouncedReorders.collect { repository.reorderTiles(it) }
         }
@@ -545,6 +562,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Toggle the feed page glance tab's read-only device status card. */
     fun setDeviceStatusCardEnabled(enabled: Boolean) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setDeviceStatusCardEnabled(enabled) }
+    }
+
+    /** Set the name shown in the feed's "good morning, `<name>`" greeting. */
+    fun setUserName(name: String) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setUserName(name) }
     }
 
     /** Set the tile corner radius 0–12 dp. */

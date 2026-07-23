@@ -62,3 +62,14 @@ fun pagerCommitTarget(base: Float, pos: Float): Float {
  */
 fun googleSearchUrl(query: String): String =
     "https://www.google.com/search?q=" + URLEncoder.encode(query.trim(), "UTF-8")
+
+/**
+ * The feed greeting's time-of-day bucket for [hour] (24-hour, 0..23): morning
+ * 5..11, afternoon 12..16, evening 17..20, night otherwise (21..23, 0..4).
+ */
+fun greetingFor(hour: Int): String = when (hour) {
+    in 5..11 -> "good morning"
+    in 12..16 -> "good afternoon"
+    in 17..20 -> "good evening"
+    else -> "good night"
+}

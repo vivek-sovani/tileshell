@@ -50,6 +50,20 @@ class FeedFormatTest {
     }
 
     @Test
+    fun `greeting buckets by hour with boundaries`() {
+        assertEquals("good night", greetingFor(0))
+        assertEquals("good night", greetingFor(4))
+        assertEquals("good morning", greetingFor(5))
+        assertEquals("good morning", greetingFor(11))
+        assertEquals("good afternoon", greetingFor(12))
+        assertEquals("good afternoon", greetingFor(16))
+        assertEquals("good evening", greetingFor(17))
+        assertEquals("good evening", greetingFor(20))
+        assertEquals("good night", greetingFor(21))
+        assertEquals("good night", greetingFor(23))
+    }
+
+    @Test
     fun `search url encodes and trims the query`() {
         assertEquals(
             "https://www.google.com/search?q=hello+world",

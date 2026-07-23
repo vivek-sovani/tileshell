@@ -894,6 +894,14 @@ fun StartScreen(
             FeedPage(
                 accent = accent,
                 statusBarTopPx = statusBarTopPx,
+                userName = settings.userName,
+                wallpaper = wallpaper,
+                customWallpaperUri = settings.customWallpaperUri,
+                wallpaperAlignX = settings.wallpaperAlignX,
+                wallpaperAlignY = settings.wallpaperAlignY,
+                wallpaperZoom = settings.wallpaperZoom,
+                dark = dark,
+                noWallpaper = noWallpaper || tiledWallpaper,
                 feeds = feedSources.map { FeedSourceItem(it.url, it.name, it.category, it.enabled) },
                 onToggleFeed = viewModel::setFeedSourceEnabled,
                 onToggleCategory = viewModel::setFeedCategoryEnabled,
@@ -1097,6 +1105,8 @@ fun StartScreen(
             onFeedEnabledChange = viewModel::setFeedEnabled,
             deviceStatusCardEnabled = settings.deviceStatusCardEnabled,
             onDeviceStatusCardEnabledChange = viewModel::setDeviceStatusCardEnabled,
+            userName = settings.userName,
+            onUserNameChange = viewModel::setUserName,
             onAddLiveTile = { appId ->
                 viewModel.addLiveTile(appId)
                 Toast.makeText(context, "added $appId tile", Toast.LENGTH_SHORT).show()
