@@ -94,44 +94,46 @@ fun nextAlarmString(context: Context): String {
     return "$h12:${minute.toString().padStart(2, '0')} $ampm"
 }
 
-private const val REMINDER_MATCH_TOLERANCE_MS = 2 * 60_000L
+private const val REMINDER_MATCH_TOLERANCE_MS = 60_000L
 
 /**
- * If [triggerMillis] (the system's next alarm-clock trigger time) lines up with
- * an upcoming calendar event's start — within [REMINDER_MATCH_TOLERANCE_MS], to
- * absorb rounding — returns that event's title so the tile can show real
- * reminder text instead of a generic label. Requires READ_CALENDAR; silently
- * returns "" when denied (no new permission ask from the clock tile — this only
- * activates if the user already granted it, e.g. via the calendar tile) or when
- * nothing matches (the alarm is probably a real Clock-app alarm, or the
- * reminder is offset earlier than the event's start — a known limitation, since
- * resolving a reminder-minutes offset needs a further `CalendarContract
- * .Reminders` join not done here).
+ * If [triggerMillis] (the system's next alarm-clock trigger time) matches a
+ * scheduled calendar reminder's actual fire time — within
+ * [REMINDER_MATCH_TOLERANCE_MS], to absorb rounding — returns that reminder's
+ * event title, so the tile can show real reminder text instead of a generic
+ * label. Deliberately queries [android.provider.CalendarContract.CalendarAlerts]
+ * (each row's `ALARM_TIME` is exactly when that reminder is scheduled to fire —
+ * the same value AlarmManager was handed), not `Instances.BEGIN` (an event's
+ * *start* time): those two only coincide for a reminder set to "at time of
+ * event," so an all-day event (whose `BEGIN` is midnight, not the reminder's
+ * actual time-of-day) or any reminder offset earlier than the event start would
+ * never match against `Instances` — verified on-device, where a 2:50pm
+ * meeting reminder's `calendar_alerts.ALARM_TIME` matched the trigger time
+ * exactly while its parent event's `BEGIN` was 9+ hours away. Requires
+ * READ_CALENDAR; silently returns "" when denied (no new permission ask from
+ * the clock tile — this only activates if the user already granted it, e.g.
+ * via the calendar tile) or when nothing matches (probably a real Clock-app
+ * alarm). When multiple events share one alarm time (a reminder fired for
+ * several overlapping meetings at once), picks the soonest-starting one.
  */
 private fun reminderTitleFor(context: Context, triggerMillis: Long): String =
     runCatching {
-        val uri = android.provider.CalendarContract.Instances.CONTENT_URI.buildUpon()
-            .appendPath((triggerMillis - REMINDER_MATCH_TOLERANCE_MS).toString())
-            .appendPath((triggerMillis + REMINDER_MATCH_TOLERANCE_MS).toString())
-            .build()
         var title = ""
         context.contentResolver.query(
-            uri,
+            android.provider.CalendarContract.CalendarAlerts.CONTENT_URI,
             arrayOf(
-                android.provider.CalendarContract.Instances.TITLE,
-                android.provider.CalendarContract.Instances.BEGIN,
+                android.provider.CalendarContract.CalendarAlerts.TITLE,
+                android.provider.CalendarContract.CalendarAlerts.BEGIN,
             ),
-            null,
-            null,
-            null,
+            "${android.provider.CalendarContract.CalendarAlerts.ALARM_TIME} >= ? AND " +
+                "${android.provider.CalendarContract.CalendarAlerts.ALARM_TIME} <= ?",
+            arrayOf(
+                (triggerMillis - REMINDER_MATCH_TOLERANCE_MS).toString(),
+                (triggerMillis + REMINDER_MATCH_TOLERANCE_MS).toString(),
+            ),
+            "${android.provider.CalendarContract.CalendarAlerts.BEGIN} ASC",
         )?.use { cursor ->
-            while (cursor.moveToNext()) {
-                val begin = cursor.getLong(1)
-                if (kotlin.math.abs(begin - triggerMillis) <= REMINDER_MATCH_TOLERANCE_MS) {
-                    title = cursor.getString(0).orEmpty()
-                    break
-                }
-            }
+            if (cursor.moveToFirst()) title = cursor.getString(0).orEmpty()
         }
         title
     }.getOrDefault("")
