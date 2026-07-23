@@ -63,15 +63,32 @@ data class ClockFace(
 )
 
 /**
+ * Packages of known alarm-clock apps (Google Clock, Samsung Clock) whose
+ * [AlarmManager.AlarmClockInfo] entries are trusted as real alarms. Some other
+ * apps (notably calendar/reminder apps) also call `setAlarmClock()` for their
+ * own reminders — purely to bypass Doze/battery restrictions on exact timing —
+ * which would otherwise surface on the clock tile mislabeled as "alarm / bedtime"
+ * (see the user report: a 2:50pm calendar meeting reminder showed up as the
+ * tile's next alarm). Deliberately a small explicit whitelist, not a heuristic:
+ * only devices whose stock clock app is one of these two show the alarm/bedtime
+ * face at all; other OEM clock apps simply never populate it, per the user's
+ * own call — extend only for another confirmed, specific clock app package.
+ */
+private val KNOWN_ALARM_CLOCK_PACKAGES = setOf(
+    "com.google.android.deskclock",
+    "com.sec.android.app.clockpackage",
+)
+
+/**
  * Returns the next system alarm-clock event as "h:mm am/pm", or empty string if
- * none is set. Reads [AlarmManager.getNextAlarmClock] — no permission required.
- * Note this event includes the clock app's Bedtime schedule (Android exposes no
- * way to distinguish a real alarm from bedtime), which is why the tile labels the
- * value "alarm / bedtime".
+ * none is set or it wasn't registered by a [KNOWN_ALARM_CLOCK_PACKAGES] app.
+ * Reads [AlarmManager.getNextAlarmClock] — no permission required.
  */
 fun nextAlarmString(context: Context): String {
     val am = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return ""
     val info = am.nextAlarmClock ?: return ""
+    val creator = runCatching { info.showIntent?.creatorPackage }.getOrNull()
+    if (creator !in KNOWN_ALARM_CLOCK_PACKAGES) return ""
     val cal = Calendar.getInstance().apply { timeInMillis = info.triggerTime }
     val hour = cal.get(Calendar.HOUR_OF_DAY)
     val minute = cal.get(Calendar.MINUTE)
