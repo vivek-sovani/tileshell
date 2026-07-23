@@ -80,11 +80,10 @@ private fun formatFullDate(dayOfMonth: Int, month0: Int, year: Int): String =
  * alarm set for later. A prior attempt to filter this to known clock-app
  * packages (Google/Samsung) just made the tile go blank whenever a calendar
  * reminder was the sooner entry — worse than the ambiguity, since a real alarm
- * further out then never showed. So: always show whatever's next, generically
- * labelled "next reminder/alarm" (see [ClockBack]) rather than claiming it's an
- * alarm; when it matches an upcoming calendar event's start time (within
- * [REMINDER_MATCH_TOLERANCE_MS]) — see [reminderTitleFor] — show that event's
- * title in place of the generic label.
+ * further out then never showed. So: always show whatever's next; when it
+ * matches a scheduled calendar reminder (see [reminderTitleFor]) show that
+ * event's own title, otherwise label it "alarm / bedtime" (see [ClockBack]) —
+ * the best remaining guess once a calendar match is ruled out.
  */
 fun nextAlarmString(context: Context): String {
     val am = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return ""
@@ -361,12 +360,14 @@ private fun ClockBack(face: ClockFace) {
         ) {
             if (face.alarm.isNotEmpty()) {
                 // Alarm/reminder gets the hero slot — user set it, they want to see it.
-                // Labelled generically because Android's getNextAlarmClock reports a
-                // single system-wide next value that any app (not just a clock app —
-                // e.g. a calendar reminder) may have registered; shows the matched
-                // calendar event's own title instead when one lines up (reminderTitleFor).
+                // Android's getNextAlarmClock reports a single system-wide next value
+                // that any app may have registered (not just a clock app — e.g. a
+                // calendar reminder). When it matches a known calendar reminder
+                // (reminderTitleFor), show that event's own title; otherwise it's most
+                // likely a real device alarm/bedtime schedule, so label it as such
+                // (Android gives no way to tell alarm apart from bedtime).
                 Text(
-                    text = face.reminderTitle.ifEmpty { "next reminder / alarm" },
+                    text = face.reminderTitle.ifEmpty { "alarm / bedtime" },
                     color = FaceText.copy(alpha = 0.65f),
                     fontSize = 11.sp * scale,
                     maxLines = 1,
