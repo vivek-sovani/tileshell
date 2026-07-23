@@ -199,6 +199,18 @@ android {
         //   back to "alarm / bedtime" as before. The date line under it now shows the
         //   alarm/reminder's own date rather than always today's, for one set on a
         //   different day. Verified end-to-end on a physical device at each step.
+        //   Also folded into 2.2.8 (same release, no further version bump): a backup/
+        //   restore completeness fix. User-reported "restore is not exactly the same as
+        //   backup" — root cause was TileEntity.gridSlot (the sticky-mode tile-position
+        //   anchor) never being included in the backup JSON at all, so every restore let
+        //   tiles re-flow to different positions. A fuller audit then found several later-
+        //   session features were never wired into backup/restore either: feed
+        //   subscriptions/custom URLs/regions, hidden apps, feed widget layout, the
+        //   photos-tile selection, and the wallpaper slideshow's photo list. All now
+        //   round-trip through export/import; recent apps/searches and the article/weather
+        //   caches are deliberately still excluded (MRU history and refetchable caches, not
+        //   configuration — see DECISIONS.md), and restored feed widget ids are filtered to
+        //   ones that still resolve via AppWidgetManager rather than restoring a broken slot.
         versionCode = 228
         versionName = "2.2.8"
     }

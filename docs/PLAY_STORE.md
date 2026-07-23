@@ -153,15 +153,15 @@ folds in its changes too.*
 ```
 TileShell 2.2.8
 
-• Quick panel redesigned as colourful start-tile-style toggles
-• People tile: no flip — bubbles now drift, bounce, and swap photos
-• Fixed: clock tile alarm/reminder shows the right title & date, no longer confused with calendar reminders
-• Fixed: wallpaper reframe tool can now pan to the top/bottom/side of a photo, not just zoom centrally
+• Quick panel redesigned with colourful start-tile-style toggles
+• People tile: no flip — a bubble cluster drifts and swaps photos
+• Fixed: backup & restore now covers feed subscriptions, hidden apps, widgets, and photos too
+• Fixed: clock tile alarm/reminder shows the right title & date, not confused with calendar reminders
+• Fixed: wallpaper reframe tool can pan top/bottom/side, not just zoom centrally
 • Fixed: background refresh (feed, weather, backups) could silently fail
-• Performance and stability improvements
 ```
 
-*(Character count 472, under Play's 500 limit.)*
+*(Character count 497, under Play's 500 limit.)*
 
 ## Release notes (v2.2.7)
 
