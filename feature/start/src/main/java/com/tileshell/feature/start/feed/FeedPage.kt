@@ -168,7 +168,6 @@ fun FeedPage(
     )
     val feedFg = Glass.faceTextColor(feedBackgroundIsLight)
     val feedFgDim = feedFg.copy(alpha = 0.62f)
-    val feedLine = feedFg.copy(alpha = 0.12f)
 
     // Weather (FR-2): the cached snapshot the weather tile already maintains.
     val weatherCache = remember(context) { WeatherCache.create(context) }
@@ -221,7 +220,6 @@ fun FeedPage(
     val topPad = with(density) { statusBarTopPx.toDp() } + 8.dp
 
     var feedSettingsOpen by rememberSaveable { mutableStateOf(false) }
-    var categoryFilter by rememberSaveable { mutableStateOf<String?>(null) }
 
     Box(
         modifier = modifier
@@ -320,36 +318,9 @@ fun FeedPage(
                     )
                 }
             } else {
-                val categories = remember(articles) { articles.map { it.tag }.distinct() }
-                if (categories.size > 1) {
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        NewsFilterChip("all", categoryFilter == null, accent, feedFgDim, feedLine) { categoryFilter = null }
-                        categories.forEach { tag ->
-                            NewsFilterChip(tag, categoryFilter == tag, accent, feedFgDim, feedLine) { categoryFilter = tag }
-                        }
-                    }
-                }
-                val filteredArticles = remember(articles, categoryFilter) {
-                    articles.filter { categoryFilter == null || it.tag == categoryFilter }
-                }
-                if (filteredArticles.isEmpty()) {
-                    GCard(tokens) {
-                        Text(
-                            "no articles in this category",
-                            color = tokens.fgDim,
-                            fontSize = 14.sp,
-                            modifier = Modifier.padding(16.dp),
-                        )
-                    }
-                } else {
-                    val nowMs = now.timeInMillis
-                    filteredArticles.forEach { article ->
-                        ArticleCard(article, nowMs, accent, tokens) { onOpenArticle(article.link) }
-                    }
+                val nowMs = now.timeInMillis
+                articles.forEach { article ->
+                    ArticleCard(article, nowMs, accent, tokens) { onOpenArticle(article.link) }
                 }
             }
         }
@@ -1138,36 +1109,6 @@ private fun FeedSourceChip(
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(label, color = if (on) Color.White else tokens.fgDim, fontSize = 13.sp)
-    }
-}
-
-/**
- * The news quick-filter chip (mirrors [FeedSourceChip]'s look) — takes explicit
- * [fgDim]/[line] instead of [com.tileshell.core.design.ColorTokens] since it
- * sits directly on the feed's wallpaper rather than an opaque sheet, so its
- * off-state colours must adapt to the wallpaper's brightness, not the fixed
- * theme.
- */
-@Composable
-private fun NewsFilterChip(
-    label: String,
-    on: Boolean,
-    accent: Color,
-    fgDim: Color,
-    line: Color,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .then(
-                if (on) Modifier.background(accent)
-                else Modifier.border(1.dp, line, RoundedCornerShape(16.dp)),
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        Text(label, color = if (on) Color.White else fgDim, fontSize = 13.sp)
     }
 }
 
