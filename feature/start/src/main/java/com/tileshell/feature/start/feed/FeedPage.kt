@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -354,19 +355,23 @@ fun FeedPage(
 @Composable
 private fun GreetingHeader(userName: String, hour: Int, tokens: com.tileshell.core.design.ColorTokens) {
     val greeting = greetingFor(hour)
-    Row(modifier = Modifier.padding(horizontal = 6.dp)) {
+    // A deliberate one-off display treatment (serif, unlike the app's own
+    // Outfit/Nunito tile typography) to match the mockup's hero greeting —
+    // FontFamily.Serif is a built-in generic family, no new font assets needed.
+    Column(modifier = Modifier.padding(horizontal = 6.dp)) {
         Text(
-            text = if (userName.isBlank()) greeting else "$greeting, ",
+            text = if (userName.isBlank()) greeting else "$greeting,",
             color = tokens.fg,
-            fontSize = 26.sp,
-            fontWeight = FontWeight.Light,
+            fontSize = 28.sp,
+            fontFamily = FontFamily.Serif,
+            fontWeight = FontWeight.Normal,
         )
         if (userName.isNotBlank()) {
             Text(
                 text = userName,
-                color = tokens.fg,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Light,
+                color = tokens.fgDim,
+                fontSize = 34.sp,
+                fontFamily = FontFamily.Serif,
                 fontStyle = FontStyle.Italic,
             )
         }
@@ -878,7 +883,6 @@ private fun ArticleCard(
 
 private val FEED_CATEGORY_LABELS = linkedMapOf(
     "nation" to "national news",
-    "state" to "local news",
     "entertainment" to "entertainment",
     "cricket" to "cricket",
     "sports" to "sports",

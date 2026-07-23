@@ -52,7 +52,7 @@ val DEPRECATED_FEED_URLS: Set<String> = setOf(
  * personalize). [CUSTOM_CATEGORY] is handled separately (per-feed add/remove).
  */
 val FEED_CATEGORIES: List<String> = listOf(
-    "nation", "state", "entertainment", "cricket", "sports", "tech", "business", "food",
+    "nation", "entertainment", "cricket", "sports", "tech", "business", "food",
 )
 
 /**
@@ -66,13 +66,6 @@ val DEFAULT_FEED_SOURCES: List<FeedSource> = listOf(
     FeedSource("https://www.thehindu.com/news/national/feeder/default.rss", "The Hindu", "nation", enabled = true),
     FeedSource("https://feeds.feedburner.com/ndtvnews-top-stories", "NDTV", "nation", enabled = true),
     FeedSource("https://timesofindia.indiatimes.com/rssfeedstopstories.cms", "TOI Top Stories", "nation", enabled = true),
-    FeedSource("https://timesofindia.indiatimes.com/rssfeeds/-2128821991.cms", "TOI Pune", "state", enabled = false),
-    FeedSource("https://timesofindia.indiatimes.com/rssfeeds/-2128838597.cms", "TOI Mumbai", "state", enabled = false),
-    FeedSource("https://timesofindia.indiatimes.com/rssfeeds/442002.cms", "TOI Nagpur", "state", enabled = false),
-    FeedSource("https://timesofindia.indiatimes.com/rssfeeds/-2128839596.cms", "TOI Delhi", "state", enabled = false),
-    FeedSource("https://timesofindia.indiatimes.com/rssfeeds/-2128833038.cms", "TOI Bengaluru", "state", enabled = false),
-    FeedSource("https://www.thehindu.com/news/cities/feeder/default.rss", "The Hindu · Cities", "state", enabled = false),
-    FeedSource("https://www.thehindu.com/news/states/feeder/default.rss", "The Hindu · States", "state", enabled = false),
     FeedSource("https://feeds.feedburner.com/ndtvmovies-latest", "NDTV Movies", "entertainment", enabled = true),
     FeedSource("https://timesofindia.indiatimes.com/rssfeeds/1081479906.cms", "TOI Entertainment", "entertainment", enabled = true),
     FeedSource("https://www.espncricinfo.com/rss/content/story/feeds/0.xml", "ESPNcricinfo", "cricket", enabled = true),
@@ -89,8 +82,8 @@ val DEFAULT_FEED_SOURCES: List<FeedSource> = listOf(
 /**
  * Generic international default feeds (English-language, globally reachable), used
  * for any device country other than India. Tagged by the same [FEED_CATEGORIES] as
- * [DEFAULT_FEED_SOURCES] so they drop into the same category UI/toggles; "state" and
- * "cricket" have no sensible global equivalent and are simply left unpopulated. All
+ * [DEFAULT_FEED_SOURCES] so they drop into the same category UI/toggles; "cricket"
+ * has no sensible global equivalent and is simply left unpopulated. All
  * `https://` — plain `http://` is blocked by Android's default cleartext policy
  * (targetSdk ≥ 28) and `FeedRefreshWorker`'s fetch sets no network security config
  * exception, so an `http://` source would silently never populate (verified live: the

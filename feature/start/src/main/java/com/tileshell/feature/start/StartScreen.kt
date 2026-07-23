@@ -901,7 +901,11 @@ fun StartScreen(
                 wallpaperAlignY = settings.wallpaperAlignY,
                 wallpaperZoom = settings.wallpaperZoom,
                 dark = dark,
-                noWallpaper = noWallpaper || tiledWallpaper,
+                // Not OR-ed with tiledWallpaper: that mode only changes how Start's
+                // *tiles* window onto the wallpaper (a per-tile effect with no
+                // equivalent here) — the feed has no tiles, so it always shows the
+                // plain full-screen wallpaper regardless of Start's tiled setting.
+                noWallpaper = noWallpaper,
                 feeds = feedSources.map { FeedSourceItem(it.url, it.name, it.category, it.enabled) },
                 onToggleFeed = viewModel::setFeedSourceEnabled,
                 onToggleCategory = viewModel::setFeedCategoryEnabled,
