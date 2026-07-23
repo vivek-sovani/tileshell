@@ -935,7 +935,7 @@ fun StartScreen(
                 isLandscape && feedEnabled -> {
                     val panelWidthPx = widthPx / 2f
                     Row(modifier = Modifier.fillMaxSize()) {
-                        Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                        Box(modifier = Modifier.weight(1f).fillMaxHeight().clipToBounds()) {
                             renderFeed(true)
                         }
                         Box(
@@ -1016,12 +1016,16 @@ fun StartScreen(
 
                         // Feed page (left): drawn on top with its own background so
                         // Start never shows through it. Only composed when enabled
-                        // (FR-7); off-screen otherwise.
+                        // (FR-7); off-screen otherwise. clipToBounds() keeps the
+                        // feed's own blurred wallpaper (scaled 1.12x by the blur
+                        // effect) from bleeding past this panel's edge into Start —
+                        // graphicsLayer doesn't clip by default.
                         if (feedEnabled) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .graphicsLayer { translationX = widthPx * (-1f - progress.value) }
+                                    .clipToBounds()
                                     .background(LocalColorTokens.current.bg),
                             ) { renderFeed(feedShown) }
                         }
