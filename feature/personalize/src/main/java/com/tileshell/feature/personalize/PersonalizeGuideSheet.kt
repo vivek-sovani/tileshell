@@ -217,10 +217,14 @@ fun PersonalizeGuideSheet(
                 visual = { FeedVisual(tokens) },
                 items = listOf(
                     "swipe right from start (or swipe left from the app list) to open the feed",
-                    "glance tab: live clock, weather, calendar events, and now-playing, plus any widgets you've added",
-                    "tap the search pill on glance to jump straight into quick search",
-                    "news tab: pick any number of regions — india plus ~20 other countries, defaulting to your device's own",
-                    "tap the ⚙ next to the glance/news tabs to add your own rss/atom feeds and pick categories",
+                    "one continuous scroll: your greeting, live clock, weather, calendar events, now-playing, widgets, and news",
+                    "greeting auto-fills your name from your contact profile if available — edit or clear it any time in personalize · feed & glance",
+                    "tap the search pill to jump straight into quick search",
+                    "narrow widgets automatically pair up side by side — drag a widget's edge past the midpoint to switch it between side-by-side and full width",
+                    "drag a widget's handle to reorder it",
+                    "pick any number of news regions — india plus ~20 other countries, defaulting to your device's own",
+                    "tap the ⚙ in the news section to add your own rss/atom feeds and pick categories",
+                    "personalize · feed & glance · \"no background\" gives the feed its own flat look, independent of start's wallpaper",
                 ),
             )
 
@@ -230,7 +234,8 @@ fun PersonalizeGuideSheet(
                 tokens = tokens,
                 visual = { PermissionsVisual(accent, tokens) },
                 items = listOf(
-                    "personalize · notifications · \"badges & live mail\" turns on unread badge counts on tiles, plus live mail/messages and notification-preview tile faces",
+                    "personalize · live tiles has a master on/off switch, plus \"badges & live mail\" to turn on unread badge counts on tiles and live mail/messages tile faces",
+                    "turning live tiles on for the first time explains and asks before opening notification access, instead of jumping straight there — you can say not now",
                     "long-press the settings gear on start to lock the screen",
                     "the first time, this opens android's accessibility settings so you can turn on tileshell's lock service once — it's a one-time manual step, the launcher can't enable it for you",
                     "turning it on preserves biometric unlock (android 9 and up); without it, locking falls back to a plain device-admin lock with no biometrics",

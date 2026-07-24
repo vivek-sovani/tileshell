@@ -185,7 +185,7 @@ fun AboutSheet(
                     "pinned contacts show their real photo on the tile",
                     "ask chatgpt, gemini, claude, or perplexity — opens the app with your query ready to send",
                     "or send it to google, bing, duckduckgo, yahoo, or yandex instead",
-                    "tap the search box on the feed's glance tab to jump straight into quick search",
+                    "tap the search box on the feed page to jump straight into quick search",
                 ),
             )
 
@@ -262,13 +262,15 @@ fun AboutSheet(
                 tokens = tokens,
                 items = listOf(
                     "swipe right from start to open the feed",
-                    "glance tab: live clock, weather, calendar events, now-playing",
+                    "a personalized greeting, live clock, weather, calendar events, now-playing, widgets, and news, all in one continuous scroll",
+                    "greeting auto-fills your name from your contact profile if available — edit or clear it any time in personalize",
                     "tap the calendar card to open your calendar app",
                     "tap the now-playing card to open the music app",
-                    "news tab: select any number of news regions — india plus ~20 other countries",
+                    "select any number of news regions — india plus ~20 other countries",
                     "region defaults to your device's country automatically on first launch",
                     "add and manage your own custom RSS / Atom feeds",
                     "8 categories: nation, tech, sports, cricket, business and more",
+                    "give the feed its own flat background, independent of start's wallpaper, from personalize",
                 ),
             )
 
@@ -279,9 +281,10 @@ fun AboutSheet(
                 items = listOf(
                     "add any android app widget to the feed page",
                     "widget picker is grouped by app, and each app's group can be collapsed",
-                    "tap \"edit\" on a widget for reorder, resize, reconfigure, and remove controls",
-                    "resize width and height independently, or drag the corner to resize both at once",
-                    "reorder widgets up or down in the feed",
+                    "narrow widgets automatically pair up side by side, like weather and today's agenda",
+                    "drag a widget's edge past the midpoint to switch it between side-by-side and full width",
+                    "tap \"edit\" on a widget for its reorder handle, resize, reconfigure, and remove controls",
+                    "drag the handle to reorder; resize width and height independently, or drag the corner to resize both at once",
                 ),
             )
 
@@ -328,6 +331,9 @@ fun AboutSheet(
                     "edge strip — choose which apps appear, handle style, and background",
                     "lock layout — long-pressing a tile stops opening edit mode, so nothing moves by accident",
                     "set tileshell as your default launcher right from personalize's system group",
+                    "turn live tiles off as one master switch — clock/weather/notification flipping pauses, badges and counts keep updating",
+                    "enabling live tiles for the first time explains and asks before opening notification access, instead of jumping straight there",
+                    "give the feed page its own \"no background\" option, independent of start's wallpaper",
                 ),
             )
 

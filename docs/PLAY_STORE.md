@@ -36,7 +36,7 @@ Two-finger swipe down on Start. Search apps, contacts, and the web in one gestur
 A quick-launch bar along the bottom of the screen. Search on the left, favourite apps in the centre, recent apps on the right. Collapses to a thin handle when not in use.
 
 ★ FEED PAGE (swipe right)
-Live weather card, today's calendar agenda, now-playing, and a resizable Android widget slot. News tab with RSS articles across 8 categories. Pick any number of news regions — India plus ~20 other countries — defaulting to your device's own. Add any custom RSS or Atom feed.
+A personalized greeting, live weather card, and today's calendar agenda side by side, now-playing, and Android widgets that size to fit and can sit side by side — drag to reorder. News feed with RSS articles across 8 categories. Pick any number of news regions — India plus ~20 other countries — defaulting to your device's own. Add any custom RSS or Atom feed.
 
 ★ APP LIST (swipe left)
 Alphabetical grid with A–Z jump grid and instant search. Recent and newly-installed apps at the top with badge counts, even unpinned. Long-press to pin, hide, or uninstall.
@@ -148,20 +148,22 @@ data. Users can also clear app data via Android Settings at any time.
 
 *"What's new" — newest release first. Keep under Play's 500-character limit.
 2.2.7 never got a signed build submitted to Play, so 2.2.8 supersedes it and
-folds in its changes too.*
+folds in its changes too, plus the feed/personalize redesign that landed
+afterward on the same versionCode (see CLAUDE.md/DECISIONS.md for the full
+detail behind each item).*
 
 ```
 TileShell 2.2.8
 
-• Quick panel redesigned with colourful start-tile-style toggles
-• People tile: no flip — a bubble cluster drifts and swaps photos
+• Feed & personalize screens redesigned with a cleaner layout and a personalized greeting
+• Feed widgets can now sit side by side and be reordered by drag
 • Fixed: backup & restore now covers feed subscriptions, hidden apps, widgets, and photos too
-• Fixed: clock tile alarm/reminder shows the right title & date, not confused with calendar reminders
+• Fixed: clock tile alarm/reminder shows the right title & date
 • Fixed: wallpaper reframe tool can pan top/bottom/side, not just zoom centrally
 • Fixed: background refresh (feed, weather, backups) could silently fail
 ```
 
-*(Character count 497, under Play's 500 limit.)*
+*(Character count 483, under Play's 500 limit.)*
 
 ## Release notes (v2.2.7)
 
