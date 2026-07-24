@@ -10,6 +10,7 @@ import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Bundle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.compose.foundation.Image
@@ -39,6 +40,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -46,10 +48,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -60,8 +67,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tileshell.core.design.ColorTokens
 import com.tileshell.feature.livetiles.rememberAppIconBitmap
@@ -74,32 +79,77 @@ private const val WIDGET_MIN_H = 72
 private const val WIDGET_MAX_H = 720
 
 /**
- * A squarish, small footprint (e.g. a 2x2 icon/toggle-style widget) reads oddly
- * stretched edge-to-edge across the whole feed width — those render centered at
- * half width instead. Anything wider or taller than roughly square (e.g. a 4-wide
- * widget) keeps the full slot, since that's the shape it was actually designed for.
+ * Whether a widget should default to half the feed's row width (so it can pair
+ * up alongside another half-width widget, mirroring the built-in weather+today
+ * cards) rather than the full row — decided purely from its own declared
+ * natural width in dp against the feed's full content width, so this is
+ * unit-testable without an Android runtime. A widget only "fits" at half width
+ * if it's comfortably narrower than half the row, not merely narrower than all
+ * of it.
  */
-private fun isSquareWidget(info: AppWidgetProviderInfo, density: Float): Boolean {
-    val (wCells, hCells) = if (android.os.Build.VERSION.SDK_INT >= 31 && info.targetCellWidth > 0 && info.targetCellHeight > 0) {
-        info.targetCellWidth.toFloat() to info.targetCellHeight.toFloat()
-    } else {
-        (info.minWidth / density) to (info.minHeight / density)
+internal fun isHalfWidthWidget(naturalWidthDp: Float, feedContentWidthDp: Int): Boolean =
+    naturalWidthDp > 0f && naturalWidthDp <= feedContentWidthDp * 0.55f
+
+/**
+ * Packs the ordered widget list into rows for rendering: a full-width widget
+ * always gets its own row; two consecutive half-width widgets pair into one
+ * row (mirroring the built-in weather+today row); a half-width widget left
+ * without a partner — an odd count, or its former partner was just removed —
+ * still gets its own row at half width, never stretched to fill it just
+ * because it's currently alone. Pure list logic, no Compose/Android
+ * dependency.
+ */
+internal fun packWidgetRows(widgets: List<HostedWidget>): List<List<HostedWidget>> {
+    val rows = mutableListOf<List<HostedWidget>>()
+    var pendingHalf: HostedWidget? = null
+    for (w in widgets) {
+        if (w.halfWidth) {
+            val prev = pendingHalf
+            if (prev != null) {
+                rows.add(listOf(prev, w))
+                pendingHalf = null
+            } else {
+                pendingHalf = w
+            }
+        } else {
+            pendingHalf?.let { rows.add(listOf(it)) }
+            pendingHalf = null
+            rows.add(listOf(w))
+        }
     }
-    if (wCells <= 0f || hCells <= 0f) return false
-    val ratio = wCells / hCells
-    return ratio in 0.7f..1.4f
+    pendingHalf?.let { rows.add(listOf(it)) }
+    return rows
+}
+
+/**
+ * Move [dragId] to sit where [targetId] currently is — same splice-and-reinsert
+ * algorithm as [com.tileshell.feature.start.reorderTiles] (a forward drag lands
+ * after the target, a backward drag lands before it), just keyed by widget id
+ * instead of tile id since widgets aren't part of the tile grid. Returns a new
+ * list; the input is untouched. No-op when either id is absent or the two are
+ * equal.
+ */
+internal fun reorderWidgets(widgets: List<HostedWidget>, dragId: Int, targetId: Int): List<HostedWidget> {
+    if (dragId == targetId) return widgets
+    val di = widgets.indexOfFirst { it.widgetId == dragId }
+    val ti = widgets.indexOfFirst { it.widgetId == targetId }
+    if (di < 0 || ti < 0) return widgets
+    val out = widgets.toMutableList()
+    val dragged = out.removeAt(di)
+    out.add(ti.coerceAtMost(out.size), dragged)
+    return out
 }
 
 private fun providerMinWidthDp(info: AppWidgetProviderInfo, density: Float): Int =
     (info.minWidth / density).roundToInt()
 
 /**
- * Half the slot width for a square widget, but never less than the provider's own
- * declared minimum width — some providers (confirmed on-device: Samsung Device
+ * Half the row width for a half-width widget, but never less than the provider's
+ * own declared minimum width — some providers (confirmed on-device: Samsung Device
  * Care's SMWidgetOneButton) show their own "Can't show content" fallback rather
  * than clip when given less room than they declare needing.
  */
-private fun squareContentWidthDp(info: AppWidgetProviderInfo, widthDp: Int, density: Float): Int =
+private fun halfContentWidthDp(info: AppWidgetProviderInfo, widthDp: Int, density: Float): Int =
     maxOf(widthDp / 2, providerMinWidthDp(info, density)).coerceAtMost(widthDp)
 
 /**
@@ -150,16 +200,18 @@ fun WidgetSection(accent: Color, tokens: ColorTokens, labelColor: Color = tokens
         } else {
             null
         }
-        // Scale against the width it'll actually render at (half, for a square
-        // widget centered at half width) — scaling a square's aspect against the
-        // full slot width would store a height meant for twice the display width.
-        val square = isSquareWidget(provider, density)
-        val contentWidthDp = if (square) squareContentWidthDp(provider, widthDp, density) else widthDp
+        // A widget declared narrow enough to comfortably fit in half the row
+        // (e.g. a 2-column icon/toggle widget) defaults to half-row width, so it
+        // can pair up alongside another half-width widget — mirrors the built-in
+        // weather+today row. Anything wider defaults to the full row.
+        val halfWidth = minWidthDp != null && isHalfWidthWidget(minWidthDp, widthDp)
+        // Scale against the width it'll actually render at (half, when paired) —
+        // scaling a half-width widget's aspect against the full row width would
+        // store a height meant for twice the display width.
+        val contentWidthDp = if (halfWidth) halfContentWidthDp(provider, widthDp, density) else widthDp
         val preferred = aspect?.let { (contentWidthDp * it).roundToInt() } ?: minHeightDp?.roundToInt() ?: 180
         val h = preferred.coerceIn(96, 480)
-        // Only square widgets are user-resizable in width (diagonal resize); everything
-        // else derives its width live from the slot, so 0 = "no custom width stored."
-        scope.launch { store.add(HostedWidget(id, h, if (square) contentWidthDp else 0)) }
+        scope.launch { store.add(HostedWidget(id, h, widthDp = 0, halfWidth = halfWidth)) }
     }
 
     // Some OEM configure activities (confirmed on-device: Samsung Health's
@@ -226,10 +278,61 @@ fun WidgetSection(accent: Color, tokens: ColorTokens, labelColor: Color = tokens
         }
     }
 
+    // Drag-to-reorder state: each widget reports its own on-screen bounds (root
+    // coordinates) as it's laid out; dragging accumulates a delta from the
+    // dragged widget's own bounds and hit-tests that live point against every
+    // OTHER widget's bounds — mirroring the Start grid's own tile-drag pattern
+    // (`reorderTiles`/`onReorderTo` in StartScreen.kt). The actual reorder is
+    // only committed once, on release (not continuously while the hit target
+    // changes): committing mid-drag would reshuffle `packWidgetRows`'s output
+    // and could reparent the dragged widget's own composable — including the
+    // very drag-handle gesture detector currently tracking the finger — right
+    // out from under the in-progress gesture. `dragTargetId` just tracks the
+    // live candidate for that one final commit.
+    //
+    // `editing` is hoisted here (per widget id) rather than left as `WidgetView`
+    // local `remember` state for the same structural reason: reordering can
+    // move a widget from its own row into a paired one (or back), which is a
+    // genuine reparent in the composition tree — local `remember` doesn't
+    // survive that, so a reorder used to silently drop back out of edit mode.
+    // State keyed by id in this stable parent survives regardless of which row
+    // the widget ends up packed into.
+    val widgetBounds = remember { mutableStateMapOf<Int, Rect>() }
+    val editingIds = remember { mutableStateMapOf<Int, Boolean>() }
+    var draggingId by remember { mutableStateOf<Int?>(null) }
+    var dragDelta by remember { mutableStateOf(Offset.Zero) }
+    var dragTargetId by remember { mutableStateOf<Int?>(null) }
+
+    fun onWidgetDragBy(id: Int, delta: Offset) {
+        dragDelta += delta
+        val origin = widgetBounds[id]?.center ?: return
+        val point = origin + dragDelta
+        dragTargetId = widgetBounds.entries
+            .firstOrNull { (otherId, rect) -> otherId != id && rect.contains(point) }
+            ?.key
+    }
+
+    fun onWidgetDragEnd(id: Int) {
+        val target = dragTargetId
+        if (target != null) {
+            val current = widgets.widgets
+            val reordered = reorderWidgets(current, id, target)
+            if (reordered != current) {
+                scope.launch { store.reorder(reordered) }
+            }
+        }
+        draggingId = null
+        dragDelta = Offset.Zero
+        dragTargetId = null
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionHeader("widgets", actionText = "add", accent = accent, labelColor = labelColor, showPlus = true, onAction = { showPicker = true })
 
-        widgets.widgets.forEachIndexed { index, hw ->
+        val rows = remember(widgets.widgets) { packWidgetRows(widgets.widgets) }
+
+        @Composable
+        fun widgetView(hw: HostedWidget, modifier: Modifier) {
             key(hw.widgetId) {
                 WidgetView(
                     host = host,
@@ -237,12 +340,15 @@ fun WidgetSection(accent: Color, tokens: ColorTokens, labelColor: Color = tokens
                     widget = hw,
                     widthDp = widthDp,
                     accent = accent,
-                    tokens = tokens,
-                    canMoveUp = index > 0,
-                    canMoveDown = index < widgets.widgets.lastIndex,
-                    onMoveUp = { scope.launch { store.move(hw.widgetId, up = true) } },
-                    onMoveDown = { scope.launch { store.move(hw.widgetId, up = false) } },
-                    onResize = { newH, newW -> scope.launch { store.setSize(hw.widgetId, newH, newW) } },
+                    editing = editingIds[hw.widgetId] == true,
+                    onEditingChange = { open -> editingIds[hw.widgetId] = open },
+                    isDragging = draggingId == hw.widgetId,
+                    dragOffset = if (draggingId == hw.widgetId) dragDelta else Offset.Zero,
+                    onDragStart = { draggingId = hw.widgetId; dragDelta = Offset.Zero; dragTargetId = null },
+                    onDragBy = { delta -> onWidgetDragBy(hw.widgetId, delta) },
+                    onDragEnd = { onWidgetDragEnd(hw.widgetId) },
+                    onBoundsChanged = { rect -> widgetBounds[hw.widgetId] = rect },
+                    onResize = { newH, newHalf -> scope.launch { store.setSize(hw.widgetId, newH, newHalf) } },
                     onEdit = { info ->
                         val cfg = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE)
                             .setComponent(info.configure)
@@ -253,7 +359,21 @@ fun WidgetSection(accent: Color, tokens: ColorTokens, labelColor: Color = tokens
                         runCatching { host.deleteAppWidgetId(hw.widgetId) }
                         scope.launch { store.remove(hw.widgetId) }
                     },
+                    modifier = modifier,
                 )
+            }
+        }
+
+        rows.forEach { row ->
+            if (row.size == 2) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    row.forEach { hw -> widgetView(hw, Modifier.weight(1f)) }
+                }
+            } else {
+                widgetView(row.single(), Modifier.fillMaxWidth())
             }
         }
     }
@@ -275,14 +395,18 @@ private fun WidgetView(
     widget: HostedWidget,
     widthDp: Int,
     accent: Color,
-    tokens: ColorTokens,
-    canMoveUp: Boolean,
-    canMoveDown: Boolean,
-    onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit,
-    onResize: (heightDp: Int, widthDp: Int) -> Unit,
+    editing: Boolean,
+    onEditingChange: (Boolean) -> Unit,
+    isDragging: Boolean,
+    dragOffset: Offset,
+    onDragStart: () -> Unit,
+    onDragBy: (Offset) -> Unit,
+    onDragEnd: () -> Unit,
+    onBoundsChanged: (Rect) -> Unit,
+    onResize: (heightDp: Int, halfWidth: Boolean) -> Unit,
     onEdit: (AppWidgetProviderInfo) -> Unit,
     onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     // Some OEMs (Samsung's Glance-based widgets — spage news, notes, reminder,
     // Device Care, Digital Wellbeing — confirmed via their async GWT/"Kumiho"/
@@ -309,22 +433,31 @@ private fun WidgetView(
     val info = infoState ?: return
 
     val density = LocalDensity.current.density
-    var editing by remember(widget.widgetId) { mutableStateOf(false) }
     // Live height while dragging; reset to the persisted value when it changes.
     var liveHeight by remember(widget.widgetId, widget.heightDp) { mutableStateOf(widget.heightDp) }
-    // Small square widgets (2x2-style icon/toggle widgets) look stretched thin
-    // across the full feed width — render those centered at half width instead;
-    // everything else (wider or taller than roughly square) keeps the full slot.
-    // Only square widgets are resizable in width (diagonally, keeping width ==
-    // height); a persisted widthDp of 0 means "no custom size yet, use the default."
-    val isSquare = remember(widget.widgetId, info) { isSquareWidget(info, density) }
-    val defaultContentWidthDp = if (isSquare) squareContentWidthDp(info, widthDp, density) else widthDp
-    var liveWidth by remember(widget.widgetId, widget.widthDp) {
-        mutableStateOf(if (widget.widthDp > 0) widget.widthDp else defaultContentWidthDp)
+    // The two widths this widget can ever render at: half the row (paired, or
+    // alone at half width) or the full row — [widthDp] here is always the full
+    // row width, regardless of which one this instance is currently rendering
+    // at (`WidgetSection` decides that via row packing). Every widget can be
+    // dragged between the two; which one it's currently classified as drives
+    // both the default live width and the drag's flip-over point.
+    val halfWidthDp = remember(widget.widgetId, info, widthDp) { halfContentWidthDp(info, widthDp, density) }
+    val fullWidthDp = widthDp
+    val defaultContentWidthDp = if (widget.halfWidth) halfWidthDp else fullWidthDp
+    var liveWidth by remember(widget.widgetId, widget.halfWidth, widthDp) {
+        mutableStateOf(defaultContentWidthDp)
     }
 
-    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-    Box(modifier = Modifier.width(liveWidth.dp)) {
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+    Box(
+        modifier = Modifier
+            .width(liveWidth.dp)
+            .onGloballyPositioned { onBoundsChanged(it.boundsInRoot()) }
+            .graphicsLayer {
+                translationX = if (isDragging) dragOffset.x else 0f
+                translationY = if (isDragging) dragOffset.y else 0f
+            },
+    ) {
         key(widget.widgetId) {
             AndroidView(
                 factory = { ctx ->
@@ -341,11 +474,13 @@ private fun WidgetView(
                         view.updateAppWidgetSize(Bundle(), liveWidth, liveHeight, liveWidth, liveHeight)
                     }
                 },
+                // No backing fill here — any margin the widget's own content
+                // doesn't cover (e.g. a square widget's internal padding) should
+                // show the feed's wallpaper through it, not a flat theme colour.
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(liveHeight.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(tokens.sheet),
+                    .clip(RoundedCornerShape(20.dp)),
             )
         }
 
@@ -360,93 +495,102 @@ private fun WidgetView(
                     .padding(8.dp)
                     .clip(RoundedCornerShape(10.dp))
                     .background(Color.Black.copy(alpha = 0.20f))
-                    .clickable { editing = true }
+                    .clickable { onEditingChange(true) }
                     .padding(horizontal = 9.dp, vertical = 4.dp),
             )
         }
 
         if (editing) {
-            // Dim scrim (visual only; Popup below owns touch handling).
+            BackHandler { onEditingChange(false) }
+            // In-place overlay — not a window-level Popup. A Popup here used to
+            // position its own window relative to this widget's anchor, which
+            // doesn't reliably track a widget that sits inside a scrolling page:
+            // a widget lower on the page could show its controls detached from
+            // itself, and scrolling or reordering while editing could dismiss
+            // edit mode outright. A plain Box in the same composition scrolls,
+            // reorders, and clips exactly like the rest of this widget's content,
+            // since it's real Compose layout rather than a separate window.
             Box(
                 modifier = Modifier
                     .matchParentSize()
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Color.Black.copy(alpha = 0.35f)),
-            )
-            // Window-level Popup anchored to this widget Box. dismissOnClickOutside
-            // fires onDismissRequest for any touch outside the widget's bounds, so
-            // tapping anywhere else on the feed page also exits edit mode.
-            Popup(
-                alignment = Alignment.TopStart,
-                onDismissRequest = { editing = false },
-                properties = PopupProperties(
-                    dismissOnClickOutside = true,
-                    dismissOnBackPress = true,
-                ),
+                    .background(Color.Black.copy(alpha = 0.35f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { onEditingChange(false) },
             ) {
-                Box(
-                    modifier = Modifier
-                        .width(liveWidth.dp)
-                        .height(liveHeight.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                        ) { editing = false },
+                // Top-left: a single drag handle to reorder — press and drag up
+                // or down past another widget to swap places with it. Replaces
+                // a pair of up/down buttons, which used to also drop out of
+                // edit mode on every tap (see the hoisted `editing` state in
+                // `WidgetSection`). The reorder itself only commits once, on
+                // release — see `onWidgetDragEnd` — so nothing about the list
+                // restructures while this drag is still in progress.
+                DragHandlePill(
+                    accent = accent,
+                    widgetId = widget.widgetId,
+                    onDragStart = onDragStart,
+                    onDragBy = onDragBy,
+                    onDragEnd = onDragEnd,
+                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+                )
+                // Top-right controls: edit (reconfigure) + remove.
+                Row(
+                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    // Top-left controls: reorder up / down.
-                    Row(
-                        modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        if (canMoveUp) EditPill("↑", accent, onClick = onMoveUp)
-                        if (canMoveDown) EditPill("↓", accent, onClick = onMoveDown)
-                    }
-                    // Top-right controls: edit (reconfigure) + remove.
-                    Row(
-                        modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        if (info.configure != null) EditPill("edit", accent) { onEdit(info) }
-                        EditPill("remove", Color(0xFFD6262B)) { onRemove() }
-                    }
-                    // Three independent resize handles — bottom edge (height only),
-                    // right edge (width only), corner (both at once, diagonal) — so any
-                    // widget can be resized in whichever direction makes sense for it,
-                    // rather than the host guessing from its shape.
-                    val widthFloor = maxOf(WIDGET_MIN_H, providerMinWidthDp(info, density))
-                    ResizeHandle(
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
-                        width = 44.dp,
-                        height = 6.dp,
-                        widgetId = widget.widgetId,
-                        onDrag = { _, dy ->
-                            liveHeight = (liveHeight + dy / density).roundToInt().coerceIn(WIDGET_MIN_H, WIDGET_MAX_H)
-                        },
-                        onDragEnd = { onResize(liveHeight, liveWidth) },
-                    )
-                    ResizeHandle(
-                        modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp),
-                        width = 6.dp,
-                        height = 44.dp,
-                        widgetId = widget.widgetId,
-                        onDrag = { dx, _ ->
-                            liveWidth = (liveWidth + dx / density).roundToInt().coerceIn(widthFloor, widthDp)
-                        },
-                        onDragEnd = { onResize(liveHeight, liveWidth) },
-                    )
-                    ResizeHandle(
-                        modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
-                        width = 14.dp,
-                        height = 14.dp,
-                        cornerRadius = 6.dp,
-                        widgetId = widget.widgetId,
-                        onDrag = { dx, dy ->
-                            liveWidth = (liveWidth + dx / density).roundToInt().coerceIn(widthFloor, widthDp)
-                            liveHeight = (liveHeight + dy / density).roundToInt().coerceIn(WIDGET_MIN_H, WIDGET_MAX_H)
-                        },
-                        onDragEnd = { onResize(liveHeight, liveWidth) },
-                    )
+                    if (info.configure != null) EditPill("edit", accent) { onEdit(info) }
+                    EditPill("remove", Color(0xFFD6262B)) { onRemove() }
                 }
+                // Three independent resize handles — bottom edge (height only),
+                // right edge (width only), corner (both at once, diagonal) — so any
+                // widget can be resized in whichever direction makes sense for it,
+                // rather than the host guessing from its shape. Width dragging
+                // moves continuously between halfWidthDp and fullWidthDp for smooth
+                // visual feedback, but only those two sizes are ever persisted —
+                // crossing the midpoint on release flips this widget's half/full
+                // classification (and its row's pairing) rather than storing an
+                // arbitrary in-between width.
+                val widthFloor = maxOf(WIDGET_MIN_H, providerMinWidthDp(info, density))
+                fun settleWidth(): Boolean {
+                    val midpoint = (halfWidthDp + fullWidthDp) / 2f
+                    val newHalf = liveWidth < midpoint
+                    liveWidth = if (newHalf) halfWidthDp else fullWidthDp
+                    return newHalf
+                }
+                ResizeHandle(
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
+                    width = 44.dp,
+                    height = 6.dp,
+                    widgetId = widget.widgetId,
+                    onDrag = { _, dy ->
+                        liveHeight = (liveHeight + dy / density).roundToInt().coerceIn(WIDGET_MIN_H, WIDGET_MAX_H)
+                    },
+                    onDragEnd = { onResize(liveHeight, widget.halfWidth) },
+                )
+                ResizeHandle(
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp),
+                    width = 6.dp,
+                    height = 44.dp,
+                    widgetId = widget.widgetId,
+                    onDrag = { dx, _ ->
+                        liveWidth = (liveWidth + dx / density).roundToInt().coerceIn(widthFloor, fullWidthDp)
+                    },
+                    onDragEnd = { onResize(liveHeight, settleWidth()) },
+                )
+                ResizeHandle(
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
+                    width = 14.dp,
+                    height = 14.dp,
+                    cornerRadius = 6.dp,
+                    widgetId = widget.widgetId,
+                    onDrag = { dx, dy ->
+                        liveWidth = (liveWidth + dx / density).roundToInt().coerceIn(widthFloor, fullWidthDp)
+                        liveHeight = (liveHeight + dy / density).roundToInt().coerceIn(WIDGET_MIN_H, WIDGET_MAX_H)
+                    },
+                    onDragEnd = { onResize(liveHeight, settleWidth()) },
+                )
             }
         }
     }
@@ -643,6 +787,35 @@ private fun EditPill(label: String, color: Color, onClick: () -> Unit) {
             .clip(RoundedCornerShape(12.dp))
             .background(color)
             .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    )
+}
+
+/** Press-and-drag handle to reorder a widget — same pill styling as [EditPill], but a drag gesture instead of a click. */
+@Composable
+private fun DragHandlePill(
+    accent: Color,
+    widgetId: Int,
+    onDragStart: () -> Unit,
+    onDragBy: (Offset) -> Unit,
+    onDragEnd: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        "≡",
+        color = Color.White,
+        fontSize = 14.sp,
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(accent)
+            .pointerInput(widgetId) {
+                detectDragGestures(
+                    onDragStart = { onDragStart() },
+                    onDrag = { change, drag -> change.consume(); onDragBy(drag) },
+                    onDragEnd = { onDragEnd() },
+                    onDragCancel = { onDragEnd() },
+                )
+            }
             .padding(horizontal = 12.dp, vertical = 6.dp),
     )
 }

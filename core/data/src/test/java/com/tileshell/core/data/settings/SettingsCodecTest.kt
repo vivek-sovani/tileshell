@@ -247,4 +247,16 @@ class SettingsCodecTest {
         val s = LauncherSettings(liveTilesEnabled = false)
         assertEquals(false, SettingsCodec.decode(SettingsCodec.encode(s)).liveTilesEnabled)
     }
+
+    @Test
+    fun `feedNoBackground decodes and bad value keeps default, default is off`() {
+        assertEquals(false, LauncherSettings().feedNoBackground)
+        assertEquals(true, SettingsCodec.decode("feedNoBg=true").feedNoBackground)
+        assertEquals(
+            LauncherSettings().feedNoBackground,
+            SettingsCodec.decode("feedNoBg=nope").feedNoBackground,
+        )
+        val s = LauncherSettings(feedNoBackground = true)
+        assertEquals(true, SettingsCodec.decode(SettingsCodec.encode(s)).feedNoBackground)
+    }
 }

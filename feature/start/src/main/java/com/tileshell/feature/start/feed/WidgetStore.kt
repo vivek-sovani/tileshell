@@ -11,11 +11,17 @@ import java.io.OutputStream
 
 /**
  * One hosted app widget: its bound `AppWidgetHost` id, its current height (dp), and
- * an optional custom width (dp) — only square widgets are user-resizable in width
- * (diagonal resize, keeping height == width); everything else derives its width
- * live from the feed's slot width, so 0 means "no custom width, use the default."
+ * whether it renders at half the feed's row width (paired alongside another
+ * half-width widget, or alone at half width) versus the full row. [widthDp] is a
+ * legacy field from an earlier continuous-width model — kept only so old save
+ * files still parse; no longer read for sizing (see [halfWidth]).
  */
-data class HostedWidget(val widgetId: Int, val heightDp: Int, val widthDp: Int = 0)
+data class HostedWidget(
+    val widgetId: Int,
+    val heightDp: Int,
+    val widthDp: Int = 0,
+    val halfWidth: Boolean = false,
+)
 
 /**
  * The app widgets hosted in the feed's glance tab, in display order. Each carries a
@@ -24,10 +30,15 @@ data class HostedWidget(val widgetId: Int, val heightDp: Int, val widthDp: Int =
  */
 data class WidgetData(val widgets: List<HostedWidget> = emptyList())
 
-/** One widget per line as `id,heightDp,widthDp`; tolerant (bad lines dropped, missing width → 0). */
+/**
+ * One widget per line as `id,heightDp,widthDp,halfWidth`; tolerant (bad lines
+ * dropped, missing height/width/halfWidth all fall back to defaults) — the
+ * trailing `halfWidth` field is optional so lines written before it existed
+ * still decode fine.
+ */
 object WidgetCodec {
     fun encode(data: WidgetData): String =
-        data.widgets.joinToString("\n") { "${it.widgetId},${it.heightDp},${it.widthDp}" }
+        data.widgets.joinToString("\n") { "${it.widgetId},${it.heightDp},${it.widthDp},${it.halfWidth}" }
 
     fun decode(text: String): WidgetData = WidgetData(
         text.lineSequence().mapNotNull { line ->
@@ -35,7 +46,8 @@ object WidgetCodec {
             val id = parts.getOrNull(0)?.trim()?.toIntOrNull() ?: return@mapNotNull null
             val h = parts.getOrNull(1)?.trim()?.toIntOrNull() ?: 110
             val w = parts.getOrNull(2)?.trim()?.toIntOrNull() ?: 0
-            HostedWidget(id, h, w)
+            val half = parts.getOrNull(3)?.trim()?.toBooleanStrictOrNull() ?: false
+            HostedWidget(id, h, w, half)
         }.toList(),
     )
 }
@@ -71,26 +83,19 @@ class WidgetStore(private val store: DataStore<WidgetData>) {
         store.updateData { it.copy(widgets = it.widgets.filterNot { w -> w.widgetId == widgetId }) }
     }
 
-    suspend fun setSize(widgetId: Int, heightDp: Int, widthDp: Int) {
+    suspend fun setSize(widgetId: Int, heightDp: Int, halfWidth: Boolean) {
         store.updateData {
             it.copy(
                 widgets = it.widgets.map { w ->
-                    if (w.widgetId == widgetId) w.copy(heightDp = heightDp, widthDp = widthDp) else w
+                    if (w.widgetId == widgetId) w.copy(heightDp = heightDp, halfWidth = halfWidth) else w
                 },
             )
         }
     }
 
-    /** Swap [widgetId] with its neighbour, moving it up (or down) one position. */
-    suspend fun move(widgetId: Int, up: Boolean) {
-        store.updateData { data ->
-            val list = data.widgets.toMutableList()
-            val i = list.indexOfFirst { it.widgetId == widgetId }
-            val j = if (up) i - 1 else i + 1
-            if (i < 0 || j !in list.indices) return@updateData data
-            val tmp = list[i]; list[i] = list[j]; list[j] = tmp
-            data.copy(widgets = list)
-        }
+    /** Persists a new display order (the same widgets, resequenced) — e.g. after a drag reorder. */
+    suspend fun reorder(newOrder: List<HostedWidget>) {
+        store.updateData { it.copy(widgets = newOrder) }
     }
 
     /**

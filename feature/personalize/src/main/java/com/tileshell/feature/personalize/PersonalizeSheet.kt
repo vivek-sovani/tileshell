@@ -138,6 +138,8 @@ fun PersonalizeSheet(
     onFeedEnabledChange: (Boolean) -> Unit,
     deviceStatusCardEnabled: Boolean,
     onDeviceStatusCardEnabledChange: (Boolean) -> Unit,
+    feedNoBackground: Boolean,
+    onFeedNoBackgroundChange: (Boolean) -> Unit,
     userName: String,
     onUserNameChange: (String) -> Unit,
     onSystemSettings: () -> Unit,
@@ -176,6 +178,12 @@ fun PersonalizeSheet(
     /** Master on/off switch for live-tile flipping/updates. */
     liveTilesEnabled: Boolean,
     onLiveTilesEnabledChange: (Boolean) -> Unit,
+    /** Badges & live mail — grouped with live tiles, since it feeds their content. */
+    notificationsEnabled: Boolean,
+    onNotificationAccess: () -> Unit,
+    batteryOptimizationExempt: Boolean,
+    batteryGuidanceNote: String,
+    onBatteryExemption: () -> Unit,
     onAbout: () -> Unit,
     onPersonalizeGuide: () -> Unit,
     onFolders: () -> Unit,
@@ -183,8 +191,8 @@ fun PersonalizeSheet(
     edgeStripEnabled: Boolean,
     onEdgeStrip: () -> Unit,
     onBackupRestore: () -> Unit,
-    /** Opens the consolidated contacts/calendar/location/notifications sub-sheet. */
-    onNotificationsPermissions: () -> Unit,
+    /** Opens the contacts/calendar/location permissions sub-sheet. */
+    onPermissions: () -> Unit,
     /** Opens the news-region picker sub-sheet. */
     onNewsRegion: () -> Unit,
     /** Total selectable news regions (static descriptive count, not a live selection count). */
@@ -206,6 +214,7 @@ fun PersonalizeSheet(
     val tokens = colorTokens(dark)
     val accent = TileAccents.forId(accentId)
     var showResetTileStyleConfirm by remember { mutableStateOf(false) }
+    var showLiveTilesPermissionPrompt by remember { mutableStateOf(false) }
 
     // Android back / back-gesture closes the sheet. When a sub-sheet (about,
     // folders, bing history) is open on top, its own handler — registered later —
@@ -225,6 +234,30 @@ fun PersonalizeSheet(
             },
             dismissButton = {
                 TextButton(onClick = { showResetTileStyleConfirm = false }) { Text("cancel") }
+            },
+        )
+    }
+
+    if (showLiveTilesPermissionPrompt) {
+        AlertDialog(
+            onDismissRequest = { showLiveTilesPermissionPrompt = false },
+            title = { Text("allow live tile updates?") },
+            text = {
+                Text(
+                    "live tiles show badges and mail/message previews using two permissions:\n\n" +
+                        "• notification access — reads which apps have pending notifications\n" +
+                        "• background activity — keeps updates flowing when the screen is off\n\n" +
+                        "you can grant these now, or skip and enable them later from personalize.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showLiveTilesPermissionPrompt = false
+                    onNotificationAccess()
+                }) { Text("continue") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLiveTilesPermissionPrompt = false }) { Text("not now") }
             },
         )
     }
@@ -794,15 +827,61 @@ fun PersonalizeSheet(
                 }
             }
 
-            // ---- live tiles: master on/off switch ----
+            // ---- live tiles: master on/off switch, bundling the badges & live
+            // mail permission ask ----
+            // (grouped together — badges/live-mail access is what feeds the mail/
+            // messages live-tile faces and the tile badge counts, so enabling
+            // live tiles is also the moment to ask for it, rather than making
+            // the user separately hunt down a nav row for it.)
             SettingGroup(label = "live tiles", tokens.fgDim) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ToggleRow("live tile updates", on = liveTilesEnabled, accent = accent, tokens, onLiveTilesEnabledChange)
+                    ToggleRow(
+                        "live tile updates",
+                        on = liveTilesEnabled,
+                        accent = accent,
+                        tokens = tokens,
+                        onChange = { enabled ->
+                            onLiveTilesEnabledChange(enabled)
+                            if (enabled && !notificationsEnabled) showLiveTilesPermissionPrompt = true
+                        },
+                    )
                     Text(
-                        "pauses clock/weather/notification flipping when off — badges and counts keep updating",
+                        text = if (notificationsEnabled) {
+                            "pauses clock/weather/notification flipping when off — badges and counts keep updating"
+                        } else {
+                            "pauses clock/weather/notification flipping when off — also asks for notification access, so badges & live mail can work"
+                        },
                         color = tokens.fgDim,
                         fontSize = 12.sp,
                     )
+                    if (notificationsEnabled && !batteryOptimizationExempt) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(onClick = onBatteryExemption)
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "background activity",
+                                    color = tokens.fg,
+                                    fontSize = 14.sp,
+                                )
+                                Text(
+                                    text = if (batteryGuidanceNote.isNotEmpty()) {
+                                        batteryGuidanceNote
+                                    } else {
+                                        "exempt from battery optimisation for reliable badges"
+                                    },
+                                    color = tokens.fgDim,
+                                    fontSize = 12.sp,
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text(text = "fix ›", color = accent, fontSize = 13.sp)
+                        }
+                    }
                 }
             }
 
@@ -861,19 +940,19 @@ fun PersonalizeSheet(
                 }
             }
 
-            // ---- notifications & permissions (consolidated sub-sheet) ----
-            SettingGroup(label = "notifications & permissions", tokens.fgDim) {
+            // ---- permissions (contacts/calendar/location — sub-sheet) ----
+            SettingGroup(label = "permissions", tokens.fgDim) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable(onClick = onNotificationsPermissions)
+                        .clickable(onClick = onPermissions)
                         .padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "contacts, calendar, location & badges", color = tokens.fg, fontSize = 14.sp)
+                        Text(text = "contacts, calendar & location", color = tokens.fg, fontSize = 14.sp)
                         Text(
-                            text = "manage permissions and notification access",
+                            text = "manage what live tiles can access",
                             color = tokens.fgDim,
                             fontSize = 12.sp,
                         )
@@ -939,6 +1018,18 @@ fun PersonalizeSheet(
                         accent = accent,
                         tokens,
                         onDeviceStatusCardEnabledChange,
+                    )
+                    ToggleRow(
+                        "no background",
+                        on = feedNoBackground,
+                        accent = accent,
+                        tokens,
+                        onFeedNoBackgroundChange,
+                    )
+                    Text(
+                        "keeps the glance screen flat even when start has a wallpaper set",
+                        color = tokens.fgDim,
+                        fontSize = 12.sp,
                     )
                     Column {
                         Text("your name", color = tokens.fgDim, fontSize = 13.sp)

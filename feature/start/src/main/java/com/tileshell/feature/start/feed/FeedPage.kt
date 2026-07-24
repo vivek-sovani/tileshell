@@ -52,7 +52,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -65,14 +67,18 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.palette.graphics.Palette
 import com.tileshell.core.design.Glass
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.WallpaperGradient
+import com.tileshell.core.design.WallpaperLayer
+import com.tileshell.core.design.wallpaperBackground
+import com.tileshell.core.design.Wallpapers
 import com.tileshell.feature.personalize.FeedSourceItem
 import com.tileshell.feature.personalize.RegionChipGrid
 import com.tileshell.feature.personalize.RegionOption
 import com.tileshell.core.design.LocalColorTokens
-import com.tileshell.feature.start.WallpaperBackground
+import com.tileshell.feature.start.dominantIconColor
 import com.tileshell.feature.start.rememberChosenWallpaperIsLight
 import com.tileshell.feature.start.rememberWallpaperBitmap
 import com.tileshell.feature.livetiles.CalendarFace
@@ -125,11 +131,9 @@ fun FeedPage(
     userName: String,
     wallpaper: WallpaperGradient,
     customWallpaperUri: String?,
-    wallpaperAlignX: Float,
-    wallpaperAlignY: Float,
-    wallpaperZoom: Float,
     dark: Boolean,
     noWallpaper: Boolean,
+    feedNoBackground: Boolean,
     feeds: List<FeedSourceItem>,
     onToggleFeed: (url: String, enabled: Boolean) -> Unit,
     onToggleCategory: (category: String, enabled: Boolean) -> Unit,
@@ -150,21 +154,48 @@ fun FeedPage(
     val context = LocalContext.current
     val density = androidx.compose.ui.platform.LocalDensity.current
 
-    // Text sitting directly on the wallpaper (greeting, date/clock, section
-    // labels, the news filter chips) can't use the fixed theme fg/fgDim —
-    // those are white in dark theme regardless of what's actually behind them,
-    // and a light custom photo (or a light "none" background while the app
-    // theme is dark) would render them unreadably pale. Reuses the same
-    // brightness classification Start already applies to glass/tiled tile
-    // faces (see docs/DECISIONS.md "Live tile text: black when the wallpaper
-    // behind it is light") so the two surfaces behave consistently. Text
-    // inside the page's own opaque cards (AccentCard/GCard/ArticleCard) is
-    // unaffected — those already guarantee their own contrast.
+    // The glance screen never shows the literal wallpaper image — always a
+    // synthesized abstract colour gradient built from its prominent colours
+    // (a stock gradient's own vivid glow tints, or a custom photo's palette
+    // via androidx.palette), rendered crisp — never blurred. feedAccent (the
+    // most prominent extracted colour) drives the cards/chrome below; the
+    // feed settings sheet (a modal, like Personalize) intentionally keeps the
+    // global accent instead.
+    //
+    // "no background" is a real, supported choice, and independent of
+    // Start's own wallpaper: either Start has no wallpaper set at all
+    // (`noWallpaper`), or the user has explicitly opted the feed out via
+    // `feedNoBackground` even though Start itself shows a photo/gradient —
+    // the feed is a denser reading surface and a colourful background behind
+    // it isn't always wanted even when it looks fine behind Start's tiles.
+    // The background box below renders flat `tokens.bg` either way; without
+    // this branch feedAccent would still resolve to whatever stock
+    // gradient's own glow colour `wallpaper` falls back to (e.g. Aurora's
+    // teal) — a stray tint on the weather/today cards and chips even though
+    // the screen reads as "no background". Skip palette synthesis entirely
+    // and use the plain global accent instead.
+    val flatBackground = noWallpaper || feedNoBackground
     val feedCustomPhoto = customWallpaperUri?.let { rememberWallpaperBitmap(it) }
+    val (feedGradient, feedAccent) = if (flatBackground) {
+        wallpaper to accent
+    } else {
+        rememberFeedPalette(feedCustomPhoto, wallpaper, accent)
+    }
+
+    // Text sitting directly on the background (greeting, date/clock, section
+    // labels) can't use the fixed theme fg/fgDim — those are white in dark
+    // theme regardless of what's actually behind them, and a light gradient
+    // would render them unreadably pale. Reuses the same brightness
+    // classification Start already applies to glass/tiled tile faces (see
+    // docs/DECISIONS.md "Live tile text: black when the wallpaper behind it
+    // is light"), evaluated against feedGradient — what's actually drawn —
+    // rather than the raw photo. Text inside the page's own opaque cards
+    // (AccentCard/GCard/ArticleCard) is unaffected — those already guarantee
+    // their own contrast.
     val feedBackgroundIsLight = rememberChosenWallpaperIsLight(
-        customPhoto = feedCustomPhoto,
-        noWallpaper = noWallpaper,
-        wallpaper = wallpaper,
+        customPhoto = null,
+        noWallpaper = flatBackground,
+        wallpaper = feedGradient,
         dark = dark,
         screenBg = tokens.bg,
     )
@@ -227,21 +258,10 @@ fun FeedPage(
         modifier = modifier
             .fillMaxSize(),
     ) {
-    if (noWallpaper) {
+    if (flatBackground) {
         Box(modifier = Modifier.fillMaxSize().background(tokens.bg))
     } else {
-        // Always blurred regardless of Start's own "blur" toggle — this is a
-        // denser reading surface where a sharp photo/gradient behind small text
-        // cards would compete for attention (see docs/DECISIONS.md).
-        WallpaperBackground(
-            gradient = wallpaper,
-            customWallpaperUri = customWallpaperUri,
-            blur = true,
-            alignX = wallpaperAlignX,
-            alignY = wallpaperAlignY,
-            zoom = wallpaperZoom,
-            dark = dark,
-        )
+        Box(modifier = Modifier.fillMaxSize().wallpaperBackground(feedGradient, dark))
     }
     Column(
         modifier = Modifier
@@ -270,7 +290,7 @@ fun FeedPage(
                 Box(modifier = Modifier.weight(1f)) {
                     WeatherCard(
                         snapshot = snapshot,
-                        accent = accent,
+                        accent = feedAccent,
                         onClick = { onWeatherDetails(("weather " + (snapshot?.place ?: "")).trim()) },
                     )
                 }
@@ -278,7 +298,7 @@ fun FeedPage(
                     AgendaCard(
                         agenda = agenda,
                         granted = calGranted,
-                        accent = accent,
+                        accent = feedAccent,
                         onAddSchedule = onAddSchedule,
                         onClick = { openCalendar(context) },
                     )
@@ -290,12 +310,12 @@ fun FeedPage(
                     nowPlaying = nowPlaying,
                     packageName = nowPlayingPackage,
                     art = nowPlayingPackage?.let { artwork[it] },
-                    accent = accent,
+                    accent = feedAccent,
                     onClick = nowPlayingPackage?.let { pkg -> { launchPackage(context, pkg) } },
                 )
             }
 
-            WidgetSection(accent = accent, tokens = tokens, labelColor = feedFgDim)
+            WidgetSection(accent = feedAccent, tokens = tokens, labelColor = feedFgDim)
 
             if (deviceStatusCardEnabled) {
                 SectionLabel("device status", feedFgDim)
@@ -303,7 +323,7 @@ fun FeedPage(
             }
 
             NewsHeader(
-                accent = accent,
+                accent = feedAccent,
                 fg = feedFg,
                 fgDim = feedFgDim,
                 onRefresh = onRefresh,
@@ -322,7 +342,7 @@ fun FeedPage(
             } else {
                 val nowMs = now.timeInMillis
                 articles.forEach { article ->
-                    ArticleCard(article, nowMs, accent, tokens) { onOpenArticle(article.link) }
+                    ArticleCard(article, nowMs, feedAccent, tokens) { onOpenArticle(article.link) }
                 }
             }
         }
@@ -344,6 +364,101 @@ fun FeedPage(
     )
     }  // Box
 }
+
+/**
+ * The feed's own ambient colour identity: a synthesized [WallpaperGradient]
+ * (never the actual photo) plus its most prominent colour as [feedAccent].
+ * For a stock gradient this is just the gradient itself (already an abstract
+ * colour mesh); for a custom photo, [photoGradient] extracts a palette via
+ * androidx.palette off the main thread. Recomputes only when the underlying
+ * photo/gradient actually changes; briefly shows the previous result (or the
+ * plain stock gradient) while a new photo's palette is extracting.
+ */
+@Composable
+private fun rememberFeedPalette(
+    customPhoto: ImageBitmap?,
+    wallpaper: WallpaperGradient,
+    fallbackAccent: Color,
+): Pair<WallpaperGradient, Color> {
+    val stockResult = wallpaper to (wallpaper.layers.firstOrNull()?.color ?: fallbackAccent)
+    var result by remember(wallpaper, fallbackAccent) { mutableStateOf(stockResult) }
+    LaunchedEffect(customPhoto, wallpaper, fallbackAccent) {
+        result = if (customPhoto != null) {
+            withContext(Dispatchers.Default) { photoGradient(customPhoto) } ?: stockResult
+        } else {
+            stockResult
+        }
+    }
+    return result
+}
+
+/**
+ * Extracts up to 3 prominent colours from [photo] via [Palette] and lays them
+ * out as radial glow layers over a darker base — the same [WallpaperGradient]
+ * shape the bundled gradients use (see [Wallpapers]) — so a custom photo's
+ * *palette* drives the feed's background instead of the (blurred) photo
+ * itself. Null when the photo yields no usable colour (e.g. fully transparent).
+ */
+private fun photoGradient(photo: ImageBitmap): Pair<WallpaperGradient, Color>? {
+    val palette = runCatching { Palette.from(photo.asAndroidBitmap()).generate() }.getOrNull()
+    val swatches = listOfNotNull(
+        palette?.vibrantSwatch,
+        palette?.lightVibrantSwatch,
+        palette?.darkVibrantSwatch,
+        palette?.mutedSwatch,
+        palette?.lightMutedSwatch,
+        palette?.darkMutedSwatch,
+        palette?.dominantSwatch,
+    ).distinctBy { it.rgb }
+
+    val accent: Color
+    val base: Color
+    val layerColors: List<Color>
+    if (swatches.isNotEmpty()) {
+        accent = Color(swatches.first().rgb)
+        base = (palette?.darkVibrantSwatch ?: palette?.darkMutedSwatch)?.let { Color(it.rgb) }
+            ?: darken(accent, 0.35f)
+        layerColors = swatches.map { Color(it.rgb) }.filter { it != base }.take(3).ifEmpty { listOf(accent) }
+    } else {
+        // Palette's target-based swatches (vibrant/muted/etc.) can all come back
+        // null for a near-flat/low-variance photo (nothing for its target
+        // criteria to select between) even when generate() itself succeeds —
+        // fall back to a plain average colour instead of silently reverting to
+        // an unrelated stock gradient.
+        val avg = dominantIconColor(photo) ?: return null
+        accent = avg
+        base = darken(avg, 0.45f)
+        layerColors = listOf(lighten(avg, 0.12f), avg, darken(avg, 0.15f))
+    }
+
+    // Same 3-corner layout the bundled gradients (e.g. Aurora) use.
+    val positions = listOf(
+        Triple(0.15f, 0.10f, 1.2f),
+        Triple(0.85f, 0.00f, 1.2f),
+        Triple(0.70f, 1.00f, 1.4f),
+    )
+    val layers = layerColors.mapIndexed { i, color ->
+        val (cx, cy, radius) = positions.getOrElse(i) { Triple(0.5f, 0.5f, 1.3f) }
+        WallpaperLayer(color = color, cx = cx, cy = cy, radiusPct = radius, fade = 0.55f)
+    }
+    return WallpaperGradient(id = "photo", label = "photo", base = base, layers = layers) to accent
+}
+
+/** Darkens [color] toward black by [factor] (0..1); alpha untouched. */
+private fun darken(color: Color, factor: Float): Color = Color(
+    red = color.red * (1f - factor),
+    green = color.green * (1f - factor),
+    blue = color.blue * (1f - factor),
+    alpha = color.alpha,
+)
+
+/** Lightens [color] toward white by [factor] (0..1); alpha untouched. */
+private fun lighten(color: Color, factor: Float): Color = Color(
+    red = color.red + (1f - color.red) * factor,
+    green = color.green + (1f - color.green) * factor,
+    blue = color.blue + (1f - color.blue) * factor,
+    alpha = color.alpha,
+)
 
 /**
  * "good morning, `<name>`" — the time-of-day bucket from [greetingFor], with the

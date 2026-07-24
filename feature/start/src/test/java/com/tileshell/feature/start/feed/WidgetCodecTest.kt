@@ -28,4 +28,12 @@ class WidgetCodecTest {
         val data = WidgetData(listOf(HostedWidget(7, 180, 180), HostedWidget(42, 200)))
         assertEquals(data, WidgetCodec.decode(WidgetCodec.encode(data)))
     }
+
+    @Test
+    fun `round-trips halfWidth, missing field defaults to false`() {
+        val data = WidgetData(listOf(HostedWidget(7, 120, halfWidth = true), HostedWidget(42, 200, halfWidth = false)))
+        assertEquals(data, WidgetCodec.decode(WidgetCodec.encode(data)))
+        // A pre-existing save file written before halfWidth existed (3 columns only).
+        assertEquals(listOf(HostedWidget(5, 160, 0, false)), WidgetCodec.decode("5,160,0").widgets)
+    }
 }

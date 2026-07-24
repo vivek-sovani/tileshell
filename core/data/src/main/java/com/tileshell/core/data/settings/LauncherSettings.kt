@@ -90,6 +90,12 @@ enum class TileColorSource { GLOBAL_ACCENT, APP_ICON }
  *   the existing `rememberLiveTilesActive` gate alongside battery saver and
  *   system animation settings when off — a purely cosmetic pause, not a data
  *   toggle (badges/counts still update, only the flip animation stops).
+ * @property feedNoBackground forces the feed/glance screen to a flat theme
+ *   background (and the plain global accent for its cards/chrome) regardless
+ *   of Start's own wallpaper choice — an independent opt-out, since the feed
+ *   otherwise always shows a colour gradient synthesized from Start's
+ *   wallpaper even when that wallpaper is a photo or stock gradient the user
+ *   is happy to see behind Start's tiles but not behind the feed's text.
  */
 data class LauncherSettings(
     val followSystemTheme: Boolean = true,
@@ -152,6 +158,7 @@ data class LauncherSettings(
     val deviceStatusCardEnabled: Boolean = true,
     val userName: String = "",
     val liveTilesEnabled: Boolean = true,
+    val feedNoBackground: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_COLUMNS = 4
@@ -209,7 +216,8 @@ object SettingsCodec {
         append("lockLayout=").append(settings.lockLayout).append('\n')
         append("deviceStatusCard=").append(settings.deviceStatusCardEnabled).append('\n')
         append("userName=").append(settings.userName).append('\n')
-        append("liveTiles=").append(settings.liveTilesEnabled)
+        append("liveTiles=").append(settings.liveTilesEnabled).append('\n')
+        append("feedNoBg=").append(settings.feedNoBackground)
     }
 
     fun decode(text: String): LauncherSettings {
@@ -249,6 +257,7 @@ object SettingsCodec {
         var deviceStatusCardEnabled = d.deviceStatusCardEnabled
         var userName = d.userName
         var liveTilesEnabled = d.liveTilesEnabled
+        var feedNoBackground = d.feedNoBackground
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
             if (sep <= 0) return@forEach
@@ -303,6 +312,7 @@ object SettingsCodec {
                     value.toBooleanStrictOrNull() ?: deviceStatusCardEnabled
                 "userName" -> userName = value
                 "liveTiles" -> liveTilesEnabled = value.toBooleanStrictOrNull() ?: liveTilesEnabled
+                "feedNoBg" -> feedNoBackground = value.toBooleanStrictOrNull() ?: feedNoBackground
             }
         }
         return LauncherSettings(
@@ -341,6 +351,7 @@ object SettingsCodec {
             deviceStatusCardEnabled = deviceStatusCardEnabled,
             userName = userName,
             liveTilesEnabled = liveTilesEnabled,
+            feedNoBackground = feedNoBackground,
         )
     }
 }

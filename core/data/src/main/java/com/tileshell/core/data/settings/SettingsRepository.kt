@@ -219,6 +219,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(liveTilesEnabled = enabled) }
     }
 
+    /** Forces the feed/glance screen to a flat background, independent of Start's wallpaper. */
+    suspend fun setFeedNoBackground(noBackground: Boolean) {
+        store.updateData { it.copy(feedNoBackground = noBackground) }
+    }
+
     /** Toggle following the device dark-mode setting (vs. the manual [dark] choice). */
     suspend fun setFollowSystemTheme(follow: Boolean) {
         store.updateData { it.copy(followSystemTheme = follow) }

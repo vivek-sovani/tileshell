@@ -202,7 +202,7 @@ import com.tileshell.feature.personalize.FeedSourceItem
 import com.tileshell.feature.personalize.EdgeStripSheet
 import com.tileshell.feature.personalize.HiddenAppsSheet
 import com.tileshell.feature.personalize.NewsRegionSheet
-import com.tileshell.feature.personalize.NotificationsPermissionsSheet
+import com.tileshell.feature.personalize.PermissionsSheet
 import com.tileshell.feature.personalize.PersonalizeGuidePrefs
 import com.tileshell.feature.personalize.PersonalizeGuideSheet
 import com.tileshell.feature.personalize.PersonalizeSheet
@@ -278,7 +278,7 @@ fun StartScreen(
     val backupOpen by viewModel.backupOpen.collectAsStateWithLifecycle()
     val foldersOpen by viewModel.foldersOpen.collectAsStateWithLifecycle()
     val hiddenAppsOpen by viewModel.hiddenAppsOpen.collectAsStateWithLifecycle()
-    val notificationsPermissionsOpen by viewModel.notificationsPermissionsOpen.collectAsStateWithLifecycle()
+    val permissionsOpen by viewModel.permissionsOpen.collectAsStateWithLifecycle()
     val newsRegionOpen by viewModel.newsRegionOpen.collectAsStateWithLifecycle()
     val edgeStripOpen by viewModel.edgeStripOpen.collectAsStateWithLifecycle()
     val quickPanelOpen by viewModel.quickPanelOpen.collectAsStateWithLifecycle()
@@ -907,15 +907,13 @@ fun StartScreen(
                 userName = settings.userName,
                 wallpaper = wallpaper,
                 customWallpaperUri = settings.customWallpaperUri,
-                wallpaperAlignX = settings.wallpaperAlignX,
-                wallpaperAlignY = settings.wallpaperAlignY,
-                wallpaperZoom = settings.wallpaperZoom,
                 dark = dark,
                 // Not OR-ed with tiledWallpaper: that mode only changes how Start's
                 // *tiles* window onto the wallpaper (a per-tile effect with no
                 // equivalent here) — the feed has no tiles, so it always shows the
                 // plain full-screen wallpaper regardless of Start's tiled setting.
                 noWallpaper = noWallpaper,
+                feedNoBackground = settings.feedNoBackground,
                 feeds = feedSources.map { FeedSourceItem(it.url, it.name, it.category, it.enabled) },
                 onToggleFeed = viewModel::setFeedSourceEnabled,
                 onToggleCategory = viewModel::setFeedCategoryEnabled,
@@ -1123,10 +1121,23 @@ fun StartScreen(
             onFeedEnabledChange = viewModel::setFeedEnabled,
             deviceStatusCardEnabled = settings.deviceStatusCardEnabled,
             onDeviceStatusCardEnabledChange = viewModel::setDeviceStatusCardEnabled,
+            feedNoBackground = settings.feedNoBackground,
+            onFeedNoBackgroundChange = viewModel::setFeedNoBackground,
             userName = settings.userName,
             onUserNameChange = viewModel::setUserName,
             liveTilesEnabled = settings.liveTilesEnabled,
             onLiveTilesEnabledChange = viewModel::setLiveTilesEnabled,
+            notificationsEnabled = notificationAccess,
+            onNotificationAccess = {
+                runCatching { context.startActivity(NotificationAccess.settingsIntent()) }
+                    .onFailure {
+                        Toast.makeText(context, "open settings to allow access", Toast.LENGTH_SHORT)
+                            .show()
+                    }
+            },
+            batteryOptimizationExempt = batteryExempt,
+            batteryGuidanceNote = OemBatteryGuard.guidanceNote(),
+            onBatteryExemption = { OemBatteryGuard.requestExemption(context) },
             onSystemSettings = {
                 runCatching {
                     context.startActivity(
@@ -1187,7 +1198,7 @@ fun StartScreen(
             edgeStripEnabled = settings.edgeStripEnabled,
             onEdgeStrip = viewModel::openEdgeStrip,
             onBackupRestore = viewModel::openBackup,
-            onNotificationsPermissions = viewModel::openNotificationsPermissions,
+            onPermissions = viewModel::openPermissions,
             onNewsRegion = viewModel::openNewsRegion,
             newsRegionCount = 1 + SELECTABLE_COUNTRIES.size,
             onDismiss = viewModel::closePersonalize,
@@ -1328,13 +1339,13 @@ fun StartScreen(
             existingFolderPackages = { name -> existingFoldersByName[name.lowercase()] ?: emptySet() },
         )
 
-        // Notifications & permissions sheet (personalize → notifications & permissions).
-        NotificationsPermissionsSheet(
-            visible = notificationsPermissionsOpen,
+        // Permissions sheet (personalize → permissions).
+        PermissionsSheet(
+            visible = permissionsOpen,
             rightHalf = isLandscape,
             dark = dark,
             accentId = settings.accentId,
-            onDismiss = viewModel::closeNotificationsPermissions,
+            onDismiss = viewModel::closePermissions,
             contactsGranted = contactsGranted,
             calendarGranted = calendarGranted,
             locationGranted = locationGranted,
@@ -1347,17 +1358,6 @@ fun StartScreen(
             onRequestLocation = {
                 locationLauncher.launch(android.Manifest.permission.ACCESS_COARSE_LOCATION)
             },
-            notificationsEnabled = notificationAccess,
-            onNotificationAccess = {
-                runCatching { context.startActivity(NotificationAccess.settingsIntent()) }
-                    .onFailure {
-                        Toast.makeText(context, "open settings to allow access", Toast.LENGTH_SHORT)
-                            .show()
-                    }
-            },
-            batteryOptimizationExempt = batteryExempt,
-            batteryGuidanceNote = OemBatteryGuard.guidanceNote(),
-            onBatteryExemption = { OemBatteryGuard.requestExemption(context) },
         )
 
         // News-region sheet (personalize → news region) — same subscribed-region
@@ -3806,7 +3806,7 @@ private fun rememberIconSuggestion(packageName: String, activityName: String): I
     }
 }
 
-private fun dominantIconColor(bitmap: ImageBitmap): Color? {
+internal fun dominantIconColor(bitmap: ImageBitmap): Color? {
     val w = bitmap.width
     val h = bitmap.height
     if (w == 0 || h == 0) return null

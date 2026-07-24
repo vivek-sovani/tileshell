@@ -200,9 +200,9 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val _hiddenAppsOpen = MutableStateFlow(false)
     val hiddenAppsOpen: StateFlow<Boolean> = _hiddenAppsOpen.asStateFlow()
 
-    /** True while the notifications & permissions sheet is open (personalize → notifications & permissions). */
-    private val _notificationsPermissionsOpen = MutableStateFlow(false)
-    val notificationsPermissionsOpen: StateFlow<Boolean> = _notificationsPermissionsOpen.asStateFlow()
+    /** True while the permissions sheet is open (personalize → permissions). */
+    private val _permissionsOpen = MutableStateFlow(false)
+    val permissionsOpen: StateFlow<Boolean> = _permissionsOpen.asStateFlow()
 
     /** True while the news-region sheet is open (personalize → news region). */
     private val _newsRegionOpen = MutableStateFlow(false)
@@ -399,14 +399,14 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         _hiddenAppsOpen.value = false
     }
 
-    /** Open the notifications & permissions sheet (personalize → notifications & permissions). */
-    fun openNotificationsPermissions() {
-        _notificationsPermissionsOpen.value = true
+    /** Open the permissions sheet (personalize → permissions). */
+    fun openPermissions() {
+        _permissionsOpen.value = true
     }
 
-    /** Close the notifications & permissions sheet. */
-    fun closeNotificationsPermissions() {
-        _notificationsPermissionsOpen.value = false
+    /** Close the permissions sheet. */
+    fun closePermissions() {
+        _permissionsOpen.value = false
     }
 
     /** Open the news-region sheet (personalize → news region). */
@@ -600,6 +600,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Master on/off switch for live-tile flipping/updates. */
     fun setLiveTilesEnabled(enabled: Boolean) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setLiveTilesEnabled(enabled) }
+    }
+
+    /** Forces the feed/glance screen to a flat background, independent of Start's wallpaper. */
+    fun setFeedNoBackground(noBackground: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setFeedNoBackground(noBackground) }
     }
 
     /** Set the tile corner radius 0–12 dp. */
@@ -856,7 +861,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         closeFolders()
         closeHiddenApps()
         closeBackup()
-        closeNotificationsPermissions()
+        closePermissions()
         closeNewsRegion()
         closeEdgeStrip()
         closeQuickPanel()
