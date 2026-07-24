@@ -36,6 +36,126 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.2.2 — feed widgets: half/full sizing, side-by-side pairing, drag-to-reorder.**
+  Direct follow-up to the glance-screen redesign below, on the widget hosting
+  `WidgetSection`/`WidgetView` already has (`feed/WidgetSlot.kt`). Previously every
+  added widget was forced to the full feed content width, with a narrow
+  `isSquareWidget` special case centering square widgets at half width — no way for
+  two widgets to sit side by side even though the feed's own built-in weather+today
+  row already does exactly that. Replaced with a `halfWidth: Boolean` classification
+  on `HostedWidget` (`WidgetStore.kt`, new codec column, tolerant of old 3-column save
+  files): a widget defaults to half-row width when its declared natural width is
+  comfortably under half the row (`isHalfWidthWidget`, unit-tested), else full width;
+  the user can still drag to resize, now flipping between exactly those two sizes
+  (crossing the row's midpoint) rather than a continuous custom width. New pure
+  `packWidgetRows` (unit-tested) packs the ordered widget list into rows: full
+  widgets get their own row, consecutive half widgets pair up (mirroring the
+  weather+today `Row`/`weight(1f)` pattern), and — per explicit user correction — a
+  half-width widget left without a partner (odd count, or its partner just removed)
+  stays at half width on its own row rather than stretching to fill it. **Reordering
+  is now drag-and-drop** (a single drag-handle pill, "≡") instead of ↑/↓ buttons: the
+  old buttons reordered on every tap but that could reshuffle which row a widget was
+  packed into (reparenting its composable), silently dropping it out of edit mode —
+  user-reported after the sizing change shipped. Root-caused and fixed two ways:
+  (1) the drag only *commits* a reorder once, on release (`onWidgetDragEnd`), not
+  continuously while the live hit-target changes — committing mid-drag risked
+  reparenting the very composable hosting the drag gesture out from under the
+  in-progress touch; (2) `editing` (which widget is in edit mode) is now hoisted to
+  `WidgetSection` keyed by widget id instead of `WidgetView`'s local `remember`
+  state, so it survives a reorder-triggered reparent regardless. Each widget reports
+  its own live on-screen bounds (`onGloballyPositioned`/`boundsInRoot`); dragging
+  hit-tests the live drag point against every other widget's bounds, mirroring
+  Start's own tile-drag pattern (`reorderTiles`/`onReorderTo`) — a new
+  `reorderWidgets` pure function does the same splice-and-reinsert-at-target algorithm,
+  unit-tested with the same case shapes as `TileReorderTest`. Also fixed, from the
+  same round of on-device bug reports: the edit-mode overlay (scrim + move/edit/remove
+  controls + resize handles) used a window-level `Popup`, which doesn't reliably
+  track a widget's true position inside a scrolling page — controls could render
+  detached from a widget lower on the page, and scrolling *or* reordering while
+  editing could silently exit edit mode outright. Replaced with a plain in-place
+  `Box` (scrolls/reorders with the rest of the widget's own content, since it's real
+  Compose layout, not a separate window) plus an explicit `BackHandler` for back-press
+  dismiss (no longer free from `PopupProperties.dismissOnBackPress`). A second reported
+  overlap bug — the ↑/↓ buttons colliding with the edit/remove pills on a half-width
+  widget, no room for two side-by-side pill groups — is moot now that reordering is a
+  single drag handle instead of two buttons. Verified end-to-end on an emulator
+  (instrumented logging confirmed bounds-tracking/hit-testing/commit-on-release all
+  work correctly; a purely-vertical test drag reordered successfully — a wide/diagonal
+  ADB-synthesized test swipe near the screen's left edge kept getting intercepted by
+  Android's own system edge-back gesture, a testing artifact of how close the drag
+  handle sits to the screen edge, not an app bug). Build + tests green (`WidgetSlotTest`
+  new: 19 cases covering `isHalfWidthWidget`/`packWidgetRows`/`reorderWidgets`;
+  `WidgetCodecTest` extended for the `halfWidth` column).
+- **Post-v2.2.2 — glance screen background: synthesized colour gradient (never the
+  raw photo), independent of Start's own wallpaper, plus a real Palette bug fix.**
+  Follow-up to the redesign below: the feed's background was showing Start's actual
+  (blurred) wallpaper photo, which the user felt competed with the feed's text/cards
+  and didn't want. Rebuilt so the glance screen *never* shows the literal photo —
+  always a synthesized abstract colour gradient built from the wallpaper's own
+  prominent colours (a stock gradient's own layer colours are already abstract and
+  pass through unchanged; a custom photo's palette is extracted via
+  `androidx.palette`, `feed/FeedPage.kt`'s new `photoGradient`/`rememberFeedPalette`).
+  **Real bug found and fixed along the way**: Android's `Palette` can return every
+  named swatch (vibrant/muted/dominant/etc.) as null for a near-flat/low-variance
+  photo even though `generate()` itself succeeds (confirmed via a synthetic flat-colour
+  test photo + temporary logging) — silently falling back to an unrelated stock
+  gradient (Aurora's teal) instead of the photo's actual colour. Fixed with a manual
+  average-colour fallback reusing the existing `dominantIconColor` helper. Separately,
+  **per explicit user request, the glance screen also got its own independent "no
+  background" toggle** (`LauncherSettings.feedNoBackground`, new Personalize row under
+  "feed & glance") — decoupled from Start's wallpaper choice entirely, since the
+  feed is a denser reading surface where a colourful background behind text can be
+  unwanted even when the same wallpaper looks fine behind Start's tiles; when on
+  (or when Start genuinely has no wallpaper), the feed renders flat `tokens.bg` and
+  falls back to the plain global accent for its cards/chrome instead of any
+  synthesized colour. Build + tests green (`SettingsCodecTest` extended).
+- **Post-v2.2.2 — Personalize: live-tile permission ask explains before jumping to
+  settings; consolidated permissions sheet.** Enabling "live tile updates" while
+  notification access isn't granted used to jump straight to the system notification-
+  access settings screen — user-reported as too abrupt; wanted an explanation of
+  *why* (notification access + background activity) with an explicit choice to
+  proceed or not first. Now shows an in-app confirmation dialog ("allow live tile
+  updates?", listing both permissions) before navigating anywhere; declining just
+  leaves live tiles on without requesting access, no forced follow-through.
+  `NotificationsPermissionsSheet` (contacts/calendar/location + the old inline
+  notification/battery rows) was slimmed to `PermissionsSheet.kt` (contacts/calendar/
+  location only) — "badges & live mail" and the battery-exemption row moved into the
+  "live tiles" Personalize group directly, alongside the toggle they actually gate.
+  Build + tests green.
+- **Post-v2.2.2 — feed/glance page + Personalize sheet redesigned to match new
+  external mockups ("Metro Reforged"); widgets-on-Start-grid idea researched then
+  dropped.** Three-part plan, user-approved via plan mode, worked one part at a time
+  on a dedicated branch (`feed-glance-redesign`) so it could be reverted if unwanted:
+  **(A) Feed page** (`feed/FeedPage.kt`) — dropped the old glance/news tab switcher
+  for one continuous scroll: personalized "good morning, `<name>`" greeting (new
+  `userName` setting, auto-seeded once from the device contact profile if granted,
+  editable in Personalize — `greetingFor(hour)` unit-tested time-of-day buckets),
+  date/clock row, search pill, weather + today's agenda condensed side by side
+  (mirrors this session's later half-width widget pairing), now-playing, widgets,
+  device status, then news inline with the settings gear moved into its section
+  header (the separate quick-filter chip row shipped then was explicitly removed
+  again per user request — a separate per-feed region picker already exists).
+  Adaptive text colour (`feedFg`/`feedFgDim`) reads the *actual* rendered background's
+  brightness rather than assuming dark, after a reported black-on-dark invisible-text
+  bug. Fixed a real clipping bug found in the same pass: the feed panel's blurred
+  wallpaper bled onto Start because Compose's `graphicsLayer` doesn't clip by default,
+  needed an explicit `clipToBounds()`. **(B) Personalize sheet** (`PersonalizeSheet.kt`)
+  — reordered/restyled into the mockup's flow (theme collapsed to one flat
+  dark/light/auto segmented row, tile-color-source and arrangement/tile-pack-mode
+  each collapsed to compact inline segmented pills, tile background + tile style
+  groups merged); new `liveTilesEnabled` master on/off switch (folded into the
+  existing `rememberLiveTilesActive` gate); the "+ clock/+ weather/+ calendar"
+  re-add buttons moved into `CategoryFolderSheet`; new `NotificationsPermissionsSheet`
+  and `NewsRegionSheet` sub-sheets (both later revised further — see above/below).
+  **(C) Widgets on the Start grid** — traced the full grid-packing/Room/gesture stack
+  and planned a `TileModel.Widget` tile kind, but **dropped after discussion**: giving
+  widgets arbitrary footprints conflicts with the tile grid's fixed small/medium/wide/
+  large visual identity, and tile-stacking's carousel model doesn't carry over to real
+  interactive widgets (no shared fixed footprint, no simple glance-content to cycle).
+  The one still-relevant idea from that discussion — size a widget to its own
+  preferred footprint instead of one fixed width — was redirected to the feed's
+  *existing* widget hosting instead (see the half/full-width entry above). Build +
+  tests green throughout (`FeedFormatTest` extended for `greetingFor`).
 - **Post-v2.2.2 — fixed a real regression: merge-to-folder was silently unreachable
   in sticky (WP-style gap-preserving) tile arrangement mode.** User report: "app merge
   in folder and another app to create folder functionality is lost in windows phone

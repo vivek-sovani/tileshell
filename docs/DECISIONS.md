@@ -3341,3 +3341,99 @@ Deliberately scoped out:
 Build + tests green (`BackupManagerTest` extended: gridSlot round-trip + hash sensitivity, and a new
 round-trip test for hidden apps/feed sources+regions/widgets/photo URIs, plus a "missing keys decode
 as empty" test for old-backup compatibility).
+
+## Feed/glance redesign, Personalize restyle, and feed-widget sizing/reorder (feed-glance-redesign branch)
+
+Three-part plan, user-approved via plan mode up front, executed one part at a time on a
+dedicated branch (`feed-glance-redesign`) specifically so it could be reverted wholesale if the
+new look wasn't wanted. Landed as a single squashed-in-spirit history of small, individually
+verified rounds (build + tests green, then installed and visually checked on an emulator and the
+user's physical device after nearly every round).
+
+**Part A — feed/glance page.** Replaced the old glance/news tab switcher in `feed/FeedPage.kt`
+with one continuous scroll matching an external mockup: a personalized "good morning, `<name>`"
+greeting (new `LauncherSettings.userName`, best-effort auto-seeded once from the device's own
+contact profile via `ContactsSource.queryProfileName` if `READ_CONTACTS` is already granted, freely
+editable in Personalize afterward — never re-seeds once set, same guard shape as the existing feed
+region seeding), a condensed weather+today row side by side (`Row`/`weight(1f)` around trimmed
+`WeatherCard`/`AgendaCard`), then widgets, device status, and news inline with the settings gear
+moved into the news section's own header. `greetingFor(hour: Int)` (time-of-day bucket boundaries)
+is a pure, unit-tested function. Two on-device-reported bugs fixed in the same part: the feed
+panel's blurred wallpaper bled onto Start because Compose's `graphicsLayer` doesn't clip its
+children by default — fixed with an explicit `clipToBounds()`; and text sitting directly on the
+background (greeting, date/clock) was unreadable in some themes because it used the fixed white
+`tokens.fg` regardless of what was actually behind it — fixed by deriving `feedFg`/`feedFgDim` from
+the *actual* rendered background's measured brightness (reusing the same brightness classification
+Start already applies to glass/tiled tile faces), not an assumption. A short-lived news
+quick-filter chip row was added then explicitly removed again per user feedback — a separate,
+already-existing per-region feed picker covers that need, and duplicating it inline on the glance
+screen was redundant.
+
+**Part B — Personalize sheet.** Restyled `PersonalizeSheet.kt` to match a second mockup: theme
+collapsed from a toggle + conditional pair into one flat `dark | light | auto` segmented row;
+tile-color-source and tile-arrangement (pack mode) each collapsed from full descriptive cards to
+compact inline segmented pills; the "tile background" and "tile style" groups merged into one.
+New `liveTilesEnabled` master on/off switch, folded into the existing `rememberLiveTilesActive`
+gate as one more `suspended` input — no new gating mechanism needed. The "+ clock/+ weather/+
+calendar" quick-add buttons moved out of the live-tiles group and into `CategoryFolderSheet`,
+alongside the rest of that sheet's app-adding affordances. New `NewsRegionSheet` (a shared region
+chip-grid, used both from Personalize and the feed's own `FeedSettingsSheet`) and (initially)
+`NotificationsPermissionsSheet` — the latter was revised again later in the same branch (see
+below) once its "badges & live mail" content turned out to belong closer to the live-tiles toggle
+that actually depends on it, and once jumping straight to the notification-access settings screen
+on enabling live tiles turned out to be too abrupt without an explanation first.
+
+**Part C — widgets on the Start grid: researched, then explicitly dropped.** The original
+"proposed" idea was long-press an empty Start cell → pick a widget → it lands on the tile grid →
+drag to resize its footprint. Traced the whole stack (`GridPacker`/`TileModel`/Room schema/
+`editDragGesture`) and found the packer's own cell-collision math is already fully generic over
+arbitrary footprints — the only real blocker was `TileSpec`/`TilePlacement` being typed to the
+closed 4-value `TileSize` enum. A full plan was drafted (new `TileModel.Widget` tile kind, schema
+migration, a shared `AppWidgetHost` hoisted above both Start and the feed, continuous drag-resize
+instead of tap-to-cycle, merge/stack exclusions) — but discussing it surfaced two problems with no
+good answer, so the user dropped it rather than build it: (1) letting a widget take any col×row
+footprint clashes with the tile grid's whole visual identity, a rhythmic mosaic of exactly 4 fixed
+shapes — mixing in arbitrary-sized widgets risks exactly the "aesthetic imbalance" flagged during
+the discussion, with no clean mitigation short of constraining widgets back to tile-like sizes
+(which would defeat the point); (2) tile-stacking's carousel model depends on every member sharing
+one fixed footprint and being simple, low-interactivity glance content — neither holds for a real
+Android widget (each wants its own natural size; already interactive/scrollable on its own), so
+"stack widgets like tiles" isn't a small extension of the existing mechanism, it's a different,
+harder feature. **What survived**: the one piece of Part C's thinking that generalizes cleanly —
+size something to its own preferred footprint instead of one fixed size — was redirected to the
+feed page's *existing* widget hosting, landing as the half/full-width classification + side-by-side
+pairing described in the CLAUDE.md status entry (not the Start grid at all).
+
+**Wallpaper on the glance screen — went through three iterations before landing.** First shipped
+as "always show Start's wallpaper, but always blurred, regardless of Start's own blur toggle" (the
+original Part A plan). User feedback moved the target twice more: first to "the glance screen
+should never show the literal photo at all — always an abstract colour gradient synthesized from
+its prominent colours, not a blurred version of the real photo" (landed via `androidx.palette`,
+surfacing and fixing a real Palette bug — see the CLAUDE.md entry — where a near-flat photo can
+make every named swatch, including `dominantSwatch`, come back null even though `generate()`
+itself reports success); then to "even when Start *has* a wallpaper set, the glance screen should
+still have its own independent option to show no background at all" — landed as
+`LauncherSettings.feedNoBackground`, decoupled entirely from Start's own wallpaper setting rather
+than reusing the existing `noWallpaper` (Start-has-nothing-set) flag, since the two are genuinely
+different conditions with different owners.
+
+**Feed widget reordering: buttons → drag-and-drop, after a state-loss bug the buttons caused.**
+The half/full sizing pass (see CLAUDE.md) initially kept the existing ↑/↓ move buttons, generalized
+from full-width-only to work for the new paired layout too. On-device testing found tapping either
+button *also* silently exited the widget's edit mode — traced to `packWidgetRows` legitimately
+reshuffling which row (and which Compose parent) a moved widget ends up under, which reparents its
+composable; `WidgetView`'s `editing` was local `remember` state at the time, and local `remember`
+doesn't survive a reparent. Rather than patch around that one call site, replaced the reorder
+mechanism entirely with drag-and-drop per direct user request, and fixed the underlying state
+problem properly: `editing` moved to a per-widget-id map hoisted in the stable `WidgetSection`
+parent, which a reparent can't affect. The drag itself only *commits* a reorder on release, not
+continuously while dragging — an earlier design that reordered live (mirroring how Start's own
+tile drag commits continuously) was rejected specifically because it could reparent the dragged
+widget's *own* composable — including the very gesture detector tracking the finger — mid-touch,
+which risks silently orphaning the gesture rather than just cosmetically resetting a flag. The
+edit-mode overlay's controls were separately found (same on-device round) to detach from a widget's
+true position when scrolled, and to exit edit mode on scroll or reorder — both traced to using a
+window-level `Popup` (which positions relative to a captured anchor that doesn't reliably track
+content inside a scrolling container) instead of a plain in-place Compose overlay; switching to the
+latter fixed both for free, since in-place content scrolls and reorders exactly like the rest of
+the widget already does.
