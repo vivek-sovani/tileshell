@@ -827,12 +827,10 @@ fun PersonalizeSheet(
                 }
             }
 
-            // ---- live tiles: master on/off switch, bundling the badges & live
-            // mail permission ask ----
-            // (grouped together — badges/live-mail access is what feeds the mail/
-            // messages live-tile faces and the tile badge counts, so enabling
-            // live tiles is also the moment to ask for it, rather than making
-            // the user separately hunt down a nav row for it.)
+            // ---- live tiles: master on/off switch (flip animation only) +
+            // badges & live mail (its own row, kept independent — it's a
+            // notification-access grant, not something the master switch
+            // should imply is already asked for just by being on) ----
             SettingGroup(label = "live tiles", tokens.fgDim) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     ToggleRow(
@@ -840,20 +838,30 @@ fun PersonalizeSheet(
                         on = liveTilesEnabled,
                         accent = accent,
                         tokens = tokens,
-                        onChange = { enabled ->
-                            onLiveTilesEnabledChange(enabled)
-                            if (enabled && !notificationsEnabled) showLiveTilesPermissionPrompt = true
-                        },
+                        onChange = onLiveTilesEnabledChange,
                     )
                     Text(
-                        text = if (notificationsEnabled) {
-                            "pauses clock/weather/notification flipping when off — badges and counts keep updating"
-                        } else {
-                            "pauses clock/weather/notification flipping when off — also asks for notification access, so badges & live mail can work"
-                        },
+                        text = "pauses clock/weather/notification flipping when off — badges and counts keep updating",
                         color = tokens.fgDim,
                         fontSize = 12.sp,
                     )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = {
+                                if (notificationsEnabled) onNotificationAccess() else showLiveTilesPermissionPrompt = true
+                            })
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(text = "badges & live mail", color = tokens.fg, fontSize = 14.sp)
+                        Spacer(Modifier.weight(1f))
+                        Text(
+                            text = if (notificationsEnabled) "on ›" else "allow access ›",
+                            color = if (notificationsEnabled) accent else tokens.fgDim,
+                            fontSize = 13.sp,
+                        )
+                    }
                     if (notificationsEnabled && !batteryOptimizationExempt) {
                         Row(
                             modifier = Modifier

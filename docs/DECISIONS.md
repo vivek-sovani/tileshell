@@ -3508,3 +3508,29 @@ guarding on the consumer side): `MusicTileFace`'s `FlipTile` now uses `flipped =
 — the back face can only show while genuinely paused/stopped, when "paused / tap to resume" is both
 true and a useful affordance. `rememberFlipState`/`liveIds`/`FlipTile` are unchanged and still shared
 identically by every other live face. Build + tests green.
+
+## "badges & live mail" is a separate row again, not folded into the live-tiles toggle
+
+User report: "live tiles setting is on by default even when notification access not asked/given. it
+should be corrected." `LauncherSettings.liveTilesEnabled` defaults to `true` (correctly — it only
+gates the flip/animation loop, and most live faces — clock/weather/calendar/photos/people — need no
+permission at all and are meant to work out of the box). The real gap: a prior session's redesign
+had folded the notification-access ask into the master toggle's `onChange` (only firing the "allow
+live tile updates?" explainer dialog when the user *interactively* flipped the toggle on) — but since
+the toggle is born `true` on a fresh install, it's never flipped, so the dialog never fires and the
+user is never asked. Badge counts render unconditionally whenever notification access happens to be
+granted regardless of this toggle (`StartScreen.kt`'s `notifications.badgeFor(...)`), so the toggle
+showing "on" gave a false impression that mail/badges were already live.
+
+Asked the user for a preference: keep `liveTilesEnabled` defaulting on (don't regress permission-free
+tiles) vs. default the whole system off until the user opts in. They chose a third option: restore
+"badges & live mail" as its own row, independent of the master toggle, directly below it — matching
+how it worked before this area was consolidated (a nav row reading "on ›" / "allow access ›" off the
+raw `NotificationAccess.isEnabled()` system state, not a new persisted boolean). `PersonalizeSheet.kt`'s
+"live tiles" group: the master `ToggleRow`'s `onChange` no longer triggers the permission dialog at
+all (now just `onLiveTilesEnabledChange` directly); a new row right below it, tapping either opens
+`onNotificationAccess()` directly (already granted) or the existing explainer `AlertDialog` (not yet
+granted, same wording as before — just triggered from here instead of the toggle). This isn't a new
+persisted setting — `notificationsEnabled` is still the same raw system permission-grant boolean
+(`rememberNotificationAccess()`) that already existed; the change is purely which control triggers the
+ask, decoupling it from the master live-tiles switch. Build + tests green.
