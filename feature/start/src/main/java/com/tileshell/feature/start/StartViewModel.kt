@@ -302,23 +302,39 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             feedStore.seedRegionDefaults(java.util.Locale.getDefault().country)
             feedStore.reconcileDefaults()
         }
-        // Best-effort, one-time: seed the feed greeting's name from the device's
-        // own contact profile, same shape as seedRegionDefaults above — only
+        // Best-effort: seed the feed greeting's name from the device's own
+        // contact profile, same shape as seedRegionDefaults above — only
         // while the setting is still blank, so it never overwrites a name the
         // user has since typed in or deliberately cleared from Personalize.
-        viewModelScope.launch(Dispatchers.IO) {
-            val current = settingsRepository.settings.first()
-            if (current.userName.isBlank() &&
-                ContextCompat.checkSelfPermission(application, Manifest.permission.READ_CONTACTS) ==
-                PackageManager.PERMISSION_GRANTED
-            ) {
-                queryProfileName(application)?.let { settingsRepository.setUserName(it) }
-            }
-        }
+        // Also re-attempted from seedUserNameFromProfileIfBlank() whenever the
+        // caller observes READ_CONTACTS transition to granted, since this
+        // init-time attempt races the runtime permission dialog (denied here,
+        // granted moments later) and the launcher's ViewModel/process is very
+        // long-lived, so a one-shot init-only check may never get a second try.
+        seedUserNameFromProfileIfBlank()
         viewModelScope.launch(writeContext) {
             debouncedReorders.collect { repository.reorderTiles(it) }
         }
         launcherApps.registerCallback(packageCallback, Handler(Looper.getMainLooper()))
+    }
+
+    /**
+     * Best-effort seed of the feed greeting's name from the device's own contact
+     * profile. Safe to call repeatedly (e.g. on every READ_CONTACTS grant, or from
+     * ON_RESUME) — it only writes when [LauncherSettings.userName] is still blank,
+     * so it never overwrites a name the user has since typed in or cleared.
+     */
+    fun seedUserNameFromProfileIfBlank() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val app = getApplication<Application>()
+            val current = settingsRepository.settings.first()
+            if (current.userName.isBlank() &&
+                ContextCompat.checkSelfPermission(app, Manifest.permission.READ_CONTACTS) ==
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                queryProfileName(app)?.let { settingsRepository.setUserName(it) }
+            }
+        }
     }
 
     /**

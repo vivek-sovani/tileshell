@@ -3437,3 +3437,74 @@ window-level `Popup` (which positions relative to a captured anchor that doesn't
 content inside a scrolling container) instead of a plain in-place Compose overlay; switching to the
 latter fixed both for free, since in-place content scrolls and reorders exactly like the rest of
 the widget already does.
+
+## Data Safety form rejection: approximate location was collected but not declared
+
+versionCode 228 was rejected under "Invalid Data safety form": Play detected user data transmitted
+off-device (approximate location) that wasn't declared in the app's Data Safety section. Confirmed
+this is a real, longstanding gap, not a false positive — `WeatherRefreshWorker`
+(`feature/livetiles/WeatherWork.kt`) reads a last-known coarse fix (gated on `ACCESS_COARSE_LOCATION`)
+and `OpenMeteoWeatherProvider` (`OpenMeteoWeather.kt`) sends that lat/lon to Open-Meteo over HTTPS to
+fetch the weather-tile forecast — exactly what `docs/PRIVACY_POLICY.md` §1/§2 already discloses in
+prose, but the Play Console Data Safety *form* itself was never updated to match. An earlier session's
+notes (S21-era, see the "known issues" trail in `CLAUDE.md`) had already flagged the Data Safety form
+as suspect — "Precise location" was checked even though the app only ever requests coarse — but that
+was never corrected.
+
+This is a **console-only fix, no app rebuild required**: the Data Safety section (Play Console → App
+content → Data safety) needs updating to match what the app actually does, then resubmitted for review
+via Publishing overview — no new versionCode needed unless the declaration change is bundled with an
+unrelated code change anyway. Fix isn't tracked in this repo since Play Console has no exportable
+config file; the values to set are recorded here so the next rejection (if any) can be diffed against
+what was actually declared:
+
+- Location → **Approximate location**: collected = yes; purpose = App functionality; optional (the
+  permission is opt-in — the weather tile just stays static if denied); encrypted in transit = yes
+  (HTTPS to Open-Meteo); not shared for advertising/analytics — Open-Meteo only processes the
+  coordinates to return a forecast on the app's behalf, so this is a service-provider pass-through
+  under "App functionality," not a third-party data sale/share.
+- Location → **Precise location**: should be **unchecked** — the app never requests
+  `ACCESS_FINE_LOCATION`, only `ACCESS_COARSE_LOCATION`. If it's currently checked (per the earlier
+  session's suspicion), that's a separate stale/incorrect declaration to remove in the same pass.
+- No other data type declarations needed changing for this rejection — contacts/calendar/notification
+  content all stay on-device (never transmitted off the device), per the privacy policy's existing
+  accurate table.
+
+## Feed greeting name: retry the contact-profile seed on permission grant, not just at init
+
+User report: "user name not collected from profile" — the feed's "good morning, `<name>`" greeting
+(`StartViewModel`'s `userName` seeding, added in the feed/glance redesign) never picked up the
+device's own contact profile name even with contacts access granted. Root cause was a race, not a
+logic bug: the one-shot seed ran inside `StartViewModel.init`, which executes during the very first
+Compose composition — before `MainActivity`'s `LaunchedEffect`-driven runtime permission request has
+even shown its dialog, let alone been granted. `ContextCompat.checkSelfPermission` at that moment is
+always `PERMISSION_DENIED`, so the seed silently no-ops, and nothing ever re-triggers it afterward.
+Because TileShell is the default launcher, its Activity/ViewModel is extremely long-lived (survives
+normal home/back navigation), so a one-shot init-time check effectively never gets a second chance in
+a real session.
+
+Fixed by extracting the seed logic into `StartViewModel.seedUserNameFromProfileIfBlank()` (still
+gated on `userName.isBlank()`, so it never clobbers a name the user has since typed in or cleared),
+and re-invoking it from `StartScreen.kt` via `LaunchedEffect(contactsGranted)` — `contactsGranted` is
+the existing `rememberPermissionGranted(READ_CONTACTS)` state, which already re-checks on `ON_RESUME`.
+This covers both the in-app grant flow (permission dialog → resume → effect fires) and granting via
+system Settings and returning to the app, without touching the existing `contactsLauncher` callbacks.
+Build + tests green.
+
+## Now-playing tile: don't flip to "paused" while actually playing
+
+User report: "now playing tile shows pause even when the music is playing." The music tile's data
+pipeline (`MediaSessionsEffect`/`MediaCenter`/`nowPlayingFrom`) was correct throughout — the bug was
+that `LiveFace.MUSIC` sits in the same generic decorative `liveIds` flip pool as clock/weather/mail
+(`flips = true`), and the shared scheduler (`rememberFlipState`) flips a random live tile every 2.6s
+purely on a timer, with no awareness of tile content. For those other tiles a stray flip while
+"wrong" is harmless (calendar/weather's fallback face ignores `flipped`), but `MusicTile`'s back face
+(`MusicBack`) unconditionally renders hardcoded "paused / tap to resume" text regardless of the real
+`NowPlaying.playing` state — so any random flip landing on the music tile mid-song showed a false
+"paused" claim, invisible to the user until the next 2.6s tick happened to flip it back.
+
+Fixed at the consumer, not the shared scheduler (matching the existing calendar/weather convention of
+guarding on the consumer side): `MusicTileFace`'s `FlipTile` now uses `flipped = flipped && !np.playing`
+— the back face can only show while genuinely paused/stopped, when "paused / tap to resume" is both
+true and a useful affordance. `rememberFlipState`/`liveIds`/`FlipTile` are unchanged and still shared
+identically by every other live face. Build + tests green.

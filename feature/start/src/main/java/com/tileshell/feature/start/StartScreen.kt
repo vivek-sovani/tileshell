@@ -301,6 +301,14 @@ fun StartScreen(
     val contactsGranted = rememberPermissionGranted(android.Manifest.permission.READ_CONTACTS)
     val calendarGranted = rememberPermissionGranted(android.Manifest.permission.READ_CALENDAR)
     val locationGranted = rememberPermissionGranted(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+    // The ViewModel's own init-time attempt to seed the feed greeting's name from
+    // the device contact profile races the runtime permission dialog (it always
+    // sees "denied" then, since the dialog hasn't resolved yet) — retry here
+    // whenever contactsGranted flips to true, whether that's from the in-app
+    // launcher or the user granting it via system Settings and resuming.
+    LaunchedEffect(contactsGranted) {
+        if (contactsGranted) viewModel.seedUserNameFromProfileIfBlank()
+    }
     val (isDefaultLauncher, onSetDefaultLauncher) = rememberDefaultLauncherState()
     val (updateState, onUpdateAction) = rememberAppUpdateState()
     val context = LocalContext.current

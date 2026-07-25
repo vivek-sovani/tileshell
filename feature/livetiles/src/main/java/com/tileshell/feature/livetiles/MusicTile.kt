@@ -326,7 +326,12 @@ fun MusicTileFace(
     val art = iconPackage?.let { artworkMap[it] }?.asImageBitmap()
 
     FlipTile(
-        flipped = flipped,
+        // Unlike the other live faces' back sides, MusicBack makes an actual
+        // playback-state claim ("paused / tap to resume") rather than just more
+        // content — so it must never show while np.playing is true, even though
+        // the shared flip scheduler ticks this tile on a blind timer with no idea
+        // what it's currently displaying.
+        flipped = flipped && !np.playing,
         modifier = modifier.fillMaxSize(),
         front = {
             MusicFront(
