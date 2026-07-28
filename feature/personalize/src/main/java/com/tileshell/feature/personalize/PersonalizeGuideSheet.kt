@@ -257,6 +257,19 @@ fun PersonalizeGuideSheet(
                 ),
             )
 
+            FeatureGroup(
+                title = "system shortcuts",
+                accent = accent,
+                tokens = tokens,
+                visual = { EdgeSwipeVisual(accent, tokens) },
+                items = listOf(
+                    "swipe down from start's left screen edge to pull down the system notification shade",
+                    "swipe down from start's right screen edge to open system quick settings",
+                    "the swipe can start at any height along the edge, not just the very top",
+                    "first use asks you to enable tileshell's accessibility service — the same one screen lock uses, a one-time step",
+                ),
+            )
+
             Spacer(Modifier.height(4.dp))
         }
     }
@@ -557,6 +570,38 @@ private fun QuickPanelVisual(accent: Color, tokens: com.tileshell.core.design.Co
                     .background(Color.Black.copy(alpha = 0.35f)),
             )
         }
+    }
+}
+
+/** Left edge → bell (notifications) and right edge → panel (quick settings), each behind a small down-arrow. */
+@Composable
+private fun EdgeSwipeVisual(accent: Color, tokens: com.tileshell.core.design.ColorTokens) {
+    GuideVisualCard(tokens) {
+        Icon(
+            imageVector = TileIcons["chevron"],
+            contentDescription = null,
+            tint = tokens.fgDim,
+            modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = 90f },
+        )
+        Box(
+            modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)).background(accent),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(TileIcons["bell"], contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+        }
+        Spacer(Modifier.weight(1f))
+        Box(
+            modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)).background(tokens.tileLine.copy(alpha = 0.6f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(TileIcons["panel"], contentDescription = null, tint = tokens.fg, modifier = Modifier.size(14.dp))
+        }
+        Icon(
+            imageVector = TileIcons["chevron"],
+            contentDescription = null,
+            tint = tokens.fgDim,
+            modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = 90f },
+        )
     }
 }
 

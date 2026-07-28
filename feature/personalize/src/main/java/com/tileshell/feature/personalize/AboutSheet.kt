@@ -203,6 +203,18 @@ fun AboutSheet(
             )
 
             FeatureGroup(
+                title = "system shortcuts",
+                accent = accent,
+                tokens = tokens,
+                items = listOf(
+                    "swipe down from the left screen edge to open the system notification shade",
+                    "swipe down from the right screen edge to open system quick settings",
+                    "works from anywhere on start, not just the very top of the screen",
+                    "uses the same accessibility service as screen lock — enable it once from the prompt",
+                ),
+            )
+
+            FeatureGroup(
                 title = "edge strip",
                 accent = accent,
                 tokens = tokens,
