@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v2.2.8 listing draft — update before each release*
+*v2.3.0 listing draft — update before each release*
 
 ---
 
@@ -143,6 +143,79 @@ data. Users can also clear app data via Android Settings at any time.
 | Feature graphic | 1024 × 500 px | Required for listing banner |
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
+
+## Release notes (v2.3.0)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.
+v2.2.8 (code 228) was submitted to Play but rejected under "Invalid Data
+safety form" (approximate location was collected but not declared — a
+console-only fix, see DECISIONS.md "Data Safety form rejection"; that
+console correction still needs to be made before this build is resubmitted).
+v2.3.0 supersedes it, rolling in all interim work plus three fresh bug fixes
+from this session's user reports.*
+
+```
+TileShell 2.3.0
+
+• New: feed & personalize screens redesigned with a personalized greeting
+• New: feed widgets pair side by side and reorder by drag
+• New: glance background is a synthesized colour gradient, with its own toggle
+• Fixed: now-playing tile no longer shows "paused" while music is playing
+• Fixed: feed greeting name now reliably picks up your contact profile
+• Fixed: badges & live mail now has its own row in Personalize
+```
+
+*(Character count 435, under Play's 500 limit.)*
+
+### Full changelog since v2.2.0 (for reference — not the Play-facing blurb above)
+
+- **Tile arrangement & folders**: sticky-mode drag now shows a live push-down/push-sideways
+  preview while dragging; drag-to-reorder apps inside an open folder; fixed merge-to-folder
+  being unreachable in sticky (Windows-Phone-style) arrangement; closed folders show which
+  app inside has a pending notification, not just the combined total; folder/stack
+  notification badges resized to match a regular tile's badge.
+- **News feed**: region picker is multi-select across ~20 countries (previously one at a
+  time); curated real image-bearing sources for US/UK/Australia/Canada/UAE; fixed one
+  high-volume region crowding out every other selected region's articles.
+- **Widget stacks**: an open stack can switch directly between wide/large or go back to a
+  regular folder; each rotating member shows its own notification badge instead of one
+  combined total.
+- **Personalize & app list**: "lock layout" toggle blocks entering edit mode by accident;
+  quick "set as default launcher" row; TileShell no longer lists itself in its own app list;
+  live-tile text/icons/glyphs/labels now switch to dark automatically over a light
+  background instead of staying white and unreadable; people tile shows circular avatars
+  and (2.2.7) a small drifting/bouncing bubble cluster instead of a flip; clock tile shows
+  12-hour am/pm time.
+- **Quick panel** (two-finger swipe up on Start): wi-fi/bluetooth/flashlight/dnd/airplane
+  mode/location/rotation-lock toggles plus volume/brightness/screen-timeout controls,
+  restyled as Start-tile-style coloured toggles; device status card (battery, storage,
+  connectivity, next alarm) on the feed's glance tab; fixed turning off "show feed page"
+  leaving no way to turn it back on.
+- **Reliability**: fixed background refresh (feed, weather, layout backups) silently
+  failing after the AGP/Kotlin/Room/Gradle toolchain upgrade; clock tile alarm/reminder now
+  shows the correct title and date by matching the real scheduled trigger time instead of
+  guessing from the event start; backup & restore now round-trips tile grid positions, feed
+  subscriptions/custom feeds/regions, hidden apps, feed widget layout, and the photos-tile
+  selection — previously several of these silently reset on restore.
+- **Feed & personalize redesign** (matches newer "Metro Reforged" mockups): continuous-
+  scroll feed with a personalized "good morning, `<name>`" greeting, date/clock, search
+  pill, condensed weather + today's agenda side by side, now-playing, widgets, device
+  status, then news; feed widgets classify as half/full-row width and pair side by side,
+  with single-drag-handle reordering that survives an edit-mode-preserving row reparent;
+  glance screen background is now always a synthesized colour gradient (never the raw
+  wallpaper photo) with its own independent "no background" toggle, plus a real fix for
+  Android's Palette API returning null swatches on a low-variance photo; Personalize
+  reorganized (flat theme row, compact segmented pills, merged tile-style groups) with a
+  live-tiles master toggle; enabling live tile updates now explains what it needs before
+  jumping to system settings, instead of navigating straight there.
+- **This session's fixes**: the feed greeting's contact-profile name seed raced the runtime
+  permission dialog and never got a second attempt once access was actually granted — now
+  retried automatically the moment contacts access is observed granted; the now-playing
+  tile shared the generic decorative flip timer with clock/weather/mail, so a
+  random tick could show a false "paused" face mid-song — gated on real playback state now;
+  "badges & live mail" had been folded into the live-tiles master toggle (which defaults
+  on), so the notification-access ask was never actually triggered on a fresh install —
+  restored as its own row directly below the master toggle.
 
 ## Release notes (v2.2.8)
 

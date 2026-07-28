@@ -211,8 +211,29 @@ android {
         //   caches are deliberately still excluded (MRU history and refetchable caches, not
         //   configuration — see DECISIONS.md), and restored feed widget ids are filtered to
         //   ones that still resolve via AppWidgetManager rather than restoring a broken slot.
-        versionCode = 228
-        versionName = "2.2.8"
+        // v2.3.0 (code 230): rolls up all interim post-2.2.8 work (2.2.8/code 228 was
+        //   submitted to Play but rejected for an "Invalid Data safety form" — a
+        //   console-only fix, see DECISIONS.md — so this version supersedes it rather
+        //   than shipping a separate patch) plus three fresh bug fixes from user reports
+        //   this session. New: feed widgets classify as half/full-row width and pair
+        //   side by side, with single-drag-handle reordering that survives a row-reparent
+        //   without dropping out of edit mode; glance screen background is now always a
+        //   synthesized colour gradient (never the raw wallpaper photo), independent of
+        //   Start's own wallpaper, with a dedicated "no background" toggle and a real
+        //   Palette null-swatch fallback bug fix; feed/personalize redesigned to match
+        //   newer mockups — continuous-scroll feed with a personalized "good morning,
+        //   <name>" greeting, condensed weather+agenda row, adaptive text colour;
+        //   Personalize reorganized (flat theme row, compact segmented pills, merged
+        //   groups) with a live-tiles master toggle. Fixed: the feed greeting's name
+        //   seed from the device contact profile raced the runtime permission dialog
+        //   and never got a second attempt once granted — now retried on grant; the
+        //   now-playing music tile could flip to a false "paused" face while a track
+        //   was actually playing, since it shared the generic decorative flip timer;
+        //   "badges & live mail" was folded into the live-tiles master toggle (which
+        //   defaults on) so the notification-access ask was never actually triggered on
+        //   a fresh install — restored as its own row directly below the master toggle.
+        versionCode = 230
+        versionName = "2.3.0"
     }
 
     if (keystoreFile.exists()) {
