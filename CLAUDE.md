@@ -36,6 +36,22 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.3.1 — single-finger edge-swipe-down opens system notifications (left) /
+  quick settings (right).** New ask, not in the WP prototype/spec — see DECISIONS
+  "Edge swipe-down for notifications/quick settings". Reuses the existing
+  `LockAccessibilityService` (already backs the gear long-press screen-lock and the
+  edge-strip's recents button) with two new `performGlobalAction` one-liners —
+  `expandNotifications()`/`GLOBAL_ACTION_NOTIFICATIONS` and
+  `expandQuickSettings()`/`GLOBAL_ACTION_QUICK_SETTINGS` — both available since API
+  16/17 (below minSdk 26), so no version-gating/fallback needed. New
+  `EdgeSwipeGesture.kt` (`:feature:start`) is a single-finger sibling of the existing
+  two-finger quick-search/quick-panel swipe gestures in `StartScreen.kt`: same
+  never-consume-until-triggered shape, but classifies the touch's *starting X
+  position* against a 32dp strip on each screen edge (`edgeZoneFor`) rather than
+  pointer count, and deliberately isn't restricted to the top of the screen — it
+  fires from any height along the left/right edge, per explicit user correction.
+  `MainActivity` wires it through the same attempt-then-disclosure-dialog pattern as
+  `onLockScreen`/`onRecents`. Build + tests green (`EdgeSwipeGestureTest` new).
 - **Post-v2.2.2 — feed widgets: half/full sizing, side-by-side pairing, drag-to-reorder.**
   Direct follow-up to the glance-screen redesign below, on the widget hosting
   `WidgetSection`/`WidgetView` already has (`feed/WidgetSlot.kt`). Previously every

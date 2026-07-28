@@ -3570,3 +3570,40 @@ previously-unaddressed instance of exactly what Play flagged. Fixed with a modul
 `decodeSampledScreenshot`/`thumbnailSampleSize` pair (mirrors the existing per-module pattern — each
 module keeps its own private sample-size helper rather than a shared cross-module one), targeting a
 300px longer side. Build + tests green.
+
+## Edge swipe-down for notifications/quick settings
+
+User request, not in the WP prototype/spec: a single-finger swipe down starting from the left screen
+edge opens the system notification shade; from the right screen edge opens system quick settings.
+Real Android's shade-pull normally only responds within the actual status bar strip — a normal app
+(without a signature-level permission) can't call the hidden `expandNotificationsPanel`/
+`expandSettingsPanel` APIs directly. Since TileShell already ships an `AccessibilityService`
+(`LockAccessibilityService`, used for the gear long-press screen-lock and the edge-strip's "recents"
+button) that calls `performGlobalAction`, extended it with two more one-liners:
+`expandNotifications()` → `GLOBAL_ACTION_NOTIFICATIONS` and `expandQuickSettings()` →
+`GLOBAL_ACTION_QUICK_SETTINGS`. Both actions have existed since API 16/17 — well under this app's
+minSdk 26 — so unlike `GLOBAL_ACTION_LOCK_SCREEN` (API 28+, needs the device-admin fallback in
+`ScreenLock.kt`) neither needs any `@RequiresApi`/version-fallback path.
+
+Gesture recognition (`EdgeSwipeGesture.kt`, `:feature:start`) is a single-finger variant of the
+existing two-finger quick-search/quick-panel swipe gestures in `StartScreen.kt`: same
+`awaitFirstDown`/`awaitPointerEvent(PointerEventPass.Initial)` shape, same "never consume until the
+gesture's own trigger condition fires" rule (so an ordinary tap, tile long-press-drag, or vertical
+grid scroll starting away from either edge passes through completely untouched) — but keyed off
+*which screen edge the touch started in* (`edgeZoneFor`, a pure classifier checking only the touch's
+starting X coordinate against a `EDGE_SWIPE_ZONE_DP` = 32dp strip on each side) rather than pointer
+count. Deliberately **not** gated to the top of the screen — the touch can start at any height along
+the left/right edge, matching the user's explicit correction ("it is not swipe down from top edge ..
+it is mid screen") over an initial assumption that this should mirror the real status-bar pull-down.
+Enable-gating mirrors the two-finger gestures exactly (`swipeEnabled && restingAtStart && !searchOpen
+&& !quickPanelOpen && !anySheetOpen`), so it's live only while resting on Start with nothing else
+already capturing touch — edit mode already disables `swipeEnabled`, so mid-edit-mode tile drags
+starting near an edge column are never at risk of misfiring this gesture.
+
+Wiring follows the existing `onLockScreen`/`onRecents` pattern exactly: `MainActivity` attempts the
+action first (`LockAccessibilityService.expandNotifications()`/`expandQuickSettings()`, both false if
+the service isn't connected yet) and only falls back to the existing `AccessibilityDisclosureDialog`
+→ Accessibility Settings flow when that attempt fails — no new dialog copy needed beyond extending
+the existing itemized disclosure text to also mention this gesture. No manifest/XML changes needed;
+the accessibility service declaration is shared as-is. Build + tests green (`EdgeSwipeGestureTest`
+new: edge-zone classification + vertical-dominance threshold).

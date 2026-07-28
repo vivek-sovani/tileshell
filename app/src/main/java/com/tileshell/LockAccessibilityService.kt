@@ -28,5 +28,11 @@ class LockAccessibilityService : AccessibilityService() {
         fun lockScreen(): Boolean = instance?.performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN) == true
 
         fun showRecents(): Boolean = instance?.performGlobalAction(GLOBAL_ACTION_RECENTS) == true
+
+        fun expandNotifications(): Boolean =
+            instance?.performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS) == true
+
+        fun expandQuickSettings(): Boolean =
+            instance?.performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS) == true
     }
 }
