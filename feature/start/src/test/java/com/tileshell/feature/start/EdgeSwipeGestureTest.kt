@@ -10,37 +10,27 @@ class EdgeSwipeGestureTest {
 
     @Test
     fun `touch at the very left edge is the left zone`() {
-        assertEquals(EdgeZone.LEFT, edgeZoneFor(startX = 0f, screenWidthPx = 1000f))
+        assertEquals(EdgeZone.LEFT, edgeZoneFor(startX = 0f, screenWidthPx = 1000f, zonePx = 48f))
     }
 
     @Test
-    fun `touch anywhere in the left half is the left zone`() {
-        assertEquals(EdgeZone.LEFT, edgeZoneFor(startX = 400f, screenWidthPx = 1000f))
-    }
-
-    @Test
-    fun `touch just left of the midpoint is still the left zone`() {
-        assertEquals(EdgeZone.LEFT, edgeZoneFor(startX = 499f, screenWidthPx = 1000f))
+    fun `touch just inside the left zone width is still the left zone`() {
+        assertEquals(EdgeZone.LEFT, edgeZoneFor(startX = 48f, screenWidthPx = 1000f, zonePx = 48f))
     }
 
     @Test
     fun `touch at the very right edge is the right zone`() {
-        assertEquals(EdgeZone.RIGHT, edgeZoneFor(startX = 1000f, screenWidthPx = 1000f))
+        assertEquals(EdgeZone.RIGHT, edgeZoneFor(startX = 1000f, screenWidthPx = 1000f, zonePx = 48f))
     }
 
     @Test
-    fun `touch anywhere in the right half is the right zone`() {
-        assertEquals(EdgeZone.RIGHT, edgeZoneFor(startX = 600f, screenWidthPx = 1000f))
+    fun `touch just inside the right zone width is still the right zone`() {
+        assertEquals(EdgeZone.RIGHT, edgeZoneFor(startX = 952f, screenWidthPx = 1000f, zonePx = 48f))
     }
 
     @Test
-    fun `touch exactly at the midpoint is the right zone`() {
-        assertEquals(EdgeZone.RIGHT, edgeZoneFor(startX = 500f, screenWidthPx = 1000f))
-    }
-
-    @Test
-    fun `zero screen width is neither zone`() {
-        assertEquals(EdgeZone.NONE, edgeZoneFor(startX = 0f, screenWidthPx = 0f))
+    fun `touch in the middle of the screen is neither zone`() {
+        assertEquals(EdgeZone.NONE, edgeZoneFor(startX = 500f, screenWidthPx = 1000f, zonePx = 48f))
     }
 
     @Test

@@ -709,20 +709,20 @@ fun StartScreen(
     }
 
     // Single-finger swipe-down from a screen edge: left opens the system
-    // notification shade, right half opens system quick settings — not in the WP
+    // notification shade, right opens system quick settings — not in the WP
     // prototype/spec, see DECISIONS "Edge swipe-down for notifications/quick
     // settings". Same enable-gating as the two-finger gestures above, and the
-    // same "don't consume until triggered" shape, but keyed on which half of the
-    // screen the touch started in rather than pointer count — so it never steals
-    // an ordinary tap or a mostly-horizontal/short drag; it only intercepts a
-    // genuine downward swipe.
+    // same "don't consume until triggered" shape, but keyed on which physical
+    // edge the touch started in rather than pointer count — so it never steals
+    // an ordinary tap/scroll/tile-drag starting away from either edge.
     val edgeSwipeEnabled = swipeEnabled && restingAtStart && !searchOpen && !quickPanelOpen && !anySheetOpen
     val edgeSwipeGesture = Modifier.pointerInput(edgeSwipeEnabled) {
         if (!edgeSwipeEnabled) return@pointerInput
         val thresholdPx = 40.dp.toPx()
+        val zonePx = EDGE_SWIPE_ZONE_DP.dp.toPx()
         awaitEachGesture {
             val first = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-            val zone = edgeZoneFor(first.position.x, size.width.toFloat())
+            val zone = edgeZoneFor(first.position.x, size.width.toFloat(), zonePx)
             if (zone == EdgeZone.NONE) return@awaitEachGesture
             val start = first.position
             var triggered = false
@@ -4118,6 +4118,10 @@ private fun FolderTileContent(
 /** Auto-rotate interval for a widget stack — long enough to read a notification snippet. */
 private const val STACK_ROTATE_MS = 10000L
 private const val STACK_EDGE_DRAG_ZONE_DP = 40
+
+/** Width of the left/right screen-edge strip that starts the notification-shade /
+ * quick-settings swipe-down gesture (see [StartScreen]'s `edgeSwipeGesture`). */
+private const val EDGE_SWIPE_ZONE_DP = 32
 
 /**
  * A **widget stack**: a folder whose members are all LARGE renders as a swipeable
