@@ -196,11 +196,11 @@ private fun SnapshotRow(
     }
 
     // Load the actual screenshot off the main thread; fall back to Canvas preview if absent.
+    // Down-sampled to roughly this row's small preview size — the source is a full-screen
+    // PixelCopy capture, which is wasteful to decode at full resolution for a 64x104dp thumbnail.
     val screenshotBitmap by produceState<android.graphics.Bitmap?>(null, snapshot.screenshotPath) {
         value = withContext(Dispatchers.IO) {
-            snapshot.screenshotPath?.let { path ->
-                runCatching { BitmapFactory.decodeFile(path) }.getOrNull()
-            }
+            snapshot.screenshotPath?.let { path -> decodeSampledScreenshot(path) }
         }
     }
 
@@ -361,3 +361,23 @@ private val TIMESTAMP_FMT = SimpleDateFormat("d MMM · h:mm a", Locale.getDefaul
 
 private fun formatTimestamp(epochMs: Long): String =
     TIMESTAMP_FMT.format(Date(epochMs)).lowercase(Locale.getDefault())
+
+/** Decodes a snapshot screenshot down-sampled for its small row-preview thumbnail. */
+private fun decodeSampledScreenshot(path: String, targetPx: Int = 300): android.graphics.Bitmap? =
+    runCatching {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(path, bounds)
+        val opts = BitmapFactory.Options().apply {
+            inSampleSize = thumbnailSampleSize(bounds.outWidth, bounds.outHeight, targetPx)
+        }
+        BitmapFactory.decodeFile(path, opts)
+    }.getOrNull()
+
+/** Largest power-of-two sample size that keeps the longer side >= [targetPx]. */
+private fun thumbnailSampleSize(width: Int, height: Int, targetPx: Int): Int {
+    val longer = maxOf(width, height)
+    if (longer <= 0 || targetPx <= 0) return 1
+    var sample = 1
+    while (longer / (sample * 2) >= targetPx) sample *= 2
+    return sample
+}

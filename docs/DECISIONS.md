@@ -3534,3 +3534,39 @@ granted, same wording as before — just triggered from here instead of the togg
 persisted setting — `notificationsEnabled` is still the same raw system permission-grant boolean
 (`rememberNotificationAccess()`) that already existed; the change is purely which control triggers the
 ask, decoupling it from the master live-tiles switch. Build + tests green.
+
+## Play Console pre-launch recommendations for v2.3.0/code 230: traced, one real fix
+
+User surfaced 3 "actions recommended" from Play Console's Production track for the 230 (2.3.0)
+release: (1) "edge-to-edge may not display for all users," (2) "your app uses deprecated APIs or
+parameters for edge-to-edge" — flagging `LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES` at obfuscated
+location `a4.b.t` — and (3) "improve your app's performance with bitmap downsampling" at `b6.o.u`.
+User's concern: these look like things already addressed (v2.2.7's build.gradle.kts comment claims
+"dropped the deprecated statusBarColor/navigationBarColor... switched the cutout mode to 'always'").
+
+Traced both edge-to-edge items using the actual R8 mapping file from this build
+(`app/build/outputs/mapping/release/mapping.txt`) rather than guessing: `a4.b.t` deobfuscates to
+`androidx.emoji2.text.ConcurrencyHelpers$Handler28Impl$$ExternalSyntheticApiModelOutline0.m
+(android.view.WindowManager$LayoutParams)` — a D8-synthesized API-compat bridge method inside the
+**androidx.emoji2 library** (`androidx.emoji2:emoji2:1.4.0`, already the latest resolved version per
+`./gradlew :app:dependencies`), not our own source. Our own code was independently confirmed correct:
+`app/src/main/res/values/themes.xml:15` sets `android:windowLayoutInDisplayCutoutMode` to `always`
+(never `shortEdges`), and `MainActivity.kt` calls `enableEdgeToEdge()`; there is exactly one Activity
+in the manifest. So this flag and the companion "may not display for all users" advisory are Play's
+static analysis surfacing a legacy compatibility shim bundled inside a transitive AndroidX dependency
+— not a regression, and not something fixable from app code short of excluding emoji2 entirely (not
+worth doing: it provides legitimate emoji-rendering compat and the flagged bridge method is very
+likely unreachable dead code in this app's actual usage, just present because R8 keeps synthetic
+API-bridge classes for safety).
+
+`b6.o.u` was different: it deobfuscated the same way conceptually, but rather than chase the mapping
+further, a direct grep for `BitmapFactory` across the codebase found the real gap immediately —
+`LayoutHistorySheet.kt`'s `SnapshotRow` decoded a layout-history snapshot's full-screen `PixelCopy`
+screenshot via a bare `BitmapFactory.decodeFile(path)`, no `Options`/`inSampleSize` at all, to render
+a 64×104dp row thumbnail. Every other `BitmapFactory` call site in the app (`TileBitmap.kt`,
+`WallpaperBackground.kt`, `RemoteImage.kt`) already follows the two-pass `inJustDecodeBounds` →
+computed `inSampleSize` pattern; this one call site was a genuine, missed exception — a real,
+previously-unaddressed instance of exactly what Play flagged. Fixed with a module-local
+`decodeSampledScreenshot`/`thumbnailSampleSize` pair (mirrors the existing per-module pattern — each
+module keeps its own private sample-size helper rather than a shared cross-module one), targeting a
+300px longer side. Build + tests green.
