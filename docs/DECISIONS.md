@@ -3588,17 +3588,24 @@ minSdk 26 — so unlike `GLOBAL_ACTION_LOCK_SCREEN` (API 28+, needs the device-a
 Gesture recognition (`EdgeSwipeGesture.kt`, `:feature:start`) is a single-finger variant of the
 existing two-finger quick-search/quick-panel swipe gestures in `StartScreen.kt`: same
 `awaitFirstDown`/`awaitPointerEvent(PointerEventPass.Initial)` shape, same "never consume until the
-gesture's own trigger condition fires" rule (so an ordinary tap, tile long-press-drag, or vertical
-grid scroll starting away from either edge passes through completely untouched) — but keyed off
-*which screen edge the touch started in* (`edgeZoneFor`, a pure classifier checking only the touch's
-starting X coordinate against a `EDGE_SWIPE_ZONE_DP` = 32dp strip on each side) rather than pointer
-count. Deliberately **not** gated to the top of the screen — the touch can start at any height along
-the left/right edge, matching the user's explicit correction ("it is not swipe down from top edge ..
-it is mid screen") over an initial assumption that this should mirror the real status-bar pull-down.
+gesture's own trigger condition fires" rule (so an ordinary tap or a mostly-horizontal/short drag
+passes through completely untouched) — but keyed off *which half of the screen the touch started in*
+(`edgeZoneFor`, a pure classifier) rather than pointer count. Deliberately **not** gated to the top of
+the screen — the touch can start at any height, matching the user's explicit correction ("it is not
+swipe down from top edge .. it is mid screen") over an initial assumption that this should mirror the
+real status-bar pull-down. Went through two widths on user feedback: first a `32dp` strip at each
+physical edge (too narrow to hit reliably on-device — "it on;ly works on left and right edge.. it
+should work left part and right part of screen"), then widened to a straight screen-width split (any
+touch left of the horizontal midpoint → notifications, at/right of it → quick settings) — `edgeZoneFor`
+now just compares `startX` to `screenWidthPx / 2f`, no zone-width constant left. Trade-off accepted
+knowingly: because the whole left/right half now participates, a downward drag anywhere on Start that
+exceeds the 40dp vertical threshold will trigger this instead of scrolling the tile grid back toward
+the top — acceptable since scrolling *up* (revealing tiles further down) is a separate, untouched
+upward drag, and the enable-gating below already limits exposure to Start's resting state only.
 Enable-gating mirrors the two-finger gestures exactly (`swipeEnabled && restingAtStart && !searchOpen
 && !quickPanelOpen && !anySheetOpen`), so it's live only while resting on Start with nothing else
-already capturing touch — edit mode already disables `swipeEnabled`, so mid-edit-mode tile drags
-starting near an edge column are never at risk of misfiring this gesture.
+already capturing touch — edit mode already disables `swipeEnabled`, and the app list/feed pages are
+untouched since `restingAtStart` requires the pager to be sitting exactly on Start.
 
 Wiring follows the existing `onLockScreen`/`onRecents` pattern exactly: `MainActivity` attempts the
 action first (`LockAccessibilityService.expandNotifications()`/`expandQuickSettings()`, both false if

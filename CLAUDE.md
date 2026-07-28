@@ -47,11 +47,14 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   `EdgeSwipeGesture.kt` (`:feature:start`) is a single-finger sibling of the existing
   two-finger quick-search/quick-panel swipe gestures in `StartScreen.kt`: same
   never-consume-until-triggered shape, but classifies the touch's *starting X
-  position* against a 32dp strip on each screen edge (`edgeZoneFor`) rather than
+  position* against the screen's horizontal midpoint (`edgeZoneFor`) rather than
   pointer count, and deliberately isn't restricted to the top of the screen — it
-  fires from any height along the left/right edge, per explicit user correction.
-  `MainActivity` wires it through the same attempt-then-disclosure-dialog pattern as
-  `onLockScreen`/`onRecents`. Build + tests green (`EdgeSwipeGestureTest` new).
+  fires from any height, per explicit user correction. A first pass used a narrow
+  32dp edge strip; user testing found that too hard to hit reliably, so it now
+  covers the whole left/right half of the screen instead (see DECISIONS for the
+  scroll-conflict trade-off this accepts). `MainActivity` wires it through the same
+  attempt-then-disclosure-dialog pattern as `onLockScreen`/`onRecents`. Build + tests
+  green (`EdgeSwipeGestureTest` new).
 - **Post-v2.2.2 — feed widgets: half/full sizing, side-by-side pairing, drag-to-reorder.**
   Direct follow-up to the glance-screen redesign below, on the widget hosting
   `WidgetSection`/`WidgetView` already has (`feed/WidgetSlot.kt`). Previously every
