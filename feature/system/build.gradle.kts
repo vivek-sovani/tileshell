@@ -36,6 +36,7 @@ dependencies {
     // uses Fragments; this only pins Gradle's conflict resolution to a
     // current stable release instead.
     implementation(libs.androidx.fragment.ktx)
+    implementation(libs.play.inapp.review.ktx)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)

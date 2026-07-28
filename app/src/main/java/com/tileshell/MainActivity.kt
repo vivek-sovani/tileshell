@@ -1,6 +1,7 @@
 package com.tileshell
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -22,6 +23,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,12 +33,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.tileshell.core.data.RatingPromptPrefs
+import com.tileshell.core.data.isRatingPromptCheckWindowOpen
+import com.tileshell.core.data.rollShowsPrompt
 import com.tileshell.feature.livetiles.WeatherRefreshWorker
 import com.tileshell.feature.start.StartScreen
 import com.tileshell.feature.start.StartViewModel
 import com.tileshell.feature.system.DefaultLauncher
+import com.tileshell.feature.system.InAppReview
+import kotlin.random.Random
 
 private const val PRIVACY_POLICY_URL = "https://vivek-sovani.github.io/tileshell/"
+private const val FEEDBACK_EMAIL = "vivek.sovani@kimayainfotech.com"
 
 class MainActivity : ComponentActivity() {
 
@@ -63,6 +74,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             DefaultLauncherPrompt()
             RequestRuntimePermissionsOnStart()
+            RatingPromptHost()
             val ctx = LocalContext.current
             var showLockDisclosure by remember { mutableStateOf(false) }
             var showRecentsDisclosure by remember { mutableStateOf(false) }
@@ -277,4 +289,116 @@ private fun RequestRuntimePermissionsOnStart() {
             )
         }
     }
+}
+
+private enum class RatingPromptStep { HIDDEN, ASK, FEEDBACK }
+
+/**
+ * Occasionally asks "enjoying tileshell?" on Start — not a nag on every
+ * resume. There's no "app open count" to gate on here: TileShell *is* the
+ * launcher, so it has no discrete launch events the way a normal app does —
+ * it's simply resumed whenever the user returns to Start, which can happen
+ * dozens of times a day. Gating is purely day-interval based instead
+ * ([isRatingPromptCheckWindowOpen]): a minimum age since first launch, then a
+ * multi-day interval between check windows, each with only a
+ * [rollShowsPrompt] chance of actually showing — re-checked on every
+ * `ON_RESUME` (mirrors [rememberAppUpdateState]'s re-check pattern), with the
+ * "last asked" clock advanced the moment a window opens regardless of the
+ * roll's outcome, so a resume storm within one window can't turn a single
+ * multi-day interval into several rolls.
+ *
+ * Answering either way marks the user as responded (never asked again);
+ * dismissing the initial ask without answering does not, so it can resurface
+ * at the next check window. "Enjoying it" launches Play's in-app review flow
+ * directly — Play never reports back whether the user actually rated, by
+ * design, so this is the only signal available. "Not really" offers an email
+ * feedback channel instead of pushing toward a public review.
+ */
+@Composable
+private fun RatingPromptHost() {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var step by remember { mutableStateOf(RatingPromptStep.HIDDEN) }
+
+    fun check() {
+        RatingPromptPrefs.ensureFirstLaunchSeeded(context)
+        val windowOpen = isRatingPromptCheckWindowOpen(
+            nowMs = System.currentTimeMillis(),
+            firstLaunchMs = RatingPromptPrefs.firstLaunchMs(context),
+            hasResponded = RatingPromptPrefs.hasResponded(context),
+            lastAskedMs = RatingPromptPrefs.lastAskedMs(context),
+        )
+        if (!windowOpen) return
+        RatingPromptPrefs.markAsked(context)
+        if (rollShowsPrompt(Random.nextFloat())) step = RatingPromptStep.ASK
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        check()
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) check()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    if (step == RatingPromptStep.ASK) {
+        RatingAskDialog(
+            onEnjoying = {
+                RatingPromptPrefs.markResponded(context)
+                step = RatingPromptStep.HIDDEN
+                (context as? Activity)?.let { InAppReview.launch(it) }
+            },
+            onNotReally = {
+                RatingPromptPrefs.markResponded(context)
+                step = RatingPromptStep.FEEDBACK
+            },
+            onDismiss = { step = RatingPromptStep.HIDDEN },
+        )
+    }
+    if (step == RatingPromptStep.FEEDBACK) {
+        RatingFeedbackDialog(
+            onSendFeedback = {
+                runCatching {
+                    context.startActivity(
+                        Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$FEEDBACK_EMAIL"))
+                            .putExtra(Intent.EXTRA_SUBJECT, "tileshell feedback")
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }
+                step = RatingPromptStep.HIDDEN
+            },
+            onDismiss = { step = RatingPromptStep.HIDDEN },
+        )
+    }
+}
+
+@Composable
+private fun RatingAskDialog(onEnjoying: () -> Unit, onNotReally: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("enjoying tileshell?") },
+        text = { Text("let us know what you think — it only takes a second.") },
+        confirmButton = {
+            TextButton(onClick = onEnjoying) { Text("yes!") }
+        },
+        dismissButton = {
+            TextButton(onClick = onNotReally) { Text("not really") }
+        },
+    )
+}
+
+@Composable
+private fun RatingFeedbackDialog(onSendFeedback: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("sorry to hear that") },
+        text = { Text("mind telling us what's missing or not working? it helps a lot.") },
+        confirmButton = {
+            TextButton(onClick = onSendFeedback) { Text("send feedback") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("no thanks") }
+        },
+    )
 }

@@ -3607,3 +3607,54 @@ the service isn't connected yet) and only falls back to the existing `Accessibil
 the existing itemized disclosure text to also mention this gesture. No manifest/XML changes needed;
 the accessibility service declaration is shared as-is. Build + tests green (`EdgeSwipeGestureTest`
 new: edge-zone classification + vertical-dominance threshold).
+
+## Occasional "enjoying tileshell?" rating prompt
+
+User request: randomly ask the user to rate the app if they haven't already responded, gated behind
+an "are you enjoying it?" question rather than jumping straight to a store review. First implementation
+attempt gated on an "app open count" (mirroring how a normal app counts launches) — user corrected this
+immediately: "it can not be linked to open as it is launcher app," since TileShell *is* the launcher, so
+its Activity has no discrete per-launch lifecycle the way a normal app does (`onNewIntent` fires on
+Home-press, not a fresh launch; `singleTask` + the manifest's `configChanges` keep the same Activity
+instance resident indefinitely). Reworked to be purely day-interval based instead
+(`isRatingPromptCheckWindowOpen` in `:core:data`'s new `RatingPromptPrefs.kt`): no ask before
+`RATING_PROMPT_MIN_AGE_MS` (3 days) since first launch, then at most one "check window" every
+`RATING_PROMPT_INTERVAL_MS` (5 days), each with only a `RATING_PROMPT_CHANCE` (30%) chance of actually
+showing — evaluated on every `ON_RESUME` (mirrors `rememberAppUpdateState`'s re-check pattern) rather
+than once per process, since a launcher resumes many times a day. The "last asked" clock advances the
+moment a check window opens, *regardless* of the roll's outcome — otherwise a resume storm within one
+day would re-roll on every resume until one hit, collapsing the multi-day interval down to "the first
+resume after the window opens." Answering either way (`RatingPromptPrefs.markResponded`) stops it being
+asked again, ever; dismissing the initial ask without answering does not, so it can resurface at the
+next window.
+
+"Enjoying it" originally called Play Core's `ReviewManager.launchReviewFlow` directly. Live on-device
+testing (physical Samsung device, debug build installed via plain `adb install`) showed tapping "yes!"
+did nothing visible at all — confirmed via `adb shell run-as com.tileshell cat shared_prefs/
+tileshell.prefs.xml` that the tap really did fire (`rating_responded` flipped to `true`), so the dialog
+itself was working; Play's review API was the dead end. This is expected Play behaviour, not a bug: the
+native review overlay only ever renders for a build installed through a Play-associated channel
+(internal/closed/open testing or production) — a plain adb-sideloaded debug build (this project's whole
+local test loop) makes `requestReviewFlow()` "succeed" with a no-op `ReviewInfo` that shows nothing when
+launched, and Google additionally applies a silent, undocumented per-app quota on top even for real
+installs; neither condition is something the app can detect. First fix attempt replaced the native API
+outright with a direct `market://details?id=...` deep link to the store listing page (verified working
+live on-device via screenshot — Play Store opened straight to the TileShell listing with a visible
+"Your review" section). User then asked for the *actual* review screen, not the listing page
+("should directly open the review screen not app listing page") — reinstated the native
+`ReviewManager` flow as the primary path (`InAppReview.launch`, `:feature:system`, new
+`play-inapp-review-ktx` dependency), falling back to the store-listing deep link only when the request
+task genuinely fails (no Play Store on the device, an exception) — deliberately *not* falling back
+just because nothing visibly happened, since that's indistinguishable from Play's normal silent-quota
+behaviour and always-falling-back would defeat the point of using the nicer native overlay whenever it
+does work in production. Documented clearly in code and to the user: this project's adb-sideload test
+loop can never visually confirm the native overlay renders — that's only verifiable once shipped to a
+real Play testing track.
+
+"Not really" opens a second dialog offering an email feedback channel (`mailto:` `ACTION_SENDTO` to the
+existing support address from `docs/PRIVACY_POLICY.md`) instead of a "no thanks" dead end — verified
+live on-device (screenshot) that the second dialog renders correctly; tapping "send feedback" itself
+best-effort `runCatching`s the intent, since not every device has a mail app configured to handle
+`ACTION_SENDTO`, and there's nothing more useful to do if it doesn't (a Play Store review page would be
+the wrong response to "not really enjoying it"). Build + tests green (`RatingPromptTest` new: 7 cases
+covering the day-interval/quota-window math and the roll threshold).

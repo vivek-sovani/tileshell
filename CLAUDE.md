@@ -36,6 +36,22 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.3.1 — occasional "enjoying tileshell?" rating prompt.** New ask, not in the WP
+  prototype/spec — see DECISIONS "Occasional 'enjoying tileshell?' rating prompt" for the full
+  debugging trail. Day-interval gated, not "app open count" (TileShell is the launcher itself, so
+  it has no discrete per-launch lifecycle) — `isRatingPromptCheckWindowOpen`/`RatingPromptPrefs`
+  (`:core:data`): no ask before 3 days since first launch, then at most one check window every 5
+  days, each with only a 30% chance of showing; evaluated on every Start `ON_RESUME`, with the
+  "last asked" clock advanced the moment a window opens regardless of the roll's outcome so a
+  resume storm can't turn one interval into several rolls. Answering either way stops it forever;
+  dismissing without answering lets it resurface next window. "Enjoying it" calls Play's native
+  in-app review overlay (`InAppReview.launch`, `:feature:system`, new `play-inapp-review-ktx` dep),
+  falling back to a direct Play Store listing deep link only on a genuine request failure — the
+  native overlay only ever renders for a Play-channel install (never a plain adb-sideloaded debug
+  build, this project's whole local test loop), which is expected Play behaviour, not a bug.
+  "Not really" opens a second dialog offering email feedback instead of a dead end. Build + tests
+  green (`RatingPromptTest` new, 7 cases); dialogs + the store-listing fallback verified live
+  on-device via screenshots.
 - **Post-v2.3.1 — single-finger edge-swipe-down opens system notifications (left) /
   quick settings (right).** New ask, not in the WP prototype/spec — see DECISIONS
   "Edge swipe-down for notifications/quick settings". Reuses the existing
