@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v2.3.0 listing draft — update before each release*
+*v2.3.1 listing draft — update before each release*
 
 ---
 
@@ -143,6 +143,27 @@ data. Users can also clear app data via Android Settings at any time.
 | Feature graphic | 1024 × 500 px | Required for listing banner |
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
+
+## Release notes (v2.3.1)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.
+2.3.0 (code 230) is already published — same feature set, same blurb, plus
+one additional fix found via Play Console's pre-launch report for that
+release (bitmap downsampling in the layout-history thumbnail).*
+
+```
+TileShell 2.3.1
+
+• New: feed & personalize screens redesigned with a personalized greeting
+• New: feed widgets pair side by side and reorder by drag
+• New: glance background is a synthesized colour gradient, with its own toggle
+• Fixed: now-playing tile no longer shows "paused" while music is playing
+• Fixed: feed greeting name now reliably picks up your contact profile
+• Fixed: badges & live mail now has its own row in Personalize
+• Fixed: layout-history thumbnails now decode at a smaller size
+```
+
+*(Character count 499, under Play's 500 limit.)*
 
 ## Release notes (v2.3.0)
 

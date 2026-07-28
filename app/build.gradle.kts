@@ -232,8 +232,14 @@ android {
         //   "badges & live mail" was folded into the live-tiles master toggle (which
         //   defaults on) so the notification-access ask was never actually triggered on
         //   a fresh install — restored as its own row directly below the master toggle.
-        versionCode = 230
-        versionName = "2.3.0"
+        // v2.3.1 (code 231): same feature set as 2.3.0 above (already published), plus one
+        //   fix found via Play Console's post-publish pre-launch report for that release:
+        //   the layout-history snapshot list decoded its full-screen PixelCopy screenshot
+        //   at full resolution just to render a 64x104dp row thumbnail — the only
+        //   BitmapFactory call site in the app that had skipped the inJustDecodeBounds ->
+        //   inSampleSize downsampling pattern every other call site already used.
+        versionCode = 231
+        versionName = "2.3.1"
     }
 
     if (keystoreFile.exists()) {
