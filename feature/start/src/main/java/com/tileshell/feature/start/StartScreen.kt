@@ -896,11 +896,14 @@ fun StartScreen(
                                 // "tap outside to close" for the top-level case,
                                 // and simply tidy for the in-folder case.
                                 if (expandedFolderId != null) viewModel.collapseFolder()
-                                // The "settings" tile is this app's own Personalize
+                                // The "personalize" tile is this app's own Personalize
                                 // sheet, not a launchable app (blank package, like the
                                 // weather/calendar liveOnly tiles) — the corner gear's
                                 // replacement, see DefaultLayout's "personalize" role.
-                                if (tile.packageName.isBlank() && tile.iconKey == "settings") {
+                                // Identified by label (its icon is just a visual choice,
+                                // "palette" — see iconFor) rather than iconKey, so the two
+                                // stay decoupled.
+                                if (tile.packageName.isBlank() && tile.label == "personalize") {
                                     viewModel.openPersonalize()
                                 } else {
                                     onTileClick(context, tile)
@@ -910,7 +913,7 @@ fun StartScreen(
                         }
                     },
                     onLaunchFolderChild = { child ->
-                        if (child.packageName.isBlank() && child.iconKey == "settings") {
+                        if (child.packageName.isBlank() && child.label == "personalize") {
                             viewModel.openPersonalize()
                         } else {
                             launchFolderChild(context, child)

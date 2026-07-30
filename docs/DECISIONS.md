@@ -3818,3 +3818,54 @@ app-level code can fully control.
 Build + tests green throughout (`PercentLevelTest`, `ThemeChoiceTest`, `EdgeSwipeGestureTest` all
 extended); verified live on both an emulator and a physical Samsung device via adb screenshots at each
 step.
+
+## Quick Panel follow-up 2: distinct icons, personalize pinnable from the App List, android settings row repositioned
+
+Third round of same-session refinement, all from explicit user requests after seeing the previous
+round's screenshots.
+
+**"settings tile should have android icon. and personalise tile should have personalise icon"** — the
+personalize Start tile and the Quick Panel's "personalize" tile had been sharing the plain gear glyph
+with the *real* Android Settings tile/row, undermining the whole point of distinguishing them.
+`DefaultLayout.iconFor("personalize")` now maps to `"palette"` (an existing glyph, already used for the
+per-tile colour picker — fits "customize" thematically, no new icon needed) instead of `"settings"`.
+The Personalize sheet's own "android settings" nav row (see below) and the Quick Panel's "android
+settings" tile both already used a *real*, device-resolved Settings-app icon bitmap
+(`rememberAndroidSettingsIcon`) from the previous round, so only the personalize side needed a change.
+
+This exposed a real gap: **Room doesn't retroactively apply a new `iconFor` mapping to an
+already-persisted tile** — only freshly-*seeded* tiles pick up a mapping change; the emulator's
+personalize tile (seeded earlier in this same session, before the mapping changed) kept rendering the
+old gear glyph despite the code change. Confirmed live, then fixed with a new
+`LayoutDao.updateTileIconKey`/`LayoutRepository.updateTileIconKey`, wired into
+`StartViewModel.migrateSettingsTile()`: if a personalize tile already exists but its `iconKey` isn't
+`"palette"` yet, it's patched in place. Verified on-device afterward that the existing tile picked up
+the new palette icon without needing a fresh install, and that tapping it still correctly opens
+Personalize (the identity check was **also** decoupled from `iconKey` in the same pass — it now checks
+`packageName.isBlank() && label == "personalize"` instead of `iconKey == "settings"`, in both
+`StartScreen.kt`'s tap handlers and the migration check, via a new shared `List<TileModel>
+.hasPersonalizeTile()` extension in `:core:data` — so icon choice and tile identity stay fully
+decoupled going forward, not just for this one rename).
+
+**"pin option should be available for personalise app shown on app screen... in case user accidently
+deletes the personalisation tile"** — the synthetic App List entry's long-press menu previously skipped
+pin/hide/uninstall entirely for any blank-package entry. Split that apart: "pin to start" is now enabled
+specifically for it (`AppListViewModel.pinPersonalize()` — checks `hasPersonalizeTile()` first and only
+calls `LayoutRepository.addDefaultTile("personalize")` if it's actually missing, rather than reusing the
+generic `pinApp(AppEntry)` flow, which dedups by `appTileCount(packageName)` and would misfire since
+every liveOnly tile shares the same blank package); hide/uninstall remain disabled (still don't map onto
+a non-installed entry).
+
+**"the devices real setting[s] app - should be renamed as android settings"** + moved to the top of the
+Personalize sheet with its own icon, per an earlier request in the same round — the new nav row (added
+just before this round, initially with a bare `"the device's real settings app"` subtitle and the
+generic gear glyph) was restructured to match the sheet's other nav-row convention (bold title + dim
+subtitle + "open ›"): title "android settings", subtitle "the device's own settings app", and the real
+device-resolved Settings icon (`rememberAndroidSettingsIcon`, duplicated locally in
+`PersonalizeSheet.kt` since the Quick Panel's original is file-private in a different module).
+
+All verified live on an emulator via adb screenshots: the Start tile shows the palette icon (confirmed
+on an *already-existing* tile, proving the backfill migration works, not just fresh seeds); tapping it
+still opens Personalize; the new top-of-sheet row renders with the real device icon, bold title, and
+subtitle; the App List's "personalize" entry is searchable and shows the palette icon. Build + tests
+green throughout.

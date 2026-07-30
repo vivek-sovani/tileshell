@@ -17,6 +17,18 @@ data class FolderChild(
  * [Folder] of apps. Ordered by [position]; sized by [size] and tinted by
  * [colorId] (a prototype accent id resolved via TileAccents in :core:design).
  */
+/**
+ * True if [this] already contains the "personalize" liveOnly Start tile
+ * (blank package, like weather/calendar — see `DefaultLayout`'s "personalize"
+ * role). Identified by label rather than iconKey, so its icon stays a free
+ * visual choice decoupled from identity. Shared between `StartViewModel`
+ * (the existing-install migration backfill) and `AppListViewModel` (the App
+ * List's own "pin it back" action for the synthetic personalize entry).
+ */
+fun List<TileModel>.hasPersonalizeTile(): Boolean = any {
+    it is TileModel.App && it.packageName.isBlank() && it.label == "personalize"
+}
+
 sealed interface TileModel {
     val id: String
     val position: Int

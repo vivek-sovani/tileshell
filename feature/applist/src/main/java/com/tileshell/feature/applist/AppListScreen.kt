@@ -213,7 +213,11 @@ fun AppListScreen(
                                     AppLauncher.launch(context, app.packageName, app.activityName)
                                 }
                             },
-                            onPin = { viewModel.pin(app) },
+                            onPin = {
+                                // The synthetic "personalize" entry can't go through the
+                                // generic pin flow — see pinPersonalize's own doc comment.
+                                if (app.packageName.isBlank()) viewModel.pinPersonalize() else viewModel.pin(app)
+                            },
                             onUninstall = { uninstallApp(context, app.packageName) },
                             onHide = { viewModel.hide(app) },
                         )
@@ -305,15 +309,16 @@ private fun AppRow(
 ) {
     // Long-press opens a WP-style context menu: pin the app to Start, hide it
     // from the list, or uninstall it (the system uninstall dialog). A quick tap
-    // still launches. None of that applies to the synthetic "personalize" entry
-    // (no real package to pin/hide/uninstall), so it's tap-only.
+    // still launches. The synthetic "personalize" entry only offers "pin to
+    // start" (in case the user accidentally removed the real tile and wants it
+    // back) — hide/uninstall don't map onto a non-installed entry.
     val isPseudo = app.packageName.isBlank()
     var menuOpen by remember { mutableStateOf(false) }
     Box {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .tapOrLongPress(onTap = onTap, onLongPress = { if (!isPseudo) menuOpen = true })
+                .tapOrLongPress(onTap = onTap, onLongPress = { menuOpen = true })
                 // TalkBack: launch on activate, with pin / hide / uninstall as
                 // custom actions (the sighted long-press menu isn't reachable
                 // otherwise).
@@ -326,7 +331,7 @@ private fun AppRow(
                     role = Role.Button
                     onClick(label = "launch") { onTap(); true }
                     customActions = if (isPseudo) {
-                        emptyList()
+                        listOf(CustomAccessibilityAction("pin to start") { onPin(); true })
                     } else {
                         listOf(
                             CustomAccessibilityAction("pin to start") { onPin(); true },
@@ -394,14 +399,16 @@ private fun AppRow(
                 text = { Text("pin to start") },
                 onClick = { menuOpen = false; onPin() },
             )
-            DropdownMenuItem(
-                text = { Text("hide") },
-                onClick = { menuOpen = false; onHide() },
-            )
-            DropdownMenuItem(
-                text = { Text("uninstall") },
-                onClick = { menuOpen = false; onUninstall() },
-            )
+            if (!isPseudo) {
+                DropdownMenuItem(
+                    text = { Text("hide") },
+                    onClick = { menuOpen = false; onHide() },
+                )
+                DropdownMenuItem(
+                    text = { Text("uninstall") },
+                    onClick = { menuOpen = false; onUninstall() },
+                )
+            }
         }
     }
 }

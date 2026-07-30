@@ -711,11 +711,16 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      */
     private suspend fun migrateSettingsTile() {
         val current = repository.tiles.first()
-        val hasPersonalizeTile = current.any {
-            it is TileModel.App && it.packageName.isBlank() && it.iconKey == "settings"
-        }
-        if (!hasPersonalizeTile) {
+        val personalizeTile = current.filterIsInstance<TileModel.App>()
+            .firstOrNull { it.packageName.isBlank() && it.label == "personalize" }
+        if (personalizeTile == null) {
             repository.addDefaultTile("personalize")
+        } else if (personalizeTile.iconKey != "palette") {
+            // Backfills a tile seeded by an earlier version of this migration,
+            // before the personalize tile's icon changed from the shared
+            // "settings" gear glyph to its own distinct "palette" one — Room
+            // only applies a new iconFor mapping to freshly-seeded tiles.
+            repository.updateTileIconKey(personalizeTile.id, "palette")
         }
         val context = getApplication<Application>()
         if (!SettingsAppMigration.hasRun(context)) {

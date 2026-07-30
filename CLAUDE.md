@@ -38,8 +38,17 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 <!-- Update this block at the end of every session -->
 - **Post-v2.3.1 — Quick Panel redesigned as true square tiles (real WP Action Center), settings
   tile, screen lock relocated, theme tiles.** New asks, not in the WP prototype/spec — see DECISIONS
-  "Quick Panel redesigned as true square tiles..." and its follow-up entry for the full trail
-  (several rounds of live on-device correction). Quick Panel (`QuickPanelOverlay.kt`) is now one
+  "Quick Panel redesigned as true square tiles..." and its two follow-up entries for the full trail
+  (three rounds of live on-device correction). Personalize/Quick Panel's "personalize" tile now has
+  its own distinct icon (`"palette"`, not the gear glyph shared with the real Settings app/tile) —
+  including a backfill (`LayoutDao.updateTileIconKey`) for tiles already seeded before the mapping
+  changed, since Room doesn't retroactively apply a new `iconFor` mapping on its own; tile identity
+  was decoupled from icon choice in the process (`List<TileModel>.hasPersonalizeTile()` checks
+  `label`, not `iconKey`). The App List's synthetic "personalize" entry can now be "pinned to start"
+  (in case the real tile is accidentally removed) via a dedicated `pinPersonalize()` that avoids the
+  generic pin flow's blank-package dedup bug; hide/uninstall stay disabled for it. The Personalize
+  sheet's "android settings" nav row moved to the top of the sheet with the real device-resolved
+  Settings icon and a proper title/subtitle, per explicit request. Quick Panel (`QuickPanelOverlay.kt`) is now one
   unified 5-column grid of true `aspectRatio(1f)` squares — toggles (wifi/bluetooth/flashlight/dnd/
   airplane/location/rotation-lock), brightness/media-volume/ring-volume/screen-timeout (all
   tap-to-step through fixed levels, no more drag sliders), a single tap-to-cycle theme tile

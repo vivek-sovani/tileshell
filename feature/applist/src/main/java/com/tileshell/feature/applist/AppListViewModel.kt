@@ -10,6 +10,7 @@ import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.PinResult
 import com.tileshell.core.data.RecentApps
 import com.tileshell.core.data.TileModel
+import com.tileshell.core.data.hasPersonalizeTile
 import com.tileshell.feature.livetiles.NotificationCenter
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -156,6 +158,29 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             val result = layout.pinApp(app)
             _pinned.emit(PinOutcome(result, app.label))
+        }
+    }
+
+    /**
+     * "Pin to start" for the synthetic [PERSONALIZE_APP_ENTRY] — in case the
+     * user accidentally removed the real personalize Start tile, this brings
+     * it back. Can't reuse [pin]/[LayoutRepository.pinApp]: that dedups by
+     * `appTileCount(packageName)`, and every liveOnly tile (weather, calendar,
+     * personalize, …) shares the same blank package, so it would misfire
+     * against whichever of those happens to still be pinned. Checks for the
+     * personalize tile specifically instead ([hasPersonalizeTile]) and reuses
+     * the same backfill [LayoutRepository.addDefaultTile] the migration path
+     * already uses for existing installs.
+     */
+    fun pinPersonalize() {
+        viewModelScope.launch {
+            val result = if (layout.tiles.first().hasPersonalizeTile()) {
+                PinResult.ALREADY_ON_START
+            } else {
+                layout.addDefaultTile("personalize")
+                PinResult.PINNED
+            }
+            _pinned.emit(PinOutcome(result, "personalize"))
         }
     }
 

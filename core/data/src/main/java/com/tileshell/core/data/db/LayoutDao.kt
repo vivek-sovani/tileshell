@@ -27,6 +27,14 @@ interface LayoutDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTiles(tiles: List<TileEntity>)
 
+    /**
+     * Updates a single tile's `iconKey` — used to backfill an already-persisted
+     * liveOnly tile's icon after an `iconFor` mapping change (Room only applies
+     * a new mapping to freshly-*seeded* tiles, never retroactively).
+     */
+    @Query("UPDATE tiles SET iconKey = :iconKey WHERE id = :id")
+    suspend fun updateTileIconKey(id: String, iconKey: String)
+
     /** Count app tiles already pinned for a package (pin de-dupe, FR-5). */
     @Query("SELECT COUNT(*) FROM tiles WHERE type = 'app' AND packageName = :packageName")
     suspend fun appTileCount(packageName: String): Int

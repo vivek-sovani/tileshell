@@ -1,9 +1,13 @@
 package com.tileshell.feature.personalize
 
+import android.content.ComponentName
+import android.content.Intent
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -39,20 +43,26 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.drawable.toBitmap
 import com.tileshell.core.data.settings.FontStyle
 import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
@@ -65,6 +75,8 @@ import com.tileshell.core.design.Wallpapers
 import com.tileshell.core.design.Wallpapers.NONE_ID
 import com.tileshell.core.design.colorTokens
 import com.tileshell.core.design.wallpaperBackground
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 /**
@@ -314,6 +326,42 @@ fun PersonalizeSheet(
                 letterSpacing = (-1).sp,
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 14.dp),
             )
+
+            // ---- android settings: quick jump to the real device Settings app,
+            // moved to the top of the sheet per explicit user request (was buried
+            // in the "system" group near the bottom) and given the device's own
+            // real Settings icon instead of the generic gear glyph ----
+            SettingGroup(label = "android settings", tokens.fgDim) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onSystemSettings)
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    val androidSettingsIcon = rememberAndroidSettingsIcon()
+                    if (androidSettingsIcon != null) {
+                        Image(
+                            bitmap = androidSettingsIcon,
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    } else {
+                        Icon(TileIcons["settings"], null, tint = tokens.fg, modifier = Modifier.size(22.dp))
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "android settings", color = tokens.fg, fontSize = 14.sp)
+                        Text(
+                            text = "the device's own settings app",
+                            color = tokens.fgDim,
+                            fontSize = 12.sp,
+                        )
+                    }
+                    Text(text = "open ›", color = accent, fontSize = 13.sp)
+                }
+            }
 
             // ---- help ----
             SettingGroup(label = "help", tokens.fgDim) {
@@ -1107,44 +1155,30 @@ fun PersonalizeSheet(
             }
 
             // ---- system ----
-            SettingGroup(label = "system", tokens.fgDim) {
-                Column {
-                    // Hidden entirely once TileShell is already default — there's
-                    // nothing left to ask. Re-checked live on every ON_RESUME
-                    // ([rememberIsDefaultLauncher]) so backing out to Settings,
-                    // changing it there, and returning updates this without
-                    // reopening the sheet.
-                    if (!isDefaultLauncher) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(onClick = onSetDefaultLauncher)
-                                .padding(vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(text = "default launcher", color = tokens.fg, fontSize = 14.sp)
-                                Text(
-                                    text = "make tileshell your home screen",
-                                    color = tokens.fgDim,
-                                    fontSize = 12.sp,
-                                )
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            Text(text = "set ›", color = accent, fontSize = 13.sp)
-                        }
-                        Spacer(Modifier.height(10.dp))
-                    }
+            // Hidden entirely once TileShell is already default — there's nothing
+            // left here ("android settings" moved to the top of the sheet, see
+            // above). Re-checked live on every ON_RESUME ([rememberIsDefaultLauncher])
+            // so backing out to Settings, changing it there, and returning updates
+            // this without reopening the sheet.
+            if (!isDefaultLauncher) {
+                SettingGroup(label = "system", tokens.fgDim) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable(onClick = onSystemSettings)
+                            .clickable(onClick = onSetDefaultLauncher)
                             .padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(text = "android settings", color = tokens.fg, fontSize = 14.sp)
-                        Spacer(Modifier.weight(1f))
-                        Text(text = "open ›", color = accent, fontSize = 13.sp)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = "default launcher", color = tokens.fg, fontSize = 14.sp)
+                            Text(
+                                text = "make tileshell your home screen",
+                                color = tokens.fgDim,
+                                fontSize = 12.sp,
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Text(text = "set ›", color = accent, fontSize = 13.sp)
                     }
                 }
             }
@@ -1286,6 +1320,24 @@ private fun SettingGroup(label: String, labelColor: Color, content: @Composable 
  * tile grid (`QuickPanelTile`), reused here per user request instead of the
  * plain segmented row every other selector on this sheet still uses.
  */
+@Composable
+private fun rememberAndroidSettingsIcon(): ImageBitmap? {
+    val context = LocalContext.current
+    return produceState<ImageBitmap?>(null) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                val resolved = context.packageManager.resolveActivity(Intent(Settings.ACTION_SETTINGS), 0)
+                    ?: return@runCatching null
+                val info = resolved.activityInfo
+                context.packageManager
+                    .getActivityIcon(ComponentName(info.packageName, info.name))
+                    .toBitmap(width = 96, height = 96)
+                    .asImageBitmap()
+            }.getOrNull()
+        }
+    }.value
+}
+
 @Composable
 private fun ThemeTile(
     icon: String,
