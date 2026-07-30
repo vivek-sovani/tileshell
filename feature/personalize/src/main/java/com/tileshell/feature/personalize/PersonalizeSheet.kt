@@ -31,6 +31,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -58,6 +59,7 @@ import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
+import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.WallpaperGradient
 import com.tileshell.core.design.Wallpapers
 import com.tileshell.core.design.Wallpapers.NONE_ID
@@ -335,22 +337,35 @@ fun PersonalizeSheet(
                 }
             }
 
-            // ---- theme: flat dark/light/auto segmented row ----
+            // ---- theme: dark/light/auto as small square tiles, matching the
+            // Quick Panel's WP-style tile grid (accent fill selected, neutral
+            // chip fill otherwise) instead of a plain segmented row ----
             SettingGroup(label = "theme", tokens.fgDim) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, tokens.tileLine),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    SegCell("dark", selected = !followSystemTheme && dark, accent = accent, fg = tokens.fg) {
+                    ThemeTile(
+                        "moon", "dark", selected = !followSystemTheme && dark,
+                        accent = accent, tokens = tokens,
+                        modifier = Modifier.weight(1f).aspectRatio(1f),
+                    ) {
                         onFollowSystemThemeChange(false)
                         onThemeChange(true)
                     }
-                    SegCell("light", selected = !followSystemTheme && !dark, accent = accent, fg = tokens.fg) {
+                    ThemeTile(
+                        "brightness", "light", selected = !followSystemTheme && !dark,
+                        accent = accent, tokens = tokens,
+                        modifier = Modifier.weight(1f).aspectRatio(1f),
+                    ) {
                         onFollowSystemThemeChange(false)
                         onThemeChange(false)
                     }
-                    SegCell("auto", selected = followSystemTheme, accent = accent, fg = tokens.fg) {
+                    ThemeTile(
+                        "auto", "auto", selected = followSystemTheme,
+                        accent = accent, tokens = tokens,
+                        modifier = Modifier.weight(1f).aspectRatio(1f),
+                    ) {
                         onFollowSystemThemeChange(true)
                     }
                 }
@@ -1262,6 +1277,38 @@ private fun SettingGroup(label: String, labelColor: Color, content: @Composable 
             modifier = Modifier.padding(bottom = 10.dp),
         )
         content()
+    }
+}
+
+/**
+ * A small square theme-choice tile — icon + label, accent fill when selected
+ * else a neutral chip fill — same on/off contract as the Quick Panel's own
+ * tile grid (`QuickPanelTile`), reused here per user request instead of the
+ * plain segmented row every other selector on this sheet still uses.
+ */
+@Composable
+private fun ThemeTile(
+    icon: String,
+    label: String,
+    selected: Boolean,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val bg = if (selected) accent else tokens.chip
+    val fg = if (selected) Color.White else tokens.fgDim
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(bg)
+            .clickable(onClick = onClick)
+            .padding(6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(TileIcons[icon], null, tint = fg, modifier = Modifier.size(20.dp))
+        Text(label, color = fg, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
     }
 }
 

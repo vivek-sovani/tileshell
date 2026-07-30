@@ -27,6 +27,18 @@ import kotlinx.coroutines.launch
 data class PinOutcome(val result: PinResult, val label: String)
 
 /**
+ * A synthetic, non-installed "app" entry for this launcher's own Personalize
+ * sheet — blank package/activity (like the weather/calendar liveOnly Start
+ * tiles), so it's discoverable and searchable in the App List the same way a
+ * real app is, per explicit user request. [AppListScreen] special-cases the
+ * blank package to open Personalize instead of launching, and skips the
+ * pin/hide/uninstall menu for it entirely — none of those map cleanly onto a
+ * non-installed entry (pin's dedup counts *all* blank-package tiles together,
+ * and uninstall has no package to act on).
+ */
+internal val PERSONALIZE_APP_ENTRY = AppEntry(packageName = "", activityName = "personalize", label = "personalize")
+
+/**
  * Exposes the live app catalogue plus a search query, surfacing the filtered
  * list for the UI. Backed by [AppCatalogRepository], so install/uninstall flow
  * through automatically. Also handles pinning an app to Start (FR-5) via
@@ -37,7 +49,7 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
     private val repository = AppCatalogRepository(application)
     private val layout = LayoutRepository.create(application)
 
-    private val apps: StateFlow<List<AppEntry>> = repository.apps.stateIn(
+    private val apps: StateFlow<List<AppEntry>> = repository.apps.map { it + PERSONALIZE_APP_ENTRY }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList(),

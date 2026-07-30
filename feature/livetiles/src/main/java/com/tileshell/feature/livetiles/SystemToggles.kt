@@ -392,3 +392,18 @@ fun screenTimeoutLabel(ms: Long): String = when {
     ms < 3_600_000L -> "${ms / 60_000L}m"
     else -> "${ms / 3_600_000L}h"
 }
+
+/** Fixed percent steps the brightness/media-volume/ring-volume quick-panel tiles cycle through on tap. */
+val BRIGHTNESS_VOLUME_LEVELS = listOf(0, 10, 20, 40, 60, 80, 100)
+
+/**
+ * The next level strictly above [currentPercent] (wraps to the first once past the
+ * last) — pure, unit-tested. Uses a strict `>` (unlike [nextScreenTimeoutPreset]'s
+ * `>=`) so an arbitrary starting value that doesn't land exactly on a step (e.g. the
+ * system brightness was at 45%) still always advances to the next step up rather
+ * than snapping to the nearest-or-equal one and then jumping past it.
+ */
+fun nextPercentLevel(currentPercent: Int, levels: List<Int> = BRIGHTNESS_VOLUME_LEVELS): Int {
+    val idx = levels.indexOfFirst { it > currentPercent }
+    return if (idx == -1) levels.first() else levels[idx]
+}

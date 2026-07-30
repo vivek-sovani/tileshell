@@ -385,6 +385,15 @@ class LayoutRepository(
     }
 
     /**
+     * Resolves a default-layout role id (e.g. `"settings"`) to its installed
+     * package name, or null if nothing resolves on this device. Used to hide
+     * the real Android Settings app from the App List once it's superseded by
+     * the Quick Panel's own "android settings" tile — see `StartViewModel`.
+     */
+    suspend fun resolvedPackageFor(appId: String): String? =
+        DefaultLayout.roleFor(appId)?.let { resolver.resolve(it)?.packageName }
+
+    /**
      * Return the raw DB entities for a manual backup export. Reuses the
      * existing [LayoutDao.tilesOnce] snapshot; no new DAO query needed.
      */

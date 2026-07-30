@@ -36,6 +36,37 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.3.1 — Quick Panel redesigned as true square tiles (real WP Action Center), settings
+  tile, screen lock relocated, theme tiles.** New asks, not in the WP prototype/spec — see DECISIONS
+  "Quick Panel redesigned as true square tiles..." and its follow-up entry for the full trail
+  (several rounds of live on-device correction). Quick Panel (`QuickPanelOverlay.kt`) is now one
+  unified 5-column grid of true `aspectRatio(1f)` squares — toggles (wifi/bluetooth/flashlight/dnd/
+  airplane/location/rotation-lock), brightness/media-volume/ring-volume/screen-timeout (all
+  tap-to-step through fixed levels, no more drag sliders), a single tap-to-cycle theme tile
+  (dark/light/auto, accent-highlighted), "personalize" (opens this app's Personalize sheet),
+  "android settings" (real device icon, opens the real Settings app), and "lock screen". The
+  floating corner settings-gear icon is gone — Personalize now opens via a normal, draggable/
+  resizable/unpinnable Start tile (`DefaultTile("t-personalize", ..., liveOnly = true)`, same
+  blank-package pattern as weather/calendar; existing installs get it backfilled once via
+  `LayoutRepository.addDefaultTile`). The real Android Settings app is retired as a separate Start
+  pin and hidden from the App List (one-shot `SettingsAppMigration` flag, not just "currently
+  hidden" — so a user un-hiding it later isn't silently undone); it's also added as its own
+  synthetic, non-installed App List entry so it's searchable/tappable there too
+  (`PERSONALIZE_APP_ENTRY`). Screen lock moved into the Quick Panel's own tile, reusing the same
+  `onLockScreen` disclosure-dialog flow the removed gear's long-press used. Theme (dark/light/auto)
+  also became tiles in Personalize itself (3 square tiles, `ThemeTile`). A real bug was found and
+  fixed along the way: volume tap-to-step got stuck because reading back the hardware's coarse
+  native step count (often 15 or 7 levels) after writing a target percent rounds to a different
+  percent than requested, making the tile think it's still below target forever —
+  `rememberSteppedPercent` fixes this by cycling its own remembered state instead of re-deriving it
+  from a hardware readback. A single-finger swipe up from either screen edge also now opens the
+  Quick Panel, alongside the existing two-finger gesture (`isEdgeSwipeUp`, mirrors the existing
+  edge-swipe-down machinery) — noted but not "fixed" as a real-world caveat: on the physical Samsung
+  test device this occasionally collided with One UI's own edge gesture (device/OS-level priority
+  conflict, same class of issue as the already-documented system-back-gesture collision — not an
+  app bug). Build + tests green (`PercentLevelTest`, `ThemeChoiceTest` new; `EdgeSwipeGestureTest`,
+  `LayoutSeederTest` extended); verified live on both an emulator and a physical device via adb
+  screenshots at every step.
 - **Post-v2.3.1 — occasional "enjoying tileshell?" rating prompt.** New ask, not in the WP
   prototype/spec — see DECISIONS "Occasional 'enjoying tileshell?' rating prompt" for the full
   debugging trail. Day-interval gated, not "app open count" (TileShell is the launcher itself, so

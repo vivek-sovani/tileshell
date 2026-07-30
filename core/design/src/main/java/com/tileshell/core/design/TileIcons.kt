@@ -119,6 +119,12 @@ object TileIcons {
             p("M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"),
         ))
 
+        put("lock", vector("lock",
+            p(rect(5.0, 11.0, 14.0, 10.0, 2.0)),
+            p("M8 11V7a4 4 0 0 1 8 0v4"),
+            p(circle(12.0, 16.0, 1.3)),
+        ))
+
         put("files", vector("files", p("M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7z")))
 
         put("web", vector("web",
@@ -378,6 +384,15 @@ object TileIcons {
         ))
 
         put("dnd", vector("dnd", p("M15 3a9 9 0 1 0 6 15 7 7 0 0 1-6-15z")))
+
+        // Same crescent shape as "dnd" but under its own semantic key — the
+        // personalize theme selector's "dark" tile shouldn't borrow the DND
+        // toggle's identity even though the glyph is identical.
+        put("moon", vector("moon", p("M15 3a9 9 0 1 0 6 15 7 7 0 0 1-6-15z")))
+
+        // "auto" theme: a circle bisected by a vertical line — the classic
+        // half-dark/half-light "auto brightness" glyph shape.
+        put("auto", vector("auto", p(circle(12.0, 12.0, 9.0)), p(line(12.0, 3.0, 12.0, 21.0))))
 
         put("airplane", vector("airplane", p("M3 12l18-8-8 18-2-8z")))
 

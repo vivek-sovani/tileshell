@@ -49,7 +49,27 @@ class EdgeSwipeGestureTest {
     }
 
     @Test
-    fun `upward travel never triggers`() {
+    fun `upward travel never triggers isEdgeSwipeDown`() {
         assertFalse(isEdgeSwipeDown(dy = -60f, dx = 0f, thresholdPx = 40f))
+    }
+
+    @Test
+    fun `isEdgeSwipeUp triggers past threshold and mostly vertical`() {
+        assertTrue(isEdgeSwipeUp(dy = -60f, dx = 5f, thresholdPx = 40f))
+    }
+
+    @Test
+    fun `isEdgeSwipeUp short of threshold does not trigger`() {
+        assertFalse(isEdgeSwipeUp(dy = -20f, dx = 0f, thresholdPx = 40f))
+    }
+
+    @Test
+    fun `isEdgeSwipeUp mostly horizontal travel does not trigger`() {
+        assertFalse(isEdgeSwipeUp(dy = -45f, dx = 80f, thresholdPx = 40f))
+    }
+
+    @Test
+    fun `downward travel never triggers isEdgeSwipeUp`() {
+        assertFalse(isEdgeSwipeUp(dy = 60f, dx = 0f, thresholdPx = 40f))
     }
 }

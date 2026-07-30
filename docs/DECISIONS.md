@@ -3658,3 +3658,163 @@ best-effort `runCatching`s the intent, since not every device has a mail app con
 `ACTION_SENDTO`, and there's nothing more useful to do if it doesn't (a Play Store review page would be
 the wrong response to "not really enjoying it"). Build + tests green (`RatingPromptTest` new: 7 cases
 covering the day-interval/quota-window math and the roll threshold).
+
+## Quick Panel redesigned as true square tiles (real WP Action Center), settings tile, screen lock relocated
+
+User attached a real Windows Phone/Lumia Action Center photo: a dense grid of **perfect square**
+tiles (5 across), where brightness shows its current level as bold tile text ("25%") and steps on
+tap, not drag. The Quick Panel (`QuickPanelOverlay.kt`) had drifted from its own design spec
+(`docs/QUICK-PANEL-SPEC.md` explicitly called for squares) into fixed-height wide chips
+(`weight(1f) × 44dp`, icon-left/label-right) plus separate wide `LiveTileSlider` drag rows for
+brightness/volume and a plain row for screen timeout — justified in-code at the time as "one
+proportional grid, not mixed sizes." Rewrote the whole panel into **one unified grid of true squares**
+(`Modifier.weight(1f).aspectRatio(1f)`, `chunked(5)` rows — 5 columns confirmed by the user over 4
+(Start's own default), since "few settings are added" made 5 the better fit) — icon top-center, short
+state label bottom-center, same on/off contract as before (`accent`+white when on, `tokens.chip`+
+`tokens.fgDim` when off). Binary toggles (wifi/bluetooth/flashlight/dnd/airplane/location/rotation
+lock) keep that on/off coloring; brightness/volume/timeout/settings/android-settings/lock-screen are
+all "value" tiles that render neutral always (matching the real photo, where non-toggle tiles like the
+brightness "25%" tile are gray, not blue) — same shared tile composable throughout, just `active =
+false` for the value tiles.
+
+**Brightness and both volume streams (media + ring) became tap-to-step**, replacing `LiveTileSlider`'s
+continuous drag entirely — the real device has no slider there at all. New `nextPercentLevel`
+(`:feature:livetiles/SystemToggles.kt`) cycles `[0, 10, 20, 40, 60, 80, 100]`, deliberately using a
+strict `>` (unlike the existing `nextScreenTimeoutPreset`'s intentional `>=`-based "skip past the next
+preset" behavior) so an arbitrary starting value that doesn't land exactly on a step (e.g. system
+brightness at 45%) still always advances to the very next step up. Screen timeout became a square tile
+too (it was already tap-to-cycle, just reshaped).
+
+**Settings gear → a real Start tile.** The floating corner gear icon (bottom-right, long-press = lock
+screen) is gone entirely; Personalize is now opened by a normal, draggable/resizable/unpinnable Start
+tile — `DefaultTile("t-personalize", ..., app = "personalize", liveOnly = true)` in `DefaultLayout.kt`,
+following the exact same blank-package/`selfContainedComponent` pattern the weather/calendar/clock
+liveOnly tiles already use (no schema change). `iconFor("personalize")` maps to the existing gear glyph.
+Tapping it is special-cased at the two call sites that already dispatch tile taps (`StartScreen.kt`'s
+`onTile`/`onLaunchFolderChild` lambdas, which already have `viewModel` in scope) rather than threading a
+new callback through the `onTileClick`/`launchFolderChild` top-level functions — simpler, and the
+existing `packageName.isBlank() && iconKey == "settings"` check is enough to identify it uniquely (no
+other liveOnly tile uses the settings glyph).
+
+This retires the **existing default "Settings" app tile** (opened Android's real Settings app,
+`DefaultTile("t-settings", ..., app = "settings")`) as a separate Start pin — per explicit user
+instruction ("provide android settings tile in quick settings ... hide android settings from app list
+so no question of creating tile out of it"), the real Settings app is now reachable only via the Quick
+Panel's own "android settings" tile, and is hidden from the App List (`HiddenApps`, reused as-is) so it
+can't be re-pinned as a duplicate from there. A plain "currently hidden" check isn't the right gate for
+the hide, though — the user might deliberately un-hide it later from Personalize's hidden-apps sheet,
+and re-hiding it on every subsequent launch would silently undo that choice — so a dedicated one-shot
+flag (`SettingsAppMigration`, mirroring `PersonalizeGuidePrefs`'s shape) guards it instead, checked
+once at `StartViewModel` init alongside the personalize-tile backfill for existing installs (mirrors
+the already-documented `seedStickySlots`-once-at-init pattern: fresh installs get both outcomes for
+free from `DEFAULT_TILES`/`seedIfEmpty`, existing installs get backfilled via the existing
+`LayoutRepository.addDefaultTile("personalize")`, unchanged, plus a new small `resolvedPackageFor`
+lookup added to resolve the real Settings package for the hide).
+
+**Screen lock relocated into the Quick Panel** as its own "lock screen" square tile (per the user:
+"shift screen lock functionality to quick settings as one of the settings tile"), reusing the exact
+same `onLockScreen` callback/disclosure-dialog flow the removed gear's long-press used — verified
+live on-device that it still shows the same "Before you enable accessibility" prompt when the service
+isn't connected. A new "lock" monoline glyph was added to `TileIcons.kt` (padlock body + shackle arc).
+The corner gear's dead `onLockScreen` plumbing inside `StartPage` (now unused after the gear's removal)
+was deleted rather than left dangling.
+
+All of it verified live on an emulator via adb screenshots end-to-end: the panel's true 5-column square
+grid; toggle on/off coloring; brightness tapped 10%→20%→40%→60% (confirms the step math); the
+"settings" tile closes the panel and opens Personalize; "android settings" opens the real Settings app
+(confirmed by opening it live); "lock screen" shows the disclosure dialog; the Start-grid "settings"
+tile (a different code path from the Quick Panel's own tile) also opens Personalize correctly; an
+**existing** install (not a fresh `pm clear`) picked up the migrated settings tile at the bottom of its
+layout without disturbing anything else, and a search for "settings" in the App List correctly returned
+"no apps found". Build + tests green (`PercentLevelTest` new; `LayoutSeederTest` updated for the
+`t-settings`→`t-personalize` swap).
+
+## Quick Panel follow-up: volume-step bug, real Settings icon, "personalize" rename, app-list entry, theme tile
+
+Same-session follow-up after live on-device testing (physical Samsung device, not just the emulator)
+surfaced one real bug and several explicit refinements.
+
+**Real bug: volume tap-to-step "not working properly."** Root-caused by reproducing on-device:
+`nextPercentLevel` was being fed a *fresh readback* of the hardware fraction every tap
+(`(mediaVolume * 100).roundToInt()`), but media/ring streams have a tiny native range (`AudioManager`
+maxes out around 15/7 steps on most devices) — writing a target like 10% rounds to the *nearest
+achievable raw step*, and reading that back rounds to a different percent than the one just requested
+(e.g. targeting 10% on a 15-step stream actually sets raw step 1 ≈ 6.7%, which reads back as 7%). The
+next tap then sees "7%, still below the 10% target" and re-requests 10% again — forever stuck. Brightness
+never showed this because its native range (0–255) is fine enough that the rounding error stays within
+the same 10%-wide bucket. Fixed with `rememberSteppedPercent`: seed once from the real hardware value
+(snapped to the nearest `BRIGHTNESS_VOLUME_LEVELS` step), then only ever advance that local state on tap
+— never re-derived from a hardware readback again — so cycling is deterministic regardless of how coarse
+the underlying stream's native step count is. Applied uniformly to brightness too, even though it wasn't
+actually broken, since the same fragility (depending on incidentally-fine hardware granularity) existed
+latently.
+
+**"Android settings" tile now shows the real, device-specific Settings app icon** (`rememberAndroidSettingsIcon`,
+resolves `Intent(Settings.ACTION_SETTINGS)` at runtime via `PackageManager`, mirrors `StartScreen.kt`'s
+`rememberTileAppIcon` decode-with-fallback shape since that one is file-private) — per user request,
+since the generic gear glyph didn't visually distinguish it from the "personalize" tile next to it.
+Confirmed on-device that it renders the actual OEM icon (AOSP's blue circular gear on the emulator,
+this Samsung's own plain gear glyph on the physical device — correctly device-specific, not hardcoded).
+
+**Renamed the Personalize-opening tile's label from "settings" to "personalize"** (both the Quick Panel
+tile and — where it doesn't matter, since it's a SMALL Start tile with no visible label — the underlying
+identity), reverting to the naming this doc's *first* pass on this topic had already recommended, which
+the user initially overrode and then asked to restore once "android settings" existed as a separate,
+real distinction. Uncovered a genuine cross-device text-layout issue in the process: "personalize" (11
+characters, one unbroken word) fit fine on the emulator's font metrics but hard-wrapped at an arbitrary
+character on the physical Samsung device ("personali"/"ze", no hyphen) since Compose's line breaker has
+no space to wrap at within a single word. A soft hyphen (`"personal­ize"`) was tried first as a
+targeted per-label fix and **did not work** — the break point didn't move to the hyphen's position at
+all on-device, suggesting Android's text stack didn't honor it as a break opportunity here. Reverted
+that and instead reduced every tile's label from 10sp/12sp line-height to 9sp/11sp — a general fix
+(smaller font buys enough margin for an 11-character word to fit on one line) rather than a fragile
+per-label special case that had already proven unreliable once.
+
+**The Personalize-opening Quick Panel tile got a companion in the App List** per explicit request
+("show dummy settings(personalisation) app in app list"): a synthetic, non-installed `AppEntry`
+(`PERSONALIZE_APP_ENTRY`, blank package/activity, label "personalize" — same blank-identity pattern the
+weather/calendar liveOnly Start tiles already use) is appended to `AppListViewModel`'s app list so it's
+discoverable/searchable there too. `AppListScreen`'s row tap special-cases the blank package to call a
+new `onOpenPersonalize` callback instead of `AppLauncher.launch`; the long-press pin/hide/uninstall menu
+is skipped entirely for it (`isPseudo` check) — none of those map cleanly onto a non-installed entry:
+`LayoutRepository.pinApp`'s dedup counts *every* blank-package tile together (would misfire against the
+already-pinned weather/calendar/personalize tiles), and uninstall has no real package to act on. Its row
+icon renders the gear glyph directly rather than attempting (and failing) a `PackageManager` icon lookup
+for a blank component.
+
+**Theme (dark/light/auto) became tiles, in two places, per two separate explicit requests.** First, in
+Personalize (`PersonalizeSheet.kt`, "make tile of dark light auto theme"): the existing 3-way segmented
+row (`SegCell`, still used elsewhere on that sheet — wallpaper type, tile background style, pack mode —
+deliberately left untouched, out of scope) became three square `ThemeTile`s (moon/dark, sun/light,
+circle-bisected-by-a-line/auto — the last two new monoline glyphs added to `TileIcons.kt`), accent-filled
+for whichever is currently selected, matching the Quick Panel's own on/off tile contract. Second, in the
+Quick Panel itself (a separate later request: "i wanted theme tile in quick serttings" — initially built
+as three tiles mirroring Personalize, then corrected: "it should be a single tiie for theme with
+cghanging icons") — one tap-to-cycle tile (`ThemeChoice` enum + `themeChoiceFor`/`nextThemeChoice`,
+unit-tested), matching the brightness/timeout tiles' "one tile, changing icon+label, cycles on tap"
+convention instead of three separate tiles. Initially shipped neutral (`active = false`, like the other
+value tiles); corrected once more ("actually it should be managed by accent color (theme)") to
+`active = true` — it always represents a real current selection (unlike brightness/volume's raw
+numeric readout), so it accent-highlights permanently, matching how Personalize's own three theme tiles
+highlight whichever one is currently selected.
+
+**Single-finger swipe-up from either screen edge now also opens the Quick Panel**, alongside the
+existing two-finger swipe-up gesture — explicit request ("also add gesture single finger up from edges
+to call quick settings, this is in addition to double swipe"). `isEdgeSwipeUp` (`EdgeSwipeGesture.kt`)
+mirrors the existing `isEdgeSwipeDown`'s shape (`dy < -thresholdPx && abs(dy) > abs(dx)`); both directions
+share the same `edgeZoneFor` zone check and the same single `pointerInput` block in `StartScreen.kt` —
+down-left/down-right still route to system notifications/quick-settings as before, up from *either* edge
+(zone doesn't matter for this direction) opens the in-app Quick Panel. Live on-device testing surfaced a
+real-world caveat worth recording rather than chasing as a bug: on the physical Samsung test device, an
+ADB-synthesized swipe starting at this gesture's edge zone intermittently landed on **Samsung's own One
+UI system panel** instead of reaching the app at all — a device/OS-level gesture-priority collision (the
+same class of issue already documented for the edge-swipe-**down** gesture's interaction with Android's
+system back gesture), not a bug in this app's `pointerInput` code. The two-finger swipe-up gesture and
+the existing tap-only panel icon remain fully reliable regardless: this single-finger edge path is
+correctly implemented and does work (confirmed in an isolated pass with no interference), but its
+real-world reliability on a given device depends on that OEM's own edge-gesture configuration, which no
+app-level code can fully control.
+
+Build + tests green throughout (`PercentLevelTest`, `ThemeChoiceTest`, `EdgeSwipeGestureTest` all
+extended); verified live on both an emulator and a physical Samsung device via adb screenshots at each
+step.

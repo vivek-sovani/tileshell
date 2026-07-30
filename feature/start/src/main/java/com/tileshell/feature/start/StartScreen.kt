@@ -708,13 +708,16 @@ fun StartScreen(
         }
     }
 
-    // Single-finger swipe-down from a screen edge: left opens the system
-    // notification shade, right opens system quick settings — not in the WP
-    // prototype/spec, see DECISIONS "Edge swipe-down for notifications/quick
-    // settings". Same enable-gating as the two-finger gestures above, and the
-    // same "don't consume until triggered" shape, but keyed on which physical
-    // edge the touch started in rather than pointer count — so it never steals
-    // an ordinary tap/scroll/tile-drag starting away from either edge.
+    // Single-finger swipe from a screen edge: down-left opens the system
+    // notification shade, down-right opens system quick settings — not in the
+    // WP prototype/spec, see DECISIONS "Edge swipe-down for notifications/quick
+    // settings". Up from *either* edge opens the in-app Quick Panel — an
+    // additional, easier-to-discover path alongside the existing two-finger
+    // swipe-up gesture (quickPanelGesture above), per explicit user request.
+    // Same enable-gating as the two-finger gestures, and the same "don't
+    // consume until triggered" shape, but keyed on which physical edge the
+    // touch started in rather than pointer count — so it never steals an
+    // ordinary tap/scroll/tile-drag starting away from either edge.
     val edgeSwipeEnabled = swipeEnabled && restingAtStart && !searchOpen && !quickPanelOpen && !anySheetOpen
     val edgeSwipeGesture = Modifier.pointerInput(edgeSwipeEnabled) {
         if (!edgeSwipeEnabled) return@pointerInput
@@ -741,6 +744,9 @@ fun StartScreen(
                             EdgeZone.RIGHT -> onOpenQuickSettings()
                             EdgeZone.NONE -> {}
                         }
+                    } else if (isEdgeSwipeUp(dy, dx, thresholdPx)) {
+                        triggered = true
+                        viewModel.openQuickPanel()
                     }
                 }
                 if (triggered) event.changes.forEach { it.consume() }
@@ -881,7 +887,6 @@ fun StartScreen(
                     onSetTileSlot = viewModel::setTileGridSlot,
                     expandedFolderId = expandedFolderId,
                     onCollapseFolder = viewModel::collapseFolder,
-                    onLockScreen = onLockScreen,
                     onTile = { tile ->
                         when (tile) {
                             is TileModel.App -> {
@@ -891,12 +896,26 @@ fun StartScreen(
                                 // "tap outside to close" for the top-level case,
                                 // and simply tidy for the in-folder case.
                                 if (expandedFolderId != null) viewModel.collapseFolder()
-                                onTileClick(context, tile)
+                                // The "settings" tile is this app's own Personalize
+                                // sheet, not a launchable app (blank package, like the
+                                // weather/calendar liveOnly tiles) — the corner gear's
+                                // replacement, see DefaultLayout's "personalize" role.
+                                if (tile.packageName.isBlank() && tile.iconKey == "settings") {
+                                    viewModel.openPersonalize()
+                                } else {
+                                    onTileClick(context, tile)
+                                }
                             }
                             is TileModel.Folder -> viewModel.toggleFolder(tile.id)
                         }
                     },
-                    onLaunchFolderChild = { child -> launchFolderChild(context, child) },
+                    onLaunchFolderChild = { child ->
+                        if (child.packageName.isBlank() && child.iconKey == "settings") {
+                            viewModel.openPersonalize()
+                        } else {
+                            launchFolderChild(context, child)
+                        }
+                    },
                     onPullOutFolderChild = { folderId, child -> viewModel.removeFolderChild(folderId, child) },
                     onResizeFolderChild = { folderId, child -> viewModel.resizeFolderChild(folderId, child) },
                     onSetFolderChildColor = { folderId, rowId, colorId ->
@@ -949,6 +968,7 @@ fun StartScreen(
                 modifier = Modifier.fillMaxSize(),
                 visible = isAppList,
                 onPinned = { settleTo(0f) },
+                onOpenPersonalize = viewModel::openPersonalize,
             )
         }
 
@@ -1324,12 +1344,18 @@ fun StartScreen(
         )
 
         // Quick panel (two-finger swipe-up on Start, or its tap affordance):
-        // Wi-Fi/Bluetooth/flashlight/DND/airplane/location chips + volume sliders.
+        // Wi-Fi/Bluetooth/flashlight/DND/airplane/location/rotation-lock tiles,
+        // brightness/volume/screen-timeout, theme, and settings/android-settings/lock-screen.
         QuickPanelOverlay(
             visible = quickPanelOpen,
             dark = dark,
             accentId = settings.accentId,
+            followSystemTheme = settings.followSystemTheme,
             onDismiss = viewModel::closeQuickPanel,
+            onOpenPersonalize = viewModel::openPersonalize,
+            onLockScreen = onLockScreen,
+            onThemeChange = viewModel::setTheme,
+            onFollowSystemThemeChange = viewModel::setFollowSystemTheme,
         )
 
         // Layout history sheet (personalize → history).
@@ -1626,7 +1652,6 @@ private fun StartPage(
     // live inside the separate FolderOverlay.
     expandedFolderId: String?,
     onCollapseFolder: () -> Unit,
-    onLockScreen: () -> Unit,
     onTile: (TileModel) -> Unit,
     onLaunchFolderChild: (FolderChild) -> Unit,
     onPullOutFolderChild: (folderId: String, child: FolderChild) -> Unit,
@@ -2204,21 +2229,6 @@ private fun StartPage(
                         contentDescription = "open app list",
                         tint = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.72f),
                         modifier = Modifier.size(28.dp),
-                    )
-                }
-                Box(
-                    modifier = Modifier.size(48.dp).combinedClickable(
-                        onClick = onPersonalize,
-                        onLongClick = onLockScreen,
-                        onLongClickLabel = "lock screen",
-                    ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = TileIcons["settings"],
-                        contentDescription = "settings",
-                        tint = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.72f),
-                        modifier = Modifier.size(26.dp),
                     )
                 }
                 // Tap affordance for the quick panel (two-finger swipe-up is the

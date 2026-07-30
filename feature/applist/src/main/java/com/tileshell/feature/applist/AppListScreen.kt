@@ -108,6 +108,7 @@ fun AppListScreen(
     modifier: Modifier = Modifier,
     visible: Boolean = true,
     onPinned: () -> Unit = {},
+    onOpenPersonalize: () -> Unit = {},
     viewModel: AppListViewModel = viewModel(),
 ) {
     val apps by viewModel.filteredApps.collectAsStateWithLifecycle()
@@ -204,7 +205,13 @@ fun AppListScreen(
                             app = app,
                             onTap = {
                                 viewModel.resetQuery()
-                                AppLauncher.launch(context, app.packageName, app.activityName)
+                                // The synthetic "personalize" entry has no real package to
+                                // launch — opens this app's own Personalize sheet instead.
+                                if (app.packageName.isBlank()) {
+                                    onOpenPersonalize()
+                                } else {
+                                    AppLauncher.launch(context, app.packageName, app.activityName)
+                                }
                             },
                             onPin = { viewModel.pin(app) },
                             onUninstall = { uninstallApp(context, app.packageName) },
@@ -298,13 +305,15 @@ private fun AppRow(
 ) {
     // Long-press opens a WP-style context menu: pin the app to Start, hide it
     // from the list, or uninstall it (the system uninstall dialog). A quick tap
-    // still launches.
+    // still launches. None of that applies to the synthetic "personalize" entry
+    // (no real package to pin/hide/uninstall), so it's tap-only.
+    val isPseudo = app.packageName.isBlank()
     var menuOpen by remember { mutableStateOf(false) }
     Box {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .tapOrLongPress(onTap = onTap, onLongPress = { menuOpen = true })
+                .tapOrLongPress(onTap = onTap, onLongPress = { if (!isPseudo) menuOpen = true })
                 // TalkBack: launch on activate, with pin / hide / uninstall as
                 // custom actions (the sighted long-press menu isn't reachable
                 // otherwise).
@@ -316,11 +325,15 @@ private fun AppRow(
                     }
                     role = Role.Button
                     onClick(label = "launch") { onTap(); true }
-                    customActions = listOf(
-                        CustomAccessibilityAction("pin to start") { onPin(); true },
-                        CustomAccessibilityAction("hide") { onHide(); true },
-                        CustomAccessibilityAction("uninstall") { onUninstall(); true },
-                    )
+                    customActions = if (isPseudo) {
+                        emptyList()
+                    } else {
+                        listOf(
+                            CustomAccessibilityAction("pin to start") { onPin(); true },
+                            CustomAccessibilityAction("hide") { onHide(); true },
+                            CustomAccessibilityAction("uninstall") { onUninstall(); true },
+                        )
+                    }
                 }
                 .padding(horizontal = 18.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -329,8 +342,14 @@ private fun AppRow(
                 modifier = Modifier.size(44.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                val icon = rememberAppIcon(app.packageName, app.activityName)
-                if (icon != null) {
+                val icon = if (isPseudo) null else rememberAppIcon(app.packageName, app.activityName)
+                if (isPseudo) {
+                    Icon(
+                        TileIcons["settings"], null,
+                        tint = LocalColorTokens.current.fg,
+                        modifier = Modifier.size(28.dp),
+                    )
+                } else if (icon != null) {
                     Image(
                         bitmap = icon,
                         contentDescription = null,

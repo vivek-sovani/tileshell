@@ -26,6 +26,7 @@ import com.tileshell.core.data.LayoutHistoryRepository
 import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.LayoutSnapshot
 import com.tileshell.core.data.PinResult
+import com.tileshell.core.data.SettingsAppMigration
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.settings.LauncherSettings
@@ -291,6 +292,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             if (initialSettings.tilePackMode == TilePackMode.STICKY) {
                 seedStickySlots(initialSettings.columns)
             }
+            migrateSettingsTile()
         }
         // Resolve the news-region preset from the device locale before reconciling
         // (order matters: reconcileDefaults reads FeedData.region, so it must run
@@ -696,6 +698,29 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         val placements = GridPacker.packSticky(specs, slotOf, columns)
         placements.filter { it.id in unslotted }.forEach { p ->
             repository.setTileGridSlot(p.id, GridPacker.encodeSlot(p.col, p.row))
+        }
+    }
+
+    /**
+     * One-time migration for installs that predate the "settings" Start tile
+     * (the corner gear's replacement) and the retirement of the real Android
+     * Settings app as a separate Start pin (now only reachable via the Quick
+     * Panel's "android settings" tile). Fresh installs already get both
+     * outcomes from [LayoutRepository.seedIfEmpty] / [DefaultLayout] directly;
+     * this only needs to backfill existing layouts.
+     */
+    private suspend fun migrateSettingsTile() {
+        val current = repository.tiles.first()
+        val hasPersonalizeTile = current.any {
+            it is TileModel.App && it.packageName.isBlank() && it.iconKey == "settings"
+        }
+        if (!hasPersonalizeTile) {
+            repository.addDefaultTile("personalize")
+        }
+        val context = getApplication<Application>()
+        if (!SettingsAppMigration.hasRun(context)) {
+            repository.resolvedPackageFor("settings")?.let { pkg -> HiddenApps.hide(context, pkg) }
+            SettingsAppMigration.markRun(context)
         }
     }
 

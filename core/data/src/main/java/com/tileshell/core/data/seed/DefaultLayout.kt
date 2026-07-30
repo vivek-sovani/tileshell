@@ -96,6 +96,10 @@ object DefaultLayout {
     fun iconFor(appId: String): String = when (appId) {
         "browser" -> "web"
         "notes" -> "note"
+        // Reuses the gear glyph — this app's own Personalize sheet, not the real
+        // Android Settings app (which stays reachable only via the Quick Panel's
+        // "android settings" tile, see QuickPanelOverlay.kt).
+        "personalize" -> "settings"
         else -> appId
     }
 
@@ -117,7 +121,10 @@ object DefaultLayout {
         ),
         DefaultTile("t-maps", TileSize.SMALL, "green", app = "maps"),
         DefaultTile("t-store", TileSize.SMALL, "cobalt", app = "store"),
-        DefaultTile("t-settings", TileSize.SMALL, "slate", app = "settings"),
+        // Opens this app's own Personalize sheet, not the real Android Settings app —
+        // that's retired as a separate Start pin in favor of the Quick Panel's
+        // "android settings" tile (see docs/DECISIONS.md).
+        DefaultTile("t-personalize", TileSize.SMALL, "slate", app = "personalize", liveOnly = true),
         DefaultTile("t-browser", TileSize.SMALL, "blue", app = "browser"),
         DefaultTile("t-notes", TileSize.SMALL, "amber", app = "notes"),
         DefaultTile("t-fitness", TileSize.SMALL, "lime", app = "fitness"),
