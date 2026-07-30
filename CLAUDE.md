@@ -36,6 +36,13 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.3.1 — Quick Panel landscape fix: dock to the right half.** Bug fix, user-reported: the
+  Quick Panel was the one Start-launched sheet whose call site in `StartScreen.kt` never passed
+  `rightHalf = isLandscape` (`QuickPanelOverlay` and `SheetStage` already supported it — every
+  sibling sheet already did) — so in landscape it spanned the full two-panel width instead of
+  docking to Start's half, squeezing/misaligning its 5-column square-tile grid. One-line fix.
+  Verified on a physical device: panel now docks bottom-right, above Start, feed panel undisturbed.
+  See DECISIONS "Quick Panel landscape fix". Build + tests green.
 - **Post-v2.3.1 — Quick Panel redesigned as true square tiles (real WP Action Center), settings
   tile, screen lock relocated, theme tiles.** New asks, not in the WP prototype/spec — see DECISIONS
   "Quick Panel redesigned as true square tiles..." and its three follow-up entries for the full trail

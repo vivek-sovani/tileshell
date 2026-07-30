@@ -3910,3 +3910,20 @@ Verified on an emulator and the user's physical device via adb: the personalize 
 gear glyph again; the real Settings tile (already present on the physical device from before) now shows
 the actual device Settings icon instead of the shared gear; the real Settings app reappears in the App
 List, searchable and pinnable again. Build + tests green throughout.
+
+## Quick Panel landscape fix: dock to the right half, above Start, like every other sheet
+
+User report: "quick settings not fine tuned for landscape mode. it spans full screen and tiles
+overlap each other. it can be right side only (above start panel, not on feed panel)." Every other
+Start-launched sheet (`LayoutHistorySheet`, `BackupRestoreSheet`, `QuickSearchOverlay`,
+`BingHistorySheet`, `WallpaperCropOverlay`, …) already docks to the right half in landscape via
+`SheetStage(rightHalf = ...)`, and `QuickPanelOverlay` itself already plumbed a `rightHalf` param
+through to its own `SheetStage` call — but the Quick Panel's call site in `StartScreen.kt` was the
+one sheet that never actually passed `rightHalf = isLandscape` (a plain oversight from when it was
+built earlier in the same session as the two-panel landscape layout). Full-screen width meant its
+5-column `aspectRatio(1f)` tile grid stretched across the full 2-panel width instead of just Start's
+half, squeezing/misaligning the squares — read as "overlapping." One-line fix: pass `rightHalf =
+isLandscape` at the call site, same as every sibling sheet. Verified live on a physical device: in
+landscape, the panel now docks to the bottom-right half, sitting above the Start panel with the feed
+panel on the left fully visible and undimmed; all 14 tiles render as clean, non-overlapping squares.
+Build + tests green.

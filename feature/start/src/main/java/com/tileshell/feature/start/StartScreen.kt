@@ -1359,6 +1359,7 @@ fun StartScreen(
             onLockScreen = onLockScreen,
             onThemeChange = viewModel::setTheme,
             onFollowSystemThemeChange = viewModel::setFollowSystemTheme,
+            rightHalf = isLandscape,
         )
 
         // Layout history sheet (personalize → history).
