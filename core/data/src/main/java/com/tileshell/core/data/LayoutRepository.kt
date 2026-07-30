@@ -394,7 +394,7 @@ class LayoutRepository(
         DefaultLayout.roleFor(appId)?.let { resolver.resolve(it)?.packageName }
 
     /** Updates a single tile's icon key — see [LayoutDao.updateTileIconKey]. */
-    suspend fun updateTileIconKey(id: String, iconKey: String) = dao.updateTileIconKey(id, iconKey)
+    suspend fun updateTileIconKey(id: String, iconKey: String?) = dao.updateTileIconKey(id, iconKey)
 
     /**
      * Return the raw DB entities for a manual backup export. Reuses the

@@ -169,6 +169,8 @@ fun AboutSheet(
                     "landscape mode shows feed and start side by side",
                     "hide apps you don't want cluttering the app list — bring them back any time from personalize",
                     "apps with a pending notification show up in the app list's recent section, even if they're not pinned to start",
+                    "the \"personalize\" tile is a normal start tile — drag, resize, or unpin it like any other",
+                    "removed it by accident? pin it back from the app list's own \"personalize\" entry",
                 ),
             )
 
@@ -194,11 +196,15 @@ fun AboutSheet(
                 accent = accent,
                 tokens = tokens,
                 items = listOf(
-                    "swipe up with two fingers on start to open the quick panel",
+                    "swipe up with two fingers on start to open the quick panel — or swipe up with one finger from the left or right screen edge",
+                    "a grid of true square tiles, just like windows phone's action center",
                     "wp-style coloured tiles toggle wi-fi, bluetooth, flashlight, dnd, airplane mode, location, and rotation lock",
-                    "drag the media and ring volume tiles to set the level, or drag to the edge to mute",
-                    "drag the brightness tile, and tap the screen-timeout row to cycle presets",
-                    "tap the small panel icon next to the settings gear if you don't want to use the gesture",
+                    "brightness and volume are tap-to-step, not sliders — each tap cycles 0/10/20/40/60/80/100% and shows the level right on the tile",
+                    "screen timeout tile cycles through presets with a tap",
+                    "a single theme tile cycles dark → light → auto, tinted with your accent colour",
+                    "\"personalize\" tile opens this app's personalize sheet",
+                    "\"android settings\" tile opens the device's real settings app, with its real icon",
+                    "\"lock screen\" tile locks the device on a tap",
                 ),
             )
 
@@ -209,6 +215,7 @@ fun AboutSheet(
                 items = listOf(
                     "swipe down from the left screen edge to open the system notification shade",
                     "swipe down from the right screen edge to open system quick settings",
+                    "swipe up from either screen edge to open the quick panel",
                     "works from anywhere on start, not just the very top of the screen",
                     "uses the same accessibility service as screen lock — enable it once from the prompt",
                 ),
@@ -329,7 +336,8 @@ fun AboutSheet(
                     "14 accent colours to choose from",
                     "per-tile colour — give any tile its own colour in edit mode",
                     "tile colour from app icon — auto-picks the dominant colour",
-                    "dark, light, or follow-system theme",
+                    "dark, light, or follow-system theme — tap one of the three theme tiles at the top of personalize",
+                    "the device's real settings app is one tap away, right at the top of personalize",
                     "glass (transparent) tiles with adjustable transparency",
                     "adjustable tile spacing — drag a slider to pack or spread tiles",
                     "6 built-in gradient wallpapers + custom photo",
@@ -368,7 +376,8 @@ fun AboutSheet(
                 accent = accent,
                 tokens = tokens,
                 items = listOf(
-                    "long-press the settings gear to lock the screen",
+                    "tap the \"lock screen\" tile in the quick panel to lock the device",
+                    "double-tap an empty area of start to lock it too",
                     "preserves biometric unlock on android 9 and above",
                 ),
             )

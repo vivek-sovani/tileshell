@@ -236,7 +236,7 @@ fun PersonalizeGuideSheet(
                 items = listOf(
                     "personalize · live tiles has a master on/off switch, plus \"badges & live mail\" to turn on unread badge counts on tiles and live mail/messages tile faces",
                     "turning live tiles on for the first time explains and asks before opening notification access, instead of jumping straight there — you can say not now",
-                    "long-press the settings gear on start to lock the screen",
+                    "tap the \"lock screen\" tile in the quick panel to lock the device",
                     "the first time, this opens android's accessibility settings so you can turn on tileshell's lock service once — it's a one-time manual step, the launcher can't enable it for you",
                     "turning it on preserves biometric unlock (android 9 and up); without it, locking falls back to a plain device-admin lock with no biometrics",
                     "personalize · permissions also lists contacts (people tile, quick search), calendar (calendar tile), and location (weather tile) — tap any of them to grant",
@@ -249,11 +249,14 @@ fun PersonalizeGuideSheet(
                 tokens = tokens,
                 visual = { QuickPanelVisual(accent, tokens) },
                 items = listOf(
-                    "swipe up with two fingers anywhere on start to open the quick panel",
+                    "swipe up with two fingers anywhere on start to open the quick panel — or swipe up with one finger from the left or right screen edge",
+                    "true square tiles, five across, just like windows phone's action center",
                     "tap a tile to toggle wi-fi, bluetooth, flashlight, dnd, airplane mode, location, or rotation lock",
-                    "drag the media, ring, and brightness tiles to set the level — drag to the edge to mute",
-                    "tap the screen-timeout row to cycle through presets",
-                    "no gesture? tap the small panel icon next to the settings gear instead",
+                    "brightness and volume are tap-to-step, not sliders — each tap cycles through 0/10/20/40/60/80/100% and the tile's own text shows the level",
+                    "tap the screen-timeout tile to cycle through presets",
+                    "one theme tile cycles dark → light → auto, tinted with your accent colour",
+                    "\"personalize\" opens this app's personalize sheet; \"android settings\" opens the device's real settings app",
+                    "\"lock screen\" locks the device on a tap",
                 ),
             )
 
@@ -265,6 +268,7 @@ fun PersonalizeGuideSheet(
                 items = listOf(
                     "swipe down from start's left screen edge to pull down the system notification shade",
                     "swipe down from start's right screen edge to open system quick settings",
+                    "swipe up from either screen edge to open the quick panel",
                     "the swipe can start at any height along the edge, not just the very top",
                     "first use asks you to enable tileshell's accessibility service — the same one screen lock uses, a one-time step",
                 ),
@@ -490,7 +494,7 @@ private fun FeedVisual(tokens: com.tileshell.core.design.ColorTokens) {
     }
 }
 
-/** Notifications/badges + the settings-gear lock, alongside the other opt-in permissions. */
+/** Notifications/badges + the quick panel's lock-screen tile, alongside the other opt-in permissions. */
 @Composable
 private fun PermissionsVisual(accent: Color, tokens: com.tileshell.core.design.ColorTokens) {
     GuideVisualCard(tokens) {
@@ -542,7 +546,7 @@ private fun PermissionsVisual(accent: Color, tokens: com.tileshell.core.design.C
     }
 }
 
-/** Two small WP-tile-style toggles (on/off) plus a wide partially-filled bar, mirroring the real quick panel. */
+/** Three true square WP-tile-style tiles (two toggles + a tap-to-step percent tile), mirroring the real quick panel. */
 @Composable
 private fun QuickPanelVisual(accent: Color, tokens: com.tileshell.core.design.ColorTokens) {
     GuideVisualCard(tokens) {
@@ -560,15 +564,10 @@ private fun QuickPanelVisual(accent: Color, tokens: com.tileshell.core.design.Co
         }
         Spacer(Modifier.weight(1f))
         Box(
-            modifier = Modifier.width(60.dp).height(20.dp).clip(RoundedCornerShape(5.dp)).background(accent),
+            modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)).background(accent),
+            contentAlignment = Alignment.Center,
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(0.4f)
-                    .align(Alignment.CenterEnd)
-                    .background(Color.Black.copy(alpha = 0.35f)),
-            )
+            Text(text = "60%", color = Color.White, fontSize = 8.sp)
         }
     }
 }

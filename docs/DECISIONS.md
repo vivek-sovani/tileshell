@@ -3804,16 +3804,12 @@ to call quick settings, this is in addition to double swipe"). `isEdgeSwipeUp` (
 mirrors the existing `isEdgeSwipeDown`'s shape (`dy < -thresholdPx && abs(dy) > abs(dx)`); both directions
 share the same `edgeZoneFor` zone check and the same single `pointerInput` block in `StartScreen.kt` —
 down-left/down-right still route to system notifications/quick-settings as before, up from *either* edge
-(zone doesn't matter for this direction) opens the in-app Quick Panel. Live on-device testing surfaced a
-real-world caveat worth recording rather than chasing as a bug: on the physical Samsung test device, an
-ADB-synthesized swipe starting at this gesture's edge zone intermittently landed on **Samsung's own One
-UI system panel** instead of reaching the app at all — a device/OS-level gesture-priority collision (the
-same class of issue already documented for the edge-swipe-**down** gesture's interaction with Android's
-system back gesture), not a bug in this app's `pointerInput` code. The two-finger swipe-up gesture and
-the existing tap-only panel icon remain fully reliable regardless: this single-finger edge path is
-correctly implemented and does work (confirmed in an isolated pass with no interference), but its
-real-world reliability on a given device depends on that OEM's own edge-gesture configuration, which no
-app-level code can fully control.
+(zone doesn't matter for this direction) opens the in-app Quick Panel. During live testing, Samsung's own
+One UI system panel appeared on screen a couple of times right after a test swipe; on user clarification
+this was the user's own direct interaction with the physical device happening concurrently with the
+automated adb testing, not a gesture collision — corrected here after an earlier draft of this entry
+mischaracterized it as a device/OS-level priority conflict. No such collision is confirmed; the gesture
+works as implemented.
 
 Build + tests green throughout (`PercentLevelTest`, `ThemeChoiceTest`, `EdgeSwipeGestureTest` all
 extended); verified live on both an emulator and a physical Samsung device via adb screenshots at each
@@ -3869,3 +3865,48 @@ on an *already-existing* tile, proving the backfill migration works, not just fr
 still opens Personalize; the new top-of-sheet row renders with the real device icon, bold title, and
 subtitle; the App List's "personalize" entry is searchable and shows the palette icon. Build + tests
 green throughout.
+
+## Quick Panel follow-up 3: personalize reverts to the gear icon, real Settings tile brought back with its own icon, App List unhide
+
+Fourth round of the same-session Quick Panel work, triggered by explicit user correction after seeing
+the "distinct icons" round's screenshots on their physical device.
+
+**"personalisation tile on start screen should have gear icon and settings tile on start screen should
+have android settings icon."** The previous round's `"palette"` icon for the personalize tile is
+reverted — `DefaultLayout.iconFor("personalize")` is back to `"settings"` (the gear), by explicit
+request, "to keep consistency" with the real Settings tile's own identity as "settings-shaped." The
+already-persisted tile from the previous round (backfilled to `"palette"`) needed a *second* backfill —
+`StartViewModel.migrateSettingsTile()` now patches any personalize tile whose `iconKey` isn't
+`"settings"` back to it, the same one-way-backfill pattern used for the palette change itself.
+
+The user separately clarified: **"the caveat you mentioned is not true, those actions were performed by
+me, it is not any one ui issue. please delete that if recorded."** An earlier draft of the
+edge-swipe-up entry in this file (and a matching line in `CLAUDE.md`) claimed a Samsung One UI system
+panel appeared during testing due to a device/OS-level gesture-priority conflict. The user was directly
+interacting with their own phone at the same time as the automated adb test — there was no real
+collision. Both docs were corrected in place to remove the incorrect claim.
+
+**Distinguishing the two tiles without two icons.** Rather than reintroduce a second glyph, the real
+Android Settings tile is given its own distinct look by resolving the *actual* device Settings app
+icon at render time (`StartViewModel.migrateSettingsTile()` clears `iconKey` back to `null` on any tile
+whose resolved package matches `settings` and whose `iconKey` is still `"settings"`, so
+`StaticTileGlyph`'s existing real-app-icon fallback — `useAppIcon = !TileIcons.hasIcon(tile.iconKey)` —
+takes over) — so personalize keeps the generic gear glyph, and the real Settings tile shows its actual
+device icon, and the two are visually distinct without adding a new monoline icon key.
+
+**"settings tile is already present... let it remain on start screen (bring back) and also unhide
+android settings app on app screen."** The user clarified the real Settings Start tile was never
+actually removed on their device (it survived from an earlier layout structure, before this session's
+`DefaultLayout` change dropped it from fresh-install seeding) — so no `addDefaultTile("settings")` call
+was needed, only leaving any existing tile alone. What *did* need reverting: the App List's earlier
+one-shot hide of the real Settings app (added when the App List gained a synthetic non-installed
+"personalize" entry, to avoid a confusing duplicate). `SettingsAppMigration` is rewritten from a
+"hide, once" flag (`hasRun`/`markRun`) to an "unhide, once" flag (`hasUnhideRun`/`markUnhideRun`) —
+a plain "is it currently hidden" check isn't the right gate for the reversal, since the user might
+deliberately re-hide it themselves later from the App List, and unhiding it on every launch would
+silently undo that later choice. The flag guarantees the one-time unhide happens exactly once, ever.
+
+Verified on an emulator and the user's physical device via adb: the personalize Start tile shows the
+gear glyph again; the real Settings tile (already present on the physical device from before) now shows
+the actual device Settings icon instead of the shared gear; the real Settings app reappears in the App
+List, searchable and pinnable again. Build + tests green throughout.

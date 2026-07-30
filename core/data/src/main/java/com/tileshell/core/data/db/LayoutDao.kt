@@ -30,10 +30,13 @@ interface LayoutDao {
     /**
      * Updates a single tile's `iconKey` — used to backfill an already-persisted
      * liveOnly tile's icon after an `iconFor` mapping change (Room only applies
-     * a new mapping to freshly-*seeded* tiles, never retroactively).
+     * a new mapping to freshly-*seeded* tiles, never retroactively). Null clears
+     * it to the "no designed glyph" state, which for a tile with a real resolved
+     * package makes it fall back to that app's own real icon (see
+     * `StaticTileGlyph`'s `useAppIcon = !TileIcons.hasIcon(tile.iconKey)`).
      */
     @Query("UPDATE tiles SET iconKey = :iconKey WHERE id = :id")
-    suspend fun updateTileIconKey(id: String, iconKey: String)
+    suspend fun updateTileIconKey(id: String, iconKey: String?)
 
     /** Count app tiles already pinned for a package (pin de-dupe, FR-5). */
     @Query("SELECT COUNT(*) FROM tiles WHERE type = 'app' AND packageName = :packageName")

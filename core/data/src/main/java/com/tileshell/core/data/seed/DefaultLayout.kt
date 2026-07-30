@@ -96,11 +96,12 @@ object DefaultLayout {
     fun iconFor(appId: String): String = when (appId) {
         "browser" -> "web"
         "notes" -> "note"
-        // A distinct palette glyph — this app's own Personalize sheet, not the
-        // real Android Settings app (which stays reachable only via the Quick
-        // Panel's "android settings" tile, see QuickPanelOverlay.kt). Deliberately
-        // not the gear glyph: the two need to read as visually distinct.
-        "personalize" -> "palette"
+        // The gear glyph, by explicit user request (kept consistent with the
+        // real Android Settings tile's own identity as "settings-shaped") —
+        // the real Settings tile is instead given a distinct look by showing
+        // its *actual* device icon (see StartViewModel.migrateSettingsTile),
+        // not by picking a different glyph for personalize.
+        "personalize" -> "settings"
         else -> appId
     }
 

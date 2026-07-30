@@ -38,17 +38,21 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 <!-- Update this block at the end of every session -->
 - **Post-v2.3.1 — Quick Panel redesigned as true square tiles (real WP Action Center), settings
   tile, screen lock relocated, theme tiles.** New asks, not in the WP prototype/spec — see DECISIONS
-  "Quick Panel redesigned as true square tiles..." and its two follow-up entries for the full trail
-  (three rounds of live on-device correction). Personalize/Quick Panel's "personalize" tile now has
-  its own distinct icon (`"palette"`, not the gear glyph shared with the real Settings app/tile) —
-  including a backfill (`LayoutDao.updateTileIconKey`) for tiles already seeded before the mapping
-  changed, since Room doesn't retroactively apply a new `iconFor` mapping on its own; tile identity
-  was decoupled from icon choice in the process (`List<TileModel>.hasPersonalizeTile()` checks
-  `label`, not `iconKey`). The App List's synthetic "personalize" entry can now be "pinned to start"
-  (in case the real tile is accidentally removed) via a dedicated `pinPersonalize()` that avoids the
-  generic pin flow's blank-package dedup bug; hide/uninstall stay disabled for it. The Personalize
-  sheet's "android settings" nav row moved to the top of the sheet with the real device-resolved
-  Settings icon and a proper title/subtitle, per explicit request. Quick Panel (`QuickPanelOverlay.kt`) is now one
+  "Quick Panel redesigned as true square tiles..." and its three follow-up entries for the full trail
+  (four rounds of live on-device correction — including a reversal: the personalize tile briefly got
+  its own distinct `"palette"` icon in round three, then explicitly reverted back to the shared gear
+  glyph in round four "to keep consistency," with the real Settings tile distinguished instead by
+  showing its actual device-resolved icon). Tile identity was decoupled from icon choice along the way
+  (`List<TileModel>.hasPersonalizeTile()` checks `label`, not `iconKey`), and every icon-mapping change
+  needed an explicit backfill (`LayoutDao.updateTileIconKey`) for tiles already seeded before it, since
+  Room doesn't retroactively apply a new `iconFor` mapping on its own. The App List's synthetic
+  "personalize" entry can now be "pinned to start" (in case the real tile is accidentally removed) via
+  a dedicated `pinPersonalize()` that avoids the generic pin flow's blank-package dedup bug; hide/
+  uninstall stay disabled for it. The real Android Settings app — never actually removed from Start on
+  the user's device, only from fresh-install seeding — is unhidden from the App List again
+  (`SettingsAppMigration` rewritten from a one-shot hide flag to a one-shot unhide flag). The
+  Personalize sheet's "android settings" nav row moved to the top of the sheet with the real
+  device-resolved Settings icon and a proper title/subtitle, per explicit request. Quick Panel (`QuickPanelOverlay.kt`) is now one
   unified 5-column grid of true `aspectRatio(1f)` squares — toggles (wifi/bluetooth/flashlight/dnd/
   airplane/location/rotation-lock), brightness/media-volume/ring-volume/screen-timeout (all
   tap-to-step through fixed levels, no more drag sliders), a single tap-to-cycle theme tile
@@ -70,12 +74,22 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   `rememberSteppedPercent` fixes this by cycling its own remembered state instead of re-deriving it
   from a hardware readback. A single-finger swipe up from either screen edge also now opens the
   Quick Panel, alongside the existing two-finger gesture (`isEdgeSwipeUp`, mirrors the existing
-  edge-swipe-down machinery) — noted but not "fixed" as a real-world caveat: on the physical Samsung
-  test device this occasionally collided with One UI's own edge gesture (device/OS-level priority
-  conflict, same class of issue as the already-documented system-back-gesture collision — not an
-  app bug). Build + tests green (`PercentLevelTest`, `ThemeChoiceTest` new; `EdgeSwipeGestureTest`,
-  `LayoutSeederTest` extended); verified live on both an emulator and a physical device via adb
-  screenshots at every step.
+  edge-swipe-down machinery). The About sheet's "features & info" and the Personalize "how to
+  personalize" guide (`AboutSheet.kt`/`PersonalizeGuideSheet.kt`, `:feature:personalize`) were updated
+  to match this whole redesign — the "quick panel" groups in both now describe the square-tile grid,
+  tap-to-step brightness/volume/timeout, the single theme tile, and the personalize/android-settings/
+  lock-screen tiles (previously stale, describing the old drag-slider version); "screen lock" now
+  points at the Quick Panel's tile instead of the removed corner gear's long-press; "personalization"
+  mentions the theme tiles and the top-of-sheet android-settings row; "system shortcuts" mentions the
+  new edge-swipe-up gesture; "start screen" notes the personalize tile is a normal, unpinnable-and-
+  repinnable Start tile now. `PersonalizeGuideSheet.kt`'s `QuickPanelVisual` illustration swapped its
+  old partially-filled slider-bar mockup for a third true square tile showing "60%," matching the
+  tap-to-step redesign it illustrates. An earlier draft of this entry (and a matching line in this
+  file) incorrectly attributed a Samsung One UI panel appearing during testing to a device/OS-level
+  gesture-priority conflict; the user clarified it was their own concurrent interaction with the
+  physical device, not a real collision, and both docs were corrected to remove the claim. Build +
+  tests green (`PercentLevelTest`, `ThemeChoiceTest` new; `EdgeSwipeGestureTest`, `LayoutSeederTest`
+  extended); verified live on both an emulator and a physical device via adb screenshots at every step.
 - **Post-v2.3.1 — occasional "enjoying tileshell?" rating prompt.** New ask, not in the WP
   prototype/spec — see DECISIONS "Occasional 'enjoying tileshell?' rating prompt" for the full
   debugging trail. Day-interval gated, not "app open count" (TileShell is the launcher itself, so

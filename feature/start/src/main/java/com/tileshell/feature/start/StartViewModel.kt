@@ -702,12 +702,20 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * One-time migration for installs that predate the "settings" Start tile
-     * (the corner gear's replacement) and the retirement of the real Android
-     * Settings app as a separate Start pin (now only reachable via the Quick
-     * Panel's "android settings" tile). Fresh installs already get both
-     * outcomes from [LayoutRepository.seedIfEmpty] / [DefaultLayout] directly;
-     * this only needs to backfill existing layouts.
+     * One-time migration for installs that predate the "personalize" Start
+     * tile (the corner gear's replacement). Fresh installs already get it
+     * from [LayoutRepository.seedIfEmpty] / [DefaultLayout] directly; this
+     * only needs to backfill existing layouts — plus two follow-up icon
+     * corrections, since Room never retroactively re-applies a changed
+     * `iconFor` mapping to an already-persisted tile:
+     *
+     * - personalize keeps the shared gear glyph (an earlier version of this
+     *   migration gave it its own "palette" glyph instead, since reversed).
+     * - the real Android Settings app's own existing Start pin (if the user
+     *   has one — a real, ordinary app tile, not part of [DefaultLayout]'s
+     *   own seed list) gets its `iconKey` cleared so it falls back to its
+     *   *real* device icon instead of the shared gear, reading as visually
+     *   distinct from the personalize tile right next to it.
      */
     private suspend fun migrateSettingsTile() {
         val current = repository.tiles.first()
@@ -715,17 +723,26 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             .firstOrNull { it.packageName.isBlank() && it.label == "personalize" }
         if (personalizeTile == null) {
             repository.addDefaultTile("personalize")
-        } else if (personalizeTile.iconKey != "palette") {
-            // Backfills a tile seeded by an earlier version of this migration,
-            // before the personalize tile's icon changed from the shared
-            // "settings" gear glyph to its own distinct "palette" one — Room
-            // only applies a new iconFor mapping to freshly-seeded tiles.
-            repository.updateTileIconKey(personalizeTile.id, "palette")
+        } else if (personalizeTile.iconKey != "settings") {
+            repository.updateTileIconKey(personalizeTile.id, "settings")
         }
+
         val context = getApplication<Application>()
-        if (!SettingsAppMigration.hasRun(context)) {
-            repository.resolvedPackageFor("settings")?.let { pkg -> HiddenApps.hide(context, pkg) }
-            SettingsAppMigration.markRun(context)
+        val settingsPkg = repository.resolvedPackageFor("settings")
+        if (settingsPkg != null) {
+            current.filterIsInstance<TileModel.App>()
+                .filter { it.packageName == settingsPkg && it.iconKey == "settings" }
+                .forEach { repository.updateTileIconKey(it.id, null) }
+        }
+
+        // An earlier version of this migration hid the real Settings app from
+        // the App List (to avoid a duplicate pin once Quick Panel got its own
+        // "android settings" tile) — reversed per later explicit request, so
+        // it stays discoverable/pinnable there. See SettingsAppMigration's own
+        // doc comment for why this needs its own one-shot guard.
+        if (!SettingsAppMigration.hasUnhideRun(context)) {
+            settingsPkg?.let { pkg -> HiddenApps.unhide(context, pkg) }
+            SettingsAppMigration.markUnhideRun(context)
         }
     }
 
