@@ -3955,3 +3955,14 @@ shortcuts (personalize, android settings, lock screen). Two explicit placements 
 **dnd moved well down the list** (out of the device-mode toggle block entirely, to sit right before
 the theme tile in row three) — both deliberate deviations from the original WP-photo-literal
 ordering, per this explicit user preference. Build + tests green; installed on the physical device.
+
+## Quick Panel: rotation lock/brightness and volume/screen-timeout swapped
+
+Direct follow-up user request: "interchange position of volume and alarm. same for rotation and
+brightness" ("alarm" refers to the screen-timeout tile — clock icon). `quickPanelTiles()` row two
+was `rotation lock, brightness, screen timeout, media volume, ring volume`; two adjacent-pair swaps
+were requested. Implemented by restructuring the adjustable-level block: brightness (or the "allow
+access" fallback) is added first, then rotation lock, then media volume, then screen timeout (only
+when `WRITE_SETTINGS` is granted — the ungranted case still collapses brightness+timeout into one
+fallback tile, unchanged), then ring volume. New row two: `brightness, rotation lock, media volume,
+screen timeout, ring volume`. Build + tests green; installed on the physical device.

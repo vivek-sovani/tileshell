@@ -293,17 +293,21 @@ private fun rememberAndroidSettingsIcon(): ImageBitmap? {
 /**
  * The full ordered tile list for the panel's grid, grouped by kind rather than
  * strictly mirroring the reference WP photo's order — connectivity toggles
- * first (wifi, bluetooth, location, airplane), then device-mode toggles
- * (flashlight, rotation lock), then the adjustable-level tiles (brightness,
- * screen timeout, media volume, ring volume — or the single "allow access"
- * fallback tile in their place until `WRITE_SETTINGS` is granted), then dnd,
- * then theme, then the settings/android-settings/lock-screen shortcuts.
- * Grouping this way (rather than the reference photo's literal order) reads
- * more predictably once every real toggle carries live on/off accent state —
- * a user scanning for "is airplane mode on" shouldn't have to skip over an
- * unrelated flashlight tile in between. Location sits third (ahead of
- * airplane) and dnd sits well down the list, both per explicit user
- * preference over the initial WP-literal ordering.
+ * first (wifi, bluetooth, location, airplane), then flashlight, then the
+ * adjustable-level tiles interleaved with rotation lock (brightness, rotation
+ * lock, media volume, screen timeout, ring volume — or a single "allow
+ * access" fallback tile in place of brightness/timeout until `WRITE_SETTINGS`
+ * is granted), then dnd, then theme, then the settings/android-settings/
+ * lock-screen shortcuts. Grouping this way (rather than the reference
+ * photo's literal order) reads more predictably once every real toggle
+ * carries live on/off accent state — a user scanning for "is airplane mode
+ * on" shouldn't have to skip over an unrelated flashlight tile in between.
+ * Location sits third (ahead of airplane), dnd sits well down the list, and
+ * rotation lock / screen timeout are each swapped one slot from their
+ * initial straightforward grouped position (rotation lock now between
+ * brightness and media volume; screen timeout now after media volume,
+ * instead of right after brightness) — all per explicit user preference
+ * over the initial ordering.
  */
 private fun quickPanelTiles(
     context: Context,
@@ -356,18 +360,10 @@ private fun quickPanelTiles(
 
     // Device-mode toggles.
     add(QuickPanelTileSpec(icon = "flashlight", label = "flashlight", active = torchOn, onClick = toggleTorch))
-    add(
-        QuickPanelTileSpec(
-            icon = "rotate", label = "rotation lock", active = rotationLockOn,
-            onClick = {
-                // A genuine toggle once WRITE_SETTINGS is granted; until then, tapping
-                // deep-links to the grant screen instead of silently no-op'ing.
-                if (writeSettingsGranted) setRotationLock(context, !rotationLockOn) else openWriteSettingsAccess(context)
-            },
-        ),
-    )
 
-    // Adjustable-level tiles.
+    // Adjustable-level tiles, with rotation lock between brightness and the volumes, and screen
+    // timeout after media volume — both swapped from their initial straightforward grouped order,
+    // per explicit user request.
     if (writeSettingsGranted) {
         add(
             QuickPanelTileSpec(
@@ -378,12 +374,6 @@ private fun quickPanelTiles(
                 },
             ),
         )
-        add(
-            QuickPanelTileSpec(
-                icon = "clock", label = screenTimeoutLabel(screenTimeoutMs), active = false,
-                onClick = { setScreenTimeoutMs(nextScreenTimeoutPreset(screenTimeoutMs)) },
-            ),
-        )
     } else {
         add(
             QuickPanelTileSpec(
@@ -392,7 +382,16 @@ private fun quickPanelTiles(
             ),
         )
     }
-
+    add(
+        QuickPanelTileSpec(
+            icon = "rotate", label = "rotation lock", active = rotationLockOn,
+            onClick = {
+                // A genuine toggle once WRITE_SETTINGS is granted; until then, tapping
+                // deep-links to the grant screen instead of silently no-op'ing.
+                if (writeSettingsGranted) setRotationLock(context, !rotationLockOn) else openWriteSettingsAccess(context)
+            },
+        ),
+    )
     add(
         QuickPanelTileSpec(
             icon = if (mediaLevel.value <= 0) "volume-mute" else "volume",
@@ -404,6 +403,14 @@ private fun quickPanelTiles(
             },
         ),
     )
+    if (writeSettingsGranted) {
+        add(
+            QuickPanelTileSpec(
+                icon = "clock", label = screenTimeoutLabel(screenTimeoutMs), active = false,
+                onClick = { setScreenTimeoutMs(nextScreenTimeoutPreset(screenTimeoutMs)) },
+            ),
+        )
+    }
     add(
         QuickPanelTileSpec(
             icon = if (ringLevel.value <= 0) "bell-mute" else "bell",

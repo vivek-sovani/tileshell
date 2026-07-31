@@ -36,6 +36,13 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.3.1 — Quick Panel: rotation lock/brightness and volume/screen-timeout swapped.**
+  Direct follow-up, user-requested: row two's order (`rotation lock, brightness, screen timeout,
+  media volume, ring volume`) had two adjacent pairs swapped — brightness now comes before
+  rotation lock, and screen timeout now comes after media volume instead of right after
+  brightness. New row two: `brightness, rotation lock, media volume, screen timeout, ring
+  volume`. See DECISIONS "Quick Panel: rotation lock/brightness and volume/screen-timeout
+  swapped". Build + tests green; installed on the physical device.
 - **Post-v2.3.1 — Quick Panel: bluetooth accent bug fix + tile sequence reorganization.**
   User-reported: the bluetooth tile never accent-filled even when bluetooth was actually on (its
   `active` state was hardcoded `false` — a deliberate scoping choice to avoid needing the dangerous
