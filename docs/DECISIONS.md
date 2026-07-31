@@ -3989,3 +3989,57 @@ Activity `Window` that Compose-only `:feature:*` modules don't have: it collects
 with `systemBarsBehavior = BEHAVIOR_SHOW_BARS_BY_SWIPE`, so the bar stays reachable with a swipe
 down from the top edge instead of being fully locked away. Build + tests green
 (`SettingsCodecTest` extended).
+
+## Quick Panel docks to the top instead of the bottom
+
+Direct follow-up user request: make the Quick Panel look like a real device's quick settings
+panel, which slides down from the top rather than up from the bottom (every other sheet in this
+app — Personalize, About, folders, etc. — intentionally still slides up from the bottom; this is a
+one-off deviation scoped to the Quick Panel only). The opening gesture itself is unchanged (still a
+two-finger swipe-**up** on Start, so it still can't collide with quick search's two-finger
+swipe-**down**) — only where the panel visually docks and slides from changed.
+
+`SheetStage` (`:core:design`) gained a `dockTop: Boolean = false` param: `false` (every existing
+call site, unchanged) aligns the panel `BottomEnd` as before; `true` (Quick Panel only) aligns it
+`TopEnd` instead, so in landscape it still docks to Start's right half, just now at the top edge
+rather than the bottom. `QuickPanelOverlay.kt` flips the rest of the bottom-sheet mechanics to
+match: `Alignment.BottomCenter` → `TopCenter`, the slide `translationY = size.height * (1f -
+progress)` → `-size.height * (1f - progress)` (negative, sliding down from above instead of up from
+below), rounded top corners → rounded bottom corners, and `navigationBarsPadding()` →
+`statusBarsPadding()` (the panel now sits flush against the top of the screen, so it needs to clear
+the status bar inset instead of the nav bar). The pull-tab handle moved from the panel's top edge to
+its bottom edge — the edge closest to open space, matching every other sheet's handle placement
+convention (handle sits at the edge you'd drag to close), just mirrored top<->bottom since this
+panel now docks top instead of bottom. Build + tests green; verified on-device in both portrait and
+landscape.
+
+## Quick Panel header: clock/date left, personalize/settings/lock icons right
+
+Direct follow-up, from a reference screenshot of a real device's quick settings panel header
+(clock/date on the left, small circular edit/power/settings icons on the right). Added
+`QuickPanelHeader` above the tile grid in `QuickPanelOverlay.kt`: a live-ticking clock + compact date
+on the left (`feedClock12` reused as-is from the feed page; new pure `quickPanelHeaderDate` in
+`FeedFormat.kt`, unit-tested, for the short lowercase "fri, 31 jul" form — distinct from the feed
+page's own long uppercase `feedGlanceDate`), and three 36dp circular icon buttons on the right for
+personalize / android settings (using the same device-resolved icon as before) / lock screen. Those
+three were previously square tiles at the end of the grid (`quickPanelTiles()`) — removed from
+there per explicit request, since they're app/system shortcuts rather than device controls and now
+have a more prominent, always-visible home in the header instead of competing for grid space with
+wifi/brightness/etc. `quickPanelTiles()` lost its `androidSettingsIcon`/`onOpenPersonalize`/
+`onLockScreen` params now that nothing inside it needs them. Build + tests green; verified on-device
+(all three header icons open personalize / trigger the android-settings deep link / trigger the
+lock-screen flow correctly).
+
+## Hidden status bar didn't reclaim its inset on every device
+
+User report: after enabling "hide status bar," the freed space at the top wasn't actually being
+used by the Start screen — the tile grid still left a blank gap where the bar used to be. Root
+cause: the Start grid's scrollable Column (`StartScreen.kt`) always applied `.statusBarsPadding()`,
+which pads by the *system-reported* status-bar inset height — and that inset doesn't reliably
+collapse to zero just because `WindowInsetsControllerCompat.hide()` was called; behavior here varies
+by OEM/API level (confirmed fine on the emulator used for on-device verification, but not on the
+user's real device). Rather than depend on the system inset shrinking, `StartPage` now takes a
+`hideStatusBar: Boolean` param (from `settings.hideStatusBar`) and skips `.statusBarsPadding()`
+outright whenever the setting is on, so the grid unconditionally fills the top of the screen instead
+of trusting the inset to already be zero. Scoped to the Start tile grid only (what was reported) —
+the app list and other sheets weren't touched. Build + tests green.

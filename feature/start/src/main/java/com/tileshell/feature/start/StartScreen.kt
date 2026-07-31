@@ -882,6 +882,7 @@ fun StartScreen(
                     widthPx = pageWidthPx,
                     viewportHeightPx = viewportHeightPx,
                     statusBarTopPx = statusBarTopPx,
+                    hideStatusBar = settings.hideStatusBar,
                     columns = settings.columns,
                     sticky = settings.tilePackMode == TilePackMode.STICKY,
                     onSetTileSlot = viewModel::setTileGridSlot,
@@ -1650,6 +1651,15 @@ private fun StartPage(
     widthPx: Float,
     viewportHeightPx: Float,
     statusBarTopPx: Float,
+    /**
+     * Mirrors the "hide status bar" Personalize toggle: skips [statusBarsPadding]
+     * on the tile grid so it fills the top of the screen instead of leaving the
+     * status bar's inset height as blank space. Reserving that inset via the
+     * system's [WindowInsets] doesn't reliably shrink to zero once the bar is
+     * hidden on every device/API level, so this is applied unconditionally from
+     * the setting rather than left to the system to figure out.
+     */
+    hideStatusBar: Boolean = false,
     columns: Int,
     sticky: Boolean,
     onSetTileSlot: (id: String, slot: Int?) -> Unit,
@@ -1914,7 +1924,7 @@ private fun StartPage(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .statusBarsPadding()
+                .then(if (hideStatusBar) Modifier else Modifier.statusBarsPadding())
                 .navigationBarsPadding()
                 // Keep tiles clear of a display cutout (e.g. a landscape notch).
                 .displayCutoutPadding(),

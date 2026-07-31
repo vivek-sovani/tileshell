@@ -21,14 +21,16 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,10 +46,12 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
+import com.tileshell.core.design.ColorTokens
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
@@ -72,19 +76,25 @@ import com.tileshell.feature.livetiles.rememberWriteSettingsGranted
 import com.tileshell.feature.livetiles.screenTimeoutLabel
 import com.tileshell.feature.livetiles.setRotationLock
 import com.tileshell.feature.livetiles.toggleDnd
+import com.tileshell.feature.start.feed.feedClock12
+import com.tileshell.feature.start.feed.quickPanelHeaderDate
+import java.util.Calendar
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /** Quick panel's square-tile grid is this many tiles wide (matches the real WP Action Center photo). */
 private const val QUICK_PANEL_COLUMNS = 5
 
 /**
- * Quick panel: a two-finger swipe-up on Start opens this, sliding up from the
- * bottom edge (motion follows the finger, same physical logic as the classic
- * iOS Control Center gesture — chosen so it can never collide with quick
- * search's two-finger swipe-**down**). See docs/QUICK-PANEL-SPEC.md for the
- * full design rationale and the no-new-Play-Console-permission scoping.
+ * Quick panel: a two-finger swipe-up on Start opens this. The gesture itself is
+ * unchanged (still swipe-**up**, so it can never collide with quick search's
+ * two-finger swipe-**down**), but the panel now docks to and slides down from
+ * the **top** edge — matching the real Android quick settings panel — rather
+ * than sliding up from the bottom the way every other sheet in this app does.
+ * See docs/QUICK-PANEL-SPEC.md for the full design rationale and the
+ * no-new-Play-Console-permission scoping.
  *
  * Styled as a miniature Start screen rather than a generic Android settings
  * sheet: every control — toggles, brightness, volume, screen timeout, and the
@@ -156,7 +166,7 @@ fun QuickPanelOverlay(
     val ringLevel = rememberSteppedPercent(ringVolume)
     val androidSettingsIcon = rememberAndroidSettingsIcon()
 
-    SheetStage(rightHalf = rightHalf, modifier = modifier) {
+    SheetStage(rightHalf = rightHalf, dockTop = true, modifier = modifier) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -171,23 +181,24 @@ fun QuickPanelOverlay(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .graphicsLayer { translationY = size.height * (1f - progress) }
-                .background(tokens.sheet, shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                .align(Alignment.TopCenter)
+                .graphicsLayer { translationY = -size.height * (1f - progress) }
+                .background(tokens.sheet, shape = RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = {},
                 )
-                .padding(top = 10.dp, bottom = 4.dp)
-                .navigationBarsPadding(),
+                .statusBarsPadding()
+                .padding(top = 4.dp, bottom = 10.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .width(32.dp)
-                    .height(3.dp)
-                    .background(tokens.fgDim, shape = RoundedCornerShape(2.dp)),
+            QuickPanelHeader(
+                tokens = tokens,
+                visible = visible,
+                androidSettingsIcon = androidSettingsIcon,
+                onOpenPersonalize = { onDismiss(); onOpenPersonalize() },
+                onOpenAndroidSettings = { deepLink(context, Settings.ACTION_SETTINGS) },
+                onLockScreen = { onDismiss(); onLockScreen() },
             )
 
             val tiles = quickPanelTiles(
@@ -210,13 +221,10 @@ fun QuickPanelOverlay(
                 setRingVolume = setRingVolume,
                 screenTimeoutMs = screenTimeoutMs,
                 setScreenTimeoutMs = setScreenTimeoutMs,
-                androidSettingsIcon = androidSettingsIcon,
                 dark = dark,
                 followSystemTheme = followSystemTheme,
                 onThemeChange = onThemeChange,
                 onFollowSystemThemeChange = onFollowSystemThemeChange,
-                onOpenPersonalize = { onDismiss(); onOpenPersonalize() },
-                onLockScreen = { onDismiss(); onLockScreen() },
             )
             Column(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
@@ -240,7 +248,106 @@ fun QuickPanelOverlay(
                 }
             }
 
-            Box(modifier = Modifier.height(8.dp))
+            // Pull-tab handle sits at the bottom edge of the panel now — the edge
+            // closest to open space, where it slides down from the top and this
+            // reads as "drag/swipe here to close" (mirrors every other sheet's
+            // handle sitting at its own open-space edge, just flipped top<->bottom
+            // since this panel docks to the top instead of the bottom).
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 4.dp, bottom = 4.dp)
+                    .width(32.dp)
+                    .height(3.dp)
+                    .background(tokens.fgDim, shape = RoundedCornerShape(2.dp)),
+            )
+        }
+    }
+}
+
+/**
+ * Panel header: live clock + date on the left, and compact circular icon
+ * buttons for personalize / android settings / lock screen on the right —
+ * mirroring a real device's quick settings panel header (clock/date left,
+ * edit/power/settings icons right), per explicit user request. These three
+ * shortcuts used to be square tiles in the grid below; they moved up here
+ * instead so the grid holds only genuine device controls.
+ */
+@Composable
+private fun QuickPanelHeader(
+    tokens: ColorTokens,
+    visible: Boolean,
+    androidSettingsIcon: ImageBitmap?,
+    onOpenPersonalize: () -> Unit,
+    onOpenAndroidSettings: () -> Unit,
+    onLockScreen: () -> Unit,
+) {
+    var now by remember { mutableStateOf(Calendar.getInstance()) }
+    LaunchedEffect(visible) {
+        if (!visible) return@LaunchedEffect
+        while (true) {
+            now = Calendar.getInstance()
+            delay(60_000L - (System.currentTimeMillis() % 60_000L))
+        }
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(text = feedClock12(now), color = tokens.fg, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = quickPanelHeaderDate(now),
+                color = tokens.fgDim,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(bottom = 1.dp),
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            QuickPanelHeaderIcon(icon = "settings", description = "personalize", tokens = tokens, onClick = onOpenPersonalize)
+            QuickPanelHeaderIcon(
+                icon = "settings",
+                description = "android settings",
+                tokens = tokens,
+                iconBitmap = androidSettingsIcon,
+                onClick = onOpenAndroidSettings,
+            )
+            QuickPanelHeaderIcon(icon = "lock", description = "lock screen", tokens = tokens, onClick = onLockScreen)
+        }
+    }
+}
+
+@Composable
+private fun QuickPanelHeaderIcon(
+    icon: String,
+    description: String,
+    tokens: ColorTokens,
+    onClick: () -> Unit,
+    iconBitmap: ImageBitmap? = null,
+) {
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(tokens.tileLine.copy(alpha = 0.4f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (iconBitmap != null) {
+            Image(
+                bitmap = iconBitmap,
+                contentDescription = description,
+                modifier = Modifier.size(20.dp).clip(RoundedCornerShape(5.dp)),
+            )
+        } else {
+            Icon(
+                imageVector = TileIcons[icon],
+                contentDescription = description,
+                tint = tokens.fg,
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
 }
@@ -297,16 +404,18 @@ private fun rememberAndroidSettingsIcon(): ImageBitmap? {
  * adjustable-level tiles interleaved with rotation lock (brightness, rotation
  * lock, screen timeout, ring volume, media volume — or a single "allow
  * access" fallback tile in place of brightness/timeout until `WRITE_SETTINGS`
- * is granted), then dnd, then theme, then the settings/android-settings/
- * lock-screen shortcuts. Grouping this way (rather than the reference
- * photo's literal order) reads more predictably once every real toggle
- * carries live on/off accent state — a user scanning for "is airplane mode
- * on" shouldn't have to skip over an unrelated flashlight tile in between.
- * Location sits third (ahead of airplane), dnd sits well down the list,
- * rotation lock sits right after brightness (not screen timeout), and media
- * volume sits last in its row (the extreme right of row two) rather than
- * beside rotation lock — all per explicit, iterative user preference over
- * the initial ordering.
+ * is granted), then dnd, then theme. The personalize/android-settings/
+ * lock-screen shortcuts are **not** in this grid — they're compact icon
+ * buttons in the panel's own header row instead (top-right, alongside the
+ * clock/date on the left), matching a real device's quick settings panel
+ * header. Grouping this way (rather than the reference photo's literal
+ * order) reads more predictably once every real toggle carries live on/off
+ * accent state — a user scanning for "is airplane mode on" shouldn't have to
+ * skip over an unrelated flashlight tile in between. Location sits third
+ * (ahead of airplane), dnd sits well down the list, rotation lock sits right
+ * after brightness (not screen timeout), and media volume sits last in its
+ * row (the extreme right of row two) rather than beside rotation lock — all
+ * per explicit, iterative user preference over the initial ordering.
  */
 private fun quickPanelTiles(
     context: Context,
@@ -328,13 +437,10 @@ private fun quickPanelTiles(
     setRingVolume: (Float) -> Unit,
     screenTimeoutMs: Long,
     setScreenTimeoutMs: (Long) -> Unit,
-    androidSettingsIcon: ImageBitmap?,
     dark: Boolean,
     followSystemTheme: Boolean,
     onThemeChange: (Boolean) -> Unit,
     onFollowSystemThemeChange: (Boolean) -> Unit,
-    onOpenPersonalize: () -> Unit,
-    onLockScreen: () -> Unit,
 ): List<QuickPanelTileSpec> = buildList {
     // Connectivity toggles.
     add(QuickPanelTileSpec(icon = "wifi", label = "wifi", active = wifiOn, onClick = { openWifiSettings(context) }))
@@ -456,15 +562,6 @@ private fun quickPanelTiles(
             },
         ),
     )
-    add(QuickPanelTileSpec(icon = "settings", label = "personalize", active = false, onClick = onOpenPersonalize))
-    add(
-        QuickPanelTileSpec(
-            icon = "settings", label = "android settings", active = false,
-            onClick = { deepLink(context, Settings.ACTION_SETTINGS) },
-            iconBitmap = androidSettingsIcon,
-        ),
-    )
-    add(QuickPanelTileSpec(icon = "lock", label = "lock screen", active = false, onClick = onLockScreen))
 }
 
 /** One tap-to-cycle theme tile (dark → light → auto → dark), instead of three separate ones. */
@@ -495,7 +592,7 @@ internal fun nextThemeChoice(current: ThemeChoice): ThemeChoice = when (current)
 @Composable
 private fun QuickPanelTile(
     tile: QuickPanelTileSpec,
-    tokens: com.tileshell.core.design.ColorTokens,
+    tokens: ColorTokens,
     accent: Color,
     modifier: Modifier = Modifier,
 ) {

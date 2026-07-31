@@ -27,6 +27,18 @@ fun feedGlanceDate(calendar: Calendar): GlanceDate {
     return GlanceDate(dateLine = "$weekday · $day $month")
 }
 
+/**
+ * Compact lowercase date for the Quick Panel header (mockup: "fri, 31 jul") —
+ * short weekday + day + short month, no year, distinct from [feedGlanceDate]'s
+ * long uppercase single-line form used on the feed page.
+ */
+fun quickPanelHeaderDate(calendar: Calendar): String {
+    val weekday = FEED_WEEKDAYS[calendar.get(Calendar.DAY_OF_WEEK) - 1].take(3).lowercase()
+    val day = calendar.get(Calendar.DAY_OF_MONTH)
+    val month = FEED_MONTHS[calendar.get(Calendar.MONTH)].take(3).lowercase()
+    return "$weekday, $day $month"
+}
+
 /** `h:mm` (unpadded hour, zero-padded minutes), shared by both clock formats below. */
 private fun clock12Digits(calendar: Calendar): String {
     val hour24 = calendar.get(Calendar.HOUR_OF_DAY)
