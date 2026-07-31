@@ -3966,3 +3966,11 @@ access" fallback) is added first, then rotation lock, then media volume, then sc
 when `WRITE_SETTINGS` is granted — the ungranted case still collapses brightness+timeout into one
 fallback tile, unchanged), then ring volume. New row two: `brightness, rotation lock, media volume,
 screen timeout, ring volume`. Build + tests green; installed on the physical device.
+
+## Quick Panel: media volume moved to extreme right of row two
+
+Direct follow-up user request: "volume should be on extreme right in middle row." `quickPanelTiles()`
+row two was `brightness, rotation lock, media volume, screen timeout, ring volume` — media volume
+is now added last, after ring volume, so it sits at the row's extreme right. New row two:
+`brightness, rotation lock, screen timeout, ring volume, media volume`. Build + tests green;
+installed on the physical device.

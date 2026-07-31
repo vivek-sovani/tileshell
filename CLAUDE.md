@@ -36,6 +36,11 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.3.1 — Quick Panel: media volume moved to extreme right of row two.** Direct
+  follow-up, user-requested: row two's media volume tile is now added last (after ring volume),
+  so it sits at the row's extreme right. New row two: `brightness, rotation lock, screen timeout,
+  ring volume, media volume`. See DECISIONS "Quick Panel: media volume moved to extreme right of
+  row two". Build + tests green; installed on the physical device.
 - **Post-v2.3.1 — Quick Panel: rotation lock/brightness and volume/screen-timeout swapped.**
   Direct follow-up, user-requested: row two's order (`rotation lock, brightness, screen timeout,
   media volume, ring volume`) had two adjacent pairs swapped — brightness now comes before
