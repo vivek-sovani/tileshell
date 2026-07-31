@@ -77,6 +77,34 @@ fun rememberAirplaneModeOn(): Boolean {
     return on
 }
 
+/**
+ * Bluetooth radio on/off. `BluetoothAdapter.isEnabled()` needs the dangerous
+ * `BLUETOOTH_CONNECT` permission on API 31+ (a new Play Console "Nearby devices"
+ * declaration this launcher deliberately doesn't take on — see the quick panel's
+ * bluetooth tile, still tap-to-settings, no toggle). But the persisted on/off
+ * state is also mirrored in `Settings.Global.BLUETOOTH_ON`, a public, permission-free
+ * key (same pattern as [rememberAirplaneModeOn]), so the tile can still show the
+ * real live state without needing that permission.
+ */
+@Composable
+fun rememberBluetoothOn(): Boolean {
+    val context = LocalContext.current
+    fun read(): Boolean =
+        Settings.Global.getInt(context.contentResolver, Settings.Global.BLUETOOTH_ON, 0) != 0
+
+    var on by remember { mutableStateOf(read()) }
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                on = read()
+            }
+        }
+        context.registerReceiver(receiver, IntentFilter("android.bluetooth.adapter.action.STATE_CHANGED"))
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
+    }
+    return on
+}
+
 /** Location services on/off — no location permission needed to just read this. */
 @Composable
 fun rememberLocationEnabled(): Boolean {

@@ -36,6 +36,19 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.3.1 — Quick Panel: bluetooth accent bug fix + tile sequence reorganization.**
+  User-reported: the bluetooth tile never accent-filled even when bluetooth was actually on (its
+  `active` state was hardcoded `false` — a deliberate scoping choice to avoid needing the dangerous
+  `BLUETOOTH_CONNECT` permission on API 31+). Fixed with `rememberBluetoothOn()`
+  (`:feature:livetiles`), which reads the public, permission-free `Settings.Global.BLUETOOTH_ON` key
+  and listens for the unprotected `ACTION_STATE_CHANGED` broadcast — same pattern as the existing
+  airplane-mode reader — so the tile now shows real on/off state without adding any new permission;
+  it still deep-links to Bluetooth settings on tap rather than toggling directly. Also reorganized
+  `quickPanelTiles()`'s order per explicit request: grouped by kind (connectivity → device-mode
+  toggles → adjustable levels → dnd → theme → shortcuts) instead of the reference WP photo's literal
+  order, with location moved to third in the top row and dnd moved down to sit just before the
+  theme tile. See DECISIONS "Quick Panel bluetooth accent bug fix + tile sequence reorganization".
+  Build + tests green; installed on the physical device.
 - **Post-v2.3.1 — Quick Panel landscape fix: dock to the right half.** Bug fix, user-reported: the
   Quick Panel was the one Start-launched sheet whose call site in `StartScreen.kt` never passed
   `rightHalf = isLandscape` (`QuickPanelOverlay` and `SheetStage` already supported it — every

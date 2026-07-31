@@ -3927,3 +3927,31 @@ isLandscape` at the call site, same as every sibling sheet. Verified live on a p
 landscape, the panel now docks to the bottom-right half, sitting above the Start panel with the feed
 panel on the left fully visible and undimmed; all 14 tiles render as clean, non-overlapping squares.
 Build + tests green.
+
+## Quick Panel bluetooth accent bug fix + tile sequence reorganization
+
+User report: "blue tooth is on but setting tile is not showing accent coloiur as it is displaying
+for wifi and location. organise the sequence of settings tile well." Two parts.
+
+**Bluetooth accent bug.** The bluetooth tile's `active` was hardcoded `false` — a deliberate scoping
+choice from the original redesign (`BluetoothAdapter.isEnabled()` needs the dangerous
+`BLUETOOTH_CONNECT` permission on API 31+, a new Play Console "Nearby devices" declaration this
+launcher didn't want to take on, so the tile shipped tap-to-settings only, with no live state).
+That scoping missed a simpler option: the bluetooth radio's persisted on/off state is also mirrored
+in `Settings.Global.BLUETOOTH_ON`, a public, permission-free key — the exact same pattern already
+used for airplane mode (`rememberAirplaneModeOn`). New `rememberBluetoothOn()`
+(`:feature:livetiles`, `SystemToggles.kt`) reads it and listens for
+`android.bluetooth.adapter.action.STATE_CHANGED` (a normal, unprotected broadcast — receiving it
+needs no permission, only calling `BluetoothAdapter` methods directly does) to stay live. The tile
+still deep-links to Bluetooth settings on tap rather than toggling directly, but now correctly
+accent-fills when bluetooth is actually on, matching wifi/location/every other real toggle.
+
+**Tile sequence reorganization.** `quickPanelTiles()` (`QuickPanelOverlay.kt`) is regrouped by kind
+instead of the reference WP photo's literal order: connectivity toggles (wifi, bluetooth, location,
+airplane) → device-mode toggles (flashlight, rotation lock) → adjustable-level tiles (brightness,
+screen timeout, media volume, ring volume, or the "allow access" fallback) → dnd → theme → app
+shortcuts (personalize, android settings, lock screen). Two explicit placements per this request:
+**location moved to third** in the top row (ahead of airplane, which was previously third), and
+**dnd moved well down the list** (out of the device-mode toggle block entirely, to sit right before
+the theme tile in row three) — both deliberate deviations from the original WP-photo-literal
+ordering, per this explicit user preference. Build + tests green; installed on the physical device.

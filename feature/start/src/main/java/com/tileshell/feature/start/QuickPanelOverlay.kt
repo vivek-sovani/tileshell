@@ -58,6 +58,7 @@ import com.tileshell.feature.livetiles.nextScreenTimeoutPreset
 import com.tileshell.feature.livetiles.openWriteSettingsAccess
 import com.tileshell.feature.livetiles.rememberAirplaneModeOn
 import com.tileshell.feature.livetiles.rememberBatterySaverOn
+import com.tileshell.feature.livetiles.rememberBluetoothOn
 import com.tileshell.feature.livetiles.rememberDndAccessGranted
 import com.tileshell.feature.livetiles.rememberDndOn
 import com.tileshell.feature.livetiles.rememberLocationEnabled
@@ -90,9 +91,10 @@ private const val QUICK_PANEL_COLUMNS = 5
  * settings/lock shortcuts — is a **perfect square** tile in one dense grid,
  * matching the real Windows Phone Action Center rather than the wide chip/
  * slider rows this panel originally shipped with. Binary toggles (wifi,
- * bluetooth, flashlight, dnd, airplane, location, rotation lock) fill with
- * the personalization accent when on, a neutral dark tile when off — the
- * same on/off contract every Start tile already uses. Brightness and volume
+ * bluetooth, location, airplane, flashlight, rotation lock, dnd — grouped
+ * and ordered per [quickPanelTiles]) fill with the personalization
+ * accent when on, a neutral dark tile when off — the same on/off contract
+ * every Start tile already uses. Brightness and volume
  * are **not** drag sliders (a real WP tile has no slider at all): tapping
  * steps through fixed levels (0/10/20/40/60/80/100%), with the current level
  * shown as the tile's own bold label, exactly like the real device's
@@ -126,6 +128,7 @@ fun QuickPanelOverlay(
     BackHandler(enabled = visible) { onDismiss() }
 
     val wifiOn = rememberWifiEnabled()
+    val bluetoothOn = rememberBluetoothOn()
     val airplaneOn = rememberAirplaneModeOn()
     val locationOn = rememberLocationEnabled()
     // Computed for parity with other read-only toggles, but battery saver has no
@@ -190,6 +193,7 @@ fun QuickPanelOverlay(
             val tiles = quickPanelTiles(
                 context = context,
                 wifiOn = wifiOn,
+                bluetoothOn = bluetoothOn,
                 airplaneOn = airplaneOn,
                 locationOn = locationOn,
                 torchOn = torchOn,
@@ -287,15 +291,24 @@ private fun rememberAndroidSettingsIcon(): ImageBitmap? {
 }
 
 /**
- * The full ordered tile list for the panel's grid — binary toggles first
- * (wifi, bluetooth, flashlight, dnd, airplane, location, rotation lock), then
- * brightness/volume/screen-timeout (or the single "allow access" fallback
- * tile in their place until `WRITE_SETTINGS` is granted), then the
- * settings/android-settings/lock-screen shortcuts.
+ * The full ordered tile list for the panel's grid, grouped by kind rather than
+ * strictly mirroring the reference WP photo's order — connectivity toggles
+ * first (wifi, bluetooth, location, airplane), then device-mode toggles
+ * (flashlight, rotation lock), then the adjustable-level tiles (brightness,
+ * screen timeout, media volume, ring volume — or the single "allow access"
+ * fallback tile in their place until `WRITE_SETTINGS` is granted), then dnd,
+ * then theme, then the settings/android-settings/lock-screen shortcuts.
+ * Grouping this way (rather than the reference photo's literal order) reads
+ * more predictably once every real toggle carries live on/off accent state —
+ * a user scanning for "is airplane mode on" shouldn't have to skip over an
+ * unrelated flashlight tile in between. Location sits third (ahead of
+ * airplane) and dnd sits well down the list, both per explicit user
+ * preference over the initial WP-literal ordering.
  */
 private fun quickPanelTiles(
     context: Context,
     wifiOn: Boolean,
+    bluetoothOn: Boolean,
     airplaneOn: Boolean,
     locationOn: Boolean,
     torchOn: Boolean,
@@ -320,34 +333,12 @@ private fun quickPanelTiles(
     onOpenPersonalize: () -> Unit,
     onLockScreen: () -> Unit,
 ): List<QuickPanelTileSpec> = buildList {
+    // Connectivity toggles.
     add(QuickPanelTileSpec(icon = "wifi", label = "wifi", active = wifiOn, onClick = { openWifiSettings(context) }))
-    // Bluetooth: no live state (reading it needs BLUETOOTH_CONNECT on API 31+,
-    // a new dangerous permission — see docs/QUICK-PANEL-SPEC.md), tap-only.
     add(
         QuickPanelTileSpec(
-            icon = "bluetooth", label = "bluetooth", active = false,
+            icon = "bluetooth", label = "bluetooth", active = bluetoothOn,
             onClick = { deepLink(context, Settings.ACTION_BLUETOOTH_SETTINGS) },
-        ),
-    )
-    add(QuickPanelTileSpec(icon = "flashlight", label = "flashlight", active = torchOn, onClick = toggleTorch))
-    add(
-        QuickPanelTileSpec(
-            icon = "dnd", label = "dnd", active = dndOn,
-            onClick = {
-                // Once access is granted this is a genuine toggle; until then, deep-link
-                // to the general "Do Not Disturb" settings screen (which also surfaces
-                // the access-grant prompt itself) rather than straight to
-                // ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS — that screen is an
-                // app-by-app access list, not the DND settings a user tapping this tile
-                // actually expects to land on.
-                if (dndGranted) toggleDnd(context, !dndOn) else openDndSettings(context)
-            },
-        ),
-    )
-    add(
-        QuickPanelTileSpec(
-            icon = "airplane", label = "airplane", active = airplaneOn,
-            onClick = { deepLink(context, Settings.ACTION_AIRPLANE_MODE_SETTINGS) },
         ),
     )
     add(
@@ -356,6 +347,15 @@ private fun quickPanelTiles(
             onClick = { deepLink(context, Settings.ACTION_LOCATION_SOURCE_SETTINGS) },
         ),
     )
+    add(
+        QuickPanelTileSpec(
+            icon = "airplane", label = "airplane", active = airplaneOn,
+            onClick = { deepLink(context, Settings.ACTION_AIRPLANE_MODE_SETTINGS) },
+        ),
+    )
+
+    // Device-mode toggles.
+    add(QuickPanelTileSpec(icon = "flashlight", label = "flashlight", active = torchOn, onClick = toggleTorch))
     add(
         QuickPanelTileSpec(
             icon = "rotate", label = "rotation lock", active = rotationLockOn,
@@ -367,6 +367,7 @@ private fun quickPanelTiles(
         ),
     )
 
+    // Adjustable-level tiles.
     if (writeSettingsGranted) {
         add(
             QuickPanelTileSpec(
@@ -415,6 +416,22 @@ private fun quickPanelTiles(
         ),
     )
 
+    add(
+        QuickPanelTileSpec(
+            icon = "dnd", label = "dnd", active = dndOn,
+            onClick = {
+                // Once access is granted this is a genuine toggle; until then, deep-link
+                // to the general "Do Not Disturb" settings screen (which also surfaces
+                // the access-grant prompt itself) rather than straight to
+                // ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS — that screen is an
+                // app-by-app access list, not the DND settings a user tapping this tile
+                // actually expects to land on.
+                if (dndGranted) toggleDnd(context, !dndOn) else openDndSettings(context)
+            },
+        ),
+    )
+
+    // Theme + app shortcuts.
     val themeChoice = themeChoiceFor(dark, followSystemTheme)
     add(
         QuickPanelTileSpec(
