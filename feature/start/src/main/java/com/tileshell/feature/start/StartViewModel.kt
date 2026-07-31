@@ -1293,6 +1293,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setLockLayout(locked) }
     }
 
+    /** Toggle "hide status bar" (Personalize): hides the system status bar over TileShell. */
+    fun setHideStatusBar(hidden: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setHideStatusBar(hidden) }
+    }
+
     fun setAutoBackupInterval(hours: Int) {
         viewModelScope.launch(Dispatchers.IO) {
             settingsRepository.setAutoBackupIntervalHours(hours)

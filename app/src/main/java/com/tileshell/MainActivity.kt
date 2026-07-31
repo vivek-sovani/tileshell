@@ -32,10 +32,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tileshell.core.data.RatingPromptPrefs
 import com.tileshell.core.data.isRatingPromptCheckWindowOpen
 import com.tileshell.core.data.rollShowsPrompt
@@ -75,6 +80,8 @@ class MainActivity : ComponentActivity() {
             DefaultLauncherPrompt()
             RequestRuntimePermissionsOnStart()
             RatingPromptHost()
+            val settings by startViewModel.settings.collectAsStateWithLifecycle()
+            StatusBarVisibilityEffect(hide = settings.hideStatusBar)
             val ctx = LocalContext.current
             var showLockDisclosure by remember { mutableStateOf(false) }
             var showRecentsDisclosure by remember { mutableStateOf(false) }
@@ -235,6 +242,27 @@ private fun AccessibilityDisclosureDialog(onConfirm: () -> Unit, onDismiss: () -
             }
         },
     )
+}
+
+/**
+ * Hides/shows the system status bar per the "hide status bar" Personalize toggle.
+ * [WindowInsetsControllerCompat.BEHAVIOR_SHOW_BARS_BY_SWIPE] keeps it reachable
+ * with a swipe from the top edge even while hidden, rather than a fully locked-down
+ * immersive mode.
+ */
+@Composable
+private fun StatusBarVisibilityEffect(hide: Boolean) {
+    val view = LocalView.current
+    LaunchedEffect(hide) {
+        val window = (view.context as? Activity)?.window ?: return@LaunchedEffect
+        val controller = WindowCompat.getInsetsController(window, view)
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_BARS_BY_SWIPE
+        if (hide) {
+            controller.hide(WindowInsetsCompat.Type.statusBars())
+        } else {
+            controller.show(WindowInsetsCompat.Type.statusBars())
+        }
+    }
 }
 
 private fun openAccessibilitySettings(context: Context) {

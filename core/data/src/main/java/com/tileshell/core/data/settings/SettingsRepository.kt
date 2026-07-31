@@ -224,6 +224,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(feedNoBackground = noBackground) }
     }
 
+    /** Hides the Android system status bar while TileShell is in the foreground. */
+    suspend fun setHideStatusBar(hidden: Boolean) {
+        store.updateData { it.copy(hideStatusBar = hidden) }
+    }
+
     /** Toggle following the device dark-mode setting (vs. the manual [dark] choice). */
     suspend fun setFollowSystemTheme(follow: Boolean) {
         store.updateData { it.copy(followSystemTheme = follow) }

@@ -3974,3 +3974,18 @@ row two was `brightness, rotation lock, media volume, screen timeout, ring volum
 is now added last, after ring volume, so it sits at the row's extreme right. New row two:
 `brightness, rotation lock, screen timeout, ring volume, media volume`. Build + tests green;
 installed on the physical device.
+
+## Hide status bar toggle
+
+New ask, not in the WP prototype/spec (real WP has no OS status bar to hide) — user asked for the
+same "hide status bar" option several other Android launchers offer. New `hideStatusBar: Boolean`
+in `LauncherSettings`/`SettingsCodec` (default off), a `SettingsRepository.setHideStatusBar` /
+`StartViewModel.setHideStatusBar`, and a "hide status bar" toggle in Personalize's `"system"` group
+(that group previously only ever rendered the "default launcher" row, and only while TileShell
+wasn't already the default launcher — it's unconditional now so the new toggle always has a home).
+Actual hide/show is applied in `MainActivity`'s new `StatusBarVisibilityEffect`, since it needs the
+Activity `Window` that Compose-only `:feature:*` modules don't have: it collects
+`startViewModel.settings` and drives `WindowInsetsControllerCompat.hide/show(Type.statusBars())`
+with `systemBarsBehavior = BEHAVIOR_SHOW_BARS_BY_SWIPE`, so the bar stays reachable with a swipe
+down from the top edge instead of being fully locked away. Build + tests green
+(`SettingsCodecTest` extended).

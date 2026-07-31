@@ -1269,6 +1269,8 @@ fun StartScreen(
             onTilePackModeChange = viewModel::setTilePackMode,
             lockLayout = settings.lockLayout,
             onLockLayoutChange = viewModel::setLockLayout,
+            hideStatusBar = settings.hideStatusBar,
+            onHideStatusBarChange = viewModel::setHideStatusBar,
             onAbout = viewModel::openAbout,
             onPersonalizeGuide = viewModel::openPersonalizeGuide,
             onFolders = viewModel::openFolders,

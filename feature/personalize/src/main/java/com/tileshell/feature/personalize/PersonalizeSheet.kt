@@ -188,6 +188,8 @@ fun PersonalizeSheet(
     onTilePackModeChange: (TilePackMode) -> Unit,
     lockLayout: Boolean,
     onLockLayoutChange: (Boolean) -> Unit,
+    hideStatusBar: Boolean,
+    onHideStatusBarChange: (Boolean) -> Unit,
     onClearPhotos: () -> Unit,
     /** Master on/off switch for live-tile flipping/updates. */
     liveTilesEnabled: Boolean,
@@ -1155,31 +1157,40 @@ fun PersonalizeSheet(
             }
 
             // ---- system ----
-            // Hidden entirely once TileShell is already default — there's nothing
-            // left here ("android settings" moved to the top of the sheet, see
-            // above). Re-checked live on every ON_RESUME ([rememberIsDefaultLauncher])
-            // so backing out to Settings, changing it there, and returning updates
-            // this without reopening the sheet.
-            if (!isDefaultLauncher) {
-                SettingGroup(label = "system", tokens.fgDim) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(onClick = onSetDefaultLauncher)
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "default launcher", color = tokens.fg, fontSize = 14.sp)
-                            Text(
-                                text = "make tileshell your home screen",
-                                color = tokens.fgDim,
-                                fontSize = 12.sp,
-                            )
+            // The default-launcher row is hidden once TileShell already is one —
+            // there's nothing left there ("android settings" moved to the top of
+            // the sheet, see above). Re-checked live on every ON_RESUME
+            // ([rememberIsDefaultLauncher]) so backing out to Settings, changing it
+            // there, and returning updates this without reopening the sheet.
+            SettingGroup(label = "system", tokens.fgDim) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!isDefaultLauncher) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(onClick = onSetDefaultLauncher)
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(text = "default launcher", color = tokens.fg, fontSize = 14.sp)
+                                Text(
+                                    text = "make tileshell your home screen",
+                                    color = tokens.fgDim,
+                                    fontSize = 12.sp,
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text(text = "set ›", color = accent, fontSize = 13.sp)
                         }
-                        Spacer(Modifier.width(8.dp))
-                        Text(text = "set ›", color = accent, fontSize = 13.sp)
                     }
+                    ToggleRow("hide status bar", on = hideStatusBar, accent = accent, tokens, onHideStatusBarChange)
+                    Text(
+                        "hides the clock/battery/signal strip at the top of the screen — swipe down " +
+                        "from the top edge to reveal it temporarily",
+                        color = tokens.fgDim,
+                        fontSize = 12.sp,
+                    )
                 }
             }
 

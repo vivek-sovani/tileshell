@@ -218,6 +218,17 @@ class SettingsCodecTest {
     }
 
     @Test
+    fun `hideStatusBar decodes and bad value keeps default`() {
+        assertEquals(true, SettingsCodec.decode("hideStatusBar=true").hideStatusBar)
+        assertEquals(
+            LauncherSettings().hideStatusBar,
+            SettingsCodec.decode("hideStatusBar=nope").hideStatusBar,
+        )
+        val s = LauncherSettings(hideStatusBar = true)
+        assertEquals(true, SettingsCodec.decode(SettingsCodec.encode(s)).hideStatusBar)
+    }
+
+    @Test
     fun `deviceStatusCardEnabled decodes and bad value keeps default`() {
         assertEquals(false, SettingsCodec.decode("deviceStatusCard=false").deviceStatusCardEnabled)
         assertEquals(

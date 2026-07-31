@@ -96,6 +96,10 @@ enum class TileColorSource { GLOBAL_ACCENT, APP_ICON }
  *   otherwise always shows a colour gradient synthesized from Start's
  *   wallpaper even when that wallpaper is a photo or stock gradient the user
  *   is happy to see behind Start's tiles but not behind the feed's text.
+ * @property hideStatusBar hides the Android system status bar (clock/battery/
+ *   signal strip) at the top of the screen while TileShell is in the
+ *   foreground, like several other launchers offer. The bar can still be
+ *   pulled down temporarily with a swipe from the top edge. Default off.
  */
 data class LauncherSettings(
     val followSystemTheme: Boolean = true,
@@ -159,6 +163,7 @@ data class LauncherSettings(
     val userName: String = "",
     val liveTilesEnabled: Boolean = true,
     val feedNoBackground: Boolean = false,
+    val hideStatusBar: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_COLUMNS = 4
@@ -217,7 +222,8 @@ object SettingsCodec {
         append("deviceStatusCard=").append(settings.deviceStatusCardEnabled).append('\n')
         append("userName=").append(settings.userName).append('\n')
         append("liveTiles=").append(settings.liveTilesEnabled).append('\n')
-        append("feedNoBg=").append(settings.feedNoBackground)
+        append("feedNoBg=").append(settings.feedNoBackground).append('\n')
+        append("hideStatusBar=").append(settings.hideStatusBar)
     }
 
     fun decode(text: String): LauncherSettings {
@@ -258,6 +264,7 @@ object SettingsCodec {
         var userName = d.userName
         var liveTilesEnabled = d.liveTilesEnabled
         var feedNoBackground = d.feedNoBackground
+        var hideStatusBar = d.hideStatusBar
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
             if (sep <= 0) return@forEach
@@ -313,6 +320,7 @@ object SettingsCodec {
                 "userName" -> userName = value
                 "liveTiles" -> liveTilesEnabled = value.toBooleanStrictOrNull() ?: liveTilesEnabled
                 "feedNoBg" -> feedNoBackground = value.toBooleanStrictOrNull() ?: feedNoBackground
+                "hideStatusBar" -> hideStatusBar = value.toBooleanStrictOrNull() ?: hideStatusBar
             }
         }
         return LauncherSettings(
@@ -352,6 +360,7 @@ object SettingsCodec {
             userName = userName,
             liveTilesEnabled = liveTilesEnabled,
             feedNoBackground = feedNoBackground,
+            hideStatusBar = hideStatusBar,
         )
     }
 }
