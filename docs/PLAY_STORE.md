@@ -144,6 +144,46 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
+## Release notes (v2.4.0)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 2.4.0
+
+• New: Quick Panel rebuilt as square WP-style tiles, real toggle states
+• New: swipe up from a screen edge also opens the Quick Panel
+• New: swipe down from a screen edge opens notifications/quick settings
+• New: occasional "enjoying tileshell?" rating prompt
+• New: personalize is now a normal Start tile, not a corner icon
+• Fixed: bluetooth tile now shows its real on/off state
+• Fixed: Quick Panel now docks correctly in landscape mode
+```
+
+*(Character count 456, under Play's 500 limit.)*
+
+### Full changelog since v2.3.1 (for reference — not the Play-facing blurb above)
+
+- **Quick Panel rebuilt as a true WP Action Center**: one 5-column grid of perfect square tiles
+  (was wide chip/slider rows) — toggles for wifi, bluetooth, location, airplane, flashlight,
+  rotation lock, dnd; tap-to-step brightness/media-volume/ring-volume/screen-timeout
+  (0/10/20/40/60/80/100%, no drag sliders); one tap-to-cycle dark/light/auto theme tile;
+  "personalize", "android settings" (real device icon), and "lock screen" shortcut tiles.
+- **Settings affordance moved onto Start**: the floating corner settings-gear icon is gone —
+  personalize now opens via a normal, draggable/resizable/unpinnable Start tile, pinnable back
+  from the App List if accidentally removed. The real Android Settings app keeps its own
+  existing Start tile (now showing its real device icon) and is unhidden from the App List again.
+- **Fixed**: the bluetooth toggle never showed real on/off state (hardcoded off); the Quick Panel
+  spanned the full screen width and overlapped tiles in landscape instead of docking beside Start.
+- **Tile order refined** across several rounds of on-device feedback: connectivity toggles
+  grouped first, location moved third, dnd moved down the list, rotation lock placed next to
+  brightness, media volume moved to the row's right edge.
+- **New gestures**: single-finger swipe up from either screen edge opens the Quick Panel
+  (alongside the existing two-finger swipe); single-finger swipe down from the left/right screen
+  edge opens system notifications/quick settings respectively.
+- **New**: an occasional, day-interval-gated "enjoying tileshell?" prompt using Play's native
+  in-app review flow, with an email-feedback fallback for "not really."
+
 ## Release notes (v2.3.1)
 
 *"What's new" — newest release first. Keep under Play's 500-character limit.

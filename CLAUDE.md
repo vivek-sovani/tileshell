@@ -36,6 +36,11 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **v2.4.0 (versionCode 240) — release cut.** Rolls up every Post-v2.3.1 change below (Quick
+  Panel square-tile redesign + all its on-device refinement rounds, the personalize/settings-
+  tile reorganization, the rating prompt, and the new edge-swipe gestures) into a signed release.
+  Signed release APK + AAB built and verified (`apksigner verify`, real release keystore, not the
+  debug fallback); release notes added to `docs/PLAY_STORE.md`. Build + tests green.
 - **Post-v2.3.1 — Quick Panel: media volume moved to extreme right of row two.** Direct
   follow-up, user-requested: row two's media volume tile is now added last (after ring volume),
   so it sits at the row's extreme right. New row two: `brightness, rotation lock, screen timeout,

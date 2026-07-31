@@ -238,8 +238,28 @@ android {
         //   at full resolution just to render a 64x104dp row thumbnail — the only
         //   BitmapFactory call site in the app that had skipped the inJustDecodeBounds ->
         //   inSampleSize downsampling pattern every other call site already used.
-        versionCode = 231
-        versionName = "2.3.1"
+        // v2.4.0 (code 240): Quick Panel rebuilt as a true WP Action Center — one 5-column
+        //   grid of perfect square tiles (was wide chip/slider rows): toggles for wifi,
+        //   bluetooth (now with real live accent state via Settings.Global.BLUETOOTH_ON,
+        //   not hardcoded off), location, airplane, flashlight, rotation lock, dnd;
+        //   tap-to-step brightness/media-volume/ring-volume/screen-timeout (0/10/20/40/
+        //   60/80/100%, no more drag sliders); one tap-to-cycle dark/light/auto theme
+        //   tile; "personalize", "android settings" (real device icon), and "lock screen"
+        //   shortcut tiles. The floating corner settings-gear icon on Start is gone —
+        //   personalize now opens via a normal, draggable/resizable/unpinnable Start tile;
+        //   the real Android Settings app is reachable from its own existing Start tile
+        //   (now showing its real device icon) and is unhidden from the App List again.
+        //   Docks to the right half above Start in landscape, like every other sheet
+        //   (was spanning the full width and overlapping tiles). Tile order iterated
+        //   live on-device across several rounds (connectivity-first grouping, location
+        //   third, dnd moved down, rotation lock next to brightness, media volume at the
+        //   row's right edge). Also new this version: single-finger swipe up from either
+        //   screen edge opens the Quick Panel (alongside the existing two-finger swipe);
+        //   single-finger swipe down from the left/right screen edge opens system
+        //   notifications/quick settings; a day-interval-gated "enjoying tileshell?"
+        //   rating prompt using Play's native in-app review flow.
+        versionCode = 240
+        versionName = "2.4.0"
     }
 
     if (keystoreFile.exists()) {
