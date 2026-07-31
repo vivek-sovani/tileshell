@@ -605,11 +605,6 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setFeedEnabled(enabled) }
     }
 
-    /** Toggle the feed page glance tab's read-only device status card. */
-    fun setDeviceStatusCardEnabled(enabled: Boolean) {
-        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setDeviceStatusCardEnabled(enabled) }
-    }
-
     /** Set the name shown in the feed's "good morning, `<name>`" greeting. */
     fun setUserName(name: String) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setUserName(name) }

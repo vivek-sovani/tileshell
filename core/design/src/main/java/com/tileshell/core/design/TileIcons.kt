@@ -372,6 +372,14 @@ object TileIcons {
             p(circle(12.0, 19.5, 0.6)),
         ))
 
+        // Cellular signal — four ascending bars, bottom-aligned (quick panel header status row).
+        put("cellular", vector("cellular",
+            p(rect(3.0, 16.0, 3.0, 4.0)),
+            p(rect(8.0, 12.0, 3.0, 8.0)),
+            p(rect(13.0, 8.0, 3.0, 12.0)),
+            p(rect(18.0, 4.0, 3.0, 16.0)),
+        ))
+
         put("bluetooth", vector("bluetooth",
             p(line(12.0, 4.0, 12.0, 20.0)),
             p("M12 4l5 4-5 4 5 4-5 4"),

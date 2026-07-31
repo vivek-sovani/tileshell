@@ -19,13 +19,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -150,8 +150,6 @@ fun PersonalizeSheet(
     onTiledWallpaperChange: (Boolean) -> Unit,
     feedEnabled: Boolean,
     onFeedEnabledChange: (Boolean) -> Unit,
-    deviceStatusCardEnabled: Boolean,
-    onDeviceStatusCardEnabledChange: (Boolean) -> Unit,
     feedNoBackground: Boolean,
     onFeedNoBackgroundChange: (Boolean) -> Unit,
     userName: String,
@@ -294,8 +292,7 @@ fun PersonalizeSheet(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .fillMaxHeight(0.86f)
+                .fillMaxSize()
                 .graphicsLayer { translationY = size.height * (1f - progress) }
                 .background(tokens.sheet)
                 // Swallow taps so they don't fall through to the scrim.
@@ -304,6 +301,7 @@ fun PersonalizeSheet(
                     indication = null,
                     onClick = {},
                 )
+                .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .navigationBarsPadding()
                 .padding(bottom = 24.dp),
@@ -1085,13 +1083,6 @@ fun PersonalizeSheet(
             SettingGroup(label = "feed & glance", tokens.fgDim) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     ToggleRow("show feed page", on = feedEnabled, accent = accent, tokens, onFeedEnabledChange)
-                    ToggleRow(
-                        "show device status card",
-                        on = deviceStatusCardEnabled,
-                        accent = accent,
-                        tokens,
-                        onDeviceStatusCardEnabledChange,
-                    )
                     ToggleRow(
                         "no background",
                         on = feedNoBackground,

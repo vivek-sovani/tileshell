@@ -59,11 +59,13 @@ import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.colorTokens
+import com.tileshell.feature.livetiles.Connectivity
 import com.tileshell.feature.livetiles.nextScreenTimeoutPreset
 import com.tileshell.feature.livetiles.openWriteSettingsAccess
 import com.tileshell.feature.livetiles.rememberAirplaneModeOn
 import com.tileshell.feature.livetiles.rememberBatterySaverOn
 import com.tileshell.feature.livetiles.rememberBluetoothOn
+import com.tileshell.feature.livetiles.rememberDeviceStatus
 import com.tileshell.feature.livetiles.rememberDndAccessGranted
 import com.tileshell.feature.livetiles.rememberDndOn
 import com.tileshell.feature.livetiles.rememberLocationEnabled
@@ -296,12 +298,16 @@ fun QuickPanelOverlay(
 }
 
 /**
- * Panel header: live clock + date on the left, and compact circular icon
- * buttons for personalize / android settings / lock screen on the right —
- * mirroring a real device's quick settings panel header (clock/date left,
- * edit/power/settings icons right), per explicit user request. These three
- * shortcuts used to be square tiles in the grid below; they moved up here
- * instead so the grid holds only genuine device controls.
+ * Panel header: live clock + date on the left with a small read-only status
+ * row (wifi/bluetooth/cellular/battery) on the right of that same top line —
+ * standing in for the real status bar this app can hide — and a second row
+ * below it for the personalize / android settings / lock screen icon buttons.
+ * Mirrors a real device's quick settings panel header (clock/date + status
+ * icons on top, action icons below), per explicit user request. The status
+ * icons and the three shortcuts both used to live elsewhere (the status
+ * row on the feed page's device-status card, the shortcuts as square tiles
+ * in the grid below) — moved up here instead, freeing the grid for genuine
+ * device controls and giving the hidden status bar a replacement.
  */
 @Composable
 private fun QuickPanelHeader(
@@ -321,21 +327,54 @@ private fun QuickPanelHeader(
         }
     }
 
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(text = feedClock12(now), color = tokens.fg, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-            Text(
-                text = quickPanelHeaderDate(now),
-                color = tokens.fgDim,
-                fontSize = 14.sp,
-                modifier = Modifier.padding(bottom = 1.dp),
-            )
+    val status = rememberDeviceStatus()
+    val bluetoothOn = rememberBluetoothOn()
+
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(text = feedClock12(now), color = tokens.fg, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = quickPanelHeaderDate(now),
+                    color = tokens.fgDim,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(bottom = 1.dp),
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(
+                    TileIcons["wifi"], contentDescription = "wi-fi",
+                    tint = if (status.connectivity == Connectivity.WIFI) tokens.fg else tokens.fgDim,
+                    modifier = Modifier.size(16.dp),
+                )
+                Icon(
+                    TileIcons["bluetooth"], contentDescription = "bluetooth",
+                    tint = if (bluetoothOn) tokens.fg else tokens.fgDim,
+                    modifier = Modifier.size(16.dp),
+                )
+                Icon(
+                    TileIcons["cellular"], contentDescription = "cellular",
+                    tint = if (status.connectivity == Connectivity.CELLULAR) tokens.fg else tokens.fgDim,
+                    modifier = Modifier.size(16.dp),
+                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Icon(TileIcons["battery"], contentDescription = "battery", tint = tokens.fg, modifier = Modifier.size(16.dp))
+                    Text(
+                        text = status.batteryPercent?.let { "$it%" } ?: "—",
+                        color = tokens.fg,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+        ) {
             QuickPanelHeaderIcon(icon = "settings", description = "personalize", tokens = tokens, onClick = onOpenPersonalize)
             QuickPanelHeaderIcon(
                 icon = "settings",

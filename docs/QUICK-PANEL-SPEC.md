@@ -5,6 +5,20 @@ Supersedes the "quick toggle tile" framing in
 `docs/NO-EXTRA-PERMISSION-FEATURES.md` — this document is the authoritative
 design for that feature once scheduled as a `SESSION-PLAN.md` item.
 
+> **Amended by later sessions** — the gesture directions below (§2: two-finger
+> swipe-**up** for the panel, swipe-**down** for quick search) were swapped
+> per explicit user request: the panel is now two-finger swipe-**down**
+> (docking to and sliding down from the **top**, not the bottom), and quick
+> search is now two-finger swipe-**up** (sliding up from the bottom, search
+> box pinned at the bottom of the screen). The panel's tile grid also dropped
+> from 5 to 4 columns and brightness/volume are real sliders again, not
+> tap-to-step tiles. §5's glance status card is gone entirely — battery/wifi/
+> bluetooth/cellular moved into the Quick Panel's own header (replacing the
+> personalize/settings/lock icons, which moved to a second header row below),
+> and storage/alarm were dropped rather than left stranded on the glance page.
+> See `docs/DECISIONS.md` for the full trail — this file is
+> kept as the original design rationale, not a live spec.
+
 ## 1. Problem
 
 Android reserves single-finger swipe-down starting at/near the status bar

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -92,8 +93,7 @@ fun PersonalizeGuideSheet(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .fillMaxHeight(0.92f)
+                .fillMaxSize()
                 .graphicsLayer { translationY = size.height * (1f - progress) }
                 .background(tokens.sheet)
                 .clickable(
@@ -101,6 +101,7 @@ fun PersonalizeGuideSheet(
                     indication = null,
                     onClick = {},
                 )
+                .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .navigationBarsPadding()
                 .padding(bottom = 32.dp),
@@ -249,7 +250,7 @@ fun PersonalizeGuideSheet(
                 tokens = tokens,
                 visual = { QuickPanelVisual(accent, tokens) },
                 items = listOf(
-                    "swipe up with two fingers anywhere on start to open the quick panel — or swipe up with one finger from the left or right screen edge",
+                    "swipe down with two fingers anywhere on start to open the quick panel — or swipe down from the right screen edge with one finger",
                     "docks to and slides down from the top of the screen, like a real device's quick settings panel",
                     "clock and date sit in the panel's own header, top-left",
                     "true square tiles, four across, just like windows phone's action center",
@@ -270,7 +271,7 @@ fun PersonalizeGuideSheet(
                 items = listOf(
                     "swipe down from start's left screen edge to pull down the system notification shade",
                     "swipe down from start's right screen edge to open this app's own quick panel",
-                    "swipe up from either screen edge to open the quick panel",
+                    "swipe up from either screen edge to open quick search",
                     "the swipe can start at any height along the edge, not just the very top",
                     "first use asks you to enable tileshell's accessibility service — the same one screen lock uses, a one-time step",
                 ),

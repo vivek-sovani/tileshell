@@ -4126,3 +4126,53 @@ quick-panel guide entries and `QuickPanelVisual`'s mockup illustration (square "
 slider-bar mockup, undoing that same swap from an earlier session) updated to match. Build + tests
 green; verified live on an emulator (4-column grid, all three sliders respond to drag, handle-drag
 dismiss works).
+
+## Quick panel / quick search gestures swapped; sheets go full-screen
+
+Direct follow-up user request: the Quick Panel and quick search's two-finger gestures were swapped —
+Quick Panel is now two-finger swipe-**down** (was up), quick search is now two-finger swipe-**up**
+(was down). Implemented by swapping the *direction check* inside `isQuickSearchSwipe`/
+`isQuickPanelSwipe` (`QuickSearchGesture.kt`/`QuickPanelGesture.kt`) while keeping each function
+named after the feature it triggers — so `StartScreen.kt`'s gesture blocks needed no changes beyond
+updated comments. The single-finger edge-swipe-up gesture (an alternate path to whichever the
+two-finger up gesture opened) was flipped too, from Quick Panel to quick search, to stay consistent
+with its two-finger sibling — edge-swipe-down is unchanged (left → system notifications, right →
+Quick Panel). `QuickSearchOverlay.kt` now slides up from the bottom (`translationY` sign flipped)
+with its search box moved to the **bottom** of the screen (closer to the thumb, since that's where
+the opening swipe came from) and results filling the space above it, instead of sliding down from
+the top with the search box at the top. Tests, doc comments, and the Personalize guide/about sheets'
+gesture descriptions updated throughout; `docs/QUICK-PANEL-SPEC.md` gained an amendment note rather
+than a rewrite, since it's a historical design doc.
+
+Also, per explicit request, **Personalize, "how to personalize" (guide), and "features & info"
+(about) now render full-screen** instead of bottom sheets capped at 86–92% height with a dimmed gap
+above them — `fillMaxHeight(0.86f)`/`fillMaxHeight(0.92f)` → `fillMaxSize()`, plus a new
+`.statusBarsPadding()` so their grip handle clears the status bar/cutout at the very top. Every
+other sub-sheet (backup, folders, news region, hidden apps, edge strip, permissions) was left as a
+capped bottom sheet — not mentioned, not changed. Build + tests green.
+
+## Quick Panel header gains a status row; device status card removed from glance entirely
+
+Direct follow-up, in stages: first, battery/wifi/cellular readouts moved from the glance page's
+device-status card into a new status row on the right of the Quick Panel header's top line (next to
+the personalize/settings/lock icons, which moved to their own row below it) — reusing the existing
+`rememberDeviceStatus()`/`Connectivity`/`rememberBluetoothOn()` data with **no new permission**.
+Considered showing real per-SIM cellular signal (`SubscriptionManager`/`TelephonyManager`) but
+`READ_PHONE_STATE` sits in Android's restricted "Phone" permission group, which Play generally only
+approves for default dialer/messaging/call-screening/VOIP apps — a launcher's cosmetic signal readout
+isn't a listed qualifying use case, so it was likely to draw the same kind of Play rejection this
+project already hit once over Accessibility API disclosure. Went with a single-indicator design
+instead: a new hand-drawn monoline `"cellular"` glyph (`TileIcons.kt`, four ascending outline bars,
+matching every other icon's stroke-only style) tinted active only when `Connectivity.CELLULAR` is
+the current transport — same simple on/off treatment as the wifi icon, no per-SIM breakdown,
+zero new permissions. Bluetooth was added to the same row per explicit follow-up request, reusing the
+toggle tile's own `rememberBluetoothOn()`.
+
+Then, a final follow-up removed the device-status card from the glance page **entirely** — including
+the storage/alarm stats that had been left behind after battery/wifi/cellular moved out — rather than
+leave a half-empty card there. `DeviceStatusCard`/`DeviceStatusStat` (`FeedPage.kt`) and the whole
+`deviceStatusCardEnabled` setting (`LauncherSettings`/`SettingsCodec`/`SettingsRepository`/
+`StartViewModel`/the Personalize toggle row) are deleted outright — dead code once the card that
+setting gated no longer exists. `rememberDeviceStatus()`/`Connectivity` themselves stay in
+`:feature:livetiles`, still needed by the Quick Panel header. Build + tests green; verified live on
+an emulator (status row renders correctly, glance page goes straight from widgets to news).

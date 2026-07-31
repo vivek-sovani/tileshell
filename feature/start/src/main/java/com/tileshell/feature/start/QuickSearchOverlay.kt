@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -91,12 +92,17 @@ private const val RESULT_LIMIT = 5
 private const val QUERY_DEBOUNCE_MS = 150L
 
 /**
- * Quick search: a two-finger swipe-down on Start opens this, showing apps,
+ * Quick search: a two-finger swipe-up on Start opens this, showing apps,
  * contacts, and a web-search fallback as the user types — the launcher-native
  * equivalent of a search button, reachable without a dedicated tile. Slides
- * down from the top edge (matching the gesture that opens it) rather than the
- * bottom-up sheets used elsewhere. Before anything is typed it instead shows
- * recent searches and frequently-launched apps.
+ * up from the bottom edge (matching the upward gesture that opens it, and the
+ * bottom-up sheets used elsewhere), with the search box itself pinned to the
+ * bottom of the screen — closer to the thumb, since that's where the swipe
+ * that opened it came from — and results filling the space above it. Before
+ * anything is typed it instead shows recent searches and frequently-launched
+ * apps. (Was swipe-down with the search box at the top; swapped with the
+ * quick panel's gesture/animation per explicit user request — the quick panel
+ * now owns swipe-down/slide-from-top instead.)
  */
 @Composable
 fun QuickSearchOverlay(
@@ -183,19 +189,116 @@ fun QuickSearchOverlay(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer { translationY = -size.height * (1f - progress) }
+                .graphicsLayer { translationY = size.height * (1f - progress) }
                 .background(tokens.sheet)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = {},
-                )
-                .statusBarsPadding()
-                .padding(top = 8.dp),
+                ),
         ) {
+            Box(modifier = Modifier.weight(1f).statusBarsPadding()) {
+                if (trimmed.isEmpty()) {
+                    val recentSearches by RecentSearches.recent(context).collectAsStateWithLifecycle(initialValue = emptyList())
+                    val recentAppKeys by RecentApps.recent(context).collectAsStateWithLifecycle(initialValue = emptyList())
+                    val suggestedApps = remember(apps, recentAppKeys) {
+                        AppListFilter.topApps(apps, recentAppKeys, System.currentTimeMillis()).take(RESULT_LIMIT)
+                    }
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        if (recentSearches.isNotEmpty()) {
+                            item { SearchSectionHeader("recent searches", accent) }
+                            items(recentSearches, key = { "recent-search/$it" }) { q ->
+                                RecentSearchRow(
+                                    query = q,
+                                    tokens = tokens,
+                                    onTap = { query = q },
+                                    onRemove = { RecentSearches.remove(context, q) },
+                                )
+                            }
+                        }
+                        if (suggestedApps.isNotEmpty()) {
+                            item { SearchSectionHeader("suggested", accent) }
+                            items(suggestedApps, key = { "suggested/${it.key}" }) { app ->
+                                AppResultRow(app, tokens) {
+                                    AppLauncher.launch(context, app.packageName, app.activityName)
+                                    dismiss()
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        if (appMatches.isNotEmpty()) {
+                            item { SearchSectionHeader("apps", accent) }
+                            items(appMatches, key = { "app/${it.key}" }) { app ->
+                                AppResultRow(app, tokens) {
+                                    act { AppLauncher.launch(context, app.packageName, app.activityName) }
+                                }
+                            }
+                        }
+                        if (contactsGranted) {
+                            if (contactMatches.isNotEmpty()) {
+                                item { SearchSectionHeader("contacts", accent) }
+                                items(contactMatches, key = { "contact/${it.contactId}" }) { person ->
+                                    ContactResultRow(
+                                        person = person,
+                                        tokens = tokens,
+                                        onOpenCard = {
+                                            act {
+                                                val uri = contactLookupUri(person.contactId, person.lookupKey)
+                                                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+                                            }
+                                        },
+                                        onCall = { number -> act { callContact(context, number) } },
+                                        onMessage = { number -> act { messageContact(context, number) } },
+                                        onPin = { act { onPinContact(person.contactId, person.lookupKey, person.name) } },
+                                    )
+                                }
+                            }
+                        } else {
+                            item { RequestRow(tokens, "allow contacts access to search contacts", onRequestContacts) }
+                        }
+                        item { SearchSectionHeader("search", accent) }
+                        item {
+                            ServicePillRow(tokens) {
+                                SEARCH_ENGINES.forEach { engine ->
+                                    ServicePill(
+                                        label = engine.label,
+                                        packageName = engine.packageName,
+                                        domain = engine.domain,
+                                        accent = accent,
+                                        tokens = tokens,
+                                        onClick = { act { launchSearchEngine(context, engine, trimmed) } },
+                                    )
+                                }
+                            }
+                        }
+                        item { SearchSectionHeader("ask ai", accent) }
+                        item {
+                            ServicePillRow(tokens) {
+                                AI_ASSISTANTS.forEach { assistant ->
+                                    ServicePill(
+                                        label = assistant.label,
+                                        packageName = assistant.packageName,
+                                        domain = assistant.domain,
+                                        accent = accent,
+                                        tokens = tokens,
+                                        onClick = { act { launchAiAssistant(context, assistant.packageName, trimmed) } },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Search box pinned to the bottom edge — closer to the thumb, since
+            // this overlay now opens with an upward swipe from there (was at
+            // the top, per the pre-swap swipe-down/slide-from-top design).
             Row(
                 modifier = Modifier
                     .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .navigationBarsPadding()
                     .fillMaxWidth()
                     .height(44.dp)
                     .background(tokens.chip, shape = RoundedCornerShape(4.dp))
@@ -226,99 +329,6 @@ fun QuickSearchOverlay(
                         TileIcons["close"], null, tint = tokens.fgDim,
                         modifier = Modifier.size(18.dp).clickable { query = "" },
                     )
-                }
-            }
-
-            if (trimmed.isEmpty()) {
-                val recentSearches by RecentSearches.recent(context).collectAsStateWithLifecycle(initialValue = emptyList())
-                val recentAppKeys by RecentApps.recent(context).collectAsStateWithLifecycle(initialValue = emptyList())
-                val suggestedApps = remember(apps, recentAppKeys) {
-                    AppListFilter.topApps(apps, recentAppKeys, System.currentTimeMillis()).take(RESULT_LIMIT)
-                }
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    if (recentSearches.isNotEmpty()) {
-                        item { SearchSectionHeader("recent searches", accent) }
-                        items(recentSearches, key = { "recent-search/$it" }) { q ->
-                            RecentSearchRow(
-                                query = q,
-                                tokens = tokens,
-                                onTap = { query = q },
-                                onRemove = { RecentSearches.remove(context, q) },
-                            )
-                        }
-                    }
-                    if (suggestedApps.isNotEmpty()) {
-                        item { SearchSectionHeader("suggested", accent) }
-                        items(suggestedApps, key = { "suggested/${it.key}" }) { app ->
-                            AppResultRow(app, tokens) {
-                                AppLauncher.launch(context, app.packageName, app.activityName)
-                                dismiss()
-                            }
-                        }
-                    }
-                }
-            } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    if (appMatches.isNotEmpty()) {
-                        item { SearchSectionHeader("apps", accent) }
-                        items(appMatches, key = { "app/${it.key}" }) { app ->
-                            AppResultRow(app, tokens) {
-                                act { AppLauncher.launch(context, app.packageName, app.activityName) }
-                            }
-                        }
-                    }
-                    if (contactsGranted) {
-                        if (contactMatches.isNotEmpty()) {
-                            item { SearchSectionHeader("contacts", accent) }
-                            items(contactMatches, key = { "contact/${it.contactId}" }) { person ->
-                                ContactResultRow(
-                                    person = person,
-                                    tokens = tokens,
-                                    onOpenCard = {
-                                        act {
-                                            val uri = contactLookupUri(person.contactId, person.lookupKey)
-                                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
-                                        }
-                                    },
-                                    onCall = { number -> act { callContact(context, number) } },
-                                    onMessage = { number -> act { messageContact(context, number) } },
-                                    onPin = { act { onPinContact(person.contactId, person.lookupKey, person.name) } },
-                                )
-                            }
-                        }
-                    } else {
-                        item { RequestRow(tokens, "allow contacts access to search contacts", onRequestContacts) }
-                    }
-                    item { SearchSectionHeader("search", accent) }
-                    item {
-                        ServicePillRow(tokens) {
-                            SEARCH_ENGINES.forEach { engine ->
-                                ServicePill(
-                                    label = engine.label,
-                                    packageName = engine.packageName,
-                                    domain = engine.domain,
-                                    accent = accent,
-                                    tokens = tokens,
-                                    onClick = { act { launchSearchEngine(context, engine, trimmed) } },
-                                )
-                            }
-                        }
-                    }
-                    item { SearchSectionHeader("ask ai", accent) }
-                    item {
-                        ServicePillRow(tokens) {
-                            AI_ASSISTANTS.forEach { assistant ->
-                                ServicePill(
-                                    label = assistant.label,
-                                    packageName = assistant.packageName,
-                                    domain = assistant.domain,
-                                    accent = accent,
-                                    tokens = tokens,
-                                    onClick = { act { launchAiAssistant(context, assistant.packageName, trimmed) } },
-                                )
-                            }
-                        }
-                    }
                 }
             }
         }

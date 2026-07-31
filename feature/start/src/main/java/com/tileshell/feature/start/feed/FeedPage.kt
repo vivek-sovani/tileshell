@@ -82,8 +82,6 @@ import com.tileshell.feature.start.dominantIconColor
 import com.tileshell.feature.start.rememberChosenWallpaperIsLight
 import com.tileshell.feature.start.rememberWallpaperBitmap
 import com.tileshell.feature.livetiles.CalendarFace
-import com.tileshell.feature.livetiles.Connectivity
-import com.tileshell.feature.livetiles.rememberDeviceStatus
 import com.tileshell.feature.livetiles.FeedArticle
 import com.tileshell.feature.livetiles.FeedData
 import com.tileshell.feature.livetiles.FeedRefreshWorker
@@ -147,7 +145,6 @@ fun FeedPage(
     onOpenArticle: (String) -> Unit,
     onRefresh: () -> Unit,
     active: Boolean,
-    deviceStatusCardEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val tokens = LocalColorTokens.current
@@ -316,11 +313,6 @@ fun FeedPage(
             }
 
             WidgetSection(accent = feedAccent, tokens = tokens, labelColor = feedFgDim)
-
-            if (deviceStatusCardEnabled) {
-                SectionLabel("device status", feedFgDim)
-                DeviceStatusCard(tokens = tokens)
-            }
 
             NewsHeader(
                 accent = feedAccent,
@@ -732,62 +724,6 @@ private fun WeatherCard(
                 modifier = Modifier.padding(top = 6.dp),
             )
         }
-    }
-}
-
-/**
- * Read-only device status (battery, free storage, connectivity, next alarm) —
- * the quick panel's counterpart for pure info with no toggle, per the user's
- * steer that "view only in glance looks fine" (see docs/QUICK-PANEL-SPEC.md §5).
- * A plain neutral card, not accent-filled, since there's no "your data" here.
- */
-@Composable
-private fun DeviceStatusCard(tokens: com.tileshell.core.design.ColorTokens) {
-    val status = rememberDeviceStatus()
-    GCard(tokens) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                DeviceStatusStat(
-                    icon = "battery",
-                    text = status.batteryPercent?.let { "$it%" } ?: "—",
-                    tokens = tokens,
-                )
-                DeviceStatusStat(
-                    icon = "files",
-                    text = status.storageFreeGb?.let { "${it.toInt()} gb free" } ?: "—",
-                    tokens = tokens,
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                DeviceStatusStat(
-                    icon = "wifi",
-                    text = when (status.connectivity) {
-                        Connectivity.WIFI -> "wi-fi"
-                        Connectivity.CELLULAR -> "cellular"
-                        Connectivity.NONE -> "offline"
-                    },
-                    tokens = tokens,
-                )
-                DeviceStatusStat(
-                    icon = "alarm",
-                    text = status.nextAlarmMillis?.let { millis ->
-                        val cal = Calendar.getInstance().apply { timeInMillis = millis }
-                        feedClock12(cal)
-                    } ?: "no alarm set",
-                    tokens = tokens,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun DeviceStatusStat(icon: String, text: String, tokens: com.tileshell.core.design.ColorTokens) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(TileIcons[icon], null, tint = tokens.fgDim, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(text, color = tokens.fg, fontSize = 14.sp)
     }
 }
 

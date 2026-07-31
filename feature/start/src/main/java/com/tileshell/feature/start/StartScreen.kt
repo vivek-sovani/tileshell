@@ -667,11 +667,13 @@ fun StartScreen(
         }
     }
 
-    // Two-finger swipe-up opens the quick panel (Wi-Fi/Bluetooth/flashlight/DND/
-    // airplane/location chips + volume sliders — see docs/QUICK-PANEL-SPEC.md).
-    // Identical shape to quickSearchGesture with the vertical sign flipped —
-    // "up" vs. quick search's "down" means the two gestures can never both
-    // fire for the same swipe.
+    // Two-finger swipe-down opens the quick panel (Wi-Fi/Bluetooth/flashlight/
+    // DND/airplane/location chips + volume sliders — see
+    // docs/QUICK-PANEL-SPEC.md). Identical shape to quickSearchGesture with the
+    // vertical sign flipped — "down" vs. quick search's "up" means the two
+    // gestures can never both fire for the same swipe. (Swapped directions
+    // from the original down=search/up=panel mapping per explicit user
+    // request — see isQuickPanelSwipe's doc for why.)
     val quickPanelGesture = Modifier.pointerInput(quickPanelEnabled) {
         if (!quickPanelEnabled) return@pointerInput
         val thresholdPx = 40.dp.toPx()
@@ -712,10 +714,13 @@ fun StartScreen(
     // swipe-down for notifications/quick settings". Down-right opens this
     // app's own Quick Panel instead of the system's quick settings (changed
     // per explicit user request — the system quick-settings action read as
-    // confusing next to this app's own Quick Panel). Up from *either* edge
-    // also opens the in-app Quick Panel — an additional, easier-to-discover
-    // path alongside the existing two-finger swipe-up gesture (quickPanelGesture
-    // above), per explicit user request.
+    // confusing next to this app's own Quick Panel) — matching the two-finger
+    // swipe-down gesture below, which also opens the Quick Panel. Up from
+    // *either* edge opens quick search instead — an additional, easier-to-
+    // discover path alongside the two-finger swipe-up gesture (quickSearchGesture
+    // above), kept in sync with it after that gesture's direction swapped from
+    // down to up per explicit user request (it used to mirror the Quick Panel
+    // up-gesture; now it mirrors quick search's).
     // Same enable-gating as the two-finger gestures, and the same "don't
     // consume until triggered" shape, but keyed on which physical edge the
     // touch started in rather than pointer count — so it never steals an
@@ -748,7 +753,7 @@ fun StartScreen(
                         }
                     } else if (isEdgeSwipeUp(dy, dx, thresholdPx)) {
                         triggered = true
-                        viewModel.openQuickPanel()
+                        viewModel.openSearch()
                     }
                 }
                 if (triggered) event.changes.forEach { it.consume() }
@@ -1011,7 +1016,6 @@ fun StartScreen(
                     Toast.makeText(context, "refreshing news", Toast.LENGTH_SHORT).show()
                 },
                 active = active,
-                deviceStatusCardEnabled = settings.deviceStatusCardEnabled,
             )
         }
 
@@ -1200,8 +1204,6 @@ fun StartScreen(
             onTiledWallpaperChange = viewModel::setTiledWallpaper,
             feedEnabled = settings.feedEnabled,
             onFeedEnabledChange = viewModel::setFeedEnabled,
-            deviceStatusCardEnabled = settings.deviceStatusCardEnabled,
-            onDeviceStatusCardEnabledChange = viewModel::setDeviceStatusCardEnabled,
             feedNoBackground = settings.feedNoBackground,
             onFeedNoBackgroundChange = viewModel::setFeedNoBackground,
             userName = settings.userName,

@@ -28,11 +28,11 @@ internal fun isEdgeSwipeDown(dy: Float, dx: Float, thresholdPx: Float): Boolean 
 
 /**
  * The upward sibling of [isEdgeSwipeDown] — a single-finger swipe up starting
- * at either screen edge opens the in-app Quick Panel, an additional/easier-to-
- * discover path alongside the existing two-finger swipe-up gesture
- * ([isQuickPanelSwipe]). Left and right edges trigger the same action here
- * (unlike the down-swipe, which differs by edge), so callers don't need to
- * distinguish [EdgeZone.LEFT] from [EdgeZone.RIGHT] for this direction.
+ * at either screen edge opens quick search, an additional/easier-to-discover
+ * path alongside the two-finger swipe-up gesture ([isQuickSearchSwipe]). Left
+ * and right edges trigger the same action here (unlike the down-swipe, which
+ * differs by edge), so callers don't need to distinguish [EdgeZone.LEFT] from
+ * [EdgeZone.RIGHT] for this direction.
  */
 internal fun isEdgeSwipeUp(dy: Float, dx: Float, thresholdPx: Float): Boolean =
     dy < -thresholdPx && abs(dy) > abs(dx)

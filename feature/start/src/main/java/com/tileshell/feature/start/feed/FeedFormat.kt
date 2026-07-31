@@ -49,8 +49,8 @@ private fun clock12Digits(calendar: Calendar): String {
 
 /**
  * 12-hour `h:mm am/pm` form (lowercase suffix to match the launcher's lowercase
- * styling) — used wherever the am/pm distinction actually matters, e.g. an
- * alarm time on the device status card.
+ * styling) — used wherever the am/pm distinction actually matters, e.g. the
+ * Quick Panel header's live clock.
  */
 fun feedClock12(calendar: Calendar): String {
     val hour24 = calendar.get(Calendar.HOUR_OF_DAY)

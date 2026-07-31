@@ -12,13 +12,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -83,8 +83,7 @@ fun AboutSheet(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .fillMaxHeight(0.92f)
+                .fillMaxSize()
                 .graphicsLayer { translationY = size.height * (1f - progress) }
                 .background(tokens.sheet)
                 .clickable(
@@ -92,6 +91,7 @@ fun AboutSheet(
                     indication = null,
                     onClick = {},
                 )
+                .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .navigationBarsPadding()
                 .padding(bottom = 32.dp),
@@ -179,7 +179,8 @@ fun AboutSheet(
                 accent = accent,
                 tokens = tokens,
                 items = listOf(
-                    "swipe down with two fingers on start to open quick search",
+                    "swipe up with two fingers on start to open quick search — or swipe up from either screen edge with one finger",
+                    "slides up from the bottom, search box at the bottom of the screen — closer to your thumb",
                     "search apps, contacts, and the web from one box",
                     "before you type: jump back into a recent search or a frequently-used app",
                     "tap a contact to open their contact card",
@@ -196,7 +197,7 @@ fun AboutSheet(
                 accent = accent,
                 tokens = tokens,
                 items = listOf(
-                    "swipe up with two fingers on start to open the quick panel — or swipe up with one finger from the left or right screen edge",
+                    "swipe down with two fingers on start to open the quick panel — or swipe down from the right screen edge with one finger",
                     "docks to and slides down from the top of the screen, like a real device's quick settings panel",
                     "clock and date in the panel's own header, top-left",
                     "a grid of true square tiles, four across, just like windows phone's action center",
@@ -216,7 +217,7 @@ fun AboutSheet(
                 items = listOf(
                     "swipe down from the left screen edge to open the system notification shade",
                     "swipe down from the right screen edge to open this app's own quick panel",
-                    "swipe up from either screen edge to open the quick panel",
+                    "swipe up from either screen edge to open quick search",
                     "works from anywhere on start, not just the very top of the screen",
                     "uses the same accessibility service as screen lock — enable it once from the prompt",
                 ),
