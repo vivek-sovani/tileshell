@@ -56,9 +56,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -314,11 +316,18 @@ private fun AppRow(
     // back) — hide/uninstall don't map onto a non-installed entry.
     val isPseudo = app.packageName.isBlank()
     var menuOpen by remember { mutableStateOf(false) }
+    val haptics = LocalHapticFeedback.current
     Box {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .tapOrLongPress(onTap = onTap, onLongPress = { menuOpen = true })
+                .tapOrLongPress(
+                    onTap = onTap,
+                    onLongPress = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        menuOpen = true
+                    },
+                )
                 // TalkBack: launch on activate, with pin / hide / uninstall as
                 // custom actions (the sighted long-press menu isn't reachable
                 // otherwise).

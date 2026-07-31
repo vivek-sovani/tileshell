@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -55,9 +56,11 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -129,6 +132,7 @@ fun QuickSearchOverlay(
     val context = LocalContext.current
     val keyboard = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
+    val haptics = LocalHapticFeedback.current
 
     var query by remember { mutableStateOf("") }
 
@@ -154,6 +158,7 @@ fun QuickSearchOverlay(
     // next time; a plain scrim-tap/back-press cancel (calling [dismiss] directly)
     // is not.
     fun act(action: () -> Unit) {
+        haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
         val trimmed = query.trim()
         if (trimmed.isNotEmpty()) RecentSearches.record(context, trimmed)
         action()
@@ -195,7 +200,10 @@ fun QuickSearchOverlay(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = {},
-                ),
+                )
+                // Without this the keyboard simply overlaps the bottom-pinned
+                // search box instead of pushing it up above itself.
+                .imePadding(),
         ) {
             Box(modifier = Modifier.weight(1f).statusBarsPadding()) {
                 if (trimmed.isEmpty()) {
@@ -211,8 +219,14 @@ fun QuickSearchOverlay(
                                 RecentSearchRow(
                                     query = q,
                                     tokens = tokens,
-                                    onTap = { query = q },
-                                    onRemove = { RecentSearches.remove(context, q) },
+                                    onTap = {
+                                        haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                        query = q
+                                    },
+                                    onRemove = {
+                                        haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                        RecentSearches.remove(context, q)
+                                    },
                                 )
                             }
                         }
@@ -220,6 +234,7 @@ fun QuickSearchOverlay(
                             item { SearchSectionHeader("suggested", accent) }
                             items(suggestedApps, key = { "suggested/${it.key}" }) { app ->
                                 AppResultRow(app, tokens) {
+                                    haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
                                     AppLauncher.launch(context, app.packageName, app.activityName)
                                     dismiss()
                                 }
@@ -327,7 +342,10 @@ fun QuickSearchOverlay(
                 if (query.isNotEmpty()) {
                     Icon(
                         TileIcons["close"], null, tint = tokens.fgDim,
-                        modifier = Modifier.size(18.dp).clickable { query = "" },
+                        modifier = Modifier.size(18.dp).clickable {
+                            haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                            query = ""
+                        },
                     )
                 }
             }
@@ -418,6 +436,7 @@ private fun ContactResultRow(
     onPin: () -> Unit,
 ) {
     val context = LocalContext.current
+    val haptics = LocalHapticFeedback.current
     var menuOpen by remember { mutableStateOf(false) }
     var phone by remember(person.contactId) { mutableStateOf<String?>(null) }
     LaunchedEffect(menuOpen, person.contactId) {
@@ -428,7 +447,13 @@ private fun ContactResultRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .tapOrLongPress(onTap = onOpenCard, onLongPress = { menuOpen = true })
+                .tapOrLongPress(
+                    onTap = onOpenCard,
+                    onLongPress = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        menuOpen = true
+                    },
+                )
                 .padding(horizontal = 18.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

@@ -367,7 +367,7 @@ fun FeedPage(
  * plain stock gradient) while a new photo's palette is extracting.
  */
 @Composable
-private fun rememberFeedPalette(
+internal fun rememberFeedPalette(
     customPhoto: ImageBitmap?,
     wallpaper: WallpaperGradient,
     fallbackAccent: Color,

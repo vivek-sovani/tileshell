@@ -4176,3 +4176,74 @@ leave a half-empty card there. `DeviceStatusCard`/`DeviceStatusStat` (`FeedPage.
 setting gated no longer exists. `rememberDeviceStatus()`/`Connectivity` themselves stay in
 `:feature:livetiles`, still needed by the Quick Panel header. Build + tests green; verified live on
 an emulator (status row renders correctly, glance page goes straight from widgets to news).
+
+## Quick Panel header fixes: wifi bug, airplane swap, battery colour, accent tint; wallpaper background; mute toggle; haptics everywhere
+
+A dense round of on-device feedback after the status-row header shipped, all implemented together:
+
+**Wifi bug.** The header's wifi icon read `Connectivity.WIFI` (is wifi the *active data transport*
+right now) instead of the wifi radio's own on/off state — a device can have wifi on and associated
+but not be routing traffic through it (captive portal, no internet), and the icon would wrongly read
+as off even though the toggle tile right below it (which uses `rememberWifiEnabled()`) correctly
+read on. Fixed by reusing the exact same `wifiOn` value the toggle tile already computes.
+
+**Airplane replaces cellular.** When airplane mode is on, the cellular signal slot now shows the
+airplane glyph instead of dead signal bars — matching a real device's status bar, where a cellular
+icon is meaningless mid-flight.
+
+**Battery: proportionate fill, colour-coded.** The battery indicator was a fixed monoline outline +
+separate percentage text. Replaced with a hand-drawn `BatteryIndicator` (`Canvas`, since
+`TileIcons`' glyphs are stroke-only with no fill support) showing the real level as a proportionate
+fill, colour-coded green (>50%) / amber (20–50%) / red (≤20%) — the percentage text stays alongside
+it, now a secondary confirmation rather than the only way to read the level.
+
+**Accent tint for on/off clarity.** Wifi/bluetooth icons switched from a plain brighter-grey-when-on
+scheme to full accent tint when on — a much clearer on/off signal, matching the toggle tiles' own
+accent-fill convention, per explicit feedback that the fg/fgDim contrast alone wasn't obvious enough
+(this doubled as a report that bluetooth's on/off state "isn't indicated" — it was, just too subtly).
+
+**Background: same synthesized wallpaper gradient as glance.** Per explicit request ("add background
+to quick panel just like glance"), the panel's outer backdrop (previously a flat `tokens.sheet`
+rectangle) now paints the same `WallpaperGradient` synthesis the glance page uses — `rememberFeedPalette`
+(promoted from `private` to `internal` in `FeedPage.kt` so `QuickPanelOverlay.kt`, same module, can
+reuse it directly rather than duplicating the palette-extraction logic) extracts up to 3 prominent
+colours from a custom photo via `androidx.palette`, or passes a stock gradient through unchanged;
+falls back to a flat surface when Start has no wallpaper at all, exactly mirroring glance's own
+`noWallpaper` fallback. The panel's own `accent` (tile fills, slider colours, header status tints)
+switches to the wallpaper-derived colour too, matching how glance's cards use `feedAccent` instead of
+the plain global accent — full parity, not just a backdrop swap. Contrast: `panelFg`/`panelFgDim`
+(via `Glass.faceTextColor` + `rememberChosenWallpaperIsLight`, same pattern as glance's `feedFg`)
+apply only to text/icons sitting directly on the gradient (header, sliders, handle bar) — the tile
+grid's own opaque chip/accent-filled squares are untouched, exactly matching how glance's own
+opaque cards don't adapt either, only the text directly on its backdrop does.
+
+**Ring/media volume icon is now a mute toggle.** Tapping the bell/speaker icon at the start of the
+ring or media slider row mutes it to 0% (remembering the pre-mute level) or restores it — like a
+real device's volume panel. Brightness has no mute concept, so its row's icon stays non-interactive.
+
+**Haptic feedback added throughout Quick Panel, quick search, and the App List long-press menu.**
+`HapticFeedbackType.GestureThresholdActivate` fires the moment a two-finger or edge swipe crosses its
+trigger threshold (both the Quick Panel and quick search gestures, all three `edgeSwipeGesture`
+branches) and when the panel's drag-to-close handle crosses its dismiss threshold. Every Quick Panel
+tile tap and header icon tap fires `VirtualKey`; slider drags fire `GestureEnd` on release; the new
+mute-toggle icon fires `ToggleOn`/`ToggleOff`. Quick search's `act()` (the single choke point nearly
+every committing action already funnels through — app/contact/search-engine/AI-assistant taps, the
+keyboard search action) fires `VirtualKey`, plus the same for the empty-state "suggested app" tap,
+recent-search tap/remove, and the clear (×) button; the contact long-press-for-menu gesture fires
+`LongPress`. The App List's existing long-press-for-pin/hide/uninstall menu (`AppRow` in
+`AppListScreen.kt`) also gained a `LongPress` haptic, per a separate explicit request scoped to just
+that gesture.
+
+**Quick search keyboard overlap bug.** Since quick search's redesign pinned its search box to the
+bottom of the screen (this session, gesture-swap entry above), opening the keyboard would overlap it
+outright — nothing was pushing content up above the IME. Fixed with a single `.imePadding()` on the
+overlay's outer Column; the results area (`weight(1f)`) shrinks to make room and the search box
+stays visible right above the keyboard, exactly as before the bottom-pinning change.
+
+Build + tests green throughout; every item verified live on an emulator (wifi/bluetooth accent tint,
+battery colour-fill, gradient background with matching accent across tiles/sliders, mute/unmute
+round-trip, quick search keyboard clearance, App List long-press menu). Airplane-mode substitution
+verified by code-path symmetry with the already-verified wifi/bluetooth checks — toggling airplane
+mode via `adb shell settings put global airplane_mode_on` doesn't fire the broadcast the app listens
+for without a broadcast permission this shell session didn't have, so the live icon swap itself
+wasn't re-confirmed pixel-by-pixel this round.

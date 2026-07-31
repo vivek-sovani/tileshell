@@ -659,6 +659,7 @@ fun StartScreen(
                     val dx = ((a.position.x - startA.x) + (b.position.x - startB.x)) / 2f
                     if (isQuickSearchSwipe(dy, dx, thresholdPx)) {
                         triggered = true
+                        haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
                         viewModel.openSearch()
                     }
                 }
@@ -701,6 +702,7 @@ fun StartScreen(
                     val dx = ((a.position.x - startA.x) + (b.position.x - startB.x)) / 2f
                     if (isQuickPanelSwipe(dy, dx, thresholdPx)) {
                         triggered = true
+                        haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
                         viewModel.openQuickPanel()
                     }
                 }
@@ -746,6 +748,7 @@ fun StartScreen(
                     val dx = change.position.x - start.x
                     if (isEdgeSwipeDown(dy, dx, thresholdPx)) {
                         triggered = true
+                        haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
                         when (zone) {
                             EdgeZone.LEFT -> onOpenNotifications()
                             EdgeZone.RIGHT -> viewModel.openQuickPanel()
@@ -753,6 +756,7 @@ fun StartScreen(
                         }
                     } else if (isEdgeSwipeUp(dy, dx, thresholdPx)) {
                         triggered = true
+                        haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
                         viewModel.openSearch()
                     }
                 }
@@ -1366,6 +1370,9 @@ fun StartScreen(
             onLockScreen = onLockScreen,
             onThemeChange = viewModel::setTheme,
             onFollowSystemThemeChange = viewModel::setFollowSystemTheme,
+            wallpaper = wallpaper,
+            customWallpaperPhoto = customWallpaperBitmap,
+            noWallpaper = noWallpaper,
             rightHalf = isLandscape,
         )
 

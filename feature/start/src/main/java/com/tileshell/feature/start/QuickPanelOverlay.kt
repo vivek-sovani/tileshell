@@ -9,6 +9,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,23 +43,34 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.tileshell.core.design.ColorTokens
+import com.tileshell.core.design.Glass
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
+import com.tileshell.core.design.WallpaperGradient
 import com.tileshell.core.design.colorTokens
+import com.tileshell.core.design.wallpaperBackground
 import com.tileshell.feature.livetiles.Connectivity
 import com.tileshell.feature.livetiles.nextScreenTimeoutPreset
 import com.tileshell.feature.livetiles.openWriteSettingsAccess
@@ -81,6 +93,7 @@ import com.tileshell.feature.livetiles.setRotationLock
 import com.tileshell.feature.livetiles.toggleDnd
 import com.tileshell.feature.start.feed.feedClock12
 import com.tileshell.feature.start.feed.quickPanelHeaderDate
+import com.tileshell.feature.start.feed.rememberFeedPalette
 import java.util.Calendar
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
@@ -129,6 +142,12 @@ fun QuickPanelOverlay(
     onLockScreen: () -> Unit,
     onThemeChange: (Boolean) -> Unit,
     onFollowSystemThemeChange: (Boolean) -> Unit,
+    /** Start's own resolved wallpaper gradient — synthesized into the panel's own backdrop, same as the glance page. */
+    wallpaper: WallpaperGradient,
+    /** Start's custom photo wallpaper, if any (palette-extracted, never drawn directly — see [rememberFeedPalette]). */
+    customWallpaperPhoto: ImageBitmap? = null,
+    /** True when Start has no wallpaper at all — the panel then stays a flat surface, matching the glance page's own fallback. */
+    noWallpaper: Boolean = false,
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -140,8 +159,32 @@ fun QuickPanelOverlay(
     if (!visible && progress == 0f) return
 
     val tokens = colorTokens(dark)
-    val accent = TileAccents.forId(accentId)
+    val globalAccent = TileAccents.forId(accentId)
     val context = LocalContext.current
+    val haptics = LocalHapticFeedback.current
+
+    // Same synthesized-palette backdrop as the glance page — a colour gradient
+    // derived from Start's wallpaper (never the raw photo), per explicit
+    // request to give the panel "a background just like glance". The panel's
+    // own accent (tile fills, slider colours, header status tints) switches
+    // to match it too, exactly mirroring how the glance page's own cards use
+    // `feedAccent` instead of the plain global accent once a background is
+    // showing — falls back to the flat surface + plain accent when Start has
+    // no wallpaper at all.
+    val (panelGradient, accent) = if (noWallpaper) {
+        wallpaper to globalAccent
+    } else {
+        rememberFeedPalette(customWallpaperPhoto, wallpaper, globalAccent)
+    }
+    val panelBackgroundIsLight = rememberChosenWallpaperIsLight(
+        customPhoto = null,
+        noWallpaper = noWallpaper,
+        wallpaper = panelGradient,
+        dark = dark,
+        screenBg = tokens.bg,
+    )
+    val panelFg = Glass.faceTextColor(panelBackgroundIsLight)
+    val panelFgDim = panelFg.copy(alpha = 0.62f)
 
     BackHandler(enabled = visible) { onDismiss() }
 
@@ -175,12 +218,17 @@ fun QuickPanelOverlay(
                 ),
         )
 
+        val panelShape = RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
                 .graphicsLayer { translationY = -size.height * (1f - progress) }
-                .background(tokens.sheet, shape = RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp))
+                .clip(panelShape)
+                .then(
+                    if (noWallpaper) Modifier.background(tokens.sheet)
+                    else Modifier.wallpaperBackground(panelGradient, dark),
+                )
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -191,7 +239,12 @@ fun QuickPanelOverlay(
         ) {
             QuickPanelHeader(
                 tokens = tokens,
+                fg = panelFg,
+                fgDim = panelFgDim,
+                accent = accent,
                 visible = visible,
+                wifiOn = wifiOn,
+                airplaneOn = airplaneOn,
                 androidSettingsIcon = androidSettingsIcon,
                 onOpenPersonalize = { onDismiss(); onOpenPersonalize() },
                 onOpenAndroidSettings = { deepLink(context, Settings.ACTION_SETTINGS) },
@@ -241,6 +294,8 @@ fun QuickPanelOverlay(
 
             QuickPanelSliders(
                 tokens = tokens,
+                fg = panelFg,
+                fgDim = panelFgDim,
                 accent = accent,
                 writeSettingsGranted = writeSettingsGranted,
                 brightness = brightness,
@@ -279,6 +334,7 @@ fun QuickPanelOverlay(
                                 handleDragAccumPx += dragAmount
                                 if (!handleDismissed && handleDragAccumPx < -thresholdPx) {
                                     handleDismissed = true
+                                    haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
                                     onDismiss()
                                 }
                             },
@@ -290,7 +346,7 @@ fun QuickPanelOverlay(
                     modifier = Modifier
                         .width(32.dp)
                         .height(3.dp)
-                        .background(tokens.fgDim, shape = RoundedCornerShape(2.dp)),
+                        .background(panelFgDim, shape = RoundedCornerShape(2.dp)),
                 )
             }
         }
@@ -312,7 +368,12 @@ fun QuickPanelOverlay(
 @Composable
 private fun QuickPanelHeader(
     tokens: ColorTokens,
+    fg: Color,
+    fgDim: Color,
+    accent: Color,
     visible: Boolean,
+    wifiOn: Boolean,
+    airplaneOn: Boolean,
     androidSettingsIcon: ImageBitmap?,
     onOpenPersonalize: () -> Unit,
     onOpenAndroidSettings: () -> Unit,
@@ -337,54 +398,114 @@ private fun QuickPanelHeader(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(text = feedClock12(now), color = tokens.fg, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                Text(text = feedClock12(now), color = fg, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
                 Text(
                     text = quickPanelHeaderDate(now),
-                    color = tokens.fgDim,
+                    color = fgDim,
                     fontSize = 14.sp,
                     modifier = Modifier.padding(bottom = 1.dp),
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Reuses the same live radio state as the wifi toggle tile below
+                // (rememberWifiEnabled) rather than "is wifi the active data
+                // transport" — a device can be wifi-on-but-not-the-active-route
+                // (e.g. a captive/no-internet network) and this should still
+                // read as on, matching the toggle tile it sits above. Accent
+                // tint (not just a brighter grey) on when on/connected — a
+                // clearer on/off signal, matching the toggle tiles' own
+                // accent-fill convention, per explicit user feedback that the
+                // plain fg/fgDim contrast wasn't obvious enough.
                 Icon(
                     TileIcons["wifi"], contentDescription = "wi-fi",
-                    tint = if (status.connectivity == Connectivity.WIFI) tokens.fg else tokens.fgDim,
+                    tint = if (wifiOn) accent else fgDim,
                     modifier = Modifier.size(16.dp),
                 )
                 Icon(
                     TileIcons["bluetooth"], contentDescription = "bluetooth",
-                    tint = if (bluetoothOn) tokens.fg else tokens.fgDim,
+                    tint = if (bluetoothOn) accent else fgDim,
                     modifier = Modifier.size(16.dp),
                 )
-                Icon(
-                    TileIcons["cellular"], contentDescription = "cellular",
-                    tint = if (status.connectivity == Connectivity.CELLULAR) tokens.fg else tokens.fgDim,
-                    modifier = Modifier.size(16.dp),
-                )
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Icon(TileIcons["battery"], contentDescription = "battery", tint = tokens.fg, modifier = Modifier.size(16.dp))
-                    Text(
-                        text = status.batteryPercent?.let { "$it%" } ?: "—",
-                        color = tokens.fg,
-                        fontSize = 12.sp,
+                // Cellular signal is meaningless in airplane mode — swap in the
+                // airplane glyph instead, matching a real device's status bar.
+                if (airplaneOn) {
+                    Icon(
+                        TileIcons["airplane"], contentDescription = "airplane mode",
+                        tint = fg,
+                        modifier = Modifier.size(16.dp),
+                    )
+                } else {
+                    Icon(
+                        TileIcons["cellular"], contentDescription = "cellular",
+                        tint = if (status.connectivity == Connectivity.CELLULAR) fg else fgDim,
+                        modifier = Modifier.size(16.dp),
                     )
                 }
+                BatteryIndicator(percent = status.batteryPercent, fg = fg, fgDim = fgDim)
             }
         }
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
         ) {
-            QuickPanelHeaderIcon(icon = "settings", description = "personalize", tokens = tokens, onClick = onOpenPersonalize)
+            QuickPanelHeaderIcon(icon = "settings", description = "personalize", fg = fg, onClick = onOpenPersonalize)
             QuickPanelHeaderIcon(
                 icon = "settings",
                 description = "android settings",
-                tokens = tokens,
+                fg = fg,
                 iconBitmap = androidSettingsIcon,
                 onClick = onOpenAndroidSettings,
             )
-            QuickPanelHeaderIcon(icon = "lock", description = "lock screen", tokens = tokens, onClick = onLockScreen)
+            QuickPanelHeaderIcon(icon = "lock", description = "lock screen", fg = fg, onClick = onLockScreen)
         }
+    }
+}
+
+/**
+ * Battery glyph drawn by hand (not from [TileIcons], which is stroke-only with
+ * no fill support) so the level can render as a proportionate fill, colour-
+ * coded green/amber/red — per explicit request, richer than a fixed outline
+ * glyph + separate percentage. Percentage text still sits alongside it (more
+ * informative than the icon alone), just no longer the only way to read the
+ * level.
+ */
+@Composable
+private fun BatteryIndicator(percent: Int?, fg: Color, fgDim: Color) {
+    val fraction = ((percent ?: 100) / 100f).coerceIn(0f, 1f)
+    val fillColor = when {
+        percent == null -> fgDim
+        percent <= 20 -> Color(0xFFE5484D)
+        percent <= 50 -> Color(0xFFE5A02E)
+        else -> Color(0xFF2FA84F)
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Canvas(modifier = Modifier.size(width = 20.dp, height = 11.dp)) {
+            val strokeWidth = 1.2.dp.toPx()
+            val nubWidth = 1.6.dp.toPx()
+            val bodyWidth = size.width - nubWidth
+            val bodyRect = RoundRect(
+                left = 0f, top = 0f, right = bodyWidth, bottom = size.height,
+                cornerRadius = CornerRadius(2.dp.toPx()),
+            )
+            drawPath(Path().apply { addRoundRect(bodyRect) }, color = fg, style = Stroke(strokeWidth))
+            drawRoundRect(
+                color = fg,
+                topLeft = Offset(bodyWidth, size.height * 0.28f),
+                size = Size(nubWidth, size.height * 0.44f),
+                cornerRadius = CornerRadius(0.6.dp.toPx()),
+            )
+            val inset = strokeWidth * 1.6f
+            val fillWidth = ((bodyWidth - inset * 2) * fraction).coerceAtLeast(0f)
+            if (fillWidth > 0f) {
+                drawRoundRect(
+                    color = fillColor,
+                    topLeft = Offset(inset, inset),
+                    size = Size(fillWidth, size.height - inset * 2),
+                    cornerRadius = CornerRadius(1.dp.toPx()),
+                )
+            }
+        }
+        Text(text = percent?.let { "$it%" } ?: "—", color = fg, fontSize = 12.sp)
     }
 }
 
@@ -392,14 +513,18 @@ private fun QuickPanelHeader(
 private fun QuickPanelHeaderIcon(
     icon: String,
     description: String,
-    tokens: ColorTokens,
+    fg: Color,
     onClick: () -> Unit,
     iconBitmap: ImageBitmap? = null,
 ) {
+    val haptics = LocalHapticFeedback.current
     Box(
         modifier = Modifier
             .size(36.dp)
-            .clickable(onClick = onClick),
+            .clickable(onClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                onClick()
+            }),
         contentAlignment = Alignment.Center,
     ) {
         if (iconBitmap != null) {
@@ -412,7 +537,7 @@ private fun QuickPanelHeaderIcon(
             Icon(
                 imageVector = TileIcons[icon],
                 contentDescription = description,
-                tint = tokens.fg,
+                tint = fg,
                 modifier = Modifier.size(22.dp),
             )
         }
@@ -440,6 +565,8 @@ private data class QuickPanelTileSpec(
 @Composable
 private fun QuickPanelSliders(
     tokens: ColorTokens,
+    fg: Color,
+    fgDim: Color,
     accent: Color,
     writeSettingsGranted: Boolean,
     brightness: Float,
@@ -460,50 +587,96 @@ private fun QuickPanelSliders(
                 value = brightnessFraction.value,
                 onValueChange = { brightnessFraction.value = it; setBrightness(it) },
                 tokens = tokens,
+                fg = fg,
+                fgDim = fgDim,
                 accent = accent,
             )
         }
         val ringFraction = rememberSliderFraction(ringVolume)
+        var ringPreMute by remember { mutableStateOf(ringFraction.value.takeIf { it > 0f } ?: 0.5f) }
         QuickPanelSliderRow(
             icon = if (ringFraction.value <= 0f) "bell-mute" else "bell",
             value = ringFraction.value,
             onValueChange = { ringFraction.value = it; setRingVolume(it) },
+            onIconClick = {
+                if (ringFraction.value > 0f) {
+                    ringPreMute = ringFraction.value
+                    ringFraction.value = 0f
+                    setRingVolume(0f)
+                } else {
+                    ringFraction.value = ringPreMute
+                    setRingVolume(ringPreMute)
+                }
+            },
             tokens = tokens,
+            fg = fg,
+            fgDim = fgDim,
             accent = accent,
         )
         val mediaFraction = rememberSliderFraction(mediaVolume)
+        var mediaPreMute by remember { mutableStateOf(mediaFraction.value.takeIf { it > 0f } ?: 0.5f) }
         QuickPanelSliderRow(
             icon = if (mediaFraction.value <= 0f) "volume-mute" else "volume",
             value = mediaFraction.value,
             onValueChange = { mediaFraction.value = it; setMediaVolume(it) },
+            onIconClick = {
+                if (mediaFraction.value > 0f) {
+                    mediaPreMute = mediaFraction.value
+                    mediaFraction.value = 0f
+                    setMediaVolume(0f)
+                } else {
+                    mediaFraction.value = mediaPreMute
+                    setMediaVolume(mediaPreMute)
+                }
+            },
             tokens = tokens,
+            fg = fg,
+            fgDim = fgDim,
             accent = accent,
         )
     }
 }
 
+/**
+ * [onIconClick], when set, makes the leading icon a mute/unmute toggle — tapping
+ * it while the level is above zero mutes to 0%, remembering the level to
+ * restore on the next tap; tapping while muted restores it. Brightness has no
+ * mute concept, so its row passes null and the icon stays a plain glyph.
+ */
 @Composable
 private fun QuickPanelSliderRow(
     icon: String,
     value: Float,
     onValueChange: (Float) -> Unit,
     tokens: ColorTokens,
+    fg: Color,
+    fgDim: Color,
     accent: Color,
+    onIconClick: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().height(40.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        val haptics = LocalHapticFeedback.current
         Icon(
             imageVector = TileIcons[icon],
             contentDescription = null,
-            tint = tokens.fg,
-            modifier = Modifier.size(20.dp),
+            tint = fg,
+            modifier = Modifier.size(20.dp).let { base ->
+                if (onIconClick == null) base else base.clickable {
+                    haptics.performHapticFeedback(
+                        if (value > 0f) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn,
+                    )
+                    onIconClick()
+                }
+            },
         )
         Slider(
             value = value,
             onValueChange = onValueChange,
+            onValueChangeFinished = { haptics.performHapticFeedback(HapticFeedbackType.GestureEnd) },
             modifier = Modifier.weight(1f),
             colors = SliderDefaults.colors(
                 thumbColor = accent,
@@ -513,7 +686,7 @@ private fun QuickPanelSliderRow(
         )
         Text(
             text = "${(value * 100).roundToInt()}%",
-            color = tokens.fgDim,
+            color = fgDim,
             fontSize = 13.sp,
             modifier = Modifier.width(36.dp),
             textAlign = TextAlign.End,
@@ -715,11 +888,15 @@ private fun QuickPanelTile(
 ) {
     val bg = if (tile.active) accent else tokens.chip
     val fg = if (tile.active) Color.White else tokens.fgDim
+    val haptics = LocalHapticFeedback.current
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(10.dp))
             .background(bg)
-            .clickable(onClick = tile.onClick)
+            .clickable(onClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                tile.onClick()
+            })
             .padding(6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
