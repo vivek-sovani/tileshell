@@ -199,12 +199,13 @@ fun AboutSheet(
                     "swipe up with two fingers on start to open the quick panel — or swipe up with one finger from the left or right screen edge",
                     "docks to and slides down from the top of the screen, like a real device's quick settings panel",
                     "clock and date in the panel's own header, top-left",
-                    "a grid of true square tiles, just like windows phone's action center",
+                    "a grid of true square tiles, four across, just like windows phone's action center",
                     "wp-style coloured tiles toggle wi-fi, bluetooth, flashlight, dnd, airplane mode, location, and rotation lock",
-                    "brightness and volume are tap-to-step, not sliders — each tap cycles 0/10/20/40/60/80/100% and shows the level right on the tile",
+                    "brightness, ring volume, and media volume are real drag sliders below the tile grid",
                     "screen timeout tile cycles through presets with a tap",
                     "a single theme tile cycles dark → light → auto, tinted with your accent colour",
                     "the header's top-right icons open this app's personalize sheet, the device's real settings app (with its real icon), and lock the screen",
+                    "drag the handle at the bottom of the panel upward to close it, or tap outside it",
                 ),
             )
 

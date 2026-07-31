@@ -28,12 +28,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.core.view.OnApplyWindowInsetsListener
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -50,6 +53,9 @@ import com.tileshell.feature.start.StartViewModel
 import com.tileshell.feature.system.DefaultLauncher
 import com.tileshell.feature.system.InAppReview
 import kotlin.random.Random
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private const val PRIVACY_POLICY_URL = "https://vivek-sovani.github.io/tileshell/"
 private const val FEEDBACK_EMAIL = "vivek.sovani@kimayainfotech.com"
@@ -235,10 +241,20 @@ private fun AccessibilityDisclosureDialog(onConfirm: () -> Unit, onDismiss: () -
  * [WindowInsetsControllerCompat.BEHAVIOR_SHOW_BARS_BY_SWIPE] keeps it reachable
  * with a swipe from the top edge even while hidden, rather than a fully locked-down
  * immersive mode.
+ *
+ * That "transient reveal" is normally expected to auto-hide itself again after a
+ * few seconds — but on at least one real device it stayed shown permanently once
+ * swiped into view, never re-hiding on its own. Rather than trust the system to
+ * time it out, a [OnApplyWindowInsetsListener] on the decor view (observing, never
+ * consuming, so Compose's own insets handling downstream is untouched) explicitly
+ * re-hides the status bar [REHIDE_DELAY_MS] after it's *reported visible* while
+ * this setting is on — covering both the swipe-reveal case and any other way the
+ * system might have shown it back (e.g. after a notification).
  */
 @Composable
 private fun StatusBarVisibilityEffect(hide: Boolean) {
     val view = LocalView.current
+    val scope = rememberCoroutineScope()
     LaunchedEffect(hide) {
         val window = (view.context as? Activity)?.window ?: return@LaunchedEffect
         val controller = WindowCompat.getInsetsController(window, view)
@@ -249,7 +265,33 @@ private fun StatusBarVisibilityEffect(hide: Boolean) {
             controller.show(WindowInsetsCompat.Type.statusBars())
         }
     }
+
+    DisposableEffect(hide, view) {
+        val window = (view.context as? Activity)?.window
+        val decorView = window?.decorView
+        if (!hide || window == null || decorView == null) return@DisposableEffect onDispose {}
+
+        val controller = WindowCompat.getInsetsController(window, view)
+        var reHideJob: Job? = null
+        val listener = OnApplyWindowInsetsListener { _, insets ->
+            if (insets.isVisible(WindowInsetsCompat.Type.statusBars())) {
+                reHideJob?.cancel()
+                reHideJob = scope.launch {
+                    delay(REHIDE_DELAY_MS)
+                    controller.hide(WindowInsetsCompat.Type.statusBars())
+                }
+            }
+            insets
+        }
+        ViewCompat.setOnApplyWindowInsetsListener(decorView, listener)
+        onDispose {
+            reHideJob?.cancel()
+            ViewCompat.setOnApplyWindowInsetsListener(decorView, null)
+        }
+    }
 }
+
+private const val REHIDE_DELAY_MS = 2500L
 
 private fun openAccessibilitySettings(context: Context) {
     val intent = android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)

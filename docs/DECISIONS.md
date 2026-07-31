@@ -4083,3 +4083,46 @@ target. **(2)** "hide status bar" now defaults to **on** (`LauncherSettings.hide
 per explicit request that there be "no necessity to turn it on via personalization" — a fresh install
 now ships with the status bar hidden out of the box; the Personalize toggle remains for anyone who
 wants the bar back. Build + tests green.
+
+## Status bar's swipe-reveal stayed shown permanently on a real device
+
+User report: with "hide status bar" on, swiping down from the top edge to peek the bar (the
+documented escape hatch) revealed it as expected, but it then never hid itself again — it should
+only be a transient reveal. `WindowInsetsControllerCompat`'s `BEHAVIOR_SHOW_BARS_BY_SWIPE` contract
+normally auto-times-out the transient reveal on its own, but that isn't consistent across every
+OEM/API level, and this app was relying on it entirely rather than managing it directly. Fixed with
+an explicit re-hide: `MainActivity`'s `StatusBarVisibilityEffect` now also attaches an
+`OnApplyWindowInsetsListener` to `window.decorView` (observing only — it returns the insets
+unmodified, so Compose's own insets dispatch downstream, e.g. `statusBarsPadding()` call sites, is
+untouched) that watches for `Type.statusBars()` becoming visible while the setting is on, and
+schedules `controller.hide()` again after a fixed 2.5s delay whenever it does. Confirmed on an
+emulator: swipe reveal → bar floats over content as before → auto-hides again a few seconds later
+with no further input needed. Build + tests green.
+
+## Quick Panel: 4-column grid, real sliders for brightness/volume, draggable close handle
+
+Three rounds of on-device feedback on the redesigned Quick Panel, all implemented together:
+**(1) four tiles per row instead of five** — `QUICK_PANEL_COLUMNS` 5→4, with the grid's own spacing
+bumped (8dp→10dp gaps, 14dp→16dp side padding) now that each tile has more room; fewer, bigger tiles
+read better than the tighter WP-photo-literal 5-across grid. **(2) brightness/ring-volume/media-
+volume become real drag sliders instead of tap-to-step tiles** — reverting, for just these three,
+the earlier square-tile redesign's deliberate choice ("a real WP tile has no slider at all"); a new
+`QuickPanelSliders` composable renders three full-width `Slider` rows below the toggle-tile grid
+(icon + slider + live percentage), replacing their old `QuickPanelTileSpec` entries entirely.
+`rememberSteppedPercent` (tap-to-step) is replaced by `rememberSliderFraction`, the same
+"seed-once-never-resync" pattern applied to a continuous `Float` instead of a quantized `Int` step —
+still needed, since binding a slider straight to a coarse hardware readback (media/ring streams often
+have only 7–15 native steps) would make the thumb visibly snap/jitter mid-drag as each write
+round-trips to a slightly different value. Brightness's slider only renders when `WRITE_SETTINGS` is
+granted (the existing "allow access" tile still covers the ungranted case in the grid); ring/media
+need no special permission and always show. The now fully-dead `nextPercentLevel`/
+`BRIGHTNESS_VOLUME_LEVELS` (`SystemToggles.kt`) and their dedicated `PercentLevelTest.kt` are deleted
+outright — nothing calls the tap-to-step path anymore. **(3) the pull-tab handle is directly
+draggable** — dragging it upward past a 24dp threshold now dismisses the panel (`detectVerticalDrag
+Gestures` on the handle's touch target, widened to 56×20dp for an easier grab), on top of the
+existing tap-outside/back-press/header-icon dismiss paths; the direction matches the panel's own
+slide-down-from-top motion (pull it back up to close it). `PersonalizeGuideSheet.kt`/`AboutSheet.kt`'s
+quick-panel guide entries and `QuickPanelVisual`'s mockup illustration (square "60%" tile → a small
+slider-bar mockup, undoing that same swap from an earlier session) updated to match. Build + tests
+green; verified live on an emulator (4-column grid, all three sliders respond to drag, handle-drag
+dismiss works).
