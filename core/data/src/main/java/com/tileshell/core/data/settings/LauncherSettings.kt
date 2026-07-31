@@ -98,7 +98,10 @@ enum class TileColorSource { GLOBAL_ACCENT, APP_ICON }
  *   is happy to see behind Start's tiles but not behind the feed's text.
  * @property hideStatusBar hides the Android system status bar (clock/battery/
  *   signal strip) at the top of the screen while TileShell is in the
- *   foreground, like several other launchers offer. The bar can still be
+ *   foreground, like several other launchers offer. Default **on** — per
+ *   explicit user request, this is the out-of-the-box look, not something
+ *   that needs opting into from Personalize (the toggle there is only for
+ *   anyone who wants the bar back). The bar can still be
  *   pulled down temporarily with a swipe from the top edge. Default off.
  */
 data class LauncherSettings(
@@ -163,7 +166,7 @@ data class LauncherSettings(
     val userName: String = "",
     val liveTilesEnabled: Boolean = true,
     val feedNoBackground: Boolean = false,
-    val hideStatusBar: Boolean = false,
+    val hideStatusBar: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_COLUMNS = 4

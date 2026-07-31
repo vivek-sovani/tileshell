@@ -4043,3 +4043,43 @@ user's real device). Rather than depend on the system inset shrinking, `StartPag
 outright whenever the setting is on, so the grid unconditionally fills the top of the screen instead
 of trusting the inset to already be zero. Scoped to the Start tile grid only (what was reported) —
 the app list and other sheets weren't touched. Build + tests green.
+
+**Follow-up — the real remaining cause was the display-cutout inset, not the status bar.** The fix
+above wasn't enough: verified live on the user's physical device (a punch-hole-camera phone) that a
+visible gap persisted even with the status bar genuinely hidden. Pulled `dumpsys window displays` on
+that device and found `DisplayCutout.insets = Rect(0, 128, 0, 0)` — the system reserves a **128px
+full-width top inset** for the punch-hole camera, entirely independent of the status bar's own
+visibility. `StartPage`'s tile-grid Column was still applying `.displayCutoutPadding()`
+unconditionally, so hiding the status bar alone could never reclaim that space on any device with a
+notch/punch-hole. Fixed by folding `.displayCutoutPadding()` into the same `hideStatusBar`
+conditional as `.statusBarsPadding()` — both are skipped together now. Confirmed fixed on the same
+physical device (tile grid now starts at the literal top pixel, cutout and all) — the visual trade
+a user opting into this setting accepts is a tile or two rendering partly behind/around the camera
+hole, same as most "hide status bar" launcher features. Build + tests green.
+
+## Right-edge swipe-down opens this app's own Quick Panel, not system quick settings
+
+Direct follow-up user request: the existing single-finger edge-swipe-down gesture opened the
+*system's* quick settings panel on the right edge (via `LockAccessibilityService
+.expandQuickSettings()`/`GLOBAL_ACTION_QUICK_SETTINGS`) — confusing once this app's own Quick Panel
+already exists and now visually resembles a real quick settings panel itself. `StartScreen.kt`'s
+`edgeSwipeGesture` now calls `viewModel.openQuickPanel()` for `EdgeZone.RIGHT` instead of the removed
+`onOpenQuickSettings` callback; the left edge is unchanged (still opens the system notification
+shade). `expandQuickSettings()` (`LockAccessibilityService.kt`), the `onOpenQuickSettings` param
+(`StartScreen`), and its wiring/disclosure-dialog state (`MainActivity.kt`'s
+`showQuickSettingsDisclosure`) are all deleted outright — fully dead once nothing calls the system
+action anymore. The accessibility prominent-disclosure dialog's text was updated to drop the "quick
+settings" mention (now only locking, recents, and the left-edge notification shade need the
+accessibility service). `AboutSheet.kt`/`PersonalizeGuideSheet.kt`'s "system shortcuts" guide entries
+and `EdgeSwipeVisual`'s doc comment updated to match. Build + tests green.
+
+## Quick Panel header icons: no circle background; "hide status bar" defaults to on
+
+Two direct follow-ups from the same on-device round: **(1)** the three header icon buttons
+(personalize/android settings/lock screen, added earlier this session) had a circular tinted
+background per the initial real-device-quick-settings reference — removed per explicit request, so
+they're now plain icons with no background, just a slightly larger 22dp glyph in the same 36dp tap
+target. **(2)** "hide status bar" now defaults to **on** (`LauncherSettings.hideStatusBar = true`),
+per explicit request that there be "no necessity to turn it on via personalization" — a fresh install
+now ships with the status bar hidden out of the box; the Personalize toggle remains for anyone who
+wants the bar back. Build + tests green.

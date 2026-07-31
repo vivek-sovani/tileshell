@@ -236,7 +236,7 @@ fun PersonalizeGuideSheet(
                 items = listOf(
                     "personalize · live tiles has a master on/off switch, plus \"badges & live mail\" to turn on unread badge counts on tiles and live mail/messages tile faces",
                     "turning live tiles on for the first time explains and asks before opening notification access, instead of jumping straight there — you can say not now",
-                    "tap the \"lock screen\" tile in the quick panel to lock the device",
+                    "tap the \"lock screen\" icon in the quick panel's header to lock the device",
                     "the first time, this opens android's accessibility settings so you can turn on tileshell's lock service once — it's a one-time manual step, the launcher can't enable it for you",
                     "turning it on preserves biometric unlock (android 9 and up); without it, locking falls back to a plain device-admin lock with no biometrics",
                     "personalize · permissions also lists contacts (people tile, quick search), calendar (calendar tile), and location (weather tile) — tap any of them to grant",
@@ -250,13 +250,14 @@ fun PersonalizeGuideSheet(
                 visual = { QuickPanelVisual(accent, tokens) },
                 items = listOf(
                     "swipe up with two fingers anywhere on start to open the quick panel — or swipe up with one finger from the left or right screen edge",
+                    "docks to and slides down from the top of the screen, like a real device's quick settings panel",
+                    "clock and date sit in the panel's own header, top-left",
                     "true square tiles, five across, just like windows phone's action center",
                     "tap a tile to toggle wi-fi, bluetooth, flashlight, dnd, airplane mode, location, or rotation lock",
                     "brightness and volume are tap-to-step, not sliders — each tap cycles through 0/10/20/40/60/80/100% and the tile's own text shows the level",
                     "tap the screen-timeout tile to cycle through presets",
                     "one theme tile cycles dark → light → auto, tinted with your accent colour",
-                    "\"personalize\" opens this app's personalize sheet; \"android settings\" opens the device's real settings app",
-                    "\"lock screen\" locks the device on a tap",
+                    "the header's top-right icons open this app's personalize sheet, the device's real settings app, and lock the screen",
                 ),
             )
 
@@ -267,7 +268,7 @@ fun PersonalizeGuideSheet(
                 visual = { EdgeSwipeVisual(accent, tokens) },
                 items = listOf(
                     "swipe down from start's left screen edge to pull down the system notification shade",
-                    "swipe down from start's right screen edge to open system quick settings",
+                    "swipe down from start's right screen edge to open this app's own quick panel",
                     "swipe up from either screen edge to open the quick panel",
                     "the swipe can start at any height along the edge, not just the very top",
                     "first use asks you to enable tileshell's accessibility service — the same one screen lock uses, a one-time step",
@@ -572,7 +573,7 @@ private fun QuickPanelVisual(accent: Color, tokens: com.tileshell.core.design.Co
     }
 }
 
-/** Left edge → bell (notifications) and right edge → panel (quick settings), each behind a small down-arrow. */
+/** Left edge → bell (system notification shade) and right edge → panel (this app's Quick Panel), each behind a small down-arrow. */
 @Composable
 private fun EdgeSwipeVisual(accent: Color, tokens: com.tileshell.core.design.ColorTokens) {
     GuideVisualCard(tokens) {

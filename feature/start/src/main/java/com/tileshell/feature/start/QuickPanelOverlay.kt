@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -330,8 +329,6 @@ private fun QuickPanelHeaderIcon(
     Box(
         modifier = Modifier
             .size(36.dp)
-            .clip(CircleShape)
-            .background(tokens.tileLine.copy(alpha = 0.4f))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -339,14 +336,14 @@ private fun QuickPanelHeaderIcon(
             Image(
                 bitmap = iconBitmap,
                 contentDescription = description,
-                modifier = Modifier.size(20.dp).clip(RoundedCornerShape(5.dp)),
+                modifier = Modifier.size(22.dp).clip(RoundedCornerShape(5.dp)),
             )
         } else {
             Icon(
                 imageVector = TileIcons[icon],
                 contentDescription = description,
                 tint = tokens.fg,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(22.dp),
             )
         }
     }

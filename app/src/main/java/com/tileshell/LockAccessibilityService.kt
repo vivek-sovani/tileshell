@@ -31,8 +31,5 @@ class LockAccessibilityService : AccessibilityService() {
 
         fun expandNotifications(): Boolean =
             instance?.performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS) == true
-
-        fun expandQuickSettings(): Boolean =
-            instance?.performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS) == true
     }
 }

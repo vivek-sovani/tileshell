@@ -265,7 +265,6 @@ fun StartScreen(
     onLockScreen: () -> Unit = {},
     onRecents: () -> Unit = {},
     onOpenNotifications: () -> Unit = {},
-    onOpenQuickSettings: () -> Unit = {},
 ) {
     val tiles by viewModel.tiles.collectAsStateWithLifecycle()
     val swipeEnabled by viewModel.swipeEnabled.collectAsStateWithLifecycle()
@@ -709,11 +708,14 @@ fun StartScreen(
     }
 
     // Single-finger swipe from a screen edge: down-left opens the system
-    // notification shade, down-right opens system quick settings — not in the
-    // WP prototype/spec, see DECISIONS "Edge swipe-down for notifications/quick
-    // settings". Up from *either* edge opens the in-app Quick Panel — an
-    // additional, easier-to-discover path alongside the existing two-finger
-    // swipe-up gesture (quickPanelGesture above), per explicit user request.
+    // notification shade — not in the WP prototype/spec, see DECISIONS "Edge
+    // swipe-down for notifications/quick settings". Down-right opens this
+    // app's own Quick Panel instead of the system's quick settings (changed
+    // per explicit user request — the system quick-settings action read as
+    // confusing next to this app's own Quick Panel). Up from *either* edge
+    // also opens the in-app Quick Panel — an additional, easier-to-discover
+    // path alongside the existing two-finger swipe-up gesture (quickPanelGesture
+    // above), per explicit user request.
     // Same enable-gating as the two-finger gestures, and the same "don't
     // consume until triggered" shape, but keyed on which physical edge the
     // touch started in rather than pointer count — so it never steals an
@@ -741,7 +743,7 @@ fun StartScreen(
                         triggered = true
                         when (zone) {
                             EdgeZone.LEFT -> onOpenNotifications()
-                            EdgeZone.RIGHT -> onOpenQuickSettings()
+                            EdgeZone.RIGHT -> viewModel.openQuickPanel()
                             EdgeZone.NONE -> {}
                         }
                     } else if (isEdgeSwipeUp(dy, dx, thresholdPx)) {
@@ -1653,11 +1655,14 @@ private fun StartPage(
     statusBarTopPx: Float,
     /**
      * Mirrors the "hide status bar" Personalize toggle: skips [statusBarsPadding]
-     * on the tile grid so it fills the top of the screen instead of leaving the
-     * status bar's inset height as blank space. Reserving that inset via the
-     * system's [WindowInsets] doesn't reliably shrink to zero once the bar is
-     * hidden on every device/API level, so this is applied unconditionally from
-     * the setting rather than left to the system to figure out.
+     * *and* [displayCutoutPadding] on the tile grid so it fills all the way to
+     * the top of the screen instead of leaving either inset's height as blank
+     * space. Reserving the status-bar inset via the system's [WindowInsets]
+     * doesn't reliably shrink to zero once the bar is hidden on every device/API
+     * level, and a device with a punch-hole/notch cutout reserves its own
+     * separate top inset regardless of the status bar — both are skipped
+     * unconditionally from the setting rather than left to the system to figure
+     * out, confirmed against a real device with a punch-hole camera cutout.
      */
     hideStatusBar: Boolean = false,
     columns: Int,
@@ -1924,10 +1929,19 @@ private fun StartPage(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .then(if (hideStatusBar) Modifier else Modifier.statusBarsPadding())
-                .navigationBarsPadding()
-                // Keep tiles clear of a display cutout (e.g. a landscape notch).
-                .displayCutoutPadding(),
+                .then(
+                    if (hideStatusBar) {
+                        // Reclaim the top of the screen fully — including the
+                        // display-cutout inset (e.g. a punch-hole camera), which
+                        // on some devices reserves just as much top space as the
+                        // status bar itself and would otherwise leave the exact
+                        // same "wasted gap" this setting is meant to remove.
+                        Modifier
+                    } else {
+                        Modifier.statusBarsPadding().displayCutoutPadding()
+                    },
+                )
+                .navigationBarsPadding(),
         ) {
             val editDrag = Modifier.editDragGesture(
                 editMode = editMode,

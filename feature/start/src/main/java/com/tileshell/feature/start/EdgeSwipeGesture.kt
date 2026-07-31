@@ -8,8 +8,8 @@ internal enum class EdgeZone { LEFT, RIGHT, NONE }
 /**
  * Classifies where a touch went down relative to the left/right physical screen
  * edges, for the single-finger edge-swipe-down gesture (left → system
- * notification shade, right → system quick settings). [zonePx] is the width of
- * the edge strip that counts as "the edge" on each side.
+ * notification shade, right → this app's own Quick Panel). [zonePx] is the
+ * width of the edge strip that counts as "the edge" on each side.
  */
 internal fun edgeZoneFor(startX: Float, screenWidthPx: Float, zonePx: Float): EdgeZone = when {
     startX <= zonePx -> EdgeZone.LEFT

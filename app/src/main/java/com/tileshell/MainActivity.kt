@@ -86,7 +86,6 @@ class MainActivity : ComponentActivity() {
             var showLockDisclosure by remember { mutableStateOf(false) }
             var showRecentsDisclosure by remember { mutableStateOf(false) }
             var showNotificationsDisclosure by remember { mutableStateOf(false) }
-            var showQuickSettingsDisclosure by remember { mutableStateOf(false) }
 
             StartScreen(
                 viewModel = startViewModel,
@@ -108,11 +107,6 @@ class MainActivity : ComponentActivity() {
                 onOpenNotifications = {
                     if (!LockAccessibilityService.expandNotifications()) {
                         showNotificationsDisclosure = true
-                    }
-                },
-                onOpenQuickSettings = {
-                    if (!LockAccessibilityService.expandQuickSettings()) {
-                        showQuickSettingsDisclosure = true
                     }
                 },
             )
@@ -142,15 +136,6 @@ class MainActivity : ComponentActivity() {
                         openAccessibilitySettings(ctx)
                     },
                     onDismiss = { showNotificationsDisclosure = false },
-                )
-            }
-            if (showQuickSettingsDisclosure) {
-                AccessibilityDisclosureDialog(
-                    onConfirm = {
-                        showQuickSettingsDisclosure = false
-                        openAccessibilitySettings(ctx)
-                    },
-                    onDismiss = { showQuickSettingsDisclosure = false },
                 )
             }
         }
@@ -183,8 +168,9 @@ class MainActivity : ComponentActivity() {
  * locally-tracked "recent apps" tap history ("page views and taps in app").
  *
  * Used for screen-lock (gear long-press), recent-apps (edge strip), and the
- * left/right edge-swipe-down notifications/quick-settings gesture — all four
- * rely on the same single Accessibility Service.
+ * left-edge-swipe-down notifications gesture (the right-edge sibling gesture
+ * opens this app's own Quick Panel and needs no accessibility action) — all
+ * three rely on the same single Accessibility Service.
  */
 @Composable
 private fun AccessibilityDisclosureDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
@@ -197,8 +183,8 @@ private fun AccessibilityDisclosureDialog(onConfirm: () -> Unit, onDismiss: () -
                 Text(
                     "TileShell's Accessibility Service is used for one narrow purpose only: " +
                     "locking the screen (long-press the settings icon), opening recent apps " +
-                    "(edge strip), and opening the system notification shade / quick settings " +
-                    "(swipe down from the left/right screen edge). It never reads your screen " +
+                    "(edge strip), and opening the system notification shade " +
+                    "(swipe down from the left screen edge). It never reads your screen " +
                     "content, other apps, or keystrokes.\n\n" +
                     "Separately from Accessibility — and only if you grant each permission — " +
                     "TileShell also collects this data. All of it below:",
