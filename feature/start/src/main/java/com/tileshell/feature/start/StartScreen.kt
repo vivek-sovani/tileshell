@@ -429,6 +429,20 @@ fun StartScreen(
         }
     }
 
+    // A photo shared into TileShell from another app (e.g. Gallery/Photos' own "share"
+    // sheet) — MainActivity forwards it via viewModel.receiveSharedImage(uri) when it
+    // receives an ACTION_SEND intent. Same copy-then-crop flow as the picker above: the
+    // share grant is only valid for the life of this intent, so it's imported into
+    // private storage immediately, then the existing crop overlay takes over exactly as
+    // if the photo had been picked from within the app.
+    val sharedWallpaperUri by viewModel.sharedWallpaperUri.collectAsStateWithLifecycle()
+    LaunchedEffect(sharedWallpaperUri) {
+        val incoming = sharedWallpaperUri ?: return@LaunchedEffect
+        val local = withContext(Dispatchers.IO) { MediaImport.importWallpaper(context, incoming) }
+        if (local != null) pendingWallpaperCropUri = local.toString()
+        viewModel.consumeSharedWallpaperUri()
+    }
+
     // Live-photos selection (FR-2). PickMultipleVisualMedia opens the gallery; the
     // picked photos are copied into private storage so the slideshow survives a
     // reboot without a persistable grant (MediaImport).

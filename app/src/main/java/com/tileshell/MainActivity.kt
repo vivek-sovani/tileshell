@@ -82,6 +82,8 @@ class MainActivity : ComponentActivity() {
             },
         )
 
+        handleShareIntent(intent)
+
         setContent {
             DefaultLauncherPrompt()
             RequestRuntimePermissionsOnStart()
@@ -150,6 +152,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (handleShareIntent(intent)) return
         startViewModel.goHome()
         // Dismiss the keyboard when returning to Start via the Home button.
         // The search field in the app list / feed retains IME focus after
@@ -157,6 +160,27 @@ class MainActivity : ComponentActivity() {
         currentFocus?.clearFocus()
         (getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)
             ?.hideSoftInputFromWindow(window.decorView.windowToken, 0)
+    }
+
+    /**
+     * Handles a share-sheet `ACTION_SEND` intent carrying an image, sent from another app
+     * (e.g. Gallery/Photos' own "share"), forwarding the shared photo to
+     * [StartViewModel.receiveSharedImage] so `StartScreen` can import it and open the
+     * crop/reframe overlay, same as picking a wallpaper from within the app. Returns true if
+     * this intent was a share (and was handled), so callers can skip their own "just reopened"
+     * home-button handling for it.
+     */
+    private fun handleShareIntent(intent: Intent): Boolean {
+        if (intent.action != Intent.ACTION_SEND) return false
+        if (intent.type?.startsWith("image/") != true) return false
+        val uri = if (android.os.Build.VERSION.SDK_INT >= 33) {
+            intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(Intent.EXTRA_STREAM)
+        } ?: return false
+        startViewModel.receiveSharedImage(uri)
+        return true
     }
 }
 

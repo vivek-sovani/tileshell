@@ -186,6 +186,25 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val _backupOpen = MutableStateFlow(false)
     val backupOpen: StateFlow<Boolean> = _backupOpen.asStateFlow()
 
+    /**
+     * An image [Uri] shared into TileShell from another app (e.g. "share" from Gallery/Photos),
+     * awaiting import + the crop overlay so the user can position it before it becomes the
+     * wallpaper — mirrors the existing wallpaper-picker flow in [StartScreen]. Set by
+     * [receiveSharedImage] (called from `MainActivity` when it receives an `ACTION_SEND` intent);
+     * cleared once `StartScreen` has copied it into private storage and handed off to its own
+     * `pendingWallpaperCropUri` state.
+     */
+    private val _sharedWallpaperUri = MutableStateFlow<Uri?>(null)
+    val sharedWallpaperUri: StateFlow<Uri?> = _sharedWallpaperUri.asStateFlow()
+
+    fun receiveSharedImage(uri: Uri) {
+        _sharedWallpaperUri.value = uri
+    }
+
+    fun consumeSharedWallpaperUri() {
+        _sharedWallpaperUri.value = null
+    }
+
     /** Rolling history of the last 10 layout snapshots (newest first). */
     val layoutHistory: StateFlow<List<LayoutSnapshot>> = historyRepository.snapshots.stateIn(
         scope = viewModelScope,
