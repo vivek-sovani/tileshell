@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -92,8 +93,7 @@ fun PersonalizeGuideSheet(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .fillMaxHeight(0.92f)
+                .fillMaxSize()
                 .graphicsLayer { translationY = size.height * (1f - progress) }
                 .background(tokens.sheet)
                 .clickable(
@@ -101,6 +101,7 @@ fun PersonalizeGuideSheet(
                     indication = null,
                     onClick = {},
                 )
+                .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .navigationBarsPadding()
                 .padding(bottom = 32.dp),
@@ -203,7 +204,7 @@ fun PersonalizeGuideSheet(
                 visual = { PinningVisual(accent, tokens) },
                 items = listOf(
                     "tap the chevron at the bottom of start (or swipe left) to open the app list",
-                    "long-press any app for \"pin to start\", \"hide\", or \"uninstall\"",
+                    "long-press any app for \"pin to start\", \"hide\", or \"uninstall\" — a light haptic buzz confirms the menu opened",
                     "before the alphabetical list: a \"recent\" section shows your most-used and newly-installed apps, plus any with a pending notification even if it isn't pinned",
                     "tap a letter on the right for the jump grid, to skip straight to that part of the alphabet",
                     "hid an app by mistake? personalize · app visibility · hidden apps brings it back with \"show\"",
@@ -236,7 +237,7 @@ fun PersonalizeGuideSheet(
                 items = listOf(
                     "personalize · live tiles has a master on/off switch, plus \"badges & live mail\" to turn on unread badge counts on tiles and live mail/messages tile faces",
                     "turning live tiles on for the first time explains and asks before opening notification access, instead of jumping straight there — you can say not now",
-                    "tap the \"lock screen\" tile in the quick panel to lock the device",
+                    "tap the \"lock screen\" icon in the quick panel's header to lock the device",
                     "the first time, this opens android's accessibility settings so you can turn on tileshell's lock service once — it's a one-time manual step, the launcher can't enable it for you",
                     "turning it on preserves biometric unlock (android 9 and up); without it, locking falls back to a plain device-admin lock with no biometrics",
                     "personalize · permissions also lists contacts (people tile, quick search), calendar (calendar tile), and location (weather tile) — tap any of them to grant",
@@ -249,14 +250,21 @@ fun PersonalizeGuideSheet(
                 tokens = tokens,
                 visual = { QuickPanelVisual(accent, tokens) },
                 items = listOf(
-                    "swipe up with two fingers anywhere on start to open the quick panel — or swipe up with one finger from the left or right screen edge",
-                    "true square tiles, five across, just like windows phone's action center",
+                    "swipe down with two fingers anywhere on start to open the quick panel — or swipe down from the right screen edge with one finger",
+                    "docks to and slides down from the top of the screen, like a real device's quick settings panel",
+                    "background is a colour gradient synthesized from start's own wallpaper, same as the feed page — tile and slider colours switch to match it too",
+                    "clock and date sit on the left of the panel's own header; wifi, bluetooth, cellular, and battery status sit on the right, standing in for the status bar you can hide",
+                    "wifi and bluetooth icons brighten (dim when off) same as the cellular icon; airplane mode replaces the cellular icon with a plane",
+                    "battery icon fills proportionately to the charge level and turns red/amber/green as it gets low",
+                    "personalize, android settings, and lock screen icons sit in a second row under the status row",
+                    "true square tiles, four across, just like windows phone's action center",
                     "tap a tile to toggle wi-fi, bluetooth, flashlight, dnd, airplane mode, location, or rotation lock",
-                    "brightness and volume are tap-to-step, not sliders — each tap cycles through 0/10/20/40/60/80/100% and the tile's own text shows the level",
+                    "brightness, ring volume, and media volume are real drag sliders below the tile grid",
+                    "tap the bell or speaker icon on the ring/media sliders to mute or unmute",
                     "tap the screen-timeout tile to cycle through presets",
                     "one theme tile cycles dark → light → auto, tinted with your accent colour",
-                    "\"personalize\" opens this app's personalize sheet; \"android settings\" opens the device's real settings app",
-                    "\"lock screen\" locks the device on a tap",
+                    "drag the handle at the bottom of the panel upward to close it, or tap outside it",
+                    "taps and gestures throughout the panel give a light haptic buzz",
                 ),
             )
 
@@ -267,8 +275,8 @@ fun PersonalizeGuideSheet(
                 visual = { EdgeSwipeVisual(accent, tokens) },
                 items = listOf(
                     "swipe down from start's left screen edge to pull down the system notification shade",
-                    "swipe down from start's right screen edge to open system quick settings",
-                    "swipe up from either screen edge to open the quick panel",
+                    "swipe down from start's right screen edge to open this app's own quick panel",
+                    "swipe up from either screen edge to open quick search",
                     "the swipe can start at any height along the edge, not just the very top",
                     "first use asks you to enable tileshell's accessibility service — the same one screen lock uses, a one-time step",
                 ),
@@ -546,7 +554,12 @@ private fun PermissionsVisual(accent: Color, tokens: com.tileshell.core.design.C
     }
 }
 
-/** Three true square WP-tile-style tiles (two toggles + a tap-to-step percent tile), mirroring the real quick panel. */
+/**
+ * Two square WP-tile-style toggles plus a small slider-bar mockup, mirroring
+ * the real quick panel's grid + sliders. The slider mockup replaces an
+ * earlier "60%" square-tile mockup — reverted to match brightness/volume
+ * becoming real drag sliders again, per explicit user request.
+ */
 @Composable
 private fun QuickPanelVisual(accent: Color, tokens: com.tileshell.core.design.ColorTokens) {
     GuideVisualCard(tokens) {
@@ -563,16 +576,18 @@ private fun QuickPanelVisual(accent: Color, tokens: com.tileshell.core.design.Co
             Icon(TileIcons["bluetooth"], contentDescription = null, tint = tokens.fgDim, modifier = Modifier.size(14.dp))
         }
         Spacer(Modifier.weight(1f))
+        Icon(TileIcons["brightness"], contentDescription = null, tint = tokens.fgDim, modifier = Modifier.size(14.dp))
         Box(
-            modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)).background(accent),
-            contentAlignment = Alignment.Center,
+            modifier = Modifier.width(44.dp).height(6.dp).clip(RoundedCornerShape(3.dp)).background(tokens.tileLine.copy(alpha = 0.6f)),
         ) {
-            Text(text = "60%", color = Color.White, fontSize = 8.sp)
+            Box(
+                modifier = Modifier.fillMaxWidth(0.6f).fillMaxHeight().clip(RoundedCornerShape(3.dp)).background(accent),
+            )
         }
     }
 }
 
-/** Left edge → bell (notifications) and right edge → panel (quick settings), each behind a small down-arrow. */
+/** Left edge → bell (system notification shade) and right edge → panel (this app's Quick Panel), each behind a small down-arrow. */
 @Composable
 private fun EdgeSwipeVisual(accent: Color, tokens: com.tileshell.core.design.ColorTokens) {
     GuideVisualCard(tokens) {

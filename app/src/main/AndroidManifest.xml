@@ -168,6 +168,14 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Lets another app's "share" sheet (e.g. Gallery/Photos) offer TileShell
+                 as a target for a single image, which becomes the Start wallpaper via
+                 the existing crop/reframe overlay. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
         </activity>
     </application>
 

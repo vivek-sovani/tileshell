@@ -12,13 +12,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -83,8 +83,7 @@ fun AboutSheet(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .fillMaxHeight(0.92f)
+                .fillMaxSize()
                 .graphicsLayer { translationY = size.height * (1f - progress) }
                 .background(tokens.sheet)
                 .clickable(
@@ -92,6 +91,7 @@ fun AboutSheet(
                     indication = null,
                     onClick = {},
                 )
+                .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .navigationBarsPadding()
                 .padding(bottom = 32.dp),
@@ -179,7 +179,8 @@ fun AboutSheet(
                 accent = accent,
                 tokens = tokens,
                 items = listOf(
-                    "swipe down with two fingers on start to open quick search",
+                    "swipe up with two fingers on start to open quick search — or swipe up from either screen edge with one finger",
+                    "slides up from the bottom, search box at the bottom of the screen — closer to your thumb",
                     "search apps, contacts, and the web from one box",
                     "before you type: jump back into a recent search or a frequently-used app",
                     "tap a contact to open their contact card",
@@ -188,6 +189,7 @@ fun AboutSheet(
                     "ask chatgpt, gemini, claude, or perplexity — opens the app with your query ready to send",
                     "or send it to google, bing, duckduckgo, yahoo, or yandex instead",
                     "tap the search box on the feed page to jump straight into quick search",
+                    "taps on results, recent searches, and the clear button give a light haptic buzz",
                 ),
             )
 
@@ -196,15 +198,21 @@ fun AboutSheet(
                 accent = accent,
                 tokens = tokens,
                 items = listOf(
-                    "swipe up with two fingers on start to open the quick panel — or swipe up with one finger from the left or right screen edge",
-                    "a grid of true square tiles, just like windows phone's action center",
+                    "swipe down with two fingers on start to open the quick panel — or swipe down from the right screen edge with one finger",
+                    "docks to and slides down from the top of the screen, like a real device's quick settings panel",
+                    "background is a colour gradient synthesized from start's own wallpaper, same as the feed page — tile and slider colours switch to match it too",
+                    "clock and date on the left of the header; wifi, bluetooth, cellular, and battery status on the right, just like the status bar you can hide",
+                    "wifi and bluetooth icons brighten (dim when off) same as the cellular icon; airplane mode replaces the cellular icon with a plane",
+                    "battery icon fills proportionately to the charge level and turns red/amber/green as it gets low",
+                    "personalize, android settings, and lock screen icons sit in a second row under the status row",
+                    "a grid of true square tiles, four across, just like windows phone's action center",
                     "wp-style coloured tiles toggle wi-fi, bluetooth, flashlight, dnd, airplane mode, location, and rotation lock",
-                    "brightness and volume are tap-to-step, not sliders — each tap cycles 0/10/20/40/60/80/100% and shows the level right on the tile",
+                    "brightness, ring volume, and media volume are real drag sliders below the tile grid",
+                    "tap the bell or speaker icon on the ring/media sliders to mute or unmute",
                     "screen timeout tile cycles through presets with a tap",
                     "a single theme tile cycles dark → light → auto, tinted with your accent colour",
-                    "\"personalize\" tile opens this app's personalize sheet",
-                    "\"android settings\" tile opens the device's real settings app, with its real icon",
-                    "\"lock screen\" tile locks the device on a tap",
+                    "drag the handle at the bottom of the panel upward to close it, or tap outside it",
+                    "taps and gestures throughout the panel give a light haptic buzz",
                 ),
             )
 
@@ -214,8 +222,8 @@ fun AboutSheet(
                 tokens = tokens,
                 items = listOf(
                     "swipe down from the left screen edge to open the system notification shade",
-                    "swipe down from the right screen edge to open system quick settings",
-                    "swipe up from either screen edge to open the quick panel",
+                    "swipe down from the right screen edge to open this app's own quick panel",
+                    "swipe up from either screen edge to open quick search",
                     "works from anywhere on start, not just the very top of the screen",
                     "uses the same accessibility service as screen lock — enable it once from the prompt",
                 ),

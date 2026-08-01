@@ -186,6 +186,25 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val _backupOpen = MutableStateFlow(false)
     val backupOpen: StateFlow<Boolean> = _backupOpen.asStateFlow()
 
+    /**
+     * An image [Uri] shared into TileShell from another app (e.g. "share" from Gallery/Photos),
+     * awaiting import + the crop overlay so the user can position it before it becomes the
+     * wallpaper — mirrors the existing wallpaper-picker flow in [StartScreen]. Set by
+     * [receiveSharedImage] (called from `MainActivity` when it receives an `ACTION_SEND` intent);
+     * cleared once `StartScreen` has copied it into private storage and handed off to its own
+     * `pendingWallpaperCropUri` state.
+     */
+    private val _sharedWallpaperUri = MutableStateFlow<Uri?>(null)
+    val sharedWallpaperUri: StateFlow<Uri?> = _sharedWallpaperUri.asStateFlow()
+
+    fun receiveSharedImage(uri: Uri) {
+        _sharedWallpaperUri.value = uri
+    }
+
+    fun consumeSharedWallpaperUri() {
+        _sharedWallpaperUri.value = null
+    }
+
     /** Rolling history of the last 10 layout snapshots (newest first). */
     val layoutHistory: StateFlow<List<LayoutSnapshot>> = historyRepository.snapshots.stateIn(
         scope = viewModelScope,
@@ -603,11 +622,6 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Toggle the left "feed" page (the 3rd pager page reached by swiping right). */
     fun setFeedEnabled(enabled: Boolean) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setFeedEnabled(enabled) }
-    }
-
-    /** Toggle the feed page glance tab's read-only device status card. */
-    fun setDeviceStatusCardEnabled(enabled: Boolean) {
-        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setDeviceStatusCardEnabled(enabled) }
     }
 
     /** Set the name shown in the feed's "good morning, `<name>`" greeting. */
@@ -1291,6 +1305,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Toggle "lock layout" (Personalize): while on, [enterEdit] is a no-op. */
     fun setLockLayout(locked: Boolean) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setLockLayout(locked) }
+    }
+
+    /** Toggle "hide status bar" (Personalize): hides the system status bar over TileShell. */
+    fun setHideStatusBar(hidden: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setHideStatusBar(hidden) }
     }
 
     fun setAutoBackupInterval(hours: Int) {

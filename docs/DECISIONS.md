@@ -3974,3 +3974,295 @@ row two was `brightness, rotation lock, media volume, screen timeout, ring volum
 is now added last, after ring volume, so it sits at the row's extreme right. New row two:
 `brightness, rotation lock, screen timeout, ring volume, media volume`. Build + tests green;
 installed on the physical device.
+
+## Hide status bar toggle
+
+New ask, not in the WP prototype/spec (real WP has no OS status bar to hide) — user asked for the
+same "hide status bar" option several other Android launchers offer. New `hideStatusBar: Boolean`
+in `LauncherSettings`/`SettingsCodec` (default off), a `SettingsRepository.setHideStatusBar` /
+`StartViewModel.setHideStatusBar`, and a "hide status bar" toggle in Personalize's `"system"` group
+(that group previously only ever rendered the "default launcher" row, and only while TileShell
+wasn't already the default launcher — it's unconditional now so the new toggle always has a home).
+Actual hide/show is applied in `MainActivity`'s new `StatusBarVisibilityEffect`, since it needs the
+Activity `Window` that Compose-only `:feature:*` modules don't have: it collects
+`startViewModel.settings` and drives `WindowInsetsControllerCompat.hide/show(Type.statusBars())`
+with `systemBarsBehavior = BEHAVIOR_SHOW_BARS_BY_SWIPE`, so the bar stays reachable with a swipe
+down from the top edge instead of being fully locked away. Build + tests green
+(`SettingsCodecTest` extended).
+
+## Quick Panel docks to the top instead of the bottom
+
+Direct follow-up user request: make the Quick Panel look like a real device's quick settings
+panel, which slides down from the top rather than up from the bottom (every other sheet in this
+app — Personalize, About, folders, etc. — intentionally still slides up from the bottom; this is a
+one-off deviation scoped to the Quick Panel only). The opening gesture itself is unchanged (still a
+two-finger swipe-**up** on Start, so it still can't collide with quick search's two-finger
+swipe-**down**) — only where the panel visually docks and slides from changed.
+
+`SheetStage` (`:core:design`) gained a `dockTop: Boolean = false` param: `false` (every existing
+call site, unchanged) aligns the panel `BottomEnd` as before; `true` (Quick Panel only) aligns it
+`TopEnd` instead, so in landscape it still docks to Start's right half, just now at the top edge
+rather than the bottom. `QuickPanelOverlay.kt` flips the rest of the bottom-sheet mechanics to
+match: `Alignment.BottomCenter` → `TopCenter`, the slide `translationY = size.height * (1f -
+progress)` → `-size.height * (1f - progress)` (negative, sliding down from above instead of up from
+below), rounded top corners → rounded bottom corners, and `navigationBarsPadding()` →
+`statusBarsPadding()` (the panel now sits flush against the top of the screen, so it needs to clear
+the status bar inset instead of the nav bar). The pull-tab handle moved from the panel's top edge to
+its bottom edge — the edge closest to open space, matching every other sheet's handle placement
+convention (handle sits at the edge you'd drag to close), just mirrored top<->bottom since this
+panel now docks top instead of bottom. Build + tests green; verified on-device in both portrait and
+landscape.
+
+## Quick Panel header: clock/date left, personalize/settings/lock icons right
+
+Direct follow-up, from a reference screenshot of a real device's quick settings panel header
+(clock/date on the left, small circular edit/power/settings icons on the right). Added
+`QuickPanelHeader` above the tile grid in `QuickPanelOverlay.kt`: a live-ticking clock + compact date
+on the left (`feedClock12` reused as-is from the feed page; new pure `quickPanelHeaderDate` in
+`FeedFormat.kt`, unit-tested, for the short lowercase "fri, 31 jul" form — distinct from the feed
+page's own long uppercase `feedGlanceDate`), and three 36dp circular icon buttons on the right for
+personalize / android settings (using the same device-resolved icon as before) / lock screen. Those
+three were previously square tiles at the end of the grid (`quickPanelTiles()`) — removed from
+there per explicit request, since they're app/system shortcuts rather than device controls and now
+have a more prominent, always-visible home in the header instead of competing for grid space with
+wifi/brightness/etc. `quickPanelTiles()` lost its `androidSettingsIcon`/`onOpenPersonalize`/
+`onLockScreen` params now that nothing inside it needs them. Build + tests green; verified on-device
+(all three header icons open personalize / trigger the android-settings deep link / trigger the
+lock-screen flow correctly).
+
+## Hidden status bar didn't reclaim its inset on every device
+
+User report: after enabling "hide status bar," the freed space at the top wasn't actually being
+used by the Start screen — the tile grid still left a blank gap where the bar used to be. Root
+cause: the Start grid's scrollable Column (`StartScreen.kt`) always applied `.statusBarsPadding()`,
+which pads by the *system-reported* status-bar inset height — and that inset doesn't reliably
+collapse to zero just because `WindowInsetsControllerCompat.hide()` was called; behavior here varies
+by OEM/API level (confirmed fine on the emulator used for on-device verification, but not on the
+user's real device). Rather than depend on the system inset shrinking, `StartPage` now takes a
+`hideStatusBar: Boolean` param (from `settings.hideStatusBar`) and skips `.statusBarsPadding()`
+outright whenever the setting is on, so the grid unconditionally fills the top of the screen instead
+of trusting the inset to already be zero. Scoped to the Start tile grid only (what was reported) —
+the app list and other sheets weren't touched. Build + tests green.
+
+**Follow-up — the real remaining cause was the display-cutout inset, not the status bar.** The fix
+above wasn't enough: verified live on the user's physical device (a punch-hole-camera phone) that a
+visible gap persisted even with the status bar genuinely hidden. Pulled `dumpsys window displays` on
+that device and found `DisplayCutout.insets = Rect(0, 128, 0, 0)` — the system reserves a **128px
+full-width top inset** for the punch-hole camera, entirely independent of the status bar's own
+visibility. `StartPage`'s tile-grid Column was still applying `.displayCutoutPadding()`
+unconditionally, so hiding the status bar alone could never reclaim that space on any device with a
+notch/punch-hole. Fixed by folding `.displayCutoutPadding()` into the same `hideStatusBar`
+conditional as `.statusBarsPadding()` — both are skipped together now. Confirmed fixed on the same
+physical device (tile grid now starts at the literal top pixel, cutout and all) — the visual trade
+a user opting into this setting accepts is a tile or two rendering partly behind/around the camera
+hole, same as most "hide status bar" launcher features. Build + tests green.
+
+## Right-edge swipe-down opens this app's own Quick Panel, not system quick settings
+
+Direct follow-up user request: the existing single-finger edge-swipe-down gesture opened the
+*system's* quick settings panel on the right edge (via `LockAccessibilityService
+.expandQuickSettings()`/`GLOBAL_ACTION_QUICK_SETTINGS`) — confusing once this app's own Quick Panel
+already exists and now visually resembles a real quick settings panel itself. `StartScreen.kt`'s
+`edgeSwipeGesture` now calls `viewModel.openQuickPanel()` for `EdgeZone.RIGHT` instead of the removed
+`onOpenQuickSettings` callback; the left edge is unchanged (still opens the system notification
+shade). `expandQuickSettings()` (`LockAccessibilityService.kt`), the `onOpenQuickSettings` param
+(`StartScreen`), and its wiring/disclosure-dialog state (`MainActivity.kt`'s
+`showQuickSettingsDisclosure`) are all deleted outright — fully dead once nothing calls the system
+action anymore. The accessibility prominent-disclosure dialog's text was updated to drop the "quick
+settings" mention (now only locking, recents, and the left-edge notification shade need the
+accessibility service). `AboutSheet.kt`/`PersonalizeGuideSheet.kt`'s "system shortcuts" guide entries
+and `EdgeSwipeVisual`'s doc comment updated to match. Build + tests green.
+
+## Quick Panel header icons: no circle background; "hide status bar" defaults to on
+
+Two direct follow-ups from the same on-device round: **(1)** the three header icon buttons
+(personalize/android settings/lock screen, added earlier this session) had a circular tinted
+background per the initial real-device-quick-settings reference — removed per explicit request, so
+they're now plain icons with no background, just a slightly larger 22dp glyph in the same 36dp tap
+target. **(2)** "hide status bar" now defaults to **on** (`LauncherSettings.hideStatusBar = true`),
+per explicit request that there be "no necessity to turn it on via personalization" — a fresh install
+now ships with the status bar hidden out of the box; the Personalize toggle remains for anyone who
+wants the bar back. Build + tests green.
+
+## Status bar's swipe-reveal stayed shown permanently on a real device
+
+User report: with "hide status bar" on, swiping down from the top edge to peek the bar (the
+documented escape hatch) revealed it as expected, but it then never hid itself again — it should
+only be a transient reveal. `WindowInsetsControllerCompat`'s `BEHAVIOR_SHOW_BARS_BY_SWIPE` contract
+normally auto-times-out the transient reveal on its own, but that isn't consistent across every
+OEM/API level, and this app was relying on it entirely rather than managing it directly. Fixed with
+an explicit re-hide: `MainActivity`'s `StatusBarVisibilityEffect` now also attaches an
+`OnApplyWindowInsetsListener` to `window.decorView` (observing only — it returns the insets
+unmodified, so Compose's own insets dispatch downstream, e.g. `statusBarsPadding()` call sites, is
+untouched) that watches for `Type.statusBars()` becoming visible while the setting is on, and
+schedules `controller.hide()` again after a fixed 2.5s delay whenever it does. Confirmed on an
+emulator: swipe reveal → bar floats over content as before → auto-hides again a few seconds later
+with no further input needed. Build + tests green.
+
+## Quick Panel: 4-column grid, real sliders for brightness/volume, draggable close handle
+
+Three rounds of on-device feedback on the redesigned Quick Panel, all implemented together:
+**(1) four tiles per row instead of five** — `QUICK_PANEL_COLUMNS` 5→4, with the grid's own spacing
+bumped (8dp→10dp gaps, 14dp→16dp side padding) now that each tile has more room; fewer, bigger tiles
+read better than the tighter WP-photo-literal 5-across grid. **(2) brightness/ring-volume/media-
+volume become real drag sliders instead of tap-to-step tiles** — reverting, for just these three,
+the earlier square-tile redesign's deliberate choice ("a real WP tile has no slider at all"); a new
+`QuickPanelSliders` composable renders three full-width `Slider` rows below the toggle-tile grid
+(icon + slider + live percentage), replacing their old `QuickPanelTileSpec` entries entirely.
+`rememberSteppedPercent` (tap-to-step) is replaced by `rememberSliderFraction`, the same
+"seed-once-never-resync" pattern applied to a continuous `Float` instead of a quantized `Int` step —
+still needed, since binding a slider straight to a coarse hardware readback (media/ring streams often
+have only 7–15 native steps) would make the thumb visibly snap/jitter mid-drag as each write
+round-trips to a slightly different value. Brightness's slider only renders when `WRITE_SETTINGS` is
+granted (the existing "allow access" tile still covers the ungranted case in the grid); ring/media
+need no special permission and always show. The now fully-dead `nextPercentLevel`/
+`BRIGHTNESS_VOLUME_LEVELS` (`SystemToggles.kt`) and their dedicated `PercentLevelTest.kt` are deleted
+outright — nothing calls the tap-to-step path anymore. **(3) the pull-tab handle is directly
+draggable** — dragging it upward past a 24dp threshold now dismisses the panel (`detectVerticalDrag
+Gestures` on the handle's touch target, widened to 56×20dp for an easier grab), on top of the
+existing tap-outside/back-press/header-icon dismiss paths; the direction matches the panel's own
+slide-down-from-top motion (pull it back up to close it). `PersonalizeGuideSheet.kt`/`AboutSheet.kt`'s
+quick-panel guide entries and `QuickPanelVisual`'s mockup illustration (square "60%" tile → a small
+slider-bar mockup, undoing that same swap from an earlier session) updated to match. Build + tests
+green; verified live on an emulator (4-column grid, all three sliders respond to drag, handle-drag
+dismiss works).
+
+## Quick panel / quick search gestures swapped; sheets go full-screen
+
+Direct follow-up user request: the Quick Panel and quick search's two-finger gestures were swapped —
+Quick Panel is now two-finger swipe-**down** (was up), quick search is now two-finger swipe-**up**
+(was down). Implemented by swapping the *direction check* inside `isQuickSearchSwipe`/
+`isQuickPanelSwipe` (`QuickSearchGesture.kt`/`QuickPanelGesture.kt`) while keeping each function
+named after the feature it triggers — so `StartScreen.kt`'s gesture blocks needed no changes beyond
+updated comments. The single-finger edge-swipe-up gesture (an alternate path to whichever the
+two-finger up gesture opened) was flipped too, from Quick Panel to quick search, to stay consistent
+with its two-finger sibling — edge-swipe-down is unchanged (left → system notifications, right →
+Quick Panel). `QuickSearchOverlay.kt` now slides up from the bottom (`translationY` sign flipped)
+with its search box moved to the **bottom** of the screen (closer to the thumb, since that's where
+the opening swipe came from) and results filling the space above it, instead of sliding down from
+the top with the search box at the top. Tests, doc comments, and the Personalize guide/about sheets'
+gesture descriptions updated throughout; `docs/QUICK-PANEL-SPEC.md` gained an amendment note rather
+than a rewrite, since it's a historical design doc.
+
+Also, per explicit request, **Personalize, "how to personalize" (guide), and "features & info"
+(about) now render full-screen** instead of bottom sheets capped at 86–92% height with a dimmed gap
+above them — `fillMaxHeight(0.86f)`/`fillMaxHeight(0.92f)` → `fillMaxSize()`, plus a new
+`.statusBarsPadding()` so their grip handle clears the status bar/cutout at the very top. Every
+other sub-sheet (backup, folders, news region, hidden apps, edge strip, permissions) was left as a
+capped bottom sheet — not mentioned, not changed. Build + tests green.
+
+## Quick Panel header gains a status row; device status card removed from glance entirely
+
+Direct follow-up, in stages: first, battery/wifi/cellular readouts moved from the glance page's
+device-status card into a new status row on the right of the Quick Panel header's top line (next to
+the personalize/settings/lock icons, which moved to their own row below it) — reusing the existing
+`rememberDeviceStatus()`/`Connectivity`/`rememberBluetoothOn()` data with **no new permission**.
+Considered showing real per-SIM cellular signal (`SubscriptionManager`/`TelephonyManager`) but
+`READ_PHONE_STATE` sits in Android's restricted "Phone" permission group, which Play generally only
+approves for default dialer/messaging/call-screening/VOIP apps — a launcher's cosmetic signal readout
+isn't a listed qualifying use case, so it was likely to draw the same kind of Play rejection this
+project already hit once over Accessibility API disclosure. Went with a single-indicator design
+instead: a new hand-drawn monoline `"cellular"` glyph (`TileIcons.kt`, four ascending outline bars,
+matching every other icon's stroke-only style) tinted active only when `Connectivity.CELLULAR` is
+the current transport — same simple on/off treatment as the wifi icon, no per-SIM breakdown,
+zero new permissions. Bluetooth was added to the same row per explicit follow-up request, reusing the
+toggle tile's own `rememberBluetoothOn()`.
+
+Then, a final follow-up removed the device-status card from the glance page **entirely** — including
+the storage/alarm stats that had been left behind after battery/wifi/cellular moved out — rather than
+leave a half-empty card there. `DeviceStatusCard`/`DeviceStatusStat` (`FeedPage.kt`) and the whole
+`deviceStatusCardEnabled` setting (`LauncherSettings`/`SettingsCodec`/`SettingsRepository`/
+`StartViewModel`/the Personalize toggle row) are deleted outright — dead code once the card that
+setting gated no longer exists. `rememberDeviceStatus()`/`Connectivity` themselves stay in
+`:feature:livetiles`, still needed by the Quick Panel header. Build + tests green; verified live on
+an emulator (status row renders correctly, glance page goes straight from widgets to news).
+
+## Quick Panel header fixes: wifi bug, airplane swap, battery colour, accent tint; wallpaper background; mute toggle; haptics everywhere
+
+A dense round of on-device feedback after the status-row header shipped, all implemented together:
+
+**Wifi bug.** The header's wifi icon read `Connectivity.WIFI` (is wifi the *active data transport*
+right now) instead of the wifi radio's own on/off state — a device can have wifi on and associated
+but not be routing traffic through it (captive portal, no internet), and the icon would wrongly read
+as off even though the toggle tile right below it (which uses `rememberWifiEnabled()`) correctly
+read on. Fixed by reusing the exact same `wifiOn` value the toggle tile already computes.
+
+**Airplane replaces cellular.** When airplane mode is on, the cellular signal slot now shows the
+airplane glyph instead of dead signal bars — matching a real device's status bar, where a cellular
+icon is meaningless mid-flight.
+
+**Battery: proportionate fill, colour-coded.** The battery indicator was a fixed monoline outline +
+separate percentage text. Replaced with a hand-drawn `BatteryIndicator` (`Canvas`, since
+`TileIcons`' glyphs are stroke-only with no fill support) showing the real level as a proportionate
+fill, colour-coded green (>50%) / amber (20–50%) / red (≤20%) — the percentage text stays alongside
+it, now a secondary confirmation rather than the only way to read the level.
+
+**Accent tint for on/off clarity.** Wifi/bluetooth icons switched from a plain brighter-grey-when-on
+scheme to full accent tint when on — a much clearer on/off signal, matching the toggle tiles' own
+accent-fill convention, per explicit feedback that the fg/fgDim contrast alone wasn't obvious enough
+(this doubled as a report that bluetooth's on/off state "isn't indicated" — it was, just too subtly).
+
+**Background: same synthesized wallpaper gradient as glance.** Per explicit request ("add background
+to quick panel just like glance"), the panel's outer backdrop (previously a flat `tokens.sheet`
+rectangle) now paints the same `WallpaperGradient` synthesis the glance page uses — `rememberFeedPalette`
+(promoted from `private` to `internal` in `FeedPage.kt` so `QuickPanelOverlay.kt`, same module, can
+reuse it directly rather than duplicating the palette-extraction logic) extracts up to 3 prominent
+colours from a custom photo via `androidx.palette`, or passes a stock gradient through unchanged;
+falls back to a flat surface when Start has no wallpaper at all, exactly mirroring glance's own
+`noWallpaper` fallback. The panel's own `accent` (tile fills, slider colours, header status tints)
+switches to the wallpaper-derived colour too, matching how glance's cards use `feedAccent` instead of
+the plain global accent — full parity, not just a backdrop swap. Contrast: `panelFg`/`panelFgDim`
+(via `Glass.faceTextColor` + `rememberChosenWallpaperIsLight`, same pattern as glance's `feedFg`)
+apply only to text/icons sitting directly on the gradient (header, sliders, handle bar) — the tile
+grid's own opaque chip/accent-filled squares are untouched, exactly matching how glance's own
+opaque cards don't adapt either, only the text directly on its backdrop does.
+
+**Ring/media volume icon is now a mute toggle.** Tapping the bell/speaker icon at the start of the
+ring or media slider row mutes it to 0% (remembering the pre-mute level) or restores it — like a
+real device's volume panel. Brightness has no mute concept, so its row's icon stays non-interactive.
+
+**Haptic feedback added throughout Quick Panel, quick search, and the App List long-press menu.**
+`HapticFeedbackType.GestureThresholdActivate` fires the moment a two-finger or edge swipe crosses its
+trigger threshold (both the Quick Panel and quick search gestures, all three `edgeSwipeGesture`
+branches) and when the panel's drag-to-close handle crosses its dismiss threshold. Every Quick Panel
+tile tap and header icon tap fires `VirtualKey`; slider drags fire `GestureEnd` on release; the new
+mute-toggle icon fires `ToggleOn`/`ToggleOff`. Quick search's `act()` (the single choke point nearly
+every committing action already funnels through — app/contact/search-engine/AI-assistant taps, the
+keyboard search action) fires `VirtualKey`, plus the same for the empty-state "suggested app" tap,
+recent-search tap/remove, and the clear (×) button; the contact long-press-for-menu gesture fires
+`LongPress`. The App List's existing long-press-for-pin/hide/uninstall menu (`AppRow` in
+`AppListScreen.kt`) also gained a `LongPress` haptic, per a separate explicit request scoped to just
+that gesture.
+
+**Quick search keyboard overlap bug.** Since quick search's redesign pinned its search box to the
+bottom of the screen (this session, gesture-swap entry above), opening the keyboard would overlap it
+outright — nothing was pushing content up above the IME. Fixed with a single `.imePadding()` on the
+overlay's outer Column; the results area (`weight(1f)`) shrinks to make room and the search box
+stays visible right above the keyboard, exactly as before the bottom-pinning change.
+
+Build + tests green throughout; every item verified live on an emulator (wifi/bluetooth accent tint,
+battery colour-fill, gradient background with matching accent across tiles/sliders, mute/unmute
+round-trip, quick search keyboard clearance, App List long-press menu). Airplane-mode substitution
+verified by code-path symmetry with the already-verified wifi/bluetooth checks — toggling airplane
+mode via `adb shell settings put global airplane_mode_on` doesn't fire the broadcast the app listens
+for without a broadcast permission this shell session didn't have, so the live icon swap itself
+wasn't re-confirmed pixel-by-pixel this round.
+
+**Quick Panel background now respects the feed's own "no background" opt-out, not just Start's
+wallpaper state.** Follow-up: the panel's synthesized-gradient background (previous entry) only
+ever flattened to plain surface fill when Start itself had no wallpaper (`noWallpaper`); the glance
+page's separate `feedNoBackground` toggle (a deliberate independent opt-out — see the "glance screen
+background" entry, since the feed is a denser reading surface where a colourful background behind
+text can be unwanted even when the same wallpaper looks fine behind Start's tiles) was never
+threaded through, so turning it on for the feed didn't also flatten the Quick Panel, even though the
+panel reuses the *exact same* `rememberFeedPalette` mechanism. Fixed by widening
+`QuickPanelOverlay`'s existing flatten condition to `noWallpaper || feedNoBackground`, with
+`feedNoBackground` passed in from `StartScreen.kt`'s already-collected `settings.feedNoBackground`.
+
+**Wifi/bluetooth header icons reverted from accent tint back to plain fg/fgDim.** The "bluetooth
+also indicate on or off state" fix (previous entry) tinted both icons with the global accent colour
+when on. On-device the accent tint read as inconsistent with the cellular icon sitting directly next
+to it, which has always used plain `fg`/`fgDim` — per explicit user feedback ("show these symbols
+same as network symbol color"), both icons now use the same plain fg (on) / fgDim (off) scheme as
+cellular, with no accent tint. The two now-stale "lights up in your accent colour when on" bullets in
+`AboutSheet.kt` and `PersonalizeGuideSheet.kt` were corrected to match. Build + tests green.

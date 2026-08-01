@@ -204,11 +204,6 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(feedEnabled = enabled) }
     }
 
-    /** Toggle the feed page glance tab's read-only device status card. */
-    suspend fun setDeviceStatusCardEnabled(enabled: Boolean) {
-        store.updateData { it.copy(deviceStatusCardEnabled = enabled) }
-    }
-
     /** Set the name shown in the feed's "good morning, `<name>`" greeting. */
     suspend fun setUserName(name: String) {
         store.updateData { it.copy(userName = name) }
@@ -222,6 +217,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
     /** Forces the feed/glance screen to a flat background, independent of Start's wallpaper. */
     suspend fun setFeedNoBackground(noBackground: Boolean) {
         store.updateData { it.copy(feedNoBackground = noBackground) }
+    }
+
+    /** Hides the Android system status bar while TileShell is in the foreground. */
+    suspend fun setHideStatusBar(hidden: Boolean) {
+        store.updateData { it.copy(hideStatusBar = hidden) }
     }
 
     /** Toggle following the device dark-mode setting (vs. the manual [dark] choice). */

@@ -33,6 +33,13 @@ class FeedFormatTest {
     }
 
     @Test
+    fun `quick panel header date is a compact lowercase weekday, day, month`() {
+        // 16 June 2026 is a Tuesday.
+        assertEquals("tue, 16 jun", quickPanelHeaderDate(GregorianCalendar(2026, Calendar.JUNE, 16)))
+        assertEquals("fri, 31 jul", quickPanelHeaderDate(GregorianCalendar(2026, Calendar.JULY, 31)))
+    }
+
+    @Test
     fun `commit advances one page past the 0_28 threshold`() {
         assertEquals(1f, pagerCommitTarget(base = 0f, pos = 0.4f), 0f)   // toward apps
         assertEquals(-1f, pagerCommitTarget(base = 0f, pos = -0.4f), 0f) // toward feed

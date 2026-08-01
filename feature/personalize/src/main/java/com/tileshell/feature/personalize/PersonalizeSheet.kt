@@ -19,13 +19,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -150,8 +150,6 @@ fun PersonalizeSheet(
     onTiledWallpaperChange: (Boolean) -> Unit,
     feedEnabled: Boolean,
     onFeedEnabledChange: (Boolean) -> Unit,
-    deviceStatusCardEnabled: Boolean,
-    onDeviceStatusCardEnabledChange: (Boolean) -> Unit,
     feedNoBackground: Boolean,
     onFeedNoBackgroundChange: (Boolean) -> Unit,
     userName: String,
@@ -188,6 +186,8 @@ fun PersonalizeSheet(
     onTilePackModeChange: (TilePackMode) -> Unit,
     lockLayout: Boolean,
     onLockLayoutChange: (Boolean) -> Unit,
+    hideStatusBar: Boolean,
+    onHideStatusBarChange: (Boolean) -> Unit,
     onClearPhotos: () -> Unit,
     /** Master on/off switch for live-tile flipping/updates. */
     liveTilesEnabled: Boolean,
@@ -292,8 +292,7 @@ fun PersonalizeSheet(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .fillMaxHeight(0.86f)
+                .fillMaxSize()
                 .graphicsLayer { translationY = size.height * (1f - progress) }
                 .background(tokens.sheet)
                 // Swallow taps so they don't fall through to the scrim.
@@ -302,6 +301,7 @@ fun PersonalizeSheet(
                     indication = null,
                     onClick = {},
                 )
+                .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .navigationBarsPadding()
                 .padding(bottom = 24.dp),
@@ -1084,13 +1084,6 @@ fun PersonalizeSheet(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     ToggleRow("show feed page", on = feedEnabled, accent = accent, tokens, onFeedEnabledChange)
                     ToggleRow(
-                        "show device status card",
-                        on = deviceStatusCardEnabled,
-                        accent = accent,
-                        tokens,
-                        onDeviceStatusCardEnabledChange,
-                    )
-                    ToggleRow(
                         "no background",
                         on = feedNoBackground,
                         accent = accent,
@@ -1155,31 +1148,40 @@ fun PersonalizeSheet(
             }
 
             // ---- system ----
-            // Hidden entirely once TileShell is already default — there's nothing
-            // left here ("android settings" moved to the top of the sheet, see
-            // above). Re-checked live on every ON_RESUME ([rememberIsDefaultLauncher])
-            // so backing out to Settings, changing it there, and returning updates
-            // this without reopening the sheet.
-            if (!isDefaultLauncher) {
-                SettingGroup(label = "system", tokens.fgDim) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(onClick = onSetDefaultLauncher)
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "default launcher", color = tokens.fg, fontSize = 14.sp)
-                            Text(
-                                text = "make tileshell your home screen",
-                                color = tokens.fgDim,
-                                fontSize = 12.sp,
-                            )
+            // The default-launcher row is hidden once TileShell already is one —
+            // there's nothing left there ("android settings" moved to the top of
+            // the sheet, see above). Re-checked live on every ON_RESUME
+            // ([rememberIsDefaultLauncher]) so backing out to Settings, changing it
+            // there, and returning updates this without reopening the sheet.
+            SettingGroup(label = "system", tokens.fgDim) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!isDefaultLauncher) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(onClick = onSetDefaultLauncher)
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(text = "default launcher", color = tokens.fg, fontSize = 14.sp)
+                                Text(
+                                    text = "make tileshell your home screen",
+                                    color = tokens.fgDim,
+                                    fontSize = 12.sp,
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text(text = "set ›", color = accent, fontSize = 13.sp)
                         }
-                        Spacer(Modifier.width(8.dp))
-                        Text(text = "set ›", color = accent, fontSize = 13.sp)
                     }
+                    ToggleRow("hide status bar", on = hideStatusBar, accent = accent, tokens, onHideStatusBarChange)
+                    Text(
+                        "hides the clock/battery/signal strip at the top of the screen — swipe down " +
+                        "from the top edge to reveal it temporarily",
+                        color = tokens.fgDim,
+                        fontSize = 12.sp,
+                    )
                 }
             }
 

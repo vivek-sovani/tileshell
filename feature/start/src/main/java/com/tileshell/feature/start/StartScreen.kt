@@ -265,7 +265,6 @@ fun StartScreen(
     onLockScreen: () -> Unit = {},
     onRecents: () -> Unit = {},
     onOpenNotifications: () -> Unit = {},
-    onOpenQuickSettings: () -> Unit = {},
 ) {
     val tiles by viewModel.tiles.collectAsStateWithLifecycle()
     val swipeEnabled by viewModel.swipeEnabled.collectAsStateWithLifecycle()
@@ -428,6 +427,20 @@ fun StartScreen(
                 if (local != null) pendingWallpaperCropUri = local.toString()
             }
         }
+    }
+
+    // A photo shared into TileShell from another app (e.g. Gallery/Photos' own "share"
+    // sheet) — MainActivity forwards it via viewModel.receiveSharedImage(uri) when it
+    // receives an ACTION_SEND intent. Same copy-then-crop flow as the picker above: the
+    // share grant is only valid for the life of this intent, so it's imported into
+    // private storage immediately, then the existing crop overlay takes over exactly as
+    // if the photo had been picked from within the app.
+    val sharedWallpaperUri by viewModel.sharedWallpaperUri.collectAsStateWithLifecycle()
+    LaunchedEffect(sharedWallpaperUri) {
+        val incoming = sharedWallpaperUri ?: return@LaunchedEffect
+        val local = withContext(Dispatchers.IO) { MediaImport.importWallpaper(context, incoming) }
+        if (local != null) pendingWallpaperCropUri = local.toString()
+        viewModel.consumeSharedWallpaperUri()
     }
 
     // Live-photos selection (FR-2). PickMultipleVisualMedia opens the gallery; the
@@ -660,6 +673,7 @@ fun StartScreen(
                     val dx = ((a.position.x - startA.x) + (b.position.x - startB.x)) / 2f
                     if (isQuickSearchSwipe(dy, dx, thresholdPx)) {
                         triggered = true
+                        haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
                         viewModel.openSearch()
                     }
                 }
@@ -668,11 +682,13 @@ fun StartScreen(
         }
     }
 
-    // Two-finger swipe-up opens the quick panel (Wi-Fi/Bluetooth/flashlight/DND/
-    // airplane/location chips + volume sliders — see docs/QUICK-PANEL-SPEC.md).
-    // Identical shape to quickSearchGesture with the vertical sign flipped —
-    // "up" vs. quick search's "down" means the two gestures can never both
-    // fire for the same swipe.
+    // Two-finger swipe-down opens the quick panel (Wi-Fi/Bluetooth/flashlight/
+    // DND/airplane/location chips + volume sliders — see
+    // docs/QUICK-PANEL-SPEC.md). Identical shape to quickSearchGesture with the
+    // vertical sign flipped — "down" vs. quick search's "up" means the two
+    // gestures can never both fire for the same swipe. (Swapped directions
+    // from the original down=search/up=panel mapping per explicit user
+    // request — see isQuickPanelSwipe's doc for why.)
     val quickPanelGesture = Modifier.pointerInput(quickPanelEnabled) {
         if (!quickPanelEnabled) return@pointerInput
         val thresholdPx = 40.dp.toPx()
@@ -700,6 +716,7 @@ fun StartScreen(
                     val dx = ((a.position.x - startA.x) + (b.position.x - startB.x)) / 2f
                     if (isQuickPanelSwipe(dy, dx, thresholdPx)) {
                         triggered = true
+                        haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
                         viewModel.openQuickPanel()
                     }
                 }
@@ -709,11 +726,17 @@ fun StartScreen(
     }
 
     // Single-finger swipe from a screen edge: down-left opens the system
-    // notification shade, down-right opens system quick settings — not in the
-    // WP prototype/spec, see DECISIONS "Edge swipe-down for notifications/quick
-    // settings". Up from *either* edge opens the in-app Quick Panel — an
-    // additional, easier-to-discover path alongside the existing two-finger
-    // swipe-up gesture (quickPanelGesture above), per explicit user request.
+    // notification shade — not in the WP prototype/spec, see DECISIONS "Edge
+    // swipe-down for notifications/quick settings". Down-right opens this
+    // app's own Quick Panel instead of the system's quick settings (changed
+    // per explicit user request — the system quick-settings action read as
+    // confusing next to this app's own Quick Panel) — matching the two-finger
+    // swipe-down gesture below, which also opens the Quick Panel. Up from
+    // *either* edge opens quick search instead — an additional, easier-to-
+    // discover path alongside the two-finger swipe-up gesture (quickSearchGesture
+    // above), kept in sync with it after that gesture's direction swapped from
+    // down to up per explicit user request (it used to mirror the Quick Panel
+    // up-gesture; now it mirrors quick search's).
     // Same enable-gating as the two-finger gestures, and the same "don't
     // consume until triggered" shape, but keyed on which physical edge the
     // touch started in rather than pointer count — so it never steals an
@@ -739,14 +762,16 @@ fun StartScreen(
                     val dx = change.position.x - start.x
                     if (isEdgeSwipeDown(dy, dx, thresholdPx)) {
                         triggered = true
+                        haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
                         when (zone) {
                             EdgeZone.LEFT -> onOpenNotifications()
-                            EdgeZone.RIGHT -> onOpenQuickSettings()
+                            EdgeZone.RIGHT -> viewModel.openQuickPanel()
                             EdgeZone.NONE -> {}
                         }
                     } else if (isEdgeSwipeUp(dy, dx, thresholdPx)) {
                         triggered = true
-                        viewModel.openQuickPanel()
+                        haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
+                        viewModel.openSearch()
                     }
                 }
                 if (triggered) event.changes.forEach { it.consume() }
@@ -882,6 +907,7 @@ fun StartScreen(
                     widthPx = pageWidthPx,
                     viewportHeightPx = viewportHeightPx,
                     statusBarTopPx = statusBarTopPx,
+                    hideStatusBar = settings.hideStatusBar,
                     columns = settings.columns,
                     sticky = settings.tilePackMode == TilePackMode.STICKY,
                     onSetTileSlot = viewModel::setTileGridSlot,
@@ -1008,7 +1034,6 @@ fun StartScreen(
                     Toast.makeText(context, "refreshing news", Toast.LENGTH_SHORT).show()
                 },
                 active = active,
-                deviceStatusCardEnabled = settings.deviceStatusCardEnabled,
             )
         }
 
@@ -1197,8 +1222,6 @@ fun StartScreen(
             onTiledWallpaperChange = viewModel::setTiledWallpaper,
             feedEnabled = settings.feedEnabled,
             onFeedEnabledChange = viewModel::setFeedEnabled,
-            deviceStatusCardEnabled = settings.deviceStatusCardEnabled,
-            onDeviceStatusCardEnabledChange = viewModel::setDeviceStatusCardEnabled,
             feedNoBackground = settings.feedNoBackground,
             onFeedNoBackgroundChange = viewModel::setFeedNoBackground,
             userName = settings.userName,
@@ -1269,6 +1292,8 @@ fun StartScreen(
             onTilePackModeChange = viewModel::setTilePackMode,
             lockLayout = settings.lockLayout,
             onLockLayoutChange = viewModel::setLockLayout,
+            hideStatusBar = settings.hideStatusBar,
+            onHideStatusBarChange = viewModel::setHideStatusBar,
             onAbout = viewModel::openAbout,
             onPersonalizeGuide = viewModel::openPersonalizeGuide,
             onFolders = viewModel::openFolders,
@@ -1359,6 +1384,10 @@ fun StartScreen(
             onLockScreen = onLockScreen,
             onThemeChange = viewModel::setTheme,
             onFollowSystemThemeChange = viewModel::setFollowSystemTheme,
+            wallpaper = wallpaper,
+            customWallpaperPhoto = customWallpaperBitmap,
+            noWallpaper = noWallpaper,
+            feedNoBackground = settings.feedNoBackground,
             rightHalf = isLandscape,
         )
 
@@ -1648,6 +1677,18 @@ private fun StartPage(
     widthPx: Float,
     viewportHeightPx: Float,
     statusBarTopPx: Float,
+    /**
+     * Mirrors the "hide status bar" Personalize toggle: skips [statusBarsPadding]
+     * *and* [displayCutoutPadding] on the tile grid so it fills all the way to
+     * the top of the screen instead of leaving either inset's height as blank
+     * space. Reserving the status-bar inset via the system's [WindowInsets]
+     * doesn't reliably shrink to zero once the bar is hidden on every device/API
+     * level, and a device with a punch-hole/notch cutout reserves its own
+     * separate top inset regardless of the status bar — both are skipped
+     * unconditionally from the setting rather than left to the system to figure
+     * out, confirmed against a real device with a punch-hole camera cutout.
+     */
+    hideStatusBar: Boolean = false,
     columns: Int,
     sticky: Boolean,
     onSetTileSlot: (id: String, slot: Int?) -> Unit,
@@ -1912,10 +1953,19 @@ private fun StartPage(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                // Keep tiles clear of a display cutout (e.g. a landscape notch).
-                .displayCutoutPadding(),
+                .then(
+                    if (hideStatusBar) {
+                        // Reclaim the top of the screen fully — including the
+                        // display-cutout inset (e.g. a punch-hole camera), which
+                        // on some devices reserves just as much top space as the
+                        // status bar itself and would otherwise leave the exact
+                        // same "wasted gap" this setting is meant to remove.
+                        Modifier
+                    } else {
+                        Modifier.statusBarsPadding().displayCutoutPadding()
+                    },
+                )
+                .navigationBarsPadding(),
         ) {
             val editDrag = Modifier.editDragGesture(
                 editMode = editMode,

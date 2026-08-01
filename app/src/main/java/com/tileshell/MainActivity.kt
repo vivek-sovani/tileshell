@@ -28,14 +28,22 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.core.view.OnApplyWindowInsetsListener
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tileshell.core.data.RatingPromptPrefs
 import com.tileshell.core.data.isRatingPromptCheckWindowOpen
 import com.tileshell.core.data.rollShowsPrompt
@@ -45,6 +53,9 @@ import com.tileshell.feature.start.StartViewModel
 import com.tileshell.feature.system.DefaultLauncher
 import com.tileshell.feature.system.InAppReview
 import kotlin.random.Random
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private const val PRIVACY_POLICY_URL = "https://vivek-sovani.github.io/tileshell/"
 private const val FEEDBACK_EMAIL = "vivek.sovani@kimayainfotech.com"
@@ -71,15 +82,18 @@ class MainActivity : ComponentActivity() {
             },
         )
 
+        handleShareIntent(intent)
+
         setContent {
             DefaultLauncherPrompt()
             RequestRuntimePermissionsOnStart()
             RatingPromptHost()
+            val settings by startViewModel.settings.collectAsStateWithLifecycle()
+            StatusBarVisibilityEffect(hide = settings.hideStatusBar)
             val ctx = LocalContext.current
             var showLockDisclosure by remember { mutableStateOf(false) }
             var showRecentsDisclosure by remember { mutableStateOf(false) }
             var showNotificationsDisclosure by remember { mutableStateOf(false) }
-            var showQuickSettingsDisclosure by remember { mutableStateOf(false) }
 
             StartScreen(
                 viewModel = startViewModel,
@@ -101,11 +115,6 @@ class MainActivity : ComponentActivity() {
                 onOpenNotifications = {
                     if (!LockAccessibilityService.expandNotifications()) {
                         showNotificationsDisclosure = true
-                    }
-                },
-                onOpenQuickSettings = {
-                    if (!LockAccessibilityService.expandQuickSettings()) {
-                        showQuickSettingsDisclosure = true
                     }
                 },
             )
@@ -137,21 +146,13 @@ class MainActivity : ComponentActivity() {
                     onDismiss = { showNotificationsDisclosure = false },
                 )
             }
-            if (showQuickSettingsDisclosure) {
-                AccessibilityDisclosureDialog(
-                    onConfirm = {
-                        showQuickSettingsDisclosure = false
-                        openAccessibilitySettings(ctx)
-                    },
-                    onDismiss = { showQuickSettingsDisclosure = false },
-                )
-            }
         }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (handleShareIntent(intent)) return
         startViewModel.goHome()
         // Dismiss the keyboard when returning to Start via the Home button.
         // The search field in the app list / feed retains IME focus after
@@ -159,6 +160,27 @@ class MainActivity : ComponentActivity() {
         currentFocus?.clearFocus()
         (getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)
             ?.hideSoftInputFromWindow(window.decorView.windowToken, 0)
+    }
+
+    /**
+     * Handles a share-sheet `ACTION_SEND` intent carrying an image, sent from another app
+     * (e.g. Gallery/Photos' own "share"), forwarding the shared photo to
+     * [StartViewModel.receiveSharedImage] so `StartScreen` can import it and open the
+     * crop/reframe overlay, same as picking a wallpaper from within the app. Returns true if
+     * this intent was a share (and was handled), so callers can skip their own "just reopened"
+     * home-button handling for it.
+     */
+    private fun handleShareIntent(intent: Intent): Boolean {
+        if (intent.action != Intent.ACTION_SEND) return false
+        if (intent.type?.startsWith("image/") != true) return false
+        val uri = if (android.os.Build.VERSION.SDK_INT >= 33) {
+            intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(Intent.EXTRA_STREAM)
+        } ?: return false
+        startViewModel.receiveSharedImage(uri)
+        return true
     }
 }
 
@@ -176,8 +198,9 @@ class MainActivity : ComponentActivity() {
  * locally-tracked "recent apps" tap history ("page views and taps in app").
  *
  * Used for screen-lock (gear long-press), recent-apps (edge strip), and the
- * left/right edge-swipe-down notifications/quick-settings gesture — all four
- * rely on the same single Accessibility Service.
+ * left-edge-swipe-down notifications gesture (the right-edge sibling gesture
+ * opens this app's own Quick Panel and needs no accessibility action) — all
+ * three rely on the same single Accessibility Service.
  */
 @Composable
 private fun AccessibilityDisclosureDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
@@ -190,8 +213,8 @@ private fun AccessibilityDisclosureDialog(onConfirm: () -> Unit, onDismiss: () -
                 Text(
                     "TileShell's Accessibility Service is used for one narrow purpose only: " +
                     "locking the screen (long-press the settings icon), opening recent apps " +
-                    "(edge strip), and opening the system notification shade / quick settings " +
-                    "(swipe down from the left/right screen edge). It never reads your screen " +
+                    "(edge strip), and opening the system notification shade " +
+                    "(swipe down from the left screen edge). It never reads your screen " +
                     "content, other apps, or keystrokes.\n\n" +
                     "Separately from Accessibility — and only if you grant each permission — " +
                     "TileShell also collects this data. All of it below:",
@@ -236,6 +259,63 @@ private fun AccessibilityDisclosureDialog(onConfirm: () -> Unit, onDismiss: () -
         },
     )
 }
+
+/**
+ * Hides/shows the system status bar per the "hide status bar" Personalize toggle.
+ * [WindowInsetsControllerCompat.BEHAVIOR_SHOW_BARS_BY_SWIPE] keeps it reachable
+ * with a swipe from the top edge even while hidden, rather than a fully locked-down
+ * immersive mode.
+ *
+ * That "transient reveal" is normally expected to auto-hide itself again after a
+ * few seconds — but on at least one real device it stayed shown permanently once
+ * swiped into view, never re-hiding on its own. Rather than trust the system to
+ * time it out, a [OnApplyWindowInsetsListener] on the decor view (observing, never
+ * consuming, so Compose's own insets handling downstream is untouched) explicitly
+ * re-hides the status bar [REHIDE_DELAY_MS] after it's *reported visible* while
+ * this setting is on — covering both the swipe-reveal case and any other way the
+ * system might have shown it back (e.g. after a notification).
+ */
+@Composable
+private fun StatusBarVisibilityEffect(hide: Boolean) {
+    val view = LocalView.current
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(hide) {
+        val window = (view.context as? Activity)?.window ?: return@LaunchedEffect
+        val controller = WindowCompat.getInsetsController(window, view)
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_BARS_BY_SWIPE
+        if (hide) {
+            controller.hide(WindowInsetsCompat.Type.statusBars())
+        } else {
+            controller.show(WindowInsetsCompat.Type.statusBars())
+        }
+    }
+
+    DisposableEffect(hide, view) {
+        val window = (view.context as? Activity)?.window
+        val decorView = window?.decorView
+        if (!hide || window == null || decorView == null) return@DisposableEffect onDispose {}
+
+        val controller = WindowCompat.getInsetsController(window, view)
+        var reHideJob: Job? = null
+        val listener = OnApplyWindowInsetsListener { _, insets ->
+            if (insets.isVisible(WindowInsetsCompat.Type.statusBars())) {
+                reHideJob?.cancel()
+                reHideJob = scope.launch {
+                    delay(REHIDE_DELAY_MS)
+                    controller.hide(WindowInsetsCompat.Type.statusBars())
+                }
+            }
+            insets
+        }
+        ViewCompat.setOnApplyWindowInsetsListener(decorView, listener)
+        onDispose {
+            reHideJob?.cancel()
+            ViewCompat.setOnApplyWindowInsetsListener(decorView, null)
+        }
+    }
+}
+
+private const val REHIDE_DELAY_MS = 2500L
 
 private fun openAccessibilitySettings(context: Context) {
     val intent = android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)

@@ -9,9 +9,11 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,14 +23,17 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,27 +43,41 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
+import com.tileshell.core.design.ColorTokens
+import com.tileshell.core.design.Glass
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
+import com.tileshell.core.design.WallpaperGradient
 import com.tileshell.core.design.colorTokens
-import com.tileshell.feature.livetiles.BRIGHTNESS_VOLUME_LEVELS
-import com.tileshell.feature.livetiles.nextPercentLevel
+import com.tileshell.core.design.wallpaperBackground
+import com.tileshell.feature.livetiles.Connectivity
 import com.tileshell.feature.livetiles.nextScreenTimeoutPreset
 import com.tileshell.feature.livetiles.openWriteSettingsAccess
 import com.tileshell.feature.livetiles.rememberAirplaneModeOn
 import com.tileshell.feature.livetiles.rememberBatterySaverOn
 import com.tileshell.feature.livetiles.rememberBluetoothOn
+import com.tileshell.feature.livetiles.rememberDeviceStatus
 import com.tileshell.feature.livetiles.rememberDndAccessGranted
 import com.tileshell.feature.livetiles.rememberDndOn
 import com.tileshell.feature.livetiles.rememberLocationEnabled
@@ -72,19 +91,31 @@ import com.tileshell.feature.livetiles.rememberWriteSettingsGranted
 import com.tileshell.feature.livetiles.screenTimeoutLabel
 import com.tileshell.feature.livetiles.setRotationLock
 import com.tileshell.feature.livetiles.toggleDnd
+import com.tileshell.feature.start.feed.feedClock12
+import com.tileshell.feature.start.feed.quickPanelHeaderDate
+import com.tileshell.feature.start.feed.rememberFeedPalette
+import java.util.Calendar
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
-/** Quick panel's square-tile grid is this many tiles wide (matches the real WP Action Center photo). */
-private const val QUICK_PANEL_COLUMNS = 5
+/**
+ * Quick panel's square-tile grid is this many tiles wide. Was 5 (matching the
+ * real WP Action Center photo exactly) — dropped to 4 per explicit on-device
+ * feedback: fewer, bigger tiles with more breathing room between them read
+ * better than a tighter 5-across grid.
+ */
+private const val QUICK_PANEL_COLUMNS = 4
 
 /**
- * Quick panel: a two-finger swipe-up on Start opens this, sliding up from the
- * bottom edge (motion follows the finger, same physical logic as the classic
- * iOS Control Center gesture — chosen so it can never collide with quick
- * search's two-finger swipe-**down**). See docs/QUICK-PANEL-SPEC.md for the
- * full design rationale and the no-new-Play-Console-permission scoping.
+ * Quick panel: a two-finger swipe-up on Start opens this. The gesture itself is
+ * unchanged (still swipe-**up**, so it can never collide with quick search's
+ * two-finger swipe-**down**), but the panel now docks to and slides down from
+ * the **top** edge — matching the real Android quick settings panel — rather
+ * than sliding up from the bottom the way every other sheet in this app does.
+ * See docs/QUICK-PANEL-SPEC.md for the full design rationale and the
+ * no-new-Play-Console-permission scoping.
  *
  * Styled as a miniature Start screen rather than a generic Android settings
  * sheet: every control — toggles, brightness, volume, screen timeout, and the
@@ -111,6 +142,14 @@ fun QuickPanelOverlay(
     onLockScreen: () -> Unit,
     onThemeChange: (Boolean) -> Unit,
     onFollowSystemThemeChange: (Boolean) -> Unit,
+    /** Start's own resolved wallpaper gradient — synthesized into the panel's own backdrop, same as the glance page. */
+    wallpaper: WallpaperGradient,
+    /** Start's custom photo wallpaper, if any (palette-extracted, never drawn directly — see [rememberFeedPalette]). */
+    customWallpaperPhoto: ImageBitmap? = null,
+    /** True when Start has no wallpaper at all — the panel then stays a flat surface, matching the glance page's own fallback. */
+    noWallpaper: Boolean = false,
+    /** The glance page's own "no background" opt-out (personalize · feed & glance) — the panel honours the same choice rather than having a separate toggle. */
+    feedNoBackground: Boolean = false,
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -122,8 +161,35 @@ fun QuickPanelOverlay(
     if (!visible && progress == 0f) return
 
     val tokens = colorTokens(dark)
-    val accent = TileAccents.forId(accentId)
+    val globalAccent = TileAccents.forId(accentId)
     val context = LocalContext.current
+    val haptics = LocalHapticFeedback.current
+
+    // Same synthesized-palette backdrop as the glance page — a colour gradient
+    // derived from Start's wallpaper (never the raw photo), per explicit
+    // request to give the panel "a background just like glance", including
+    // honouring glance's own "no background" opt-out rather than adding a
+    // second, separate toggle for the panel. The panel's own accent (tile
+    // fills, slider colours, header status tints) switches to match it too,
+    // exactly mirroring how the glance page's own cards use `feedAccent`
+    // instead of the plain global accent once a background is showing —
+    // falls back to the flat surface + plain accent when Start has no
+    // wallpaper at all, or the user opted the flat look in.
+    val flatBackground = noWallpaper || feedNoBackground
+    val (panelGradient, accent) = if (flatBackground) {
+        wallpaper to globalAccent
+    } else {
+        rememberFeedPalette(customWallpaperPhoto, wallpaper, globalAccent)
+    }
+    val panelBackgroundIsLight = rememberChosenWallpaperIsLight(
+        customPhoto = null,
+        noWallpaper = flatBackground,
+        wallpaper = panelGradient,
+        dark = dark,
+        screenBg = tokens.bg,
+    )
+    val panelFg = Glass.faceTextColor(panelBackgroundIsLight)
+    val panelFgDim = panelFg.copy(alpha = 0.62f)
 
     BackHandler(enabled = visible) { onDismiss() }
 
@@ -143,20 +209,9 @@ fun QuickPanelOverlay(
     val (screenTimeoutMs, setScreenTimeoutMs) = rememberScreenTimeoutMs()
     val (mediaVolume, setMediaVolume) = rememberStreamVolume(AudioManager.STREAM_MUSIC)
     val (ringVolume, setRingVolume) = rememberStreamVolume(AudioManager.STREAM_RING)
-    // Cycling decisions use our own remembered level, not a fresh readback of the
-    // hardware fraction — media/ring streams have a tiny native range (often 15
-    // or 7 steps), so round-tripping a percent through it and reading back
-    // rounds to a different percent than intended, making the "next level"
-    // check see itself as still below the just-set target and re-target the
-    // same level forever (reported: "volume settings tap not working"). Seeding
-    // once from the real level and then only ever advancing locally keeps every
-    // tap deterministic regardless of how coarse the underlying hardware step is.
-    val brightnessLevel = rememberSteppedPercent(brightness)
-    val mediaLevel = rememberSteppedPercent(mediaVolume)
-    val ringLevel = rememberSteppedPercent(ringVolume)
     val androidSettingsIcon = rememberAndroidSettingsIcon()
 
-    SheetStage(rightHalf = rightHalf, modifier = modifier) {
+    SheetStage(rightHalf = rightHalf, dockTop = true, modifier = modifier) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -168,26 +223,37 @@ fun QuickPanelOverlay(
                 ),
         )
 
+        val panelShape = RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .graphicsLayer { translationY = size.height * (1f - progress) }
-                .background(tokens.sheet, shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                .align(Alignment.TopCenter)
+                .graphicsLayer { translationY = -size.height * (1f - progress) }
+                .clip(panelShape)
+                .then(
+                    if (flatBackground) Modifier.background(tokens.sheet)
+                    else Modifier.wallpaperBackground(panelGradient, dark),
+                )
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = {},
                 )
-                .padding(top = 10.dp, bottom = 4.dp)
-                .navigationBarsPadding(),
+                .statusBarsPadding()
+                .padding(top = 4.dp, bottom = 10.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .width(32.dp)
-                    .height(3.dp)
-                    .background(tokens.fgDim, shape = RoundedCornerShape(2.dp)),
+            QuickPanelHeader(
+                tokens = tokens,
+                fg = panelFg,
+                fgDim = panelFgDim,
+                accent = accent,
+                visible = visible,
+                wifiOn = wifiOn,
+                airplaneOn = airplaneOn,
+                androidSettingsIcon = androidSettingsIcon,
+                onOpenPersonalize = { onDismiss(); onOpenPersonalize() },
+                onOpenAndroidSettings = { deepLink(context, Settings.ACTION_SETTINGS) },
+                onLockScreen = { onDismiss(); onLockScreen() },
             )
 
             val tiles = quickPanelTiles(
@@ -202,30 +268,21 @@ fun QuickPanelOverlay(
                 dndOn = dndOn,
                 rotationLockOn = rotationLockOn,
                 writeSettingsGranted = writeSettingsGranted,
-                brightnessLevel = brightnessLevel,
-                setBrightness = setBrightness,
-                mediaLevel = mediaLevel,
-                setMediaVolume = setMediaVolume,
-                ringLevel = ringLevel,
-                setRingVolume = setRingVolume,
                 screenTimeoutMs = screenTimeoutMs,
                 setScreenTimeoutMs = setScreenTimeoutMs,
-                androidSettingsIcon = androidSettingsIcon,
                 dark = dark,
                 followSystemTheme = followSystemTheme,
                 onThemeChange = onThemeChange,
                 onFollowSystemThemeChange = onFollowSystemThemeChange,
-                onOpenPersonalize = { onDismiss(); onOpenPersonalize() },
-                onLockScreen = { onDismiss(); onLockScreen() },
             )
             Column(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 tiles.chunked(QUICK_PANEL_COLUMNS).forEach { row ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         row.forEach { tile ->
                             QuickPanelTile(
@@ -240,7 +297,253 @@ fun QuickPanelOverlay(
                 }
             }
 
-            Box(modifier = Modifier.height(8.dp))
+            QuickPanelSliders(
+                tokens = tokens,
+                fg = panelFg,
+                fgDim = panelFgDim,
+                accent = accent,
+                writeSettingsGranted = writeSettingsGranted,
+                brightness = brightness,
+                setBrightness = setBrightness,
+                mediaVolume = mediaVolume,
+                setMediaVolume = setMediaVolume,
+                ringVolume = ringVolume,
+                setRingVolume = setRingVolume,
+            )
+
+            // Pull-tab handle sits at the bottom edge of the panel now — the edge
+            // closest to open space, where it slides down from the top and this
+            // reads as "drag/swipe here to close" (mirrors every other sheet's
+            // handle sitting at its own open-space edge, just flipped top<->bottom
+            // since this panel docks to the top instead of the bottom). Also
+            // directly draggable now, per explicit request: dragging it upward
+            // past a small threshold dismisses the panel — the same direction
+            // you'd naturally pull it back toward, since the panel itself slides
+            // down from above.
+            var handleDragAccumPx by remember { mutableStateOf(0f) }
+            var handleDismissed by remember { mutableStateOf(false) }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 4.dp, bottom = 4.dp)
+                    .size(width = 56.dp, height = 20.dp)
+                    .pointerInput(Unit) {
+                        val thresholdPx = 24.dp.toPx()
+                        detectVerticalDragGestures(
+                            onDragStart = {
+                                handleDragAccumPx = 0f
+                                handleDismissed = false
+                            },
+                            onVerticalDrag = { change, dragAmount ->
+                                change.consume()
+                                handleDragAccumPx += dragAmount
+                                if (!handleDismissed && handleDragAccumPx < -thresholdPx) {
+                                    handleDismissed = true
+                                    haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
+                                    onDismiss()
+                                }
+                            },
+                        )
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(32.dp)
+                        .height(3.dp)
+                        .background(panelFgDim, shape = RoundedCornerShape(2.dp)),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Panel header: live clock + date on the left with a small read-only status
+ * row (wifi/bluetooth/cellular/battery) on the right of that same top line —
+ * standing in for the real status bar this app can hide — and a second row
+ * below it for the personalize / android settings / lock screen icon buttons.
+ * Mirrors a real device's quick settings panel header (clock/date + status
+ * icons on top, action icons below), per explicit user request. The status
+ * icons and the three shortcuts both used to live elsewhere (the status
+ * row on the feed page's device-status card, the shortcuts as square tiles
+ * in the grid below) — moved up here instead, freeing the grid for genuine
+ * device controls and giving the hidden status bar a replacement.
+ */
+@Composable
+private fun QuickPanelHeader(
+    tokens: ColorTokens,
+    fg: Color,
+    fgDim: Color,
+    accent: Color,
+    visible: Boolean,
+    wifiOn: Boolean,
+    airplaneOn: Boolean,
+    androidSettingsIcon: ImageBitmap?,
+    onOpenPersonalize: () -> Unit,
+    onOpenAndroidSettings: () -> Unit,
+    onLockScreen: () -> Unit,
+) {
+    var now by remember { mutableStateOf(Calendar.getInstance()) }
+    LaunchedEffect(visible) {
+        if (!visible) return@LaunchedEffect
+        while (true) {
+            now = Calendar.getInstance()
+            delay(60_000L - (System.currentTimeMillis() % 60_000L))
+        }
+    }
+
+    val status = rememberDeviceStatus()
+    val bluetoothOn = rememberBluetoothOn()
+
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(text = feedClock12(now), color = fg, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = quickPanelHeaderDate(now),
+                    color = fgDim,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(bottom = 1.dp),
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Reuses the same live radio state as the wifi toggle tile below
+                // (rememberWifiEnabled) rather than "is wifi the active data
+                // transport" — a device can be wifi-on-but-not-the-active-route
+                // (e.g. a captive/no-internet network) and this should still
+                // read as on, matching the toggle tile it sits above. Plain
+                // fg/fgDim (not accent) — matches the cellular icon right next
+                // to it, per explicit user request; accent tint was tried first
+                // but read as inconsistent with the plain-coloured network icon.
+                Icon(
+                    TileIcons["wifi"], contentDescription = "wi-fi",
+                    tint = if (wifiOn) fg else fgDim,
+                    modifier = Modifier.size(16.dp),
+                )
+                Icon(
+                    TileIcons["bluetooth"], contentDescription = "bluetooth",
+                    tint = if (bluetoothOn) fg else fgDim,
+                    modifier = Modifier.size(16.dp),
+                )
+                // Cellular signal is meaningless in airplane mode — swap in the
+                // airplane glyph instead, matching a real device's status bar.
+                if (airplaneOn) {
+                    Icon(
+                        TileIcons["airplane"], contentDescription = "airplane mode",
+                        tint = fg,
+                        modifier = Modifier.size(16.dp),
+                    )
+                } else {
+                    Icon(
+                        TileIcons["cellular"], contentDescription = "cellular",
+                        tint = if (status.connectivity == Connectivity.CELLULAR) fg else fgDim,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+                BatteryIndicator(percent = status.batteryPercent, fg = fg, fgDim = fgDim)
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+        ) {
+            QuickPanelHeaderIcon(icon = "settings", description = "personalize", fg = fg, onClick = onOpenPersonalize)
+            QuickPanelHeaderIcon(
+                icon = "settings",
+                description = "android settings",
+                fg = fg,
+                iconBitmap = androidSettingsIcon,
+                onClick = onOpenAndroidSettings,
+            )
+            QuickPanelHeaderIcon(icon = "lock", description = "lock screen", fg = fg, onClick = onLockScreen)
+        }
+    }
+}
+
+/**
+ * Battery glyph drawn by hand (not from [TileIcons], which is stroke-only with
+ * no fill support) so the level can render as a proportionate fill, colour-
+ * coded green/amber/red — per explicit request, richer than a fixed outline
+ * glyph + separate percentage. Percentage text still sits alongside it (more
+ * informative than the icon alone), just no longer the only way to read the
+ * level.
+ */
+@Composable
+private fun BatteryIndicator(percent: Int?, fg: Color, fgDim: Color) {
+    val fraction = ((percent ?: 100) / 100f).coerceIn(0f, 1f)
+    val fillColor = when {
+        percent == null -> fgDim
+        percent <= 20 -> Color(0xFFE5484D)
+        percent <= 50 -> Color(0xFFE5A02E)
+        else -> Color(0xFF2FA84F)
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Canvas(modifier = Modifier.size(width = 20.dp, height = 11.dp)) {
+            val strokeWidth = 1.2.dp.toPx()
+            val nubWidth = 1.6.dp.toPx()
+            val bodyWidth = size.width - nubWidth
+            val bodyRect = RoundRect(
+                left = 0f, top = 0f, right = bodyWidth, bottom = size.height,
+                cornerRadius = CornerRadius(2.dp.toPx()),
+            )
+            drawPath(Path().apply { addRoundRect(bodyRect) }, color = fg, style = Stroke(strokeWidth))
+            drawRoundRect(
+                color = fg,
+                topLeft = Offset(bodyWidth, size.height * 0.28f),
+                size = Size(nubWidth, size.height * 0.44f),
+                cornerRadius = CornerRadius(0.6.dp.toPx()),
+            )
+            val inset = strokeWidth * 1.6f
+            val fillWidth = ((bodyWidth - inset * 2) * fraction).coerceAtLeast(0f)
+            if (fillWidth > 0f) {
+                drawRoundRect(
+                    color = fillColor,
+                    topLeft = Offset(inset, inset),
+                    size = Size(fillWidth, size.height - inset * 2),
+                    cornerRadius = CornerRadius(1.dp.toPx()),
+                )
+            }
+        }
+        Text(text = percent?.let { "$it%" } ?: "—", color = fg, fontSize = 12.sp)
+    }
+}
+
+@Composable
+private fun QuickPanelHeaderIcon(
+    icon: String,
+    description: String,
+    fg: Color,
+    onClick: () -> Unit,
+    iconBitmap: ImageBitmap? = null,
+) {
+    val haptics = LocalHapticFeedback.current
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clickable(onClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                onClick()
+            }),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (iconBitmap != null) {
+            Image(
+                bitmap = iconBitmap,
+                contentDescription = description,
+                modifier = Modifier.size(22.dp).clip(RoundedCornerShape(5.dp)),
+            )
+        } else {
+            Icon(
+                imageVector = TileIcons[icon],
+                contentDescription = description,
+                tint = fg,
+                modifier = Modifier.size(22.dp),
+            )
         }
     }
 }
@@ -256,15 +559,155 @@ private data class QuickPanelTileSpec(
 )
 
 /**
- * Seeds once from [hardwareFraction] (as the nearest [BRIGHTNESS_VOLUME_LEVELS]
- * step) and never re-syncs from it afterwards — see the call site's comment for
- * why a fresh readback breaks tap-to-step cycling on a coarse-grained stream.
+ * Brightness/media-volume/ring-volume as three full-width drag sliders below
+ * the toggle-tile grid, per explicit user request (sliders read better than
+ * tap-to-step tiles for these three, unlike the earlier square-tile redesign's
+ * choice). Brightness only renders once `WRITE_SETTINGS` is granted (the
+ * toggle-tile grid already carries an "allow access" tile for that case);
+ * media/ring volume need no special permission and always show.
  */
 @Composable
-private fun rememberSteppedPercent(hardwareFraction: Float): MutableState<Int> = remember {
-    val initialPercent = (hardwareFraction * 100).roundToInt()
-    mutableStateOf(BRIGHTNESS_VOLUME_LEVELS.minByOrNull { kotlin.math.abs(it - initialPercent) } ?: 0)
+private fun QuickPanelSliders(
+    tokens: ColorTokens,
+    fg: Color,
+    fgDim: Color,
+    accent: Color,
+    writeSettingsGranted: Boolean,
+    brightness: Float,
+    setBrightness: (Float) -> Unit,
+    mediaVolume: Float,
+    setMediaVolume: (Float) -> Unit,
+    ringVolume: Float,
+    setRingVolume: (Float) -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        if (writeSettingsGranted) {
+            val brightnessFraction = rememberSliderFraction(brightness)
+            QuickPanelSliderRow(
+                icon = "brightness",
+                value = brightnessFraction.value,
+                onValueChange = { brightnessFraction.value = it; setBrightness(it) },
+                tokens = tokens,
+                fg = fg,
+                fgDim = fgDim,
+                accent = accent,
+            )
+        }
+        val ringFraction = rememberSliderFraction(ringVolume)
+        var ringPreMute by remember { mutableStateOf(ringFraction.value.takeIf { it > 0f } ?: 0.5f) }
+        QuickPanelSliderRow(
+            icon = if (ringFraction.value <= 0f) "bell-mute" else "bell",
+            value = ringFraction.value,
+            onValueChange = { ringFraction.value = it; setRingVolume(it) },
+            onIconClick = {
+                if (ringFraction.value > 0f) {
+                    ringPreMute = ringFraction.value
+                    ringFraction.value = 0f
+                    setRingVolume(0f)
+                } else {
+                    ringFraction.value = ringPreMute
+                    setRingVolume(ringPreMute)
+                }
+            },
+            tokens = tokens,
+            fg = fg,
+            fgDim = fgDim,
+            accent = accent,
+        )
+        val mediaFraction = rememberSliderFraction(mediaVolume)
+        var mediaPreMute by remember { mutableStateOf(mediaFraction.value.takeIf { it > 0f } ?: 0.5f) }
+        QuickPanelSliderRow(
+            icon = if (mediaFraction.value <= 0f) "volume-mute" else "volume",
+            value = mediaFraction.value,
+            onValueChange = { mediaFraction.value = it; setMediaVolume(it) },
+            onIconClick = {
+                if (mediaFraction.value > 0f) {
+                    mediaPreMute = mediaFraction.value
+                    mediaFraction.value = 0f
+                    setMediaVolume(0f)
+                } else {
+                    mediaFraction.value = mediaPreMute
+                    setMediaVolume(mediaPreMute)
+                }
+            },
+            tokens = tokens,
+            fg = fg,
+            fgDim = fgDim,
+            accent = accent,
+        )
+    }
 }
+
+/**
+ * [onIconClick], when set, makes the leading icon a mute/unmute toggle — tapping
+ * it while the level is above zero mutes to 0%, remembering the level to
+ * restore on the next tap; tapping while muted restores it. Brightness has no
+ * mute concept, so its row passes null and the icon stays a plain glyph.
+ */
+@Composable
+private fun QuickPanelSliderRow(
+    icon: String,
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    tokens: ColorTokens,
+    fg: Color,
+    fgDim: Color,
+    accent: Color,
+    onIconClick: (() -> Unit)? = null,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().height(40.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        val haptics = LocalHapticFeedback.current
+        Icon(
+            imageVector = TileIcons[icon],
+            contentDescription = null,
+            tint = fg,
+            modifier = Modifier.size(20.dp).let { base ->
+                if (onIconClick == null) base else base.clickable {
+                    haptics.performHapticFeedback(
+                        if (value > 0f) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn,
+                    )
+                    onIconClick()
+                }
+            },
+        )
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            onValueChangeFinished = { haptics.performHapticFeedback(HapticFeedbackType.GestureEnd) },
+            modifier = Modifier.weight(1f),
+            colors = SliderDefaults.colors(
+                thumbColor = accent,
+                activeTrackColor = accent,
+                inactiveTrackColor = tokens.tileLine,
+            ),
+        )
+        Text(
+            text = "${(value * 100).roundToInt()}%",
+            color = fgDim,
+            fontSize = 13.sp,
+            modifier = Modifier.width(36.dp),
+            textAlign = TextAlign.End,
+        )
+    }
+}
+
+/**
+ * Seeds once from [hardwareFraction] and never re-syncs from it afterwards — a
+ * fresh readback of a stream's coarse hardware step count (often 15 or 7
+ * levels) can round-trip to a value slightly different from what was just
+ * set, which would make the slider thumb visibly jitter/snap back mid-drag if
+ * it were bound straight to the hardware value.
+ */
+@Composable
+private fun rememberSliderFraction(hardwareFraction: Float): MutableState<Float> =
+    remember { mutableStateOf(hardwareFraction) }
 
 /**
  * The real Android Settings app's own launcher icon, resolved at runtime (varies
@@ -293,20 +736,22 @@ private fun rememberAndroidSettingsIcon(): ImageBitmap? {
 /**
  * The full ordered tile list for the panel's grid, grouped by kind rather than
  * strictly mirroring the reference WP photo's order — connectivity toggles
- * first (wifi, bluetooth, location, airplane), then flashlight, then the
- * adjustable-level tiles interleaved with rotation lock (brightness, rotation
- * lock, screen timeout, ring volume, media volume — or a single "allow
- * access" fallback tile in place of brightness/timeout until `WRITE_SETTINGS`
- * is granted), then dnd, then theme, then the settings/android-settings/
- * lock-screen shortcuts. Grouping this way (rather than the reference
- * photo's literal order) reads more predictably once every real toggle
- * carries live on/off accent state — a user scanning for "is airplane mode
- * on" shouldn't have to skip over an unrelated flashlight tile in between.
- * Location sits third (ahead of airplane), dnd sits well down the list,
- * rotation lock sits right after brightness (not screen timeout), and media
- * volume sits last in its row (the extreme right of row two) rather than
- * beside rotation lock — all per explicit, iterative user preference over
- * the initial ordering.
+ * first (wifi, bluetooth, location, airplane), then flashlight, then rotation
+ * lock and screen timeout (or a single "allow access" fallback tile in their
+ * place until `WRITE_SETTINGS` is granted), then dnd, then theme. Brightness
+ * and volume are **not** in this grid — they're slider rows below it instead
+ * ([QuickPanelSliders]), per explicit user request (a real device's quick
+ * settings panel favors sliders for those two over discrete tap-to-step
+ * tiles). The personalize/android-settings/lock-screen shortcuts are also
+ * not in this grid — they're compact icon buttons in the panel's own header
+ * row instead (top-right, alongside the clock/date on the left), matching a
+ * real device's quick settings panel header. Grouping this way (rather than
+ * the reference photo's literal order) reads more predictably once every
+ * real toggle carries live on/off accent state — a user scanning for "is
+ * airplane mode on" shouldn't have to skip over an unrelated flashlight tile
+ * in between. Location sits third (ahead of airplane) and dnd sits well down
+ * the list, both per explicit, iterative user preference over the initial
+ * ordering.
  */
 private fun quickPanelTiles(
     context: Context,
@@ -320,21 +765,12 @@ private fun quickPanelTiles(
     dndOn: Boolean,
     rotationLockOn: Boolean,
     writeSettingsGranted: Boolean,
-    brightnessLevel: MutableState<Int>,
-    setBrightness: (Float) -> Unit,
-    mediaLevel: MutableState<Int>,
-    setMediaVolume: (Float) -> Unit,
-    ringLevel: MutableState<Int>,
-    setRingVolume: (Float) -> Unit,
     screenTimeoutMs: Long,
     setScreenTimeoutMs: (Long) -> Unit,
-    androidSettingsIcon: ImageBitmap?,
     dark: Boolean,
     followSystemTheme: Boolean,
     onThemeChange: (Boolean) -> Unit,
     onFollowSystemThemeChange: (Boolean) -> Unit,
-    onOpenPersonalize: () -> Unit,
-    onLockScreen: () -> Unit,
 ): List<QuickPanelTileSpec> = buildList {
     // Connectivity toggles.
     add(QuickPanelTileSpec(icon = "wifi", label = "wifi", active = wifiOn, onClick = { openWifiSettings(context) }))
@@ -360,20 +796,7 @@ private fun quickPanelTiles(
     // Device-mode toggles.
     add(QuickPanelTileSpec(icon = "flashlight", label = "flashlight", active = torchOn, onClick = toggleTorch))
 
-    // Adjustable-level tiles, with rotation lock between brightness and the volumes, and screen
-    // timeout after media volume — both swapped from their initial straightforward grouped order,
-    // per explicit user request.
-    if (writeSettingsGranted) {
-        add(
-            QuickPanelTileSpec(
-                icon = "brightness", label = "${brightnessLevel.value}%", active = false,
-                onClick = {
-                    brightnessLevel.value = nextPercentLevel(brightnessLevel.value)
-                    setBrightness(brightnessLevel.value / 100f)
-                },
-            ),
-        )
-    } else {
+    if (!writeSettingsGranted) {
         add(
             QuickPanelTileSpec(
                 icon = "settings", label = "allow access", active = false,
@@ -399,29 +822,6 @@ private fun quickPanelTiles(
             ),
         )
     }
-    add(
-        QuickPanelTileSpec(
-            icon = if (ringLevel.value <= 0) "bell-mute" else "bell",
-            label = "${ringLevel.value}%",
-            active = false,
-            onClick = {
-                ringLevel.value = nextPercentLevel(ringLevel.value)
-                setRingVolume(ringLevel.value / 100f)
-            },
-        ),
-    )
-    // Media volume sits last (extreme right of row two), per explicit user request.
-    add(
-        QuickPanelTileSpec(
-            icon = if (mediaLevel.value <= 0) "volume-mute" else "volume",
-            label = "${mediaLevel.value}%",
-            active = false,
-            onClick = {
-                mediaLevel.value = nextPercentLevel(mediaLevel.value)
-                setMediaVolume(mediaLevel.value / 100f)
-            },
-        ),
-    )
 
     add(
         QuickPanelTileSpec(
@@ -456,15 +856,6 @@ private fun quickPanelTiles(
             },
         ),
     )
-    add(QuickPanelTileSpec(icon = "settings", label = "personalize", active = false, onClick = onOpenPersonalize))
-    add(
-        QuickPanelTileSpec(
-            icon = "settings", label = "android settings", active = false,
-            onClick = { deepLink(context, Settings.ACTION_SETTINGS) },
-            iconBitmap = androidSettingsIcon,
-        ),
-    )
-    add(QuickPanelTileSpec(icon = "lock", label = "lock screen", active = false, onClick = onLockScreen))
 }
 
 /** One tap-to-cycle theme tile (dark → light → auto → dark), instead of three separate ones. */
@@ -495,17 +886,21 @@ internal fun nextThemeChoice(current: ThemeChoice): ThemeChoice = when (current)
 @Composable
 private fun QuickPanelTile(
     tile: QuickPanelTileSpec,
-    tokens: com.tileshell.core.design.ColorTokens,
+    tokens: ColorTokens,
     accent: Color,
     modifier: Modifier = Modifier,
 ) {
     val bg = if (tile.active) accent else tokens.chip
     val fg = if (tile.active) Color.White else tokens.fgDim
+    val haptics = LocalHapticFeedback.current
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(10.dp))
             .background(bg)
-            .clickable(onClick = tile.onClick)
+            .clickable(onClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                tile.onClick()
+            })
             .padding(6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
