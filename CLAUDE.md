@@ -36,6 +36,20 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **v2.5.0 (versionCode 250) — release cut.** Rolls up everything below: the "hide status bar"
+  toggle (default on, with a real display-cutout fix and an auto-rehide timer for the swipe-to-
+  peek reveal), the Quick Panel redocked to the top with a device-style status header (clock/date,
+  wifi/bluetooth/cellular-or-airplane, colour-coded battery fill) and a shortcuts row below it, the
+  swapped two-finger gesture directions (down → Quick Panel, up → quick search, with quick search's
+  box moved to the bottom), full-screen Personalize/guide/about sheets, device-status stats removed
+  from the glance page entirely (superseded by the Quick Panel header), real drag sliders with a
+  tap-to-mute icon for brightness/ring/media volume, the Quick Panel's wallpaper-gradient background
+  now respecting the glance page's own "no background" toggle too, haptic feedback throughout Quick
+  Panel/quick search/the App List long-press menu, and a new "share a photo into TileShell to set
+  it as wallpaper" entry point (`ACTION_SEND image/*` on `MainActivity`, reusing the existing
+  import-then-crop wallpaper flow). Signed release APK + AAB built and verified (`apksigner
+  verify`/`jarsigner -verify`, real release keystore, not the debug fallback); release notes added
+  to `docs/PLAY_STORE.md`. Build + tests green.
 - **v2.4.0 (versionCode 240) — release cut.** Rolls up every Post-v2.3.1 change below (Quick
   Panel square-tile redesign + all its on-device refinement rounds, the personalize/settings-
   tile reorganization, the rating prompt, and the new edge-swipe gestures) into a signed release.
