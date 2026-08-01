@@ -189,6 +189,7 @@ fun AboutSheet(
                     "ask chatgpt, gemini, claude, or perplexity — opens the app with your query ready to send",
                     "or send it to google, bing, duckduckgo, yahoo, or yandex instead",
                     "tap the search box on the feed page to jump straight into quick search",
+                    "taps on results, recent searches, and the clear button give a light haptic buzz",
                 ),
             )
 
@@ -199,14 +200,19 @@ fun AboutSheet(
                 items = listOf(
                     "swipe down with two fingers on start to open the quick panel — or swipe down from the right screen edge with one finger",
                     "docks to and slides down from the top of the screen, like a real device's quick settings panel",
-                    "clock and date in the panel's own header, top-left",
+                    "background is a colour gradient synthesized from start's own wallpaper, same as the feed page — tile and slider colours switch to match it too",
+                    "clock and date on the left of the header; wifi, bluetooth, cellular, and battery status on the right, just like the status bar you can hide",
+                    "wifi and bluetooth icons brighten (dim when off) same as the cellular icon; airplane mode replaces the cellular icon with a plane",
+                    "battery icon fills proportionately to the charge level and turns red/amber/green as it gets low",
+                    "personalize, android settings, and lock screen icons sit in a second row under the status row",
                     "a grid of true square tiles, four across, just like windows phone's action center",
                     "wp-style coloured tiles toggle wi-fi, bluetooth, flashlight, dnd, airplane mode, location, and rotation lock",
                     "brightness, ring volume, and media volume are real drag sliders below the tile grid",
+                    "tap the bell or speaker icon on the ring/media sliders to mute or unmute",
                     "screen timeout tile cycles through presets with a tap",
                     "a single theme tile cycles dark → light → auto, tinted with your accent colour",
-                    "the header's top-right icons open this app's personalize sheet, the device's real settings app (with its real icon), and lock the screen",
                     "drag the handle at the bottom of the panel upward to close it, or tap outside it",
+                    "taps and gestures throughout the panel give a light haptic buzz",
                 ),
             )
 

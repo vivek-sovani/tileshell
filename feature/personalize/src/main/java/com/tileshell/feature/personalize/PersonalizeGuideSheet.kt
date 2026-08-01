@@ -204,7 +204,7 @@ fun PersonalizeGuideSheet(
                 visual = { PinningVisual(accent, tokens) },
                 items = listOf(
                     "tap the chevron at the bottom of start (or swipe left) to open the app list",
-                    "long-press any app for \"pin to start\", \"hide\", or \"uninstall\"",
+                    "long-press any app for \"pin to start\", \"hide\", or \"uninstall\" — a light haptic buzz confirms the menu opened",
                     "before the alphabetical list: a \"recent\" section shows your most-used and newly-installed apps, plus any with a pending notification even if it isn't pinned",
                     "tap a letter on the right for the jump grid, to skip straight to that part of the alphabet",
                     "hid an app by mistake? personalize · app visibility · hidden apps brings it back with \"show\"",
@@ -252,14 +252,19 @@ fun PersonalizeGuideSheet(
                 items = listOf(
                     "swipe down with two fingers anywhere on start to open the quick panel — or swipe down from the right screen edge with one finger",
                     "docks to and slides down from the top of the screen, like a real device's quick settings panel",
-                    "clock and date sit in the panel's own header, top-left",
+                    "background is a colour gradient synthesized from start's own wallpaper, same as the feed page — tile and slider colours switch to match it too",
+                    "clock and date sit on the left of the panel's own header; wifi, bluetooth, cellular, and battery status sit on the right, standing in for the status bar you can hide",
+                    "wifi and bluetooth icons brighten (dim when off) same as the cellular icon; airplane mode replaces the cellular icon with a plane",
+                    "battery icon fills proportionately to the charge level and turns red/amber/green as it gets low",
+                    "personalize, android settings, and lock screen icons sit in a second row under the status row",
                     "true square tiles, four across, just like windows phone's action center",
                     "tap a tile to toggle wi-fi, bluetooth, flashlight, dnd, airplane mode, location, or rotation lock",
                     "brightness, ring volume, and media volume are real drag sliders below the tile grid",
+                    "tap the bell or speaker icon on the ring/media sliders to mute or unmute",
                     "tap the screen-timeout tile to cycle through presets",
                     "one theme tile cycles dark → light → auto, tinted with your accent colour",
-                    "the header's top-right icons open this app's personalize sheet, the device's real settings app, and lock the screen",
                     "drag the handle at the bottom of the panel upward to close it, or tap outside it",
+                    "taps and gestures throughout the panel give a light haptic buzz",
                 ),
             )
 

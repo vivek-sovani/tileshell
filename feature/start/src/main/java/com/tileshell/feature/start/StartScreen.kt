@@ -1373,6 +1373,7 @@ fun StartScreen(
             wallpaper = wallpaper,
             customWallpaperPhoto = customWallpaperBitmap,
             noWallpaper = noWallpaper,
+            feedNoBackground = settings.feedNoBackground,
             rightHalf = isLandscape,
         )
 

@@ -4247,3 +4247,22 @@ verified by code-path symmetry with the already-verified wifi/bluetooth checks �
 mode via `adb shell settings put global airplane_mode_on` doesn't fire the broadcast the app listens
 for without a broadcast permission this shell session didn't have, so the live icon swap itself
 wasn't re-confirmed pixel-by-pixel this round.
+
+**Quick Panel background now respects the feed's own "no background" opt-out, not just Start's
+wallpaper state.** Follow-up: the panel's synthesized-gradient background (previous entry) only
+ever flattened to plain surface fill when Start itself had no wallpaper (`noWallpaper`); the glance
+page's separate `feedNoBackground` toggle (a deliberate independent opt-out — see the "glance screen
+background" entry, since the feed is a denser reading surface where a colourful background behind
+text can be unwanted even when the same wallpaper looks fine behind Start's tiles) was never
+threaded through, so turning it on for the feed didn't also flatten the Quick Panel, even though the
+panel reuses the *exact same* `rememberFeedPalette` mechanism. Fixed by widening
+`QuickPanelOverlay`'s existing flatten condition to `noWallpaper || feedNoBackground`, with
+`feedNoBackground` passed in from `StartScreen.kt`'s already-collected `settings.feedNoBackground`.
+
+**Wifi/bluetooth header icons reverted from accent tint back to plain fg/fgDim.** The "bluetooth
+also indicate on or off state" fix (previous entry) tinted both icons with the global accent colour
+when on. On-device the accent tint read as inconsistent with the cellular icon sitting directly next
+to it, which has always used plain `fg`/`fgDim` — per explicit user feedback ("show these symbols
+same as network symbol color"), both icons now use the same plain fg (on) / fgDim (off) scheme as
+cellular, with no accent tint. The two now-stale "lights up in your accent colour when on" bullets in
+`AboutSheet.kt` and `PersonalizeGuideSheet.kt` were corrected to match. Build + tests green.

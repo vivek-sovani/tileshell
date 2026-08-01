@@ -148,6 +148,8 @@ fun QuickPanelOverlay(
     customWallpaperPhoto: ImageBitmap? = null,
     /** True when Start has no wallpaper at all — the panel then stays a flat surface, matching the glance page's own fallback. */
     noWallpaper: Boolean = false,
+    /** The glance page's own "no background" opt-out (personalize · feed & glance) — the panel honours the same choice rather than having a separate toggle. */
+    feedNoBackground: Boolean = false,
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -165,20 +167,23 @@ fun QuickPanelOverlay(
 
     // Same synthesized-palette backdrop as the glance page — a colour gradient
     // derived from Start's wallpaper (never the raw photo), per explicit
-    // request to give the panel "a background just like glance". The panel's
-    // own accent (tile fills, slider colours, header status tints) switches
-    // to match it too, exactly mirroring how the glance page's own cards use
-    // `feedAccent` instead of the plain global accent once a background is
-    // showing — falls back to the flat surface + plain accent when Start has
-    // no wallpaper at all.
-    val (panelGradient, accent) = if (noWallpaper) {
+    // request to give the panel "a background just like glance", including
+    // honouring glance's own "no background" opt-out rather than adding a
+    // second, separate toggle for the panel. The panel's own accent (tile
+    // fills, slider colours, header status tints) switches to match it too,
+    // exactly mirroring how the glance page's own cards use `feedAccent`
+    // instead of the plain global accent once a background is showing —
+    // falls back to the flat surface + plain accent when Start has no
+    // wallpaper at all, or the user opted the flat look in.
+    val flatBackground = noWallpaper || feedNoBackground
+    val (panelGradient, accent) = if (flatBackground) {
         wallpaper to globalAccent
     } else {
         rememberFeedPalette(customWallpaperPhoto, wallpaper, globalAccent)
     }
     val panelBackgroundIsLight = rememberChosenWallpaperIsLight(
         customPhoto = null,
-        noWallpaper = noWallpaper,
+        noWallpaper = flatBackground,
         wallpaper = panelGradient,
         dark = dark,
         screenBg = tokens.bg,
@@ -226,7 +231,7 @@ fun QuickPanelOverlay(
                 .graphicsLayer { translationY = -size.height * (1f - progress) }
                 .clip(panelShape)
                 .then(
-                    if (noWallpaper) Modifier.background(tokens.sheet)
+                    if (flatBackground) Modifier.background(tokens.sheet)
                     else Modifier.wallpaperBackground(panelGradient, dark),
                 )
                 .clickable(
@@ -411,19 +416,18 @@ private fun QuickPanelHeader(
                 // (rememberWifiEnabled) rather than "is wifi the active data
                 // transport" — a device can be wifi-on-but-not-the-active-route
                 // (e.g. a captive/no-internet network) and this should still
-                // read as on, matching the toggle tile it sits above. Accent
-                // tint (not just a brighter grey) on when on/connected — a
-                // clearer on/off signal, matching the toggle tiles' own
-                // accent-fill convention, per explicit user feedback that the
-                // plain fg/fgDim contrast wasn't obvious enough.
+                // read as on, matching the toggle tile it sits above. Plain
+                // fg/fgDim (not accent) — matches the cellular icon right next
+                // to it, per explicit user request; accent tint was tried first
+                // but read as inconsistent with the plain-coloured network icon.
                 Icon(
                     TileIcons["wifi"], contentDescription = "wi-fi",
-                    tint = if (wifiOn) accent else fgDim,
+                    tint = if (wifiOn) fg else fgDim,
                     modifier = Modifier.size(16.dp),
                 )
                 Icon(
                     TileIcons["bluetooth"], contentDescription = "bluetooth",
-                    tint = if (bluetoothOn) accent else fgDim,
+                    tint = if (bluetoothOn) fg else fgDim,
                     modifier = Modifier.size(16.dp),
                 )
                 // Cellular signal is meaningless in airplane mode — swap in the
