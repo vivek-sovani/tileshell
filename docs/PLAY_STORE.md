@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v2.3.1 listing draft — update before each release*
+*v2.5.0 listing draft — update before each release*
 
 ---
 
@@ -143,6 +143,58 @@ data. Users can also clear app data via Android Settings at any time.
 | Feature graphic | 1024 × 500 px | Required for listing banner |
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
+
+## Release notes (v2.5.0)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 2.5.0
+
+• New: hide the status bar for a full-screen Start (on by default)
+• New: Quick Panel now docks from the top with clock/wifi/battery status
+• Changed: swipe down for Quick Panel, swipe up for quick search
+• New: brightness/volume are real sliders with a tap-to-mute icon
+• New: share a photo from Gallery to set it as your wallpaper
+• New: haptic feedback across Quick Panel, search, and App List
+• Personalize, guide, and about screens are now full-screen
+```
+
+*(Character count 424, under Play's 500 limit.)*
+
+### Full changelog since v2.4.0 (for reference — not the Play-facing blurb above)
+
+- **Hide status bar**: new Personalize toggle (on by default) hides the system status bar for a
+  more full-screen Start; fixed the freed space not being reclaimed on some devices (a display-
+  cutout inset needed skipping too) and the swipe-to-peek reveal staying shown permanently on at
+  least one real device (now auto-rehides after a short delay).
+- **Quick Panel redocked to the top**, with a new device-style header: clock/date on the left,
+  wifi/bluetooth/cellular-or-airplane-mode/battery status on the right (battery shows a
+  proportionate fill, colour-coded green/amber/red), and a second row of personalize/android-
+  settings/lock-screen shortcut icons. Grid trimmed to 4 columns with better spacing.
+  Brightness/ring/media volume are now real drag sliders (replacing tap-to-step), with a tap-to-
+  mute icon on ring/media. A drag-down handle closes the panel.
+- **Gesture directions swapped**: two-finger swipe down now opens the Quick Panel (was quick
+  search); two-finger swipe up now opens quick search (was the Quick Panel), whose search box
+  moved to the bottom of the screen to match its new slide-up-from-bottom animation.
+- **Full-screen sheets**: Personalize, the "how to personalize" guide, and the "features & info"
+  about sheet now fill the whole screen instead of a capped bottom sheet.
+- **Device status moved, then removed from glance**: battery/cellular/wifi were first moved from
+  the glance page into the new Quick Panel header; after further feedback the whole device-status
+  card was removed from the glance page entirely, since the same information now lives in the
+  Quick Panel.
+- **Quick Panel background**: now synthesizes a colour gradient from the wallpaper, same mechanism
+  as the glance page, and respects the glance page's own "no background" opt-out toggle in
+  addition to Start's own wallpaper state.
+- **Share a photo to set your wallpaper**: TileShell can now be picked as a target from another
+  app's "share" sheet (e.g. Gallery/Photos) — sharing a photo imports it and opens the same crop/
+  reframe overlay used by the in-app wallpaper picker, before it's saved as the wallpaper.
+- **Haptic feedback** added throughout the Quick Panel (gesture/slider/tile/toggle interactions),
+  quick search (app/contact/search taps, recent-search actions), and the App List's long-press
+  pin/hide/uninstall menu.
+- Considered showing per-SIM signal strength on dual-SIM devices; dropped in favour of the existing
+  single connectivity indicator, since real per-SIM state needs the Play-restricted
+  `READ_PHONE_STATE` permission.
 
 ## Release notes (v2.4.0)
 

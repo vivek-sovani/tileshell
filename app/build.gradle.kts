@@ -258,8 +258,25 @@ android {
         //   single-finger swipe down from the left/right screen edge opens system
         //   notifications/quick settings; a day-interval-gated "enjoying tileshell?"
         //   rating prompt using Play's native in-app review flow.
-        versionCode = 240
-        versionName = "2.4.0"
+        // v2.5.0 (code 250): "hide status bar" toggle (default on, with a real display-
+        //   cutout-inset fix and an auto-rehide timer for the swipe-to-peek reveal); Quick
+        //   Panel rebuilt to dock from the top with a device-style header row (clock/date,
+        //   wifi/bluetooth/cellular-or-airplane icons, colour-coded battery fill) and a
+        //   second row of personalize/android-settings/lock-screen shortcuts; the two-
+        //   finger Quick Panel/quick-search gesture directions swapped (down opens Quick
+        //   Panel, up opens quick search) with quick search's box moved to the bottom of
+        //   the screen; Personalize, the personalize guide, and the about sheet are now
+        //   full-screen instead of capped bottom sheets; device-status stats removed from
+        //   the glance page entirely, now that they live in the Quick Panel header;
+        //   brightness/ring/media volume in the Quick Panel are real sliders with a tap-
+        //   to-mute icon; Quick Panel's synthesized wallpaper-gradient background now also
+        //   respects the glance page's own "no background" toggle; haptic feedback added
+        //   throughout Quick Panel, quick search, and the App List's long-press pin/hide/
+        //   uninstall menu; sharing a photo into TileShell from Gallery/Photos' own share
+        //   sheet now sets it as the wallpaper, going through the same crop/reframe overlay
+        //   as picking one from within the app.
+        versionCode = 250
+        versionName = "2.5.0"
     }
 
     if (keystoreFile.exists()) {
