@@ -515,9 +515,20 @@ private fun JumpGrid(
 }
 
 /**
- * Tap-to-launch plus a 450 ms long-press that cancels if the finger moves more
- * than 7 px (CLAUDE.md normative; prototype `screens.js` app-list pin). Does not
- * consume the down, so vertical list scrolling still wins on a drag.
+ * How long a press on an app row has to be held before its pin/hide/uninstall menu
+ * opens. Deliberately **longer** than the prototype's 450 ms app-list value (and than
+ * the 430 ms used for Start tiles): at 450 ms the menu fired too readily on an
+ * ordinary tap-and-linger, so a hold that was meant to launch an app opened the menu
+ * instead — user-reported on hardware. A tile only has to compete with the grid's own
+ * gestures, but an app row is in a long scrolling list that people rest a finger on
+ * while reading, so it needs a more deliberate hold. See DECISIONS.
+ */
+private const val APP_LIST_LONG_PRESS_MS = 700L
+
+/**
+ * Tap-to-launch plus an [APP_LIST_LONG_PRESS_MS] long-press that cancels if the
+ * finger moves more than 7 px (CLAUDE.md normative; prototype `screens.js` app-list
+ * pin). Does not consume the down, so vertical list scrolling still wins on a drag.
  */
 private fun Modifier.tapOrLongPress(onTap: () -> Unit, onLongPress: () -> Unit): Modifier =
     pointerInput(onTap, onLongPress) {
@@ -525,8 +536,8 @@ private fun Modifier.tapOrLongPress(onTap: () -> Unit, onLongPress: () -> Unit):
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
             // true = released early (tap), false = moved past slop (cancel),
-            // null = 450 ms elapsed still pressed (long-press fired).
-            val outcome = withTimeoutOrNull(450L) {
+            // null = the hold elapsed still pressed (long-press fired).
+            val outcome = withTimeoutOrNull(APP_LIST_LONG_PRESS_MS) {
                 while (true) {
                     val event = awaitPointerEvent()
                     val change = event.changes.firstOrNull { it.id == down.id }

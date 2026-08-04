@@ -4402,3 +4402,27 @@ stack pairing, the tighter stacked-target zone, and card width/hit-id derivation
 plus the width-stability fix were verified on an emulator at the failing geometry; 2 and 3 are
 covered by unit tests but their gesture plumbing still needs a real finger, per the ADB
 drag-synthesis limitation recorded in the previous entry.
+
+## App list long-press raised to 700 ms (deviation from the prototype's 450 ms)
+
+User-reported from hardware use: the app list's long-press menu (pin to start / hide /
+uninstall) fired too readily, so a press that was meant to launch an app opened the menu
+instead. `APP_LIST_LONG_PRESS_MS` in `AppListScreen.kt` is now **700 ms**, up from the
+prototype-derived 450 ms recorded as normative in CLAUDE.md.
+
+This is a deliberate, explicitly requested deviation from a normative prototype value, so
+CLAUDE.md's "Normative behaviour values" line was annotated rather than left implying 450 ms
+is still in force.
+
+Why the app list warrants a longer hold than a Start tile (still 430 ms): a tile only competes
+with the grid's own gestures, whereas an app row sits in a long scrolling list that people rest
+a finger on while reading. The 7 px move-cancel threshold already handles the *scrolling* case —
+what it can't catch is a stationary tap-and-linger, which only a longer timeout fixes.
+
+Scoped to the app list only. Quick search's contact long-press (`QuickSearchOverlay`) still uses
+450 ms: it was originally written to mirror this gesture, but nothing was reported about it, and
+its result list is short enough that the linger problem doesn't arise the same way. Worth
+revisiting together if the same complaint surfaces there.
+
+Magic number replaced with a named constant in passing, since the value now needs an explanation
+attached to it.
