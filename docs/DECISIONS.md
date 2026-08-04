@@ -4266,3 +4266,80 @@ to it, which has always used plain `fg`/`fgDim` — per explicit user feedback (
 same as network symbol color"), both icons now use the same plain fg (on) / fgDim (off) scheme as
 cellular, with no accent tint. The two now-stale "lights up in your accent colour when on" bullets in
 `AboutSheet.kt` and `PersonalizeGuideSheet.kt` were corrected to match. Build + tests green.
+
+## Feed widget stacks — merge two hosted widgets into one swipeable card
+
+New ask, not in the WP prototype/spec (the whole feed widget-hosting feature is bespoke). Start
+already had a "widget stack" concept for its *own* tiles — a folder whose members are all uniformly
+WIDE/LARGE renders as a swipeable carousel (`StackTileContent`, `StartScreen.kt`) — and the request
+was the equivalent on the glance/feed screen, where each hosted Android app widget previously always
+took its own row. Motivation is vertical space: the feed is meant to be a dense at-a-glance surface,
+and two or three full-width widgets push the news section well below the fold.
+
+**The pattern is borrowed from Start's stack; the implementation deliberately isn't.** Start's
+members are virtual tiles this app draws itself; a feed stack's members are real
+`AppWidgetHostView`s owned by other processes. Three consequences shaped the design:
+
+- **Gesture confinement is load-bearing, not polish.** Start can capture a drag anywhere on its tile
+  because nothing else wants the touch. Here every member has its own taps, internal scrolling, and
+  buttons. So swipe-to-flip is granted *only* to touches starting in a 40dp right-edge strip
+  (`WIDGET_STACK_EDGE_ZONE_DP`, mirroring Start's `STACK_EDGE_DRAG_ZONE_DP`, where the position
+  indicator also sits); anything starting elsewhere returns from `awaitEachGesture` without consuming
+  anything at all, so it reaches the hosted widget exactly as on an un-stacked card. There is
+  deliberately no tap-to-launch or long-press-to-edit competing for it — the existing "edit" pill
+  covers that.
+- **Hidden members need no keep-alive plumbing.** The question was whether a member that isn't
+  currently showing would go stale. It doesn't: `AppWidgetHost.startListening()` (already called once,
+  host-wide) caches every *bound* widget's latest `RemoteViews` regardless of whether a view is
+  inflated for it, so only the visible member is composed and flipping back shows current content.
+  This is why `AnimatedContent` can drop hidden members from composition freely.
+- **Only same-width widgets may merge.** Half-width and full-width widgets can't share one card, so
+  the merge hit-test requires `dragged.halfWidth == target.halfWidth` — mirroring Start's rule that a
+  stack's members are uniformly sized. A mismatched hover is treated as an ordinary reorder and is
+  never highlighted as mergeable.
+
+**Trigger is drag-onto-centre, matching Start's tile merge** rather than a separate menu action:
+`onWidgetDragBy` now also tests the drop point against the target's inner 22–78% band on both axes
+(`isInMergeZone`, the same normative merge zone as the Start grid), and `onWidgetDragEnd` routes to
+`mergeIntoStack` or `reorderWidgets` accordingly. An accent outline previews the merge before release.
+
+**Grouping is a `stackId: Int?` on `HostedWidget`, contiguity-based, with no schema migration.**
+Members share the founding widget's own `widgetId` as their `stackId` and always sit adjacent in the
+persisted order, so the row packer finds a group by scanning outward instead of re-grouping the list.
+`WidgetCodec` gained a fifth column, written blank when null so an un-stacked widget is
+byte-indistinguishable from an older 4-column file — verified on-device, where a real pre-existing
+`feed_widget.pb` (`3,127,0,true` / `4,171,0,true`) loaded and rendered unchanged.
+`packWidgetRows`'s return type became a `WidgetRow` sealed type (`Solo`/`HalfPair`/`Stack`) instead of
+`List<List<HostedWidget>>`, and `reorderWidgets` became **block-aware** (a stack is one block) so an
+ordinary reorder can never slice a group apart. A group that somehow drops to one member is packed as
+a plain `Solo` and `WidgetStore.remove` clears a stranded survivor's `stackId`, so a "stack of one"
+can't exist by either route.
+
+**Two real bugs found during on-device verification**, both in code newly written here:
+
+1. **The position indicator was invisible.** It was copied from Start's version, which sizes itself
+   with `fillMaxHeight(0.5f)` — correct inside Start's fixed-size tiles, but the feed is a vertically
+   scrolling column, so the incoming max height is unbounded and the fill fraction resolved to
+   nothing. Replaced with an explicit `(liveHeight / 2).dp`.
+2. **...and would have been invisible anyway on light widgets.** Start's indicator is white because
+   its tiles are accent-coloured; a hosted widget can be any colour, and white-on-near-white vanished
+   outright on both test widgets. The track is now dark (`Black @ 0.22`), borrowing the "edit" pill's
+   already-proven backing, which reads on light and dark content alike.
+
+**Verification.** The pure layer is unit-tested (26 new/updated cases across `WidgetSlotTest`/
+`WidgetCodecTest`: merge/join/dissolve, unstack, block-aware reorder, merge-zone geometry, row
+packing with stacks, codec round-trips old and new). On an emulator, confirmed end-to-end: the group
+renders as one card sized to its tallest member; the carousel auto-rotates (sampled 8 frames over
+32s — content alternated and the indicator thumb tracked the index exactly, never out of sync); the
+edit overlay acts on the visible member and correctly omits the "edit" pill for a widget with no
+configure activity; and "unstack" dissolved the two-member group, clearing both `stackId`s and
+re-rendering as two rows.
+
+**Drag-to-merge and swipe-to-flip could not be verified by automation** and need a real finger. Both
+`adb shell input swipe` and `input motionevent` deliver only a single 1–2px move to Compose's
+`detectDragGestures` before the gesture ends (confirmed with temporary logging: `delta=Offset(1.0,
+0.1)` then immediate drag-end, against correct widget bounds), so a multi-event drag can't be
+synthesized — the same ADB limitation already recorded for the feed's drag-to-reorder work. The logic
+behind both is unit-tested; it's the gesture plumbing that remains hand-verified only. Worth a
+specific on-device look: merging two *side-by-side* half-width widgets requires a mostly-horizontal
+drag, which is the axis the Start↔feed pager also claims.
