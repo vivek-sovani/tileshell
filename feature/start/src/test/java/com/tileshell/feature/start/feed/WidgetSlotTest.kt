@@ -72,6 +72,20 @@ class WidgetSlotTest {
     }
 
     @Test
+    fun `isInMergeZone accepts a tighter band for an already-stacked target`() {
+        // A stack uses roughly its centre third, so most of the card stays reorder
+        // territory and a widget can actually be placed beside it.
+        fun tight(x: Float, y: Float) =
+            isInMergeZone(0f, 0f, 100f, 100f, pointX = x, pointY = y, zoneMin = 0.34f, zoneMax = 0.66f)
+        assertTrue(tight(50f, 50f))
+        // Inside the default 22-78 band but outside the tight one: reorder, not join.
+        assertTrue(mergeZone(28f, 50f))
+        assertFalse(tight(28f, 50f))
+        assertTrue(mergeZone(50f, 72f))
+        assertFalse(tight(50f, 72f))
+    }
+
+    @Test
     fun `isInMergeZone is relative to the rect's own offset, not the origin`() {
         // Same 100×100 target, shifted to (200, 300): its centre is (250, 350).
         assertTrue(isInMergeZone(200f, 300f, 100f, 100f, pointX = 250f, pointY = 350f))
@@ -80,23 +94,31 @@ class WidgetSlotTest {
 
     private fun full(id: Int) = HostedWidget(id, heightDp = 120, halfWidth = false)
     private fun half(id: Int) = HostedWidget(id, heightDp = 120, halfWidth = true)
-    private fun stacked(id: Int, stackId: Int, heightDp: Int = 120) =
-        HostedWidget(id, heightDp = heightDp, stackId = stackId)
+    private fun stacked(id: Int, stackId: Int, heightDp: Int = 120, halfWidth: Boolean = false) =
+        HostedWidget(id, heightDp = heightDp, halfWidth = halfWidth, stackId = stackId)
+
+    // Row/card expectation builders — rows are packed from cards (a lone widget or a
+    // whole stack), so these keep the expectations readable.
+    private fun soloRow(w: HostedWidget) = WidgetRow.Single(WidgetCard.Solo(w))
+    private fun pairRow(a: WidgetCard, b: WidgetCard) = WidgetRow.Pair(a, b)
+    private fun soloCard(w: HostedWidget) = WidgetCard.Solo(w)
+    private fun stackCard(vararg m: HostedWidget) = WidgetCard.Stack(m.toList())
+    private fun stackRow(vararg m: HostedWidget) = WidgetRow.Single(WidgetCard.Stack(m.toList()))
 
     @Test
     fun `all full widgets each get their own row`() {
         val rows = packWidgetRows(listOf(full(1), full(2), full(3)))
-        assertEquals(
-            listOf(WidgetRow.Solo(full(1)), WidgetRow.Solo(full(2)), WidgetRow.Solo(full(3))),
-            rows,
-        )
+        assertEquals(listOf(soloRow(full(1)), soloRow(full(2)), soloRow(full(3))), rows)
     }
 
     @Test
     fun `even count of half widgets pair up`() {
         val rows = packWidgetRows(listOf(half(1), half(2), half(3), half(4)))
         assertEquals(
-            listOf(WidgetRow.HalfPair(half(1), half(2)), WidgetRow.HalfPair(half(3), half(4))),
+            listOf(
+                pairRow(soloCard(half(1)), soloCard(half(2))),
+                pairRow(soloCard(half(3)), soloCard(half(4))),
+            ),
             rows,
         )
     }
@@ -104,16 +126,13 @@ class WidgetSlotTest {
     @Test
     fun `odd count of half widgets leaves a trailing solo half row`() {
         val rows = packWidgetRows(listOf(half(1), half(2), half(3)))
-        assertEquals(listOf(WidgetRow.HalfPair(half(1), half(2)), WidgetRow.Solo(half(3))), rows)
+        assertEquals(listOf(pairRow(soloCard(half(1)), soloCard(half(2))), soloRow(half(3))), rows)
     }
 
     @Test
     fun `a full widget flushes a pending half widget to its own row first`() {
         val rows = packWidgetRows(listOf(half(1), full(2), half(3)))
-        assertEquals(
-            listOf(WidgetRow.Solo(half(1)), WidgetRow.Solo(full(2)), WidgetRow.Solo(half(3))),
-            rows,
-        )
+        assertEquals(listOf(soloRow(half(1)), soloRow(full(2)), soloRow(half(3))), rows)
     }
 
     @Test
@@ -121,10 +140,10 @@ class WidgetSlotTest {
         val rows = packWidgetRows(listOf(full(1), half(2), half(3), full(4), half(5)))
         assertEquals(
             listOf(
-                WidgetRow.Solo(full(1)),
-                WidgetRow.HalfPair(half(2), half(3)),
-                WidgetRow.Solo(full(4)),
-                WidgetRow.Solo(half(5)),
+                soloRow(full(1)),
+                pairRow(soloCard(half(2)), soloCard(half(3))),
+                soloRow(full(4)),
+                soloRow(half(5)),
             ),
             rows,
         )
@@ -139,28 +158,45 @@ class WidgetSlotTest {
     fun `a contiguous stack group becomes one Stack row`() {
         val rows = packWidgetRows(listOf(full(1), stacked(2, stackId = 2), stacked(3, stackId = 2), full(4)))
         assertEquals(
+            listOf(soloRow(full(1)), stackRow(stacked(2, 2), stacked(3, 2)), soloRow(full(4))),
+            rows,
+        )
+    }
+
+    @Test
+    fun `a half-width stack pairs beside a half-width widget instead of taking a whole row`() {
+        // Regression: a stack used to be hardcoded to its own row, so a half-width one
+        // rendered alone with dead space beside it and nothing could be placed next to it.
+        val stackA = stacked(2, stackId = 2, halfWidth = true)
+        val stackB = stacked(3, stackId = 2, halfWidth = true)
+        val rows = packWidgetRows(listOf(half(1), stackA, stackB, half(4)))
+        assertEquals(
             listOf(
-                WidgetRow.Solo(full(1)),
-                WidgetRow.Stack(listOf(stacked(2, 2), stacked(3, 2))),
-                WidgetRow.Solo(full(4)),
+                pairRow(soloCard(half(1)), stackCard(stackA, stackB)),
+                soloRow(half(4)),
             ),
             rows,
         )
     }
 
     @Test
-    fun `a stack row interrupts half-width pairing rather than joining it`() {
-        val rows = packWidgetRows(
-            listOf(half(1), stacked(2, stackId = 2), stacked(3, stackId = 2), half(4)),
-        )
-        // half(1) can't pair across the stack, so it flushes to its own half-width row.
+    fun `a full-width stack still takes its own row`() {
+        val rows = packWidgetRows(listOf(half(1), stacked(2, stackId = 2), stacked(3, stackId = 2)))
         assertEquals(
-            listOf(
-                WidgetRow.Solo(half(1)),
-                WidgetRow.Stack(listOf(stacked(2, 2), stacked(3, 2))),
-                WidgetRow.Solo(half(4)),
-            ),
+            listOf(soloRow(half(1)), stackRow(stacked(2, 2), stacked(3, 2))),
             rows,
+        )
+    }
+
+    @Test
+    fun `two half-width stacks pair with each other`() {
+        val a1 = stacked(1, stackId = 1, halfWidth = true)
+        val a2 = stacked(2, stackId = 1, halfWidth = true)
+        val b1 = stacked(3, stackId = 3, halfWidth = true)
+        val b2 = stacked(4, stackId = 3, halfWidth = true)
+        assertEquals(
+            listOf(pairRow(stackCard(a1, a2), stackCard(b1, b2))),
+            packWidgetRows(listOf(a1, a2, b1, b2)),
         )
     }
 
@@ -170,10 +206,7 @@ class WidgetSlotTest {
             listOf(stacked(1, 1), stacked(2, 1), stacked(3, 3), stacked(4, 3)),
         )
         assertEquals(
-            listOf(
-                WidgetRow.Stack(listOf(stacked(1, 1), stacked(2, 1))),
-                WidgetRow.Stack(listOf(stacked(3, 3), stacked(4, 3))),
-            ),
+            listOf(stackRow(stacked(1, 1), stacked(2, 1)), stackRow(stacked(3, 3), stacked(4, 3))),
             rows,
         )
     }
@@ -182,16 +215,24 @@ class WidgetSlotTest {
     fun `a stale one-member group is packed as a solo row, never a one-member stack`() {
         val rows = packWidgetRows(listOf(HostedWidget(1, 120, stackId = 9), full(2)))
         assertEquals(
-            listOf(WidgetRow.Solo(HostedWidget(1, 120, stackId = 9)), WidgetRow.Solo(full(2))),
+            listOf(soloRow(HostedWidget(1, 120, stackId = 9)), soloRow(full(2))),
             rows,
         )
     }
 
     @Test
-    fun `hitIds exposes both halves of a pair but only a stack's first member`() {
-        assertEquals(listOf(1), WidgetRow.Solo(full(1)).hitIds)
-        assertEquals(listOf(1, 2), WidgetRow.HalfPair(half(1), half(2)).hitIds)
-        assertEquals(listOf(1), WidgetRow.Stack(listOf(stacked(1, 1), stacked(2, 1))).hitIds)
+    fun `hitIds exposes both cards of a pair but only a stack's first member`() {
+        assertEquals(listOf(1), soloRow(full(1)).hitIds)
+        assertEquals(listOf(1, 2), pairRow(soloCard(half(1)), soloCard(half(2))).hitIds)
+        assertEquals(listOf(1), stackRow(stacked(1, 1), stacked(2, 1)).hitIds)
+    }
+
+    @Test
+    fun `a card reports its width and hit id from its first member`() {
+        assertEquals(true, stackCard(stacked(7, 7, halfWidth = true), stacked(8, 7, halfWidth = true)).halfWidth)
+        assertEquals(false, stackCard(stacked(7, 7), stacked(8, 7)).halfWidth)
+        assertEquals(7, stackCard(stacked(7, 7), stacked(8, 7)).hitId)
+        assertEquals(3, soloCard(full(3)).hitId)
     }
 
     @Test

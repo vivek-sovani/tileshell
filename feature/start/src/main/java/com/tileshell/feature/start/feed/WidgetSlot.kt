@@ -31,6 +31,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -132,9 +134,20 @@ private const val MERGE_ZONE_MIN = 0.22f
 private const val MERGE_ZONE_MAX = 0.78f
 
 /**
- * Whether a drop point sits inside a target's inner merge zone (see
- * [MERGE_ZONE_MIN]/[MERGE_ZONE_MAX]) — i.e. deliberately *on* the target rather
- * than merely overlapping its edge on the way past. Takes the rect and point as
+ * The much tighter join zone used when the drop target is **already a stack** —
+ * roughly its centre third. The wide default zone covers 56% of each axis, which on
+ * an existing stack left almost nowhere to aim for "put this next to the stack"
+ * (user-reported: another widget couldn't be placed beside one). Joining a stack is
+ * the rarer intent of the two, so it's the one that has to be aimed at.
+ */
+private const val STACK_MERGE_ZONE_MIN = 0.34f
+private const val STACK_MERGE_ZONE_MAX = 0.66f
+
+/**
+ * Whether a drop point sits inside a target's inner merge zone — i.e. deliberately
+ * *on* the target rather than merely overlapping its edge on the way past. The band
+ * defaults to [MERGE_ZONE_MIN]/[MERGE_ZONE_MAX] and tightens for an
+ * already-stacked target (see [STACK_MERGE_ZONE_MIN]). Takes the rect and point as
  * plain floats so it stays pure and unit-testable with no Compose geometry types.
  */
 internal fun isInMergeZone(
@@ -144,35 +157,58 @@ internal fun isInMergeZone(
     rectHeight: Float,
     pointX: Float,
     pointY: Float,
+    zoneMin: Float = MERGE_ZONE_MIN,
+    zoneMax: Float = MERGE_ZONE_MAX,
 ): Boolean {
     if (rectWidth <= 0f || rectHeight <= 0f) return false
     val fx = (pointX - rectLeft) / rectWidth
     val fy = (pointY - rectTop) / rectHeight
-    return fx in MERGE_ZONE_MIN..MERGE_ZONE_MAX && fy in MERGE_ZONE_MIN..MERGE_ZONE_MAX
+    return fx in zoneMin..zoneMax && fy in zoneMin..zoneMax
 }
 
-/** One rendered row of the feed's widgets section. */
-internal sealed class WidgetRow {
+/**
+ * One rendered card in the widgets section: either a lone widget or a whole stack
+ * shown as a single swipeable carousel. Rows are built out of these rather than out
+ * of raw widgets, so a stack can share a row with something else exactly like a lone
+ * half-width widget can.
+ */
+internal sealed class WidgetCard {
+    /** Whether this card renders at half the row width. A stack's members always
+     * agree on this (only same-width widgets can merge), so the first speaks for all. */
+    abstract val halfWidth: Boolean
+
     /**
-     * The widget ids that own a live on-screen rect for this row — what a drag can
-     * hit-test against. A stack contributes only its first member's id: the group
-     * renders as one card, so one rect stands for all of it, and both
-     * [reorderWidgets] and [mergeIntoStack] resolve any member id to its whole group.
+     * The widget id that owns this card's on-screen rect and drag identity. For a
+     * stack that's its first member: the group renders as one card, so one rect
+     * stands for all of it, and both [reorderWidgets] and [mergeIntoStack] resolve
+     * any member id to the group it belongs to.
      */
+    abstract val hitId: Int
+
+    data class Solo(val widget: HostedWidget) : WidgetCard() {
+        override val halfWidth get() = widget.halfWidth
+        override val hitId get() = widget.widgetId
+    }
+
+    /** ≥2 widgets sharing a [HostedWidget.stackId] — see `WidgetStackView`. */
+    data class Stack(val members: List<HostedWidget>) : WidgetCard() {
+        override val halfWidth get() = members.first().halfWidth
+        override val hitId get() = members.first().widgetId
+    }
+}
+
+/** One rendered row of the feed's widgets section: one card, or two half-width ones. */
+internal sealed class WidgetRow {
     abstract val hitIds: List<Int>
 
-    data class Solo(val widget: HostedWidget) : WidgetRow() {
-        override val hitIds get() = listOf(widget.widgetId)
+    /** A single card on its own row — a full-width one, or a half-width one with no partner. */
+    data class Single(val card: WidgetCard) : WidgetRow() {
+        override val hitIds get() = listOf(card.hitId)
     }
 
-    data class HalfPair(val first: HostedWidget, val second: HostedWidget) : WidgetRow() {
-        override val hitIds get() = listOf(first.widgetId, second.widgetId)
-    }
-
-    /** A widget stack: ≥2 widgets sharing a [HostedWidget.stackId], rendered as one
-     * swipeable carousel card instead of a row each — see `WidgetStackView`. */
-    data class Stack(val members: List<HostedWidget>) : WidgetRow() {
-        override val hitIds get() = listOf(members.first().widgetId)
+    /** Two half-width cards side by side; either may be a stack. */
+    data class Pair(val first: WidgetCard, val second: WidgetCard) : WidgetRow() {
+        override val hitIds get() = listOf(first.hitId, second.hitId)
     }
 }
 
@@ -208,50 +244,53 @@ private fun blocksOf(widgets: List<HostedWidget>): List<List<HostedWidget>> {
 }
 
 /**
- * Packs the ordered widget list into rows for rendering: a contiguous stack group
- * of ≥2 becomes one [WidgetRow.Stack]; among the rest, a full-width widget always
- * gets its own [WidgetRow.Solo], two consecutive half-width widgets pair into a
- * [WidgetRow.HalfPair] (mirroring the built-in weather+today row), and a
- * half-width widget left without a partner — an odd count, or its former partner
- * was just removed — still gets its own row at half width, never stretched to fill
- * it just because it's currently alone. A group that has somehow dropped to a
- * single member is treated as un-stacked, so a stale [HostedWidget.stackId] can
- * never render as a one-member carousel. Pure list logic, no Compose/Android
- * dependency.
+ * Groups the ordered widget list into the cards that will actually be rendered: a
+ * contiguous run of ≥2 widgets sharing a [HostedWidget.stackId] becomes one
+ * [WidgetCard.Stack]; everything else is a [WidgetCard.Solo]. A group that has
+ * somehow dropped to a single member is treated as un-stacked, so a stale
+ * `stackId` can never render as a one-member carousel.
+ */
+private fun cardsOf(widgets: List<HostedWidget>): List<WidgetCard> =
+    blocksOf(widgets).map { block ->
+        if (block.size > 1) WidgetCard.Stack(block) else WidgetCard.Solo(block.single())
+    }
+
+/**
+ * Packs the ordered widget list into rows for rendering. Works on whole *cards*
+ * ([cardsOf]) rather than raw widgets, so a stack participates in row packing on
+ * equal footing with a lone widget: a full-width card gets its own row, two
+ * consecutive half-width cards pair side by side (mirroring the built-in
+ * weather+today row), and a half-width card left without a partner — an odd count,
+ * or its former partner was just removed — still gets its own row at half width,
+ * never stretched to fill it just because it's currently alone.
+ *
+ * A half-width **stack** therefore sits alongside a half-width widget instead of
+ * hogging a whole row with dead space beside it, which is what it did when rows were
+ * packed from raw widgets and a stack was hardcoded to take a row of its own
+ * (user-reported). Pure list logic, no Compose/Android dependency.
  */
 internal fun packWidgetRows(widgets: List<HostedWidget>): List<WidgetRow> {
     val rows = mutableListOf<WidgetRow>()
-    var pendingHalf: HostedWidget? = null
+    var pendingHalf: WidgetCard? = null
 
     fun flushPendingHalf() {
-        pendingHalf?.let { rows.add(WidgetRow.Solo(it)) }
+        pendingHalf?.let { rows.add(WidgetRow.Single(it)) }
         pendingHalf = null
     }
 
-    var i = 0
-    while (i < widgets.size) {
-        val w = widgets[i]
-        val span = if (w.stackId != null) groupSpan(widgets, i) else i..i
-        val isStack = span.last > span.first
-        if (isStack) {
-            flushPendingHalf()
-            rows.add(WidgetRow.Stack(widgets.subList(span.first, span.last + 1).toList()))
-            i = span.last + 1
-            continue
-        }
-        if (w.halfWidth) {
+    for (card in cardsOf(widgets)) {
+        if (card.halfWidth) {
             val prev = pendingHalf
             if (prev != null) {
-                rows.add(WidgetRow.HalfPair(prev, w))
+                rows.add(WidgetRow.Pair(prev, card))
                 pendingHalf = null
             } else {
-                pendingHalf = w
+                pendingHalf = card
             }
         } else {
             flushPendingHalf()
-            rows.add(WidgetRow.Solo(w))
+            rows.add(WidgetRow.Single(card))
         }
-        i++
     }
     flushPendingHalf()
     return rows
@@ -521,20 +560,32 @@ fun WidgetSection(accent: Color, tokens: ColorTokens, labelColor: Color = tokens
         val hit = widgetBounds.entries
             .firstOrNull { (otherId, rect) -> otherId != id && rect.contains(point) }
         dragTargetId = hit?.key
-        // Two conditions gate a merge, and a miss on either means a plain reorder:
-        // (1) the drop point is in the target's inner merge zone, not just brushing
-        // its edge on the way past; (2) both widgets render at the same width — a
-        // half-width and a full-width widget can't share one card, mirroring Start's
-        // own rule that a stack's members are uniformly sized. A mismatched hover is
-        // never even highlighted as mergeable.
         val rect = hit?.value
-        dragMergeCandidate = rect != null &&
-            isInMergeZone(rect.left, rect.top, rect.width, rect.height, point.x, point.y) &&
-            run {
-                val dragged = widgets.widgets.firstOrNull { it.widgetId == id }
-                val target = widgets.widgets.firstOrNull { it.widgetId == hit.key }
-                dragged != null && target != null && dragged.halfWidth == target.halfWidth
+        val dragged = widgets.widgets.firstOrNull { it.widgetId == id }
+        val target = hit?.let { h -> widgets.widgets.firstOrNull { it.widgetId == h.key } }
+        // Conditions for a merge; a miss on any of them means a plain reorder.
+        dragMergeCandidate = when {
+            rect == null || dragged == null || target == null -> false
+            // A drag that starts on a stack only ever reorders. Merging is per-widget,
+            // so letting a stacked widget merge tore just its dragged member out of
+            // the group and dissolved the rest — the stack appeared to fall apart
+            // instead of moving (user-reported). Combining two stacks isn't supported.
+            dragged.stackId != null -> false
+            // Half-width and full-width can't share one card, mirroring Start's rule
+            // that a stack's members are uniformly sized.
+            dragged.halfWidth != target.halfWidth -> false
+            // Aim required: the drop has to land in the target's inner zone, not just
+            // brush its edge on the way past — and much closer to dead centre when the
+            // target is already a stack, so "place this beside it" stays easy.
+            else -> {
+                val stacked = target.stackId != null
+                isInMergeZone(
+                    rect.left, rect.top, rect.width, rect.height, point.x, point.y,
+                    zoneMin = if (stacked) STACK_MERGE_ZONE_MIN else MERGE_ZONE_MIN,
+                    zoneMax = if (stacked) STACK_MERGE_ZONE_MAX else MERGE_ZONE_MAX,
+                )
             }
+        }
     }
 
     fun onWidgetDragEnd(id: Int) {
@@ -652,20 +703,27 @@ fun WidgetSection(accent: Color, tokens: ColorTokens, labelColor: Color = tokens
             }
         }
 
+        // A card is a lone widget or a whole stack; both take part in row packing the
+        // same way, so a half-width stack shares its row with a neighbour instead of
+        // leaving dead space beside it.
+        @Composable
+        fun cardView(card: WidgetCard, modifier: Modifier) {
+            when (card) {
+                is WidgetCard.Solo -> widgetView(card.widget, modifier)
+                is WidgetCard.Stack -> stackView(card.members, modifier)
+            }
+        }
+
         rows.forEach { row ->
             when (row) {
-                is WidgetRow.HalfPair -> Row(
+                is WidgetRow.Pair -> Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    widgetView(row.first, Modifier.weight(1f))
-                    widgetView(row.second, Modifier.weight(1f))
+                    cardView(row.first, Modifier.weight(1f))
+                    cardView(row.second, Modifier.weight(1f))
                 }
-                is WidgetRow.Solo -> widgetView(row.widget, Modifier.fillMaxWidth())
-                // A stack always takes its own row; the card inside still renders at
-                // half width when its members are half-width, centred like a lone
-                // half-width widget.
-                is WidgetRow.Stack -> stackView(row.members, Modifier.fillMaxWidth())
+                is WidgetRow.Single -> cardView(row.card, Modifier.fillMaxWidth())
             }
         }
     }
@@ -804,6 +862,7 @@ private fun BoxScope.MergeTargetHighlight(accent: Color) {
  * reading through the state is what keeps them seeing the current size instead of
  * whatever it was when the gesture started.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BoxScope.WidgetEditOverlay(
     accent: Color,
@@ -838,28 +897,41 @@ private fun BoxScope.WidgetEditOverlay(
                 indication = null,
             ) { onDismiss() },
     ) {
-        // Top-left: a single drag handle to reorder — press and drag up or down past
-        // another widget to swap places with it, or onto its centre to stack them.
-        // Replaces a pair of up/down buttons, which used to also drop out of edit
-        // mode on every tap (see the hoisted `editing` state in `WidgetSection`).
-        // The reorder itself only commits once, on release — see `onWidgetDragEnd` —
-        // so nothing about the list restructures while this drag is in progress.
-        DragHandlePill(
-            accent = accent,
-            widgetId = dragKey,
-            onDragStart = onDragStart,
-            onDragBy = onDragBy,
-            onDragEnd = onDragEnd,
-            modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
-        )
-        // Top-right controls: any caller-supplied action, then edit (reconfigure) + remove.
+        // One top row holding the drag handle and the action pills, laid out so they
+        // can't overlap. They used to be two independently-aligned children (handle at
+        // TopStart, actions at TopEnd), which silently covered the handle as soon as
+        // the actions grew wider than the gap between them: a stack adds a third pill
+        // ("unstack") on top of edit + remove, so on a narrow card the handle vanished
+        // underneath them and the stack couldn't be dragged at all (user-reported).
+        // SpaceBetween reserves the handle's own space, and the actions wrap onto
+        // another line rather than encroaching on it.
+        //
+        // Drag the handle up or down past another card to swap places with it, or onto
+        // its centre to stack them. The reorder only commits once, on release — see
+        // `onWidgetDragEnd` — so the list never restructures mid-gesture.
         Row(
-            modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .fillMaxWidth()
+                .padding(8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            extraActions()
-            if (info.configure != null) EditPill("edit", accent) { onEdit(info) }
-            EditPill("remove", Color(0xFFD6262B)) { onRemove() }
+            DragHandlePill(
+                accent = accent,
+                widgetId = dragKey,
+                onDragStart = onDragStart,
+                onDragBy = onDragBy,
+                onDragEnd = onDragEnd,
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(start = 8.dp),
+            ) {
+                extraActions()
+                if (info.configure != null) EditPill("edit", accent) { onEdit(info) }
+                EditPill("remove", Color(0xFFD6262B)) { onRemove() }
+            }
         }
         // Three independent resize handles — bottom edge (height only), right edge
         // (width only), corner (both at once, diagonal) — so any widget can be
@@ -1061,15 +1133,23 @@ private fun WidgetStackView(
     val lastDir = remember { mutableIntStateOf(1) }
     val visibleMember = members[safeIndex]
 
-    // Resolved for sizing and for the overlay's own controls only — deliberately
-    // without an `onMissing` handler, so the single removal path stays the member
-    // view's own below and a vanished provider can't be reported twice.
-    val visibleInfo = rememberWidgetInfo(manager, visibleMember.widgetId, onMissing = {})
+    // Every member's provider info, resolved up front and keyed so the slots stay
+    // stable as the list changes. It has to be all of them, not just the visible one:
+    // `halfContentWidthDp` floors the width at the provider's own declared minimum,
+    // and members can declare different minimums — sizing from whichever happened to
+    // be showing made the card visibly resize every time it rotated. `onMissing` is a
+    // no-op here so the single removal path stays [WidgetStackMemberView]'s and a
+    // vanished provider can't be reported twice.
+    val memberInfos = members.map { m ->
+        key(m.widgetId) { rememberWidgetInfo(manager, m.widgetId, onMissing = {}) }
+    }
+    // Used for the overlay's own controls (its configure action, resize floor).
+    val visibleInfo = memberInfos.getOrNull(safeIndex)
 
     val liveHeightState = remember(sharedHeightDp) { mutableStateOf(sharedHeightDp) }
-    val halfWidthDp = remember(visibleInfo, widthDp) {
-        visibleInfo?.let { halfContentWidthDp(it, widthDp, density) } ?: (widthDp / 2)
-    }
+    val halfWidthDp = memberInfos.filterNotNull()
+        .maxOfOrNull { halfContentWidthDp(it, widthDp, density) }
+        ?: (widthDp / 2)
     val fullWidthDp = widthDp
     val liveWidthState = remember(groupHalfWidth, widthDp, halfWidthDp) {
         mutableStateOf(if (groupHalfWidth) halfWidthDp else fullWidthDp)

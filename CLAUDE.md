@@ -36,6 +36,35 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.5.0 — feed widget stacks: four fixes from on-device testing.** User-reported after real
+  hardware use as two symptoms ("stack position can't be changed", "another widget can not be placed
+  next to the stack"), which were four separate defects — see DECISIONS "Feed widget stacks — four
+  fixes from on-device testing". (1) **The drag handle was hidden under the action pills**: the
+  overlay aligned the handle `TopStart` and the actions `TopEnd` as independent Box children with
+  nothing reserving space between them, so once a stack added a third pill ("unstack") on top of
+  edit + remove they covered the handle outright on a narrow card and the stack literally could not
+  be dragged ("no handle to move on stack"). Now one `Row(SpaceBetween)` with the actions in a
+  `FlowRow`, so they wrap instead of encroaching — the same collision the old ↑/↓ reorder buttons
+  had with the edit/remove pills on half-width widgets. (2) **Dragging a stack destroyed it**:
+  `reorderWidgets` was block-aware but `mergeIntoStack` never was (`out.removeAt(di)` removes one
+  widget), so a drop in the wide 22–78% zone ripped the anchor member out, dissolved the rest, and
+  merged that member into the target; merging is inherently per-widget, so **a drag starting on a
+  stacked widget now never merges, only reorders** (stack+stack stays unsupported). (3) **A widget
+  dropped near a stack was absorbed instead of placed beside it**: `isInMergeZone` now takes the
+  band as params and the call site tightens it to the centre third (`STACK_MERGE_ZONE_MIN/MAX`,
+  0.34–0.66) when the target is already a stack — joining is the rarer intent, so it's the one that
+  must be aimed at; loose-onto-loose keeps the normative 22–78% zone. Chosen over dwell-to-merge or
+  capping stacks at two members (both offered; user picked the tighter zone as it adds no new
+  gesture). (4) **A half-width stack hogged a whole row**: rows are now packed from **cards**
+  (`WidgetCard.Solo`/`Stack` via `cardsOf`) rather than raw widgets, so a stack packs on equal
+  footing with a lone widget — `WidgetRow` collapsed from three cases to two (`Single`/`Pair`) and a
+  half-width stack pairs beside a half-width widget (or another half-width stack). Also fixed while
+  verifying: **the card visibly resized as it rotated**, since `halfContentWidthDp`'s provider
+  min-width floor was taken from whichever member was showing — `WidgetStackView` now resolves every
+  member's info up front (keyed, so slots stay stable) and takes the max, also removing a duplicate
+  `rememberWidgetInfo`. Build + tests green (`WidgetSlotTest` 51 cases); fixes 1/4 + width stability
+  verified on an emulator at the failing geometry, 2/3 unit-tested but their gestures still need a
+  real finger per the ADB drag-synthesis limit below.
 - **Post-v2.5.0 — feed widget stacks: merge two hosted widgets into one swipeable card.** New ask,
   not in the WP prototype/spec — see DECISIONS "Feed widget stacks". Brings Start's own widget-stack
   *pattern* (`StackTileContent`) to the feed's real `AppWidgetHostView`s, but not its code, since three
