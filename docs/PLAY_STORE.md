@@ -144,6 +144,46 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
+## Release notes (v2.5.1)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+**Note:** this blurb intentionally repeats v2.5.0's feature list alongside v2.5.1's own, so
+anyone updating from v2.4.x sees everything that is new to them in one place. Bug fixes are
+deliberately left out of the Play-facing text — both v2.5.0's and the widget-stack fixes made
+after v2.5.1's feature landed. The full changelog below carries them for reference.
+
+```
+TileShell 2.5.1
+
+• New: stack two glance widgets into one swipeable card
+• New: hide the status bar for a full-screen Start (default on)
+• New: Quick Panel docks from the top with a status header
+• Changed: swipe down for Quick Panel, up for quick search
+• New: brightness/volume sliders with tap-to-mute
+• New: share a photo to set it as your wallpaper
+• New: haptic feedback across Quick Panel and search
+• Personalize, guide and about are now full-screen
+```
+
+*(Character count 457, under Play's 500 limit.)*
+
+### Full changelog since v2.5.0 (for reference — not the Play-facing blurb above)
+
+- **Feed widget stacks**: two hosted widgets on the glance screen can be merged into a single
+  swipeable card by dragging one onto the other's centre, so a dense reading surface doesn't lose
+  a whole row per widget. The card auto-rotates between its members every ~10s, a strip at its
+  right edge flips them by hand, and "unstack" from the edit overlay splits them apart again.
+  Only same-width widgets can merge, and a half-width stack still pairs beside a half-width
+  widget rather than taking a row of its own.
+- *Fixes (not in the Play blurb)*: the stack's drag handle was hidden underneath its action
+  pills so it couldn't be moved at all; dragging a stack dissolved it instead of repositioning
+  it; a widget dropped near a stack was absorbed into it rather than placed beside it; the card
+  visibly resized as it rotated between members.
+- *Fix (not in the Play blurb)*: the App List's pin/hide/uninstall long-press was raised from
+  450 ms to 700 ms — it was firing on an ordinary tap-and-linger, so a press meant to launch an
+  app opened the menu instead.
+
 ## Release notes (v2.5.0)
 
 *"What's new" — newest release first. Keep under Play's 500-character limit.*
