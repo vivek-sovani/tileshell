@@ -15,12 +15,21 @@ import java.io.OutputStream
  * half-width widget, or alone at half width) versus the full row. [widthDp] is a
  * legacy field from an earlier continuous-width model — kept only so old save
  * files still parse; no longer read for sizing (see [halfWidth]).
+ *
+ * [stackId] groups this widget with others into a single swipeable carousel slot —
+ * a **widget stack** — instead of each taking its own row; null means un-stacked.
+ * Members of one stack all carry the same [stackId] (by convention the founding
+ * widget's own [widgetId] — see `mergeIntoStack`) and always sit contiguously in
+ * [WidgetData.widgets]; every mutation that touches grouping preserves that, since
+ * the row packer finds a group by scanning outward rather than re-grouping the
+ * whole list.
  */
 data class HostedWidget(
     val widgetId: Int,
     val heightDp: Int,
     val widthDp: Int = 0,
     val halfWidth: Boolean = false,
+    val stackId: Int? = null,
 )
 
 /**
@@ -31,14 +40,18 @@ data class HostedWidget(
 data class WidgetData(val widgets: List<HostedWidget> = emptyList())
 
 /**
- * One widget per line as `id,heightDp,widthDp,halfWidth`; tolerant (bad lines
- * dropped, missing height/width/halfWidth all fall back to defaults) — the
- * trailing `halfWidth` field is optional so lines written before it existed
- * still decode fine.
+ * One widget per line as `id,heightDp,widthDp,halfWidth,stackId`; tolerant (bad
+ * lines dropped, missing height/width/halfWidth/stackId all fall back to
+ * defaults) — the trailing `halfWidth` and `stackId` fields are optional so lines
+ * written before either existed still decode fine. An un-stacked widget writes
+ * `stackId` as an empty field rather than a sentinel like `-1`, so it decodes
+ * identically to an older file that never carried the column at all.
  */
 object WidgetCodec {
     fun encode(data: WidgetData): String =
-        data.widgets.joinToString("\n") { "${it.widgetId},${it.heightDp},${it.widthDp},${it.halfWidth}" }
+        data.widgets.joinToString("\n") {
+            "${it.widgetId},${it.heightDp},${it.widthDp},${it.halfWidth},${it.stackId ?: ""}"
+        }
 
     fun decode(text: String): WidgetData = WidgetData(
         text.lineSequence().mapNotNull { line ->
@@ -47,7 +60,8 @@ object WidgetCodec {
             val h = parts.getOrNull(1)?.trim()?.toIntOrNull() ?: 110
             val w = parts.getOrNull(2)?.trim()?.toIntOrNull() ?: 0
             val half = parts.getOrNull(3)?.trim()?.toBooleanStrictOrNull() ?: false
-            HostedWidget(id, h, w, half)
+            val stackId = parts.getOrNull(4)?.trim()?.toIntOrNull()
+            HostedWidget(id, h, w, half, stackId)
         }.toList(),
     )
 }
@@ -79,8 +93,24 @@ class WidgetStore(private val store: DataStore<WidgetData>) {
         store.updateData { it.copy(widgets = it.widgets.filterNot { w -> w.widgetId == widget.widgetId } + widget) }
     }
 
+    /**
+     * Deletes a widget. If it was in a widget stack and only one member would be
+     * left, that survivor is un-stacked too — a stack of one doesn't exist, and a
+     * dangling [HostedWidget.stackId] would otherwise keep it rendering as a
+     * one-member carousel. Also covers the automatic removal path (a provider that
+     * no longer resolves), not just the user's "remove" action.
+     */
     suspend fun remove(widgetId: Int) {
-        store.updateData { it.copy(widgets = it.widgets.filterNot { w -> w.widgetId == widgetId }) }
+        store.updateData { data ->
+            val stackId = data.widgets.firstOrNull { it.widgetId == widgetId }?.stackId
+            val remaining = data.widgets.filterNot { it.widgetId == widgetId }
+            val dissolved = if (stackId != null && remaining.count { it.stackId == stackId } == 1) {
+                remaining.map { if (it.stackId == stackId) it.copy(stackId = null) else it }
+            } else {
+                remaining
+            }
+            data.copy(widgets = dissolved)
+        }
     }
 
     suspend fun setSize(widgetId: Int, heightDp: Int, halfWidth: Boolean) {
@@ -88,6 +118,22 @@ class WidgetStore(private val store: DataStore<WidgetData>) {
             it.copy(
                 widgets = it.widgets.map { w ->
                     if (w.widgetId == widgetId) w.copy(heightDp = heightDp, halfWidth = halfWidth) else w
+                },
+            )
+        }
+    }
+
+    /**
+     * Resizes every member of one widget stack together, in a single atomic update.
+     * A stack renders as one card, so its members have to agree on that card's size
+     * — whichever member's resize handle was dragged, they all converge on the
+     * result (see `WidgetStackView`).
+     */
+    suspend fun setStackSize(stackId: Int, heightDp: Int, halfWidth: Boolean) {
+        store.updateData {
+            it.copy(
+                widgets = it.widgets.map { w ->
+                    if (w.stackId == stackId) w.copy(heightDp = heightDp, halfWidth = halfWidth) else w
                 },
             )
         }

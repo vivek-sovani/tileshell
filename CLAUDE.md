@@ -36,6 +36,49 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.5.0 — feed widget stacks: merge two hosted widgets into one swipeable card.** New ask,
+  not in the WP prototype/spec — see DECISIONS "Feed widget stacks". Brings Start's own widget-stack
+  *pattern* (`StackTileContent`) to the feed's real `AppWidgetHostView`s, but not its code, since three
+  things differ: (1) **gesture confinement is load-bearing** — swipe-to-flip is granted only to touches
+  starting in a 40dp right-edge strip (`WIDGET_STACK_EDGE_ZONE_DP`, where the position indicator sits);
+  anything starting elsewhere leaves `awaitEachGesture` without consuming anything, so it reaches the
+  hosted widget's own taps/scrolling/buttons exactly as on an un-stacked card (no tap-to-launch or
+  long-press-to-edit competing — the existing "edit" pill covers that); (2) **hidden members need no
+  keep-alive plumbing** — `AppWidgetHost.startListening()` already caches every *bound* widget's latest
+  `RemoteViews` whether or not a view is inflated, so only the visible member is composed and flipping
+  back shows current content; (3) **only same-width widgets may merge** (`dragged.halfWidth ==
+  target.halfWidth`), mirroring Start's uniform-member-size rule — a mismatched hover is a plain
+  reorder, never highlighted as mergeable. Trigger is drag-onto-centre like Start's tile merge:
+  `onWidgetDragBy` tests the drop point against the target's inner 22–78% band (`isInMergeZone`, the
+  same normative merge zone as the Start grid) and `onWidgetDragEnd` routes to `mergeIntoStack` vs.
+  `reorderWidgets`, with an accent outline previewing the merge before release. Grouping is a new
+  `stackId: Int?` on `HostedWidget` — members share the founding widget's own `widgetId` and stay
+  contiguous in the persisted order, so the packer scans outward instead of re-grouping;
+  **no schema migration** (`WidgetCodec` gained a 5th column, written blank when null so an un-stacked
+  widget is byte-identical to an older 4-column file — verified on-device against a real pre-existing
+  `feed_widget.pb`). `packWidgetRows` now returns a `WidgetRow` sealed type (`Solo`/`HalfPair`/`Stack`)
+  and `reorderWidgets` is **block-aware** (a stack moves as one unit, so a reorder can't slice a group
+  apart); a group that drops to one member is packed as `Solo` and `WidgetStore.remove` clears a
+  stranded survivor's `stackId`, so a "stack of one" can't exist. `WidgetView`'s AndroidView hosting,
+  info resolution (the ~15s OEM grace period), and edit overlay were extracted into shared pieces
+  (`rememberWidgetInfo`/`WidgetHostedView`/`WidgetEditOverlay`, the last taking live sizes as
+  `MutableState` so the resize handles' once-captured gesture callbacks still read current values)
+  reused by both the plain card and the new `WidgetStackView`; the overlay's `extraActions` slot is how
+  a stack adds "unstack". **Two real bugs found during on-device verification, both in new code:** the
+  position indicator was invisible because Start's `fillMaxHeight(0.5f)` idiom resolves to nothing in
+  the feed's *unbounded-height* scrolling column (fixed with an explicit `(liveHeight / 2).dp`), and it
+  would have been invisible anyway on light widgets since Start's white-on-accent track vanished on
+  near-white ones (track is now dark, borrowing the "edit" pill's proven backing). Verified on an
+  emulator: one card sized to the tallest member, auto-rotation with the indicator thumb tracking the
+  index exactly (sampled 8 frames/32s, never out of sync), overlay acting on the visible member and
+  correctly omitting "edit" for a widget with no configure activity, and "unstack" dissolving the pair
+  (both `stackId`s cleared, re-rendered as two rows). **Drag-to-merge and swipe-to-flip still need a
+  real finger** — both `adb shell input swipe` and `input motionevent` deliver only a single 1–2px move
+  to `detectDragGestures` before the gesture ends (confirmed via temporary logging, against correct
+  bounds), the same ADB limitation already recorded for the feed's drag-to-reorder work; worth a
+  specific look at merging two *side-by-side* half-width widgets, whose mostly-horizontal drag shares
+  an axis with the Start↔feed pager. Build + tests green (`WidgetSlotTest`/`WidgetCodecTest`, 26
+  new/updated cases).
 - **v2.5.0 (versionCode 250) — release cut.** Rolls up everything below: the "hide status bar"
   toggle (default on, with a real display-cutout fix and an auto-rehide timer for the swipe-to-
   peek reveal), the Quick Panel redocked to the top with a device-style status header (clock/date,
