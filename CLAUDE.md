@@ -11,7 +11,9 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Normative behaviour values (from prototype — treat as constants)
 - Grid: 4 columns default (user-selectable 4/5/6 via `columns` setting), dense packing, sizes small 1×1 / medium 2×2 / wide 4×2 / large 3×3 (large is offered for **any** app on **any** column count, including 4 — `AppCategories.allowsLargeTile` now always returns `true`; news app's `NotificationTileFace` gets a full-area hero layout at LARGE; **a folder becomes a widget stack whenever every member is uniformly WIDE or LARGE** — merge two large tiles directly, or use the folder overlay's "make stack · wide/large" shortcut — see status); ref unit 90px, gap 3px, side 9px on 393px width → derive dp proportionally
-- Long-press: 430ms (tiles), 450ms (app list pin); move-cancel threshold 7px
+- Long-press: 430ms (tiles), **700ms (app list pin — deliberate deviation from the prototype's
+  450ms, raised after on-device testing; see DECISIONS "App list long-press raised to 700ms")**;
+  move-cancel threshold 7px
 - Merge zone: inner 22–78% of target tile, both axes
 - Pager: app list slides in; Start translates −22% and fades to 0.4; commit at 50%; activate when |dx|>12px and |dx|>1.2|dy|
 - Live tiles: random tile flips every ~2.6s; photos cross-fade ~3.0s (never flips); people mosaic cell refresh ~2.1s; all paused in edit mode / off-screen / battery saver
