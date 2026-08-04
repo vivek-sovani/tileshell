@@ -4343,3 +4343,62 @@ synthesized — the same ADB limitation already recorded for the feed's drag-to-
 behind both is unit-tested; it's the gesture plumbing that remains hand-verified only. Worth a
 specific on-device look: merging two *side-by-side* half-width widgets requires a mostly-horizontal
 drag, which is the axis the Start↔feed pager also claims.
+
+## Feed widget stacks — four fixes from on-device testing
+
+Direct follow-up to the entry above, all four user-reported after real-hardware use.
+Symptoms were "widget stack position can't be changed" and "another widget can not be placed
+next to the stack" — which turned out to be four separate defects, two per symptom.
+
+**1. The drag handle was hidden underneath the action pills.** The overlay laid out the handle
+and the actions as two independently-aligned children of the same Box (handle at `TopStart`,
+actions at `TopEnd`). Nothing reserved space between them, so as soon as the actions grew wider
+than the gap they silently covered the handle. A stack adds a third pill ("unstack") on top of
+edit + remove, so on a narrow card the handle disappeared completely and the stack genuinely
+could not be dragged — the user's report was literally "no handle to move on stack". Now a
+single `Row(SpaceBetween)` holds the handle and a `FlowRow` of actions: the handle's space is
+reserved, and the actions wrap onto further lines instead of encroaching. This class of bug has
+bitten this file before — the old ↑/↓ reorder buttons collided with the edit/remove pills on
+half-width widgets for the same reason. Verified on-device at the exact failing geometry.
+
+**2. Dragging a stack destroyed it instead of moving it.** `reorderWidgets` was made
+block-aware, but `mergeIntoStack` never was: it does `out.removeAt(di)`, removing one widget.
+So dragging a stack's handle onto another card — landing in the wide default merge zone, which
+covers 56% of each axis and is therefore most of the card — tore just the anchor member out of
+the group, dissolved the remainder, and merged that lone member into the target. Repositioning
+only worked in the narrow outer band, which reads as "it doesn't work". Merging is inherently a
+per-widget operation, so rather than make it block-aware, **a drag that starts on a stacked
+widget now never merges at all** — it only ever reorders. Combining two stacks stays
+unsupported, as originally scoped.
+
+**3. A widget dropped near a stack was absorbed into it rather than placed beside it.** Same
+wide zone, opposite direction. Joining an existing stack is the rarer of the two intents, so it
+is now the one that has to be aimed at: `isInMergeZone` takes the band as parameters and the
+call site tightens it to roughly the centre third (`STACK_MERGE_ZONE_MIN`/`MAX`, 0.34–0.66)
+when the target is already a stack. Loose-widget-onto-loose-widget keeps the normative 22–78%
+zone shared with the Start grid. Chosen over a dwell-to-merge timer or capping stacks at two
+members, both of which were offered — the user picked the tighter zone as it adds no new
+gesture vocabulary.
+
+**4. A half-width stack hogged a whole row.** `packWidgetRows` was written to give
+`WidgetRow.Stack` its own row unconditionally, so merging two narrow widgets produced a
+half-width card sitting alone with dead space beside it, and nothing could ever be placed
+alongside. Rows are now packed from **cards** (`WidgetCard.Solo`/`WidgetCard.Stack`, via
+`cardsOf`) instead of raw widgets, so a stack takes part in row packing on exactly the same
+footing as a lone widget: `WidgetRow` collapsed from three cases to two (`Single`/`Pair`), and
+a half-width stack pairs beside a half-width widget — or beside another half-width stack. This
+also simplified the packer to a single pass.
+
+**Also fixed, found while verifying the above: the card visibly resized as it rotated.**
+`halfContentWidthDp` floors a card's width at the provider's own declared minimum, and that was
+being computed from whichever member happened to be showing. Members declare different minimums
+(on the test pair, the analog clock's is materially larger than Screen time's), so the card
+changed width on every flip. `WidgetStackView` now resolves every member's info up front —
+keyed, so the composition slots stay stable as the list changes — and takes the max, which also
+removed a duplicate `rememberWidgetInfo` call for the visible member.
+
+Build + tests green (`WidgetSlotTest` now 51 cases, including regressions for the half-width
+stack pairing, the tighter stacked-target zone, and card width/hit-id derivation). Fixes 1 and 4
+plus the width-stability fix were verified on an emulator at the failing geometry; 2 and 3 are
+covered by unit tests but their gesture plumbing still needs a real finger, per the ADB
+drag-synthesis limitation recorded in the previous entry.
