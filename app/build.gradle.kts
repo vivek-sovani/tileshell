@@ -275,8 +275,14 @@ android {
         //   uninstall menu; sharing a photo into TileShell from Gallery/Photos' own share
         //   sheet now sets it as the wallpaper, going through the same crop/reframe overlay
         //   as picking one from within the app.
-        versionCode = 250
-        versionName = "2.5.0"
+        // v2.5.1 — feed widget stacks: two hosted widgets on the glance screen can be
+        //   merged into one swipeable card by dragging one onto the other's centre, saving
+        //   vertical space on a dense reading surface. The card auto-rotates between its
+        //   members and a right-edge strip flips them by hand; "unstack" splits them again.
+        //   Also raises the App List's pin/hide/uninstall long-press to 700 ms, which was
+        //   firing on an ordinary tap-and-linger.
+        versionCode = 251
+        versionName = "2.5.1"
     }
 
     if (keystoreFile.exists()) {
