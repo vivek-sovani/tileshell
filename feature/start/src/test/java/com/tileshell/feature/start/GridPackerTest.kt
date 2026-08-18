@@ -87,6 +87,83 @@ class GridPackerTest {
         assertEquals(0 to 1, p[1].col to p[1].row)
     }
 
+    // ---- new size presets (gesture drag resize) -------------------------
+
+    @Test
+    fun `wide_small and tall pack side by side and stacked respectively`() {
+        val p = GridPacker.pack(specs(TileSize.WIDE_SMALL, TileSize.TALL))
+        val wideSmall = p.first { it.id == "t0" }
+        assertEquals(2, wideSmall.cols)
+        assertEquals(1, wideSmall.rows)
+        assertEquals(0 to 0, wideSmall.col to wideSmall.row)
+        val tall = p.first { it.id == "t1" }
+        assertEquals(1, tall.cols)
+        assertEquals(2, tall.rows)
+        // Fits into the remaining (2,0) column, back-filling beside wide_small
+        // rather than dropping below it.
+        assertEquals(2, tall.col)
+        assertEquals(0, tall.row)
+    }
+
+    @Test
+    fun `wide_medium and tall_medium never overlap anything in a mixed set`() {
+        val tiles = listOf(
+            TileSpec("a", TileSize.WIDE_MEDIUM),
+            TileSpec("b", TileSize.TALL_MEDIUM),
+            TileSpec("c", TileSize.SMALL),
+            TileSpec("d", TileSize.WIDE_SMALL),
+            TileSpec("e", TileSize.TALL),
+        )
+        val p = GridPacker.pack(tiles)
+        val rows = GridPacker.rowCount(p)
+        val occupied = Array(rows) { BooleanArray(GridPacker.COLUMNS) }
+        for (placement in p) {
+            for (r in placement.row until placement.row + placement.rows) {
+                for (c in placement.col until placement.col + placement.cols) {
+                    assertFalse("tiles overlap at ($c,$r)", occupied[r][c])
+                    occupied[r][c] = true
+                }
+            }
+        }
+        assertEquals(tiles.size, p.size)
+    }
+
+    @Test
+    fun `xlarge consumes a full 4x4 row-band on a 4-column grid`() {
+        val p = GridPacker.pack(specs(TileSize.XLARGE)).single()
+        assertEquals(0, p.col)
+        assertEquals(0, p.row)
+        assertEquals(4, p.cols)
+        assertEquals(4, p.rows)
+        assertEquals(4, GridPacker.rowCount(p.let(::listOf)))
+    }
+
+    @Test
+    fun `xlarge is clamped to the column count, never overflowing a 4-column grid`() {
+        // XLARGE.cols == 4 == COLUMNS, so no clamping is actually needed here —
+        // this guards the coerceAtMost(columns) path regardless.
+        val p = GridPacker.pack(specs(TileSize.XLARGE), columns = 4).single()
+        assertTrue(p.col + p.cols <= 4)
+    }
+
+    @Test
+    fun `new presets anchor at their stored cell in sticky mode too`() {
+        val tiles = specs(TileSize.XLARGE, TileSize.WIDE_MEDIUM)
+        val slots = mapOf(
+            "t0" to GridPacker.encodeSlot(0, 0),
+            "t1" to GridPacker.encodeSlot(0, 5),
+        )
+        val p = GridPacker.packSticky(tiles, slots::get)
+        val xlarge = p.first { it.id == "t0" }
+        assertEquals(0 to 0, xlarge.col to xlarge.row)
+        assertEquals(4, xlarge.cols)
+        assertEquals(4, xlarge.rows)
+        val wideMedium = p.first { it.id == "t1" }
+        assertEquals(0 to 5, wideMedium.col to wideMedium.row)
+        assertEquals(3, wideMedium.cols)
+        assertEquals(2, wideMedium.rows)
+    }
+
     // ---- determinism / reorder stability --------------------------------
 
     @Test

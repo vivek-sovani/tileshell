@@ -41,6 +41,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -980,6 +981,7 @@ fun StartScreen(
                         Toast.makeText(context, "grouped", Toast.LENGTH_SHORT).show()
                     },
                     onResize = viewModel::resize,
+                    onResizeTo = viewModel::resizeTo,
                     onUnpin = viewModel::unpin,
                     onSetTileColor = viewModel::setTileColor,
                     onAdd = {
@@ -1714,6 +1716,11 @@ private fun StartPage(
     onReorder: (List<String>) -> Unit,
     onMerge: (dragId: String, targetId: String, survivingOrder: List<String>) -> Unit,
     onResize: (String) -> Unit,
+    // Gesture-based drag resize (Stage 2 of the icons-mode arc): lands directly
+    // on the size the drag settled on, unlike [onResize]'s fixed tap cycle.
+    // Top-level tiles only — folder children keep resizing via the corner
+    // control (see StartViewModel.resizeTo's doc comment).
+    onResizeTo: (id: String, size: TileSize) -> Unit,
     onUnpin: (String) -> Unit,
     onSetTileColor: (id: String, colorId: String?) -> Unit,
     onAdd: () -> Unit,
@@ -1731,6 +1738,22 @@ private fun StartPage(
     val order = remember { mutableStateListOf<String>() }
     var draggingId by remember { mutableStateOf<String?>(null) }
     val dragOffset = remember { mutableStateOf(IntOffset.Zero) }
+
+    // Gesture-based drag resize (Stage 2 of the icons-mode arc). resizingId is
+    // the tile currently under a resize handle; resizePreviewSize is the
+    // TileSize the drag has snapped to *so far* — re-derived on every drag
+    // tick from the accumulated delta since the drag started (never
+    // incrementally), so it can't drift. The write (StartViewModel.resizeTo)
+    // only happens once, on release — see onResizeDragEnd at the TileView call
+    // site below. resizeGeom mirrors the same GridGeometry.of(...) call
+    // DenseTileGrid makes internally from these same widthPx/columns/tileGapPx
+    // inputs, so the live preview's pixel size always matches the real grid's.
+    var resizingId by remember { mutableStateOf<String?>(null) }
+    var resizePreviewSize by remember { mutableStateOf<TileSize?>(null) }
+    var resizeAccumDx by remember { mutableStateOf(0f) }
+    var resizeAccumDy by remember { mutableStateOf(0f) }
+    val resizeGeom = remember(widthPx, columns, tileGapPx) { GridGeometry.of(widthPx, columns, tileGapPx) }
+
     // Tile currently highlighted as a merge target (finger in its centre zone).
     var mergeTargetId by remember { mutableStateOf<String?>(null) }
     // Tile whose accent-colour picker is open (edit-mode colour dot tapped), or null.
@@ -2114,15 +2137,27 @@ private fun StartPage(
                 }
                 val model = augmentedById[spec.id] ?: return@DenseTileGrid
                 val dragging = spec.id == draggingId
+                val resizing = spec.id == resizingId
                 val slotState = animateIntOffsetAsState(slot, label = "slot")
                 val index = displaySpecs.indexOfFirst { it.id == spec.id }
+                // A live resize grows/shrinks this exact wrapper Box to the
+                // drag's current snapped TileSize — a real preview of the
+                // final tile rather than a separate outline, since TileView's
+                // own content doesn't switch renderer by size (only Stage 3's
+                // DenseTileGrid call site branches on `spec.size`, which stays
+                // the *persisted* size throughout the drag either way).
+                val livePreviewSizePx = if (resizing) {
+                    resizePreviewSize?.let { resizeGeom.sizePx(TilePlacement("_resize_preview", it, 0, 0)) }
+                } else {
+                    null
+                }
                 Box(
                     modifier = Modifier
                         .offset { if (dragging) dragOffset.value else slotState.value }
-                        .zIndex(if (dragging) 10f else 0f)
+                        .zIndex(if (dragging || resizing) 10f else 0f)
                         .size(
-                            with(density) { sizePx.width.toDp() },
-                            with(density) { sizePx.height.toDp() },
+                            with(density) { (livePreviewSizePx?.width ?: sizePx.width).toDp() },
+                            with(density) { (livePreviewSizePx?.height ?: sizePx.height).toDp() },
                         ),
                 ) {
                     // Per-tile accent (FR-7): a saved override (palette id or exact
@@ -2223,6 +2258,34 @@ private fun StartPage(
                         onResize = {
                             val ref = folderChildRef(model.id)
                             if (ref != null) onResizeFolderChild(ref.first, ref.second) else onResize(model.id)
+                        },
+                        // Gesture-based drag resize: top-level tiles only (a
+                        // folder child stays on its existing corner-control
+                        // resize — see StartViewModel.resizeTo's doc comment).
+                        resizeHandlesEnabled = folderChildRef(model.id) == null,
+                        onResizeDragStart = {
+                            resizingId = model.id
+                            resizeAccumDx = 0f
+                            resizeAccumDy = 0f
+                            resizePreviewSize = model.size
+                        },
+                        onResizeDragBy = { dx, dy, axis ->
+                            resizeAccumDx += dx
+                            resizeAccumDy += dy
+                            resizePreviewSize = snapResizeTarget(
+                                geom = resizeGeom,
+                                currentCols = model.size.cols,
+                                currentRows = model.size.rows,
+                                dxPx = resizeAccumDx,
+                                dyPx = resizeAccumDy,
+                                axis = axis,
+                                columns = columns,
+                            )
+                        },
+                        onResizeDragEnd = {
+                            resizePreviewSize?.let { onResizeTo(model.id, it) }
+                            resizingId = null
+                            resizePreviewSize = null
                         },
                         onUnpin = {
                             val ref = folderChildRef(model.id)
@@ -2517,6 +2580,11 @@ internal fun tileAccessibilityLabel(
             TileSize.MEDIUM -> "medium"
             TileSize.WIDE -> "wide"
             TileSize.LARGE -> "large"
+            TileSize.WIDE_SMALL -> "wide small"
+            TileSize.TALL -> "tall"
+            TileSize.WIDE_MEDIUM -> "wide medium"
+            TileSize.TALL_MEDIUM -> "tall medium"
+            TileSize.XLARGE -> "extra large"
         }
         append(", $size tile")
         if (selected) append(", selected")
@@ -2568,6 +2636,17 @@ private fun TileView(
     inlineFolderLaunch: Boolean = false,
     appIconColors: Boolean = false,
     nextSizeIsLarger: Boolean = false,
+    // Gesture-based drag resize (Stage 2 of the icons-mode arc). Only shown
+    // when true — folder children and widget stacks keep their existing
+    // corner-control-only resize (see the call site's guard). onResizeDragBy
+    // reports the *raw* pixel delta since drag start plus which axis the
+    // handle controls; the caller (hoisted resize-preview state one level up)
+    // does the geometry → TileSize snapping so TileView itself stays free of
+    // grid-geometry knowledge, matching how every other gesture here is wired.
+    resizeHandlesEnabled: Boolean = false,
+    onResizeDragStart: () -> Unit = {},
+    onResizeDragBy: (dxPx: Float, dyPx: Float, axis: ResizeAxis) -> Unit = { _, _, _ -> },
+    onResizeDragEnd: () -> Unit = {},
 ) {
     // TalkBack reads the whole tile as one node: the app/folder name plus state,
     // with the launch/edit operations exposed as semantic actions (the visual
@@ -2797,8 +2876,75 @@ private fun TileView(
                 tile is TileModel.Folder -> TileControls(showColor = showColorDot, dotColor = accent, nextSizeIsLarger = nextSizeIsLarger, isFolder = true)
                 else -> TileControls(showColor = showColorDot, dotColor = accent, nextSizeIsLarger = nextSizeIsLarger)
             }
+            // Gesture-based drag resize handles: bottom-centre (height),
+            // centre-right (width), bottom-right corner (both) — the same
+            // three-handle pattern already shipped for feed widgets. Hidden
+            // for stacks (fixed 3×3, matches the tap-cycle guard in
+            // StartViewModel.resize/resizeTo) and wherever the caller didn't
+            // enable them (folder children — see the call site).
+            if (!isStackTile && resizeHandlesEnabled) {
+                TileResizeHandles(
+                    onDragStart = onResizeDragStart,
+                    onDragBy = onResizeDragBy,
+                    onDragEnd = onResizeDragEnd,
+                )
+            }
         }
     }
+}
+
+/**
+ * The three drag handles for gesture-based tile resize, shown on a selected
+ * (non-stack) tile in edit mode: bottom-centre grows/shrinks height only,
+ * centre-right width only, bottom-right corner both at once — mirroring the
+ * feed's own [WidgetSlot.kt] `ResizeHandle` pattern, chosen there (and here)
+ * over pinch-zoom because pinch fights the surrounding scroll and can't set
+ * the two axes independently. Each handle reports only the *raw* pixel delta
+ * since the finger went down; the caller (hoisted resize-preview state at the
+ * grid level, which has the geometry) turns that into a snapped [TileSize]
+ * and only writes it on [onDragEnd] — this composable knows nothing about
+ * grid cells at all.
+ */
+@Composable
+private fun BoxScope.TileResizeHandles(
+    onDragStart: () -> Unit,
+    onDragBy: (dxPx: Float, dyPx: Float, axis: ResizeAxis) -> Unit,
+    onDragEnd: () -> Unit,
+) {
+    fun Modifier.resizeDrag(axis: ResizeAxis) = pointerInput(axis) {
+        detectDragGestures(
+            onDragStart = { onDragStart() },
+            onDrag = { change, drag -> change.consume(); onDragBy(drag.x, drag.y, axis) },
+            onDragEnd = { onDragEnd() },
+        )
+    }
+    Box(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .padding(bottom = 4.dp)
+            .size(width = 26.dp, height = 6.dp)
+            .clip(RoundedCornerShape(3.dp))
+            .background(Color.White.copy(alpha = 0.9f))
+            .resizeDrag(ResizeAxis.HEIGHT),
+    )
+    Box(
+        modifier = Modifier
+            .align(Alignment.CenterEnd)
+            .padding(end = 4.dp)
+            .size(width = 6.dp, height = 26.dp)
+            .clip(RoundedCornerShape(3.dp))
+            .background(Color.White.copy(alpha = 0.9f))
+            .resizeDrag(ResizeAxis.WIDTH),
+    )
+    Box(
+        modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .padding(6.dp)
+            .size(10.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(Color.White.copy(alpha = 0.9f))
+            .resizeDrag(ResizeAxis.BOTH),
+    )
 }
 
 /**
@@ -3812,6 +3958,19 @@ private fun StaticTileGlyph(tile: TileModel.App) {
     if (tile.size == TileSize.SMALL) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             TileIconContent(30)
+        }
+    } else if (tile.size.rows == 1 && tile.size.cols > 1) {
+        // One row tall but wider than a single column (e.g. WIDE_SMALL 2×1) —
+        // there's no room for the icon-above-label stack below, so icon and
+        // label sit side by side instead. Gesture-resize-only footprint; the
+        // tap cycle never lands here (TileSize.next()).
+        Row(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TileIconContent(26)
+            Spacer(Modifier.width(8.dp))
+            TileLabel(tile.label.orEmpty(), modifier = Modifier.weight(1f))
         }
     } else {
         // A 3×3 large tile (music/news only) gets a bigger glyph so it isn't lost in

@@ -46,6 +46,14 @@ class LayoutRepository(
         dao.updateTileSize(id, current.next(largeAllowed).name)
     }
 
+    /**
+     * Set a tile's size directly, rather than stepping through [cycleTileSize]'s
+     * fixed cycle — the write path for gesture-based drag resize
+     * (`StartViewModel.resizeTo`), which can land on any of the nine
+     * [TileSize] presets, not just the four the tap cycle reaches.
+     */
+    suspend fun setTileSize(id: String, size: TileSize) = dao.updateTileSize(id, size.name)
+
     /** Set or clear a tile's per-tile accent override (null = follow global, FR-7). */
     suspend fun setTileAccent(id: String, accentOverride: String?) =
         dao.updateTileAccent(id, accentOverride)

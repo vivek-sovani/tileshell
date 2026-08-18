@@ -1023,6 +1023,24 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Set a tile's size directly to [size] — the write path for gesture-based
+     * drag resize, which can land on any of the nine [TileSize] presets rather
+     * than stepping through [resize]'s fixed tap cycle. Shares [resize]'s two
+     * guards (a widget stack never resizes; sticky/free mode pushes a colliding
+     * neighbor down via [stickyResizeSlots] exactly as a tap-resize would) but
+     * writes [size] as given instead of computing `size.next(largeAllowed)`.
+     */
+    fun resizeTo(id: String, size: TileSize) {
+        val model = tiles.value.firstOrNull { it.id == id } ?: return
+        if (model is TileModel.Folder && model.isStack) return
+        val finalSlots = stickyResizeSlots(model, size)
+        viewModelScope.launch(writeContext) {
+            finalSlots.forEach { (movedId, slot) -> repository.setTileGridSlot(movedId, slot) }
+            repository.setTileSize(id, size)
+        }
+    }
+
+    /**
      * All grid-cell writes sticky mode needs for [model] to resize to
      * [nextSize]: the resized tile's own cell (its column shifts left just
      * enough to keep the new, wider footprint inside the grid when it no
