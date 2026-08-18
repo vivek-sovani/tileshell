@@ -2243,7 +2243,7 @@ private fun StartPage(
                         resizeAccumDy = 0f
                         resizePreviewSize = model.size
                     }
-                    val onResizeDragByAction = { dx: Float, dy: Float, axis: ResizeAxis ->
+                    val onResizeDragByAction = { dx: Float, dy: Float ->
                         resizeAccumDx += dx
                         resizeAccumDy += dy
                         resizePreviewSize = snapResizeTarget(
@@ -2252,7 +2252,6 @@ private fun StartPage(
                             currentRows = model.size.rows,
                             dxPx = resizeAccumDx,
                             dyPx = resizeAccumDy,
-                            axis = axis,
                             columns = columns,
                         )
                     }
@@ -2740,7 +2739,7 @@ private fun TileView(
     // grid-geometry knowledge, matching how every other gesture here is wired.
     resizeHandlesEnabled: Boolean = false,
     onResizeDragStart: () -> Unit = {},
-    onResizeDragBy: (dxPx: Float, dyPx: Float, axis: ResizeAxis) -> Unit = { _, _, _ -> },
+    onResizeDragBy: (dxPx: Float, dyPx: Float) -> Unit = { _, _ -> },
     onResizeDragEnd: () -> Unit = {},
 ) {
     // TalkBack reads the whole tile as one node: the app/folder name plus state,
@@ -2861,6 +2860,22 @@ private fun TileView(
                 if (editMode || isStackTile) Modifier
                 else Modifier.tileGesture(onTap = onTap, onLongPress = onLongPress),
             )
+            // Gesture-based resize (two-finger stretch anywhere on the tile,
+            // or single-finger corner drag as a fallback) — only for the
+            // selected, non-stack tile in edit mode, and only when the caller
+            // opted it in (folder children keep the corner-control-only
+            // resize — see the call site's resizeHandlesEnabled).
+            .then(
+                if (selected && editMode && !isExpanded && !isStackTile && resizeHandlesEnabled) {
+                    Modifier.tileStretchGesture(
+                        onDragStart = onResizeDragStart,
+                        onDragBy = onResizeDragBy,
+                        onDragEnd = onResizeDragEnd,
+                    )
+                } else {
+                    Modifier
+                },
+            )
             // Accessibility: collapse the tile to a single labelled button and
             // expose its operations as actions (TalkBack), replacing the inert
             // descendant icon/label/live-face semantics.
@@ -2971,75 +2986,107 @@ private fun TileView(
                 tile is TileModel.Folder -> TileControls(showColor = showColorDot, dotColor = accent, nextSizeIsLarger = nextSizeIsLarger, isFolder = true)
                 else -> TileControls(showColor = showColorDot, dotColor = accent, nextSizeIsLarger = nextSizeIsLarger)
             }
-            // Gesture-based drag resize handles: bottom-centre (height),
-            // centre-right (width), bottom-right corner (both) — the same
-            // three-handle pattern already shipped for feed widgets. Hidden
-            // for stacks (fixed 3×3, matches the tap-cycle guard in
-            // StartViewModel.resize/resizeTo) and wherever the caller didn't
-            // enable them (folder children — see the call site).
-            if (!isStackTile && resizeHandlesEnabled) {
-                TileResizeHandles(
-                    onDragStart = onResizeDragStart,
-                    onDragBy = onResizeDragBy,
-                    onDragEnd = onResizeDragEnd,
-                )
-            }
         }
     }
 }
 
+/** Corner hit-zone for [tileStretchGesture]'s single-finger fallback — matches the feed
+ *  widget stack's own edge-drag zone constant, a comfortable size for a drag (not a tap). */
+private const val RESIZE_CORNER_ZONE_DP = 40
+
+private enum class StretchMode { NONE, TWO_FINGER, CORNER, DONE }
+
 /**
- * The three drag handles for gesture-based tile resize, shown on a selected
- * (non-stack) tile in edit mode: bottom-centre grows/shrinks height only,
- * centre-right width only, bottom-right corner both at once — mirroring the
- * feed's own [WidgetSlot.kt] `ResizeHandle` pattern, chosen there (and here)
- * over pinch-zoom because pinch fights the surrounding scroll and can't set
- * the two axes independently. Each handle reports only the *raw* pixel delta
- * since the finger went down; the caller (hoisted resize-preview state at the
- * grid level, which has the geometry) turns that into a snapped [TileSize]
- * and only writes it on [onDragEnd] — this composable knows nothing about
- * grid cells at all.
+ * Gesture-based tile resize, replacing the earlier three-handle design: touch
+ * the selected tile with **two fingers** anywhere and move them apart, together,
+ * or diagonally — the tile resizes to match the live bounding box between the
+ * two touch points, so both axes move independently in one natural stretch,
+ * with no visible handle at all. As a **single-finger fallback**, pressing and
+ * dragging from the tile's own bottom-right corner (a [RESIZE_CORNER_ZONE_DP]
+ * zone, past touch slop) stretches from that corner with the opposite corner
+ * anchored — the classic widget-resize feel, still with no drawn handle.
+ *
+ * Both report only the *raw* pixel delta since the gesture started; the caller
+ * (hoisted resize-preview state at the grid level, which has the geometry)
+ * turns that into a snapped [TileSize] and only writes it on drag end — this
+ * modifier knows nothing about grid cells at all.
+ *
+ * Deliberately never consumes a touch that is neither of these two cases — a
+ * single finger pressing anywhere outside the corner zone passes straight
+ * through untouched, so the grid's own tap-to-select/reorder-drag machinery
+ * (attached on an ancestor, see `editDragGesture`) keeps working exactly as it
+ * does today. A plain *tap* in the corner zone (no movement, one finger) is
+ * also never consumed here, which is what lets the grid's existing tap-cycle
+ * resize still fire for a tap that never becomes a drag.
  */
-@Composable
-internal fun BoxScope.TileResizeHandles(
+internal fun Modifier.tileStretchGesture(
     onDragStart: () -> Unit,
-    onDragBy: (dxPx: Float, dyPx: Float, axis: ResizeAxis) -> Unit,
+    onDragBy: (dxPx: Float, dyPx: Float) -> Unit,
     onDragEnd: () -> Unit,
-) {
-    fun Modifier.resizeDrag(axis: ResizeAxis) = pointerInput(axis) {
-        detectDragGestures(
-            onDragStart = { onDragStart() },
-            onDrag = { change, drag -> change.consume(); onDragBy(drag.x, drag.y, axis) },
-            onDragEnd = { onDragEnd() },
-        )
+) = pointerInput(Unit) {
+    val cornerZonePx = RESIZE_CORNER_ZONE_DP.dp.toPx()
+    awaitEachGesture {
+        val firstDown = awaitFirstDown(requireUnconsumed = false)
+        val inCornerZone = firstDown.position.x >= size.width - cornerZonePx &&
+            firstDown.position.y >= size.height - cornerZonePx
+
+        var mode = StretchMode.NONE
+        var twoFingerBaseW = 0f
+        var twoFingerBaseH = 0f
+        var dragging = false
+
+        while (true) {
+            val event = awaitPointerEvent()
+            val pressed = event.changes.filter { it.pressed }
+            if (pressed.isEmpty()) {
+                if (dragging) onDragEnd()
+                break
+            }
+            if (pressed.size >= 2) {
+                val p1 = pressed[0].position
+                val p2 = pressed[1].position
+                val w = kotlin.math.abs(p1.x - p2.x)
+                val h = kotlin.math.abs(p1.y - p2.y)
+                if (mode != StretchMode.TWO_FINGER) {
+                    mode = StretchMode.TWO_FINGER
+                    twoFingerBaseW = w
+                    twoFingerBaseH = h
+                    if (!dragging) {
+                        onDragStart()
+                        dragging = true
+                    }
+                } else {
+                    onDragBy(w - twoFingerBaseW, h - twoFingerBaseH)
+                }
+                pressed.forEach { it.consume() }
+            } else if (mode == StretchMode.TWO_FINGER) {
+                // Dropped back to one finger after a two-finger stretch — end
+                // cleanly rather than reinterpreting the remaining finger as a
+                // corner drag, which would otherwise jump the tile abruptly.
+                onDragEnd()
+                dragging = false
+                mode = StretchMode.DONE
+            } else if (inCornerZone && mode != StretchMode.DONE) {
+                val change = pressed[0]
+                if (mode == StretchMode.NONE) {
+                    val movedFromStart = (change.position - firstDown.position).getDistance()
+                    if (movedFromStart > viewConfiguration.touchSlop) {
+                        mode = StretchMode.CORNER
+                        onDragStart()
+                        dragging = true
+                    }
+                }
+                if (mode == StretchMode.CORNER) {
+                    val dx = change.position.x - change.previousPosition.x
+                    val dy = change.position.y - change.previousPosition.y
+                    onDragBy(dx, dy)
+                    change.consume()
+                }
+            }
+            // Else: one finger, outside the corner zone, mode NONE — untouched
+            // and unconsumed, so the grid's own gesture handles it normally.
+        }
     }
-    Box(
-        modifier = Modifier
-            .align(Alignment.BottomCenter)
-            .padding(bottom = 4.dp)
-            .size(width = 26.dp, height = 6.dp)
-            .clip(RoundedCornerShape(3.dp))
-            .background(Color.White.copy(alpha = 0.9f))
-            .resizeDrag(ResizeAxis.HEIGHT),
-    )
-    Box(
-        modifier = Modifier
-            .align(Alignment.CenterEnd)
-            .padding(end = 4.dp)
-            .size(width = 6.dp, height = 26.dp)
-            .clip(RoundedCornerShape(3.dp))
-            .background(Color.White.copy(alpha = 0.9f))
-            .resizeDrag(ResizeAxis.WIDTH),
-    )
-    Box(
-        modifier = Modifier
-            .align(Alignment.BottomEnd)
-            .padding(6.dp)
-            .size(10.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .background(Color.White.copy(alpha = 0.9f))
-            .resizeDrag(ResizeAxis.BOTH),
-    )
 }
 
 /**

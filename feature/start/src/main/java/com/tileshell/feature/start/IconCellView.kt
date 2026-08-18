@@ -88,7 +88,7 @@ internal fun IconCellView(
     iconShape: IconShape = IconShape.ORIGINAL,
     resizeHandlesEnabled: Boolean = false,
     onResizeDragStart: () -> Unit = {},
-    onResizeDragBy: (dxPx: Float, dyPx: Float, axis: ResizeAxis) -> Unit = { _, _, _ -> },
+    onResizeDragBy: (dxPx: Float, dyPx: Float) -> Unit = { _, _ -> },
     onResizeDragEnd: () -> Unit = {},
 ) {
     val tokens = colorTokens(darkTheme)
@@ -168,7 +168,7 @@ internal fun IconFolderCell(
     iconShape: IconShape = IconShape.ORIGINAL,
     resizeHandlesEnabled: Boolean = false,
     onResizeDragStart: () -> Unit = {},
-    onResizeDragBy: (dxPx: Float, dyPx: Float, axis: ResizeAxis) -> Unit = { _, _, _ -> },
+    onResizeDragBy: (dxPx: Float, dyPx: Float) -> Unit = { _, _ -> },
     onResizeDragEnd: () -> Unit = {},
 ) {
     val tokens = colorTokens(darkTheme)
@@ -260,7 +260,7 @@ private fun IconCellChrome(
     canMoveForward: Boolean,
     resizeHandlesEnabled: Boolean,
     onResizeDragStart: () -> Unit,
-    onResizeDragBy: (dxPx: Float, dyPx: Float, axis: ResizeAxis) -> Unit,
+    onResizeDragBy: (dxPx: Float, dyPx: Float) -> Unit,
     onResizeDragEnd: () -> Unit,
     content: @Composable () -> Unit,
 ) {
@@ -286,6 +286,20 @@ private fun IconCellChrome(
             }
             .then(
                 if (editMode) Modifier else Modifier.tileGesture(onTap = onTap, onLongPress = onLongPress),
+            )
+            // Gesture-based resize (two-finger stretch, or single-finger
+            // corner drag as a fallback) — see StartScreen.kt's
+            // tileStretchGesture doc comment for the full gesture design.
+            .then(
+                if (selected && editMode && resizeHandlesEnabled) {
+                    Modifier.tileStretchGesture(
+                        onDragStart = onResizeDragStart,
+                        onDragBy = onResizeDragBy,
+                        onDragEnd = onResizeDragEnd,
+                    )
+                } else {
+                    Modifier
+                },
             )
             .clearAndSetSemantics {
                 contentDescription = a11yLabel
@@ -321,16 +335,9 @@ private fun IconCellChrome(
         }
         if (selected && editMode) {
             // Only unpin — no colour dot (icon colour comes from the app's own
-            // icon, not a per-tile accent), no resize corner control (the drag
-            // handles below are the resize affordance in ICONS mode).
+            // icon, not a per-tile accent). Resize has no visible control at
+            // all now — see the tileStretchGesture modifier above.
             TileControls(showColor = false, dotColor = tokens.fg, nextSizeIsLarger = true)
-            if (resizeHandlesEnabled) {
-                TileResizeHandles(
-                    onDragStart = onResizeDragStart,
-                    onDragBy = onResizeDragBy,
-                    onDragEnd = onResizeDragEnd,
-                )
-            }
         }
     }
 }

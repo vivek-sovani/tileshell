@@ -128,30 +128,25 @@ fun reorderTiles(order: List<String>, dragId: String, targetId: String): List<St
     return out
 }
 
-/**
- * Which axis a resize-drag handle controls (bottom-centre = height only,
- * right-centre = width only, corner = both) — mirrors the feed's own
- * three-handle widget resize pattern.
- */
-enum class ResizeAxis { WIDTH, HEIGHT, BOTH }
-
 /** The largest row count any [TileSize] preset uses — a resize drag never needs more. */
 private val MAX_PRESET_ROWS = TileSize.entries.maxOf { it.rows }
 
 /**
- * The nearest [TileSize] preset for a live drag-resize handle: starting from a
- * [currentCols]×[currentRows] footprint, the finger has moved ([dxPx], [dyPx])
- * since the drag began, measured in the same px [geom] uses for one grid cell
- * step (unit + gap) on each axis. [axis] zeroes out the component a
- * single-direction handle doesn't control. The result is clamped to the grid's
- * [columns] and to the tallest preset's row count, then matched to the preset
- * with the smallest squared cols/rows distance — ties fall to whichever
- * [TileSize] entry comes first, which is deterministic (declaration order) but
- * otherwise arbitrary, since a true tie is indistinguishable to the user.
- * Pure and stateless: the caller (StartScreen's hoisted resize-preview state)
- * re-derives the candidate on every drag tick from the *total* delta since the
- * drag started, not incrementally — so it can never drift from what a single
- * call with the same inputs would produce.
+ * The nearest [TileSize] preset for a live drag-resize gesture (two-finger
+ * stretch or single-finger corner drag — both always move both axes at
+ * once, so there is no per-axis gating here): starting from a
+ * [currentCols]×[currentRows] footprint, the gesture has moved ([dxPx],
+ * [dyPx]) since it began, measured in the same px [geom] uses for one grid
+ * cell step (unit + gap) on each axis. The result is clamped to the grid's
+ * [columns] and to the tallest preset's row count, then matched to the
+ * preset with the smallest squared cols/rows distance — ties fall to
+ * whichever [TileSize] entry comes first, which is deterministic
+ * (declaration order) but otherwise arbitrary, since a true tie is
+ * indistinguishable to the user. Pure and stateless: the caller
+ * (StartScreen's hoisted resize-preview state) re-derives the candidate on
+ * every drag tick from the *total* delta since the gesture started, not
+ * incrementally — so it can never drift from what a single call with the
+ * same inputs would produce.
  */
 fun snapResizeTarget(
     geom: GridGeometry,
@@ -159,11 +154,10 @@ fun snapResizeTarget(
     currentRows: Int,
     dxPx: Float,
     dyPx: Float,
-    axis: ResizeAxis,
     columns: Int,
 ): TileSize {
-    val dCols = if (axis == ResizeAxis.HEIGHT) 0 else (dxPx / geom.step).roundToInt()
-    val dRows = if (axis == ResizeAxis.WIDTH) 0 else (dyPx / geom.step).roundToInt()
+    val dCols = (dxPx / geom.step).roundToInt()
+    val dRows = (dyPx / geom.step).roundToInt()
     val targetCols = (currentCols + dCols).coerceIn(1, columns.coerceAtLeast(1))
     val targetRows = (currentRows + dRows).coerceIn(1, MAX_PRESET_ROWS)
     return TileSize.entries.minByOrNull { candidate ->
