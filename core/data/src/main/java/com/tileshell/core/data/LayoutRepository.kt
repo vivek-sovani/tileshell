@@ -157,20 +157,22 @@ class LayoutRepository(
     }
 
     /**
-     * Pin an app from the app list (FR-5) as a medium tile in the app's default
-     * colour, appended to the end of the grid. No-op (returns
+     * Pin an app from the app list (FR-5) as a [defaultSize] tile (medium,
+     * unless the caller overrides it — the ICONS home style pins at SMALL
+     * instead, since that's the size that renders as a plain icon) in the
+     * app's default colour, appended to the end of the grid. No-op (returns
      * [PinResult.ALREADY_ON_START]) if a tile for the package already exists.
      * Apps that match a default role (phone, mail, calendar, etc.) get their
      * designed WP icon key; all others default to null and show the real app icon.
      */
-    suspend fun pinApp(app: AppEntry): PinResult {
+    suspend fun pinApp(app: AppEntry, defaultSize: TileSize = TileSize.MEDIUM): PinResult {
         if (dao.appTileCount(app.packageName) > 0) return PinResult.ALREADY_ON_START
         dao.insertTiles(
             listOf(
                 TileEntity(
                     id = "pin-${app.packageName}-${System.currentTimeMillis()}",
                     position = dao.maxPosition() + 1,
-                    size = TileSize.MEDIUM,
+                    size = defaultSize,
                     colorId = TileColors.defaultIdFor(app.packageName),
                     type = TileEntity.TYPE_APP,
                     packageName = app.packageName,

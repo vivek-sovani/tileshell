@@ -31,6 +31,7 @@ import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.core.data.settings.SettingsRepository
+import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.data.settings.isAnchored
 import com.tileshell.feature.livetiles.DEFAULT_FEED_SOURCES
@@ -691,6 +692,27 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) {
             if (mode.isAnchored) seedStickySlots(settings.value.columns)
             settingsRepository.setTilePackMode(mode)
+        }
+    }
+
+    /**
+     * Switch the Start grid's cell renderer (WP tiles ↔ Android-style icons).
+     * Rewrites nothing in the layout itself — a tile's stored size is simply
+     * ignored while the smaller (icon) renderer is active, so switching back
+     * restores the tile layout exactly. The one side effect: entering ICONS
+     * for the first time seeds [LauncherSettings.cornerRadius] to a subtle
+     * 4dp chamfer *if the user has never touched that slider* (still at its
+     * 0f default) — icons render with a proportionally rounded mask
+     * regardless of this setting, and a dead-flat 0-radius tile grid sitting
+     * next to rounded icons read as visibly unfinished when this was tried.
+     * A user who already customized the radius keeps their own value.
+     */
+    fun setHomeStyle(style: HomeStyle) {
+        viewModelScope.launch(writeContext) {
+            if (style == HomeStyle.ICONS && settings.value.cornerRadius == LauncherSettings().cornerRadius) {
+                settingsRepository.setCornerRadius(ICONS_MODE_DEFAULT_CORNER_RADIUS)
+            }
+            settingsRepository.setHomeStyle(style)
         }
     }
 
@@ -1368,5 +1390,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private companion object {
         /** Coalesce window for reorder commits (small enough to be invisible). */
         const val REORDER_DEBOUNCE_MS = 120L
+
+        /** See [setHomeStyle]'s doc comment: seeded once, only from the 0f default. */
+        const val ICONS_MODE_DEFAULT_CORNER_RADIUS = 4f
     }
 }

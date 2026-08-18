@@ -10,7 +10,10 @@ import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.PinResult
 import com.tileshell.core.data.RecentApps
 import com.tileshell.core.data.TileModel
+import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.hasPersonalizeTile
+import com.tileshell.core.data.settings.HomeStyle
+import com.tileshell.core.data.settings.SettingsRepository
 import com.tileshell.feature.livetiles.NotificationCenter
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,6 +53,7 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
 
     private val repository = AppCatalogRepository(application)
     private val layout = LayoutRepository.create(application)
+    private val settingsRepository = SettingsRepository.create(application)
 
     private val apps: StateFlow<List<AppEntry>> = repository.apps.map { it + PERSONALIZE_APP_ENTRY }.stateIn(
         scope = viewModelScope,
@@ -153,10 +157,20 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
         _query.value = ""
     }
 
-    /** Pin [app] to Start, then emit the outcome for the UI to toast on. */
+    /**
+     * Pin [app] to Start, then emit the outcome for the UI to toast on. In the
+     * ICONS home style a freshly pinned app lands at SMALL (renders as a
+     * plain shaped icon) rather than the WP-style MEDIUM default — the user
+     * can still grow it into a live tile via resize.
+     */
     fun pin(app: AppEntry) {
         viewModelScope.launch {
-            val result = layout.pinApp(app)
+            val defaultSize = if (settingsRepository.settings.first().homeStyle == HomeStyle.ICONS) {
+                TileSize.SMALL
+            } else {
+                TileSize.MEDIUM
+            }
+            val result = layout.pinApp(app, defaultSize)
             _pinned.emit(PinOutcome(result, app.label))
         }
     }

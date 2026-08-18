@@ -176,6 +176,17 @@ class SettingsCodecTest {
     }
 
     @Test
+    fun `homeStyle round-trips and unknown value keeps default`() {
+        assertEquals(HomeStyle.TILES, SettingsCodec.decode("homeStyle=TILES").homeStyle)
+        assertEquals(HomeStyle.ICONS, SettingsCodec.decode("homeStyle=ICONS").homeStyle)
+        assertEquals(
+            HomeStyle.ICONS,
+            SettingsCodec.decode(SettingsCodec.encode(LauncherSettings(homeStyle = HomeStyle.ICONS))).homeStyle,
+        )
+        assertEquals(LauncherSettings().homeStyle, SettingsCodec.decode("homeStyle=GARBLED").homeStyle)
+    }
+
+    @Test
     fun `fontStyle round-trips and unknown value keeps default`() {
         assertEquals(FontStyle.NUNITO, SettingsCodec.decode("fontStyle=NUNITO").fontStyle)
         assertEquals(FontStyle.OUTFIT, SettingsCodec.decode("fontStyle=OUTFIT").fontStyle)

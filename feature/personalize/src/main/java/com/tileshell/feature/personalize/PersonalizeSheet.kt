@@ -66,6 +66,7 @@ import androidx.core.graphics.drawable.toBitmap
 import com.tileshell.core.data.settings.FontStyle
 import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
+import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
@@ -184,6 +185,8 @@ fun PersonalizeSheet(
     onColumnsChange: (Int) -> Unit,
     tilePackMode: TilePackMode,
     onTilePackModeChange: (TilePackMode) -> Unit,
+    homeStyle: HomeStyle,
+    onHomeStyleChange: (HomeStyle) -> Unit,
     lockLayout: Boolean,
     onLockLayoutChange: (Boolean) -> Unit,
     hideStatusBar: Boolean,
@@ -821,6 +824,29 @@ fun PersonalizeSheet(
                                     fontSize = 13.sp,
                                 )
                             }
+                        }
+                    }
+                }
+            }
+
+            // ---- home style: windows-phone tiles vs. android-style icons ----
+            SettingGroup(label = "home style", tokens.fgDim) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "how apps render on the small (1×1) size — bigger tiles, live tiles and folders look the same either way",
+                        color = tokens.fgDim,
+                        fontSize = 13.sp,
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, tokens.tileLine),
+                    ) {
+                        SegCell("tiles", selected = homeStyle == HomeStyle.TILES, accent = accent, fg = tokens.fg) {
+                            onHomeStyleChange(HomeStyle.TILES)
+                        }
+                        SegCell("icons", selected = homeStyle == HomeStyle.ICONS, accent = accent, fg = tokens.fg) {
+                            onHomeStyleChange(HomeStyle.ICONS)
                         }
                     }
                 }

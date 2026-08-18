@@ -6,6 +6,21 @@ enum class TileFill { FLAT, GRADIENT }
 enum class FontStyle { SYSTEM, OUTFIT, NUNITO }
 
 /**
+ * Which cell renderer the Start grid uses (the "icons mode" arc, for a user
+ * who wants a normal Android-style home screen instead of Windows Phone
+ * tiles). [TILES] is the original WP tile grid, unchanged. [ICONS] shares the
+ * exact same layout engine — persistence, gestures, folders, drawer, backup —
+ * and only changes what a SMALL (1×1) cell renders: a shaped app icon with a
+ * label beneath instead of a filled tile. A cell at MEDIUM or larger still
+ * renders as a live tile/stack/folder exactly as in TILES mode either way —
+ * this is derived purely from the tile's own size, not a second stored flag,
+ * so live tiles, stacks and folders keep working in ICONS mode with no
+ * separate code path, and switching styles rewrites nothing (a tile's stored
+ * size is just ignored while the smaller renderer is active).
+ */
+enum class HomeStyle { TILES, ICONS }
+
+/**
  * How the Start grid closes gaps left by a removed/resized tile (user-selectable
  * "tile arrangement"): [DENSE] always repacks every tile toward the top-left on
  * every change (the launcher's original behaviour, matching the HTML prototype's
@@ -154,6 +169,8 @@ data class LauncherSettings(
      * something, at which point gaps start being preserved rather than repacked.
      */
     val tilePackMode: TilePackMode = TilePackMode.STICKY,
+    /** Which cell renderer the Start grid uses — WP tiles, or Android-style icons. */
+    val homeStyle: HomeStyle = HomeStyle.TILES,
     /** Periodic background layout snapshot saves (for LayoutHistorySheet). */
     val autoBackupEnabled: Boolean = true,
     /** Hours between automatic snapshots: 1, 4, 6, 12, or 24. */
@@ -220,6 +237,7 @@ object SettingsCodec {
         append("fontStyle=").append(settings.fontStyle.name).append('\n')
         append("columns=").append(settings.columns).append('\n')
         append("tilePackMode=").append(settings.tilePackMode.name).append('\n')
+        append("homeStyle=").append(settings.homeStyle.name).append('\n')
         append("autoBackup=").append(settings.autoBackupEnabled).append('\n')
         append("autoBackupInterval=").append(settings.autoBackupIntervalHours).append('\n')
         append("edgeStripEnabled=").append(settings.edgeStripEnabled).append('\n')
@@ -260,6 +278,7 @@ object SettingsCodec {
         var fontStyle = d.fontStyle
         var columns = d.columns
         var tilePackMode = d.tilePackMode
+        var homeStyle = d.homeStyle
         var autoBackupEnabled = d.autoBackupEnabled
         var autoBackupIntervalHours = d.autoBackupIntervalHours
         var edgeStripEnabled = d.edgeStripEnabled
@@ -311,6 +330,7 @@ object SettingsCodec {
                     columns = it.coerceIn(LauncherSettings.MIN_COLUMNS, LauncherSettings.MAX_COLUMNS)
                 }
                 "tilePackMode" -> TilePackMode.entries.find { it.name == value }?.let { tilePackMode = it }
+                "homeStyle" -> HomeStyle.entries.find { it.name == value }?.let { homeStyle = it }
                 "autoBackup" -> autoBackupEnabled = value.toBooleanStrictOrNull() ?: autoBackupEnabled
                 "autoBackupInterval" -> value.toIntOrNull()?.let {
                     autoBackupIntervalHours = it.coerceIn(1, 24)
@@ -353,6 +373,7 @@ object SettingsCodec {
             fontStyle = fontStyle,
             columns = columns,
             tilePackMode = tilePackMode,
+            homeStyle = homeStyle,
             autoBackupEnabled = autoBackupEnabled,
             autoBackupIntervalHours = autoBackupIntervalHours,
             edgeStripEnabled = edgeStripEnabled,

@@ -286,6 +286,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(tilePackMode = mode) }
     }
 
+    /** Switch the Start grid's cell renderer between WP tiles and Android-style icons. */
+    suspend fun setHomeStyle(style: HomeStyle) {
+        store.updateData { it.copy(homeStyle = style) }
+    }
+
     /** Replace all settings with a restored backup value atomically. */
     suspend fun restoreSettings(settings: LauncherSettings) {
         store.updateData { settings }
