@@ -32,6 +32,7 @@ import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.core.data.settings.SettingsRepository
 import com.tileshell.core.data.settings.HomeStyle
+import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.data.settings.isAnchored
 import com.tileshell.feature.livetiles.DEFAULT_FEED_SOURCES
@@ -714,6 +715,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             }
             settingsRepository.setHomeStyle(style)
         }
+    }
+
+    /** Set the icon mask ICONS home style applies (unused in TILES). */
+    fun setIconShape(shape: IconShape) {
+        viewModelScope.launch(writeContext) { settingsRepository.setIconShape(shape) }
     }
 
     /**

@@ -213,6 +213,7 @@ import com.tileshell.feature.system.rememberAppUpdateState
 import com.tileshell.feature.system.rememberDefaultLauncherState
 import com.tileshell.core.data.settings.FontStyle
 import com.tileshell.core.data.settings.HomeStyle
+import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.data.settings.TilePackMode
@@ -914,6 +915,7 @@ fun StartScreen(
                     columns = settings.columns,
                     sticky = settings.tilePackMode.isAnchored,
                     homeStyle = settings.homeStyle,
+                    iconShape = settings.iconShape,
                     onSetTileSlot = viewModel::setTileGridSlot,
                     expandedFolderId = expandedFolderId,
                     onCollapseFolder = viewModel::collapseFolder,
@@ -1297,6 +1299,8 @@ fun StartScreen(
             onTilePackModeChange = viewModel::setTilePackMode,
             homeStyle = settings.homeStyle,
             onHomeStyleChange = viewModel::setHomeStyle,
+            iconShape = settings.iconShape,
+            onIconShapeChange = viewModel::setIconShape,
             lockLayout = settings.lockLayout,
             onLockLayoutChange = viewModel::setLockLayout,
             hideStatusBar = settings.hideStatusBar,
@@ -1703,6 +1707,8 @@ private fun StartPage(
     // behaviour for SMALL app tiles (including inline-expanded folder
     // children, which flow through the exact same call site).
     homeStyle: HomeStyle = HomeStyle.TILES,
+    // The icon mask ICONS home style applies (unused in TILES).
+    iconShape: IconShape = IconShape.ORIGINAL,
     onSetTileSlot: (id: String, slot: Int?) -> Unit,
     // FR-4 WP-style inline folder expand/collapse: the currently-expanded
     // folder's id (null = none), and the child-scoped actions that used to
@@ -2279,6 +2285,7 @@ private fun StartPage(
                             onMove = onMoveAction,
                             canMoveBack = canMoveBack,
                             canMoveForward = canMoveForward,
+                            iconShape = iconShape,
                             resizeHandlesEnabled = resizeHandlesEnabled,
                             onResizeDragStart = onResizeDragStartAction,
                             onResizeDragBy = onResizeDragByAction,

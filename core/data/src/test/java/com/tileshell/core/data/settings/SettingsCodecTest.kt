@@ -187,6 +187,19 @@ class SettingsCodecTest {
     }
 
     @Test
+    fun `iconShape round-trips and unknown value keeps default`() {
+        assertEquals(IconShape.ORIGINAL, SettingsCodec.decode("iconShape=ORIGINAL").iconShape)
+        assertEquals(IconShape.CIRCLE, SettingsCodec.decode("iconShape=CIRCLE").iconShape)
+        assertEquals(IconShape.SQUIRCLE, SettingsCodec.decode("iconShape=SQUIRCLE").iconShape)
+        assertEquals(IconShape.ROUNDED, SettingsCodec.decode("iconShape=ROUNDED").iconShape)
+        assertEquals(
+            IconShape.SQUIRCLE,
+            SettingsCodec.decode(SettingsCodec.encode(LauncherSettings(iconShape = IconShape.SQUIRCLE))).iconShape,
+        )
+        assertEquals(LauncherSettings().iconShape, SettingsCodec.decode("iconShape=GARBLED").iconShape)
+    }
+
+    @Test
     fun `fontStyle round-trips and unknown value keeps default`() {
         assertEquals(FontStyle.NUNITO, SettingsCodec.decode("fontStyle=NUNITO").fontStyle)
         assertEquals(FontStyle.OUTFIT, SettingsCodec.decode("fontStyle=OUTFIT").fontStyle)

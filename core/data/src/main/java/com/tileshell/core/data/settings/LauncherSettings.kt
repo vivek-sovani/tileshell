@@ -21,6 +21,21 @@ enum class FontStyle { SYSTEM, OUTFIT, NUNITO }
 enum class HomeStyle { TILES, ICONS }
 
 /**
+ * The mask applied to an app's own icon in ICONS home style (Personalize's
+ * "icon shape" row, shown only while `homeStyle == ICONS`). [ORIGINAL] is
+ * the fresh-install default — no masking, so a brand-new ICONS-mode install
+ * looks exactly like today's real app icons until the user opts into a
+ * shape. Tiles never take this setting — see `:core:design`'s `Squircle.kt`
+ * doc comment for why tile corners stay on the existing `RoundedCornerShape`
+ * instead of sharing this setting. The mapping from this enum to an actual
+ * Compose `Shape` lives in `:feature:start` (the only module that needs both
+ * this type and `:core:design`'s masking primitives), not here — this file
+ * only ever holds the persisted value, matching [TileFill]/[FontStyle]/
+ * [TileColorSource]/[HomeStyle] above.
+ */
+enum class IconShape { CIRCLE, SQUIRCLE, ROUNDED, ORIGINAL }
+
+/**
  * How the Start grid closes gaps left by a removed/resized tile (user-selectable
  * "tile arrangement"): [DENSE] always repacks every tile toward the top-left on
  * every change (the launcher's original behaviour, matching the HTML prototype's
@@ -171,6 +186,8 @@ data class LauncherSettings(
     val tilePackMode: TilePackMode = TilePackMode.STICKY,
     /** Which cell renderer the Start grid uses — WP tiles, or Android-style icons. */
     val homeStyle: HomeStyle = HomeStyle.TILES,
+    /** Icon mask applied in ICONS home style; unused in TILES. */
+    val iconShape: IconShape = IconShape.ORIGINAL,
     /** Periodic background layout snapshot saves (for LayoutHistorySheet). */
     val autoBackupEnabled: Boolean = true,
     /** Hours between automatic snapshots: 1, 4, 6, 12, or 24. */
@@ -238,6 +255,7 @@ object SettingsCodec {
         append("columns=").append(settings.columns).append('\n')
         append("tilePackMode=").append(settings.tilePackMode.name).append('\n')
         append("homeStyle=").append(settings.homeStyle.name).append('\n')
+        append("iconShape=").append(settings.iconShape.name).append('\n')
         append("autoBackup=").append(settings.autoBackupEnabled).append('\n')
         append("autoBackupInterval=").append(settings.autoBackupIntervalHours).append('\n')
         append("edgeStripEnabled=").append(settings.edgeStripEnabled).append('\n')
@@ -279,6 +297,7 @@ object SettingsCodec {
         var columns = d.columns
         var tilePackMode = d.tilePackMode
         var homeStyle = d.homeStyle
+        var iconShape = d.iconShape
         var autoBackupEnabled = d.autoBackupEnabled
         var autoBackupIntervalHours = d.autoBackupIntervalHours
         var edgeStripEnabled = d.edgeStripEnabled
@@ -331,6 +350,7 @@ object SettingsCodec {
                 }
                 "tilePackMode" -> TilePackMode.entries.find { it.name == value }?.let { tilePackMode = it }
                 "homeStyle" -> HomeStyle.entries.find { it.name == value }?.let { homeStyle = it }
+                "iconShape" -> IconShape.entries.find { it.name == value }?.let { iconShape = it }
                 "autoBackup" -> autoBackupEnabled = value.toBooleanStrictOrNull() ?: autoBackupEnabled
                 "autoBackupInterval" -> value.toIntOrNull()?.let {
                     autoBackupIntervalHours = it.coerceIn(1, 24)
@@ -374,6 +394,7 @@ object SettingsCodec {
             columns = columns,
             tilePackMode = tilePackMode,
             homeStyle = homeStyle,
+            iconShape = iconShape,
             autoBackupEnabled = autoBackupEnabled,
             autoBackupIntervalHours = autoBackupIntervalHours,
             edgeStripEnabled = edgeStripEnabled,

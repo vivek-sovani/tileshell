@@ -291,6 +291,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(homeStyle = style) }
     }
 
+    /** Set the icon mask used in ICONS home style. */
+    suspend fun setIconShape(shape: IconShape) {
+        store.updateData { it.copy(iconShape = shape) }
+    }
+
     /** Replace all settings with a restored backup value atomically. */
     suspend fun restoreSettings(settings: LauncherSettings) {
         store.updateData { settings }

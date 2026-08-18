@@ -33,6 +33,9 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
+import com.tileshell.core.design.SquircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -67,6 +70,7 @@ import com.tileshell.core.data.settings.FontStyle
 import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.data.settings.HomeStyle
+import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
@@ -187,6 +191,8 @@ fun PersonalizeSheet(
     onTilePackModeChange: (TilePackMode) -> Unit,
     homeStyle: HomeStyle,
     onHomeStyleChange: (HomeStyle) -> Unit,
+    iconShape: IconShape,
+    onIconShapeChange: (IconShape) -> Unit,
     lockLayout: Boolean,
     onLockLayoutChange: (Boolean) -> Unit,
     hideStatusBar: Boolean,
@@ -849,6 +855,30 @@ fun PersonalizeSheet(
                             onHomeStyleChange(HomeStyle.ICONS)
                         }
                     }
+                    // Icon shape only matters once there's an icon to mask —
+                    // hidden entirely in TILES, where this setting is unused.
+                    if (homeStyle == HomeStyle.ICONS) {
+                        Spacer(Modifier.height(6.dp))
+                        Text("icon shape", color = tokens.fgDim, fontSize = 13.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            IconShape.entries.forEach { candidate ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(candidate.previewShape())
+                                        .background(accent)
+                                        .then(
+                                            if (iconShape == candidate) {
+                                                Modifier.border(2.dp, tokens.fg, candidate.previewShape())
+                                            } else {
+                                                Modifier
+                                            },
+                                        )
+                                        .clickable { onIconShapeChange(candidate) },
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -1429,6 +1459,24 @@ private fun RowScope.SegCell(
             textAlign = TextAlign.Center,
         )
     }
+}
+
+/**
+ * The [Shape] each [IconShape] previews as in the icon-shape swatch row.
+ * [IconShape.ORIGINAL] gets a plain rectangle here (real icon-cell rendering
+ * skips masking entirely for it, which reads the same for a small square
+ * preview swatch). A small local duplicate of `:feature:start`'s
+ * `IconCellView.kt#toComposeShape` rather than a shared one: `IconShape`
+ * lives in `:core:data` and `SquircleShape` in `:core:design`, and neither
+ * core module depends on the other, so each consuming feature module (this
+ * one, and `:feature:start`) maps the enum to a real `Shape` locally — the
+ * same split already used for `TileFill`/`FontStyle`.
+ */
+private fun IconShape.previewShape(): Shape = when (this) {
+    IconShape.CIRCLE -> CircleShape
+    IconShape.SQUIRCLE -> SquircleShape()
+    IconShape.ROUNDED -> RoundedCornerShape(percent = 30)
+    IconShape.ORIGINAL -> RectangleShape
 }
 
 /** One accent swatch (prototype .swatches i / .swatches i.sel). */
