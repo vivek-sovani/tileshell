@@ -2263,10 +2263,43 @@ private fun StartPage(
                     }
 
                     // ICONS home style renders a SMALL app tile as a plain shaped
-                    // icon instead of a filled tile — 2×2+ and folders always fall
-                    // through to TileView unchanged (see HomeStyle's doc comment).
+                    // icon, and a SMALL folder as the same shaped icon holding a
+                    // 2x2 mini-grid of its children — 2x2+ (and a widget stack,
+                    // whose own size is always WIDE/LARGE, never SMALL) always
+                    // falls through to TileView unchanged (see HomeStyle's doc
+                    // comment). Inline-expanded folder children are covered by
+                    // the first branch too: they're synthetic TileModel.App
+                    // instances at whatever size they were resized to (see
+                    // FolderChild.asTileModel), so a SMALL one already renders
+                    // as a plain icon with zero extra code here.
                     if (homeStyle == HomeStyle.ICONS && model is TileModel.App && model.size == TileSize.SMALL) {
                         IconCellView(
+                            tile = model,
+                            editMode = editMode,
+                            selected = editMode && model.id == selectedTileId,
+                            dragging = dragging,
+                            index = index,
+                            jigglePhase = jigglePhase,
+                            darkTheme = darkTheme,
+                            columns = columns,
+                            badgeCount = badgeCount,
+                            notifications = notifications,
+                            onTap = onTapAction,
+                            onLongPress = onLongPressAction,
+                            onSelect = onSelectAction,
+                            onExitEdit = onExitEdit,
+                            onUnpin = onUnpinAction,
+                            onMove = onMoveAction,
+                            canMoveBack = canMoveBack,
+                            canMoveForward = canMoveForward,
+                            iconShape = iconShape,
+                            resizeHandlesEnabled = resizeHandlesEnabled,
+                            onResizeDragStart = onResizeDragStartAction,
+                            onResizeDragBy = onResizeDragByAction,
+                            onResizeDragEnd = onResizeDragEndAction,
+                        )
+                    } else if (homeStyle == HomeStyle.ICONS && model is TileModel.Folder && model.size == TileSize.SMALL) {
+                        IconFolderCell(
                             tile = model,
                             editMode = editMode,
                             selected = editMode && model.id == selectedTileId,
@@ -3182,7 +3215,7 @@ internal fun NotificationBadge(
  * scaled down further to fit inside an icon-sized cell.
  */
 @Composable
-private fun FolderChildBadge(count: Int, dark: Boolean, modifier: Modifier = Modifier) {
+internal fun FolderChildBadge(count: Int, dark: Boolean, modifier: Modifier = Modifier) {
     val bg = if (dark) Color.White else Color(0xFF111111)
     val fg = if (dark) Color(0xFF111111) else Color.White
     Box(

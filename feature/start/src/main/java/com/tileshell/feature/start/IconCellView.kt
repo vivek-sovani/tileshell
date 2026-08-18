@@ -8,9 +8,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -32,12 +36,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.graphics.Shape
 import androidx.core.graphics.drawable.toBitmap
+import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.design.SquircleShape
@@ -50,13 +53,12 @@ import kotlinx.coroutines.withContext
 /**
  * The ICONS-home-style renderer for a 1×1 cell (`LauncherSettings.homeStyle
  * == HomeStyle.ICONS`, size == SMALL): the app's own icon, masked to
- * [iconShape] (see [IconCellGlyph]'s doc comment for the adaptive-vs-legacy
+ * [iconShape] (see [maskedOrGlyphIcon]'s doc comment for the adaptive-vs-legacy
  * split), with a lowercase label beneath — no tile fill, no chrome, no live
- * face. A sibling of
- * [TileView], not a variant of it: everything about layout, persistence,
- * drag/drop, folders and the app drawer is shared with tile mode, and this
- * composable only ever exists at SMALL, so it doesn't need TileView's
- * fill/glass/wallpaper/live-face machinery at all.
+ * face. A sibling of [TileView], not a variant of it: everything about
+ * layout, persistence, drag/drop, folders and the app drawer is shared with
+ * tile mode, and this composable only ever exists at SMALL, so it doesn't
+ * need TileView's fill/glass/wallpaper/live-face machinery at all.
  *
  * [resizeHandlesEnabled]/[onResizeDragStart]/[onResizeDragBy]/[onResizeDragEnd]
  * mirror the same gesture-based drag resize [TileView] exposes — growing an
@@ -89,9 +91,180 @@ internal fun IconCellView(
     onResizeDragBy: (dxPx: Float, dyPx: Float, axis: ResizeAxis) -> Unit = { _, _, _ -> },
     onResizeDragEnd: () -> Unit = {},
 ) {
-    val a11yLabel = tileAccessibilityLabel(tile, badgeCount, editMode, selected)
     val tokens = colorTokens(darkTheme)
+    IconCellChrome(
+        a11yLabel = tileAccessibilityLabel(tile, badgeCount, editMode, selected),
+        editMode = editMode,
+        selected = selected,
+        dragging = dragging,
+        index = index,
+        jigglePhase = jigglePhase,
+        badgeCount = badgeCount,
+        darkTheme = darkTheme,
+        onTap = onTap,
+        onLongPress = onLongPress,
+        onSelect = onSelect,
+        onExitEdit = onExitEdit,
+        onUnpin = onUnpin,
+        onMove = onMove,
+        canMoveBack = canMoveBack,
+        canMoveForward = canMoveForward,
+        resizeHandlesEnabled = resizeHandlesEnabled,
+        onResizeDragStart = onResizeDragStart,
+        onResizeDragBy = onResizeDragBy,
+        onResizeDragEnd = onResizeDragEnd,
+    ) {
+        IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape)
+        // Hide the label at 6 columns — a 1×1 cell is too narrow there for
+        // icon plus text without truncating (see LauncherSettings.HomeStyle's
+        // design notes / DECISIONS.md "cells stay square").
+        if (columns < 6) {
+            Spacer(Modifier.size(4.dp))
+            Text(
+                text = (tile.label ?: tile.iconKey ?: "").lowercase(),
+                color = tokens.fg,
+                fontSize = 11.sp,
+                maxLines = 1,
+            )
+        }
+    }
+}
 
+/**
+ * The ICONS-home-style renderer for a **closed folder** at SMALL: the same
+ * shaped-icon treatment as [IconCellView], but the glyph area is a 2×2
+ * mini-grid of up to four children's icons (each masked to [iconShape] too)
+ * instead of one app icon — mirrors [FolderTileContent]'s mini-grid at icon
+ * scale, minus the accent fill. A folder at MEDIUM+ still renders via
+ * [FolderTileContent], and a widget stack (whose own `size` is always WIDE
+ * or LARGE, never SMALL — see `TileModel.Folder.stackSize`) never reaches
+ * this composable at all, so no explicit stack guard is needed here.
+ *
+ * Every callback and the outer chrome is identical to [IconCellView]'s — a
+ * SMALL folder still taps to expand inline (`onTap` already branches on tile
+ * type at the call site) and long-presses to select for edit exactly like an
+ * app icon does, so both share [IconCellChrome].
+ */
+@Composable
+internal fun IconFolderCell(
+    tile: TileModel.Folder,
+    editMode: Boolean,
+    selected: Boolean,
+    dragging: Boolean,
+    index: Int,
+    jigglePhase: Float,
+    darkTheme: Boolean,
+    columns: Int,
+    badgeCount: Int,
+    notifications: NotificationSnapshot,
+    onTap: () -> Unit,
+    onLongPress: () -> Unit,
+    onSelect: () -> Unit,
+    onExitEdit: () -> Unit,
+    onUnpin: () -> Unit,
+    onMove: (direction: Int) -> Unit,
+    canMoveBack: Boolean,
+    canMoveForward: Boolean,
+    iconShape: IconShape = IconShape.ORIGINAL,
+    resizeHandlesEnabled: Boolean = false,
+    onResizeDragStart: () -> Unit = {},
+    onResizeDragBy: (dxPx: Float, dyPx: Float, axis: ResizeAxis) -> Unit = { _, _, _ -> },
+    onResizeDragEnd: () -> Unit = {},
+) {
+    val tokens = colorTokens(darkTheme)
+    IconCellChrome(
+        a11yLabel = tileAccessibilityLabel(tile, badgeCount, editMode, selected),
+        editMode = editMode,
+        selected = selected,
+        dragging = dragging,
+        index = index,
+        jigglePhase = jigglePhase,
+        badgeCount = badgeCount,
+        darkTheme = darkTheme,
+        onTap = onTap,
+        onLongPress = onLongPress,
+        onSelect = onSelect,
+        onExitEdit = onExitEdit,
+        onUnpin = onUnpin,
+        onMove = onMove,
+        canMoveBack = canMoveBack,
+        canMoveForward = canMoveForward,
+        resizeHandlesEnabled = resizeHandlesEnabled,
+        onResizeDragStart = onResizeDragStart,
+        onResizeDragBy = onResizeDragBy,
+        onResizeDragEnd = onResizeDragEnd,
+    ) {
+        Box(modifier = Modifier.size(40.dp)) {
+            val cellSize = 18.dp
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                for (rowIndex in 0 until 2) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        for (colIndex in 0 until 2) {
+                            val child = tile.children.getOrNull(rowIndex * 2 + colIndex)
+                            Box(modifier = Modifier.size(cellSize)) {
+                                if (child != null) {
+                                    IconFolderChildGlyph(child = child, tint = tokens.fg, shape = iconShape, size = cellSize)
+                                    val childBadge = notifications.badgeFor(child.packageName)
+                                    if (childBadge > 0) {
+                                        FolderChildBadge(
+                                            count = childBadge,
+                                            dark = darkTheme,
+                                            modifier = Modifier.align(Alignment.TopEnd),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (columns < 6) {
+            Spacer(Modifier.size(4.dp))
+            Text(
+                text = tile.name.lowercase(),
+                color = tokens.fg,
+                fontSize = 11.sp,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+/**
+ * The chrome shared by every ICONS-mode cell (currently [IconCellView] and
+ * [IconFolderCell]): edit-mode dim/scale/jiggle, tap/long-press gesture,
+ * TalkBack semantics (mirrors [TileView]'s own block so screen-reader
+ * behaviour doesn't diverge between tile mode and icons mode), the
+ * notification badge, and the selected-tile corner control + resize handles.
+ * [content] draws only the glyph + label — everything position/gesture/
+ * accessibility-related lives here once instead of per cell type.
+ */
+@Composable
+private fun IconCellChrome(
+    a11yLabel: String,
+    editMode: Boolean,
+    selected: Boolean,
+    dragging: Boolean,
+    index: Int,
+    jigglePhase: Float,
+    badgeCount: Int,
+    darkTheme: Boolean,
+    onTap: () -> Unit,
+    onLongPress: () -> Unit,
+    onSelect: () -> Unit,
+    onExitEdit: () -> Unit,
+    onUnpin: () -> Unit,
+    onMove: (direction: Int) -> Unit,
+    canMoveBack: Boolean,
+    canMoveForward: Boolean,
+    resizeHandlesEnabled: Boolean,
+    onResizeDragStart: () -> Unit,
+    onResizeDragBy: (dxPx: Float, dyPx: Float, axis: ResizeAxis) -> Unit,
+    onResizeDragEnd: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val tokens = colorTokens(darkTheme)
     val alpha by animateFloatAsState(
         targetValue = if (editMode && !selected && !dragging) 0.45f else 1f,
         label = "iconCellAlpha",
@@ -101,10 +274,6 @@ internal fun IconCellView(
         label = "iconCellScale",
     )
     val rotation = if (editMode && !dragging) (if (index % 2 == 0) jigglePhase else -jigglePhase) else 0f
-    // Hide the label at 6 columns — a 1×1 cell is too narrow there for icon
-    // plus text without truncating (see LauncherSettings.HomeStyle's design
-    // notes / DECISIONS.md "cells stay square").
-    val showLabel = columns < 6
 
     Box(
         modifier = Modifier
@@ -140,16 +309,7 @@ internal fun IconCellView(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape)
-            if (showLabel) {
-                Spacer(Modifier.size(4.dp))
-                Text(
-                    text = (tile.label ?: tile.iconKey ?: "").lowercase(),
-                    color = tokens.fg,
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                )
-            }
+            content()
         }
         if (badgeCount > 0) {
             NotificationBadge(
@@ -207,9 +367,72 @@ private fun rememberMaskableIcon(packageName: String, activityName: String): Mas
 }
 
 /**
- * The app's own icon, masked to [shape] (see `IconShape.toComposeShape()`)
- * when it isn't [IconShape.ORIGINAL] — or the monoline glyph fallback for an
- * app with no resolvable real icon.
+ * The masked-or-glyph rendering shared by a top-level app icon and a folder
+ * mini-grid child: [iconKey]'s monoline glyph when there's no resolvable
+ * real icon; otherwise the loaded icon at [size], masked to [shape] via the
+ * adaptive-vs-legacy split documented on [IconCellGlyph].
+ */
+@Composable
+private fun maskedOrGlyphIcon(
+    iconKey: String?,
+    label: String?,
+    packageName: String,
+    activityName: String,
+    tint: Color,
+    shape: IconShape,
+    size: Dp,
+    glyphSize: Dp,
+) {
+    val useAppIcon = !TileIcons.hasIcon(iconKey)
+    val loaded: MaskableIcon? = if (useAppIcon) rememberMaskableIcon(packageName, activityName) else null
+    val composeShape = shape.toComposeShape()
+
+    when {
+        !useAppIcon || loaded == null -> {
+            Icon(
+                imageVector = TileIcons[iconKey],
+                contentDescription = label,
+                tint = tint,
+                modifier = Modifier.size(glyphSize),
+            )
+        }
+        composeShape == null -> {
+            // ORIGINAL: unmasked, exactly as tile mode's StaticTileGlyph shows it.
+            Image(
+                bitmap = loaded.bitmap,
+                contentDescription = label,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(size),
+            )
+        }
+        loaded.isAdaptive -> {
+            Image(
+                bitmap = loaded.bitmap,
+                contentDescription = label,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(size).clip(composeShape),
+            )
+        }
+        else -> {
+            val plateColor = dominantIconColor(loaded.bitmap) ?: tint
+            Box(
+                modifier = Modifier.size(size).clip(composeShape).background(plateColor),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    bitmap = loaded.bitmap,
+                    contentDescription = label,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(size * 0.65f),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The app's own icon, masked to [shape] when it isn't [IconShape.ORIGINAL],
+ * or the monoline glyph fallback for an app with no resolvable real icon.
  *
  * Masking only works cleanly on an adaptive icon, whose background layer
  * already fills the whole square by OS convention: clipping the flattened
@@ -228,51 +451,31 @@ private fun rememberMaskableIcon(packageName: String, activityName: String): Mas
  */
 @Composable
 private fun IconCellGlyph(tile: TileModel.App, tint: Color, shape: IconShape) {
-    val useAppIcon = !TileIcons.hasIcon(tile.iconKey)
-    val loaded: MaskableIcon? = if (useAppIcon) rememberMaskableIcon(tile.packageName, tile.activityName) else null
-    val composeShape = shape.toComposeShape()
+    maskedOrGlyphIcon(
+        iconKey = tile.iconKey,
+        label = tile.label,
+        packageName = tile.packageName,
+        activityName = tile.activityName,
+        tint = tint,
+        shape = shape,
+        size = 40.dp,
+        glyphSize = 32.dp,
+    )
+}
 
-    when {
-        !useAppIcon || loaded == null -> {
-            Icon(
-                imageVector = TileIcons[tile.iconKey],
-                contentDescription = tile.label,
-                tint = tint,
-                modifier = Modifier.size(32.dp),
-            )
-        }
-        composeShape == null -> {
-            // ORIGINAL: unmasked, exactly as tile mode's StaticTileGlyph shows it.
-            Image(
-                bitmap = loaded.bitmap,
-                contentDescription = tile.label,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.size(40.dp),
-            )
-        }
-        loaded.isAdaptive -> {
-            Image(
-                bitmap = loaded.bitmap,
-                contentDescription = tile.label,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.size(40.dp).clip(composeShape),
-            )
-        }
-        else -> {
-            val plateColor = dominantIconColor(loaded.bitmap) ?: tint
-            Box(
-                modifier = Modifier.size(40.dp).clip(composeShape).background(plateColor),
-                contentAlignment = Alignment.Center,
-            ) {
-                Image(
-                    bitmap = loaded.bitmap,
-                    contentDescription = tile.label,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(26.dp),
-                )
-            }
-        }
-    }
+/** A folder mini-grid cell's masked child icon (see [maskedOrGlyphIcon]). */
+@Composable
+private fun IconFolderChildGlyph(child: FolderChild, tint: Color, shape: IconShape, size: Dp) {
+    maskedOrGlyphIcon(
+        iconKey = child.iconKey,
+        label = child.label,
+        packageName = child.packageName,
+        activityName = child.activityName,
+        tint = tint,
+        shape = shape,
+        size = size,
+        glyphSize = size * 0.7f,
+    )
 }
 
 /**
