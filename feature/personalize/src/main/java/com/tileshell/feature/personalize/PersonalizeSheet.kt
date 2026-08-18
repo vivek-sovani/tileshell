@@ -826,7 +826,7 @@ fun PersonalizeSheet(
                 }
             }
 
-            // ---- arrangement: compact sticky | dense segmented pill ----
+            // ---- arrangement: compact sticky | free | dense segmented pill ----
             SettingGroup(label = "arrangement", tokens.fgDim) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
@@ -842,9 +842,22 @@ fun PersonalizeSheet(
                         SegCell("sticky", selected = tilePackMode == TilePackMode.STICKY, accent = accent, fg = tokens.fg) {
                             onTilePackModeChange(TilePackMode.STICKY)
                         }
+                        SegCell("free", selected = tilePackMode == TilePackMode.FREE, accent = accent, fg = tokens.fg) {
+                            onTilePackModeChange(TilePackMode.FREE)
+                        }
                         SegCell("dense", selected = tilePackMode == TilePackMode.DENSE, accent = accent, fg = tokens.fg) {
                             onTilePackModeChange(TilePackMode.DENSE)
                         }
+                    }
+                    // Only shown for FREE, which is the one mode where dropping a
+                    // tile onto another swaps them instead of pushing anything
+                    // down or reflowing the grid.
+                    if (tilePackMode == TilePackMode.FREE) {
+                        Text(
+                            "nothing moves unless you move it — dropping a tile onto another swaps the two",
+                            color = tokens.fgDim,
+                            fontSize = 12.sp,
+                        )
                     }
                     Spacer(Modifier.height(6.dp))
                     ToggleRow("lock layout", on = lockLayout, accent = accent, tokens, onLockLayoutChange)

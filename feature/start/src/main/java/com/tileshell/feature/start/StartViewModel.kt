@@ -32,6 +32,7 @@ import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.core.data.settings.SettingsRepository
 import com.tileshell.core.data.settings.TilePackMode
+import com.tileshell.core.data.settings.isAnchored
 import com.tileshell.feature.livetiles.DEFAULT_FEED_SOURCES
 import com.tileshell.feature.livetiles.FeedRefreshWorker
 import com.tileshell.feature.livetiles.FeedSource
@@ -306,9 +307,12 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             repository.seedIfEmpty()
             // Sticky mode is the fresh-install default (LauncherSettings), so the
             // very first layout needs its anchors seeded here too — not only on
-            // an explicit user toggle (see seedStickySlots).
+            // an explicit user toggle (see seedStickySlots). FREE is anchored the
+            // same way STICKY is (see TilePackMode.isAnchored) — without this,
+            // a FREE-mode install would silently degenerate to append-only
+            // auto-arrange, the exact bug already hit for STICKY.
             val initialSettings = settingsRepository.settings.first()
-            if (initialSettings.tilePackMode == TilePackMode.STICKY) {
+            if (initialSettings.tilePackMode.isAnchored) {
                 seedStickySlots(initialSettings.columns)
             }
             migrateSettingsTile()
@@ -685,7 +689,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun setTilePackMode(mode: TilePackMode) {
         viewModelScope.launch(writeContext) {
-            if (mode == TilePackMode.STICKY) seedStickySlots(settings.value.columns)
+            if (mode.isAnchored) seedStickySlots(settings.value.columns)
             settingsRepository.setTilePackMode(mode)
         }
     }
@@ -773,12 +777,25 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     fun setTileGridSlot(id: String, slot: Int?) {
         if (slot == null) return
         val model = tiles.value.firstOrNull { it.id == id } ?: return
-        val finalSlots = stickySlotsForPlacement(
-            movedId = id,
-            size = model.size,
-            targetCol = GridPacker.decodeSlotCol(slot),
-            targetRow = GridPacker.decodeSlotRow(slot),
-        )
+        val targetCol = GridPacker.decodeSlotCol(slot)
+        val targetRow = GridPacker.decodeSlotRow(slot)
+        // FREE mode swaps with whatever occupies the drop cell instead of
+        // pushing it down — nothing else on the grid moves. STICKY (and DENSE,
+        // which never reaches this anchored write path) keep the existing
+        // push-down behaviour.
+        val finalSlots = if (settings.value.tilePackMode == TilePackMode.FREE) {
+            val columns = settings.value.columns
+            val anchored = tiles.value.mapNotNull { t ->
+                if (t.id == id) return@mapNotNull null
+                val s = t.gridSlot ?: return@mapNotNull null
+                TilePlacement(t.id, t.size, GridPacker.decodeSlotCol(s), GridPacker.decodeSlotRow(s))
+            }
+            val fromCol = model.gridSlot?.let { GridPacker.decodeSlotCol(it) }
+            val fromRow = model.gridSlot?.let { GridPacker.decodeSlotRow(it) }
+            GridPacker.swapPlacement(anchored, id, fromCol, fromRow, model.size, targetCol, targetRow, columns)
+        } else {
+            stickySlotsForPlacement(movedId = id, size = model.size, targetCol = targetCol, targetRow = targetRow)
+        }
         viewModelScope.launch(writeContext) {
             finalSlots.forEach { (tid, s) -> repository.setTileGridSlot(tid, s) }
         }
@@ -1028,7 +1045,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      * column 0 never needed the shift, so never hit the bug.
      */
     private fun stickyResizeSlots(model: TileModel, nextSize: TileSize): Map<String, Int> {
-        if (settings.value.tilePackMode != TilePackMode.STICKY) return emptyMap()
+        // FREE mode still needs push-down on resize (unlike drag-drop, which
+        // swaps): a growing tile must not overlap, and there's no second tile
+        // to swap anchors with. This is the one place FREE moves a tile the
+        // user didn't touch — see TilePackMode.isAnchored's doc comment.
+        if (!settings.value.tilePackMode.isAnchored) return emptyMap()
         val ownSlot = model.gridSlot ?: return emptyMap()
         return stickySlotsForPlacement(
             movedId = model.id,

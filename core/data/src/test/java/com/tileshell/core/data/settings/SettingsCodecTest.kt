@@ -167,6 +167,11 @@ class SettingsCodecTest {
     fun `tilePackMode round-trips and unknown value keeps default`() {
         assertEquals(TilePackMode.STICKY, SettingsCodec.decode("tilePackMode=STICKY").tilePackMode)
         assertEquals(TilePackMode.DENSE, SettingsCodec.decode("tilePackMode=DENSE").tilePackMode)
+        assertEquals(TilePackMode.FREE, SettingsCodec.decode("tilePackMode=FREE").tilePackMode)
+        assertEquals(
+            TilePackMode.FREE,
+            SettingsCodec.decode(SettingsCodec.encode(LauncherSettings(tilePackMode = TilePackMode.FREE))).tilePackMode,
+        )
         assertEquals(LauncherSettings().tilePackMode, SettingsCodec.decode("tilePackMode=GARBLED").tilePackMode)
     }
 

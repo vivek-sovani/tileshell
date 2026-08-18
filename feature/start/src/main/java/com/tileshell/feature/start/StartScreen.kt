@@ -214,6 +214,7 @@ import com.tileshell.core.data.settings.FontStyle
 import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.data.settings.TilePackMode
+import com.tileshell.core.data.settings.isAnchored
 import com.tileshell.core.design.DarkColorTokens
 import com.tileshell.core.design.Glass
 import com.tileshell.core.design.LIGHT_BACKGROUND_LUMINANCE_THRESHOLD
@@ -909,7 +910,7 @@ fun StartScreen(
                     statusBarTopPx = statusBarTopPx,
                     hideStatusBar = settings.hideStatusBar,
                     columns = settings.columns,
-                    sticky = settings.tilePackMode == TilePackMode.STICKY,
+                    sticky = settings.tilePackMode.isAnchored,
                     onSetTileSlot = viewModel::setTileGridSlot,
                     expandedFolderId = expandedFolderId,
                     onCollapseFolder = viewModel::collapseFolder,
