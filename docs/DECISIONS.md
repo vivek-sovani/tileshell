@@ -4426,3 +4426,176 @@ revisiting together if the same complaint surfaces there.
 
 Magic number replaced with a named constant in passing, since the value now needs an explanation
 attached to it.
+
+## Android-style icons home style — a second Start renderer alongside WP tiles
+
+New user ask, not in the WP prototype/spec: let someone who doesn't want the Windows Phone
+interface turn TileShell into a normal Android-style launcher — shaped app icons, folders, free
+placement — while keeping live tiles and widget stacks available on the same screen. Landed as a
+five-stage arc on `android-home-style`, described here as one connected decision since the stages
+share a single design: one layout engine, two cell renderers, switched by size alone.
+
+An earlier draft tried to reach this by making tiles progressively more flexible instead — nine
+size presets, per-tile corner styles, per-tile spacing insets applied to the *existing* `TileView`.
+That was designed, mocked up, and explicitly abandoned: it produced a hybrid that was worse at
+being either a WP launcher or an Android one. The architecture that shipped instead treats ICONS
+mode as a genuinely different cell renderer for a 1×1 (SMALL) tile, not a variant of the tile grid.
+
+**`LauncherSettings.homeStyle: HomeStyle { TILES, ICONS }`** is the only new stored flag. Layout,
+persistence, gestures, folders, the app drawer and backup are all shared unmodified between the two
+styles. Icon vs. live tile is derived purely from the tile's own `size`, not a second per-tile
+flag: a SMALL app tile renders as a plain shaped icon (`IconCellView`, new in `:feature:start`); a
+SMALL folder renders as the same shaped icon holding a 2×2 mini-grid of its children
+(`IconFolderCell`); anything at MEDIUM or larger — including live tiles, folders and widget stacks —
+still renders through the existing `TileView`/`FolderTileContent`/`StackTileContent` exactly as in
+TILES mode. The entire mixed-content mechanism is one condition at the single `TileView` call site
+in `StartScreen.kt`: `homeStyle == ICONS && model is TileModel.App && model.size == SMALL` (and the
+equivalent for `TileModel.Folder`) routes to the new renderer; everything else falls through
+unchanged. Because that's the *only* branch, live tiles, widget stacks and MEDIUM+ folders needed
+zero new code — keeping them working was a matter of not suppressing them, not writing anything.
+
+One consequence worth stating plainly: this makes growing/shrinking a tile across the SMALL
+boundary the icon↔live-tile conversion gesture. Grow a shaped icon past SMALL and it becomes a live
+tile; shrink a live tile down to SMALL and it becomes a shaped icon. Switching `homeStyle` itself
+rewrites nothing in the database — a tile's stored size is simply read through a different renderer
+— so switching back and forth is lossless and instant.
+
+Verified end-to-end on both an emulator and a physical device (Samsung SM-S938B, after the user
+authorized wiping a differently-signed prior install to sideload this build): the home-style and
+icon-shape rows render correctly in Personalize, ICONS mode shows real device icons unfilled with
+the wallpaper showing through, a clock/weather live tile keeps flipping normally alongside shaped
+icons on the same screen, and — the load-bearing behaviour — growing a SMALL icon via the resize
+corner control converted it into a normal filled live tile on-screen, and that survived exiting edit
+mode. The reverse (icon shape toggling, folder mini-grid masking) was confirmed on the emulator;
+finishing the physical-device pass was handed to the user after repeated on-device gesture
+mistargeting (see the note on TalkBack below).
+
+Follow-ups intentionally left out of this arc: a dock/hotseat, widgets placed directly on the ICONS
+grid (previously researched and dropped for TILES because arbitrary widget footprints clash with
+fixed tile sizes — much less true once 1×1 icons are the norm, so this is now viable for the first
+time), horizontal paging instead of vertical scroll, per-tile corner styles, and free-form
+(arbitrary n×m) tile sizes — deferred because every live tile face is hand-designed per size, and a
+free-form range is an untested combinatorial surface; the calendar/weather "big text" clipping bug
+recorded elsewhere in this file is exactly the class of bug that produces.
+
+## FREE tile arrangement mode — nothing moves unless you move it
+
+Shared groundwork for the icons-mode arc (see above), but independently useful in TILES mode too:
+`TilePackMode` gains a third value, `FREE`, alongside `DENSE` and `STICKY`. Where `STICKY` (real
+Windows Phone) preserves a gap a removed tile leaves behind but still collapses a *fully* empty row,
+`FREE` is stickier still — no push-down on drop, no empty-row collapse at all. Dropping a tile onto
+an already-occupied cell **swaps** the two instead of displacing anything
+(`GridPacker.swapPlacement`), falling back to the proven `stickyPlacement` push-down solver only
+when a swap can't cleanly fit — more than one occupant in the drop zone, mismatched footprints that
+would overlap something else, or no known origin cell for the dragged tile (never anchored yet).
+
+Explicitly **not** a reversal of `STICKY`'s own invariant, which is on record earlier in this file
+("Sticky mode: a full empty row is never allowed") as an explicit user-stated rule after a real
+on-device report. `FREE` and `STICKY` are both "anchored" placement modes for rendering and
+slot-seeding purposes (`TilePackMode.isAnchored`); only `FREE` skips the full-row collapse and the
+push-down-on-drop/resize behaviour that `STICKY` still does. `FREE` becomes the default arrangement
+in ICONS mode and stays an opt-in third choice in TILES.
+
+`GridPacker` itself needed no changes to support any of this — `pack`/`packSticky`/`stickyPlacement`
+already read only `size.cols`/`size.rows` and never branch on the `TileSize` enum, which is also why
+Stage 2 below could add five new footprints without touching the packer at all.
+
+## Nine tile size presets + gesture-based drag resize
+
+`TileSize` grows from four footprints to nine — `SMALL`/`MEDIUM`/`WIDE`/`LARGE` plus `WIDE_SMALL`
+(2×1), `TALL` (1×2), `WIDE_MEDIUM` (3×2), `TALL_MEDIUM` (2×3), `XLARGE` (4×4) — reachable only via
+three new drag handles on a selected tile in edit mode (bottom-centre = height, centre-right =
+width, bottom-right corner = both), mirroring the three-handle pattern already shipped for feed
+widget resize and chosen there (and here) over pinch-zoom for the same reason: pinch fights the
+surrounding scroll and can't set the two axes independently.
+
+The tap-to-cycle resize control deliberately keeps `TileSize.next()` on the original four sizes —
+cycling nine sizes by tap would be unusable — so tapping resize while at one of the five new presets
+folds back to `MEDIUM`, the cycle's own documented landing size. New pure
+`GridGeometry.snapResizeTarget` maps a drag's accumulated pixel delta to the nearest preset by
+squared cols/rows distance, re-derived from the *total* delta on every tick rather than
+incrementally, so it can't drift from what a single call with the same inputs would produce.
+
+The live preview during a drag actually resizes the tile's own wrapper `Box` in place — the same
+hoisted-offset mechanism the existing reorder-drag ghost already uses, extended to override size too
+— rather than a separate outline overlay that was in the original design sketch. Chosen because
+`TileView` never branches its renderer by size at all (only the ICONS-mode call site does, and it
+reads the *persisted* size, never the live preview), so a real live-resize carries no risk of a
+mid-drag renderer swap while being much simpler than a manually-positioned sibling overlay.
+
+Verified on both an emulator and a physical device: the three drag handles render at the expected
+positions on a selected tile, and — confirmed by an actual tap-based resize commit on the emulator —
+growing a tile from SMALL to WIDE via the resize corner correctly repainted it from a shaped icon
+(ICONS mode) to a filled live tile, and the change persisted after exiting edit mode.
+
+## Icon shape masking — a real superellipse, not a corner-radius approximation
+
+Personalize gains an "icon shape" row (circle / squircle / rounded / original), shown only while
+`homeStyle` is `ICONS`. The substantive part is `core/design/Squircle.kt`: a One UI/iOS "squircle"
+is a **superellipse** (Lamé curve) whose curvature eases in continuously rather than snapping from a
+straight edge into a circular arc — the whole visual character, and the reason a `RoundedCornerShape`
+can't express it. The curve's point-generation math (`superellipsePoints`) is deliberately separated
+from the `Shape`/`Path` wrapper (`SquircleShape`) that consumes it, because of a real constraint
+discovered empirically during this session: this project's plain-JVM unit tests have no Robolectric
+and don't set `returnDefaultValues`, so constructing a bare `androidx.compose.ui.graphics.Path`
+throws immediately (confirmed with a throwaway probe test, since removed). `SquircleTest` exercises
+the pure math instead — bounds, closure, cardinal points, and the property that actually matters:
+a higher exponent bulges the curve further toward the corner than a lower one, proof the exponent
+parameter does something rather than being decorative — and leaves the `Shape`/`Path` layer itself
+to on-device verification.
+
+Real mid-stage architecture correction, worth recording so it isn't repeated: `IconShape` was first
+drafted as a `:core:design` enum. But `:core:design` has no Gradle dependency on `:core:data` (and
+vice versa) — every existing persisted-style enum (`TileFill`, `FontStyle`, `HomeStyle`) lives in
+`:core:data`, with the actual `Shape`/`Brush` mapping done locally by whichever feature module
+renders it. `IconShape` moved into `LauncherSettings.kt` next to `HomeStyle`; the
+`IconShape → Shape` mapping lives in `:feature:start` (`IconCellView.kt`, since that's what actually
+renders it) with a small local duplicate in `:feature:personalize` for the swatch-row preview,
+rather than inventing a shared home for a four-line `when` expression that neither core module could
+host without adding a new cross-module dependency for it alone.
+
+`IconCellGlyph`'s masking branches on the loaded drawable's real type, checked *before* it's
+flattened to a bitmap: an `AdaptiveIconDrawable` (minSdk 26, the same level `AdaptiveIconDrawable`
+itself shipped in, so no version gate needed) gets its already-square flattened bitmap clipped
+straight to the shape, since its background layer fills the square by OS convention; a legacy
+(pre-adaptive) icon has no such guarantee, so it instead sits smaller and unclipped on a shaped
+"plate" tinted from its own dominant colour (reusing `dominantIconColor`, the same helper tile
+mode's colour-suggestion picker already uses) rather than being cropped. This is a deliberate
+simplification of manually decomposing and recompositing an `AdaptiveIconDrawable`'s
+background/foreground layers at the standard 66/108 safe-zone scale — that finer approach couldn't
+be verified without a device attached at the time it was written, while clip-vs-plate is simple
+enough to trust without on-device verification and matches the same visual split real Android
+launchers show between adaptive and legacy icons. Flagged here for revisit if on-device testing ever
+shows the plate reads wrong.
+
+One more real discovery, caught by a test rather than assumed: Compose Foundation's `CircleShape` is
+itself defined as `RoundedCornerShape(50)`, so a distinctness check comparing `Shape` values by
+runtime *class* would have falsely reported `CIRCLE` and `ROUNDED` as the same shape. `IconCellShapeTest`
+compares by value instead.
+
+## Icon-style folders — the closed-folder mini-grid at SMALL
+
+Closing stage of the icons-mode arc: a closed folder at SMALL in ICONS mode renders as a shaped icon
+holding a 2×2 mini-grid of its first four children (`IconFolderCell`), instead of falling through to
+`FolderTileContent`'s tile-scale mini-grid. A folder at MEDIUM+ still renders via `FolderTileContent`
+unchanged, and a widget stack never reaches this new code at all — a stack's own `size` is always
+`WIDE` or `LARGE` (see `TileModel.Folder.stackSize`), never `SMALL`, so no explicit stack guard was
+needed at the branch.
+
+Inline-expanded folder children turned out to need no new code whatsoever: they already flow through
+the grid as synthetic `TileModel.App` instances (`FolderChild.asTileModel`, which carries the
+child's own persisted `size` through unchanged), so a SMALL expanded child already matched the
+Stage 3 `model is TileModel.App && size == SMALL` branch before this stage was even written. This
+stage was really only ever about the *closed* folder's own mini-grid preview.
+
+`IconCellView.kt` was refactored along the way — the chrome shared by every ICONS-mode cell
+(edit-mode dim/scale/jiggle, tap/long-press gesture, TalkBack semantics, the notification badge, the
+selected-tile corner control and resize handles) extracted into `IconCellChrome`, and the
+masked-icon-or-glyph rendering into `maskedOrGlyphIcon` — so `IconFolderCell` reuses both instead of
+duplicating `IconCellView`'s wrapper code. Each mini-grid cell's icon is masked to the same
+`IconShape` as top-level icons and carries its own per-child badge (`FolderChildBadge`, widened from
+private to internal to reuse it here — the same visibility-widening pattern already used for
+`rememberTileAppIcon`/`tileGesture`/`TileControls`/`NotificationBadge` earlier in this arc). Drag
+resize needed no change either: `resizeHandlesEnabled` was already generic over `App` and `Folder`
+models, so a SMALL folder grows into `FolderTileContent`'s normal mini-grid via the exact same
+handles an icon uses to become a live tile.
