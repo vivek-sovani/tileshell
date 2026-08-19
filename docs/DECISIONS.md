@@ -5120,3 +5120,28 @@ container, not left to chance the way the old ad-hoc pills were), "wallpaper" al
 as "accent"/"app icon" regardless of label length or swatch presence. Verified on an emulator: the
 row now renders three equal-height, equal-width cells; tapping between "accent" and "wallpaper"
 selects/deselects cleanly with no wrapping in either state. Build + full unit test suite green.
+
+## Guide and about sheets still described the old "make stack · wide/large" widget-stack mechanism
+
+Direct follow-up to the previous doc-gap fixes, user-flagged: "now make as folder and make as stack
+is shifted to tile color panel. and except few all tile sizes can be of stack type. This is not
+covered in guide and feature & Info." Both `PersonalizeGuideSheet.kt`'s "organizing tiles" and
+`AboutSheet.kt`'s "widget stacks" groups still described the *original* mechanism — "merge two large
+tiles, or open a folder and use 'make stack · wide/large'" and "an open stack offers switching to the
+other size (wide ↔ large) or 'back to folder'" — none of which is how the feature actually works any
+more (see the earlier "Widget stacks: any stackable size, explicit 'show as stack'/'show as folder'
+toggle" entry and its "three on-device refinements" follow-up): the two fixed action tiles were
+replaced by a single toggle that moved into the per-tile colour picker sheet, stack eligibility
+widened from "uniform WIDE or LARGE" to `TileSize.stackable` (`cols > 1 && rows > 1` — every size
+except `SMALL`/`WIDE_SMALL`/`TALL`/`BANNER`/`COLUMN`), and resizing a stack is now a plain corner-drag
+that homogenizes every member, not a fixed wide↔large switch. `StackEditControls` was deleted outright
+in that earlier work, so the "back to folder" UI the docs described no longer exists at all.
+
+Rewrote both groups to match current behaviour: merging two large tiles still forms a stack directly,
+but any existing folder with 2+ children at a stackable size can now become one too via the colour
+picker's "show as stack"/"show as folder" toggle, and named exactly which five 1-dimensional presets
+are excluded rather than leaving "except a few" vague. Also added the drag-corner-homogenizes-every-
+member detail, which had no bullet anywhere before this. Verified on an emulator: scrolled to
+"organizing tiles" in the guide and "widget stacks" in the about sheet — both render the corrected
+bullets with no stale "make stack · wide/large"/"wide ↔ large" text remaining. Build + full unit test
+suite green.

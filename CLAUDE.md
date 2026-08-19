@@ -232,6 +232,18 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   subtitle) were updated to mention "home style" too. See DECISIONS "Guide and about sheets never
   mentioned home style, icon shapes, or the drag-resize tile sizes." Verified on an emulator: both new
   sections render correctly (visual + all bullets). Build + tests green.
+- **`android-home-style` branch — guide/about docs still described the old "make stack ·
+  wide/large" widget-stack mechanism.** Direct follow-up, user-flagged: the "show as stack"/"show as
+  folder" toggle moved into the per-tile colour picker sheet, and stack eligibility widened from
+  "uniform WIDE or LARGE" to any `TileSize.stackable` size (all but five 1-dimensional presets) —
+  neither doc had been updated for that rework. Rewrote `PersonalizeGuideSheet.kt`'s "organizing
+  tiles" and `AboutSheet.kt`'s "widget stacks" groups: merging two large tiles still forms a stack
+  directly, but any folder with 2+ children at a stackable size can now become one via the colour
+  picker's toggle; named exactly which five presets are excluded; added the drag-corner-homogenizes-
+  every-member detail; removed the stale "wide ↔ large"/"back to folder" text (that whole mechanism,
+  `StackEditControls`, was deleted in an earlier session). See DECISIONS "Guide and about sheets
+  still described the old 'make stack · wide/large' widget-stack mechanism." Verified on an emulator.
+  Build + tests green.
 - **Post-v2.5.0 — feed widget stacks: four fixes from on-device testing.** User-reported after real
   hardware use as two symptoms ("stack position can't be changed", "another widget can not be placed
   next to the stack"), which were four separate defects — see DECISIONS "Feed widget stacks — four

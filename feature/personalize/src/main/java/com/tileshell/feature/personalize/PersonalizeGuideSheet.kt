@@ -206,12 +206,13 @@ fun PersonalizeGuideSheet(
                 visual = { OrganizingVisual(accent, tokens) },
                 items = listOf(
                     "long-press any tile to enter edit mode",
-                    "drag one tile onto another, centre to centre, to merge them into a folder",
-                    "merge two large tiles (or open a folder and use \"make stack · wide/large\") to turn them into a widget stack — \"keep as folder\" sits right alongside, so you won't convert by accident",
+                    "drag one tile onto another, centre to centre, to merge them into a folder — merging two large tiles forms a widget stack directly",
+                    "any folder with 2 or more children can become a widget stack too — tap its colour dot and use the \"show as stack\" toggle at the bottom of the colour picker; \"show as folder\" reverts it just as easily",
+                    "works at any size roomier than a thin strip — medium, wide, large, and the roomier drag-resize sizes; only the thinnest single-row or single-column presets are excluded",
                     "use a selected tile's resize handle to cycle its size — medium → small → wide → large",
                     "drag a tile's corner instead of tapping to resize it freely, across 11 sizes in total — from a tiny 1×1 icon up to a full 4×4 tile, including thin banner and column strips along the way",
+                    "dragging a stack's corner resizes and homogenizes every member to the new size at once",
                     "tap the folder icon on a selected folder or stack to expand it in place and manage its members",
-                    "an open stack offers switching to the other size (wide ↔ large) or \"back to folder\" to revert it",
                     "tap × on a selected tile to unpin it — inside an open folder or stack, that sends the member back to start",
                 ),
             )
