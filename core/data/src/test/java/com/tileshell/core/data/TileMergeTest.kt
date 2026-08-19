@@ -199,11 +199,8 @@ class TileMergeTest {
         assertEquals(TileSize.LARGE, result.size)
         assertEquals(listOf("spotify", "yt"), result.children.map { it.packageName })
         assertEquals(listOf(TileSize.LARGE, TileSize.LARGE), result.children.map { it.size })
-        // The derived stack flag follows from all members being LARGE.
-        assertEquals(
-            true,
-            folder("spotify", size = TileSize.LARGE, children = result.children).isStack,
-        )
+        // The merge itself decides showAsStack going forward.
+        assertEquals(true, result.isStack)
     }
 
     @Test
@@ -256,9 +253,6 @@ class TileMergeTest {
 
         assertEquals(TileSize.WIDE, result.size)
         assertEquals(true, result.children.all { it.size == TileSize.MEDIUM })
-        assertEquals(
-            false,
-            folder("spotify", size = TileSize.WIDE, children = result.children).isStack,
-        )
+        assertEquals(false, result.isStack)
     }
 }

@@ -932,13 +932,15 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Turn a folder into a widget stack in one shot: every child resized to
-     * [size] (WIDE or LARGE), the folder tile matching. In sticky mode this
-     * grows the folder tile's own footprint exactly like [resize] does, so it
-     * needs the same anchored-slot handling (column shift + push-down +
-     * empty-row collapse) — otherwise the folder's stale anchored cell (sized
-     * for its old, smaller footprint) no longer fits the new size and
-     * [GridPacker.packSticky] silently re-flows it to the bottom of the grid,
-     * same "teleports away" bug [stickyResizeSlots] was written to prevent.
+     * [size] (any [TileSize.stackable] size, not just WIDE/LARGE), the folder
+     * tile matching, and `TileModel.Folder.showAsStack` turned on. In sticky
+     * mode this grows the folder tile's own footprint exactly like [resize]
+     * does, so it needs the same anchored-slot handling (column shift +
+     * push-down + empty-row collapse) — otherwise the folder's stale anchored
+     * cell (sized for its old, smaller footprint) no longer fits the new size
+     * and [GridPacker.packSticky] silently re-flows it to the bottom of the
+     * grid, same "teleports away" bug [stickyResizeSlots] was written to
+     * prevent.
      */
     fun convertFolderToStack(folderId: String, size: TileSize) {
         val model = tiles.value.firstOrNull { it.id == folderId }
@@ -950,25 +952,28 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * The "keep as folder" action offered alongside the two "make stack"
-     * shortcuts in an expanded folder (FR-4). For a plain folder it's the
-     * explicit no-op — just collapse the expansion, so a user who opened the
-     * folder can back out without accidentally converting it to a stack. For a
-     * widget stack it reverts to a normal folder ([repository.collapseStack]),
-     * needing the same sticky-mode slot handling as [convertFolderToStack]
-     * since the folder tile's footprint returns to WIDE.
+     * The single "show as stack" / "show as folder" toggle offered alongside
+     * an expanded folder's children (supersedes the old fixed "make stack ·
+     * wide"/"make stack · large" shortcuts, now that any [TileSize.stackable]
+     * size can be a stack — see docs/DECISIONS.md).
+     *  - Currently a stack → [repository.collapseStack] just turns the toggle
+     *    off; children and the tile's own footprint are untouched (see its
+     *    doc comment), so no sticky-mode slot handling is needed here, unlike
+     *    [convertFolderToStack].
+     *  - Currently a plain folder → uniforms every child to a stackable
+     *    target size (the tile's own current size if that's itself
+     *    stackable, so the footprint doesn't have to change; otherwise
+     *    MEDIUM) via [convertFolderToStack].
      */
-    fun keepAsFolder(folderId: String) {
-        val model = tiles.value.firstOrNull { it.id == folderId } as? TileModel.Folder
-        if (model != null && model.isStack) {
-            val stackSize = model.children.firstOrNull()?.size ?: TileSize.WIDE
-            val finalSlots = stickyResizeSlots(model, TileSize.WIDE)
-            viewModelScope.launch(writeContext) {
-                finalSlots.forEach { (movedId, slot) -> repository.setTileGridSlot(movedId, slot) }
-                repository.collapseStack(folderId, stackSize)
-            }
+    fun toggleFolderStack(folderId: String) {
+        val model = tiles.value.firstOrNull { it.id == folderId } as? TileModel.Folder ?: return
+        if (model.isStack) {
+            viewModelScope.launch(writeContext) { repository.collapseStack(folderId) }
+            collapseFolder()
+        } else {
+            val target = model.size.takeIf { it.stackable } ?: TileSize.MEDIUM
+            convertFolderToStack(folderId, target)
         }
-        collapseFolder()
     }
 
     /** Set or clear a folder child's own accent override (null = follow global, FR-7). */

@@ -962,8 +962,7 @@ fun StartScreen(
                         if (child != null) viewModel.setFolderChildAccent(child, colorId)
                     },
                     onRenameFolder = { folderId, name -> viewModel.renameFolder(folderId, name) },
-                    onMakeStack = { folderId, size -> viewModel.convertFolderToStack(folderId, size) },
-                    onKeepAsFolder = { folderId -> viewModel.keepAsFolder(folderId) },
+                    onToggleFolderStack = { folderId -> viewModel.toggleFolderStack(folderId) },
                     onReorderFolderChildren = viewModel::reorderFolderChildren,
                     onChevron = { settleTo(1f) },
                     onEnterEdit = { id ->
@@ -1612,21 +1611,19 @@ private fun FolderChild.asTileModel(id: String): TileModel.App = TileModel.App(
 )
 
 /**
- * The actions offered inline alongside an expanded folder's children (mirrors
- * the old overlay's `StackModeChip` row, since converted to extra tiles in the
- * expanded section rather than a separate chip UI): turn every member wide or
- * large to form a widget stack, or keep the tile a plain folder. On a plain
- * folder, [KeepAsFolder] is always shown alongside both [MakeStack] sizes so
- * the conversions read as deliberate choices — a user who opened the folder
- * can back out without accidentally converting it. On a stack, only the
- * *other* [MakeStack] size is offered (wide↔large) alongside [KeepAsFolder],
- * which reverts it to a plain folder — labelled "make normal folder" there
- * (see [FolderActionTile]), since "keep as folder" would misleadingly imply
- * it already is one.
+ * The single action offered inline alongside an expanded folder's children
+ * (mirrors the old overlay's `StackModeChip` row, since converted to an extra
+ * tile in the expanded section rather than a separate chip UI): a plain
+ * folder gets [ShowAsStack] (uniforms its children to a stackable size and
+ * turns the toggle on); a stack gets [ShowAsFolder] (just turns the toggle
+ * off). Supersedes the old fixed "make stack · wide"/"make stack · large"
+ * shortcuts — now that any `TileSize.stackable` size can be a stack (not just
+ * WIDE/LARGE), a per-size action tile doesn't generalize, so this is a plain
+ * two-way toggle instead (see docs/DECISIONS.md).
  */
 private sealed interface FolderAction {
-    data class MakeStack(val size: TileSize) : FolderAction
-    data object KeepAsFolder : FolderAction
+    data object ShowAsStack : FolderAction
+    data object ShowAsFolder : FolderAction
 }
 
 /**
@@ -1635,12 +1632,13 @@ private sealed interface FolderAction {
  * colour of its own.
  */
 private const val FOLDER_ACTION_ID_PREFIX = "folderaction:"
-private const val FOLDER_KEEP_TOKEN = "keep"
+private const val FOLDER_SHOW_AS_STACK_TOKEN = "showAsStack"
+private const val FOLDER_SHOW_AS_FOLDER_TOKEN = "showAsFolder"
 
 private fun folderActionTileId(folderId: String, action: FolderAction): String {
     val token = when (action) {
-        is FolderAction.MakeStack -> action.size.name
-        FolderAction.KeepAsFolder -> FOLDER_KEEP_TOKEN
+        FolderAction.ShowAsStack -> FOLDER_SHOW_AS_STACK_TOKEN
+        FolderAction.ShowAsFolder -> FOLDER_SHOW_AS_FOLDER_TOKEN
     }
     return "$FOLDER_ACTION_ID_PREFIX$folderId:$token"
 }
@@ -1651,11 +1649,10 @@ private fun parseFolderActionId(id: String): Pair<String, FolderAction>? {
     val rest = id.removePrefix(FOLDER_ACTION_ID_PREFIX)
     val sep = rest.lastIndexOf(':')
     if (sep <= 0) return null
-    val token = rest.substring(sep + 1)
-    val action = if (token == FOLDER_KEEP_TOKEN) {
-        FolderAction.KeepAsFolder
-    } else {
-        runCatching { TileSize.valueOf(token) }.getOrNull()?.let(FolderAction::MakeStack) ?: return null
+    val action = when (rest.substring(sep + 1)) {
+        FOLDER_SHOW_AS_STACK_TOKEN -> FolderAction.ShowAsStack
+        FOLDER_SHOW_AS_FOLDER_TOKEN -> FolderAction.ShowAsFolder
+        else -> return null
     }
     return rest.substring(0, sep) to action
 }
@@ -1724,8 +1721,7 @@ private fun StartPage(
     onResizeFolderChild: (folderId: String, child: FolderChild) -> Unit,
     onSetFolderChildColor: (folderId: String, rowId: Long, colorId: String?) -> Unit,
     onRenameFolder: (folderId: String, name: String) -> Unit,
-    onMakeStack: (folderId: String, size: TileSize) -> Unit,
-    onKeepAsFolder: (folderId: String) -> Unit,
+    onToggleFolderStack: (folderId: String) -> Unit,
     onReorderFolderChildren: (List<FolderChild>) -> Unit,
     onChevron: () -> Unit,
     onEnterEdit: (String) -> Unit,
@@ -1834,27 +1830,16 @@ private fun StartPage(
     val expandedFolder = remember(byId, expandedFolderId) {
         expandedFolderId?.let { byId[it] as? TileModel.Folder }
     }
-    // Folder action tiles (mirrors the old overlay's StackModeChip row): offered
-    // inline as extra small tiles right alongside the expanded children.
-    //  - a plain folder with ≥2 members → both "make stack" conversions plus
-    //    "keep as folder" (so the conversions read as deliberate opt-in choices,
-    //    not something an accidental tap triggers);
-    //  - a widget stack → the *other* stack size (wide↔large) plus "make normal
-    //    folder", which reverts it to a plain folder.
+    // Folder action tile (mirrors the old overlay's StackModeChip row): offered
+    // inline as an extra small tile right alongside the expanded children — a
+    // plain folder with ≥2 members gets "show as stack", a widget stack gets
+    // "show as folder". At most one of these is ever shown, unlike the old
+    // fixed wide/large shortcuts.
     val expandedFolderActions: List<FolderAction> = remember(expandedFolder) {
         when {
             expandedFolder == null -> emptyList()
-            expandedFolder.isStack -> listOf(
-                FolderAction.MakeStack(
-                    if (expandedFolder.stackSize == TileSize.WIDE) TileSize.LARGE else TileSize.WIDE,
-                ),
-                FolderAction.KeepAsFolder,
-            )
-            expandedFolder.children.size >= 2 -> listOf(
-                FolderAction.MakeStack(TileSize.WIDE),
-                FolderAction.MakeStack(TileSize.LARGE),
-                FolderAction.KeepAsFolder,
-            )
+            expandedFolder.isStack -> listOf(FolderAction.ShowAsFolder)
+            expandedFolder.children.size >= 2 -> listOf(FolderAction.ShowAsStack)
             else -> emptyList()
         }
     }
@@ -2143,17 +2128,9 @@ private fun StartPage(
                         FolderActionTile(
                             action = action,
                             accent = accent,
-                            // Action tiles only ever exist for the currently-expanded
-                            // folder (see expandedFolderActions), so this is always
-                            // that folder's own isStack.
-                            isStack = expandedFolder?.isStack == true,
                             textIsDark = screenBackgroundIsLight,
-                        ) {
-                            when (action) {
-                                is FolderAction.MakeStack -> onMakeStack(actionFolderId, action.size)
-                                FolderAction.KeepAsFolder -> onKeepAsFolder(actionFolderId)
-                            }
-                        }
+                            onClick = { onToggleFolderStack(actionFolderId) },
+                        )
                     }
                     return@DenseTileGrid
                 }
@@ -3154,37 +3131,29 @@ private fun FolderNameEditor(initial: String, onCommit: (String) -> Unit) {
 
 /**
  * A folder action tile (FR-4, mirrors the old overlay's `StackModeChip` row):
- * a small action offered inline alongside an expanded folder's children (see
- * StartPage's expandedFolderActions). Not a real app — a distinct pill so it
- * doesn't read as a pinned tile. The "make stack" actions are accent-tinted
- * (a deliberate conversion), while [FolderAction.KeepAsFolder] is a neutral
- * outline so it reads as the safe/cancel choice, not another conversion.
- * [isStack] only affects that action's label: on a plain folder it reads
- * "keep as folder" (a bail-out — it already is one), but on a widget stack
- * the same action actually converts it back, so it reads "back to folder".
+ * the single "show as stack"/"show as folder" toggle offered inline alongside
+ * an expanded folder's children (see StartPage's expandedFolderActions). Not
+ * a real app — a distinct pill so it doesn't read as a pinned tile. Both
+ * directions are accent-tinted (each is a deliberate, reversible choice, not
+ * a bail-out/cancel action the way the old "keep as folder" was).
  * [textIsDark] (the same signal driving the Start screen's chevron/gear tint —
- * see [rememberChosenWallpaperIsLight]) darkens the text/neutral fill/border
- * when this chip sits on a light background, since — like the chevron/gear —
- * it draws directly over the screen's own wallpaper, not a tile fill.
+ * see [rememberChosenWallpaperIsLight]) darkens the text/border when this
+ * chip sits on a light background, since — like the chevron/gear — it draws
+ * directly over the screen's own wallpaper, not a tile fill.
  */
 @Composable
 private fun FolderActionTile(
     action: FolderAction,
     accent: Color,
-    isStack: Boolean,
     textIsDark: Boolean,
     onClick: () -> Unit,
 ) {
     val label = when (action) {
-        is FolderAction.MakeStack ->
-            if (action.size == TileSize.LARGE) "make ·\nlarge stack" else "make ·\nwide stack"
-        FolderAction.KeepAsFolder -> if (isStack) "back to\nfolder" else "keep as\nfolder"
+        FolderAction.ShowAsStack -> "show as\nstack"
+        FolderAction.ShowAsFolder -> "show as\nfolder"
     }
     val neutral = Glass.faceTextColor(textIsDark)
-    val fill = when (action) {
-        is FolderAction.MakeStack -> accent.copy(alpha = 0.35f)
-        FolderAction.KeepAsFolder -> neutral.copy(alpha = 0.08f)
-    }
+    val fill = accent.copy(alpha = 0.35f)
     Box(
         modifier = Modifier
             .fillMaxSize()

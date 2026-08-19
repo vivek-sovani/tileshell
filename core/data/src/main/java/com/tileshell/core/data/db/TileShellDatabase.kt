@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         FolderChildEntity::class,
         AppCacheEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -75,9 +75,38 @@ abstract class TileShellDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v6→v7: add the explicit "show as stack" toggle (see
+         * `TileModel.Folder.showAsStack`'s doc comment) — a widget stack is no
+         * longer purely derived from uniform WIDE/LARGE children, since the
+         * stackable size set grew to cover most sizes including the default
+         * MEDIUM (see `TileSize.stackable`), and deriving from uniformity alone
+         * would make an ordinary same-sized-children folder auto-render as a
+         * stack. Backfills `true` for any folder that is *currently* a uniform
+         * WIDE or LARGE stack (the only two stack sizes that existed before this
+         * migration), so an existing stack keeps rendering as one on upgrade
+         * instead of silently flipping to a plain folder the moment the flag
+         * defaults to false.
+         */
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE folders ADD COLUMN showAsStack INTEGER NOT NULL DEFAULT 0")
+                db.execSQL(
+                    """
+                    UPDATE folders SET showAsStack = 1 WHERE id IN (
+                        SELECT folderId FROM folder_children
+                        GROUP BY folderId
+                        HAVING COUNT(*) = SUM(CASE WHEN size = 'WIDE' THEN 1 ELSE 0 END)
+                            OR COUNT(*) = SUM(CASE WHEN size = 'LARGE' THEN 1 ELSE 0 END)
+                    )
+                    """.trimIndent(),
+                )
+            }
+        }
+
         /** Versioned migrations, added as the schema evolves. */
         val MIGRATIONS: Array<Migration> =
-            arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+            arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
 
         @Volatile
         private var instance: TileShellDatabase? = null

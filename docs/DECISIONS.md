@@ -4651,3 +4651,74 @@ WIDE/LARGE still checks whether the folder should promote to a stack) but writes
 size directly instead of computing the next step in a fixed cycle. The widget-stack corner-control
 guard (`isStackTile`) is untouched — a stack tile itself still resizes only via its own overlay
 controls, never this gesture.
+
+## Widget stacks: any stackable size, explicit "show as stack"/"show as folder" toggle
+
+Direct follow-up: user asked to widen widget-stack eligibility from "uniform WIDE or LARGE members"
+to "any size other than SMALL/WIDE_SMALL/TALL/COLUMN" — i.e. every size except the four smallest/
+thinnest, where a single live tile face reads too cramped to swipe between — and to replace the two
+fixed "make stack · wide"/"make stack · large" action tiles with one contextual toggle: "show as
+stack" on a plain folder, "show as folder" on a stack. Applies identically in both TILES and ICONS
+home style, since a folder at MEDIUM+ (the only sizes a stack can ever be) already renders through
+the exact same `FolderTileContent`/`StackTileContent` in both — nothing homeStyle-specific needed
+touching.
+
+**Why this needed a real schema migration, not just widening a `when`.** `TileModel.Folder.isStack`
+was previously *purely derived*: true whenever every child happened to be uniformly WIDE or LARGE. That
+was safe specifically because WIDE/LARGE were rare, deliberate sizes nobody reaches by accident. The
+moment `TileSize.stackable` widens to include MEDIUM — the *default* size every pinned app and folder
+child starts at — pure derivation breaks: an ordinary, never-customized 2-4-app folder (all children at
+the default MEDIUM) would auto-render as a stack carousel the instant this shipped, with no way to
+express "uniformly-sized but I want it shown as a folder." A genuine user choice, decoupled from
+uniformity, was unavoidable. `FolderEntity` gains `showAsStack: Boolean = false` (schema v6→v7,
+`MIGRATION_6_7`); `TileModel.Folder.isStack` becomes `showAsStack && stackSize != null` —
+eligibility (`stackSize`, purely derived from uniformity) and the toggle are independent, so a member
+resized off the shared size falls back to the plain mini-grid *without* touching `showAsStack`, and
+resumes rendering as a stack automatically the moment uniformity returns — no separate "re-enable"
+action needed. The migration backfills `showAsStack = true` for any folder that's *currently* a
+uniform WIDE/LARGE stack (the only two sizes that could form one pre-migration), so an existing stack
+doesn't visually flip to a folder the moment the flag defaults to false on upgrade.
+
+**"Show as folder" no longer needs to resize anything.** The old `collapseStack` demoted every child
+one tier (LARGE→MEDIUM, WIDE→SMALL) and forced the folder tile back to WIDE — necessary before,
+since demoting to a *still-stackable* size wouldn't actually un-stack it (only SMALL/WIDE were "safe"
+demotion targets in the old two-stack-size world). That escape hatch stops working once MEDIUM is
+itself stackable — demoting a LARGE stack's members to MEDIUM would leave it *still* uniformly
+stackable, not de-stacked. With `showAsStack` doing that job explicitly instead, `collapseStack` is
+now a one-column flag flip: children and the folder tile's own footprint are left exactly as they
+are. This is possible only because of the earlier BANNER/COLUMN mini-grid fix in this same arc —
+`FolderTileContent`'s cols/rows already derive from the folder tile's own size for *any* size, so a
+former stack's folder-view renders correctly at whatever footprint it already occupied, with zero
+resize/push-down dance. "Show as stack" (`convertFolderToStack`) is symmetric-but-different: it does
+need to homogenize children (a plain folder's children are rarely already uniform) to a target size —
+the folder tile's *own current size* if that's itself stackable (keeps the same footprint, no
+neighbor push-down), else MEDIUM — reusing the existing sticky-mode anchored-slot handling
+(`StartViewModel.stickyResizeSlots`) since growing the tile can still displace a neighbor.
+
+**Per-child resize no longer needs stack-collapse/-promote bookkeeping either.** The old
+`resizeFolderChild`/`resizeFolderChildTo` called `collapseStack`/`promoteFolderToStackIfUniform` as a
+side effect of an individual child landing on or off the shared WIDE/LARGE size. With `isStack` now
+derived from `showAsStack && stackSize != null`, this is unnecessary: resizing one child away from
+the shared size makes `stackSize` (and so `isStack`) naturally compute false on the next read, with
+`showAsStack` left untouched (dormant, not cleared) — and it naturally re-derives true again if the
+child is resized back to match. Both repository functions collapsed to a plain `updateFolderChildSize`
+call, no bookkeeping.
+
+**Drag-merge (creating a folder by dropping one tile on another) deliberately stays exactly as narrow
+as before — LARGE+LARGE only.** Merge is also the *default* folder-creation gesture (drag one app onto
+another), so generalizing its auto-stack-formation to every `TileSize.stackable` size would mean the
+single most common interaction — merging two ordinarily-sized (MEDIUM) icons — would form a stack
+carousel instead of a folder. `TileMerge.isStackable()`'s folder branch checks `stackSize == LARGE`
+directly (not `isStack`, which would also require the toggle) so a folder that's currently
+uniform-LARGE-but-toggled-to-"show as folder" still correctly re-forms/extends a stack when another
+LARGE tile is merged in — unchanged from the pre-toggle behaviour. `MergeResult` gained an `isStack`
+field (the merge's own `keepStack` decision) that `LayoutRepository.mergeTiles` writes straight into
+the new folder's `showAsStack`.
+
+Verified: build + full unit test suite green (`TileModelStackTest` rewritten for the toggle/
+eligibility split — including one case per newly-stackable size and one per still-excluded size;
+`TileMergeTest`'s two stack-flag assertions switched from reconstructing a throwaway `TileModel.Folder`
+to reading `MergeResult.isStack` directly, since a freshly-constructed test folder now needs an explicit
+`showAsStack` the old assertions never set). Installed on the physical device over the existing v6
+database from earlier in this same testing session — migration ran cleanly with no crash, confirming
+the v6→v7 upgrade path works against a real, non-empty layout, not just a fresh install.

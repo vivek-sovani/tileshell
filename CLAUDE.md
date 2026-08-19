@@ -38,6 +38,21 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.5.1 — widget stacks: any stackable size + explicit "show as stack"/"show as folder"
+  toggle.** Direct follow-up on the icons-mode arc, user-requested — see DECISIONS "Widget stacks:
+  any stackable size, explicit 'show as stack'/'show as folder' toggle" for the full mechanism.
+  `TileSize.stackable` widens stack eligibility from "uniform WIDE or LARGE" to every size except the
+  four smallest/thinnest (SMALL/WIDE_SMALL/TALL/COLUMN). Since MEDIUM (the default pinned size) is now
+  stackable, `TileModel.Folder.isStack` could no longer stay purely derived from children uniformity
+  (an ordinary never-customized folder would auto-become a stack) — `FolderEntity` gained a real
+  persisted `showAsStack: Boolean` (schema v6→v7 migration, backfilled `true` for any folder that's
+  currently a uniform WIDE/LARGE stack), with `isStack = showAsStack && stackSize != null`. The
+  folder-overlay's two fixed "make stack · wide"/"make stack · large" action tiles are now one
+  contextual toggle ("show as stack" / "show as folder"), applying identically in TILES and ICONS home
+  style. Drag-merge (the default folder-creation gesture) deliberately stays LARGE-only/unchanged, so
+  merging two ordinary MEDIUM tiles still forms a plain folder, not a stack. Build + full unit test
+  suite green; installed on the physical device over its existing v6 database — migration verified
+  clean against real, non-empty data.
 - **Post-v2.5.1 — Android-style icons home style (`android-home-style` branch, 5-stage arc, not yet
   merged to main).** New user ask, not in the WP prototype/spec: let someone who doesn't want the
   Windows Phone interface turn TileShell into a normal Android-style launcher — shaped app icons,

@@ -3,7 +3,12 @@ package com.tileshell.core.data
 /**
  * Result of merging one tile onto another (FR-3.3): the [target] becomes a
  * folder — reusing the target tile's id as the folder id (docs/DECISIONS.md S5)
- * — holding the de-duplicated union of both tiles' apps.
+ * — holding the de-duplicated union of both tiles' apps. [isStack] is the
+ * folder's `showAsStack` value going forward — true only for the conservative
+ * LARGE+LARGE merge case (see [computeMerge]'s doc comment); the broader
+ * "any [TileSize.stackable] size" rule only applies to the folder-overlay's
+ * explicit "show as stack" toggle, not this drag-merge gesture, so an ordinary
+ * same-sized (typically MEDIUM) merge keeps forming a plain folder as before.
  */
 data class MergeResult(
     val folderId: String,
@@ -11,6 +16,7 @@ data class MergeResult(
     val colorId: String,
     val name: String,
     val children: List<FolderChild>,
+    val isStack: Boolean,
 )
 
 /** Demote a WIDE or LARGE child to MEDIUM; folder children are only SMALL / MEDIUM. */
@@ -51,13 +57,21 @@ private fun FolderChild.mergeKey(): String =
     if (packageName.isNotBlank()) "$packageName/$activityName" else "live:${iconKey ?: label}:$activityName"
 
 /**
- * A tile that can take part in a **widget stack**: a LARGE app tile, or a folder
- * that is already a stack (all members LARGE). Dropping one stackable tile onto
- * another keeps the result a stack — see [computeMerge].
+ * A tile that can take part in a **widget stack via drag-merge**: a LARGE app
+ * tile, or a folder whose members are uniformly LARGE. Deliberately narrower
+ * than [TileSize.stackable] (which the folder-overlay's explicit "show as
+ * stack" toggle uses) — drag-merge is also how an ordinary folder gets
+ * created (dragging one app onto another), so it stays conservative and
+ * never auto-forms a stack from same-sized-but-not-LARGE tiles (most
+ * commonly MEDIUM, the default pinned size); a folder's own current
+ * `stackSize` (not `isStack`, which also requires the toggle) is what's
+ * checked here, so dragging a second LARGE tile onto a folder that's
+ * currently uniform-LARGE-but-toggled-off still (re-)forms a stack, matching
+ * this mechanic's pre-existing, toggle-independent behaviour.
  */
 private fun TileModel.isStackable(): Boolean = when (this) {
     is TileModel.App -> size == TileSize.LARGE
-    is TileModel.Folder -> isStack
+    is TileModel.Folder -> stackSize == TileSize.LARGE
 }
 
 /**
@@ -101,6 +115,7 @@ fun computeMerge(drag: TileModel, target: TileModel): MergeResult {
             colorId = target.colorId,
             name = target.name,
             children = children,
+            isStack = keepStack,
         )
 
         is TileModel.App -> MergeResult(
@@ -109,6 +124,7 @@ fun computeMerge(drag: TileModel, target: TileModel): MergeResult {
             colorId = target.colorId,
             name = if (keepStack) "stack" else "folder",
             children = children,
+            isStack = keepStack,
         )
     }
 }
