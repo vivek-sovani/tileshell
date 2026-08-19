@@ -4336,21 +4336,25 @@ private fun FolderTileContent(
     onOpenFolder: () -> Unit,
     onEnterEdit: () -> Unit,
 ) {
-    // Inline iOS-style folder face: a mini-grid of the child app icons. A wide
-    // folder shows a 4×2 grid (more apps); a large folder shows 3×3 (even more —
-    // useful once a folder holds a lot of apps); medium/small show 2×2. When
-    // [launchEnabled] (only on the roomy 4-column grid) each icon is tappable to
-    // launch out of edit mode, and an overflow cell becomes "+N" that opens the
-    // overlay; on denser 5/6-column grids the cells are too small to tap, so they
-    // are display-only and the whole tile opens the overlay on tap. In edit mode
+    // Inline iOS-style folder face: a mini-grid of the child app icons, sized to
+    // match the folder tile's own footprint — a wide folder shows a 4×2 grid
+    // (more apps), a large folder 3×3, medium/small 2×2, and the drag-only
+    // one-dimensional presets (BANNER 4×1, COLUMN 1×4) show a single row or
+    // single column of up to 4 apps rather than a 2×2 grid squeezed into a
+    // strip (user-reported: a 4×1 folder was only showing 2 of its apps,
+    // since the old hardcoded 2×2 fallback wasted half its cells cramming a
+    // second row into a tile with no vertical room for one). SMALL is the one
+    // deliberate exception, kept at the original 2×2 rather than shrinking to
+    // a single icon — an established look predating this whole arc, not
+    // something this fix should change. When [launchEnabled] (only on the
+    // roomy 4-column grid) each icon is tappable to launch out of edit mode,
+    // and an overflow cell becomes "+N" that opens the overlay; on denser
+    // 5/6-column grids the cells are too small to tap, so they are
+    // display-only and the whole tile opens the overlay on tap. In edit mode
     // the cells are always inert so the grid-level drag owns the tile.
     val children = tile.children
-    val cols = when (tile.size) {
-        TileSize.WIDE -> 4
-        TileSize.LARGE -> 3
-        else -> 2
-    }
-    val rows = if (tile.size == TileSize.LARGE) 3 else 2
+    val cols = if (tile.size == TileSize.SMALL) 2 else tile.size.cols
+    val rows = if (tile.size == TileSize.SMALL) 2 else tile.size.rows
     val maxCells = cols * rows
     val overflow = children.size > maxCells
     val lastIndex = maxCells - 1
