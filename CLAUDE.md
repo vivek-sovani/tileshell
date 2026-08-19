@@ -172,6 +172,22 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   every follow-up fix; new tests: `ResizeSnapTest`, `SquircleTest`, `IconCellShapeTest`, plus
   `GridPackerTest` and `SettingsCodecTest` extensions. **Not yet merged to `main`** — this status
   entry documents the branch's state for continuity, not a shipped release.
+- **`android-home-style` branch — narrow live tiles (TALL/COLUMN, 1 column wide) show their data
+  stacked vertically instead of clipping.** Direct on-device follow-up, user-reported: drag-resizing
+  a clock/weather tile down to 1 column wide (`TALL`/`COLUMN`) clipped their text, since
+  `ClockFront`/`WeatherFront`/`CalendarDateColumn`/the shared `ConversationCountFace`/
+  `NotificationFaceContent` (mail/messages/generic-notification tiles) only ever branched font size
+  on height, never width — only true `SMALL` short-circuited to a compact face. New
+  `TileSize.narrowLive` (`cols == 1 && this != SMALL`) is checked inside each face composable (not
+  routed to the `SMALL` path — the user wants the full data, just reflowed): centered text,
+  width-safe font sizes reused from the existing `*SmallFace` composables, 3-letter weekday/month
+  abbreviations, ellipsis safety nets, and `Arrangement.SpaceEvenly` (replacing `Center` + manual
+  `Spacer`s) so the lines spread across whatever height the tile has — `TALL`'s 2 rows or `COLUMN`'s
+  4 — instead of bunching in the middle. All changes are additive; MEDIUM/WIDE/LARGE rendering is
+  unchanged. See DECISIONS "Narrow live tiles (TALL/COLUMN, 1 column wide) show their data stacked
+  vertically." Verified on an emulator: drag-resized a weather tile and a clock tile to COLUMN,
+  both show every field fully readable and evenly spaced, in and out of edit mode. Build + tests
+  green.
 - **Post-v2.5.0 — feed widget stacks: four fixes from on-device testing.** User-reported after real
   hardware use as two symptoms ("stack position can't be changed", "another widget can not be placed
   next to the stack"), which were four separate defects — see DECISIONS "Feed widget stacks — four

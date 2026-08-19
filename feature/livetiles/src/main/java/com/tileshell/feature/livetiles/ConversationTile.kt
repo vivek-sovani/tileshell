@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -89,7 +90,7 @@ fun ConversationTileFace(
         FlipTile(
             flipped = flipped,
             modifier = Modifier.fillMaxSize(),
-            front = { ConversationCountFace(preview.count, countWord) },
+            front = { ConversationCountFace(preview.count, countWord, size) },
             back = {
                 NotificationFaceContent(
                     item = current,
@@ -112,26 +113,40 @@ fun ConversationTileFace(
  * [ConversationTileFace] for mail ("unread") / messages ("new").
  */
 @Composable
-internal fun ConversationCountFace(count: Int, word: String) {
+internal fun ConversationCountFace(count: Int, word: String, size: TileSize = TileSize.MEDIUM) {
+    // TALL/COLUMN are only 1 column wide (same as SMALL) — centre and shrink
+    // slightly so the count + word both stay clear of the narrow edges.
+    val narrow = size.narrowLive
     Column(
-        modifier = Modifier.fillMaxSize().padding(11.dp),
-        verticalArrangement = Arrangement.Center,
+        modifier = Modifier.fillMaxSize().padding(if (narrow) 4.dp else 11.dp),
+        verticalArrangement = if (narrow) Arrangement.SpaceEvenly else Arrangement.Center,
+        horizontalAlignment = if (narrow) Alignment.CenterHorizontally else Alignment.Start,
     ) {
         Text(
             text = count.toString(),
             color = FaceText,
-            fontSize = 34.sp,
+            fontSize = if (narrow) 28.sp else 34.sp,
             fontWeight = FontWeight.Light,
             maxLines = 1,
+            textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
         )
-        Text(text = word, color = FaceText.copy(alpha = 0.82f), fontSize = 13.sp, maxLines = 1)
+        Text(
+            text = word,
+            color = FaceText.copy(alpha = 0.82f),
+            fontSize = if (narrow) 11.sp else 13.sp,
+            maxLines = 1,
+            overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
+            textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
+        )
     }
 }
 
 /**
  * Shared notification-content layout used on the back face of mail/messages/generic
  * tiles. Layout scales with [size]: MEDIUM = compact row, WIDE = two-column with
- * picture hero, LARGE = full-area hero.
+ * picture hero, LARGE = full-area hero, TALL/COLUMN (1 column wide) = stacked and
+ * centred instead of the horizontal avatar+text row the others use, which clips at
+ * that width.
  */
 @Composable
 internal fun NotificationFaceContent(
@@ -140,10 +155,48 @@ internal fun NotificationFaceContent(
     picture: ImageBitmap?,
     size: TileSize = TileSize.MEDIUM,
 ) {
-    when (size) {
-        TileSize.LARGE -> NotificationFaceContentLarge(item, avatar, picture)
-        TileSize.WIDE  -> NotificationFaceContentWide(item, avatar, picture)
-        else           -> NotificationFaceContentMedium(item, avatar, picture)
+    when {
+        size.narrowLive -> NotificationFaceContentNarrow(item, avatar, size)
+        size == TileSize.LARGE -> NotificationFaceContentLarge(item, avatar, picture)
+        size == TileSize.WIDE  -> NotificationFaceContentWide(item, avatar, picture)
+        else                   -> NotificationFaceContentMedium(item, avatar, picture)
+    }
+}
+
+// ── TALL / COLUMN (1 column wide) ──────────────────────────────────────────────
+
+@Composable
+private fun NotificationFaceContentNarrow(
+    item: ConversationItem,
+    avatar: ImageBitmap?,
+    size: TileSize,
+) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.SpaceEvenly,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        SenderAvatar(name = item.sender, photo = avatar, sizeDp = 28)
+        Text(
+            text = item.sender.ifBlank { "someone" },
+            color = FaceText,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
+        if (item.snippet.isNotEmpty()) {
+            Text(
+                text = item.snippet,
+                color = FaceText.copy(alpha = 0.82f),
+                fontSize = 12.sp,
+                // COLUMN's 4 rows have room for more of the snippet than TALL's 2.
+                maxLines = if (size.rows >= 4) 5 else 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 

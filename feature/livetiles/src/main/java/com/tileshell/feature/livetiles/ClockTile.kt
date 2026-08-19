@@ -31,6 +31,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -256,7 +258,7 @@ fun ClockTileFace(
         flipped = flipped,
         modifier = modifier.fillMaxSize(),
         front = { ClockFront(face, size) },
-        back = { ClockBack(face) },
+        back = { ClockBack(face, size) },
     )
 }
 
@@ -312,13 +314,18 @@ private fun ClockFront(face: ClockFace, size: TileSize) {
     // .9 line box harmlessly; Compose would crop them (the time vanished at the
     // earlier inflated size), so trim = None keeps the full glyph painted.
     val big = size == TileSize.WIDE
+    // TALL/COLUMN are only 1 column wide (same as SMALL) — the wide/medium font
+    // sizes and right-aligned layout above clip there, so narrow tiles get a
+    // centred, width-safe layout instead, spread across whatever row height the
+    // tile has via SpaceEvenly (COLUMN's 4 rows get roomier gaps than TALL's 2).
+    val narrow = size.narrowLive
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val scale = clockFaceScale(maxHeight)
-        val timeSize = (if (big) 64f else 42f).sp * scale
+        val timeSize = (if (narrow) 20f else if (big) 64f else 42f).sp * scale
         Column(
-            modifier = Modifier.fillMaxSize().padding(11.dp * scale),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.End,
+            modifier = Modifier.fillMaxSize().padding((if (narrow) 4f else 11f).dp * scale),
+            verticalArrangement = if (narrow) Arrangement.SpaceEvenly else Arrangement.Center,
+            horizontalAlignment = if (narrow) Alignment.CenterHorizontally else Alignment.End,
         ) {
             Text(
                 text = face.hm,
@@ -328,6 +335,8 @@ private fun ClockFront(face: ClockFace, size: TileSize) {
                 fontWeight = FontWeight.ExtraLight,
                 letterSpacing = (-2).sp,
                 maxLines = 1,
+                overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
+                textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
                 style = LocalTextStyle.current.copy(
                     lineHeightStyle = LineHeightStyle(
                         alignment = LineHeightStyle.Alignment.Center,
@@ -335,28 +344,38 @@ private fun ClockFront(face: ClockFace, size: TileSize) {
                     ),
                 ),
             )
-            Spacer(Modifier.height(4.dp * scale))
-            Text(text = face.weekday, color = FaceText, fontSize = 15.sp * scale, maxLines = 1)
+            if (!narrow) Spacer(Modifier.height(4.dp * scale))
+            Text(
+                text = if (narrow) face.weekday.take(3) else face.weekday,
+                color = FaceText,
+                fontSize = (if (narrow) 13f else 15f).sp * scale,
+                maxLines = 1,
+                overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
+                textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
+            )
             Text(
                 text = face.fullDate,
                 color = FaceText.copy(alpha = 0.82f),
-                fontSize = 12.sp * scale,
-                maxLines = 1,
+                fontSize = (if (narrow) 11f else 12f).sp * scale,
+                maxLines = if (narrow) 2 else 1,
+                overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
+                textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
             )
         }
     }
 }
 
 @Composable
-private fun ClockBack(face: ClockFace) {
+private fun ClockBack(face: ClockFace, size: TileSize) {
+    val narrow = size.narrowLive
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val scale = clockFaceScale(maxHeight)
-        val bigSize = 30.sp * scale
-        val smallSize = 12.sp * scale
+        val bigSize = (if (narrow) 20f else 30f).sp * scale
+        val smallSize = (if (narrow) 10f else 12f).sp * scale
         Column(
-            modifier = Modifier.fillMaxSize().padding(11.dp * scale),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.End,
+            modifier = Modifier.fillMaxSize().padding((if (narrow) 4f else 11f).dp * scale),
+            verticalArrangement = if (narrow) Arrangement.SpaceEvenly else Arrangement.Center,
+            horizontalAlignment = if (narrow) Alignment.CenterHorizontally else Alignment.End,
         ) {
             if (face.alarm.isNotEmpty()) {
                 // Alarm/reminder gets the hero slot — user set it, they want to see it.
@@ -369,10 +388,12 @@ private fun ClockBack(face: ClockFace) {
                 Text(
                     text = face.reminderTitle.ifEmpty { "alarm / bedtime" },
                     color = FaceText.copy(alpha = 0.65f),
-                    fontSize = 11.sp * scale,
-                    maxLines = 1,
+                    fontSize = smallSize,
+                    maxLines = if (narrow) 2 else 1,
+                    overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
+                    textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
                 )
-                Spacer(Modifier.height(2.dp * scale))
+                if (!narrow) Spacer(Modifier.height(2.dp * scale))
                 Text(
                     text = face.alarm,
                     color = FaceText,
@@ -381,15 +402,19 @@ private fun ClockBack(face: ClockFace) {
                     fontWeight = FontWeight.Light,
                     letterSpacing = (-1).sp,
                     maxLines = 1,
+                    overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
+                    textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
                 )
-                Spacer(Modifier.height(8.dp * scale))
+                if (!narrow) Spacer(Modifier.height(8.dp * scale))
                 Text(
                     // The reminder/alarm's own date, not necessarily today's — e.g. an
                     // alarm set for the 25th while today is the 23rd shows "25 ...".
                     text = face.alarmDate.ifEmpty { face.fullDate },
                     color = FaceText.copy(alpha = 0.65f),
                     fontSize = smallSize,
-                    maxLines = 1,
+                    maxLines = if (narrow) 2 else 1,
+                    overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
+                    textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
                 )
             } else {
                 // No alarm set — date fills the back face as before.
@@ -400,7 +425,9 @@ private fun ClockBack(face: ClockFace) {
                     lineHeight = bigSize,
                     fontWeight = FontWeight.Light,
                     letterSpacing = (-1).sp,
-                    maxLines = 1,
+                    maxLines = if (narrow) 2 else 1,
+                    overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
+                    textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
                 )
             }
         }

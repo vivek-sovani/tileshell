@@ -4972,3 +4972,48 @@ package on that emulator), calendar became a compact live "19" tile, every other
 contacts/gmail/messages/photos/music/maps/chrome) became a small real-icon, and the social folder
 kept its bigger folder tile with bare real-icon children — matching the reference screenshot's mixed
 look closely. Build + tests green.
+
+## Narrow live tiles (TALL/COLUMN, 1 column wide) show their data stacked vertically
+
+User-reported, on the `android-home-style` branch's drag-resize presets: "vertical with width=1
+tiles of clock and weather, not showing full data. need to adjust font size like 1x1 tile," then
+clarified further mid-session — the fix should keep showing every field ("may have to show the
+matter vertically... same may be applicable for notification display on other live tiles") and use
+the tile's full height ("vertical tile full vertical space should be utilised properly"), not just
+fall back to the compact single-value SMALL face and drop data.
+
+Root cause: `ClockFront`/`ClockBack`, `WeatherFront`/`WeatherBack`, `CalendarDateColumn`/
+`CalendarFaceColumn`, and the shared `ConversationCountFace`/`NotificationFaceContent` (mail/
+messages/generic-notification tiles) only ever branched their font sizes and layout on *height*
+(`size == WIDE`/`LARGE`, or a MEDIUM/WIDE/LARGE `when`) — never on width. `TileSize.TALL` (1×2) and
+`TileSize.COLUMN` (1×4), added for gesture-based drag resize, are exactly as narrow as `SMALL` (1×1)
+but reach these full-size faces (only `SMALL` short-circuits to the compact `*SmallFace` composables
+in `StartScreen.kt`/`LiveFace.forIconKey`), so their multi-line, wider-tile-oriented text clipped at
+1 column width.
+
+Fixed with a new `TileSize.narrowLive` (`cols == 1 && this != SMALL` — true for `TALL`/`COLUMN`,
+automatically covers any future 1-column preset) checked inside each face composable, *not* by
+routing narrow tiles into the `SMALL` path — the user explicitly wants the full data (weekday+date,
+place+condition, sender+snippet), just reflowed to fit. Each narrow branch: centers text
+(`Alignment.CenterHorizontally` / `TextAlign.Center` — the non-narrow layouts right- or left-align,
+which reads fine at 2+ columns but crowds one edge at 1 column), shrinks/reuses the width-safe font
+sizes the existing `*SmallFace` composables already proved fit a 1-column cell (20sp clock time,
+34sp weather temp / calendar day), abbreviates weekday/month to 3 letters (a full "wednesday"/
+"september" doesn't fit; ellipsis-truncating it mid-word reads worse than "wed"/"sep"), and adds
+`TextOverflow.Ellipsis` + a small `maxLines` bump as a safety net on every remaining line (place,
+condition, snippet, alarm title) so nothing hard-clips even for a longer string. Per the "utilise
+the full vertical space" follow-up, narrow layouts use `Arrangement.SpaceEvenly` instead of the
+non-narrow layouts' `Arrangement.Center` + manual `Spacer`s — this spreads the 2–4 lines evenly
+across whatever height the tile actually has (`TALL`'s 2 rows vs. `COLUMN`'s 4), rather than bunching
+them in the middle with dead space above/below, with no extra branching needed for the two different
+row counts. `NotificationFaceContent` gained a fourth `NotificationFaceContentNarrow` branch
+alongside its existing MEDIUM/WIDE/LARGE ones (avatar + sender + snippet stacked and centered,
+dropping the picture-hero column entirely — no room for it at 1 column); `ConversationCountFace`
+(the front face shared by mail/messages/generic-notification tiles) centers and shrinks slightly
+rather than needing a wholly separate composable, since it was already a single small `Column`.
+
+Every narrow branch is additive (`if (narrow) ... else <original>`), so `MEDIUM`/`WIDE`/`LARGE`
+rendering is byte-for-byte unchanged. Verified on an emulator: drag-resized both a weather tile and
+a clock tile to `COLUMN` (1×4) in edit mode — weather shows "mumbai" / "28°" / "overcast" fully
+readable and evenly spaced top-to-bottom with no clipping (both in and out of edit mode); clock
+shows "4:03pm" / "wed" / "19 august 2026" the same way. Build + full unit test suite green.

@@ -82,4 +82,15 @@ enum class TileSize(val cols: Int, val rows: Int) {
      */
     val stackable: Boolean
         get() = cols > 1 && rows > 1
+
+    /**
+     * True for [TALL] and [COLUMN] — the same 1-column width as [SMALL] but with
+     * extra row height. Live-face composables (clock/weather/calendar/notification)
+     * branch on this to lay their text out stacked and centred for a ~90dp-wide
+     * column, spread across whatever height the tile has, instead of the wider
+     * MEDIUM+ layout that clips at 1 column. See docs/DECISIONS.md "Narrow live
+     * tiles show their data stacked vertically."
+     */
+    val narrowLive: Boolean
+        get() = cols == 1 && this != SMALL
 }
