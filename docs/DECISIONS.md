@@ -4913,3 +4913,22 @@ the *closed* mini-grid — inline-expanded folder children were already correct 
 `FolderChild.asTileModel` → the ordinary `TileView`/`IconCellView` call site, which already carries
 this fix), and a widget stack's members render via `AppTileContent` (tile-mode-only regardless of
 home style, unrelated to this bug).
+
+## Closed folder's mini-grid drops its per-cell background plate in ICONS mode
+
+Direct follow-up to the previous entry, same screenshot: with the real icon now showing, each mini-grid
+cell still painted a tinted background square behind it (`FolderTileContent`'s `cellBg`/`cellFill` —
+a translucent dark tint by default, or the app's dominant colour under "tile colour from app icon",
+originally designed for the WP tile aesthetic). User-reported once the real icon was visible underneath
+it: "only icon should be shown - dont show inside square." `cellFill` now also branches on the same
+`homeStyle` param from the previous fix: ICONS mode skips the background plate entirely (`Modifier`,
+no fill), matching a normal Android launcher's folder preview (bare icons, no per-cell backdrop); TILES
+mode's tinted-square look is unchanged. `IconFolderCell` (the ICONS-mode SMALL closed-folder renderer,
+a separate code path from `FolderTileContent`) already had no such background plate, so it needed no
+change.
+
+**Immediate follow-up: the icon itself needed to grow to fill the space the plate used to occupy.**
+User-reported right after: "icon size should be bigger... as there is no square around" — removing
+the backdrop left the existing 18dp `FolderChildIcon` icon reading as too small/lost in the cell.
+`FolderChildIcon` now sizes to 26dp in ICONS mode (vs the original 18dp, kept unchanged for TILES
+mode, where the icon still sits on its own tinted-square backdrop and was tuned for that look).

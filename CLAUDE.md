@@ -47,7 +47,13 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   `FolderChildIcon`; ICONS mode now prefers the real icon whenever the child has a real package,
   matching `IconCellView`'s own rule, while TILES mode's WP-authentic glyph-first look is untouched.
   See DECISIONS "Closed folder's mini-grid shows the real app icon in ICONS mode too." Build + tests
-  green.
+  green. **Two same-day follow-ups on the same screenshot thread**: (1) each mini-grid cell's tinted
+  background plate (`FolderTileContent`'s `cellFill`) is now skipped entirely in ICONS mode too
+  ("only icon should be shown - dont show inside square") — TILES mode's tinted-square look is
+  unchanged, and `IconFolderCell` never had a plate to begin with; (2) the mini-grid icon itself grew
+  from 18dp to 26dp in ICONS mode to fill the space the plate used to occupy ("icon size should be
+  bigger... as there is no square around") — TILES mode keeps 18dp. See DECISIONS' two follow-up
+  entries. Build + tests green.
 - **Post-v2.5.1 — first-run home-style (tiles vs icons) choice wizard, real live preview.**
   User-requested, scoped down via `AskUserQuestion` to a single choice screen (no bundled
   restore-backup step, no multi-step flow) — see DECISIONS "First-run home-style (tiles vs icons)

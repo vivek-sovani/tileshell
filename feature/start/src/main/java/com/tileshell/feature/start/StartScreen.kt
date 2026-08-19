@@ -4239,19 +4239,25 @@ private fun FolderChildIcon(child: FolderChild?, homeStyle: HomeStyle = HomeStyl
     }
 
     if (child == null) return
+    // ICONS mode dropped this cell's background plate (see FolderTileContent's
+    // cellFill), so the icon itself needs to be bigger to still fill the cell
+    // — user-reported after that fix: "icon size should be bigger... as there
+    // is no square around." TILES mode keeps the original 18dp, tuned for
+    // sitting on its own tinted-square backdrop.
+    val iconSize = if (homeStyle == HomeStyle.ICONS) 26.dp else 18.dp
     if (useAppIcon && appIcon != null) {
         Image(
             bitmap = appIcon,
             contentDescription = null,
             contentScale = ContentScale.Fit,
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(iconSize),
         )
     } else {
         Icon(
             imageVector = TileIcons[child.iconKey],
             contentDescription = null,
             tint = LocalTileFaceColor.current,
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(iconSize),
         )
     }
 }
@@ -4332,6 +4338,12 @@ private fun FolderTileContent(
                             ?: Color(0x2E000000)
                         val cellFill = when {
                             isEmptySlot -> Modifier
+                            // ICONS mode: bare icon only, no per-cell background
+                            // plate — matches a normal Android launcher's folder
+                            // preview (user-reported: "only icon should be shown -
+                            // dont show inside square"). The tinted-square look
+                            // stays for TILES mode, which is unaffected.
+                            homeStyle == HomeStyle.ICONS -> Modifier
                             tiledWallpaper -> Modifier
                             glass -> Modifier.background(Glass.fill(darkTheme, transparency, cellBg))
                             else -> Modifier.background(cellBg)
