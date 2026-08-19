@@ -752,33 +752,72 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Shrinks every current top-level app tile with a real, resolvable
-     * package down to SMALL, and clears every top-level tile's anchored
-     * `gridSlot` so the whole grid re-flows dense/compact around the new
-     * sizes instead of leaving gaps where the old, larger anchored
-     * footprints used to sit (STICKY mode's own default anchors every
-     * seeded tile at its dense-packed cell during `init` — see
-     * `seedStickySlots` — computed for the *old*, larger sizes). Only ever
-     * called once, from the one-shot wizard's ICONS pick on a genuinely
-     * fresh (never-customized) layout — never from a later Personalize
-     * toggle — so it can't clobber anything the user has since arranged.
+     * package down to SMALL, and anchors every top-level tile at an explicit
+     * `gridSlot` laying out a **two-lane grid**: clock/calendar/weather
+     * occupy a reserved lane along the right edge, and every other tile
+     * (icons + folders) dense-packs into the remaining lane on the left —
+     * "icons on the left" per explicit user request. Only ever called once,
+     * from the one-shot wizard's ICONS pick on a genuinely fresh
+     * (never-customized) layout — never from a later Personalize toggle —
+     * so it can't clobber anything the user has since arranged.
      *
-     * Deliberately leaves two kinds of tile untouched, matching the "known
-     * Android icons + a few live tiles" look the reference asked for:
-     * blank-package `liveOnly` tiles (clock/weather/calendar/personalize —
-     * these should keep reading as live tiles, or are already SMALL), and
-     * folders (a folder stays a folder-sized tile with its own mini-grid
-     * preview, not shrunk to a compact icon).
+     * Deliberately leaves blank-package `liveOnly` tiles' *size* untouched
+     * (weather never resolves a role, so it stays its declared MEDIUM 2×2 —
+     * "these should keep reading as live tiles") and folders (a folder stays
+     * a folder-sized tile with its own mini-grid preview, not shrunk to a
+     * compact icon); both still get packed into the left icon lane like any
+     * other non-reserved tile.
+     *
+     * The right lane is exactly 2 columns wide, packed via the same dense
+     * [GridPacker.pack] the left lane uses (with `columns = 2`) so
+     * clock/calendar (each SMALL once their role resolves, as it does on
+     * most devices) land side by side on row 0, and weather's 2×2 footprint
+     * — the same width as the lane — settles directly below them on row 1:
+     * "calendar and clock side by side on top right, and below weather tile
+     * (right)". The left lane is the remaining `columns - 2` columns, offset
+     * by 0; the right lane's placements are offset by `columns - 2` to sit
+     * against the right edge.
      */
     private fun shrinkDefaultAppsToIcons() {
         viewModelScope.launch(writeContext) {
             val current = tiles.value
+            val futureSize = HashMap<String, TileSize>()
             current.forEach { tile ->
-                if (tile is TileModel.App && tile.packageName.isNotBlank() && tile.size != TileSize.SMALL) {
-                    repository.setTileSize(tile.id, TileSize.SMALL)
+                val shrunk = tile is TileModel.App && tile.packageName.isNotBlank() && tile.size != TileSize.SMALL
+                val size = if (shrunk) TileSize.SMALL else tile.size
+                futureSize[tile.id] = size
+                if (shrunk) repository.setTileSize(tile.id, TileSize.SMALL)
+            }
+
+            val byIconKey = current.filterIsInstance<TileModel.App>().associateBy { it.iconKey }
+            val rightLaneIds = listOf("calendar", "clock", "weather").mapNotNull { byIconKey[it]?.id }
+            val leftLaneIds = current.map { it.id }.filterNot { it in rightLaneIds }
+
+            val columns = settings.value.columns
+            if (rightLaneIds.isNotEmpty() && columns >= 3) {
+                val laneWidth = 2
+                val laneOffset = columns - laneWidth
+                val rightPlacements = GridPacker.pack(
+                    rightLaneIds.map { TileSpec(it, futureSize.getValue(it)) },
+                    laneWidth,
+                )
+                rightPlacements.forEach { p ->
+                    repository.setTileGridSlot(p.id, GridPacker.encodeSlot(p.col + laneOffset, p.row))
                 }
-                if (tile.gridSlot != null) {
-                    repository.setTileGridSlot(tile.id, null)
+                val leftPlacements = GridPacker.pack(
+                    leftLaneIds.map { TileSpec(it, futureSize.getValue(it)) },
+                    laneOffset,
+                )
+                leftPlacements.forEach { p ->
+                    repository.setTileGridSlot(p.id, GridPacker.encodeSlot(p.col, p.row))
                 }
+            } else {
+                // Too narrow for a separate lane (shouldn't happen at the
+                // supported 4/5/6 column counts) — fall back to one plain
+                // dense-packed lane spanning the full grid width.
+                current.forEach { if (it.gridSlot != null) repository.setTileGridSlot(it.id, null) }
+                val placements = GridPacker.pack(current.map { TileSpec(it.id, futureSize.getValue(it.id)) }, columns)
+                placements.forEach { p -> repository.setTileGridSlot(p.id, GridPacker.encodeSlot(p.col, p.row)) }
             }
         }
     }
