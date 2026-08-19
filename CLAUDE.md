@@ -188,6 +188,26 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   vertically." Verified on an emulator: drag-resized a weather tile and a clock tile to COLUMN,
   both show every field fully readable and evenly spaced, in and out of edit mode. Build + tests
   green.
+- **`android-home-style` branch — tile colour source gains a "wallpaper" option, matching the feed/
+  Quick Panel's own wallpaper-derived accent.** User-requested, drawing an explicit parallel: "glance
+  and quick settings use their background and gadget/tile from accent picked up from wallpaper.
+  similarly keep another color option for tiles to pickup from wallpaper, make provision in
+  personalisation with added color tile." `TileColorSource` (`core/data/settings/LauncherSettings.kt`)
+  gained `WALLPAPER_ACCENT` alongside `GLOBAL_ACCENT`/`APP_ICON` (codec round-trips it for free by
+  name, no migration). Reuses the feed page's existing `rememberFeedPalette` (already called
+  cross-package by `QuickPanelOverlay.kt`, so no new dependency) — computed once in `StartScreen.kt`,
+  gated by the same `noWallpaper` fallback-to-accent guard the feed/Quick Panel use (`Wallpapers.
+  forId("none")` otherwise falls back to the bundled Aurora gradient, which would wrongly tint tiles
+  when no wallpaper is actually set), and threaded into the existing per-tile colour priority chain
+  (`tileOverride → iconColor → wallpaperAccent → accent`) at `StartPage`'s `tileAccent` and
+  `FolderTileContent`'s per-child `cellBg` — `StackTileContent` needed no new param since its own
+  fallback chain already ends at the already-wallpaper-aware `accent`. Personalize's "tile color
+  source" row gained a third pill with a live swatch dot sampled from the wallpaper (the "added color
+  tile"), filling the whole pill when selected like "accent" already does. See DECISIONS "Tile colour
+  source: 'wallpaper' option, tiles read the same accent as the feed/Quick Panel." Verified on an
+  emulator (via `uiautomator dump` for exact tap coordinates): swatch/tiles show the plain accent with
+  no wallpaper set, and all switch together to a picked stock gradient's sampled colour once selected.
+  Build + tests green.
 - **Post-v2.5.0 — feed widget stacks: four fixes from on-device testing.** User-reported after real
   hardware use as two symptoms ("stack position can't be changed", "another widget can not be placed
   next to the stack"), which were four separate defects — see DECISIONS "Feed widget stacks — four

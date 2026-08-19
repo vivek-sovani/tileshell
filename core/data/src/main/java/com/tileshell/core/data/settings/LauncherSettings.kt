@@ -60,9 +60,12 @@ val TilePackMode.isAnchored: Boolean get() = this != TilePackMode.DENSE
  * Default colour for a tile that has no explicit per-tile override (FR-7):
  * [GLOBAL_ACCENT] paints every tile the single global accent; [APP_ICON] tints
  * each app tile with the dominant colour of its launcher icon (a freshly pinned
- * app then shows in its own brand colour). A per-tile override still wins.
+ * app then shows in its own brand colour); [WALLPAPER_ACCENT] tints every tile
+ * with the same wallpaper-derived accent colour the feed/glance page and Quick
+ * Panel already use (see `rememberFeedPalette`), so tiles, feed, and Quick
+ * Panel all read as one coordinated palette. A per-tile override still wins.
  */
-enum class TileColorSource { GLOBAL_ACCENT, APP_ICON }
+enum class TileColorSource { GLOBAL_ACCENT, APP_ICON, WALLPAPER_ACCENT }
 
 /**
  * Persisted personalization (FR-7). Kept deliberately flat and framework-free so

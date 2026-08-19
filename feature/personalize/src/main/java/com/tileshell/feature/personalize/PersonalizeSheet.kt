@@ -181,6 +181,10 @@ fun PersonalizeSheet(
     onTileGapChange: (Float) -> Unit,
     tileColorSource: TileColorSource,
     onTileColorSourceChange: (TileColorSource) -> Unit,
+    // Live preview swatch for the "wallpaper" tile-colour-source pill — the same
+    // wallpaper-derived accent the feed/glance page and Quick Panel already show,
+    // so the user can see the actual colour before switching to it.
+    wallpaperAccentPreview: Color,
     tileFill: TileFill,
     onTileFillChange: (TileFill) -> Unit,
     fontStyle: FontStyle,
@@ -459,24 +463,42 @@ fun PersonalizeSheet(
                 ) {
                     Text("tile color source", color = tokens.fg, fontSize = 14.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // wallpaper's option carries an actual swatch dot sampled from
+                        // the current wallpaper (the same colour the feed/glance page
+                        // and Quick Panel already use) so the user sees the real colour
+                        // before switching to it — accent/app-icon need no such preview
+                        // (accent already paints the whole pill when selected; app icon
+                        // has no single colour to show ahead of time).
                         listOf(
-                            TileColorSource.GLOBAL_ACCENT to "accent",
-                            TileColorSource.APP_ICON to "app icon",
-                        ).forEach { (source, label) ->
+                            Triple(TileColorSource.GLOBAL_ACCENT, "accent", null),
+                            Triple(TileColorSource.APP_ICON, "app icon", null),
+                            Triple(TileColorSource.WALLPAPER_ACCENT, "wallpaper", wallpaperAccentPreview),
+                        ).forEach { (source, label, swatch) ->
                             val selected = tileColorSource == source
-                            Box(
+                            val pillColor = swatch ?: accent
+                            Row(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(20.dp))
-                                    .background(if (selected) accent else Color.Transparent)
+                                    .background(if (selected) pillColor else Color.Transparent)
                                     .border(
                                         1.dp,
-                                        if (selected) accent else tokens.tileLine,
+                                        if (selected) pillColor else tokens.tileLine,
                                         RoundedCornerShape(20.dp),
                                     )
                                     .clickable { onTileColorSourceChange(source) }
                                     .padding(horizontal = 14.dp, vertical = 7.dp),
-                                contentAlignment = Alignment.Center,
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
+                                if (swatch != null) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(12.dp)
+                                            .clip(CircleShape)
+                                            .background(swatch)
+                                            .border(1.dp, Color.White.copy(alpha = 0.6f), CircleShape),
+                                    )
+                                }
                                 Text(
                                     text = label,
                                     color = if (selected) Color.White else tokens.fg,

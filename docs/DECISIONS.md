@@ -5017,3 +5017,51 @@ rendering is byte-for-byte unchanged. Verified on an emulator: drag-resized both
 a clock tile to `COLUMN` (1×4) in edit mode — weather shows "mumbai" / "28°" / "overcast" fully
 readable and evenly spaced top-to-bottom with no clipping (both in and out of edit mode); clock
 shows "4:03pm" / "wed" / "19 august 2026" the same way. Build + full unit test suite green.
+
+## Tile colour source: "wallpaper" option, tiles read the same accent as the feed/Quick Panel
+
+User-requested, drawing an explicit parallel to existing behaviour: "glance and quick settings use
+their background and gadget/tile from accent picked up from wallpaper. similarly keep another color
+option for tiles to pickup from wallpaper, make provision in personalisation with added color tile."
+The feed/glance page and Quick Panel already derive a single accent `Color` from the current
+wallpaper via `rememberFeedPalette` (`feature/start/.../feed/FeedPage.kt`, `internal` — androidx.
+Palette for a custom photo, falling back to the gradient's own first layer colour for a stock
+wallpaper, with an average-colour fallback when Palette yields nothing); `QuickPanelOverlay.kt`
+already calls it directly across packages within `:feature:start`, which is the precedent this reuses
+verbatim rather than inventing a second implementation.
+
+`TileColorSource` (`core/data/settings/LauncherSettings.kt`) gained a third constant,
+`WALLPAPER_ACCENT`, alongside the existing `GLOBAL_ACCENT`/`APP_ICON`. `SettingsCodec` needed no
+changes — its enum round-trip is by name (`TileColorSource.entries.find { it.name == value }`), so a
+new constant persists for free. `StartScreen.kt` computes `wallpaperAccentColor` once at the top
+(unconditionally — cheap, since `rememberFeedPalette` memoizes internally the same way the feed page/
+Quick Panel's own always-on calls do) so Personalize can preview the real colour on its swatch before
+the user switches to it; a `noWallpaper` guard falls back to the plain global `accent` there, matching
+the feed/Quick Panel's own `flatBackground` check — `Wallpapers.forId("none")` has no "none" entry in
+its map and falls back to returning the bundled `Aurora` gradient (a deliberate design predating this
+change, used elsewhere so swatch previews always have *something* to render), so without the guard a
+"no wallpaper set" launcher would misleadingly tint every tile with Aurora's colour as if that were
+"the wallpaper," rather than falling back to the accent like the feed/Quick Panel do. A second,
+mode-gated `wallpaperAccent: Color?` (null unless `WALLPAPER_ACCENT` is actually selected) threads
+into the existing per-tile colour priority chain (`tileOverride → iconColor → wallpaperAccent →
+accent`) in three places that needed it: `StartPage`'s own `tileAccent` (top-level tiles, threaded via
+a new `TileView`/`StartPage` parameter alongside the existing `appIconColors: Boolean`), and
+`FolderTileContent`'s per-child mini-grid `cellBg` (folder children resolve their own colour
+independently of the parent tile's already-resolved accent, same as the existing app-icon-colour
+branch there). `StackTileContent`'s per-member colour needed **no new parameter** — its fallback chain
+already ends at the tile's own `accent` param, which is already wallpaper-aware by the time it reaches
+there, so threading a redundant unused parameter through it was reverted after a first pass added it.
+
+Personalize's "tile color source" pill row (`PersonalizeSheet.kt`) gained the requested "added color
+tile": a third pill next to "accent"/"app icon", with a small swatch dot sampled from the live
+wallpaper accent colour (not just a text label) so the user can see the actual colour before picking
+it — the concrete form of "make provision in personalisation with added color tile." When selected,
+the swatch's colour also fills the whole pill (matching how the "accent" pill already fills with the
+global accent when selected), giving the same "colour tile" affordance both unselected (dot preview)
+and selected (full pill). Verified on an emulator via `uiautomator dump`-sourced exact tap coordinates
+(manual pixel-eyeballing repeatedly mis-tapped the tightly-packed accent-swatch/pill grid): with no
+wallpaper set, the swatch and every tile correctly showed the plain blue global accent (the
+`noWallpaper` guard); after picking a distinct "sunset" stock gradient and selecting the "wallpaper"
+pill, the swatch, the pill's own selected fill, and every tile on Start (including a folder's mini-grid
+children) all switched to the same deep red/brick colour sampled from that gradient — confirming the
+whole chain end-to-end, not just the Personalize preview. Build + full unit test suite green.

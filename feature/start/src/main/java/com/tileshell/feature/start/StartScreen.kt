@@ -172,6 +172,7 @@ import com.tileshell.feature.livetiles.NotificationCenter
 import com.tileshell.feature.start.feed.FeedPage
 import com.tileshell.feature.start.feed.googleSearchUrl
 import com.tileshell.feature.start.feed.pagerCommitTarget
+import com.tileshell.feature.start.feed.rememberFeedPalette
 import com.tileshell.feature.livetiles.NotificationSnapshot
 import com.tileshell.feature.livetiles.NotificationTileFace
 import com.tileshell.feature.livetiles.PeopleTileFace
@@ -389,6 +390,28 @@ fun StartScreen(
     val tiledWallpaper = settings.tiledWallpaper
     val customWallpaperBitmap = settings.customWallpaperUri?.let { rememberWallpaperBitmap(it) }
     val tiledPhoto = if (tiledWallpaper) customWallpaperBitmap else null
+
+    // TileColorSource.WALLPAPER_ACCENT (FR-7 follow-up): the same wallpaper-derived
+    // accent colour the feed/glance page and Quick Panel already use (see
+    // rememberFeedPalette), so tiles read as one coordinated palette with them.
+    // Computed unconditionally (cheap — memoized internally, same as the feed/
+    // Quick Panel's own always-on calls) so Personalize can preview the actual
+    // colour on its "wallpaper" swatch before the user switches to it; only fed
+    // into the tile colour-resolution chain below when that mode is active. When
+    // there's no real wallpaper (`noWallpaper`), `wallpaper` itself still resolves
+    // to a bundled gradient (Wallpapers.forId's fallback), so falling through to
+    // rememberFeedPalette here would show that gradient's colour as if it were
+    // "the wallpaper's" — same guard the feed page/Quick Panel already use.
+    val wallpaperAccentColor = if (noWallpaper) {
+        accent
+    } else {
+        rememberFeedPalette(customWallpaperBitmap, wallpaper, accent).second
+    }
+    val wallpaperAccent = if (settings.tileColorSource == TileColorSource.WALLPAPER_ACCENT) {
+        wallpaperAccentColor
+    } else {
+        null
+    }
 
     // Whether the user's actual chosen background — the plain screen bg (no
     // wallpaper), a bundled gradient's themed base, or a custom/Bing photo's
@@ -890,6 +913,7 @@ fun StartScreen(
                     accent = accent,
                     accentId = settings.accentId,
                     appIconColors = settings.tileColorSource == TileColorSource.APP_ICON,
+                    wallpaperAccent = wallpaperAccent,
                     // Tiled-wallpaper mode ignores the gap setting (stays tight) so
                     // wider spacing never fragments the show-through wallpaper.
                     tileGapPx = if (tiledWallpaper) {
@@ -1293,6 +1317,7 @@ fun StartScreen(
             onTileGapChange = viewModel::setTileGap,
             tileColorSource = settings.tileColorSource,
             onTileColorSourceChange = viewModel::setTileColorSource,
+            wallpaperAccentPreview = wallpaperAccentColor,
             tileFill = settings.tileFill,
             onTileFillChange = viewModel::setTileFill,
             fontStyle = settings.fontStyle,
@@ -1641,6 +1666,11 @@ private fun StartPage(
     accent: Color,
     accentId: String,
     appIconColors: Boolean,
+    // Resolved wallpaper-accent colour when TileColorSource.WALLPAPER_ACCENT is
+    // active (null otherwise) — same value the feed/glance page and Quick Panel
+    // derive via rememberFeedPalette, computed once at the top and threaded down
+    // rather than recomputed per tile.
+    wallpaperAccent: Color?,
     tileGapPx: Float?,
     glass: Boolean,
     transparency: Float,
@@ -2104,6 +2134,7 @@ private fun StartPage(
                     val tileAccent = when {
                         tileOverride != null -> TileAccents.colorForOverride(tileOverride, accentId)
                         iconColor != null -> iconColor
+                        wallpaperAccent != null -> wallpaperAccent
                         else -> accent
                     }
                     // Shared across both renderers below (IconCellView / TileView) —
@@ -2305,6 +2336,7 @@ private fun StartPage(
                             // roomy 4-column grid (too tiny on 5/6 columns).
                             inlineFolderLaunch = model.size != TileSize.SMALL || columns == 4,
                             appIconColors = appIconColors,
+                            wallpaperAccent = wallpaperAccent,
                             nextSizeIsLarger = model.size.nextIsLarger(
                                 // A plain folder gets the same large step as an app tile
                                 // (see StartViewModel.resize) — only a widget stack (whose
@@ -2729,6 +2761,10 @@ internal fun TileView(
     showColorDot: Boolean = false,
     inlineFolderLaunch: Boolean = false,
     appIconColors: Boolean = false,
+    // See StartPage's own doc comment — resolved once, threaded down to a
+    // folder's children / a stack's members so they resolve their own colour
+    // the same way the top-level tile already did via its `accent` param.
+    wallpaperAccent: Color? = null,
     nextSizeIsLarger: Boolean = false,
     // Gesture-based drag resize (Stage 2 of the icons-mode arc). Only shown
     // when true — a widget stack gets the same corner-drag gesture as any
@@ -2955,6 +2991,7 @@ internal fun TileView(
                         editMode = editMode,
                         launchEnabled = inlineFolderLaunch,
                         appIconColors = appIconColors,
+                        wallpaperAccent = wallpaperAccent,
                         glass = glass,
                         transparency = transparency,
                         darkTheme = darkTheme,
@@ -4268,6 +4305,7 @@ private fun FolderTileContent(
     editMode: Boolean,
     launchEnabled: Boolean,
     appIconColors: Boolean,
+    wallpaperAccent: Color? = null,
     glass: Boolean,
     transparency: Float,
     darkTheme: Boolean,
@@ -4335,6 +4373,7 @@ private fun FolderTileContent(
                             ?.let { TileAccents.colorForOverride(it, "blue") }
                             ?: child?.takeIf { appIconColors }
                                 ?.let { rememberDominantIconColor(it.packageName, it.activityName) }
+                            ?: wallpaperAccent
                             ?: Color(0x2E000000)
                         val cellFill = when {
                             isEmptySlot -> Modifier
@@ -4626,8 +4665,10 @@ private fun StackTileContent(
             children.getOrNull(i)?.let { child ->
                 // Each member keeps its own colour while rotating: an explicit
                 // per-child override wins; otherwise, in app-icon-colour mode the
-                // icon's dominant colour shows; else the stack tile's own accent —
-                // same three-way chain as FolderOverlay/FolderTileContent. This has
+                // icon's dominant colour shows; else the stack tile's own `accent`
+                // (already resolved to the wallpaper accent upstream when that
+                // mode is active, so no separate branch is needed here) — same
+                // three-way chain as FolderOverlay/FolderTileContent. This has
                 // to be painted here (not on the outer TileView Box) since the
                 // outer background is fixed once per composition and can't vary
                 // per rotated member.
