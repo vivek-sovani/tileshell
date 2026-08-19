@@ -132,9 +132,9 @@ fun reorderTiles(order: List<String>, dragId: String, targetId: String): List<St
 private val MAX_PRESET_ROWS = TileSize.entries.maxOf { it.rows }
 
 /**
- * The nearest [TileSize] preset for a live drag-resize gesture (two-finger
- * stretch or single-finger corner drag — both always move both axes at
- * once, so there is no per-axis gating here): starting from a
+ * The nearest [TileSize] preset for a live drag-resize gesture (single-finger
+ * corner drag, which always moves both axes at once, so there is no
+ * per-axis gating here): starting from a
  * [currentCols]×[currentRows] footprint, the gesture has moved ([dxPx],
  * [dyPx]) since it began, measured in the same px [geom] uses for one grid
  * cell step (unit + gap) on each axis. The result is clamped to the grid's

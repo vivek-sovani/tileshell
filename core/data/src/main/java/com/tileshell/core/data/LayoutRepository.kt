@@ -49,7 +49,7 @@ class LayoutRepository(
     /**
      * Set a tile's size directly, rather than stepping through [cycleTileSize]'s
      * fixed cycle — the write path for gesture-based drag resize
-     * (`StartViewModel.resizeTo`), which can land on any of the nine
+     * (`StartViewModel.resizeTo`), which can land on any of the eleven
      * [TileSize] presets, not just the four the tap cycle reaches.
      */
     suspend fun setTileSize(id: String, size: TileSize) = dao.updateTileSize(id, size.name)
@@ -331,6 +331,29 @@ class LayoutRepository(
         val next = child.size.nextForFolderChild(largeAllowed)
         dao.updateFolderChildSize(child.rowId, next)
         if (next == TileSize.WIDE || next == TileSize.LARGE) {
+            dao.promoteFolderToStackIfUniform(folderId)
+        }
+    }
+
+    /**
+     * Set a folder child's size directly to [size] — the write path for
+     * gesture-based drag resize (mirrors [setTileSize] for top-level tiles),
+     * rather than stepping through [resizeFolderChild]'s fixed tap cycle. This
+     * is how a folder child reaches one of the drag-only presets (e.g. BANNER
+     * 4×1, COLUMN 1×4) that the tap cycle never visits. Shares the same
+     * stack-collapse / stack-promote bookkeeping as [resizeFolderChild].
+     */
+    suspend fun resizeFolderChildTo(folderId: String, child: FolderChild, size: TileSize) {
+        val siblings = dao.folderChildrenOnce(folderId)
+        val stackSize = siblings.firstOrNull()?.size
+            ?.takeIf { it == TileSize.WIDE || it == TileSize.LARGE }
+            ?.takeIf { s -> siblings.all { it.size == s } }
+        if (stackSize != null && child.size == stackSize && size != stackSize) {
+            dao.collapseStack(folderId, stackSize)
+            return
+        }
+        dao.updateFolderChildSize(child.rowId, size)
+        if (size == TileSize.WIDE || size == TileSize.LARGE) {
             dao.promoteFolderToStackIfUniform(folderId)
         }
     }

@@ -203,7 +203,7 @@ internal fun IconFolderCell(
                             val child = tile.children.getOrNull(rowIndex * 2 + colIndex)
                             Box(modifier = Modifier.size(cellSize)) {
                                 if (child != null) {
-                                    IconFolderChildGlyph(child = child, tint = tokens.fg, shape = iconShape, size = cellSize)
+                                    IconFolderChildGlyph(child = child, tint = tokens.fg, size = cellSize)
                                     val childBadge = notifications.badgeFor(child.packageName)
                                     if (childBadge > 0) {
                                         FolderChildBadge(
@@ -287,9 +287,8 @@ private fun IconCellChrome(
             .then(
                 if (editMode) Modifier else Modifier.tileGesture(onTap = onTap, onLongPress = onLongPress),
             )
-            // Gesture-based resize (two-finger stretch, or single-finger
-            // corner drag as a fallback) — see StartScreen.kt's
-            // tileStretchGesture doc comment for the full gesture design.
+            // Gesture-based resize (drag from the tile's bottom-right corner)
+            // — see StartScreen.kt's tileStretchGesture doc comment.
             .then(
                 if (selected && editMode && resizeHandlesEnabled) {
                     Modifier.tileStretchGesture(
@@ -470,16 +469,25 @@ private fun IconCellGlyph(tile: TileModel.App, tint: Color, shape: IconShape) {
     )
 }
 
-/** A folder mini-grid cell's masked child icon (see [maskedOrGlyphIcon]). */
+/**
+ * A folder mini-grid cell's child icon — always [IconShape.ORIGINAL], never
+ * the ambient [IconShape] the top-level icons use. User-reported: at 18dp a
+ * masked/plated icon (the colour plate `maskedOrGlyphIcon` draws behind a
+ * legacy, non-adaptive icon once a real shape is selected) reads as a
+ * cluttered "square border" crammed into a cell already this small — the
+ * mini-grid just isn't the size that masking was designed for. Top-level
+ * icons are unaffected; this only ever narrows what a *folder's children*
+ * show.
+ */
 @Composable
-private fun IconFolderChildGlyph(child: FolderChild, tint: Color, shape: IconShape, size: Dp) {
+private fun IconFolderChildGlyph(child: FolderChild, tint: Color, size: Dp) {
     maskedOrGlyphIcon(
         iconKey = child.iconKey,
         label = child.label,
         packageName = child.packageName,
         activityName = child.activityName,
         tint = tint,
-        shape = shape,
+        shape = IconShape.ORIGINAL,
         size = size,
         glyphSize = size * 0.7f,
     )

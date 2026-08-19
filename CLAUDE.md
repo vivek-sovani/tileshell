@@ -42,7 +42,7 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   merged to main).** New user ask, not in the WP prototype/spec: let someone who doesn't want the
   Windows Phone interface turn TileShell into a normal Android-style launcher — shaped app icons,
   folders, free placement — while keeping live tiles and widget stacks on the same screen. Full
-  design and rationale in DECISIONS.md ("Android-style icons home style" and its four supporting
+  design and rationale in DECISIONS.md ("Android-style icons home style" and its five supporting
   entries); summarized here. New `LauncherSettings.homeStyle: HomeStyle { TILES, ICONS }` is the only
   new top-level flag — layout, persistence, gestures, folders, the app drawer and backup are all
   shared unmodified between the two styles. Icon vs. live tile is derived purely from a tile's own
@@ -50,25 +50,34 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   MEDIUM+ (live tiles, folders, widget stacks) renders exactly as in TILES mode with zero new code,
   since the whole mixed-content mechanism is one condition at the single `TileView` call site.
   Growing/shrinking a tile across the SMALL boundary is therefore the icon↔live-tile conversion
-  gesture — which is why this arc also shipped **gesture-based drag resize** (three handles per
-  selected tile, mirroring the feed widget's shipped pattern) and **five new `TileSize` presets**
-  (`WIDE_SMALL`/`TALL`/`WIDE_MEDIUM`/`TALL_MEDIUM`/`XLARGE`, nine total; the tap-cycle stays on the
-  original four). A new **`FREE` tile arrangement mode** (alongside `DENSE`/`STICKY`) is the
-  placement engine ICONS mode defaults to — nothing moves unless the user moves it; dropping onto an
-  occupied cell swaps the two tiles rather than pushing anything down — and does not reverse
-  `STICKY`'s own "never leave a fully empty row" invariant, which stays exactly as it was. Icon
-  masking (`IconShape`: circle/squircle/rounded/original) uses a real superellipse
-  (`core/design/Squircle.kt`), not a `RoundedCornerShape` approximation, with a genuine adaptive-icon
-  vs. legacy-icon rendering split. Verified on both an emulator (home-style/icon-shape rows, real
-  device icons rendering unfilled with wallpaper showing through, and — the load-bearing behaviour —
-  a SMALL icon correctly converting to a filled live tile when grown past SMALL, persisted after
-  exiting edit mode) and a physical device (Samsung SM-S938B; fresh install, edit mode, resize
-  handles and Personalize all confirmed working) before physical on-device gesture testing was
-  handed to the user directly (repeated adb-swipe mistargeting, likely TalkBack intercepting
-  single-finger gestures on that device). Build + full unit test suite green throughout every stage;
-  new tests: `ResizeSnapTest`, `SquircleTest`, `IconCellShapeTest`, plus `GridPackerTest` and
-  `SettingsCodecTest` extensions. **Not yet merged to `main`** — this status entry documents the
-  branch's state for continuity, not a shipped release.
+  gesture — which is why this arc also shipped **gesture-based drag resize** and **eleven total
+  `TileSize` presets** (seven drag-only: `WIDE_SMALL`/`TALL`/`WIDE_MEDIUM`/`TALL_MEDIUM`/`XLARGE`/
+  `BANNER`/`COLUMN`; the tap-cycle stays on the original four). A new **`FREE` tile arrangement
+  mode** (alongside `DENSE`/`STICKY`) is the placement engine ICONS mode defaults to — nothing moves
+  unless the user moves it; dropping onto an occupied cell swaps the two tiles rather than pushing
+  anything down — and does not reverse `STICKY`'s own "never leave a fully empty row" invariant,
+  which stays exactly as it was. Icon masking (`IconShape`: circle/squircle/rounded/original) uses a
+  real superellipse (`core/design/Squircle.kt`), not a `RoundedCornerShape` approximation, with a
+  genuine adaptive-icon vs. legacy-icon rendering split. Verified on both an emulator (home-style/
+  icon-shape rows, real device icons rendering unfilled with wallpaper showing through, and — the
+  load-bearing behaviour — a SMALL icon correctly converting to a filled live tile when grown past
+  SMALL, persisted after exiting edit mode) and a physical device (Samsung SM-S938B; fresh install,
+  edit mode, resize handles and Personalize all confirmed working). **Three on-device follow-up
+  fixes after physical-device testing** (see DECISIONS "Icons-mode resize: three on-device fixes
+  after real-hardware testing"): (1) the resize gesture — which had grown a two-finger-stretch
+  alternative alongside the corner-drag during on-device gesture debugging — was simplified back to
+  **corner-drag only** ("corner stetch work well," the two-finger path added nothing); (2) a folder's
+  **closed mini-grid children now always render `IconShape.ORIGINAL`**, never the ambient icon shape,
+  fixing a "square border around icon in collapsed folder" report traced to a legacy-icon colour
+  plate that reads as clutter at 18dp (top-level icons and expanded children are unaffected); (3) the
+  two newest presets, **`BANNER` (4×1) and `COLUMN` (1×4), are reachable by drag from both app tiles
+  and folder children** — folder children previously had no drag-resize at all
+  (`resizeHandlesEnabled` was gated off for them), now removed in favour of a new
+  `resizeFolderChildTo` (ViewModel/repository) direct-set write path sharing the existing tap cycle's
+  stack-collapse/-promote bookkeeping. Build + full unit test suite green throughout every stage and
+  every follow-up fix; new tests: `ResizeSnapTest`, `SquircleTest`, `IconCellShapeTest`, plus
+  `GridPackerTest` and `SettingsCodecTest` extensions. **Not yet merged to `main`** — this status
+  entry documents the branch's state for continuity, not a shipped release.
 - **Post-v2.5.0 — feed widget stacks: four fixes from on-device testing.** User-reported after real
   hardware use as two symptoms ("stack position can't be changed", "another widget can not be placed
   next to the stack"), which were four separate defects — see DECISIONS "Feed widget stacks — four

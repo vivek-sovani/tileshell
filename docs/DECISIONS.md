@@ -4599,3 +4599,55 @@ private to internal to reuse it here — the same visibility-widening pattern al
 resize needed no change either: `resizeHandlesEnabled` was already generic over `App` and `Folder`
 models, so a SMALL folder grows into `FolderTileContent`'s normal mini-grid via the exact same
 handles an icon uses to become a live tile.
+
+## Icons-mode resize: three on-device fixes after real-hardware testing
+
+Direct follow-up after installing the icons-mode arc on a physical device: "cancel double finger
+gesture for resizing. corner stetch work well. in collapsed folder show 1x1 tile show as icon. also
+support 1x4 4x1 folder." Three separate corrections, landed together.
+
+**Two-finger stretch removed; single-finger corner-drag is now the only resize gesture.** Between
+the "Nine tile size presets" entry above and this one, the resize gesture itself went through an
+extra round not otherwise recorded here: the original three-drag-handle design (bottom-centre /
+centre-right / bottom-right corner) was replaced with `Modifier.tileStretchGesture`, offering both a
+two-finger stretch and a single-finger drag from a 40dp corner zone as alternatives, with the live
+preview resizing the tile's own wrapper `Box` in place exactly as described above. On-device testing
+found the corner-drag alone worked well and the two-finger path added complexity without a real
+benefit, so `tileStretchGesture` was simplified back down to corner-drag only — a single
+`awaitFirstDown` inside the 40dp corner zone, tracked by pointer id through `awaitPointerEvent()`
+until release. `snapResizeTarget` and the size-preset set are unaffected; only the input gesture
+narrowed.
+
+**Folder mini-grid children always render `IconShape.ORIGINAL`, never the ambient icon shape.** User
+report: "in collapsed folder show 1x1 tile show as icon" — clarified as "just remove square border
+around icon in collapsed folder in icon mode." Reproducing on an emulator with the prototype's
+monoline WP glyphs showed no border in any shape, because those glyphs never go through
+`maskedOrGlyphIcon`'s masking path at all. The most plausible real cause, given the code: a *legacy*
+(non-adaptive) installed-app icon gets a tinted "plate" drawn behind it once a non-`ORIGINAL` shape is
+selected (see "Icon shape masking" above) — comfortable at a top-level icon's full size, but at an
+18dp mini-grid cell that plate reads as a cluttered square outline crammed into a space too small for
+it. Rather than trying to shrink or suppress the plate at that scale, `IconFolderChildGlyph` now
+hardcodes `shape = IconShape.ORIGINAL` unconditionally instead of taking the ambient `IconShape`
+parameter — a folder's closed-preview children always show their unmasked, unplated icon, regardless
+of what shape the user picked for top-level icons. Top-level icons and expanded folder children (which
+route through the ordinary `IconCellView`/`IconFolderCell` branch, not this mini-grid) are unaffected.
+
+**Two more drag-only presets — `BANNER` (4×1) and `COLUMN` (1×4) — reachable by both app tiles and
+folder children.** `TileSize` grows from nine footprints to eleven; `next()`/`nextForFolderChild()`
+fold both back to `MEDIUM`/its existing landing sizes exactly like the other five drag-only presets,
+so the tap cycles are untouched. The more substantial half of this fix: folder children previously
+couldn't reach *any* of the seven drag-only presets, because `resizeHandlesEnabled` was explicitly
+gated off for them (`folderChildRef(model.id) == null`) — a Stage 5 decision made when folder children
+still only had the tap-based `nextForFolderChild` cycle to fall back on. That gate is now removed
+entirely (`resizeHandlesEnabled = true` unconditionally); a folder child gets the exact same
+corner-drag gesture a top-level tile does, since inline expansion already renders it in the same
+absolute grid a top-level tile uses — nothing folder-specific about the geometry needed solving. The
+drag's release now branches on `folderChildRef(model.id)`: a top-level tile still calls
+`StartViewModel.resizeTo`, while a folder child calls the new `resizeFolderChildTo` (ViewModel) →
+`LayoutRepository.resizeFolderChildTo` (repository), a direct-set sibling of the existing
+`resizeFolderChild`/`nextForFolderChild` tap path that shares its stack-collapse/-promote bookkeeping
+(resizing a stack member off its uniform WIDE/LARGE size still collapses the stack; landing a child on
+WIDE/LARGE still checks whether the folder should promote to a stack) but writes the drag's settled
+size directly instead of computing the next step in a fixed cycle. The widget-stack corner-control
+guard (`isStackTile`) is untouched — a stack tile itself still resizes only via its own overlay
+controls, never this gesture.

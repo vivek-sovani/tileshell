@@ -164,6 +164,35 @@ class GridPackerTest {
         assertEquals(2, wideMedium.rows)
     }
 
+    @Test
+    fun `banner consumes a full-width single row on a 4-column grid`() {
+        val p = GridPacker.pack(specs(TileSize.BANNER)).single()
+        assertEquals(0, p.col)
+        assertEquals(0, p.row)
+        assertEquals(4, p.cols)
+        assertEquals(1, p.rows)
+    }
+
+    @Test
+    fun `column consumes a full-height single column and packs beside another`() {
+        val tiles = specs(TileSize.COLUMN, TileSize.WIDE_SMALL, TileSize.SMALL)
+        val p = GridPacker.pack(tiles)
+        val column = p.first { it.id == "t0" }
+        assertEquals(1, column.cols)
+        assertEquals(4, column.rows)
+        assertEquals(0 to 0, column.col to column.row)
+        val rows = GridPacker.rowCount(p)
+        val occupied = Array(rows) { BooleanArray(GridPacker.COLUMNS) }
+        for (placement in p) {
+            for (r in placement.row until placement.row + placement.rows) {
+                for (c in placement.col until placement.col + placement.cols) {
+                    assertFalse("tiles overlap at ($c,$r)", occupied[r][c])
+                    occupied[r][c] = true
+                }
+            }
+        }
+    }
+
     // ---- determinism / reorder stability --------------------------------
 
     @Test

@@ -919,6 +919,18 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Set a folder child's size directly to [size] — the write path for
+     * gesture-based drag resize, mirroring [resizeTo] for top-level tiles.
+     * Can land on any of the eleven [TileSize] presets, unlike
+     * [resizeFolderChild]'s fixed tap cycle.
+     */
+    fun resizeFolderChildTo(folderId: String, child: FolderChild, size: TileSize) {
+        viewModelScope.launch(writeContext) {
+            repository.resizeFolderChildTo(folderId, child, size)
+        }
+    }
+
+    /**
      * Turn a folder into a widget stack in one shot: every child resized to
      * [size] (WIDE or LARGE), the folder tile matching. In sticky mode this
      * grows the folder tile's own footprint exactly like [resize] does, so it
@@ -1052,8 +1064,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Set a tile's size directly to [size] — the write path for gesture-based
-     * drag resize, which can land on any of the nine [TileSize] presets rather
-     * than stepping through [resize]'s fixed tap cycle. Shares [resize]'s two
+     * drag resize, which can land on any of the eleven [TileSize] presets
+     * rather than stepping through [resize]'s fixed tap cycle. Shares [resize]'s two
      * guards (a widget stack never resizes; sticky/free mode pushes a colliding
      * neighbor down via [stickyResizeSlots] exactly as a tap-resize would) but
      * writes [size] as given instead of computing `size.next(largeAllowed)`.
