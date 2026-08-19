@@ -4812,33 +4812,35 @@ shape's own `Outline` computation (64 trig-heavy points per `createOutline` call
 is not a comparable concern: Compose only calls it for on-screen rows and caches it per shape/size, so
 its cost is bounded to whatever's actually visible, unlike the unbounded per-pixel scan.
 
-## Weather/calendar/clock icons stay live at 1×1 in ICONS mode
+## Weather/calendar/clock icons stay live at 1×1 in ICONS mode — rendered exactly like a tile-mode SMALL tile
 
 User request: a real Android launcher's dynamic calendar/weather icons were the explicit precedent —
-weather and calendar (and, on clarification, clock too) icons should keep showing live info even at
-1×1 in ICONS home style, rather than falling back to the generic masked/glyph icon every other app
-gets at that size. Clarified via `AskUserQuestion` on two points: what the icons should actually show
-(weather → a condition glyph, no temperature text; calendar → today's day-of-month, no
-weekday/month), and whether "date" meant calendar only or clock too (answer: both).
+weather, calendar, and clock icons should keep showing live info even at 1×1 in ICONS home style,
+rather than falling back to the generic masked/glyph icon every other app gets at that size. Went
+through two rounds of on-device correction after the first pass shipped:
 
-Reused each tile's existing live-data plumbing rather than inventing new ones — `WeatherCache`,
-`currentCalendarToday()`/`CalendarToday.day`, `currentClockFace()`/`ClockFace.hm` — adding one new
-sibling composable per face in `:feature:livetiles`, sized for a 1×1 icon cell's smaller footprint
-(which also reserves room below for the app-name label, unlike a full SMALL tile):
-`WeatherIconFace` (a condition glyph via the new pure `weatherConditionIconKey(condition): String`,
-keyed off substrings of the already-cached condition phrase since the raw WMO code isn't persisted),
-`CalendarIconFace` (day number at 22sp vs `CalendarSmallFace`'s 34sp), `ClockIconFace` (time at 13sp
-vs `ClockSmallFace`'s 20sp). `TileIcons` gains three new condition glyphs (`"sun"`/`"rain"`/`"snow"`,
-hand-authored in the existing stroke-only monoline style, `"rain"`/`"snow"` reusing the existing
-`"cloud"` path plus small drop/flake marks) — no distinct glyph existed for these, only the combined
-sun-behind-cloud `"weather"` icon and a plain `"cloud"`.
+**First pass (superseded):** new, smaller purpose-built composables per face (`WeatherIconFace` with
+a condition glyph, `CalendarIconFace` at 22sp, `ClockIconFace` at 13sp) sized to fit inside the
+existing 40dp icon glyph slot alongside the usual app-name label, plus three new `TileIcons` condition
+glyphs (`"sun"`/`"rain"`/`"snow"`) and a pure `weatherConditionIconKey` mapper. User feedback after
+trying it: "should be shown just like tile mode" (i.e. reuse tile mode's own SMALL-tile content and
+sizing verbatim, not a shrunk-down reinterpretation), and separately "current contents is very small
+in size.. also show in accent color background." Both pointed at the same fix, so the first pass's
+new composables/glyphs/mapper were deleted entirely rather than kept alongside the real fix.
 
-`IconCellView` branches on `tile.iconKey` right where it previously always called the generic
-`IconCellGlyph`, falling back to it for every other app (and for weather specifically, on a genuine
-cache miss too — `WeatherIconFace` takes a `fallback` param same as its `TILES`-mode sibling). Gained
-a `liveActive: Boolean` param (not previously threaded into `IconCellView` at all, since a plain
-masked icon never needed it) wired from the same `liveActive` already computed at the call site for
-`TileView`. Font sizes (22sp/13sp) are a first-pass best-effort choice, not verified against the
-narrower 40dp icon-cell glyph area on a physical device — flag for on-device tuning if either clips.
-New `weatherConditionIconKey` test coverage in `WeatherTest.kt` (all condition phrases → their
-category, including the unrecognised/blank fallback to "cloud").
+**Shipped design:** `IconCellView` now renders these three iconKeys as a genuine mini tile — an
+`accent`-filled, `RoundedCornerShape(8.dp)`-clipped `Box` (`LiveIconTile`, new private composable)
+filling the *entire* cell, holding the exact same `WeatherSmallFace`/`CalendarSmallFace`/
+`ClockSmallFace` composables (`:feature:livetiles`) tile mode's own SMALL tile already uses — same
+data plumbing (`WeatherCache`/`currentCalendarToday()`/`currentClockFace()`), same font sizes (34sp
+day number, 20sp time, weather's temperature text), and deliberately **no label underneath** (tile
+mode's own SMALL tile doesn't show one either — the mini tile *is* the whole cell, exactly mirroring
+`AppTileContent`'s `tile.size == TileSize.SMALL` branch in `StartScreen.kt`). Every other app keeps
+the ordinary icon+label ICONS-mode layout unchanged; only these three iconKeys branch into
+`LiveIconTile`. `IconCellView` gained an `accent: Color` param (wired from the same `tileAccent` value
+already computed at the call site for `TileView`/`TileControls`, following the existing per-tile
+accent-override → app-icon-colour → global-accent priority chain) alongside the already-added
+`liveActive: Boolean`. `LocalTileFaceColor` needs no new wiring — it's already provided once, high in
+`StartScreen`'s composition, ambient to the whole screen including `IconCellView`, so the reused
+`*SmallFace` composables automatically get the same white-on-accent (or black-on-light-glass) text
+colour real tiles use.

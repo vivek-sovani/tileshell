@@ -46,12 +46,18 @@ import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.design.SquircleShape
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.colorTokens
-import com.tileshell.feature.livetiles.CalendarIconFace
-import com.tileshell.feature.livetiles.ClockIconFace
+import com.tileshell.feature.livetiles.CalendarSmallFace
+import com.tileshell.feature.livetiles.ClockSmallFace
 import com.tileshell.feature.livetiles.NotificationSnapshot
-import com.tileshell.feature.livetiles.WeatherIconFace
+import com.tileshell.feature.livetiles.WeatherSmallFace
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+/** Corner radius for the accent-filled "mini tile" [IconCellView] renders for
+ *  weather/calendar/clock — a fixed, modest rounding, not tied to the tile-mode
+ *  corner-radius setting, since this is the one place ICONS mode borrows tile
+ *  mode's filled-square look rather than a masked icon. */
+private val LIVE_ICON_CORNER_RADIUS = 8.dp
 
 /**
  * The ICONS-home-style renderer for a 1×1 cell (`LauncherSettings.homeStyle
@@ -63,12 +69,15 @@ import kotlinx.coroutines.withContext
  * composable only ever exists at SMALL, so it doesn't need TileView's
  * fill/glass/wallpaper machinery at all.
  *
- * Three iconKeys are the exception to "no live face": weather/calendar/clock
- * stay live even at 1×1 (user-requested — a real Android launcher's dynamic
- * calendar/weather icons are the precedent), showing a condition glyph
- * ([WeatherIconFace]), today's day-of-month ([CalendarIconFace]), or the
- * current time ([ClockIconFace]) instead of the generic masked icon — there's
- * no room in a 1×1 cell for a fuller live face, unlike [TileView]'s 2×2+.
+ * Three iconKeys are the exception to "no live face, no fill": weather/
+ * calendar/clock stay live even at 1×1 (user-requested — a real Android
+ * launcher's dynamic calendar/weather icons are the precedent, and the user
+ * asked for these to render "just like tile mode"), so instead of the
+ * icon+label layout every other app gets, these three fill the whole cell
+ * with an [accent]-coloured mini tile (rounded to [LIVE_ICON_CORNER_RADIUS])
+ * holding the exact same [WeatherSmallFace]/[CalendarSmallFace]/
+ * [ClockSmallFace] tile mode's own SMALL tile uses — same content, same font
+ * sizes, no separate label underneath (there isn't one in tile mode either).
  *
  * [resizeHandlesEnabled]/[onResizeDragStart]/[onResizeDragBy]/[onResizeDragEnd]
  * mirror the same gesture-based drag resize [TileView] exposes — growing an
@@ -96,6 +105,7 @@ internal fun IconCellView(
     canMoveBack: Boolean,
     canMoveForward: Boolean,
     iconShape: IconShape = IconShape.ORIGINAL,
+    accent: Color = Color.Gray,
     liveActive: Boolean = false,
     resizeHandlesEnabled: Boolean = false,
     onResizeDragStart: () -> Unit = {},
@@ -126,26 +136,50 @@ internal fun IconCellView(
         onResizeDragEnd = onResizeDragEnd,
     ) {
         when (tile.iconKey) {
-            "weather" -> WeatherIconFace(
-                fallback = { IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape) },
-                modifier = Modifier.size(40.dp),
-            )
-            "calendar" -> CalendarIconFace(active = liveActive, modifier = Modifier.size(40.dp))
-            "clock" -> ClockIconFace(active = liveActive, modifier = Modifier.size(40.dp))
-            else -> IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape)
+            "weather" -> LiveIconTile(accent) {
+                WeatherSmallFace(
+                    fallback = { IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape) },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            "calendar" -> LiveIconTile(accent) {
+                CalendarSmallFace(active = liveActive, modifier = Modifier.fillMaxSize())
+            }
+            "clock" -> LiveIconTile(accent) {
+                ClockSmallFace(active = liveActive, modifier = Modifier.fillMaxSize())
+            }
+            else -> {
+                IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape)
+                // Hide the label at 6 columns — a 1×1 cell is too narrow there
+                // for icon plus text without truncating (see
+                // LauncherSettings.HomeStyle's design notes / DECISIONS.md
+                // "cells stay square").
+                if (columns < 6) {
+                    Spacer(Modifier.size(4.dp))
+                    Text(
+                        text = (tile.label ?: tile.iconKey ?: "").lowercase(),
+                        color = tokens.fg,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                    )
+                }
+            }
         }
-        // Hide the label at 6 columns — a 1×1 cell is too narrow there for
-        // icon plus text without truncating (see LauncherSettings.HomeStyle's
-        // design notes / DECISIONS.md "cells stay square").
-        if (columns < 6) {
-            Spacer(Modifier.size(4.dp))
-            Text(
-                text = (tile.label ?: tile.iconKey ?: "").lowercase(),
-                color = tokens.fg,
-                fontSize = 11.sp,
-                maxLines = 1,
-            )
-        }
+    }
+}
+
+/** An [accent]-filled, rounded-square "mini tile" occupying the whole icon
+ *  cell — see [IconCellView]'s doc comment on why weather/calendar/clock
+ *  render this way instead of a masked icon. */
+@Composable
+private fun LiveIconTile(accent: Color, content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clip(RoundedCornerShape(LIVE_ICON_CORNER_RADIUS))
+            .background(accent),
+    ) {
+        content()
     }
 }
 

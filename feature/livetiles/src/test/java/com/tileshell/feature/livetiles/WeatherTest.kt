@@ -90,24 +90,6 @@ class OpenMeteoTest {
     }
 
     @Test
-    fun `condition phrases map to one of four icon categories`() {
-        assertEquals("sun", weatherConditionIconKey("clear"))
-        assertEquals("sun", weatherConditionIconKey("mostly clear"))
-        assertEquals("rain", weatherConditionIconKey("rain"))
-        assertEquals("rain", weatherConditionIconKey("drizzle"))
-        assertEquals("rain", weatherConditionIconKey("freezing drizzle"))
-        assertEquals("rain", weatherConditionIconKey("rain showers"))
-        assertEquals("rain", weatherConditionIconKey("thunderstorm"))
-        assertEquals("snow", weatherConditionIconKey("snow"))
-        assertEquals("snow", weatherConditionIconKey("snow showers"))
-        assertEquals("cloud", weatherConditionIconKey("partly cloudy"))
-        assertEquals("cloud", weatherConditionIconKey("overcast"))
-        assertEquals("cloud", weatherConditionIconKey("fog"))
-        assertEquals("cloud", weatherConditionIconKey("—"))
-        assertEquals("cloud", weatherConditionIconKey(""))
-    }
-
-    @Test
     fun `detail line shows precipitation chance only when meaningful`() {
         assertEquals("chance of rain · 40%", weatherDetail(40))
         assertEquals("", weatherDetail(0))

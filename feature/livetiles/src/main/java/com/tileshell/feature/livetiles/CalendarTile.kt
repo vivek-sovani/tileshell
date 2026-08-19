@@ -129,36 +129,6 @@ fun CalendarSmallFace(active: Boolean, modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * The compact calendar face for a 1×1 icon-mode cell (ICONS home style — see
- * `feature/start/IconCellView.kt`): today's day-of-month, smaller than
- * [CalendarSmallFace]'s 34sp since an icon cell also reserves room below for
- * the app-name label, unlike a full small tile. Refreshes on the minute
- * boundary while [active] so it rolls over after midnight; no permission
- * needed, same as [CalendarSmallFace].
- */
-@Composable
-fun CalendarIconFace(active: Boolean, modifier: Modifier = Modifier) {
-    var today by remember { mutableStateOf(currentCalendarToday()) }
-    LaunchedEffect(active) {
-        if (!active) return@LaunchedEffect
-        while (true) {
-            today = currentCalendarToday()
-            delay(60_000L - (System.currentTimeMillis() % 60_000L))
-        }
-    }
-    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(
-            text = today.day.toString(),
-            color = FaceText,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.ExtraLight,
-            letterSpacing = (-1).sp,
-            maxLines = 1,
-        )
-    }
-}
-
 @Composable
 private fun CalendarDateColumn(today: CalendarToday, size: TileSize) {
     // WIDE and MEDIUM share the same 2-row height (only LARGE's 3 rows have the

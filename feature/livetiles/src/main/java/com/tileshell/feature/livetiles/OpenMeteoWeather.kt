@@ -37,25 +37,6 @@ fun weatherCodeToCondition(code: Int): String = when (code) {
 }
 
 /**
- * Maps [weatherCodeToCondition]'s phrase to one of four icon categories — the
- * "TileIcons" glyph a 1×1 icon-mode weather icon shows (see
- * `feature/start/IconCellView.kt`), since there's no room there for temperature
- * text, only a condition glyph. Keyed on substrings of the phrase rather than
- * the raw WMO code (which isn't persisted — only the mapped phrase is, in
- * [WeatherSnapshot.condition]) so it works for any already-cached snapshot.
- * Pure and unit-tested; an unrecognised/blank phrase falls back to "cloud".
- */
-fun weatherConditionIconKey(condition: String): String {
-    val c = condition.lowercase()
-    return when {
-        "snow" in c -> "snow"
-        "rain" in c || "drizzle" in c || "thunderstorm" in c -> "rain"
-        "clear" in c -> "sun"
-        else -> "cloud"
-    }
-}
-
-/**
  * The tile's back-face detail line from the day's max precipitation probability
  * (e.g. `chance of rain · 40%`). Empty when there is no meaningful chance. Pure.
  */

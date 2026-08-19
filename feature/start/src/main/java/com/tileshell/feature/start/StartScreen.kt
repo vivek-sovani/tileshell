@@ -2211,6 +2211,7 @@ private fun StartPage(
                             canMoveBack = canMoveBack,
                             canMoveForward = canMoveForward,
                             iconShape = iconShape,
+                            accent = tileAccent,
                             liveActive = liveActive,
                             resizeHandlesEnabled = resizeHandlesEnabled,
                             onResizeDragStart = onResizeDragStartAction,
