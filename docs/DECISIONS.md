@@ -4932,3 +4932,43 @@ User-reported right after: "icon size should be bigger... as there is no square 
 the backdrop left the existing 18dp `FolderChildIcon` icon reading as too small/lost in the cell.
 `FolderChildIcon` now sizes to 26dp in ICONS mode (vs the original 18dp, kept unchanged for TILES
 mode, where the icon still sits on its own tinted-square backdrop and was tuned for that look).
+
+## Picking "icons" in the wizard now actually shrinks the default apps to icons
+
+User-reported, tying back to the reference screenshot from the wizard entry above: picking "icons"
+in the first-run wizard still showed a Start screen dominated by big live tiles, not icons — "the
+icons mode - default start showing more tiles than icons. user may get confused." Root-caused before
+writing any code (via a research pass over `DefaultLayout.kt`/`LayoutSeeder.kt`/`StartViewModel.kt`):
+`DefaultLayout.DEFAULT_TILES` seeds ~61% of the default 18 tiles at MEDIUM/WIDE (phone, camera,
+contacts, mail, messages, weather, calendar, clock, photos, music, and the whole "social" folder) —
+fixed WP-appropriate sizes, written by `seedIfEmpty()` in `StartViewModel.init{}` *before* the wizard
+even opens. Choosing ICONS there only flips `LauncherSettings.homeStyle` (`setHomeStyle`'s own doc
+comment: "rewrites nothing in the layout itself") — it was never home-style-aware, unlike
+`AppListViewModel.pin()`, which already seeds a *newly pinned* app at SMALL in ICONS mode. Since ICONS
+mode only renders `SMALL` tiles as icons, everything seeded at MEDIUM+ kept rendering exactly as it
+would in TILES mode, regardless of the wizard choice.
+
+Fixed at the one safe hook point: `StartViewModel.chooseHomeStyle(ICONS)` now also calls a new
+`shrinkDefaultAppsToIcons()` — walks the just-seeded `tiles.value`, resizing every top-level
+`TileModel.App` with a real, non-blank `packageName` down to `SMALL`, and clearing every top-level
+tile's `gridSlot` (whether resized or not) so the whole grid re-flows dense/compact around the new
+sizes instead of leaving holes where STICKY mode's `init`-time `seedStickySlots` had already anchored
+the old, larger footprints. Two things are deliberately left untouched, matching the "known Android
+icons + a few live tiles" look: `liveOnly` tiles (blank package — clock/weather/calendar/personalize,
+already correct or meant to stay live) and folders (a folder keeps its folder-sized tile, not shrunk
+to a compact icon). Scoped to only ever run once, from the one-shot wizard's ICONS pick on a
+genuinely fresh layout — never from a later Personalize toggle — so it can never clobber a layout the
+user has since customized; that path (`setHomeStyle` called directly, not through the wizard) is
+completely unchanged.
+
+A genuinely pleasant emergent result, not separately designed for: on a device where `calendar`'s
+role *does* resolve to a real installed app (its package is non-blank), `shrinkDefaultAppsToIcons`
+shrinks it to SMALL like any other real app — and since it's still iconKey `"calendar"`, it
+automatically gets the earlier "weather/calendar/clock stay live at 1×1" treatment, landing as a
+compact live "day-of-month" mini tile for free, with zero code written specifically for that
+interaction. Verified on a fresh emulator install (`pm clear` equivalent via uninstall/reinstall):
+clock and weather stayed as their original bigger live tiles (unresolved roles, `liveOnly`, blank
+package on that emulator), calendar became a compact live "19" tile, every other app (phone/camera/
+contacts/gmail/messages/photos/music/maps/chrome) became a small real-icon, and the social folder
+kept its bigger folder tile with bare real-icon children — matching the reference screenshot's mixed
+look closely. Build + tests green.

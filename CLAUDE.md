@@ -38,6 +38,20 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.5.1 — picking "icons" in the wizard now actually shrinks the default apps to icons.**
+  User-reported: picking "icons" still showed a Start screen dominated by big live tiles — 61% of
+  `DefaultLayout.DEFAULT_TILES`' ~18 seeded tiles are MEDIUM/WIDE, seeded before the wizard even
+  opens, and `setHomeStyle` deliberately never resizes anything (a pure renderer flag). New
+  `StartViewModel.shrinkDefaultAppsToIcons()`, called only from `chooseHomeStyle(ICONS)`: resizes
+  every top-level app tile with a real package down to SMALL and clears every tile's `gridSlot` so
+  the grid re-flows compact instead of leaving holes from STICKY's already-anchored larger
+  footprints. `liveOnly` tiles (clock/weather/calendar/personalize) and folders are left untouched.
+  Scoped to the one-shot wizard only — a later Personalize toggle is completely unaffected, so it can
+  never clobber a customized layout. Verified end-to-end on a fresh emulator install: mostly icons,
+  clock/weather stayed live, and — a nice emergent result from composing with the earlier "live icons
+  at 1×1" fix, not separately coded — calendar (whose role resolved to a real app on that emulator)
+  automatically became a compact live "day of month" mini tile. See DECISIONS "Picking 'icons' in the
+  wizard now actually shrinks the default apps to icons." Build + tests green.
 - **Post-v2.5.1 — closed folder's mini-grid shows the real app icon in ICONS mode too.** User-reported
   with a real-launcher screenshot: a folder's default apps (contacts/mail/messages) showed the
   generic WP glyph in the closed mini-grid instead of each app's real icon — `FolderChildIcon` had

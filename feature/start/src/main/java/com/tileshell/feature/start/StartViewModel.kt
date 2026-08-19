@@ -732,12 +732,55 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** The first-run wizard's pick: sets [style] via [setHomeStyle] and marks
-     *  the one-shot wizard flag so it never shows again. */
+    /**
+     * The first-run wizard's pick: sets [style] via [setHomeStyle] and marks
+     * the one-shot wizard flag so it never shows again. Picking ICONS also
+     * shrinks the just-seeded default apps down to SMALL (see
+     * [shrinkDefaultAppsToIcons]) — user-reported: picking "icons" still
+     * showed a Start screen dominated by big live tiles, confusingly unlike
+     * what "icons" implied, since [setHomeStyle] deliberately never resizes
+     * anything (it's a pure renderer flag) and [DefaultLayout]'s fixed
+     * WP-appropriate seed sizes are written well before this choice is ever
+     * made.
+     */
     fun chooseHomeStyle(style: HomeStyle) {
         setHomeStyle(style)
+        if (style == HomeStyle.ICONS) shrinkDefaultAppsToIcons()
         HomeStyleWizardPrefs.markShown(getApplication())
         _homeStyleWizardOpen.value = false
+    }
+
+    /**
+     * Shrinks every current top-level app tile with a real, resolvable
+     * package down to SMALL, and clears every top-level tile's anchored
+     * `gridSlot` so the whole grid re-flows dense/compact around the new
+     * sizes instead of leaving gaps where the old, larger anchored
+     * footprints used to sit (STICKY mode's own default anchors every
+     * seeded tile at its dense-packed cell during `init` — see
+     * `seedStickySlots` — computed for the *old*, larger sizes). Only ever
+     * called once, from the one-shot wizard's ICONS pick on a genuinely
+     * fresh (never-customized) layout — never from a later Personalize
+     * toggle — so it can't clobber anything the user has since arranged.
+     *
+     * Deliberately leaves two kinds of tile untouched, matching the "known
+     * Android icons + a few live tiles" look the reference asked for:
+     * blank-package `liveOnly` tiles (clock/weather/calendar/personalize —
+     * these should keep reading as live tiles, or are already SMALL), and
+     * folders (a folder stays a folder-sized tile with its own mini-grid
+     * preview, not shrunk to a compact icon).
+     */
+    private fun shrinkDefaultAppsToIcons() {
+        viewModelScope.launch(writeContext) {
+            val current = tiles.value
+            current.forEach { tile ->
+                if (tile is TileModel.App && tile.packageName.isNotBlank() && tile.size != TileSize.SMALL) {
+                    repository.setTileSize(tile.id, TileSize.SMALL)
+                }
+                if (tile.gridSlot != null) {
+                    repository.setTileGridSlot(tile.id, null)
+                }
+            }
+        }
     }
 
     /** Dismissing the first-run wizard without an explicit pick — leaves
