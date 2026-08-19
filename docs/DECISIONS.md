@@ -4811,3 +4811,34 @@ once per icon load, never touching the UI thread, never recomputed on recomposit
 shape's own `Outline` computation (64 trig-heavy points per `createOutline` call) was checked too and
 is not a comparable concern: Compose only calls it for on-screen rows and caches it per shape/size, so
 its cost is bounded to whatever's actually visible, unlike the unbounded per-pixel scan.
+
+## Weather/calendar/clock icons stay live at 1×1 in ICONS mode
+
+User request: a real Android launcher's dynamic calendar/weather icons were the explicit precedent —
+weather and calendar (and, on clarification, clock too) icons should keep showing live info even at
+1×1 in ICONS home style, rather than falling back to the generic masked/glyph icon every other app
+gets at that size. Clarified via `AskUserQuestion` on two points: what the icons should actually show
+(weather → a condition glyph, no temperature text; calendar → today's day-of-month, no
+weekday/month), and whether "date" meant calendar only or clock too (answer: both).
+
+Reused each tile's existing live-data plumbing rather than inventing new ones — `WeatherCache`,
+`currentCalendarToday()`/`CalendarToday.day`, `currentClockFace()`/`ClockFace.hm` — adding one new
+sibling composable per face in `:feature:livetiles`, sized for a 1×1 icon cell's smaller footprint
+(which also reserves room below for the app-name label, unlike a full SMALL tile):
+`WeatherIconFace` (a condition glyph via the new pure `weatherConditionIconKey(condition): String`,
+keyed off substrings of the already-cached condition phrase since the raw WMO code isn't persisted),
+`CalendarIconFace` (day number at 22sp vs `CalendarSmallFace`'s 34sp), `ClockIconFace` (time at 13sp
+vs `ClockSmallFace`'s 20sp). `TileIcons` gains three new condition glyphs (`"sun"`/`"rain"`/`"snow"`,
+hand-authored in the existing stroke-only monoline style, `"rain"`/`"snow"` reusing the existing
+`"cloud"` path plus small drop/flake marks) — no distinct glyph existed for these, only the combined
+sun-behind-cloud `"weather"` icon and a plain `"cloud"`.
+
+`IconCellView` branches on `tile.iconKey` right where it previously always called the generic
+`IconCellGlyph`, falling back to it for every other app (and for weather specifically, on a genuine
+cache miss too — `WeatherIconFace` takes a `fallback` param same as its `TILES`-mode sibling). Gained
+a `liveActive: Boolean` param (not previously threaded into `IconCellView` at all, since a plain
+masked icon never needed it) wired from the same `liveActive` already computed at the call site for
+`TileView`. Font sizes (22sp/13sp) are a first-pass best-effort choice, not verified against the
+narrower 40dp icon-cell glyph area on a physical device — flag for on-device tuning if either clips.
+New `weatherConditionIconKey` test coverage in `WeatherTest.kt` (all condition phrases → their
+category, including the unrecognised/blank fallback to "cloud").

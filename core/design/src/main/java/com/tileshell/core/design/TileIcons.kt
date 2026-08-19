@@ -215,6 +215,25 @@ object TileIcons {
             p("M6.5 18h10.5a3.2 3.2 0 0 0 0-6.4 4.8 4.8 0 0 0-9.2-1"),
         ))
 
+        // Weather-condition glyphs (see weatherConditionIconKey in
+        // :feature:livetiles) — a 1x1 icon-mode weather icon shows one of
+        // these instead of the combined sun-behind-cloud "weather" glyph
+        // above, since there's no room there for temperature text.
+        put("sun", vector("sun",
+            p(circle(12.0, 12.0, 4.5)),
+            p("M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.1 5.1l2.1 2.1M16.8 16.8l2.1 2.1M18.9 5.1l-2.1 2.1M7.2 16.8l-2.1 2.1"),
+        ))
+
+        put("rain", vector("rain",
+            p("M6.5 15h10.5a3.5 3.5 0 0 0 0-7 5 5 0 0 0-9.7-1.2A3.5 3.5 0 0 0 6.5 15z"),
+            p("M8.5 18l-1.2 3M12.5 18l-1.2 3M16.5 18l-1.2 3"),
+        ))
+
+        put("snow", vector("snow",
+            p("M6.5 15h10.5a3.5 3.5 0 0 0 0-7 5 5 0 0 0-9.7-1.2A3.5 3.5 0 0 0 6.5 15z"),
+            p("M7.2 18.2l1.2 1.2M8.4 18.2l-1.2 1.2M11.4 18.2l1.2 1.2M12.6 18.2l-1.2 1.2M15.6 18.2l1.2 1.2M16.8 18.2l-1.2 1.2"),
+        ))
+
         put("calendar", vector("calendar",
             p(rect(3.0, 5.0, 18.0, 16.0, 1.5)),
             p(line(3.0, 9.0, 21.0, 9.0)),

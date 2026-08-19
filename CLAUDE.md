@@ -38,6 +38,20 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.5.1 — weather/calendar/clock icons stay live at 1×1 in ICONS mode.** User-requested, a
+  real Android launcher's dynamic calendar/weather icons were the explicit precedent — see DECISIONS
+  "Weather/calendar/clock icons stay live at 1×1 in ICONS mode". `IconCellView` (`:feature:start`)
+  branches on `tile.iconKey` in place of always calling the generic masked icon: weather shows a
+  condition glyph (new `WeatherIconFace`, `:feature:livetiles`, using a new pure
+  `weatherConditionIconKey(condition): String` and three new hand-authored `TileIcons` glyphs —
+  `"sun"`/`"rain"`/`"snow"` — since only the combined sun-behind-cloud `"weather"` icon and a plain
+  `"cloud"` existed before), calendar shows today's day-of-month (`CalendarIconFace`, 22sp), clock
+  shows the current time (`ClockIconFace`, 13sp) — all three reusing each tile's existing live-data
+  plumbing (`WeatherCache`/`currentCalendarToday()`/`currentClockFace()`), sized down from their
+  TILES-mode `*SmallFace` siblings since a 1×1 icon cell also reserves room below for the app-name
+  label. Every other app still falls back to the ordinary masked/glyph icon at 1×1. Build + tests
+  green (`weatherConditionIconKey` unit-tested); font sizes are a first-pass choice not yet verified
+  against the narrower icon-cell glyph area on a physical device.
 - **Post-v2.5.1 — icon shape masking extended to the App List.** User-requested: the `IconShape`
   setting (circle/squircle/rounded/original) only masked Start-screen icons (ICONS home style), not
   the App List. `:feature:applist` can't depend on `:feature:start` (dependency graph runs the other

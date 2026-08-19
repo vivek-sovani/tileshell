@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -24,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.TileSize
 import com.tileshell.core.design.LocalTileFaceColor
+import com.tileshell.core.design.TileIcons
 
 private val FaceText: Color
     @Composable get() = LocalTileFaceColor.current
@@ -91,6 +94,40 @@ fun WeatherSmallFace(
             fontWeight = FontWeight.ExtraLight,
             letterSpacing = (-1).sp,
             maxLines = 1,
+        )
+    }
+}
+
+/**
+ * The compact weather face for a 1×1 icon-mode cell (ICONS home style — see
+ * `feature/start/IconCellView.kt`): a small glyph for the current condition
+ * ([weatherConditionIconKey]) rather than temperature text, since there's no
+ * room in an icon cell for both a glyph and a number plus the label below it.
+ * Same data + opt-in as [WeatherSmallFace]; degrades to [fallback] when no
+ * snapshot is cached.
+ */
+@Composable
+fun WeatherIconFace(
+    fallback: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    LaunchedEffect(Unit) { WeatherRefreshWorker.ensureScheduled(context) }
+    val locationGranted = rememberPermissionGranted(Manifest.permission.ACCESS_COARSE_LOCATION)
+    LaunchedEffect(locationGranted) {
+        if (locationGranted) WeatherRefreshWorker.refreshNow(context)
+    }
+
+    val cache = remember(context) { WeatherCache.create(context) }
+    val snapshot = cache.data.collectAsState(initial = WeatherCacheData()).value.snapshot
+        ?: return fallback()
+
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Icon(
+            imageVector = TileIcons[weatherConditionIconKey(snapshot.condition)],
+            contentDescription = snapshot.condition,
+            tint = FaceText,
+            modifier = Modifier.size(28.dp),
         )
     }
 }

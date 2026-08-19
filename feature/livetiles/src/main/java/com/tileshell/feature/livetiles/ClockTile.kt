@@ -305,6 +305,35 @@ fun ClockSmallFace(active: Boolean, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * The compact clock face for a 1×1 icon-mode cell (ICONS home style — see
+ * `feature/start/IconCellView.kt`): the time, smaller than [ClockSmallFace]'s
+ * 20sp since an icon cell also reserves room below for the app-name label,
+ * unlike a full small tile. Ticks on the minute boundary while [active].
+ */
+@Composable
+fun ClockIconFace(active: Boolean, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    var face by remember { mutableStateOf(currentClockFace(context)) }
+    LaunchedEffect(active) {
+        if (!active) return@LaunchedEffect
+        while (true) {
+            face = currentClockFace(context)
+            delay(60_000L - (System.currentTimeMillis() % 60_000L))
+        }
+    }
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(
+            text = face.hm,
+            color = FaceText,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.ExtraLight,
+            letterSpacing = (-0.5).sp,
+            maxLines = 1,
+        )
+    }
+}
+
 @Composable
 private fun ClockFront(face: ClockFace, size: TileSize) {
     // Prototype `.lc .xl` (styles.css): 64px wide / 42px medium, weight 200,

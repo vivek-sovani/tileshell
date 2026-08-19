@@ -46,7 +46,10 @@ import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.design.SquircleShape
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.colorTokens
+import com.tileshell.feature.livetiles.CalendarIconFace
+import com.tileshell.feature.livetiles.ClockIconFace
 import com.tileshell.feature.livetiles.NotificationSnapshot
+import com.tileshell.feature.livetiles.WeatherIconFace
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -54,11 +57,18 @@ import kotlinx.coroutines.withContext
  * The ICONS-home-style renderer for a 1×1 cell (`LauncherSettings.homeStyle
  * == HomeStyle.ICONS`, size == SMALL): the app's own icon, masked to
  * [iconShape] (see [maskedOrGlyphIcon]'s doc comment for the adaptive-vs-legacy
- * split), with a lowercase label beneath — no tile fill, no chrome, no live
- * face. A sibling of [TileView], not a variant of it: everything about
- * layout, persistence, drag/drop, folders and the app drawer is shared with
- * tile mode, and this composable only ever exists at SMALL, so it doesn't
- * need TileView's fill/glass/wallpaper/live-face machinery at all.
+ * split), with a lowercase label beneath — no tile fill, no chrome. A sibling
+ * of [TileView], not a variant of it: everything about layout, persistence,
+ * drag/drop, folders and the app drawer is shared with tile mode, and this
+ * composable only ever exists at SMALL, so it doesn't need TileView's
+ * fill/glass/wallpaper machinery at all.
+ *
+ * Three iconKeys are the exception to "no live face": weather/calendar/clock
+ * stay live even at 1×1 (user-requested — a real Android launcher's dynamic
+ * calendar/weather icons are the precedent), showing a condition glyph
+ * ([WeatherIconFace]), today's day-of-month ([CalendarIconFace]), or the
+ * current time ([ClockIconFace]) instead of the generic masked icon — there's
+ * no room in a 1×1 cell for a fuller live face, unlike [TileView]'s 2×2+.
  *
  * [resizeHandlesEnabled]/[onResizeDragStart]/[onResizeDragBy]/[onResizeDragEnd]
  * mirror the same gesture-based drag resize [TileView] exposes — growing an
@@ -86,6 +96,7 @@ internal fun IconCellView(
     canMoveBack: Boolean,
     canMoveForward: Boolean,
     iconShape: IconShape = IconShape.ORIGINAL,
+    liveActive: Boolean = false,
     resizeHandlesEnabled: Boolean = false,
     onResizeDragStart: () -> Unit = {},
     onResizeDragBy: (dxPx: Float, dyPx: Float) -> Unit = { _, _ -> },
@@ -114,7 +125,15 @@ internal fun IconCellView(
         onResizeDragBy = onResizeDragBy,
         onResizeDragEnd = onResizeDragEnd,
     ) {
-        IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape)
+        when (tile.iconKey) {
+            "weather" -> WeatherIconFace(
+                fallback = { IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape) },
+                modifier = Modifier.size(40.dp),
+            )
+            "calendar" -> CalendarIconFace(active = liveActive, modifier = Modifier.size(40.dp))
+            "clock" -> ClockIconFace(active = liveActive, modifier = Modifier.size(40.dp))
+            else -> IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape)
+        }
         // Hide the label at 6 columns — a 1×1 cell is too narrow there for
         // icon plus text without truncating (see LauncherSettings.HomeStyle's
         // design notes / DECISIONS.md "cells stay square").

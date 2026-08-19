@@ -2211,6 +2211,7 @@ private fun StartPage(
                             canMoveBack = canMoveBack,
                             canMoveForward = canMoveForward,
                             iconShape = iconShape,
+                            liveActive = liveActive,
                             resizeHandlesEnabled = resizeHandlesEnabled,
                             onResizeDragStart = onResizeDragStartAction,
                             onResizeDragBy = onResizeDragByAction,
