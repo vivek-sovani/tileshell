@@ -5091,3 +5091,32 @@ opened the guide sheet, scrolled to the new "home style" group (visual renders c
 bullets present) and to the updated "organizing tiles" bullets; opened the about sheet's "start screen"
 group and confirmed the same content renders there in its plain-text form. Build + full unit test suite
 green.
+
+## Tile colour source row: real bug — "wallpaper" pill wrapped its label vertically, one letter per line
+
+User-reported with a screenshot: the "wallpaper" cell of the tile-colour-source row rendered as a
+tall, narrow capsule with "wallpaper" spelled out one letter per line, instead of a normal short pill
+next to "accent"/"app icon". Root cause: that row was a one-off layout (`Row(fillMaxWidth,
+SpaceBetween) { Text("tile color source"); Row(pills) }`, each pill an ad-hoc `Row` sized to its own
+content) — bespoke and different from every other selector on this sheet (home style, arrangement,
+wallpaper type), which all use the shared `SettingGroup` + `SegCell` convention (label above, then a
+bordered `Row` of equal-`weight(1f)` cells below). Once "wallpaper" grew a leading swatch dot its
+pill needed more content width than the same-line label+3-pills arrangement reliably had left over,
+and Compose's `Text` inside an unweighted, unbounded-width `Row` responds to too little available
+width by wrapping character-by-character rather than clipping or overflowing — reading as a tall
+vertical strip. (First attempt: just moving the label above the pills row in isolation, matching the
+user's own "label above and pill below" description — a real improvement, but still a bespoke pill
+row rather than fixing the underlying inconsistency; the user's immediate follow-up, "pills below as
+per other settings," asked for the shared convention instead.)
+
+Fixed by deleting the bespoke row entirely and rebuilding it as `SettingGroup(label = "tile color
+source") { Row(fillMaxWidth + border) { SegCell(...) × 3 } }` — byte-for-byte the same shape as
+"home style"/"arrangement" immediately below it. `SegCell` (shared by every segmented selector on the
+sheet) gained an optional `swatch: Color?` param — a small bordered circle drawn before the label,
+used only by the "wallpaper" cell — plus an explicit `maxLines = 1` on its `Text` as a hard backstop
+against this exact failure mode recurring for any future segmented cell. Since each `SegCell` now
+gets an equal `weight(1f)` share of the row's full width (guaranteed by the shared bordered-`Row`
+container, not left to chance the way the old ad-hoc pills were), "wallpaper" always has as much room
+as "accent"/"app icon" regardless of label length or swatch presence. Verified on an emulator: the
+row now renders three equal-height, equal-width cells; tapping between "accent" and "wallpaper"
+selects/deselects cleanly with no wrapping in either state. Build + full unit test suite green.

@@ -452,60 +452,48 @@ fun PersonalizeSheet(
                 }
             }
 
-            // ---- tile color source: label + compact pill, one inline row
-            // (mirrors ToggleRow's layout — no separate caps group label,
-            // matching the mockup's single-line presentation) ----
-            Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 18.dp)) {
+            // ---- tile color source: same label-above / bordered-segmented-row
+            // convention every other selector on this sheet uses (home style,
+            // arrangement, wallpaper type) — a bespoke same-line label+pills
+            // row squeezed "wallpaper" down to near-zero width once it grew a
+            // swatch dot, wrapping its text one letter per line instead of
+            // just overflowing ----
+            SettingGroup(label = "tile color source", tokens.fgDim) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, tokens.tileLine),
                 ) {
-                    Text("tile color source", color = tokens.fg, fontSize = 14.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        // wallpaper's option carries an actual swatch dot sampled from
-                        // the current wallpaper (the same colour the feed/glance page
-                        // and Quick Panel already use) so the user sees the real colour
-                        // before switching to it — accent/app-icon need no such preview
-                        // (accent already paints the whole pill when selected; app icon
-                        // has no single colour to show ahead of time).
-                        listOf(
-                            Triple(TileColorSource.GLOBAL_ACCENT, "accent", null),
-                            Triple(TileColorSource.APP_ICON, "app icon", null),
-                            Triple(TileColorSource.WALLPAPER_ACCENT, "wallpaper", wallpaperAccentPreview),
-                        ).forEach { (source, label, swatch) ->
-                            val selected = tileColorSource == source
-                            val pillColor = swatch ?: accent
-                            Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(if (selected) pillColor else Color.Transparent)
-                                    .border(
-                                        1.dp,
-                                        if (selected) pillColor else tokens.tileLine,
-                                        RoundedCornerShape(20.dp),
-                                    )
-                                    .clickable { onTileColorSourceChange(source) }
-                                    .padding(horizontal = 14.dp, vertical = 7.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            ) {
-                                if (swatch != null) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(12.dp)
-                                            .clip(CircleShape)
-                                            .background(swatch)
-                                            .border(1.dp, Color.White.copy(alpha = 0.6f), CircleShape),
-                                    )
-                                }
-                                Text(
-                                    text = label,
-                                    color = if (selected) Color.White else tokens.fg,
-                                    fontSize = 13.sp,
-                                )
-                            }
-                        }
+                    SegCell(
+                        "accent",
+                        selected = tileColorSource == TileColorSource.GLOBAL_ACCENT,
+                        accent = accent,
+                        fg = tokens.fg,
+                    ) {
+                        onTileColorSourceChange(TileColorSource.GLOBAL_ACCENT)
+                    }
+                    SegCell(
+                        "app icon",
+                        selected = tileColorSource == TileColorSource.APP_ICON,
+                        accent = accent,
+                        fg = tokens.fg,
+                    ) {
+                        onTileColorSourceChange(TileColorSource.APP_ICON)
+                    }
+                    // Carries an actual swatch dot sampled from the current
+                    // wallpaper (the same colour the feed/glance page and Quick
+                    // Panel already use) so the user sees the real colour before
+                    // switching to it — accent/app-icon need no such preview
+                    // (accent already fills the whole cell when selected; app
+                    // icon has no single colour to show ahead of time).
+                    SegCell(
+                        "wallpaper",
+                        selected = tileColorSource == TileColorSource.WALLPAPER_ACCENT,
+                        accent = accent,
+                        fg = tokens.fg,
+                        swatch = wallpaperAccentPreview,
+                    ) {
+                        onTileColorSourceChange(TileColorSource.WALLPAPER_ACCENT)
                     }
                 }
             }
@@ -1457,13 +1445,19 @@ private fun ThemeTile(
     }
 }
 
-/** One cell of the segmented toggle (prototype .seg div / .seg div.on). */
+/**
+ * One cell of the segmented toggle (prototype .seg div / .seg div.on).
+ * [swatch], when non-null, draws a small colour dot before the label — e.g.
+ * the "tile color source" row's "wallpaper" cell, previewing the actual
+ * wallpaper-derived colour it would apply.
+ */
 @Composable
 private fun RowScope.SegCell(
     label: String,
     selected: Boolean,
     accent: Color,
     fg: Color,
+    swatch: Color? = null,
     onClick: () -> Unit,
 ) {
     Box(
@@ -1474,12 +1468,24 @@ private fun RowScope.SegCell(
             .padding(vertical = 10.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = label,
-            color = if (selected) Color.White else fg,
-            fontSize = 14.sp,
-            textAlign = TextAlign.Center,
-        )
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (swatch != null) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(swatch)
+                        .border(1.dp, Color.White.copy(alpha = 0.6f), CircleShape),
+                )
+            }
+            Text(
+                text = label,
+                color = if (selected) Color.White else fg,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+            )
+        }
     }
 }
 

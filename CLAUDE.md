@@ -208,6 +208,17 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   emulator (via `uiautomator dump` for exact tap coordinates): swatch/tiles show the plain accent with
   no wallpaper set, and all switch together to a picked stock gradient's sampled colour once selected.
   Build + tests green.
+- **`android-home-style` branch — tile colour source row: fixed a real bug where the "wallpaper" cell
+  wrapped its label vertically, one letter per line.** User-reported with a screenshot. The row was a
+  bespoke same-line label+3-pills layout, different from every other selector on this sheet (home
+  style, arrangement, wallpaper type) — once "wallpaper" grew a leading swatch dot, its unweighted
+  `Text` no longer reliably had enough leftover width and wrapped character-by-character instead of
+  overflowing, reading as a tall vertical strip. Rebuilt to match the shared `SettingGroup` + `SegCell`
+  convention every other selector already uses (label above, bordered `Row` of equal-`weight(1f)`
+  cells below); `SegCell` gained an optional `swatch: Color?` param (the wallpaper preview dot) plus
+  an explicit `maxLines = 1` backstop. See DECISIONS "Tile colour source row: real bug — 'wallpaper'
+  pill wrapped its label vertically, one letter per line." Verified on an emulator: three equal cells,
+  no wrapping in either state. Build + tests green.
 - **`android-home-style` branch — the guide and about sheets now describe home style, icon shapes,
   and the drag-resize tile sizes.** User asked directly whether these had been documented — they
   hadn't. `PersonalizeGuideSheet.kt` ("how to personalize") gained a new "home style" `FeatureGroup`
