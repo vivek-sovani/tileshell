@@ -4722,3 +4722,52 @@ to reading `MergeResult.isStack` directly, since a freshly-constructed test fold
 `showAsStack` the old assertions never set). Installed on the physical device over the existing v6
 database from earlier in this same testing session — migration ran cleanly with no crash, confirming
 the v6→v7 upgrade path works against a real, non-empty layout, not just a fresh install.
+
+## Widget stacks: three on-device refinements (both-dimensions rule, always-shown resize, moved into the colour sheet)
+
+Direct follow-up after trying the previous entry's toggle on a physical device — three corrections,
+asked together and confirmed via `AskUserQuestion` where genuinely ambiguous.
+
+**`TileSize.stackable` tightened to `cols > 1 && rows > 1`.** The prior rule ("every size except
+SMALL/WIDE_SMALL/TALL/COLUMN") still allowed `BANNER` (4×1) as a stack size. User feedback: stack
+eligibility should exclude *any* size with a dimension of 1, not just those four — a one-cell-thin
+strip reads too cramped for a swipeable live-tile face regardless of which axis is thin. The simpler
+`cols > 1 && rows > 1` rule subsumes the old four-name exclusion list and additionally excludes
+`BANNER`, with no other behavioural change (the "show as stack" button's visibility already read
+`expandedFolder.size.stackable`, so tightening the property alone was sufficient — no separate
+button-only gate was needed, resolving the one genuine ambiguity in this entry via a clarifying
+question: "does this change what a button shows, or what a stack can ever be" — the answer was the
+latter).
+
+**A widget stack now always shows its resize/drag corner control, and dragging it resizes the whole
+stack.** Previously `StackEditControls` deliberately showed only a folder-icon corner control — no
+resize, no colour dot — on the reasoning (recorded in an earlier session) that "stacks are fixed at
+3×3." That reasoning is stale now that a stack can be any `TileSize.stackable` size: user asked for
+the resize affordance to always be visible, and for dragging it to resize the whole stack. Simplest
+correct fix: delete `StackEditControls` outright and let a stack tile take the exact same
+`TileControls(isFolder = true)` corner controls a plain folder does (folder icon, resize icon, colour
+dot) — `isStackTile` no longer gates anything in that `when` block, since stack and plain-folder
+corner chrome are now identical. The corner-drag gesture itself (`tileStretchGesture`) drops its
+`!isStackTile` guard the same way. The one real behavioural difference is in the *write path*:
+`onResizeDragEnd` now branches on `model is TileModel.Folder && model.isStack` and routes a stack's
+drag through a new `onResizeStack` (→ `StartViewModel.convertFolderToStack`, already homogenizing
+every member to the new size and setting `showAsStack = true`) instead of the plain `onResizeTo` a
+non-stack tile/folder uses. Dragging a stack to a *non*-stackable size (e.g. down to `TALL`) still
+works and isn't specially guarded against — it just falls back to the plain mini-grid per
+`TileModel.Folder.isStack`'s existing dormant-flag behaviour (from the previous entry), resuming as a
+stack automatically if dragged back to a roomy size.
+
+**The "show as stack"/"show as folder" toggle moved into the per-tile colour picker sheet, replacing
+the standalone action tile next to the expanded folder's children.** The whole
+`FolderAction`/`folderActionTileId`/`parseFolderActionId`/`FolderActionTile`/`expandedFolderActions`
+mechanism (an extra synthetic `TileSpec` reserving its own cell in `GridPacker.expandFolderInline`'s
+children list) is deleted; `TileColorPicker` gains an optional `stackToggleLabel`/`onToggleStack` — a
+row shown above the "use default colour" pill whenever the picked tile is a top-level folder (never a
+folder child, which is a synthetic `App`) that's either already a stack, or has ≥2 children at a
+`TileSize.stackable` footprint. Tapping it calls `onToggleFolderStack` and dismisses the sheet, same
+as picking a colour does. Chosen location per explicit user request ("shift make as folder or stack
+action in tile color settings") — reframing the toggle as *another per-tile setting alongside colour*
+rather than a grid cell competing for space with the folder's actual children, which also means
+expanding a folder no longer reserves an extra slot for it (one less cell to push subsequent rows
+down by). Since every selected folder/stack now shows a colour dot (the previous entry's fix already
+made the corner controls identical), the sheet is reachable from both a plain folder and a stack.

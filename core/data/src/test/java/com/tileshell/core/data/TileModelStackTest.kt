@@ -8,10 +8,11 @@ import org.junit.Test
  * Unit tests for [TileModel.Folder.isStack]/[TileModel.Folder.stackSize]. A
  * folder is only ever rendered as a widget stack when BOTH are true: the
  * explicit [TileModel.Folder.showAsStack] toggle is on, AND every member is
- * currently uniformly one [TileSize.stackable] size (excludes only SMALL,
- * WIDE_SMALL, TALL, COLUMN). Eligibility ([stackSize]) and the toggle
- * ([showAsStack]) are independent — eligible-but-toggled-off and
- * toggled-on-but-not-eligible both read as a plain folder.
+ * currently uniformly one [TileSize.stackable] size (both dimensions > 1 —
+ * excludes SMALL, WIDE_SMALL, TALL, BANNER, COLUMN). Eligibility
+ * ([stackSize]) and the toggle ([showAsStack]) are independent —
+ * eligible-but-toggled-off and toggled-on-but-not-eligible both read as a
+ * plain folder.
  */
 class TileModelStackTest {
 
@@ -69,8 +70,10 @@ class TileModelStackTest {
     }
 
     @Test
-    fun theFourExcludedSizesAreNeverEligibleEvenWhenUniformAndToggledOn() {
-        listOf(TileSize.SMALL, TileSize.WIDE_SMALL, TileSize.TALL, TileSize.COLUMN).forEach { size ->
+    fun theFiveExcludedSizesAreNeverEligibleEvenWhenUniformAndToggledOn() {
+        listOf(
+            TileSize.SMALL, TileSize.WIDE_SMALL, TileSize.TALL, TileSize.BANNER, TileSize.COLUMN,
+        ).forEach { size ->
             val children = listOf(child(size), child(size))
             assertNull("$size should not be stack-eligible", folder(children).stackSize)
             assertEquals(
@@ -85,7 +88,7 @@ class TileModelStackTest {
     fun everyOtherSizeIsEligibleWhenUniformAndToggledOn() {
         listOf(
             TileSize.MEDIUM, TileSize.WIDE, TileSize.LARGE, TileSize.WIDE_MEDIUM,
-            TileSize.TALL_MEDIUM, TileSize.XLARGE, TileSize.BANNER,
+            TileSize.TALL_MEDIUM, TileSize.XLARGE,
         ).forEach { size ->
             val children = listOf(child(size), child(size))
             assertEquals("$size should be stack-eligible", size, folder(children).stackSize)

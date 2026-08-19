@@ -72,14 +72,14 @@ enum class TileSize(val cols: Int, val rows: Int) {
         if (largeAllowed) next(largeAllowed = true) else if (this == SMALL) MEDIUM else SMALL
 
     /**
-     * Whether this size is roomy enough to be a widget-stack member — every
-     * size except the four smallest/thinnest presets, where a single live
-     * tile face reads too cramped to be worth swiping between: [SMALL] (1×1),
-     * [WIDE_SMALL] (2×1), [TALL] (1×2), [COLUMN] (1×4). Originally a stack
-     * required uniform [WIDE] or [LARGE] members; widened to this broader,
-     * still-deliberately-excluded-list rule per user request (see
+     * Whether this size is roomy enough to be a widget-stack member: both
+     * dimensions greater than 1, i.e. not [SMALL] (1×1), [WIDE_SMALL] (2×1),
+     * [TALL] (1×2), [BANNER] (4×1), or [COLUMN] (1×4) — a single live tile
+     * face along a one-cell-thin strip reads too cramped to be worth swiping
+     * between. Originally a stack required uniform [WIDE] or [LARGE] members;
+     * widened to this broader "any roomy size" rule per user request (see
      * docs/DECISIONS.md).
      */
     val stackable: Boolean
-        get() = this != SMALL && this != WIDE_SMALL && this != TALL && this != COLUMN
+        get() = cols > 1 && rows > 1
 }

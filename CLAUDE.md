@@ -52,7 +52,15 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   style. Drag-merge (the default folder-creation gesture) deliberately stays LARGE-only/unchanged, so
   merging two ordinary MEDIUM tiles still forms a plain folder, not a stack. Build + full unit test
   suite green; installed on the physical device over its existing v6 database — migration verified
-  clean against real, non-empty data.
+  clean against real, non-empty data. **Three same-day on-device refinements** (see DECISIONS "Widget
+  stacks: three on-device refinements"): `TileSize.stackable` tightened to `cols > 1 && rows > 1`
+  (also excludes `BANNER` now, not just the original four); a widget stack's corner controls are now
+  identical to a plain folder's (resize icon + colour dot always shown, `StackEditControls` deleted;
+  dragging a stack's corner resizes the whole thing via a new `onResizeStack` → `convertFolderToStack`,
+  homogenizing every member); and the "show as stack"/"show as folder" toggle moved from a standalone
+  action tile next to the expanded folder's children into the per-tile colour picker sheet
+  (`TileColorPicker` gained `stackToggleLabel`/`onToggleStack`), with the whole `FolderAction`/
+  `FolderActionTile`/`expandedFolderActions` mechanism deleted. Build + tests green.
 - **Post-v2.5.1 — Android-style icons home style (`android-home-style` branch, 5-stage arc, not yet
   merged to main).** New user ask, not in the WP prototype/spec: let someone who doesn't want the
   Windows Phone interface turn TileShell into a normal Android-style launcher — shaped app icons,

@@ -988,6 +988,7 @@ fun StartScreen(
                     },
                     onResize = viewModel::resize,
                     onResizeTo = viewModel::resizeTo,
+                    onResizeStack = viewModel::convertFolderToStack,
                     onUnpin = viewModel::unpin,
                     onSetTileColor = viewModel::setTileColor,
                     onAdd = {
@@ -1610,53 +1611,6 @@ private fun FolderChild.asTileModel(id: String): TileModel.App = TileModel.App(
     accentOverride = accentOverride,
 )
 
-/**
- * The single action offered inline alongside an expanded folder's children
- * (mirrors the old overlay's `StackModeChip` row, since converted to an extra
- * tile in the expanded section rather than a separate chip UI): a plain
- * folder gets [ShowAsStack] (uniforms its children to a stackable size and
- * turns the toggle on); a stack gets [ShowAsFolder] (just turns the toggle
- * off). Supersedes the old fixed "make stack · wide"/"make stack · large"
- * shortcuts — now that any `TileSize.stackable` size can be a stack (not just
- * WIDE/LARGE), a per-size action tile doesn't generalize, so this is a plain
- * two-way toggle instead (see docs/DECISIONS.md).
- */
-private sealed interface FolderAction {
-    data object ShowAsStack : FolderAction
-    data object ShowAsFolder : FolderAction
-}
-
-/**
- * Synthetic id for a folder action tile. Rendered by a small dedicated
- * composable, not through [TileView] — it isn't an app and has no size/drag/
- * colour of its own.
- */
-private const val FOLDER_ACTION_ID_PREFIX = "folderaction:"
-private const val FOLDER_SHOW_AS_STACK_TOKEN = "showAsStack"
-private const val FOLDER_SHOW_AS_FOLDER_TOKEN = "showAsFolder"
-
-private fun folderActionTileId(folderId: String, action: FolderAction): String {
-    val token = when (action) {
-        FolderAction.ShowAsStack -> FOLDER_SHOW_AS_STACK_TOKEN
-        FolderAction.ShowAsFolder -> FOLDER_SHOW_AS_FOLDER_TOKEN
-    }
-    return "$FOLDER_ACTION_ID_PREFIX$folderId:$token"
-}
-
-/** Reverses [folderActionTileId], or null if [id] isn't a synthetic action id. */
-private fun parseFolderActionId(id: String): Pair<String, FolderAction>? {
-    if (!id.startsWith(FOLDER_ACTION_ID_PREFIX)) return null
-    val rest = id.removePrefix(FOLDER_ACTION_ID_PREFIX)
-    val sep = rest.lastIndexOf(':')
-    if (sep <= 0) return null
-    val action = when (rest.substring(sep + 1)) {
-        FOLDER_SHOW_AS_STACK_TOKEN -> FolderAction.ShowAsStack
-        FOLDER_SHOW_AS_FOLDER_TOKEN -> FolderAction.ShowAsFolder
-        else -> return null
-    }
-    return rest.substring(0, sep) to action
-}
-
 @Composable
 private fun StartPage(
     specs: List<TileSpec>,
@@ -1739,6 +1693,9 @@ private fun StartPage(
     // drag-only presets (e.g. BANNER/COLUMN) a folder child's tap cycle
     // ([onResizeFolderChild]) never visits.
     onResizeFolderChildTo: (folderId: String, child: FolderChild, size: TileSize) -> Unit,
+    // A widget stack's own drag-resize counterpart to [onResizeTo]: homogenizes
+    // every member to the new size along with the tile (see convertFolderToStack).
+    onResizeStack: (folderId: String, size: TileSize) -> Unit,
     onUnpin: (String) -> Unit,
     onSetTileColor: (id: String, colorId: String?) -> Unit,
     onAdd: () -> Unit,
@@ -1830,19 +1787,6 @@ private fun StartPage(
     val expandedFolder = remember(byId, expandedFolderId) {
         expandedFolderId?.let { byId[it] as? TileModel.Folder }
     }
-    // Folder action tile (mirrors the old overlay's StackModeChip row): offered
-    // inline as an extra small tile right alongside the expanded children — a
-    // plain folder with ≥2 members gets "show as stack", a widget stack gets
-    // "show as folder". At most one of these is ever shown, unlike the old
-    // fixed wide/large shortcuts.
-    val expandedFolderActions: List<FolderAction> = remember(expandedFolder) {
-        when {
-            expandedFolder == null -> emptyList()
-            expandedFolder.isStack -> listOf(FolderAction.ShowAsFolder)
-            expandedFolder.children.size >= 2 -> listOf(FolderAction.ShowAsStack)
-            else -> emptyList()
-        }
-    }
     val augmentedById: Map<String, TileModel> = remember(byId, expandedFolder) {
         if (expandedFolder == null) {
             byId
@@ -1872,7 +1816,7 @@ private fun StartPage(
         }
     }
     val expandTransform: ((List<TilePlacement>) -> List<TilePlacement>)? =
-        remember(expandedFolder, expandedFolderActions, columns) {
+        remember(expandedFolder, columns) {
             expandedFolder?.let { folder ->
                 { placements: List<TilePlacement> ->
                     val childById = folder.children.associateBy { folderChildTileId(folder.id, it.rowId) }
@@ -1886,8 +1830,6 @@ private fun StartPage(
                         expandedId = folder.id,
                         children = orderedChildren.map { child ->
                             TileSpec(folderChildTileId(folder.id, child.rowId), child.size)
-                        } + expandedFolderActions.map { action ->
-                            TileSpec(folderActionTileId(folder.id, action), TileSize.SMALL)
                         },
                         columns = columns,
                     )
@@ -2109,31 +2051,6 @@ private fun StartPage(
                 postProcessKey = folderChildOrder.toList(),
                 modifier = Modifier.fillMaxWidth().then(editDrag),
             ) { spec, slot, sizePx ->
-                // Folder action tile (see expandedFolderActions above) — not a real
-                // app, so it renders through its own small composable instead of
-                // TileView and skips every tile-edit concern (drag/resize/colour/
-                // badges) that doesn't apply to it.
-                val actionRef = parseFolderActionId(spec.id)
-                if (actionRef != null) {
-                    val (actionFolderId, action) = actionRef
-                    val slotState = animateIntOffsetAsState(slot, label = "slot")
-                    Box(
-                        modifier = Modifier
-                            .offset { slotState.value }
-                            .size(
-                                with(density) { sizePx.width.toDp() },
-                                with(density) { sizePx.height.toDp() },
-                            ),
-                    ) {
-                        FolderActionTile(
-                            action = action,
-                            accent = accent,
-                            textIsDark = screenBackgroundIsLight,
-                            onClick = { onToggleFolderStack(actionFolderId) },
-                        )
-                    }
-                    return@DenseTileGrid
-                }
                 val model = augmentedById[spec.id] ?: return@DenseTileGrid
                 val dragging = spec.id == draggingId
                 val resizing = spec.id == resizingId
@@ -2245,10 +2162,18 @@ private fun StartPage(
                     val onResizeDragEndAction = {
                         resizePreviewSize?.let { newSize ->
                             val ref = folderChildRef(model.id)
-                            if (ref != null) {
-                                onResizeFolderChildTo(ref.first, ref.second, newSize)
-                            } else {
-                                onResizeTo(model.id, newSize)
+                            when {
+                                ref != null -> onResizeFolderChildTo(ref.first, ref.second, newSize)
+                                // A stack's own drag resizes the whole thing: every
+                                // member homogenizes to the new size along with the
+                                // tile, staying a valid uniform stack (or, if the
+                                // drag lands on a non-stackable size, falling back to
+                                // the plain mini-grid — see TileModel.Folder.isStack's
+                                // doc comment — with showAsStack left on so it
+                                // resumes as a stack once resized back).
+                                model is TileModel.Folder && model.isStack ->
+                                    onResizeStack(model.id, newSize)
+                                else -> onResizeTo(model.id, newSize)
                             }
                         }
                         resizingId = null
@@ -2479,10 +2404,30 @@ private fun StartPage(
             } else {
                 null
             }
+            // The "show as stack"/"show as folder" toggle (moved here from a
+            // standalone action tile next to the expanded children — see
+            // docs/DECISIONS.md): shown only for a real top-level folder
+            // (never a folder child, which is a synthetic App), and only when
+            // it's either already a stack (always safe to un-toggle) or has
+            // ≥2 children at a `TileSize.stackable` footprint (both
+            // dimensions > 1) to uniform into a stack.
+            val stackToggleLabel = (model as? TileModel.Folder)?.let { folder ->
+                when {
+                    childRef != null -> null
+                    folder.isStack -> "show as folder"
+                    folder.children.size >= 2 && folder.size.stackable -> "show as stack"
+                    else -> null
+                }
+            }
             TileColorPicker(
                 current = current,
                 suggestedNearestId = suggestion?.nearestId,
                 suggestedExact = suggestion?.exact,
+                stackToggleLabel = stackToggleLabel,
+                onToggleStack = {
+                    onToggleFolderStack(pickId)
+                    colorPickerFor = null
+                },
                 onPick = { colorId ->
                     if (childRef != null) {
                         onSetFolderChildColor(childRef.first, childRef.second.rowId, colorId)
@@ -2504,12 +2449,20 @@ private fun StartPage(
  * ([suggestedNearestId]) — then the 14 palette swatches, over a tap-to-dismiss
  * scrim. [current] is the tile's saved override (null = following global), shown
  * ringed wherever it matches.
+ *
+ * A folder additionally gets the "show as stack"/"show as folder" toggle here
+ * ([stackToggleLabel] non-null, [onToggleStack]) — moved from a standalone
+ * action tile next to the expanded folder's children into this sheet, per
+ * user request (see docs/DECISIONS.md), since it's really another per-tile
+ * setting alongside colour rather than something that needs its own grid cell.
  */
 @Composable
 private fun BoxScope.TileColorPicker(
     current: String?,
     suggestedNearestId: String?,
     suggestedExact: Color?,
+    stackToggleLabel: String? = null,
+    onToggleStack: () -> Unit = {},
     onPick: (String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -2538,6 +2491,19 @@ private fun BoxScope.TileColorPicker(
             .padding(20.dp),
     ) {
         Text("tile colour", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+        if (stackToggleLabel != null) {
+            Spacer(Modifier.height(14.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.White.copy(alpha = 0.12f))
+                    .clickable(onClick = onToggleStack)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+            ) {
+                Text(stackToggleLabel, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            }
+        }
         Spacer(Modifier.height(14.dp))
         Box(
             modifier = Modifier
@@ -2727,14 +2693,15 @@ private fun TileView(
     appIconColors: Boolean = false,
     nextSizeIsLarger: Boolean = false,
     // Gesture-based drag resize (Stage 2 of the icons-mode arc). Only shown
-    // when true — a widget stack keeps its existing corner-control-only
-    // resize (see the call site's `isStackTile` guard); a folder child gets
-    // the same drag gesture a top-level tile does, routed to its own write
-    // path at the call site. onResizeDragBy reports the *raw* pixel delta
-    // since drag start; the caller (hoisted resize-preview state one level
-    // up) does the geometry → TileSize snapping so TileView itself stays
-    // free of grid-geometry knowledge, matching how every other gesture here
-    // is wired.
+    // when true — a widget stack gets the same corner-drag gesture as any
+    // other tile (the call site's onResizeDragEnd routes a stack's drag
+    // through onResizeStack instead of onResizeTo, homogenizing every
+    // member); a folder child gets the same drag gesture a top-level tile
+    // does too, routed to its own write path at the call site.
+    // onResizeDragBy reports the *raw* pixel delta since drag start; the
+    // caller (hoisted resize-preview state one level up) does the geometry
+    // → TileSize snapping so TileView itself stays free of grid-geometry
+    // knowledge, matching how every other gesture here is wired.
     resizeHandlesEnabled: Boolean = false,
     onResizeDragStart: () -> Unit = {},
     onResizeDragBy: (dxPx: Float, dyPx: Float) -> Unit = { _, _ -> },
@@ -2859,12 +2826,14 @@ private fun TileView(
                 else Modifier.tileGesture(onTap = onTap, onLongPress = onLongPress),
             )
             // Gesture-based resize (drag from the tile's bottom-right corner)
-            // — only for the selected, non-stack tile in edit mode, and only
-            // when the caller opted it in (a widget stack keeps the
-            // corner-control-only resize — see the call site's
-            // resizeHandlesEnabled).
+            // — for the selected tile in edit mode, including a widget stack
+            // (dragging it resizes the whole stack, homogenizing every member
+            // to the new size — see the call site's onResizeDragEnd, which
+            // routes a stack's drag through onResizeStack instead of
+            // onResizeTo), when the caller opted it in
+            // (resizeHandlesEnabled).
             .then(
-                if (selected && editMode && !isExpanded && !isStackTile && resizeHandlesEnabled) {
+                if (selected && editMode && !isExpanded && resizeHandlesEnabled) {
                     Modifier.tileStretchGesture(
                         onDragStart = onResizeDragStart,
                         onDragBy = onResizeDragBy,
@@ -2974,13 +2943,17 @@ private fun TileView(
             )
         }
         // Selected tiles show corner controls: folder/stack tiles get a folder icon
-        // at top-left (tap expands it inline to manage members one-by-one); app
-        // tiles get the standard close icon. Stacks suppress resize and colour dot.
-        // None of this applies to the expanded placeholder — there's nothing to
+        // at top-left (tap expands it inline to manage members one-by-one), a
+        // resize icon (drag it to resize the whole stack, homogenizing every
+        // member — see onResizeStack), and a colour dot (opens the same picker
+        // sheet that now also hosts the "show as stack"/"show as folder"
+        // toggle); app tiles get the standard close icon instead of the folder
+        // icon. A widget stack used to suppress the resize icon and colour dot
+        // here — both are shown now, identically to a plain folder. None of
+        // this applies to the expanded placeholder — there's nothing to
         // resize/recolour/unpin while it's just a collapse affordance.
         if (selected && !isExpanded) {
             when {
-                isStackTile -> StackEditControls()
                 tile is TileModel.Folder -> TileControls(showColor = showColorDot, dotColor = accent, nextSizeIsLarger = nextSizeIsLarger, isFolder = true)
                 else -> TileControls(showColor = showColorDot, dotColor = accent, nextSizeIsLarger = nextSizeIsLarger)
             }
@@ -3130,51 +3103,6 @@ private fun FolderNameEditor(initial: String, onCommit: (String) -> Unit) {
 }
 
 /**
- * A folder action tile (FR-4, mirrors the old overlay's `StackModeChip` row):
- * the single "show as stack"/"show as folder" toggle offered inline alongside
- * an expanded folder's children (see StartPage's expandedFolderActions). Not
- * a real app — a distinct pill so it doesn't read as a pinned tile. Both
- * directions are accent-tinted (each is a deliberate, reversible choice, not
- * a bail-out/cancel action the way the old "keep as folder" was).
- * [textIsDark] (the same signal driving the Start screen's chevron/gear tint —
- * see [rememberChosenWallpaperIsLight]) darkens the text/border when this
- * chip sits on a light background, since — like the chevron/gear — it draws
- * directly over the screen's own wallpaper, not a tile fill.
- */
-@Composable
-private fun FolderActionTile(
-    action: FolderAction,
-    accent: Color,
-    textIsDark: Boolean,
-    onClick: () -> Unit,
-) {
-    val label = when (action) {
-        FolderAction.ShowAsStack -> "show as\nstack"
-        FolderAction.ShowAsFolder -> "show as\nfolder"
-    }
-    val neutral = Glass.faceTextColor(textIsDark)
-    val fill = accent.copy(alpha = 0.35f)
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(3.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(fill)
-            .border(1.dp, neutral.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            color = neutral,
-            fontSize = 11.sp,
-            lineHeight = 13.sp,
-            textAlign = TextAlign.Center,
-        )
-    }
-}
-
-/**
  * The prototype `.badge`: a rounded count pill in the tile's top-right corner.
  * White on dark themes, inverted on light (`#screen.light .badge`). Shrinks on
  * small tiles. Counts over 99 read "99+" so the pill keeps its shape.
@@ -3273,21 +3201,6 @@ internal fun BoxScope.TileControls(showColor: Boolean, dotColor: Color, nextSize
     }
 }
 
-/**
- * Corner controls for a **selected widget stack** in edit mode. Shows a folder
- * icon at TopStart — handled by [editDragGesture]'s top-left zone, which opens
- * the folder overlay so the user can pull members out one by one. No resize or
- * colour dot — stacks are fixed at 3×3 and member colours are set per-member in
- * the overlay.
- */
-@Composable
-private fun BoxScope.StackEditControls() {
-    TileControl(
-        iconKey = "folder",
-        description = "open stack members",
-        modifier = Modifier.align(Alignment.TopStart),
-    )
-}
 
 @Composable
 private fun TileControl(iconKey: String, description: String, modifier: Modifier) {
