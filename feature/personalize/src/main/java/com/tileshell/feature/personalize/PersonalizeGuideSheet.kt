@@ -149,6 +149,7 @@ fun PersonalizeGuideSheet(
                     "personalize · accent colour sets the colour every tile uses by default",
                     "in edit mode, tap the colour dot on a selected tile to give just that tile its own colour",
                     "turn on \"tile colour from app icon\" (personalize · colour & fill) to auto-pick each app's dominant colour instead",
+                    "pick \"wallpaper\" as the tile colour source to tint every tile with the same wallpaper-derived accent the feed page and quick panel already use",
                     "turn on \"gradient fill\" for a subtle diagonal gradient instead of a flat colour",
                 ),
             )

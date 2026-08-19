@@ -344,6 +344,7 @@ fun AboutSheet(
                     "14 accent colours to choose from",
                     "per-tile colour — give any tile its own colour in edit mode",
                     "tile colour from app icon — auto-picks the dominant colour",
+                    "tile colour from wallpaper — tints every tile with the same wallpaper-derived accent the feed page and quick panel already use",
                     "dark, light, or follow-system theme — tap one of the three theme tiles at the top of personalize",
                     "the device's real settings app is one tap away, right at the top of personalize",
                     "glass (transparent) tiles with adjustable transparency",
