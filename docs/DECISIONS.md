@@ -4893,3 +4893,23 @@ unmasked square icon would.
 Drawn last in `StartScreen`'s overlay stack so it fully covers everything else, including the
 existing `FirstRunHint` card (explicitly suppressed while the wizard is open, so a genuinely fresh
 install never shows both at once — the wizard takes priority as the very first thing seen).
+
+## Closed folder's mini-grid shows the real app icon in ICONS mode too
+
+User-reported, with a screenshot of a real Android launcher's home screen: a folder's default apps
+(contacts/mail/messages) showed the generic WP monoline glyph in their closed mini-grid preview
+instead of each app's real icon — inconsistent with the rest of ICONS mode, where top-level icons
+already prefer the real icon (see "Icon mode shows the real app icon, not the WP category glyph").
+Root cause: `FolderChildIcon` (`StartScreen.kt`, feeding `FolderTileContent`'s mini-grid — used by
+*any* closed folder at MEDIUM+, in both home styles) had never been touched by that earlier fix; it
+still picked `useAppIcon` purely from `!TileIcons.hasIcon(iconKey)`, the original WP-authentic rule.
+
+Fixed by threading a `homeStyle: HomeStyle = HomeStyle.TILES` parameter down through `TileView` →
+`FolderTileContent` → `FolderChildIcon`, and branching `FolderChildIcon`'s `useAppIcon` decision on
+it: in ICONS mode, prefer the real icon whenever `child.packageName.isNotBlank()` (the same rule
+`IconCellView`'s `maskedOrGlyphIcon` already applies); in TILES mode, the original glyph-first rule
+is untouched, keeping that mode's WP-authentic look exactly as it was. Deliberately scoped to only
+the *closed* mini-grid — inline-expanded folder children were already correct (they route through
+`FolderChild.asTileModel` → the ordinary `TileView`/`IconCellView` call site, which already carries
+this fix), and a widget stack's members render via `AppTileContent` (tile-mode-only regardless of
+home style, unrelated to this bug).

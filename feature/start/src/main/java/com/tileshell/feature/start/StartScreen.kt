@@ -2268,6 +2268,7 @@ private fun StartPage(
                             dragging = dragging,
                             mergeTarget = model.id == mergeTargetId,
                             isExpanded = spec.id == expandedFolderId,
+                            homeStyle = homeStyle,
                             accent = tileAccent,
                             glass = glass,
                             transparency = transparency,
@@ -2690,6 +2691,11 @@ internal fun TileView(
     // FR-4 WP-style: true for the folder tile currently expanded inline —
     // renders an up-arrow collapse affordance instead of its usual face.
     isExpanded: Boolean = false,
+    // Only consulted by a closed folder's mini-grid (FolderTileContent) — see
+    // FolderChildIcon's doc comment: ICONS mode shows each child's real app
+    // icon there too, matching the top-level icon-vs-glyph rule; TILES mode
+    // keeps the WP-authentic monoline glyph unchanged.
+    homeStyle: HomeStyle = HomeStyle.TILES,
     accent: Color,
     glass: Boolean,
     transparency: Float,
@@ -2954,6 +2960,7 @@ internal fun TileView(
                         darkTheme = darkTheme,
                         tiledWallpaper = tiledWallpaper,
                         notifications = notifications,
+                        homeStyle = homeStyle,
                         onLaunchChild = onLaunchFolderChild,
                         onOpenFolder = onTap,
                         onEnterEdit = onLongPress,
@@ -4208,14 +4215,28 @@ private fun averageLuminance(bitmap: ImageBitmap): Float {
     return if (n > 0) (sum / n / 255.0).toFloat() else 0f
 }
 
+/**
+ * A closed folder's mini-grid cell icon (`FolderTileContent`). In ICONS home
+ * style this now prefers the child app's own real icon whenever a real
+ * package is resolvable — same rule `IconCellView`'s `maskedOrGlyphIcon`
+ * already applies to top-level icons (user-reported: a folder's default apps
+ * — contacts/mail/messages — showed the generic WP category glyph instead
+ * of their real icons, inconsistent with the rest of ICONS mode). TILES mode
+ * keeps the original WP-authentic behaviour (glyph whenever the iconKey
+ * matches a known category) unchanged.
+ */
 @Composable
-private fun FolderChildIcon(child: FolderChild?) {
+private fun FolderChildIcon(child: FolderChild?, homeStyle: HomeStyle = HomeStyle.TILES) {
     // Always call rememberTileAppIcon so the composable call count is stable
     // regardless of whether child is null or has a WP icon.
     val pkg = child?.packageName.orEmpty()
     val act = child?.activityName.orEmpty()
     val appIcon = rememberTileAppIcon(pkg, act)
-    val useAppIcon = child != null && !TileIcons.hasIcon(child.iconKey)
+    val useAppIcon = child != null && if (homeStyle == HomeStyle.ICONS) {
+        child.packageName.isNotBlank()
+    } else {
+        !TileIcons.hasIcon(child.iconKey)
+    }
 
     if (child == null) return
     if (useAppIcon && appIcon != null) {
@@ -4246,6 +4267,7 @@ private fun FolderTileContent(
     darkTheme: Boolean,
     tiledWallpaper: Boolean,
     notifications: NotificationSnapshot,
+    homeStyle: HomeStyle = HomeStyle.TILES,
     onLaunchChild: (FolderChild) -> Unit,
     onOpenFolder: () -> Unit,
     onEnterEdit: () -> Unit,
@@ -4341,7 +4363,7 @@ private fun FolderTileContent(
                                     fontWeight = FontWeight.Medium,
                                 )
                             } else {
-                                FolderChildIcon(child)
+                                FolderChildIcon(child, homeStyle)
                             }
                             // Per-app count — lets a closed folder be scanned for
                             // *which* app has unread items, not just how many in

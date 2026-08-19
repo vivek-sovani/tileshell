@@ -38,6 +38,16 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.5.1 — closed folder's mini-grid shows the real app icon in ICONS mode too.** User-reported
+  with a real-launcher screenshot: a folder's default apps (contacts/mail/messages) showed the
+  generic WP glyph in the closed mini-grid instead of each app's real icon — `FolderChildIcon` had
+  never picked up the earlier "icon mode shows the real app icon" fix, since it lives on a separate
+  code path (`FolderTileContent`'s mini-grid, not the top-level `IconCellView`). Threaded a
+  `homeStyle: HomeStyle = HomeStyle.TILES` param down `TileView` → `FolderTileContent` →
+  `FolderChildIcon`; ICONS mode now prefers the real icon whenever the child has a real package,
+  matching `IconCellView`'s own rule, while TILES mode's WP-authentic glyph-first look is untouched.
+  See DECISIONS "Closed folder's mini-grid shows the real app icon in ICONS mode too." Build + tests
+  green.
 - **Post-v2.5.1 — first-run home-style (tiles vs icons) choice wizard, real live preview.**
   User-requested, scoped down via `AskUserQuestion` to a single choice screen (no bundled
   restore-backup step, no multi-step flow) — see DECISIONS "First-run home-style (tiles vs icons)
