@@ -4781,3 +4781,33 @@ overlapping rounded squares, hand-drawn in the existing stroke-only monoline sty
 "never Microsoft assets" rule means a new icon has to be authored, not borrowed) shown alongside "show
 as stack"; the existing `"folder"` glyph is reused for "show as folder". `TileColorPicker` gained a
 `stackToggleIconKey` param alongside `stackToggleLabel`.
+
+## Icon shape masking extended to the App List
+
+New user request: the `IconShape` setting (circle/squircle/rounded/original) only masked icons on the
+Start screen (ICONS home style); it should apply the same way in the App List.
+
+**Duplicated rather than shared, per explicit choice offered to the user.** `:feature:applist` cannot
+depend on `:feature:start` (the dependency graph runs the other way — `:feature:start` already depends
+on `:feature:applist` for the app drawer). Sharing the masking logic cleanly would mean giving
+`:core:design` a dependency on `:core:data` (where `IconShape` lives) — reversing the earlier deliberate
+decision recorded in "Icon shape masking" above to keep those two modules independent. Asked the user
+directly which trade-off they preferred; chose duplication. New `AppListIcon.kt` in `:feature:applist`
+re-implements the same adaptive-icon-clips / legacy-icon-on-a-tinted-plate split as `IconCellView.kt`'s
+`maskedOrGlyphIcon`, gated on `homeStyle == HomeStyle.ICONS` (a plain unmasked icon in TILES mode, same
+as before this feature existed) — `AppListViewModel` gained a `settings: StateFlow<LauncherSettings>`
+(mirroring `StartViewModel`'s own pattern) so `AppListScreen` can read `homeStyle`/`iconShape` and pass
+them into `AppRow`.
+
+**Real performance bug caught before it shipped, not after.** The first pass ported
+`maskedOrGlyphIcon`'s plate-colour calculation (`dominantIconColor`, a per-pixel saturation-weighted
+scan over a 96×96 bitmap) as-is — safe on Start, where at most a couple dozen icons are ever composed
+at once, but the App List is a `LazyColumn` that can hold hundreds of installed apps, and the scan was
+running synchronously on the main thread inside the composable body, unmemoized, for every legacy
+(non-adaptive) icon row. User caught this ("app icon shape change in app list is costly") before any
+device testing. Fixed by moving the colour scan into `rememberMaskableAppIcon`'s existing background
+icon-load coroutine (`Dispatchers.IO`) and caching the result on `MaskableAppIcon.plateColor` — computed
+once per icon load, never touching the UI thread, never recomputed on recomposition/scroll. The squircle
+shape's own `Outline` computation (64 trig-heavy points per `createOutline` call) was checked too and
+is not a comparable concern: Compose only calls it for on-screen rows and caches it per shape/size, so
+its cost is bounded to whatever's actually visible, unlike the unbounded per-pixel scan.

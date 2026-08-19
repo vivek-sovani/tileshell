@@ -38,6 +38,17 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.5.1 — icon shape masking extended to the App List.** User-requested: the `IconShape`
+  setting (circle/squircle/rounded/original) only masked Start-screen icons (ICONS home style), not
+  the App List. `:feature:applist` can't depend on `:feature:start` (dependency graph runs the other
+  way), so rather than giving `:core:design` a dependency on `:core:data` to share code (reversing an
+  earlier deliberate decision), the masking logic is duplicated in a new `AppListIcon.kt` — gated on
+  `homeStyle == HomeStyle.ICONS`, plain unmasked in TILES mode. `AppListViewModel` gained a
+  `settings: StateFlow<LauncherSettings>` (mirrors `StartViewModel`). **Caught a real perf bug before
+  shipping**: the first pass's plate-colour scan (per-pixel, 96×96 bitmap) ran synchronously on the
+  main thread per row — fine on Start's couple-dozen on-screen tiles, not fine on the App List's
+  `LazyColumn` of potentially hundreds of apps. Fixed by computing it once in the background icon-load
+  coroutine and caching it, never touching the UI thread. Build + tests green.
 - **Post-v2.5.1 — widget stacks: any stackable size + explicit "show as stack"/"show as folder"
   toggle.** Direct follow-up on the icons-mode arc, user-requested — see DECISIONS "Widget stacks:
   any stackable size, explicit 'show as stack'/'show as folder' toggle" for the full mechanism.

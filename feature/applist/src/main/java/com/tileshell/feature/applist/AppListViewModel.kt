@@ -13,6 +13,7 @@ import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.hasPersonalizeTile
 import com.tileshell.core.data.settings.HomeStyle
+import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.core.data.settings.SettingsRepository
 import com.tileshell.feature.livetiles.NotificationCenter
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -54,6 +55,14 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
     private val repository = AppCatalogRepository(application)
     private val layout = LayoutRepository.create(application)
     private val settingsRepository = SettingsRepository.create(application)
+
+    /** For [AppListScreen] to mask row icons to `iconShape` in ICONS home style,
+     *  matching Start's own icon rendering (see [AppListIcon]). */
+    val settings: StateFlow<LauncherSettings> = settingsRepository.settings.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = LauncherSettings(),
+    )
 
     private val apps: StateFlow<List<AppEntry>> = repository.apps.map { it + PERSONALIZE_APP_ENTRY }.stateIn(
         scope = viewModelScope,
