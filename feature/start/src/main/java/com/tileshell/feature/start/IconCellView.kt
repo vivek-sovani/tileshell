@@ -374,9 +374,19 @@ private fun rememberMaskableIcon(packageName: String, activityName: String): Mas
 
 /**
  * The masked-or-glyph rendering shared by a top-level app icon and a folder
- * mini-grid child: [iconKey]'s monoline glyph when there's no resolvable
- * real icon; otherwise the loaded icon at [size], masked to [shape] via the
- * adaptive-vs-legacy split documented on [IconCellGlyph].
+ * mini-grid child: the parent app's own real launcher icon whenever one is
+ * resolvable, masked to [shape] via the adaptive-vs-legacy split documented
+ * on [IconCellGlyph]; [iconKey]'s monoline glyph only as the fallback for a
+ * tile with no real app behind it (a blank-package tile like weather/
+ * calendar/personalize, or a real icon that fails to load).
+ *
+ * This deliberately diverges from tile mode's `StaticTileGlyph`, which shows
+ * the stylized WP glyph for any tile whose `iconKey` matches a known
+ * category ([TileIcons.hasIcon]) even when a real app icon exists — correct
+ * for the WP look, but wrong for ICONS mode's whole premise (a normal
+ * Android-style launcher, where every icon is the app's own): a role-matched
+ * tile (mail/weather/camera/etc.) used to show the generic category glyph
+ * here too instead of the actual installed app's icon.
  */
 @Composable
 private fun maskedOrGlyphIcon(
@@ -389,7 +399,7 @@ private fun maskedOrGlyphIcon(
     size: Dp,
     glyphSize: Dp,
 ) {
-    val useAppIcon = !TileIcons.hasIcon(iconKey)
+    val useAppIcon = packageName.isNotBlank()
     val loaded: MaskableIcon? = if (useAppIcon) rememberMaskableIcon(packageName, activityName) else null
     val composeShape = shape.toComposeShape()
 
