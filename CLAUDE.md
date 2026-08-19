@@ -208,6 +208,19 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   emulator (via `uiautomator dump` for exact tap coordinates): swatch/tiles show the plain accent with
   no wallpaper set, and all switch together to a picked stock gradient's sampled colour once selected.
   Build + tests green.
+- **`android-home-style` branch — the guide and about sheets now describe home style, icon shapes,
+  and the drag-resize tile sizes.** User asked directly whether these had been documented — they
+  hadn't. `PersonalizeGuideSheet.kt` ("how to personalize") gained a new "home style" `FeatureGroup`
+  (with a matching visual: a plain tile swatch next to the four `IconShape` outlines, reusing
+  `SquircleShape` from `:core:design`) covering the first-run wizard, the tiles↔icons switch, icon
+  shapes, the icon↔live-tile size-boundary conversion, and icons mode's "free" arrangement default;
+  "organizing tiles" gained the drag-corner/11-size detail. `AboutSheet.kt`'s "start screen" group got
+  the same content in its plain-text convention, plus a "sticky/free/dense" arrangement bullet (a
+  pre-existing, also-undocumented setting). Both sheets' duplicate one-line subject summaries (the
+  guide's own header, and a second copy in `PersonalizeSheet.kt`'s "how to personalize" nav-row
+  subtitle) were updated to mention "home style" too. See DECISIONS "Guide and about sheets never
+  mentioned home style, icon shapes, or the drag-resize tile sizes." Verified on an emulator: both new
+  sections render correctly (visual + all bullets). Build + tests green.
 - **Post-v2.5.0 — feed widget stacks: four fixes from on-device testing.** User-reported after real
   hardware use as two symptoms ("stack position can't be changed", "another widget can not be placed
   next to the stack"), which were four separate defects — see DECISIONS "Feed widget stacks — four

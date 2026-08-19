@@ -37,11 +37,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.design.SheetStage
+import com.tileshell.core.design.SquircleShape
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.Wallpapers
@@ -130,7 +132,7 @@ fun PersonalizeGuideSheet(
                     letterSpacing = (-0.8).sp,
                 )
                 Text(
-                    text = "colours, wallpaper, tiles, pinning apps, the feed, the quick panel, and permissions",
+                    text = "colours, wallpaper, tiles, home style, pinning apps, the feed, the quick panel, and permissions",
                     color = tokens.fgDim,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.W300,
@@ -183,6 +185,21 @@ fun PersonalizeGuideSheet(
             )
 
             FeatureGroup(
+                title = "home style",
+                accent = accent,
+                tokens = tokens,
+                visual = { HomeStyleVisual(accent, tokens) },
+                items = listOf(
+                    "shown once as a choice screen on first launch, with a real live preview of both looks",
+                    "personalize · home style switches any time between \"tiles\" (the classic windows-phone look) and \"icons\" (a normal android-style grid)",
+                    "in icons mode, small tiles render as shaped icons; live tiles, folders, and widget stacks look exactly the same as in tiles mode",
+                    "growing an icon past its smallest size turns it into a live tile; shrinking one back down turns it back into an icon",
+                    "in icons mode, personalize · home style also lets you pick an icon shape — circle, squircle, rounded, or your device's own",
+                    "icons mode defaults to \"free\" arrangement (personalize · arrangement) — nothing moves unless you move it, and dropping onto another tile swaps the two instead of pushing everything down",
+                ),
+            )
+
+            FeatureGroup(
                 title = "organizing tiles",
                 accent = accent,
                 tokens = tokens,
@@ -191,7 +208,8 @@ fun PersonalizeGuideSheet(
                     "long-press any tile to enter edit mode",
                     "drag one tile onto another, centre to centre, to merge them into a folder",
                     "merge two large tiles (or open a folder and use \"make stack · wide/large\") to turn them into a widget stack — \"keep as folder\" sits right alongside, so you won't convert by accident",
-                    "use a selected tile's resize handle to cycle its size",
+                    "use a selected tile's resize handle to cycle its size — medium → small → wide → large",
+                    "drag a tile's corner instead of tapping to resize it freely, across 11 sizes in total — from a tiny 1×1 icon up to a full 4×4 tile, including thin banner and column strips along the way",
                     "tap the folder icon on a selected folder or stack to expand it in place and manage its members",
                     "an open stack offers switching to the other size (wide ↔ large) or \"back to folder\" to revert it",
                     "tap × on a selected tile to unpin it — inside an open folder or stack, that sends the member back to start",
@@ -308,6 +326,39 @@ private fun GuideVisualCard(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         content = content,
     )
+}
+
+/**
+ * A plain tile swatch (the "tiles" look) beside the four selectable [IconShape]
+ * outlines (the "icons" look) — mirrors [PersonalizeSheet]'s own icon-shape row
+ * without depending on it, since that row is `private` there.
+ */
+@Composable
+private fun HomeStyleVisual(accent: Color, tokens: com.tileshell.core.design.ColorTokens) {
+    GuideVisualCard(tokens) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(accent),
+        )
+        Text("vs", color = tokens.fgDim, fontSize = 12.sp)
+        val shapes: List<Shape> = listOf(
+            CircleShape,
+            SquircleShape(),
+            RoundedCornerShape(percent = 30),
+            RoundedCornerShape(4.dp),
+        )
+        shapes.forEach { shape ->
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(shape)
+                    .background(accent),
+            )
+        }
+        Spacer(Modifier.weight(1f))
+    }
 }
 
 /** A few real accent [Swatch]es plus a mock tile with the per-tile colour-dot badge. */

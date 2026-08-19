@@ -5065,3 +5065,29 @@ wallpaper set, the swatch and every tile correctly showed the plain blue global 
 pill, the swatch, the pill's own selected fill, and every tile on Start (including a folder's mini-grid
 children) all switched to the same deep red/brick colour sampled from that gradient — confirming the
 whole chain end-to-end, not just the Personalize preview. Build + full unit test suite green.
+
+## Guide and about sheets never mentioned home style, icon shapes, or the drag-resize tile sizes
+
+User asked directly: "have you added selection tiles/icons in guide, and features & info. same for
+more tile sizes" — the answer was no. The whole `android-home-style` arc (home-style choice wizard,
+icon shapes, gesture-based drag resize to 11 total sizes, "free" arrangement) shipped across several
+earlier sessions on this branch without ever touching `PersonalizeGuideSheet.kt` ("how to personalize")
+or `AboutSheet.kt` ("features & info") — both still described only the original four tile sizes and
+said nothing about icons mode at all. Fixed by adding a new "home style" `FeatureGroup` to the guide
+(with a matching visual: a plain tile swatch next to the four selectable `IconShape` outlines —
+circle/squircle/rounded/rectangle — reusing `SquircleShape` from `:core:design` rather than duplicating
+`PersonalizeSheet`'s own `private` icon-shape preview logic) covering the first-run wizard, the
+tiles↔icons switch, icon shapes, the icon↔live-tile size-boundary conversion, and icons mode's "free"
+arrangement default; and expanding "organizing tiles" with the drag-corner/11-size detail alongside the
+existing tap-cycle description. `AboutSheet.kt`'s "start screen" group got the same content in its
+plain (no-visual) bullet-list convention, plus a bonus "sticky/free/dense" arrangement bullet — that
+setting predates this branch and had never been documented either, close enough to the new "free" mode
+bullet that leaving it out would have read as a gap. Both files also had a second, separate copy of the
+guide's one-line subject summary ("colours, wallpaper, tiles, pinning apps, the feed...") —
+`PersonalizeSheet.kt`'s own "how to personalize" nav-row subtitle — which needed the same "home style"
+addition to stay in sync; missing that copy the first time round is why an early on-device check still
+showed the old summary text after editing only the guide sheet's own header. Verified on an emulator:
+opened the guide sheet, scrolled to the new "home style" group (visual renders correctly, all six
+bullets present) and to the updated "organizing tiles" bullets; opened the about sheet's "start screen"
+group and confirmed the same content renders there in its plain-text form. Build + full unit test suite
+green.
