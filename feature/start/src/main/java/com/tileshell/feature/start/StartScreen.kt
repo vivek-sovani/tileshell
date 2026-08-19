@@ -2411,11 +2411,11 @@ private fun StartPage(
             // it's either already a stack (always safe to un-toggle) or has
             // ≥2 children at a `TileSize.stackable` footprint (both
             // dimensions > 1) to uniform into a stack.
-            val stackToggleLabel = (model as? TileModel.Folder)?.let { folder ->
+            val stackToggle = (model as? TileModel.Folder)?.let { folder ->
                 when {
                     childRef != null -> null
-                    folder.isStack -> "show as folder"
-                    folder.children.size >= 2 && folder.size.stackable -> "show as stack"
+                    folder.isStack -> "show as folder" to "folder"
+                    folder.children.size >= 2 && folder.size.stackable -> "show as stack" to "stack"
                     else -> null
                 }
             }
@@ -2423,7 +2423,8 @@ private fun StartPage(
                 current = current,
                 suggestedNearestId = suggestion?.nearestId,
                 suggestedExact = suggestion?.exact,
-                stackToggleLabel = stackToggleLabel,
+                stackToggleLabel = stackToggle?.first,
+                stackToggleIconKey = stackToggle?.second,
                 onToggleStack = {
                     onToggleFolderStack(pickId)
                     colorPickerFor = null
@@ -2451,10 +2452,13 @@ private fun StartPage(
  * ringed wherever it matches.
  *
  * A folder additionally gets the "show as stack"/"show as folder" toggle here
- * ([stackToggleLabel] non-null, [onToggleStack]) — moved from a standalone
- * action tile next to the expanded folder's children into this sheet, per
- * user request (see docs/DECISIONS.md), since it's really another per-tile
- * setting alongside colour rather than something that needs its own grid cell.
+ * ([stackToggleLabel] non-null, tinted with [stackToggleIconKey]'s glyph,
+ * [onToggleStack]) — moved from a standalone action tile next to the
+ * expanded folder's children into this sheet, per user request (see
+ * docs/DECISIONS.md), since it's really another per-tile setting alongside
+ * colour rather than something that needs its own grid cell. Set off below
+ * the colour swatches with a thin divider, since it's a distinct setting,
+ * not another colour choice.
  */
 @Composable
 private fun BoxScope.TileColorPicker(
@@ -2462,6 +2466,7 @@ private fun BoxScope.TileColorPicker(
     suggestedNearestId: String?,
     suggestedExact: Color?,
     stackToggleLabel: String? = null,
+    stackToggleIconKey: String? = null,
     onToggleStack: () -> Unit = {},
     onPick: (String?) -> Unit,
     onDismiss: () -> Unit,
@@ -2491,19 +2496,6 @@ private fun BoxScope.TileColorPicker(
             .padding(20.dp),
     ) {
         Text("tile colour", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-        if (stackToggleLabel != null) {
-            Spacer(Modifier.height(14.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color.White.copy(alpha = 0.12f))
-                    .clickable(onClick = onToggleStack)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-            ) {
-                Text(stackToggleLabel, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            }
-        }
         Spacer(Modifier.height(14.dp))
         Box(
             modifier = Modifier
@@ -2569,6 +2561,29 @@ private fun BoxScope.TileColorPicker(
                         }
                     }
                 }
+            }
+        }
+        if (stackToggleLabel != null) {
+            Spacer(Modifier.height(16.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.15f)))
+            Spacer(Modifier.height(16.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.White.copy(alpha = 0.12f))
+                    .clickable(onClick = onToggleStack)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+            ) {
+                Icon(
+                    imageVector = TileIcons[stackToggleIconKey],
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(stackToggleLabel, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
         }
     }

@@ -4771,3 +4771,13 @@ rather than a grid cell competing for space with the folder's actual children, w
 expanding a folder no longer reserves an extra slot for it (one less cell to push subsequent rows
 down by). Since every selected folder/stack now shows a colour dot (the previous entry's fix already
 made the corner controls identical), the sheet is reachable from both a plain folder and a stack.
+
+**Follow-up, same day: toggle repositioned below the colour swatches, with its own icon.** User
+feedback on the sheet placement above: "show as folder settings should be below tile color selection.
+should be shown separately using some icon usage." Moved from directly under the "tile colour" header
+to the very bottom of the sheet, after the swatch grid, set off by a thin divider so it visually reads
+as a distinct setting rather than another colour option. `TileIcons` gains a new `"stack"` glyph (two
+overlapping rounded squares, hand-drawn in the existing stroke-only monoline style — CLAUDE.md's
+"never Microsoft assets" rule means a new icon has to be authored, not borrowed) shown alongside "show
+as stack"; the existing `"folder"` glyph is reused for "show as folder". `TileColorPicker` gained a
+`stackToggleIconKey` param alongside `stackToggleLabel`.
