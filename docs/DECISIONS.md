@@ -4844,3 +4844,52 @@ accent-override → app-icon-colour → global-accent priority chain) alongside 
 `StartScreen`'s composition, ambient to the whole screen including `IconCellView`, so the reused
 `*SmallFace` composables automatically get the same white-on-accent (or black-on-light-glass) text
 colour real tiles use.
+
+## First-run home-style (tiles vs icons) choice wizard, with a real live preview
+
+New user ask: on first launch (and once for an existing install upgrading to the version that
+introduced ICONS mode), ask the user to choose between the two home styles with a visual sample of
+each, rather than silently defaulting to TILES and leaving `HomeStyle` buried in Personalize.
+Scoped down via `AskUserQuestion` to keep this a single session's work: just the one choice screen
+(no multi-step wizard, no bundled restore-backup step — that stays exactly where it already is,
+Personalize → backup & restore), with a **real live preview** (not a drawn mockup) built from the
+actual `TileView`/`IconCellView` composables, and a **version-independent one-shot flag** rather than
+a specific versionCode check.
+
+**Detection: one flag, not a version comparison.** `HomeStyleWizardPrefs` (new file
+`HomeStyleWizard.kt`, `:feature:start`) follows the exact same shape as every other one-shot flag in
+this app (`FirstRunHintPrefs`/`SettingsAppMigration`, both in the shared `tileshell.prefs`
+`SharedPreferences` file) — `shown()`/`markShown()`, checked once in `StartViewModel`'s `init{}`
+alongside `migrateSettingsTile()`. This one flag alone covers both trigger cases without a
+versionCode check: a genuinely fresh install has it unset, and so does an *existing* install
+upgrading to the first version with `HomeStyle` at all, since the flag itself is new in that same
+release. `StartViewModel` gained a `homeStyleWizardOpen: StateFlow<Boolean>` following the identical
+sheet-gate shape as `aboutOpen`/`personalizeOpen`/etc., plus `chooseHomeStyle(style)` (sets the style
+via the existing `setHomeStyle` — which already seeds a 4dp corner radius on first switch to ICONS —
+then marks the flag and closes) and `skipHomeStyleWizard()` (marks the flag and closes without
+changing anything, leaving the TILES default in place). Wired into `goHome()`'s existing close-every-
+sheet chain, so pressing Home/back while it's open counts as a skip, same "never nags twice" rule
+every other one-shot flag in this app follows.
+
+**The preview is the real renderer, not an illustration.** Per explicit user choice ("a real mini live
+preview... using the app's real TileView/IconCellView composables"), `HomeStyleWizardScreen` builds
+its two option cards from a handful of fabricated `TileModel.App` instances (`SAMPLE_APPS` — never
+real installed apps, never touching the user's actual layout) rendered through the *actual*
+`internal fun TileView`/`IconCellView` (`TileView` widened from `private` to `internal` for this,
+following the same visibility-widening precedent as `rememberTileAppIcon`/`tileGesture`/`TileControls`
+earlier in this arc) — so what's shown is pixel-for-pixel what the real renderer produces, not a
+close approximation. Sample iconKeys are deliberately restricted to ones with **zero** `LiveFace`
+mapping (`"phone"`/`"camera"`/`"store"`/`"settings"`) so a blank/fake `packageName` always takes the
+plain static-glyph path on both renderers with no `PackageManager` lookup, no live-data fetch, no
+permission prompt — verified by walking every branch of `AppTileContent`/`maskedOrGlyphIcon` for a
+blank package before writing the preview. Every wallpaper/glass param `TileView` needs is an inert
+placeholder (`tiledWallpaper = false`, `glass = false`, `wallpaperPhoto = null`, `wallpaper =
+Wallpapers.Mono`, `fullWidth = 0f`, `fullHeight = 0f`), landing it on a plain `Modifier.background
+(accent)` fill with zero risk of needing those params to be meaningful. The ICONS-mode sample fixes
+`iconShape = IconShape.CIRCLE` regardless of the app's actual (still-default `ORIGINAL`) setting,
+since a masked shape reads as more recognisably "Android-style" for a side-by-side comparison than an
+unmasked square icon would.
+
+Drawn last in `StartScreen`'s overlay stack so it fully covers everything else, including the
+existing `FirstRunHint` card (explicitly suppressed while the wizard is open, so a genuinely fresh
+install never shows both at once — the wizard takes priority as the very first thing seen).

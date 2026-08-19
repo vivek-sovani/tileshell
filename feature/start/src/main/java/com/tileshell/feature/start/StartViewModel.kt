@@ -243,6 +243,18 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val _quickPanelOpen = MutableStateFlow(false)
     val quickPanelOpen: StateFlow<Boolean> = _quickPanelOpen.asStateFlow()
 
+    /**
+     * True while the one-shot home-style (tiles vs icons) choice wizard is
+     * open — shown once per device: on a genuinely fresh install, and once
+     * for an existing install upgrading to the version that introduced ICONS
+     * mode (both cases simply have [HomeStyleWizardPrefs.shown] unset, so no
+     * version-number check is needed — see its own doc comment). Set in
+     * [init], never re-opened once [chooseHomeStyle]/[skipHomeStyleWizard]
+     * marks it shown.
+     */
+    private val _homeStyleWizardOpen = MutableStateFlow(false)
+    val homeStyleWizardOpen: StateFlow<Boolean> = _homeStyleWizardOpen.asStateFlow()
+
     fun setAppList(value: Boolean) {
         _isAppList.value = value
     }
@@ -318,6 +330,9 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
                 seedStickySlots(initialSettings.columns)
             }
             migrateSettingsTile()
+            if (!HomeStyleWizardPrefs.shown(getApplication())) {
+                _homeStyleWizardOpen.value = true
+            }
         }
         // Resolve the news-region preset from the device locale before reconciling
         // (order matters: reconcileDefaults reads FeedData.region, so it must run
@@ -717,6 +732,22 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** The first-run wizard's pick: sets [style] via [setHomeStyle] and marks
+     *  the one-shot wizard flag so it never shows again. */
+    fun chooseHomeStyle(style: HomeStyle) {
+        setHomeStyle(style)
+        HomeStyleWizardPrefs.markShown(getApplication())
+        _homeStyleWizardOpen.value = false
+    }
+
+    /** Dismissing the first-run wizard without an explicit pick — leaves
+     *  [LauncherSettings.homeStyle] exactly as it already is (TILES on a
+     *  fresh install), but still marks the flag so it isn't shown again. */
+    fun skipHomeStyleWizard() {
+        HomeStyleWizardPrefs.markShown(getApplication())
+        _homeStyleWizardOpen.value = false
+    }
+
     /** Set the icon mask ICONS home style applies (unused in TILES). */
     fun setIconShape(shape: IconShape) {
         viewModelScope.launch(writeContext) { settingsRepository.setIconShape(shape) }
@@ -1007,6 +1038,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         collapseFolder()
         closeSearch()
         exitEdit()
+        // Home/back out of the first-run wizard without picking counts as a
+        // skip (marks it shown) — same "never nags twice" rule every other
+        // one-shot flag in this app follows.
+        if (_homeStyleWizardOpen.value) skipHomeStyleWizard()
         _homeRequests.tryEmit(Unit)
     }
 

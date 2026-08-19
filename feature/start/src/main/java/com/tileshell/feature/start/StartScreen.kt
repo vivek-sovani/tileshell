@@ -287,6 +287,7 @@ fun StartScreen(
     val newsRegionOpen by viewModel.newsRegionOpen.collectAsStateWithLifecycle()
     val edgeStripOpen by viewModel.edgeStripOpen.collectAsStateWithLifecycle()
     val quickPanelOpen by viewModel.quickPanelOpen.collectAsStateWithLifecycle()
+    val homeStyleWizardOpen by viewModel.homeStyleWizardOpen.collectAsStateWithLifecycle()
     val searchOpen by viewModel.searchOpen.collectAsStateWithLifecycle()
     // Hoisted above the EdgeStrip composable so its expanded/collapsed state survives
     // being unmounted while personalize/edit-mode/a folder is on top (it used to live
@@ -1514,8 +1515,22 @@ fun StartScreen(
 
         // First-run hint (S19): one-time prototype hint card over Start. Sits
         // above all other layers so it reads on a fresh install; self-hides once
-        // seen.
-        FirstRunHint(accentId = settings.accentId)
+        // seen. Suppressed while the home-style wizard is up (below), which
+        // takes priority as the very first thing a new install sees.
+        if (!homeStyleWizardOpen) {
+            FirstRunHint(accentId = settings.accentId)
+        }
+
+        // First-run home-style (tiles vs icons) choice wizard — see
+        // HomeStyleWizardPrefs's doc comment for exactly when this shows.
+        // Drawn last so it fully covers everything else, including the hint
+        // above.
+        if (homeStyleWizardOpen) {
+            HomeStyleWizardScreen(
+                onChoose = viewModel::chooseHomeStyle,
+                onSkip = viewModel::skipHomeStyleWizard,
+            )
+        }
 
         // Wallpaper crop overlay: shown immediately after the user picks a photo so
         // they can drag to position the image before it becomes the live wallpaper.
@@ -2665,7 +2680,7 @@ internal fun tileAccessibilityLabel(
 }
 
 @Composable
-private fun TileView(
+internal fun TileView(
     tile: TileModel,
     index: Int,
     editMode: Boolean,

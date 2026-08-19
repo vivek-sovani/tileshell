@@ -38,6 +38,23 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **Post-v2.5.1 — first-run home-style (tiles vs icons) choice wizard, real live preview.**
+  User-requested, scoped down via `AskUserQuestion` to a single choice screen (no bundled
+  restore-backup step, no multi-step flow) — see DECISIONS "First-run home-style (tiles vs icons)
+  choice wizard, with a real live preview". Shown once, ever, per device: on a fresh install, and
+  once for an existing install upgrading to the version that introduced `HomeStyle` at all, since the
+  new one-shot flag (`HomeStyleWizardPrefs`, `tileshell.prefs`, following the exact shape of
+  `FirstRunHintPrefs`/`SettingsAppMigration`) is unset in both cases — no versionCode check needed.
+  `StartViewModel` gained a `homeStyleWizardOpen` sheet-gate StateFlow (same shape as `aboutOpen`
+  etc.), checked in `init{}`, wired into `goHome()`'s close-every-sheet chain. The two option cards in
+  new `HomeStyleWizardScreen` (`:feature:start`) are a **real live preview**, not a drawn mockup — per
+  explicit user choice, built from fabricated sample `TileModel.App`s rendered through the actual
+  `TileView`/`IconCellView` composables (`TileView` widened private→internal for this), restricted to
+  iconKeys with zero `LiveFace` mapping so a blank/fake package always takes the safe static-glyph
+  path. Drawn last in the overlay stack, suppressing the existing `FirstRunHint` while open so a fresh
+  install never sees both at once. Build + tests green; installed on the physical device (no crash in
+  logcat), full on-screen verification pending since the device's lock screen blocked a screenshot
+  check this session.
 - **Post-v2.5.1 — weather/calendar/clock icons stay live at 1×1 in ICONS mode, rendered exactly like
   a tile-mode SMALL tile.** User-requested, a real Android launcher's dynamic calendar/weather icons
   were the explicit precedent — see DECISIONS "Weather/calendar/clock icons stay live at 1×1 in ICONS
