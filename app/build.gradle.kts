@@ -281,8 +281,21 @@ android {
         //   members and a right-edge strip flips them by hand; "unstack" splits them again.
         //   Also raises the App List's pin/hide/uninstall long-press to 700 ms, which was
         //   firing on an ordinary tap-and-linger.
-        versionCode = 251
-        versionName = "2.5.1"
+        // v3.0.0 (code 300) — "icons" home style: a normal Android-style look (shaped app
+        //   icons, live tiles, folders, free placement) alongside the existing Windows Phone
+        //   tiles look, chosen once via a first-run wizard. Icon shapes: circle/squircle/
+        //   rounded/square/original (the device's own shape). Eleven tile-size presets total,
+        //   with gesture-based corner-drag resize on top of the original tap cycle. New "free"
+        //   tile-arrangement mode. Widget stacks widened to any stackable size via a colour-
+        //   picker toggle, not just wide/large. Weather/calendar/clock tiles stay live even at
+        //   the small icon size. Notification-carrying live tiles (mail/messages/any app) at
+        //   every size now scale their layout to fully use — and vertically centre within —
+        //   the tile's actual space instead of a fixed cramped layout. A major-version bump
+        //   since this is the biggest new capability since the original WP recreation: a
+        //   second, genuinely different home-screen style living side by side with the first.
+        //   See CLAUDE.md and docs/DECISIONS.md for the full session-by-session history.
+        versionCode = 300
+        versionName = "3.0.0"
     }
 
     if (keystoreFile.exists()) {

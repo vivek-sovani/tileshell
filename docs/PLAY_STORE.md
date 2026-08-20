@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v2.5.0 listing draft — update before each release*
+*v3.0.0 listing draft — update before each release*
 
 ---
 
@@ -143,6 +143,68 @@ data. Users can also clear app data via Android Settings at any time.
 | Feature graphic | 1024 × 500 px | Required for listing banner |
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
+
+## Release notes (v3.0.0)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+**Note:** major-version bump — this is the biggest new capability since the original Windows
+Phone recreation: a second, genuinely different home-screen style living side by side with the
+first. Bug fixes are deliberately left out of the Play-facing text, per this doc's usual
+convention; the full changelog below carries them for reference.
+
+```
+TileShell 3.0.0
+
+• New: "icons" home style — shaped app icons alongside live tiles, picked in a first-run wizard
+• New: icon shapes — circle, squircle, rounded, square, or your device's own
+• New: eleven tile sizes with drag-to-resize corners
+• New: "free" arrangement — nothing moves unless you move it
+• New: any tile size can become a swipeable widget stack
+• New: weather/calendar/clock stay live as small icons
+• Changed: notification tiles use the full tile, centred
+```
+
+*(Character count 492, under Play's 500 limit.)*
+
+### Full changelog since v2.5.1 (for reference — not the Play-facing blurb above)
+
+- **"Icons" home style**: a new top-level choice (Personalize · home style) alongside the
+  existing Windows Phone "tiles" look — a normal Android-style launcher with shaped app icons,
+  live tiles, folders, and free placement, sharing the same layout/persistence/gestures/app-
+  drawer/backup as "tiles" underneath. Icon vs. live tile is derived purely from a tile's own
+  size: Small renders as a shaped icon, Medium and up render exactly as in tiles mode. Shown via
+  a one-time first-run wizard (fresh installs, and existing installs upgrading to this version)
+  with a real live preview built from the actual tile-rendering composables, not a mockup.
+- **Icon shapes**: circle, squircle (a true superellipse, not an approximated rounded rect),
+  rounded, square, and original (the device's own, unmasked shape) — a real adaptive-icon
+  re-masking technique is used so squircle/rounded/square actually change an adaptive icon's
+  shape instead of leaving the OS's own circular mask baked in underneath.
+- **Eleven tile sizes total**: the original four (Small/Medium/Wide/Large) plus seven reachable
+  only by dragging a tile's corner handle (Wide Small, Tall, Wide Medium, Tall Medium, XLarge,
+  Banner, Column) — growing or shrinking a tile across the Small boundary is what converts it
+  between a shaped icon and a live tile.
+- **"Free" tile arrangement**: a third placement mode (alongside the existing Sticky and Dense)
+  that icons mode defaults to — nothing moves unless you move it, and dropping a tile onto an
+  occupied cell swaps the two instead of pushing anything down.
+- **Widget stacks widened**: any tile size roomy enough on both axes (not just uniform Wide/
+  Large) can become a swipeable widget-stack folder via a "show as stack" toggle in the per-tile
+  colour picker; dragging a stack's corner resizes and homogenizes every member at once.
+- **Weather/calendar/clock stay live as small icons**: instead of a static glyph, these render as
+  a genuine mini live tile (real-time clock, live weather, today's date) even at the smallest
+  icon size, matching how a real Android launcher's dynamic icons behave.
+- **Notification tiles use their full space**: mail/messages/any app's notification tile at
+  every one of the eleven sizes now scales its avatar, font size, and number of visible snippet
+  lines to that size — a big tile shows meaningfully more text instead of the same cramped
+  layout a small tile uses — and centres that content vertically instead of pinning it to the
+  top with empty space left below.
+- Also included: narrow (Tall/Column) live tiles reflow their text stacked and centred instead of
+  clipping at one column wide; the App List respects icon shape and home style too; a folder's
+  closed mini-grid always shows real app icons (and a bigger icon, no background plate) in icons
+  mode; tile colour source gained a "wallpaper" option matching the feed/Quick Panel's own
+  wallpaper-derived accent; picking "icons" in the first-run wizard actually shrinks the seeded
+  default tiles down to icon size instead of leaving them as big live tiles; the guide and about
+  sheets document all of the above.
 
 ## Release notes (v2.5.1)
 
