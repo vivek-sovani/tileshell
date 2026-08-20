@@ -38,6 +38,25 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **`android-home-style` branch — non-standard notification tile sizes now use their full available
+  space.** User-requested: mail/messages/generic-notification live tiles at sizes other than MEDIUM/
+  WIDE/LARGE (the 6 drag-resize-only presets `WIDE_SMALL`/`WIDE_MEDIUM`/`TALL_MEDIUM`/`XLARGE`/
+  `BANNER`, plus TALL/COLUMN already handled) all silently fell into `NotificationFaceContent`'s
+  `else` catch-all (`feature/livetiles/ConversationTile.kt`), rendering the same fixed cramped
+  MEDIUM-sized text regardless of how much bigger/differently-shaped the actual tile was — e.g.
+  `XLARGE` (4×4, the biggest tile) showed identical text to `MEDIUM` (2×2). Gave every size its own
+  tuned branch: `WIDE_MEDIUM` reuses `WIDE`'s layout (same shape, narrower); new
+  `NotificationFaceContentTallMedium`/`Banner`/`WideSmall`/`XLarge` composables scale avatar size,
+  font size, and snippet `maxLines` to each shape (up to 18 lines on `XLARGE` vs `LARGE`'s 10; a
+  combined "sender: snippet" single line on the too-small-for-two-lines `WIDE_SMALL`). Both
+  `ConversationTileFace` (mail/messages) and `NotificationTileFace` (any other app) share this one
+  dispatcher, so the fix covers every live notification tile at once. `SMALL` was confirmed to never
+  reach this code at all (`LiveFace.forIconKey` returns `null` for `TileSize.SMALL`), so it needed no
+  branch. See DECISIONS "Non-standard notification tile sizes now use their full available space."
+  Build + full unit test suite green; installed on both the emulator and the physical device — no
+  real pending notification was available in the sandbox to resize through and visually verify each
+  new size, so this is a code-review-level check against this file's own already-verified MEDIUM/
+  WIDE/LARGE patterns, not an on-device visual pass.
 - **`android-home-style` branch — real "square" icon shape added; fixed a regression the previous
   masking fix introduced in "original."** Same-day follow-up, user-requested: "last shape is square
   but showing as original... also need option for original icon." Added a genuine 5th `IconShape.

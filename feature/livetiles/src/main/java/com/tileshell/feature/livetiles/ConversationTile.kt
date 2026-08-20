@@ -143,10 +143,18 @@ internal fun ConversationCountFace(count: Int, word: String, size: TileSize = Ti
 
 /**
  * Shared notification-content layout used on the back face of mail/messages/generic
- * tiles. Layout scales with [size]: MEDIUM = compact row, WIDE = two-column with
- * picture hero, LARGE = full-area hero, TALL/COLUMN (1 column wide) = stacked and
- * centred instead of the horizontal avatar+text row the others use, which clips at
- * that width.
+ * tiles. Layout scales with [size]: MEDIUM = compact row, WIDE/WIDE_MEDIUM =
+ * two-column with picture hero, LARGE/XLARGE = full-area hero (XLARGE scaled up
+ * further still), TALL/COLUMN (1 column wide) = stacked and centred instead of the
+ * horizontal avatar+text row the others use, which clips at that width, TALL_MEDIUM =
+ * a taller compact layout that spends its extra row height on more snippet lines
+ * instead of empty padding, BANNER = a short full-width single-line row, WIDE_SMALL =
+ * a short two-column sliver with no room for a separate snippet line, so sender and
+ * snippet are combined into the one line that fits. Every one of the eleven
+ * [TileSize] presets gets a branch tuned to its own shape rather than silently
+ * falling back to MEDIUM's fixed compact layout regardless of how much more space a
+ * bigger/differently-shaped tile actually has (see docs/DECISIONS.md "Non-standard
+ * notification tile sizes now use their full available space").
  */
 @Composable
 internal fun NotificationFaceContent(
@@ -157,9 +165,13 @@ internal fun NotificationFaceContent(
 ) {
     when {
         size.narrowLive -> NotificationFaceContentNarrow(item, avatar, size)
+        size == TileSize.XLARGE -> NotificationFaceContentXLarge(item, avatar, picture)
         size == TileSize.LARGE -> NotificationFaceContentLarge(item, avatar, picture)
-        size == TileSize.WIDE  -> NotificationFaceContentWide(item, avatar, picture)
-        else                   -> NotificationFaceContentMedium(item, avatar, picture)
+        size == TileSize.WIDE || size == TileSize.WIDE_MEDIUM -> NotificationFaceContentWide(item, avatar, picture)
+        size == TileSize.TALL_MEDIUM -> NotificationFaceContentTallMedium(item, avatar, picture)
+        size == TileSize.BANNER -> NotificationFaceContentBanner(item, avatar, picture)
+        size == TileSize.WIDE_SMALL -> NotificationFaceContentWideSmall(item, avatar)
+        else -> NotificationFaceContentMedium(item, avatar, picture)
     }
 }
 
@@ -246,7 +258,142 @@ private fun NotificationFaceContentMedium(
     }
 }
 
-// ── WIDE (4×2) ────────────────────────────────────────────────────────────────
+// ── WIDE_SMALL (2×1) ──────────────────────────────────────────────────────────
+
+/**
+ * Only one row tall — no room for a separate snippet line underneath the sender
+ * name, so the two are combined into the single line that fits, maximizing how much
+ * of the notification is actually readable rather than dropping the snippet
+ * entirely.
+ */
+@Composable
+private fun NotificationFaceContentWideSmall(item: ConversationItem, avatar: ImageBitmap?) {
+    Row(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SenderAvatar(name = item.sender, photo = avatar, sizeDp = 22)
+        Spacer(Modifier.width(6.dp))
+        val sender = item.sender.ifBlank { "someone" }
+        Text(
+            text = if (item.snippet.isNotEmpty()) "$sender: ${item.snippet}" else sender,
+            color = FaceText,
+            fontSize = 12.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+// ── BANNER (4×1) ──────────────────────────────────────────────────────────────
+
+/** Full grid width but only one row tall — a short, wide single-line row rather
+ *  than the taller centred layout [NotificationFaceContentMedium] assumes. */
+@Composable
+private fun NotificationFaceContentBanner(
+    item: ConversationItem,
+    avatar: ImageBitmap?,
+    picture: ImageBitmap?,
+) {
+    Row(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SenderAvatar(name = item.sender, photo = avatar, sizeDp = 26)
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = item.sender.ifBlank { "someone" },
+                color = FaceText,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (item.snippet.isNotEmpty()) {
+                Text(
+                    text = item.snippet,
+                    color = FaceText.copy(alpha = 0.85f),
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        if (picture != null) {
+            Spacer(Modifier.width(10.dp))
+            Image(
+                bitmap = picture,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxHeight().width(70.dp).clip(RoundedCornerShape(6.dp)),
+            )
+        }
+    }
+}
+
+// ── TALL_MEDIUM (2×3) ─────────────────────────────────────────────────────────
+
+/** Same width as MEDIUM but one row taller — the extra height goes to more
+ *  snippet lines (or a taller picture) instead of sitting unused as padding. */
+@Composable
+private fun NotificationFaceContentTallMedium(
+    item: ConversationItem,
+    avatar: ImageBitmap?,
+    picture: ImageBitmap?,
+) {
+    Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SenderAvatar(name = item.sender, photo = avatar, sizeDp = 32)
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = item.sender.ifBlank { "someone" },
+                color = FaceText,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        when {
+            picture != null -> {
+                Spacer(Modifier.height(8.dp))
+                Image(
+                    bitmap = picture,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(8.dp)),
+                )
+                if (item.snippet.isNotEmpty()) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = item.snippet,
+                        color = FaceText.copy(alpha = 0.88f),
+                        fontSize = 13.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            item.snippet.isNotEmpty() -> {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = item.snippet,
+                    color = FaceText.copy(alpha = 0.88f),
+                    fontSize = 13.sp,
+                    maxLines = 7,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            else -> Spacer(Modifier.weight(1f))
+        }
+    }
+}
+
+// ── WIDE (4×2) / WIDE_MEDIUM (3×2) ─────────────────────────────────────────────
 
 @Composable
 private fun NotificationFaceContentWide(
@@ -355,6 +502,76 @@ private fun NotificationFaceContentLarge(
                     color = FaceText.copy(alpha = 0.92f),
                     fontSize = 13.sp,
                     maxLines = 10,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.weight(1f))
+        }
+    }
+}
+
+// ── XLARGE (4×4) ──────────────────────────────────────────────────────────────
+
+/**
+ * The single biggest tile — a scaled-up [NotificationFaceContentLarge]: bigger
+ * avatar/fonts and a much higher snippet line cap so the extra canvas actually
+ * shows more of the notification, rather than the same LARGE-sized text sitting
+ * inside a bigger tile with the leftover space spent on empty spacer padding.
+ */
+@Composable
+private fun NotificationFaceContentXLarge(
+    item: ConversationItem,
+    avatar: ImageBitmap?,
+    picture: ImageBitmap?,
+) {
+    Column(modifier = Modifier.fillMaxSize().padding(18.dp)) {
+        Spacer(Modifier.height(20.dp))
+        if (picture != null) {
+            Image(
+                bitmap = picture,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(12.dp)),
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = item.sender.ifBlank { "someone" },
+                color = FaceText.copy(alpha = 0.7f),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (item.snippet.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = item.snippet,
+                    color = FaceText,
+                    fontSize = 15.sp,
+                    maxLines = 6,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SenderAvatar(name = item.sender, photo = avatar, sizeDp = 48)
+                Spacer(Modifier.width(14.dp))
+                Text(
+                    text = item.sender.ifBlank { "someone" },
+                    color = FaceText,
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (item.snippet.isNotEmpty()) {
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    text = item.snippet,
+                    color = FaceText.copy(alpha = 0.92f),
+                    fontSize = 16.sp,
+                    maxLines = 18,
                     overflow = TextOverflow.Ellipsis,
                 )
             }

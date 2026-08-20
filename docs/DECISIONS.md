@@ -5217,3 +5217,43 @@ loader function to compute both. Verified end-to-end on an emulator: circle/squi
 each visibly render their intended distinct shape, and original now correctly restores every icon's
 true device appearance (circular on this emulator's stock AOSP mask) exactly as a fresh install looks.
 Build + full unit test suite green (`SettingsCodecTest` extended for `SQUARE` round-trip).
+
+## Non-standard notification tile sizes now use their full available space
+
+User request, same day as the drag-resize/eleven-preset work: "tiles of size 2x4 or other than wide
+medium small and long width, while displaying notifications on live tiles use (utilise) full
+available space so maximum text becomes visible" — later clarified to "each tile size use max
+available space." `NotificationFaceContent` (`feature/livetiles/src/main/java/com/tileshell/
+feature/livetiles/ConversationTile.kt`) — the single dispatcher shared by both `ConversationTileFace`
+(mail/messages) and `NotificationTileFace` (any other app's generic notifications) — only ever
+special-cased 4 of the 11 `TileSize` presets (`narrowLive` for TALL/COLUMN, plus dedicated MEDIUM/
+WIDE/LARGE branches); the other 6 (`WIDE_SMALL`, `WIDE_MEDIUM`, `TALL_MEDIUM`, `XLARGE`, `BANNER`, and
+implicitly any future preset) all silently fell into the `else` catch-all, rendering
+`NotificationFaceContentMedium`'s fixed 12–13sp/2-line row regardless of how much more space a bigger
+or differently-shaped tile actually had — an `XLARGE` (4×4, the single biggest tile) showed the exact
+same cramped text as a `MEDIUM` (2×2).
+
+Gave every size its own tuned branch instead: `WIDE_MEDIUM` (3×2) routes to the existing `WIDE`
+layout (same shape, one column narrower — its `weight()`-based Row already adapts); `TALL_MEDIUM`
+(2×3, new `NotificationFaceContentTallMedium`) spends its extra row over MEDIUM on up to 7 snippet
+lines (or a taller picture) instead of unused padding; `BANNER` (4×1, new
+`NotificationFaceContentBanner`) is a short full-width single-line row (smaller avatar, 1-line
+snippet) rather than MEDIUM's taller centred layout, which would clip vertically at only one row of
+height; `WIDE_SMALL` (2×1, new `NotificationFaceContentWideSmall`) is short *and* narrow — too little
+of either dimension for sender and snippet as separate lines, so they're combined into the single
+line that fits ("sender: snippet"), maximizing readable characters rather than dropping the snippet
+outright; `XLARGE` (4×4, new `NotificationFaceContentXLarge`) is a scaled-up `LARGE` — bigger
+avatar/fonts and a much higher snippet line cap (18 vs LARGE's 10), so the extra canvas actually shows
+more text instead of the same LARGE-sized content sitting in a bigger box with the leftover space
+spent on `Spacer(Modifier.weight(1f))` padding. `SMALL` was confirmed to never reach this dispatcher
+at all (`LiveFace.forIconKey` returns `null` for `TileSize.SMALL` before any face is chosen — small
+tiles show only the static glyph + badge, by existing design), so no branch was needed there. Since
+both `ConversationTileFace` and `NotificationTileFace` call the same shared `NotificationFaceContent`,
+one dispatcher fix covers mail, messages, and every generic app's notification tile at every size
+without touching either call site. Build + full unit test suite green; installed on both the emulator
+and the physical device — full visual verification of live notification content at each new size was
+not possible in this session (no real pending notification bound to a pinned package was available in
+the sandbox to resize through), so this is a code-review-level verification against the same
+`fillMaxSize()`/`weight()`/`Column`/`Row` patterns already used and previously verified in this same
+file's MEDIUM/WIDE/LARGE branches, not an on-device visual pass — flagging per project convention
+rather than claiming a check that wasn't actually done.
