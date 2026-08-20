@@ -4,6 +4,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import com.tileshell.core.data.TileSize
 import kotlin.math.roundToInt
 
 /**
@@ -125,4 +126,43 @@ fun reorderTiles(order: List<String>, dragId: String, targetId: String): List<St
     out.removeAt(di)
     out.add(ti.coerceAtMost(out.size), dragId)
     return out
+}
+
+/** The largest row count any [TileSize] preset uses — a resize drag never needs more. */
+private val MAX_PRESET_ROWS = TileSize.entries.maxOf { it.rows }
+
+/**
+ * The nearest [TileSize] preset for a live drag-resize gesture (single-finger
+ * corner drag, which always moves both axes at once, so there is no
+ * per-axis gating here): starting from a
+ * [currentCols]×[currentRows] footprint, the gesture has moved ([dxPx],
+ * [dyPx]) since it began, measured in the same px [geom] uses for one grid
+ * cell step (unit + gap) on each axis. The result is clamped to the grid's
+ * [columns] and to the tallest preset's row count, then matched to the
+ * preset with the smallest squared cols/rows distance — ties fall to
+ * whichever [TileSize] entry comes first, which is deterministic
+ * (declaration order) but otherwise arbitrary, since a true tie is
+ * indistinguishable to the user. Pure and stateless: the caller
+ * (StartScreen's hoisted resize-preview state) re-derives the candidate on
+ * every drag tick from the *total* delta since the gesture started, not
+ * incrementally — so it can never drift from what a single call with the
+ * same inputs would produce.
+ */
+fun snapResizeTarget(
+    geom: GridGeometry,
+    currentCols: Int,
+    currentRows: Int,
+    dxPx: Float,
+    dyPx: Float,
+    columns: Int,
+): TileSize {
+    val dCols = (dxPx / geom.step).roundToInt()
+    val dRows = (dyPx / geom.step).roundToInt()
+    val targetCols = (currentCols + dCols).coerceIn(1, columns.coerceAtLeast(1))
+    val targetRows = (currentRows + dRows).coerceIn(1, MAX_PRESET_ROWS)
+    return TileSize.entries.minByOrNull { candidate ->
+        val colsDiff = candidate.cols - targetCols
+        val rowsDiff = candidate.rows - targetRows
+        colsDiff * colsDiff + rowsDiff * rowsDiff
+    } ?: TileSize.MEDIUM
 }

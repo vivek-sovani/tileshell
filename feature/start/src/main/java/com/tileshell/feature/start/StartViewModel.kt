@@ -31,7 +31,10 @@ import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.core.data.settings.SettingsRepository
+import com.tileshell.core.data.settings.HomeStyle
+import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.data.settings.TilePackMode
+import com.tileshell.core.data.settings.isAnchored
 import com.tileshell.feature.livetiles.DEFAULT_FEED_SOURCES
 import com.tileshell.feature.livetiles.FeedRefreshWorker
 import com.tileshell.feature.livetiles.FeedSource
@@ -240,6 +243,18 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val _quickPanelOpen = MutableStateFlow(false)
     val quickPanelOpen: StateFlow<Boolean> = _quickPanelOpen.asStateFlow()
 
+    /**
+     * True while the one-shot home-style (tiles vs icons) choice wizard is
+     * open — shown once per device: on a genuinely fresh install, and once
+     * for an existing install upgrading to the version that introduced ICONS
+     * mode (both cases simply have [HomeStyleWizardPrefs.shown] unset, so no
+     * version-number check is needed — see its own doc comment). Set in
+     * [init], never re-opened once [chooseHomeStyle]/[skipHomeStyleWizard]
+     * marks it shown.
+     */
+    private val _homeStyleWizardOpen = MutableStateFlow(false)
+    val homeStyleWizardOpen: StateFlow<Boolean> = _homeStyleWizardOpen.asStateFlow()
+
     fun setAppList(value: Boolean) {
         _isAppList.value = value
     }
@@ -306,12 +321,18 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             repository.seedIfEmpty()
             // Sticky mode is the fresh-install default (LauncherSettings), so the
             // very first layout needs its anchors seeded here too — not only on
-            // an explicit user toggle (see seedStickySlots).
+            // an explicit user toggle (see seedStickySlots). FREE is anchored the
+            // same way STICKY is (see TilePackMode.isAnchored) — without this,
+            // a FREE-mode install would silently degenerate to append-only
+            // auto-arrange, the exact bug already hit for STICKY.
             val initialSettings = settingsRepository.settings.first()
-            if (initialSettings.tilePackMode == TilePackMode.STICKY) {
+            if (initialSettings.tilePackMode.isAnchored) {
                 seedStickySlots(initialSettings.columns)
             }
             migrateSettingsTile()
+            if (!HomeStyleWizardPrefs.shown(getApplication())) {
+                _homeStyleWizardOpen.value = true
+            }
         }
         // Resolve the news-region preset from the device locale before reconciling
         // (order matters: reconcileDefaults reads FeedData.region, so it must run
@@ -685,9 +706,133 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun setTilePackMode(mode: TilePackMode) {
         viewModelScope.launch(writeContext) {
-            if (mode == TilePackMode.STICKY) seedStickySlots(settings.value.columns)
+            if (mode.isAnchored) seedStickySlots(settings.value.columns)
             settingsRepository.setTilePackMode(mode)
         }
+    }
+
+    /**
+     * Switch the Start grid's cell renderer (WP tiles ↔ Android-style icons).
+     * Rewrites nothing in the layout itself — a tile's stored size is simply
+     * ignored while the smaller (icon) renderer is active, so switching back
+     * restores the tile layout exactly. The one side effect: entering ICONS
+     * for the first time seeds [LauncherSettings.cornerRadius] to a subtle
+     * 4dp chamfer *if the user has never touched that slider* (still at its
+     * 0f default) — icons render with a proportionally rounded mask
+     * regardless of this setting, and a dead-flat 0-radius tile grid sitting
+     * next to rounded icons read as visibly unfinished when this was tried.
+     * A user who already customized the radius keeps their own value.
+     */
+    fun setHomeStyle(style: HomeStyle) {
+        viewModelScope.launch(writeContext) {
+            if (style == HomeStyle.ICONS && settings.value.cornerRadius == LauncherSettings().cornerRadius) {
+                settingsRepository.setCornerRadius(ICONS_MODE_DEFAULT_CORNER_RADIUS)
+            }
+            settingsRepository.setHomeStyle(style)
+        }
+    }
+
+    /**
+     * The first-run wizard's pick: sets [style] via [setHomeStyle] and marks
+     * the one-shot wizard flag so it never shows again. Picking ICONS also
+     * shrinks the just-seeded default apps down to SMALL (see
+     * [shrinkDefaultAppsToIcons]) — user-reported: picking "icons" still
+     * showed a Start screen dominated by big live tiles, confusingly unlike
+     * what "icons" implied, since [setHomeStyle] deliberately never resizes
+     * anything (it's a pure renderer flag) and [DefaultLayout]'s fixed
+     * WP-appropriate seed sizes are written well before this choice is ever
+     * made.
+     */
+    fun chooseHomeStyle(style: HomeStyle) {
+        setHomeStyle(style)
+        if (style == HomeStyle.ICONS) shrinkDefaultAppsToIcons()
+        HomeStyleWizardPrefs.markShown(getApplication())
+        _homeStyleWizardOpen.value = false
+    }
+
+    /**
+     * Shrinks every current top-level app tile with a real, resolvable
+     * package down to SMALL, and anchors every top-level tile at an explicit
+     * `gridSlot` laying out a **two-lane grid**: clock/calendar/weather
+     * occupy a reserved lane along the right edge, and every other tile
+     * (icons + folders) dense-packs into the remaining lane on the left —
+     * "icons on the left" per explicit user request. Only ever called once,
+     * from the one-shot wizard's ICONS pick on a genuinely fresh
+     * (never-customized) layout — never from a later Personalize toggle —
+     * so it can't clobber anything the user has since arranged.
+     *
+     * Deliberately leaves blank-package `liveOnly` tiles' *size* untouched
+     * (weather never resolves a role, so it stays its declared MEDIUM 2×2 —
+     * "these should keep reading as live tiles") and folders (a folder stays
+     * a folder-sized tile with its own mini-grid preview, not shrunk to a
+     * compact icon); both still get packed into the left icon lane like any
+     * other non-reserved tile.
+     *
+     * The right lane is exactly 2 columns wide, packed via the same dense
+     * [GridPacker.pack] the left lane uses (with `columns = 2`) so
+     * clock/calendar (each SMALL once their role resolves, as it does on
+     * most devices) land side by side on row 0, and weather's 2×2 footprint
+     * — the same width as the lane — settles directly below them on row 1:
+     * "calendar and clock side by side on top right, and below weather tile
+     * (right)". The left lane is the remaining `columns - 2` columns, offset
+     * by 0; the right lane's placements are offset by `columns - 2` to sit
+     * against the right edge.
+     */
+    private fun shrinkDefaultAppsToIcons() {
+        viewModelScope.launch(writeContext) {
+            val current = tiles.value
+            val futureSize = HashMap<String, TileSize>()
+            current.forEach { tile ->
+                val shrunk = tile is TileModel.App && tile.packageName.isNotBlank() && tile.size != TileSize.SMALL
+                val size = if (shrunk) TileSize.SMALL else tile.size
+                futureSize[tile.id] = size
+                if (shrunk) repository.setTileSize(tile.id, TileSize.SMALL)
+            }
+
+            val byIconKey = current.filterIsInstance<TileModel.App>().associateBy { it.iconKey }
+            val rightLaneIds = listOf("calendar", "clock", "weather").mapNotNull { byIconKey[it]?.id }
+            val leftLaneIds = current.map { it.id }.filterNot { it in rightLaneIds }
+
+            val columns = settings.value.columns
+            if (rightLaneIds.isNotEmpty() && columns >= 3) {
+                val laneWidth = 2
+                val laneOffset = columns - laneWidth
+                val rightPlacements = GridPacker.pack(
+                    rightLaneIds.map { TileSpec(it, futureSize.getValue(it)) },
+                    laneWidth,
+                )
+                rightPlacements.forEach { p ->
+                    repository.setTileGridSlot(p.id, GridPacker.encodeSlot(p.col + laneOffset, p.row))
+                }
+                val leftPlacements = GridPacker.pack(
+                    leftLaneIds.map { TileSpec(it, futureSize.getValue(it)) },
+                    laneOffset,
+                )
+                leftPlacements.forEach { p ->
+                    repository.setTileGridSlot(p.id, GridPacker.encodeSlot(p.col, p.row))
+                }
+            } else {
+                // Too narrow for a separate lane (shouldn't happen at the
+                // supported 4/5/6 column counts) — fall back to one plain
+                // dense-packed lane spanning the full grid width.
+                current.forEach { if (it.gridSlot != null) repository.setTileGridSlot(it.id, null) }
+                val placements = GridPacker.pack(current.map { TileSpec(it.id, futureSize.getValue(it.id)) }, columns)
+                placements.forEach { p -> repository.setTileGridSlot(p.id, GridPacker.encodeSlot(p.col, p.row)) }
+            }
+        }
+    }
+
+    /** Dismissing the first-run wizard without an explicit pick — leaves
+     *  [LauncherSettings.homeStyle] exactly as it already is (TILES on a
+     *  fresh install), but still marks the flag so it isn't shown again. */
+    fun skipHomeStyleWizard() {
+        HomeStyleWizardPrefs.markShown(getApplication())
+        _homeStyleWizardOpen.value = false
+    }
+
+    /** Set the icon mask ICONS home style applies (unused in TILES). */
+    fun setIconShape(shape: IconShape) {
+        viewModelScope.launch(writeContext) { settingsRepository.setIconShape(shape) }
     }
 
     /**
@@ -773,12 +918,25 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     fun setTileGridSlot(id: String, slot: Int?) {
         if (slot == null) return
         val model = tiles.value.firstOrNull { it.id == id } ?: return
-        val finalSlots = stickySlotsForPlacement(
-            movedId = id,
-            size = model.size,
-            targetCol = GridPacker.decodeSlotCol(slot),
-            targetRow = GridPacker.decodeSlotRow(slot),
-        )
+        val targetCol = GridPacker.decodeSlotCol(slot)
+        val targetRow = GridPacker.decodeSlotRow(slot)
+        // FREE mode swaps with whatever occupies the drop cell instead of
+        // pushing it down — nothing else on the grid moves. STICKY (and DENSE,
+        // which never reaches this anchored write path) keep the existing
+        // push-down behaviour.
+        val finalSlots = if (settings.value.tilePackMode == TilePackMode.FREE) {
+            val columns = settings.value.columns
+            val anchored = tiles.value.mapNotNull { t ->
+                if (t.id == id) return@mapNotNull null
+                val s = t.gridSlot ?: return@mapNotNull null
+                TilePlacement(t.id, t.size, GridPacker.decodeSlotCol(s), GridPacker.decodeSlotRow(s))
+            }
+            val fromCol = model.gridSlot?.let { GridPacker.decodeSlotCol(it) }
+            val fromRow = model.gridSlot?.let { GridPacker.decodeSlotRow(it) }
+            GridPacker.swapPlacement(anchored, id, fromCol, fromRow, model.size, targetCol, targetRow, columns)
+        } else {
+            stickySlotsForPlacement(movedId = id, size = model.size, targetCol = targetCol, targetRow = targetRow)
+        }
         viewModelScope.launch(writeContext) {
             finalSlots.forEach { (tid, s) -> repository.setTileGridSlot(tid, s) }
         }
@@ -874,14 +1032,28 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Set a folder child's size directly to [size] — the write path for
+     * gesture-based drag resize, mirroring [resizeTo] for top-level tiles.
+     * Can land on any of the eleven [TileSize] presets, unlike
+     * [resizeFolderChild]'s fixed tap cycle.
+     */
+    fun resizeFolderChildTo(folderId: String, child: FolderChild, size: TileSize) {
+        viewModelScope.launch(writeContext) {
+            repository.resizeFolderChildTo(folderId, child, size)
+        }
+    }
+
+    /**
      * Turn a folder into a widget stack in one shot: every child resized to
-     * [size] (WIDE or LARGE), the folder tile matching. In sticky mode this
-     * grows the folder tile's own footprint exactly like [resize] does, so it
-     * needs the same anchored-slot handling (column shift + push-down +
-     * empty-row collapse) — otherwise the folder's stale anchored cell (sized
-     * for its old, smaller footprint) no longer fits the new size and
-     * [GridPacker.packSticky] silently re-flows it to the bottom of the grid,
-     * same "teleports away" bug [stickyResizeSlots] was written to prevent.
+     * [size] (any [TileSize.stackable] size, not just WIDE/LARGE), the folder
+     * tile matching, and `TileModel.Folder.showAsStack` turned on. In sticky
+     * mode this grows the folder tile's own footprint exactly like [resize]
+     * does, so it needs the same anchored-slot handling (column shift +
+     * push-down + empty-row collapse) — otherwise the folder's stale anchored
+     * cell (sized for its old, smaller footprint) no longer fits the new size
+     * and [GridPacker.packSticky] silently re-flows it to the bottom of the
+     * grid, same "teleports away" bug [stickyResizeSlots] was written to
+     * prevent.
      */
     fun convertFolderToStack(folderId: String, size: TileSize) {
         val model = tiles.value.firstOrNull { it.id == folderId }
@@ -893,25 +1065,28 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * The "keep as folder" action offered alongside the two "make stack"
-     * shortcuts in an expanded folder (FR-4). For a plain folder it's the
-     * explicit no-op — just collapse the expansion, so a user who opened the
-     * folder can back out without accidentally converting it to a stack. For a
-     * widget stack it reverts to a normal folder ([repository.collapseStack]),
-     * needing the same sticky-mode slot handling as [convertFolderToStack]
-     * since the folder tile's footprint returns to WIDE.
+     * The single "show as stack" / "show as folder" toggle offered alongside
+     * an expanded folder's children (supersedes the old fixed "make stack ·
+     * wide"/"make stack · large" shortcuts, now that any [TileSize.stackable]
+     * size can be a stack — see docs/DECISIONS.md).
+     *  - Currently a stack → [repository.collapseStack] just turns the toggle
+     *    off; children and the tile's own footprint are untouched (see its
+     *    doc comment), so no sticky-mode slot handling is needed here, unlike
+     *    [convertFolderToStack].
+     *  - Currently a plain folder → uniforms every child to a stackable
+     *    target size (the tile's own current size if that's itself
+     *    stackable, so the footprint doesn't have to change; otherwise
+     *    MEDIUM) via [convertFolderToStack].
      */
-    fun keepAsFolder(folderId: String) {
-        val model = tiles.value.firstOrNull { it.id == folderId } as? TileModel.Folder
-        if (model != null && model.isStack) {
-            val stackSize = model.children.firstOrNull()?.size ?: TileSize.WIDE
-            val finalSlots = stickyResizeSlots(model, TileSize.WIDE)
-            viewModelScope.launch(writeContext) {
-                finalSlots.forEach { (movedId, slot) -> repository.setTileGridSlot(movedId, slot) }
-                repository.collapseStack(folderId, stackSize)
-            }
+    fun toggleFolderStack(folderId: String) {
+        val model = tiles.value.firstOrNull { it.id == folderId } as? TileModel.Folder ?: return
+        if (model.isStack) {
+            viewModelScope.launch(writeContext) { repository.collapseStack(folderId) }
+            collapseFolder()
+        } else {
+            val target = model.size.takeIf { it.stackable } ?: TileSize.MEDIUM
+            convertFolderToStack(folderId, target)
         }
-        collapseFolder()
     }
 
     /** Set or clear a folder child's own accent override (null = follow global, FR-7). */
@@ -945,6 +1120,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         collapseFolder()
         closeSearch()
         exitEdit()
+        // Home/back out of the first-run wizard without picking counts as a
+        // skip (marks it shown) — same "never nags twice" rule every other
+        // one-shot flag in this app follows.
+        if (_homeStyleWizardOpen.value) skipHomeStyleWizard()
         _homeRequests.tryEmit(Unit)
     }
 
@@ -1006,6 +1185,24 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Set a tile's size directly to [size] — the write path for gesture-based
+     * drag resize, which can land on any of the eleven [TileSize] presets
+     * rather than stepping through [resize]'s fixed tap cycle. Shares [resize]'s two
+     * guards (a widget stack never resizes; sticky/free mode pushes a colliding
+     * neighbor down via [stickyResizeSlots] exactly as a tap-resize would) but
+     * writes [size] as given instead of computing `size.next(largeAllowed)`.
+     */
+    fun resizeTo(id: String, size: TileSize) {
+        val model = tiles.value.firstOrNull { it.id == id } ?: return
+        if (model is TileModel.Folder && model.isStack) return
+        val finalSlots = stickyResizeSlots(model, size)
+        viewModelScope.launch(writeContext) {
+            finalSlots.forEach { (movedId, slot) -> repository.setTileGridSlot(movedId, slot) }
+            repository.setTileSize(id, size)
+        }
+    }
+
+    /**
      * All grid-cell writes sticky mode needs for [model] to resize to
      * [nextSize]: the resized tile's own cell (its column shifts left just
      * enough to keep the new, wider footprint inside the grid when it no
@@ -1028,7 +1225,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      * column 0 never needed the shift, so never hit the bug.
      */
     private fun stickyResizeSlots(model: TileModel, nextSize: TileSize): Map<String, Int> {
-        if (settings.value.tilePackMode != TilePackMode.STICKY) return emptyMap()
+        // FREE mode still needs push-down on resize (unlike drag-drop, which
+        // swaps): a growing tile must not overlap, and there's no second tile
+        // to swap anchors with. This is the one place FREE moves a tile the
+        // user didn't touch — see TilePackMode.isAnchored's doc comment.
+        if (!settings.value.tilePackMode.isAnchored) return emptyMap()
         val ownSlot = model.gridSlot ?: return emptyMap()
         return stickySlotsForPlacement(
             movedId = model.id,
@@ -1329,5 +1530,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private companion object {
         /** Coalesce window for reorder commits (small enough to be invisible). */
         const val REORDER_DEBOUNCE_MS = 120L
+
+        /** See [setHomeStyle]'s doc comment: seeded once, only from the 0f default. */
+        const val ICONS_MODE_DEFAULT_CORNER_RADIUS = 4f
     }
 }

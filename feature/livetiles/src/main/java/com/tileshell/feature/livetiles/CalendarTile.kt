@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -93,7 +94,7 @@ fun CalendarTileFace(
         front = { CalendarDateColumn(today, size) },
         back = {
             if (next != null) {
-                CalendarFaceColumn(heading = "next", event = next)
+                CalendarFaceColumn(heading = "next", event = next, size = size)
             } else {
                 CalendarDateColumn(today, size)
             }
@@ -135,56 +136,93 @@ private fun CalendarDateColumn(today: CalendarToday, size: TileSize) {
     // extra vertical room for the enlarged day number) — sizing "big" off WIDE
     // clipped the month/"calendar" lines at the bottom of a WIDE stack member.
     val big = size == TileSize.LARGE
+    // TALL/COLUMN are only 1 column wide (same as SMALL) — the weekday/month
+    // lines above clip at that width, so narrow tiles get a centred, width-safe
+    // layout instead, spread across whatever row height the tile has.
+    val narrow = size.narrowLive
     Column(
-        modifier = Modifier.fillMaxSize().padding(11.dp),
-        verticalArrangement = Arrangement.Center,
+        modifier = Modifier.fillMaxSize().padding(if (narrow) 4.dp else 11.dp),
+        verticalArrangement = if (narrow) Arrangement.SpaceEvenly else Arrangement.Center,
+        horizontalAlignment = if (narrow) Alignment.CenterHorizontally else Alignment.Start,
     ) {
-        Text(text = today.weekday, color = FaceText, fontSize = 14.sp, maxLines = 1)
+        Text(
+            text = if (narrow) today.weekday.take(3) else today.weekday,
+            color = FaceText,
+            fontSize = if (narrow) 12.sp else 14.sp,
+            maxLines = 1,
+            overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
+            textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
+        )
         Text(
             text = today.day.toString(),
             color = FaceText,
-            fontSize = if (big) 60.sp else 44.sp,
-            lineHeight = if (big) 60.sp else 44.sp,
+            fontSize = if (narrow) 34.sp else if (big) 60.sp else 44.sp,
+            lineHeight = if (narrow) 34.sp else if (big) 60.sp else 44.sp,
             fontWeight = FontWeight.ExtraLight,
             letterSpacing = (-2).sp,
             maxLines = 1,
+            textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
         )
         // Month name, e.g. "june".
         Text(
-            text = today.month,
+            text = if (narrow) today.month.take(3) else today.month,
             color = FaceText.copy(alpha = 0.82f),
-            fontSize = 13.sp,
+            fontSize = if (narrow) 11.sp else 13.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
         )
-        // The "calendar" caption only has room on a tall LARGE tile — MEDIUM
+        // The "calendar" caption only has room on a tall LARGE tile, or a narrow
+        // COLUMN tile (4 rows — as roomy as LARGE, just 1 column wide). MEDIUM
         // and WIDE share LARGE's shorter sibling height with no space left for
         // a fourth line without clipping it, so it's dropped there rather than
         // squeezed in; the face is self-evidently a calendar without it.
-        if (big) {
-            Spacer(Modifier.weight(1f))
-            Text(text = "calendar", color = FaceText.copy(alpha = 0.82f), fontSize = 12.sp, maxLines = 1)
+        if (big || (narrow && size.rows >= 4)) {
+            if (!narrow) Spacer(Modifier.weight(1f))
+            Text(
+                text = "calendar",
+                color = FaceText.copy(alpha = 0.82f),
+                fontSize = if (narrow) 11.sp else 12.sp,
+                maxLines = 1,
+                textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
+            )
         }
     }
 }
 
 @Composable
-private fun CalendarFaceColumn(heading: String, event: CalendarEvent) {
+private fun CalendarFaceColumn(heading: String, event: CalendarEvent, size: TileSize = TileSize.MEDIUM) {
+    val narrow = size.narrowLive
     Column(
-        modifier = Modifier.fillMaxSize().padding(11.dp),
-        verticalArrangement = Arrangement.Center,
+        modifier = Modifier.fillMaxSize().padding(if (narrow) 4.dp else 11.dp),
+        verticalArrangement = if (narrow) Arrangement.SpaceEvenly else Arrangement.Center,
+        horizontalAlignment = if (narrow) Alignment.CenterHorizontally else Alignment.Start,
     ) {
-        Text(text = heading, color = FaceText.copy(alpha = 0.82f), fontSize = 12.sp, maxLines = 1)
-        Spacer(Modifier.height(3.dp))
+        Text(
+            text = heading,
+            color = FaceText.copy(alpha = 0.82f),
+            fontSize = if (narrow) 11.sp else 12.sp,
+            maxLines = 1,
+            textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
+        )
+        if (!narrow) Spacer(Modifier.height(3.dp))
         Text(
             text = event.title,
             color = FaceText,
-            fontSize = 16.sp,
+            fontSize = if (narrow) 14.sp else 16.sp,
             fontWeight = FontWeight.Medium,
-            maxLines = 2,
+            maxLines = if (narrow) 3 else 2,
             overflow = TextOverflow.Ellipsis,
+            textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
         )
-        Spacer(Modifier.height(3.dp))
-        Text(text = event.timeLine, color = FaceText.copy(alpha = 0.82f), fontSize = 12.sp, maxLines = 1)
+        if (!narrow) Spacer(Modifier.height(3.dp))
+        Text(
+            text = event.timeLine,
+            color = FaceText.copy(alpha = 0.82f),
+            fontSize = if (narrow) 11.sp else 12.sp,
+            maxLines = if (narrow) 2 else 1,
+            overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
+            textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
+        )
     }
 }

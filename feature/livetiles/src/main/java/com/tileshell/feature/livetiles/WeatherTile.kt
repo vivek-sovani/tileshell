@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,7 +58,7 @@ fun WeatherTileFace(
         flipped = flipped,
         modifier = modifier.fillMaxSize(),
         front = { WeatherFront(snapshot, size) },
-        back = { WeatherBack(snapshot) },
+        back = { WeatherBack(snapshot, size) },
     )
 }
 
@@ -101,22 +102,28 @@ private fun WeatherFront(snapshot: WeatherSnapshot, size: TileSize) {
     // extra vertical room for the enlarged temperature) — sizing "big" off WIDE
     // clipped the condition line at the bottom of a WIDE stack member.
     val big = size == TileSize.LARGE
-    val tempSize = if (big) 60.sp else 40.sp
+    // TALL/COLUMN are only 1 column wide (same as SMALL) — the place/condition
+    // lines above clip at that width, so narrow tiles get a centred, width-safe
+    // layout instead, spread across whatever row height the tile has.
+    val narrow = size.narrowLive
+    val tempSize = if (narrow) 34.sp else if (big) 60.sp else 40.sp
     val place = snapshot.place.ifBlank { "weather" }
     Column(
-        modifier = Modifier.fillMaxSize().padding(11.dp),
-        verticalArrangement = Arrangement.Center,
+        modifier = Modifier.fillMaxSize().padding(if (narrow) 4.dp else 11.dp),
+        verticalArrangement = if (narrow) Arrangement.SpaceEvenly else Arrangement.Center,
+        horizontalAlignment = if (narrow) Alignment.CenterHorizontally else Alignment.Start,
     ) {
         // Location name (prototype shows none; the user asked for it).
         Text(
             text = place,
             color = FaceText,
-            fontSize = 13.sp,
+            fontSize = if (narrow) 11.sp else 13.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
         )
-        Spacer(Modifier.height(2.dp))
+        if (!narrow) Spacer(Modifier.height(2.dp))
         Text(
             text = tempLabel(snapshot.tempC),
             color = FaceText,
@@ -125,40 +132,56 @@ private fun WeatherFront(snapshot: WeatherSnapshot, size: TileSize) {
             fontWeight = FontWeight.ExtraLight,
             letterSpacing = (-2).sp,
             maxLines = 1,
+            overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
+            textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
         )
-        Spacer(Modifier.height(4.dp))
-        Text(text = snapshot.condition, color = FaceText, fontSize = 13.sp, maxLines = 1)
+        if (!narrow) Spacer(Modifier.height(4.dp))
+        Text(
+            text = snapshot.condition,
+            color = FaceText,
+            fontSize = if (narrow) 11.sp else 13.sp,
+            maxLines = if (narrow) 2 else 1,
+            overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
+            textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
+        )
     }
 }
 
 @Composable
-private fun WeatherBack(snapshot: WeatherSnapshot) {
+private fun WeatherBack(snapshot: WeatherSnapshot, size: TileSize) {
+    val narrow = size.narrowLive
     Column(
-        modifier = Modifier.fillMaxSize().padding(11.dp),
-        verticalArrangement = Arrangement.Center,
+        modifier = Modifier.fillMaxSize().padding(if (narrow) 4.dp else 11.dp),
+        verticalArrangement = if (narrow) Arrangement.SpaceEvenly else Arrangement.Center,
+        horizontalAlignment = if (narrow) Alignment.CenterHorizontally else Alignment.Start,
     ) {
         Text(
             text = snapshot.place.ifBlank { "today" },
             color = FaceText.copy(alpha = 0.9f),
-            fontSize = 13.sp,
+            fontSize = if (narrow) 11.sp else 13.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
         )
-        Spacer(Modifier.height(6.dp))
+        if (!narrow) Spacer(Modifier.height(6.dp))
         Text(
             text = highLowLabel(snapshot.highC, snapshot.lowC),
             color = FaceText,
-            fontSize = 22.sp,
+            fontSize = if (narrow) 18.sp else 22.sp,
             fontWeight = FontWeight.Light,
             maxLines = 1,
+            overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
+            textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
         )
         if (snapshot.detail.isNotEmpty()) {
-            Spacer(Modifier.weight(1f))
+            if (!narrow) Spacer(Modifier.weight(1f))
             Text(
                 text = snapshot.detail,
                 color = FaceText.copy(alpha = 0.82f),
-                fontSize = 12.sp,
-                maxLines = 1,
+                fontSize = if (narrow) 11.sp else 12.sp,
+                maxLines = if (narrow) 3 else 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
             )
         }
     }

@@ -359,6 +359,14 @@ object TileIcons {
 
         put("folder", vector("folder", p("M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7z")))
 
+        // Two overlapping rounded squares — a widget stack's own icon
+        // (distinct from "folder"), used by the "show as stack"/"show as
+        // folder" toggle in the tile colour sheet.
+        put("stack", vector("stack",
+            p(rect(4.0, 4.0, 13.0, 13.0, 2.0)),
+            p(rect(7.0, 7.0, 13.0, 13.0, 2.0)),
+        ))
+
         put("blur", vector("blur",
             circle(12.0, 12.0, 3.0) to 1f,
             circle(12.0, 12.0, 7.0) to 0.5f,

@@ -65,27 +65,38 @@ sealed interface TileModel {
         /** Per-tile accent override (FR-7); null = follow the global accent. */
         val accentOverride: String? = null,
         override val gridSlot: Int? = null,
+        /**
+         * Explicit "show as stack" choice (the folder-overlay toggle), persisted
+         * on [com.tileshell.core.data.db.FolderEntity] independent of [children]'s
+         * sizes. Needed because [TileSize.stackable] now covers most sizes
+         * (including the default MEDIUM) — deriving stack-ness from uniformity
+         * alone, as before, would make almost every ordinary folder with
+         * same-sized children auto-render as a stack. See [isStack].
+         */
+        val showAsStack: Boolean = false,
     ) : TileModel {
         /**
-         * A folder renders as a **widget stack** (a swipeable carousel of full-size
-         * live tiles) while every member is uniformly WIDE or LARGE. Derived, not
-         * stored: the instant a member is resized down or a smaller tile is merged
-         * in, this turns false and the folder renders as the normal mini-grid.
+         * A folder renders as a **widget stack** (a swipeable carousel of
+         * full-size live tiles) only when both [showAsStack] is on (the user's
+         * explicit toggle) AND the children currently happen to be uniformly one
+         * [TileSize.stackable] size ([stackSize] non-null). If a member's own
+         * resize temporarily breaks that uniformity, this simply falls back to
+         * the plain mini-grid without touching [showAsStack] — the folder
+         * resumes rendering as a stack automatically once uniformity returns,
+         * with no separate "re-enable" action needed.
          */
         val isStack: Boolean
-            get() = stackSize != null
+            get() = showAsStack && stackSize != null
 
         /**
-         * The uniform member size driving [isStack] — WIDE or LARGE — or null if the
-         * members aren't uniformly one of those sizes. A WIDE stack comes from the
-         * folder overlay's "make stack · wide" action (or every member individually
-         * resized to WIDE); a LARGE stack comes from merging two large tiles or
-         * "make stack · large".
+         * The uniform member size [isStack] renders at when eligible, or null if
+         * the members aren't currently all one [TileSize.stackable] size. Purely
+         * an eligibility/footprint check — independent of [showAsStack].
          */
         val stackSize: TileSize?
             get() {
                 val first = children.firstOrNull()?.size ?: return null
-                if (first != TileSize.WIDE && first != TileSize.LARGE) return null
+                if (!first.stackable) return null
                 return first.takeIf { size -> children.all { it.size == size } }
             }
     }

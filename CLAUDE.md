@@ -38,6 +38,280 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **`android-home-style` branch — notification tile content was top-aligned instead of centred.**
+  Direct same-day follow-up, user-reported: "though full space is utilised now displayed on top. top
+  aligned. it should be centrally aligned." The previous session's fix made bigger notification tiles
+  actually use their real height, but several no-picture layouts (`NotificationFaceContentLarge`/
+  `XLarge`/`TallMedium`, `feature/livetiles/ConversationTile.kt`) anchored their header+snippet block
+  to the top via a trailing `Spacer(Modifier.weight(1f))`, so a short snippet on a tall tile left
+  visible empty space below the text instead of centering it; `NotificationFaceContentWide` (now also
+  serving `WIDE_MEDIUM`) had the same problem via a fixed `top=28.dp` padding. Fixed by removing the
+  trailing spacers and switching to `Arrangement.Center` for the no-picture case (a picture's own
+  `weight(1f)` already fills all remaining space regardless of arrangement, so picture-present
+  behaviour is unaffected); `Wide` swapped its asymmetric top/bottom padding for symmetric padding +
+  `Center`. `Banner`/`WideSmall`/`Medium` were already correctly centred and needed no change. See
+  DECISIONS "Notification tile content was top-aligned instead of centred...". Build + full unit test
+  suite green; installed on both the emulator and the physical device — same caveat as the prior
+  session, no real pending notification was available in the sandbox to visually confirm centring.
+- **`android-home-style` branch — non-standard notification tile sizes now use their full available
+  space.** User-requested: mail/messages/generic-notification live tiles at sizes other than MEDIUM/
+  WIDE/LARGE (the 6 drag-resize-only presets `WIDE_SMALL`/`WIDE_MEDIUM`/`TALL_MEDIUM`/`XLARGE`/
+  `BANNER`, plus TALL/COLUMN already handled) all silently fell into `NotificationFaceContent`'s
+  `else` catch-all (`feature/livetiles/ConversationTile.kt`), rendering the same fixed cramped
+  MEDIUM-sized text regardless of how much bigger/differently-shaped the actual tile was — e.g.
+  `XLARGE` (4×4, the biggest tile) showed identical text to `MEDIUM` (2×2). Gave every size its own
+  tuned branch: `WIDE_MEDIUM` reuses `WIDE`'s layout (same shape, narrower); new
+  `NotificationFaceContentTallMedium`/`Banner`/`WideSmall`/`XLarge` composables scale avatar size,
+  font size, and snippet `maxLines` to each shape (up to 18 lines on `XLARGE` vs `LARGE`'s 10; a
+  combined "sender: snippet" single line on the too-small-for-two-lines `WIDE_SMALL`). Both
+  `ConversationTileFace` (mail/messages) and `NotificationTileFace` (any other app) share this one
+  dispatcher, so the fix covers every live notification tile at once. `SMALL` was confirmed to never
+  reach this code at all (`LiveFace.forIconKey` returns `null` for `TileSize.SMALL`), so it needed no
+  branch. See DECISIONS "Non-standard notification tile sizes now use their full available space."
+  Build + full unit test suite green; installed on both the emulator and the physical device — no
+  real pending notification was available in the sandbox to resize through and visually verify each
+  new size, so this is a code-review-level check against this file's own already-verified MEDIUM/
+  WIDE/LARGE patterns, not an on-device visual pass.
+- **`android-home-style` branch — real "square" icon shape added; fixed a regression the previous
+  masking fix introduced in "original."** Same-day follow-up, user-requested: "last shape is square
+  but showing as original... also need option for original icon." Added a genuine 5th `IconShape.
+  SQUARE` (`core/data/settings/LauncherSettings.kt`) mapping to `RectangleShape`, keeping `ORIGINAL`
+  as its own distinct 5th option — the Personalize swatch row (both preview as a plain rectangle)
+  distinguishes them by fill: `SQUARE` solid/accent-filled, `ORIGINAL` outline-only/unfilled. **Caught
+  a real regression while verifying "original" on-device**: the prior session's adaptive-icon masking
+  fix (below) had made *every* consumer use the raw, un-OS-masked bitmap, including the `ORIGINAL`/
+  `HomeStyle.TILES` branch — so "original" no longer showed each icon's true device shape. Fixed by
+  giving `MaskableIcon`/`MaskableAppIcon` two bitmaps (`bitmap` = OS-accurate, for ORIGINAL/TILES and
+  legacy icons; `unmaskedBitmap` = raw layer composite, only for our own shape-clip branch). See
+  DECISIONS "Real 'square' option added; fixed a regression...". Verified on an emulator: all 5 shapes
+  (circle/squircle/rounded/square/original) render distinctly correct; original restores true device
+  icon appearance. Build + tests green; installed on both the emulator and the physical device.
+- **`android-home-style` branch — icon shape row was unlabeled + adaptive icons weren't actually
+  masked to the chosen shape.** User-reported with screenshots: home style "icons," icon shape set to
+  what looked like "square," but icons kept their native app shapes (WhatsApp circle, Maps teardrop).
+  Two bugs, one UX and one real: (1) `IconShape`'s 4th/last value is `ORIGINAL` (deliberately
+  unmasked/native-shape), not "square" — no such value exists — but the Personalize swatch row had
+  **no text labels**, and `ORIGINAL`'s swatch previews as a flat rectangle, reading exactly like
+  "pick this for square." Fixed by labeling each swatch (`circle`/`squircle`/`rounded`/`original`).
+  (2) Verifying the fix on-device surfaced a real masking bug: selecting an actual shape (e.g.
+  squircle) still rendered adaptive icons fully circular, because `IconCellView.kt`
+  (`:feature:start`) and its duplicate `AppListIcon.kt` (`:feature:applist`) called
+  `drawable.toBitmap()` directly on the `AdaptiveIconDrawable`, which always clips itself to the OS's
+  own device-wide icon mask (a circle on stock AOSP) before our own `IconShape` clip ever runs — so
+  re-clipping to a squircle just trimmed an already-circular bitmap. Fixed with the standard
+  adaptive-icon re-masking technique: new `unmaskedIconBitmap()` (duplicated in both files) draws the
+  icon's raw background/foreground layers directly with no OS mask applied, then our own shape clips
+  that genuinely-square bitmap. See DECISIONS "Icon shape row was unlabeled...; adaptive-icon masking
+  was silently a no-op." Verified on an emulator: labels render correctly, and selecting "squircle"
+  now visibly re-masks adaptive icons (camera/contacts/files/personalize) into soft-rounded squares;
+  legacy icons (Chrome/YouTube Music) unaffected, still shown on a shaped tinted plate. Build + tests
+  green.
+- **Post-v2.5.1 — picking "icons" in the wizard now actually shrinks the default apps to icons.**
+  User-reported: picking "icons" still showed a Start screen dominated by big live tiles — 61% of
+  `DefaultLayout.DEFAULT_TILES`' ~18 seeded tiles are MEDIUM/WIDE, seeded before the wizard even
+  opens, and `setHomeStyle` deliberately never resizes anything (a pure renderer flag). New
+  `StartViewModel.shrinkDefaultAppsToIcons()`, called only from `chooseHomeStyle(ICONS)`: resizes
+  every top-level app tile with a real package down to SMALL and clears every tile's `gridSlot` so
+  the grid re-flows compact instead of leaving holes from STICKY's already-anchored larger
+  footprints. `liveOnly` tiles (clock/weather/calendar/personalize) and folders are left untouched.
+  Scoped to the one-shot wizard only — a later Personalize toggle is completely unaffected, so it can
+  never clobber a customized layout. Verified end-to-end on a fresh emulator install: mostly icons,
+  clock/weather stayed live, and — a nice emergent result from composing with the earlier "live icons
+  at 1×1" fix, not separately coded — calendar (whose role resolved to a real app on that emulator)
+  automatically became a compact live "day of month" mini tile. See DECISIONS "Picking 'icons' in the
+  wizard now actually shrinks the default apps to icons." Build + tests green.
+- **Post-v2.5.1 — closed folder's mini-grid shows the real app icon in ICONS mode too.** User-reported
+  with a real-launcher screenshot: a folder's default apps (contacts/mail/messages) showed the
+  generic WP glyph in the closed mini-grid instead of each app's real icon — `FolderChildIcon` had
+  never picked up the earlier "icon mode shows the real app icon" fix, since it lives on a separate
+  code path (`FolderTileContent`'s mini-grid, not the top-level `IconCellView`). Threaded a
+  `homeStyle: HomeStyle = HomeStyle.TILES` param down `TileView` → `FolderTileContent` →
+  `FolderChildIcon`; ICONS mode now prefers the real icon whenever the child has a real package,
+  matching `IconCellView`'s own rule, while TILES mode's WP-authentic glyph-first look is untouched.
+  See DECISIONS "Closed folder's mini-grid shows the real app icon in ICONS mode too." Build + tests
+  green. **Two same-day follow-ups on the same screenshot thread**: (1) each mini-grid cell's tinted
+  background plate (`FolderTileContent`'s `cellFill`) is now skipped entirely in ICONS mode too
+  ("only icon should be shown - dont show inside square") — TILES mode's tinted-square look is
+  unchanged, and `IconFolderCell` never had a plate to begin with; (2) the mini-grid icon itself grew
+  from 18dp to 26dp in ICONS mode to fill the space the plate used to occupy ("icon size should be
+  bigger... as there is no square around") — TILES mode keeps 18dp. See DECISIONS' two follow-up
+  entries. Build + tests green.
+- **Post-v2.5.1 — first-run home-style (tiles vs icons) choice wizard, real live preview.**
+  User-requested, scoped down via `AskUserQuestion` to a single choice screen (no bundled
+  restore-backup step, no multi-step flow) — see DECISIONS "First-run home-style (tiles vs icons)
+  choice wizard, with a real live preview". Shown once, ever, per device: on a fresh install, and
+  once for an existing install upgrading to the version that introduced `HomeStyle` at all, since the
+  new one-shot flag (`HomeStyleWizardPrefs`, `tileshell.prefs`, following the exact shape of
+  `FirstRunHintPrefs`/`SettingsAppMigration`) is unset in both cases — no versionCode check needed.
+  `StartViewModel` gained a `homeStyleWizardOpen` sheet-gate StateFlow (same shape as `aboutOpen`
+  etc.), checked in `init{}`, wired into `goHome()`'s close-every-sheet chain. The two option cards in
+  new `HomeStyleWizardScreen` (`:feature:start`) are a **real live preview**, not a drawn mockup — per
+  explicit user choice, built from fabricated sample `TileModel.App`s rendered through the actual
+  `TileView`/`IconCellView` composables (`TileView` widened private→internal for this), restricted to
+  iconKeys with zero `LiveFace` mapping so a blank/fake package always takes the safe static-glyph
+  path. Drawn last in the overlay stack, suppressing the existing `FirstRunHint` while open so a fresh
+  install never sees both at once. Build + tests green; installed on the physical device (no crash in
+  logcat), full on-screen verification pending since the device's lock screen blocked a screenshot
+  check this session.
+- **Post-v2.5.1 — weather/calendar/clock icons stay live at 1×1 in ICONS mode, rendered exactly like
+  a tile-mode SMALL tile.** User-requested, a real Android launcher's dynamic calendar/weather icons
+  were the explicit precedent — see DECISIONS "Weather/calendar/clock icons stay live at 1×1 in ICONS
+  mode — rendered exactly like a tile-mode SMALL tile" for the two-round on-device correction trail
+  (a smaller purpose-built first pass was tried and replaced after user feedback). `IconCellView`
+  (`:feature:start`) branches on `tile.iconKey` in place of always calling the generic masked icon:
+  weather/calendar/clock render as a genuine `accent`-filled, rounded mini tile (new `LiveIconTile`)
+  filling the *entire* cell — no label underneath, matching tile mode's own SMALL tile exactly —
+  holding the real `WeatherSmallFace`/`CalendarSmallFace`/`ClockSmallFace` composables (`:feature:
+  livetiles`) verbatim, same data plumbing and font sizes tile mode already uses. Every other app
+  still falls back to the ordinary icon+label ICONS-mode layout at 1×1. `IconCellView` gained an
+  `accent: Color` param (wired from the same `tileAccent` already computed for `TileView`) alongside
+  `liveActive: Boolean`. Build + tests green.
+- **Post-v2.5.1 — icon shape masking extended to the App List.** User-requested: the `IconShape`
+  setting (circle/squircle/rounded/original) only masked Start-screen icons (ICONS home style), not
+  the App List. `:feature:applist` can't depend on `:feature:start` (dependency graph runs the other
+  way), so rather than giving `:core:design` a dependency on `:core:data` to share code (reversing an
+  earlier deliberate decision), the masking logic is duplicated in a new `AppListIcon.kt` — gated on
+  `homeStyle == HomeStyle.ICONS`, plain unmasked in TILES mode. `AppListViewModel` gained a
+  `settings: StateFlow<LauncherSettings>` (mirrors `StartViewModel`). **Caught a real perf bug before
+  shipping**: the first pass's plate-colour scan (per-pixel, 96×96 bitmap) ran synchronously on the
+  main thread per row — fine on Start's couple-dozen on-screen tiles, not fine on the App List's
+  `LazyColumn` of potentially hundreds of apps. Fixed by computing it once in the background icon-load
+  coroutine and caching it, never touching the UI thread. Build + tests green.
+- **Post-v2.5.1 — widget stacks: any stackable size + explicit "show as stack"/"show as folder"
+  toggle.** Direct follow-up on the icons-mode arc, user-requested — see DECISIONS "Widget stacks:
+  any stackable size, explicit 'show as stack'/'show as folder' toggle" for the full mechanism.
+  `TileSize.stackable` widens stack eligibility from "uniform WIDE or LARGE" to every size except the
+  four smallest/thinnest (SMALL/WIDE_SMALL/TALL/COLUMN). Since MEDIUM (the default pinned size) is now
+  stackable, `TileModel.Folder.isStack` could no longer stay purely derived from children uniformity
+  (an ordinary never-customized folder would auto-become a stack) — `FolderEntity` gained a real
+  persisted `showAsStack: Boolean` (schema v6→v7 migration, backfilled `true` for any folder that's
+  currently a uniform WIDE/LARGE stack), with `isStack = showAsStack && stackSize != null`. The
+  folder-overlay's two fixed "make stack · wide"/"make stack · large" action tiles are now one
+  contextual toggle ("show as stack" / "show as folder"), applying identically in TILES and ICONS home
+  style. Drag-merge (the default folder-creation gesture) deliberately stays LARGE-only/unchanged, so
+  merging two ordinary MEDIUM tiles still forms a plain folder, not a stack. Build + full unit test
+  suite green; installed on the physical device over its existing v6 database — migration verified
+  clean against real, non-empty data. **Three same-day on-device refinements** (see DECISIONS "Widget
+  stacks: three on-device refinements"): `TileSize.stackable` tightened to `cols > 1 && rows > 1`
+  (also excludes `BANNER` now, not just the original four); a widget stack's corner controls are now
+  identical to a plain folder's (resize icon + colour dot always shown, `StackEditControls` deleted;
+  dragging a stack's corner resizes the whole thing via a new `onResizeStack` → `convertFolderToStack`,
+  homogenizing every member); and the "show as stack"/"show as folder" toggle moved from a standalone
+  action tile next to the expanded folder's children into the per-tile colour picker sheet
+  (`TileColorPicker` gained `stackToggleLabel`/`onToggleStack`), with the whole `FolderAction`/
+  `FolderActionTile`/`expandedFolderActions` mechanism deleted. Build + tests green.
+- **Post-v2.5.1 — Android-style icons home style (`android-home-style` branch, 5-stage arc, not yet
+  merged to main).** New user ask, not in the WP prototype/spec: let someone who doesn't want the
+  Windows Phone interface turn TileShell into a normal Android-style launcher — shaped app icons,
+  folders, free placement — while keeping live tiles and widget stacks on the same screen. Full
+  design and rationale in DECISIONS.md ("Android-style icons home style" and its five supporting
+  entries); summarized here. New `LauncherSettings.homeStyle: HomeStyle { TILES, ICONS }` is the only
+  new top-level flag — layout, persistence, gestures, folders, the app drawer and backup are all
+  shared unmodified between the two styles. Icon vs. live tile is derived purely from a tile's own
+  `size`: SMALL renders as a shaped icon (`IconCellView`/`IconFolderCell`, new in `:feature:start`);
+  MEDIUM+ (live tiles, folders, widget stacks) renders exactly as in TILES mode with zero new code,
+  since the whole mixed-content mechanism is one condition at the single `TileView` call site.
+  Growing/shrinking a tile across the SMALL boundary is therefore the icon↔live-tile conversion
+  gesture — which is why this arc also shipped **gesture-based drag resize** and **eleven total
+  `TileSize` presets** (seven drag-only: `WIDE_SMALL`/`TALL`/`WIDE_MEDIUM`/`TALL_MEDIUM`/`XLARGE`/
+  `BANNER`/`COLUMN`; the tap-cycle stays on the original four). A new **`FREE` tile arrangement
+  mode** (alongside `DENSE`/`STICKY`) is the placement engine ICONS mode defaults to — nothing moves
+  unless the user moves it; dropping onto an occupied cell swaps the two tiles rather than pushing
+  anything down — and does not reverse `STICKY`'s own "never leave a fully empty row" invariant,
+  which stays exactly as it was. Icon masking (`IconShape`: circle/squircle/rounded/original) uses a
+  real superellipse (`core/design/Squircle.kt`), not a `RoundedCornerShape` approximation, with a
+  genuine adaptive-icon vs. legacy-icon rendering split. Verified on both an emulator (home-style/
+  icon-shape rows, real device icons rendering unfilled with wallpaper showing through, and — the
+  load-bearing behaviour — a SMALL icon correctly converting to a filled live tile when grown past
+  SMALL, persisted after exiting edit mode) and a physical device (Samsung SM-S938B; fresh install,
+  edit mode, resize handles and Personalize all confirmed working). **Three on-device follow-up
+  fixes after physical-device testing** (see DECISIONS "Icons-mode resize: three on-device fixes
+  after real-hardware testing"): (1) the resize gesture — which had grown a two-finger-stretch
+  alternative alongside the corner-drag during on-device gesture debugging — was simplified back to
+  **corner-drag only** ("corner stetch work well," the two-finger path added nothing); (2) a folder's
+  **closed mini-grid children now always render `IconShape.ORIGINAL`**, never the ambient icon shape,
+  fixing a "square border around icon in collapsed folder" report traced to a legacy-icon colour
+  plate that reads as clutter at 18dp (top-level icons and expanded children are unaffected); (3) the
+  two newest presets, **`BANNER` (4×1) and `COLUMN` (1×4), are reachable by drag from both app tiles
+  and folder children** — folder children previously had no drag-resize at all
+  (`resizeHandlesEnabled` was gated off for them), now removed in favour of a new
+  `resizeFolderChildTo` (ViewModel/repository) direct-set write path sharing the existing tap cycle's
+  stack-collapse/-promote bookkeeping. Build + full unit test suite green throughout every stage and
+  every follow-up fix; new tests: `ResizeSnapTest`, `SquircleTest`, `IconCellShapeTest`, plus
+  `GridPackerTest` and `SettingsCodecTest` extensions. **Not yet merged to `main`** — this status
+  entry documents the branch's state for continuity, not a shipped release.
+- **`android-home-style` branch — narrow live tiles (TALL/COLUMN, 1 column wide) show their data
+  stacked vertically instead of clipping.** Direct on-device follow-up, user-reported: drag-resizing
+  a clock/weather tile down to 1 column wide (`TALL`/`COLUMN`) clipped their text, since
+  `ClockFront`/`WeatherFront`/`CalendarDateColumn`/the shared `ConversationCountFace`/
+  `NotificationFaceContent` (mail/messages/generic-notification tiles) only ever branched font size
+  on height, never width — only true `SMALL` short-circuited to a compact face. New
+  `TileSize.narrowLive` (`cols == 1 && this != SMALL`) is checked inside each face composable (not
+  routed to the `SMALL` path — the user wants the full data, just reflowed): centered text,
+  width-safe font sizes reused from the existing `*SmallFace` composables, 3-letter weekday/month
+  abbreviations, ellipsis safety nets, and `Arrangement.SpaceEvenly` (replacing `Center` + manual
+  `Spacer`s) so the lines spread across whatever height the tile has — `TALL`'s 2 rows or `COLUMN`'s
+  4 — instead of bunching in the middle. All changes are additive; MEDIUM/WIDE/LARGE rendering is
+  unchanged. See DECISIONS "Narrow live tiles (TALL/COLUMN, 1 column wide) show their data stacked
+  vertically." Verified on an emulator: drag-resized a weather tile and a clock tile to COLUMN,
+  both show every field fully readable and evenly spaced, in and out of edit mode. Build + tests
+  green.
+- **`android-home-style` branch — tile colour source gains a "wallpaper" option, matching the feed/
+  Quick Panel's own wallpaper-derived accent.** User-requested, drawing an explicit parallel: "glance
+  and quick settings use their background and gadget/tile from accent picked up from wallpaper.
+  similarly keep another color option for tiles to pickup from wallpaper, make provision in
+  personalisation with added color tile." `TileColorSource` (`core/data/settings/LauncherSettings.kt`)
+  gained `WALLPAPER_ACCENT` alongside `GLOBAL_ACCENT`/`APP_ICON` (codec round-trips it for free by
+  name, no migration). Reuses the feed page's existing `rememberFeedPalette` (already called
+  cross-package by `QuickPanelOverlay.kt`, so no new dependency) — computed once in `StartScreen.kt`,
+  gated by the same `noWallpaper` fallback-to-accent guard the feed/Quick Panel use (`Wallpapers.
+  forId("none")` otherwise falls back to the bundled Aurora gradient, which would wrongly tint tiles
+  when no wallpaper is actually set), and threaded into the existing per-tile colour priority chain
+  (`tileOverride → iconColor → wallpaperAccent → accent`) at `StartPage`'s `tileAccent` and
+  `FolderTileContent`'s per-child `cellBg` — `StackTileContent` needed no new param since its own
+  fallback chain already ends at the already-wallpaper-aware `accent`. Personalize's "tile color
+  source" row gained a third pill with a live swatch dot sampled from the wallpaper (the "added color
+  tile"), filling the whole pill when selected like "accent" already does. See DECISIONS "Tile colour
+  source: 'wallpaper' option, tiles read the same accent as the feed/Quick Panel." Verified on an
+  emulator (via `uiautomator dump` for exact tap coordinates): swatch/tiles show the plain accent with
+  no wallpaper set, and all switch together to a picked stock gradient's sampled colour once selected.
+  Build + tests green.
+- **`android-home-style` branch — tile colour source row: fixed a real bug where the "wallpaper" cell
+  wrapped its label vertically, one letter per line.** User-reported with a screenshot. The row was a
+  bespoke same-line label+3-pills layout, different from every other selector on this sheet (home
+  style, arrangement, wallpaper type) — once "wallpaper" grew a leading swatch dot, its unweighted
+  `Text` no longer reliably had enough leftover width and wrapped character-by-character instead of
+  overflowing, reading as a tall vertical strip. Rebuilt to match the shared `SettingGroup` + `SegCell`
+  convention every other selector already uses (label above, bordered `Row` of equal-`weight(1f)`
+  cells below); `SegCell` gained an optional `swatch: Color?` param (the wallpaper preview dot) plus
+  an explicit `maxLines = 1` backstop. See DECISIONS "Tile colour source row: real bug — 'wallpaper'
+  pill wrapped its label vertically, one letter per line." Verified on an emulator: three equal cells,
+  no wrapping in either state. Build + tests green.
+- **`android-home-style` branch — the guide and about sheets now describe home style, icon shapes,
+  and the drag-resize tile sizes.** User asked directly whether these had been documented — they
+  hadn't. `PersonalizeGuideSheet.kt` ("how to personalize") gained a new "home style" `FeatureGroup`
+  (with a matching visual: a plain tile swatch next to the four `IconShape` outlines, reusing
+  `SquircleShape` from `:core:design`) covering the first-run wizard, the tiles↔icons switch, icon
+  shapes, the icon↔live-tile size-boundary conversion, and icons mode's "free" arrangement default;
+  "organizing tiles" gained the drag-corner/11-size detail. `AboutSheet.kt`'s "start screen" group got
+  the same content in its plain-text convention, plus a "sticky/free/dense" arrangement bullet (a
+  pre-existing, also-undocumented setting). Both sheets' duplicate one-line subject summaries (the
+  guide's own header, and a second copy in `PersonalizeSheet.kt`'s "how to personalize" nav-row
+  subtitle) were updated to mention "home style" too. See DECISIONS "Guide and about sheets never
+  mentioned home style, icon shapes, or the drag-resize tile sizes." Verified on an emulator: both new
+  sections render correctly (visual + all bullets). Build + tests green.
+- **`android-home-style` branch — guide/about docs still described the old "make stack ·
+  wide/large" widget-stack mechanism.** Direct follow-up, user-flagged: the "show as stack"/"show as
+  folder" toggle moved into the per-tile colour picker sheet, and stack eligibility widened from
+  "uniform WIDE or LARGE" to any `TileSize.stackable` size (all but five 1-dimensional presets) —
+  neither doc had been updated for that rework. Rewrote `PersonalizeGuideSheet.kt`'s "organizing
+  tiles" and `AboutSheet.kt`'s "widget stacks" groups: merging two large tiles still forms a stack
+  directly, but any folder with 2+ children at a stackable size can now become one via the colour
+  picker's toggle; named exactly which five presets are excluded; added the drag-corner-homogenizes-
+  every-member detail; removed the stale "wide ↔ large"/"back to folder" text (that whole mechanism,
+  `StackEditControls`, was deleted in an earlier session). See DECISIONS "Guide and about sheets
+  still described the old 'make stack · wide/large' widget-stack mechanism." Verified on an emulator.
+  Build + tests green.
 - **Post-v2.5.0 — feed widget stacks: four fixes from on-device testing.** User-reported after real
   hardware use as two symptoms ("stack position can't be changed", "another widget can not be placed
   next to the stack"), which were four separate defects — see DECISIONS "Feed widget stacks — four

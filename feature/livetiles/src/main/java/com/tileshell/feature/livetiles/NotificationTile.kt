@@ -79,7 +79,7 @@ fun NotificationTileFace(
         FlipTile(
             flipped = flipped,
             modifier = Modifier.fillMaxSize(),
-            front = { ConversationCountFace(preview.count, "notifications") },
+            front = { ConversationCountFace(preview.count, "notifications", size) },
             back = {
                 NotificationFaceContent(
                     item = current,

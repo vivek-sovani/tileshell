@@ -2,7 +2,15 @@ package com.tileshell.core.data
 
 /**
  * Tile footprints on the 4-column grid (CLAUDE.md normative values):
- * small 1×1, medium 2×2, wide 4×2, large 3×3.
+ * small 1×1, medium 2×2, wide 4×2, large 3×3 — plus seven presets added for
+ * gesture-based drag resize (Android-icons-mode arc): [WIDE_SMALL] 2×1,
+ * [TALL] 1×2, [WIDE_MEDIUM] 3×2, [TALL_MEDIUM] 2×3, [XLARGE] 4×4, [BANNER]
+ * 4×1, [COLUMN] 1×4. The tap resize cycle ([next]) deliberately stays on the
+ * original four — dragging a tile's resize handles (`StartViewModel.resizeTo`)
+ * is the only way to reach the seven newer presets, since cycling eleven
+ * sizes by tap would be unusable. All eleven are reachable at any column
+ * count; [GridPacker] reads only [cols]/[rows] and never branches on the
+ * enum, so no packer change was needed to add these.
  *
  * [LARGE] (3×3) is reachable in the resize cycle for any app tile on any grid
  * density (see [AppCategories.allowsLargeTile]) — a caller that doesn't opt a
@@ -17,6 +25,13 @@ enum class TileSize(val cols: Int, val rows: Int) {
     MEDIUM(2, 2),
     WIDE(4, 2),
     LARGE(3, 3),
+    WIDE_SMALL(2, 1),
+    TALL(1, 2),
+    WIDE_MEDIUM(3, 2),
+    TALL_MEDIUM(2, 3),
+    XLARGE(4, 4),
+    BANNER(4, 1),
+    COLUMN(1, 4),
     ;
 
     /**
@@ -34,6 +49,12 @@ enum class TileSize(val cols: Int, val rows: Int) {
         SMALL -> WIDE
         WIDE -> if (largeAllowed) LARGE else MEDIUM
         LARGE -> MEDIUM
+        // Only reached via drag-to-resize, never by this cycle itself (see the
+        // class doc comment). Tapping resize while at one of these newer
+        // presets folds back into the original four-size cycle at MEDIUM —
+        // the cycle's own documented "always starts and returns" landing
+        // size — rather than extending the tap cycle to eleven stops.
+        WIDE_SMALL, TALL, WIDE_MEDIUM, TALL_MEDIUM, XLARGE, BANNER, COLUMN -> MEDIUM
     }
 
     val area get() = cols * rows
@@ -49,4 +70,27 @@ enum class TileSize(val cols: Int, val rows: Int) {
      */
     fun nextForFolderChild(largeAllowed: Boolean): TileSize =
         if (largeAllowed) next(largeAllowed = true) else if (this == SMALL) MEDIUM else SMALL
+
+    /**
+     * Whether this size is roomy enough to be a widget-stack member: both
+     * dimensions greater than 1, i.e. not [SMALL] (1×1), [WIDE_SMALL] (2×1),
+     * [TALL] (1×2), [BANNER] (4×1), or [COLUMN] (1×4) — a single live tile
+     * face along a one-cell-thin strip reads too cramped to be worth swiping
+     * between. Originally a stack required uniform [WIDE] or [LARGE] members;
+     * widened to this broader "any roomy size" rule per user request (see
+     * docs/DECISIONS.md).
+     */
+    val stackable: Boolean
+        get() = cols > 1 && rows > 1
+
+    /**
+     * True for [TALL] and [COLUMN] — the same 1-column width as [SMALL] but with
+     * extra row height. Live-face composables (clock/weather/calendar/notification)
+     * branch on this to lay their text out stacked and centred for a ~90dp-wide
+     * column, spread across whatever height the tile has, instead of the wider
+     * MEDIUM+ layout that clips at 1 column. See docs/DECISIONS.md "Narrow live
+     * tiles show their data stacked vertically."
+     */
+    val narrowLive: Boolean
+        get() = cols == 1 && this != SMALL
 }

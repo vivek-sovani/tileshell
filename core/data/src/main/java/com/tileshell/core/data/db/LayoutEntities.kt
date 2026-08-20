@@ -26,10 +26,12 @@ data class TileEntity(
     // null (= follow global), preserving the prior uniform-accent look.
     val accentOverride: String? = null,
     // Absolute grid cell (row * 1000 + col, see GridPacker.encodeSlot in
-    // :feature:start), used only while LauncherSettings.tilePackMode is STICKY.
-    // Null means "never anchored" — the tile floats to the first free cell
-    // after the current bottom row rather than a fixed spot. Added in schema
-    // v6; ignored entirely in the default DENSE mode.
+    // :feature:start), used while LauncherSettings.tilePackMode is STICKY or
+    // FREE (see TilePackMode.isAnchored) — FREE reuses the same anchored cell,
+    // just with different push-down/collapse behaviour on top of it. Null
+    // means "never anchored" — the tile floats to the first free cell after
+    // the current bottom row rather than a fixed spot. Added in schema v6;
+    // ignored entirely in the default DENSE mode.
     val gridSlot: Int? = null,
     val type: String,
     val packageName: String? = null,
@@ -49,6 +51,13 @@ data class TileEntity(
 data class FolderEntity(
     @PrimaryKey val id: String,
     val name: String,
+    // Explicit "show as stack" toggle (see TileModel.Folder.showAsStack's doc
+    // comment) — independent of the children's own sizes. Added in schema v7;
+    // defaults false so every existing folder keeps rendering as a plain
+    // mini-grid on upgrade (a pre-existing WIDE/LARGE-uniform stack is
+    // re-flagged true by the same migration, so it doesn't visually flip to a
+    // folder on upgrade either — see MIGRATION_6_7).
+    val showAsStack: Boolean = false,
 )
 
 /** One app inside a folder, in [position] order. Cascades when the folder dies. */

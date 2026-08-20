@@ -6,23 +6,66 @@ enum class TileFill { FLAT, GRADIENT }
 enum class FontStyle { SYSTEM, OUTFIT, NUNITO }
 
 /**
+ * Which cell renderer the Start grid uses (the "icons mode" arc, for a user
+ * who wants a normal Android-style home screen instead of Windows Phone
+ * tiles). [TILES] is the original WP tile grid, unchanged. [ICONS] shares the
+ * exact same layout engine — persistence, gestures, folders, drawer, backup —
+ * and only changes what a SMALL (1×1) cell renders: a shaped app icon with a
+ * label beneath instead of a filled tile. A cell at MEDIUM or larger still
+ * renders as a live tile/stack/folder exactly as in TILES mode either way —
+ * this is derived purely from the tile's own size, not a second stored flag,
+ * so live tiles, stacks and folders keep working in ICONS mode with no
+ * separate code path, and switching styles rewrites nothing (a tile's stored
+ * size is just ignored while the smaller renderer is active).
+ */
+enum class HomeStyle { TILES, ICONS }
+
+/**
+ * The mask applied to an app's own icon in ICONS home style (Personalize's
+ * "icon shape" row, shown only while `homeStyle == ICONS`). [ORIGINAL] is
+ * the fresh-install default — no masking, so a brand-new ICONS-mode install
+ * looks exactly like today's real app icons until the user opts into a
+ * shape. Tiles never take this setting — see `:core:design`'s `Squircle.kt`
+ * doc comment for why tile corners stay on the existing `RoundedCornerShape`
+ * instead of sharing this setting. The mapping from this enum to an actual
+ * Compose `Shape` lives in `:feature:start` (the only module that needs both
+ * this type and `:core:design`'s masking primitives), not here — this file
+ * only ever holds the persisted value, matching [TileFill]/[FontStyle]/
+ * [TileColorSource]/[HomeStyle] above.
+ */
+enum class IconShape { CIRCLE, SQUIRCLE, ROUNDED, SQUARE, ORIGINAL }
+
+/**
  * How the Start grid closes gaps left by a removed/resized tile (user-selectable
  * "tile arrangement"): [DENSE] always repacks every tile toward the top-left on
  * every change (the launcher's original behaviour, matching the HTML prototype's
  * CSS `grid-auto-flow: dense`); [STICKY] mirrors real Windows Phone — a tile
  * stays at its anchored grid cell and a gap it leaves behind stays open until the
- * user drags something into it. A new tile always appends after the current
- * bottom row in either mode (never backfills an earlier gap).
+ * user drags something into it, except a *fully* empty row (no tile touching any
+ * column), which always collapses. [FREE] is stickier still: nothing moves unless
+ * the user moves it — no push-down on drop, and even a fully empty row stays open.
+ * Dropping onto an occupied cell swaps the two tiles instead of displacing anything
+ * (see `GridPacker.swapPlacement`). [STICKY] and [FREE] are both "anchored" modes
+ * for placement purposes (see `GridPacker.packSticky`'s `slotOf`); only [FREE]
+ * skips the full-empty-row collapse and the push-down-on-drop/resize behaviour.
+ * A new tile always appends after the current bottom row in every mode (never
+ * backfills an earlier gap).
  */
-enum class TilePackMode { DENSE, STICKY }
+enum class TilePackMode { DENSE, STICKY, FREE }
+
+/** True for either mode that renders from a tile's anchored `gridSlot` (i.e. not [TilePackMode.DENSE]). */
+val TilePackMode.isAnchored: Boolean get() = this != TilePackMode.DENSE
 
 /**
  * Default colour for a tile that has no explicit per-tile override (FR-7):
  * [GLOBAL_ACCENT] paints every tile the single global accent; [APP_ICON] tints
  * each app tile with the dominant colour of its launcher icon (a freshly pinned
- * app then shows in its own brand colour). A per-tile override still wins.
+ * app then shows in its own brand colour); [WALLPAPER_ACCENT] tints every tile
+ * with the same wallpaper-derived accent colour the feed/glance page and Quick
+ * Panel already use (see `rememberFeedPalette`), so tiles, feed, and Quick
+ * Panel all read as one coordinated palette. A per-tile override still wins.
  */
-enum class TileColorSource { GLOBAL_ACCENT, APP_ICON }
+enum class TileColorSource { GLOBAL_ACCENT, APP_ICON, WALLPAPER_ACCENT }
 
 /**
  * Persisted personalization (FR-7). Kept deliberately flat and framework-free so
@@ -144,6 +187,10 @@ data class LauncherSettings(
      * something, at which point gaps start being preserved rather than repacked.
      */
     val tilePackMode: TilePackMode = TilePackMode.STICKY,
+    /** Which cell renderer the Start grid uses — WP tiles, or Android-style icons. */
+    val homeStyle: HomeStyle = HomeStyle.TILES,
+    /** Icon mask applied in ICONS home style; unused in TILES. */
+    val iconShape: IconShape = IconShape.ORIGINAL,
     /** Periodic background layout snapshot saves (for LayoutHistorySheet). */
     val autoBackupEnabled: Boolean = true,
     /** Hours between automatic snapshots: 1, 4, 6, 12, or 24. */
@@ -210,6 +257,8 @@ object SettingsCodec {
         append("fontStyle=").append(settings.fontStyle.name).append('\n')
         append("columns=").append(settings.columns).append('\n')
         append("tilePackMode=").append(settings.tilePackMode.name).append('\n')
+        append("homeStyle=").append(settings.homeStyle.name).append('\n')
+        append("iconShape=").append(settings.iconShape.name).append('\n')
         append("autoBackup=").append(settings.autoBackupEnabled).append('\n')
         append("autoBackupInterval=").append(settings.autoBackupIntervalHours).append('\n')
         append("edgeStripEnabled=").append(settings.edgeStripEnabled).append('\n')
@@ -250,6 +299,8 @@ object SettingsCodec {
         var fontStyle = d.fontStyle
         var columns = d.columns
         var tilePackMode = d.tilePackMode
+        var homeStyle = d.homeStyle
+        var iconShape = d.iconShape
         var autoBackupEnabled = d.autoBackupEnabled
         var autoBackupIntervalHours = d.autoBackupIntervalHours
         var edgeStripEnabled = d.edgeStripEnabled
@@ -301,6 +352,8 @@ object SettingsCodec {
                     columns = it.coerceIn(LauncherSettings.MIN_COLUMNS, LauncherSettings.MAX_COLUMNS)
                 }
                 "tilePackMode" -> TilePackMode.entries.find { it.name == value }?.let { tilePackMode = it }
+                "homeStyle" -> HomeStyle.entries.find { it.name == value }?.let { homeStyle = it }
+                "iconShape" -> IconShape.entries.find { it.name == value }?.let { iconShape = it }
                 "autoBackup" -> autoBackupEnabled = value.toBooleanStrictOrNull() ?: autoBackupEnabled
                 "autoBackupInterval" -> value.toIntOrNull()?.let {
                     autoBackupIntervalHours = it.coerceIn(1, 24)
@@ -343,6 +396,8 @@ object SettingsCodec {
             fontStyle = fontStyle,
             columns = columns,
             tilePackMode = tilePackMode,
+            homeStyle = homeStyle,
+            iconShape = iconShape,
             autoBackupEnabled = autoBackupEnabled,
             autoBackupIntervalHours = autoBackupIntervalHours,
             edgeStripEnabled = edgeStripEnabled,

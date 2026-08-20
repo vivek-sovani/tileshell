@@ -313,4 +313,79 @@ object GridPacker {
         val ownFinal = collapse[movedId] ?: effectiveSlot
         return displaced + collapse + (movedId to ownFinal)
     }
+
+    private data class SwapBox(val id: String, val col: Int, val row: Int, val w: Int, val h: Int)
+
+    private fun swapBoxesOverlap(a: SwapBox, b: SwapBox): Boolean =
+        a.col < b.col + b.w && b.col < a.col + a.w && a.row < b.row + b.h && b.row < a.row + a.h
+
+    /**
+     * FREE-mode drop (`TilePackMode.FREE`): [movedId] (sized [size], currently
+     * anchored at [movedFromCol]/[movedFromRow] — its cell *before* this drag)
+     * is released at absolute cell ([targetCol], [targetRow]). FREE's whole
+     * premise is that nothing moves unless the user moves it, so:
+     * - an empty target just relocates [movedId] there, nothing else changes;
+     * - a target occupied by exactly one other anchored tile **swaps** the
+     *   two — [movedId] lands exactly where it was dropped and the occupant
+     *   takes [movedId]'s *old* cell ([movedFromCol]/[movedFromRow]) — as long
+     *   as that swap doesn't overlap anything else (columns are independently
+     *   clamped per tile, since a wide tile and a 1×1 don't share a width).
+     *   [movedFromCol]/[movedFromRow] is what makes this a genuine swap rather
+     *   than both tiles colliding on the same cell: without knowing where
+     *   [movedId] came from, there is nowhere else to put the occupant;
+     * - anything else (more than one occupant, no known origin cell for
+     *   [movedId], or a swap that doesn't cleanly fit — typically because the
+     *   two tiles are different sizes) falls back to [stickyPlacement], the
+     *   already-proven push-down solver. This fallback is the one place a
+     *   FREE-mode drop can displace a tile the user didn't touch or close a
+     *   row it vacates; it exists only for the case a plain anchor swap can't
+     *   resolve, not the common path.
+     * [anchored] is every other anchored tile's current cell, never including
+     * [movedId] itself — the same convention [stickyPlacement] uses. Pure —
+     * returns only the `gridSlot` writes needed, keyed by tile id.
+     */
+    fun swapPlacement(
+        anchored: List<TilePlacement>,
+        movedId: String,
+        movedFromCol: Int?,
+        movedFromRow: Int?,
+        size: TileSize,
+        targetCol: Int,
+        targetRow: Int,
+        columns: Int = COLUMNS,
+    ): Map<String, Int> {
+        val w = size.cols.coerceAtMost(columns)
+        val h = size.rows
+        val effectiveCol = targetCol.coerceIn(0, (columns - w).coerceAtLeast(0))
+        val movedBox = SwapBox(movedId, effectiveCol, targetRow, w, h)
+
+        val others = anchored.filter { it.id != movedId }
+        val otherBoxes = others.map { SwapBox(it.id, it.col, it.row, it.cols.coerceAtMost(columns), it.rows) }
+        val occupants = otherBoxes.filter { swapBoxesOverlap(it, movedBox) }
+
+        if (occupants.isEmpty()) {
+            return mapOf(movedId to encodeSlot(effectiveCol, targetRow))
+        }
+
+        if (occupants.size == 1 && movedFromCol != null && movedFromRow != null) {
+            val occ = occupants.first()
+            val occColClamped = movedFromCol.coerceIn(0, (columns - occ.w).coerceAtLeast(0))
+            val occNew = SwapBox(occ.id, occColClamped, movedFromRow, occ.w, occ.h)
+
+            val fitsInGrid = movedBox.col >= 0 && movedBox.col + movedBox.w <= columns &&
+                occNew.col >= 0 && occNew.col + occNew.w <= columns
+            val everyoneElse = otherBoxes.filter { it.id != occ.id }
+            val overlapsElsewhere = everyoneElse.any { swapBoxesOverlap(it, occNew) }
+            val swapOverlapsItself = swapBoxesOverlap(movedBox, occNew)
+
+            if (fitsInGrid && !overlapsElsewhere && !swapOverlapsItself) {
+                return mapOf(
+                    movedId to encodeSlot(movedBox.col, movedBox.row),
+                    occ.id to encodeSlot(occNew.col, occNew.row),
+                )
+            }
+        }
+
+        return stickyPlacement(others, movedId, size, targetCol, targetRow, columns)
+    }
 }

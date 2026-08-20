@@ -33,6 +33,9 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
+import com.tileshell.core.design.SquircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -66,6 +69,8 @@ import androidx.core.graphics.drawable.toBitmap
 import com.tileshell.core.data.settings.FontStyle
 import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
+import com.tileshell.core.data.settings.HomeStyle
+import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
@@ -176,6 +181,10 @@ fun PersonalizeSheet(
     onTileGapChange: (Float) -> Unit,
     tileColorSource: TileColorSource,
     onTileColorSourceChange: (TileColorSource) -> Unit,
+    // Live preview swatch for the "wallpaper" tile-colour-source pill — the same
+    // wallpaper-derived accent the feed/glance page and Quick Panel already show,
+    // so the user can see the actual colour before switching to it.
+    wallpaperAccentPreview: Color,
     tileFill: TileFill,
     onTileFillChange: (TileFill) -> Unit,
     fontStyle: FontStyle,
@@ -184,6 +193,10 @@ fun PersonalizeSheet(
     onColumnsChange: (Int) -> Unit,
     tilePackMode: TilePackMode,
     onTilePackModeChange: (TilePackMode) -> Unit,
+    homeStyle: HomeStyle,
+    onHomeStyleChange: (HomeStyle) -> Unit,
+    iconShape: IconShape,
+    onIconShapeChange: (IconShape) -> Unit,
     lockLayout: Boolean,
     onLockLayoutChange: (Boolean) -> Unit,
     hideStatusBar: Boolean,
@@ -375,7 +388,7 @@ fun PersonalizeSheet(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(text = "how to personalize", color = tokens.fg, fontSize = 14.sp)
                         Text(
-                            text = "colours, wallpaper, tiles, pinning apps, the feed, and permissions",
+                            text = "colours, wallpaper, tiles, home style, pinning apps, the feed, and permissions",
                             color = tokens.fgDim,
                             fontSize = 12.sp,
                         )
@@ -439,42 +452,48 @@ fun PersonalizeSheet(
                 }
             }
 
-            // ---- tile color source: label + compact pill, one inline row
-            // (mirrors ToggleRow's layout — no separate caps group label,
-            // matching the mockup's single-line presentation) ----
-            Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 18.dp)) {
+            // ---- tile color source: same label-above / bordered-segmented-row
+            // convention every other selector on this sheet uses (home style,
+            // arrangement, wallpaper type) — a bespoke same-line label+pills
+            // row squeezed "wallpaper" down to near-zero width once it grew a
+            // swatch dot, wrapping its text one letter per line instead of
+            // just overflowing ----
+            SettingGroup(label = "tile color source", tokens.fgDim) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, tokens.tileLine),
                 ) {
-                    Text("tile color source", color = tokens.fg, fontSize = 14.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(
-                            TileColorSource.GLOBAL_ACCENT to "accent",
-                            TileColorSource.APP_ICON to "app icon",
-                        ).forEach { (source, label) ->
-                            val selected = tileColorSource == source
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(if (selected) accent else Color.Transparent)
-                                    .border(
-                                        1.dp,
-                                        if (selected) accent else tokens.tileLine,
-                                        RoundedCornerShape(20.dp),
-                                    )
-                                    .clickable { onTileColorSourceChange(source) }
-                                    .padding(horizontal = 14.dp, vertical = 7.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    text = label,
-                                    color = if (selected) Color.White else tokens.fg,
-                                    fontSize = 13.sp,
-                                )
-                            }
-                        }
+                    SegCell(
+                        "accent",
+                        selected = tileColorSource == TileColorSource.GLOBAL_ACCENT,
+                        accent = accent,
+                        fg = tokens.fg,
+                    ) {
+                        onTileColorSourceChange(TileColorSource.GLOBAL_ACCENT)
+                    }
+                    SegCell(
+                        "app icon",
+                        selected = tileColorSource == TileColorSource.APP_ICON,
+                        accent = accent,
+                        fg = tokens.fg,
+                    ) {
+                        onTileColorSourceChange(TileColorSource.APP_ICON)
+                    }
+                    // Carries an actual swatch dot sampled from the current
+                    // wallpaper (the same colour the feed/glance page and Quick
+                    // Panel already use) so the user sees the real colour before
+                    // switching to it — accent/app-icon need no such preview
+                    // (accent already fills the whole cell when selected; app
+                    // icon has no single colour to show ahead of time).
+                    SegCell(
+                        "wallpaper",
+                        selected = tileColorSource == TileColorSource.WALLPAPER_ACCENT,
+                        accent = accent,
+                        fg = tokens.fg,
+                        swatch = wallpaperAccentPreview,
+                    ) {
+                        onTileColorSourceChange(TileColorSource.WALLPAPER_ACCENT)
                     }
                 }
             }
@@ -826,7 +845,74 @@ fun PersonalizeSheet(
                 }
             }
 
-            // ---- arrangement: compact sticky | dense segmented pill ----
+            // ---- home style: windows-phone tiles vs. android-style icons ----
+            SettingGroup(label = "home style", tokens.fgDim) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "how apps render on the small (1×1) size — bigger tiles, live tiles and folders look the same either way",
+                        color = tokens.fgDim,
+                        fontSize = 13.sp,
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, tokens.tileLine),
+                    ) {
+                        SegCell("tiles", selected = homeStyle == HomeStyle.TILES, accent = accent, fg = tokens.fg) {
+                            onHomeStyleChange(HomeStyle.TILES)
+                        }
+                        SegCell("icons", selected = homeStyle == HomeStyle.ICONS, accent = accent, fg = tokens.fg) {
+                            onHomeStyleChange(HomeStyle.ICONS)
+                        }
+                    }
+                    // Icon shape only matters once there's an icon to mask —
+                    // hidden entirely in TILES, where this setting is unused.
+                    if (homeStyle == HomeStyle.ICONS) {
+                        Spacer(Modifier.height(6.dp))
+                        Text("icon shape", color = tokens.fgDim, fontSize = 13.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            IconShape.entries.forEach { candidate ->
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(candidate.previewShape())
+                                            .then(
+                                                // ORIGINAL means "unmasked, no colour fill" — an
+                                                // outline-only swatch, so it reads as visually
+                                                // distinct from SQUARE's solid filled rectangle
+                                                // even though both preview the same plain shape.
+                                                if (candidate == IconShape.ORIGINAL) {
+                                                    Modifier.border(1.dp, tokens.tileLine, candidate.previewShape())
+                                                } else {
+                                                    Modifier.background(accent)
+                                                },
+                                            )
+                                            .then(
+                                                if (iconShape == candidate) {
+                                                    Modifier.border(2.dp, tokens.fg, candidate.previewShape())
+                                                } else {
+                                                    Modifier
+                                                },
+                                            )
+                                            .clickable { onIconShapeChange(candidate) },
+                                    )
+                                    Text(
+                                        candidate.name.lowercase(),
+                                        color = if (iconShape == candidate) tokens.fg else tokens.fgDim,
+                                        fontSize = 10.sp,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ---- arrangement: compact sticky | free | dense segmented pill ----
             SettingGroup(label = "arrangement", tokens.fgDim) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
@@ -842,9 +928,22 @@ fun PersonalizeSheet(
                         SegCell("sticky", selected = tilePackMode == TilePackMode.STICKY, accent = accent, fg = tokens.fg) {
                             onTilePackModeChange(TilePackMode.STICKY)
                         }
+                        SegCell("free", selected = tilePackMode == TilePackMode.FREE, accent = accent, fg = tokens.fg) {
+                            onTilePackModeChange(TilePackMode.FREE)
+                        }
                         SegCell("dense", selected = tilePackMode == TilePackMode.DENSE, accent = accent, fg = tokens.fg) {
                             onTilePackModeChange(TilePackMode.DENSE)
                         }
+                    }
+                    // Only shown for FREE, which is the one mode where dropping a
+                    // tile onto another swaps them instead of pushing anything
+                    // down or reflowing the grid.
+                    if (tilePackMode == TilePackMode.FREE) {
+                        Text(
+                            "nothing moves unless you move it — dropping a tile onto another swaps the two",
+                            color = tokens.fgDim,
+                            fontSize = 12.sp,
+                        )
                     }
                     Spacer(Modifier.height(6.dp))
                     ToggleRow("lock layout", on = lockLayout, accent = accent, tokens, onLockLayoutChange)
@@ -1366,13 +1465,19 @@ private fun ThemeTile(
     }
 }
 
-/** One cell of the segmented toggle (prototype .seg div / .seg div.on). */
+/**
+ * One cell of the segmented toggle (prototype .seg div / .seg div.on).
+ * [swatch], when non-null, draws a small colour dot before the label — e.g.
+ * the "tile color source" row's "wallpaper" cell, previewing the actual
+ * wallpaper-derived colour it would apply.
+ */
 @Composable
 private fun RowScope.SegCell(
     label: String,
     selected: Boolean,
     accent: Color,
     fg: Color,
+    swatch: Color? = null,
     onClick: () -> Unit,
 ) {
     Box(
@@ -1383,13 +1488,47 @@ private fun RowScope.SegCell(
             .padding(vertical = 10.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = label,
-            color = if (selected) Color.White else fg,
-            fontSize = 14.sp,
-            textAlign = TextAlign.Center,
-        )
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (swatch != null) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(swatch)
+                        .border(1.dp, Color.White.copy(alpha = 0.6f), CircleShape),
+                )
+            }
+            Text(
+                text = label,
+                color = if (selected) Color.White else fg,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+            )
+        }
     }
+}
+
+/**
+ * The [Shape] each [IconShape] previews as in the icon-shape swatch row.
+ * [IconShape.SQUARE] and [IconShape.ORIGINAL] both preview as a plain
+ * rectangle (real icon-cell rendering skips masking entirely for ORIGINAL,
+ * which reads the same for a small square preview swatch as an actual square
+ * mask) — the call site distinguishes them by fill instead: SQUARE renders
+ * solid (a real colour-filled mask), ORIGINAL renders outline-only (no
+ * masking/fill at all). A small local duplicate of `:feature:start`'s
+ * `IconCellView.kt#toComposeShape` rather than a shared one: `IconShape`
+ * lives in `:core:data` and `SquircleShape` in `:core:design`, and neither
+ * core module depends on the other, so each consuming feature module (this
+ * one, and `:feature:start`) maps the enum to a real `Shape` locally — the
+ * same split already used for `TileFill`/`FontStyle`.
+ */
+private fun IconShape.previewShape(): Shape = when (this) {
+    IconShape.CIRCLE -> CircleShape
+    IconShape.SQUIRCLE -> SquircleShape()
+    IconShape.ROUNDED -> RoundedCornerShape(percent = 30)
+    IconShape.SQUARE -> RectangleShape
+    IconShape.ORIGINAL -> RectangleShape
 }
 
 /** One accent swatch (prototype .swatches i / .swatches i.sel). */

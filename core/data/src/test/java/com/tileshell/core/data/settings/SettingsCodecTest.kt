@@ -167,7 +167,37 @@ class SettingsCodecTest {
     fun `tilePackMode round-trips and unknown value keeps default`() {
         assertEquals(TilePackMode.STICKY, SettingsCodec.decode("tilePackMode=STICKY").tilePackMode)
         assertEquals(TilePackMode.DENSE, SettingsCodec.decode("tilePackMode=DENSE").tilePackMode)
+        assertEquals(TilePackMode.FREE, SettingsCodec.decode("tilePackMode=FREE").tilePackMode)
+        assertEquals(
+            TilePackMode.FREE,
+            SettingsCodec.decode(SettingsCodec.encode(LauncherSettings(tilePackMode = TilePackMode.FREE))).tilePackMode,
+        )
         assertEquals(LauncherSettings().tilePackMode, SettingsCodec.decode("tilePackMode=GARBLED").tilePackMode)
+    }
+
+    @Test
+    fun `homeStyle round-trips and unknown value keeps default`() {
+        assertEquals(HomeStyle.TILES, SettingsCodec.decode("homeStyle=TILES").homeStyle)
+        assertEquals(HomeStyle.ICONS, SettingsCodec.decode("homeStyle=ICONS").homeStyle)
+        assertEquals(
+            HomeStyle.ICONS,
+            SettingsCodec.decode(SettingsCodec.encode(LauncherSettings(homeStyle = HomeStyle.ICONS))).homeStyle,
+        )
+        assertEquals(LauncherSettings().homeStyle, SettingsCodec.decode("homeStyle=GARBLED").homeStyle)
+    }
+
+    @Test
+    fun `iconShape round-trips and unknown value keeps default`() {
+        assertEquals(IconShape.ORIGINAL, SettingsCodec.decode("iconShape=ORIGINAL").iconShape)
+        assertEquals(IconShape.CIRCLE, SettingsCodec.decode("iconShape=CIRCLE").iconShape)
+        assertEquals(IconShape.SQUIRCLE, SettingsCodec.decode("iconShape=SQUIRCLE").iconShape)
+        assertEquals(IconShape.ROUNDED, SettingsCodec.decode("iconShape=ROUNDED").iconShape)
+        assertEquals(IconShape.SQUARE, SettingsCodec.decode("iconShape=SQUARE").iconShape)
+        assertEquals(
+            IconShape.SQUIRCLE,
+            SettingsCodec.decode(SettingsCodec.encode(LauncherSettings(iconShape = IconShape.SQUIRCLE))).iconShape,
+        )
+        assertEquals(LauncherSettings().iconShape, SettingsCodec.decode("iconShape=GARBLED").iconShape)
     }
 
     @Test

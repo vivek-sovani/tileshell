@@ -1,6 +1,5 @@
 package com.tileshell.feature.applist
 
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -45,7 +44,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -53,12 +51,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -72,19 +67,18 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.AppLauncher
 import com.tileshell.core.data.PinResult
+import com.tileshell.core.data.settings.HomeStyle
+import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.design.LocalAccent
 import com.tileshell.core.design.LocalColorTokens
 import com.tileshell.core.design.TileIcons
 import com.tileshell.feature.livetiles.NotificationCenter
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /** Jump-grid cells: "#" bucket then a–z, matching the prototype's order. */
@@ -117,6 +111,7 @@ fun AppListScreen(
     val topApps by viewModel.topApps.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
     val notifications by NotificationCenter.snapshot.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
     val accent = LocalAccent.current // global accent (FR-7, S17)
     val context = LocalContext.current
 
@@ -194,6 +189,8 @@ fun AppListScreen(
                                 onUninstall = { uninstallApp(context, app.packageName) },
                                 onHide = { viewModel.hide(app) },
                                 badgeCount = notifications.badgeFor(app.packageName),
+                                homeStyle = settings.homeStyle,
+                                iconShape = settings.iconShape,
                             )
                         }
                     }
@@ -221,6 +218,8 @@ fun AppListScreen(
                                 if (app.packageName.isBlank()) viewModel.pinPersonalize() else viewModel.pin(app)
                             },
                             onUninstall = { uninstallApp(context, app.packageName) },
+                            homeStyle = settings.homeStyle,
+                            iconShape = settings.iconShape,
                             onHide = { viewModel.hide(app) },
                         )
                     }
@@ -308,6 +307,8 @@ private fun AppRow(
     onUninstall: () -> Unit,
     onHide: () -> Unit,
     badgeCount: Int = 0,
+    homeStyle: HomeStyle = HomeStyle.TILES,
+    iconShape: IconShape = IconShape.ORIGINAL,
 ) {
     // Long-press opens a WP-style context menu: pin the app to Start, hide it
     // from the list, or uninstall it (the system uninstall dialog). A quick tap
@@ -356,7 +357,7 @@ private fun AppRow(
                 modifier = Modifier.size(44.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                val icon = if (isPseudo) null else rememberAppIcon(app.packageName, app.activityName)
+                val icon = if (isPseudo) null else rememberMaskableAppIcon(app.packageName, app.activityName)
                 if (isPseudo) {
                     Icon(
                         TileIcons["settings"], null,
@@ -364,11 +365,11 @@ private fun AppRow(
                         modifier = Modifier.size(28.dp),
                     )
                 } else if (icon != null) {
-                    Image(
-                        bitmap = icon,
-                        contentDescription = null,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.size(40.dp),
+                    MaskedAppIcon(
+                        loaded = icon,
+                        homeStyle = homeStyle,
+                        shape = iconShape,
+                        size = 40.dp,
                     )
                 } else {
                     // No real icon: the monoline glyph on the list background (no square).
@@ -559,19 +560,3 @@ private fun Modifier.tapOrLongPress(onTap: () -> Unit, onLongPress: () -> Unit):
         }
     }
 
-/** Loads an app's launcher icon off the main thread, as an [ImageBitmap]. */
-@Composable
-private fun rememberAppIcon(packageName: String, activityName: String): ImageBitmap? {
-    val context = LocalContext.current
-    val state = produceState<ImageBitmap?>(null, packageName, activityName) {
-        value = withContext(Dispatchers.IO) {
-            runCatching {
-                context.packageManager
-                    .getActivityIcon(ComponentName(packageName, activityName))
-                    .toBitmap(width = 96, height = 96)
-                    .asImageBitmap()
-            }.getOrNull()
-        }
-    }
-    return state.value
-}

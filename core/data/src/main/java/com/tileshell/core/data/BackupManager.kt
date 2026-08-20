@@ -102,6 +102,7 @@ object BackupManager {
                 arr.put(JSONObject().apply {
                     put("id", f.id)
                     put("name", f.name)
+                    put("showAsStack", f.showAsStack)
                 })
             }
         })
@@ -164,7 +165,7 @@ object BackupManager {
                 .append(t.gridSlot).append('|')
         }
         folders.sortedBy { it.id }.forEach { f ->
-            append(f.id).append(':').append(f.name).append('|')
+            append(f.id).append(':').append(f.name).append(':').append(f.showAsStack).append('|')
         }
         children.sortedWith(compareBy({ it.folderId }, { it.position })).forEach { c ->
             append(c.folderId).append(':').append(c.position).append(':')
@@ -213,7 +214,11 @@ object BackupManager {
         val folders = root.getJSONArray("folders").let { arr ->
             (0 until arr.length()).map { i ->
                 val o = arr.getJSONObject(i)
-                FolderEntity(id = o.getString("id"), name = o.getString("name"))
+                FolderEntity(
+                    id = o.getString("id"),
+                    name = o.getString("name"),
+                    showAsStack = o.optBoolean("showAsStack", false),
+                )
             }
         }
 

@@ -6,6 +6,7 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -37,11 +38,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.design.SheetStage
+import com.tileshell.core.design.SquircleShape
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.Wallpapers
@@ -130,7 +134,7 @@ fun PersonalizeGuideSheet(
                     letterSpacing = (-0.8).sp,
                 )
                 Text(
-                    text = "colours, wallpaper, tiles, pinning apps, the feed, the quick panel, and permissions",
+                    text = "colours, wallpaper, tiles, home style, pinning apps, the feed, the quick panel, and permissions",
                     color = tokens.fgDim,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.W300,
@@ -149,6 +153,7 @@ fun PersonalizeGuideSheet(
                     "personalize · accent colour sets the colour every tile uses by default",
                     "in edit mode, tap the colour dot on a selected tile to give just that tile its own colour",
                     "turn on \"tile colour from app icon\" (personalize · colour & fill) to auto-pick each app's dominant colour instead",
+                    "pick \"wallpaper\" as the tile colour source to tint every tile with the same wallpaper-derived accent the feed page and quick panel already use",
                     "turn on \"gradient fill\" for a subtle diagonal gradient instead of a flat colour",
                 ),
             )
@@ -182,17 +187,34 @@ fun PersonalizeGuideSheet(
             )
 
             FeatureGroup(
+                title = "home style",
+                accent = accent,
+                tokens = tokens,
+                visual = { HomeStyleVisual(accent, tokens) },
+                items = listOf(
+                    "shown once as a choice screen on first launch, with a real live preview of both looks",
+                    "personalize · home style switches any time between \"tiles\" (the classic windows-phone look) and \"icons\" (a normal android-style grid)",
+                    "in icons mode, small tiles render as shaped icons; live tiles, folders, and widget stacks look exactly the same as in tiles mode",
+                    "growing an icon past its smallest size turns it into a live tile; shrinking one back down turns it back into an icon",
+                    "in icons mode, personalize · home style also lets you pick an icon shape — circle, squircle, rounded, square, or original (your device's own, unmasked shape)",
+                    "icons mode defaults to \"free\" arrangement (personalize · arrangement) — nothing moves unless you move it, and dropping onto another tile swaps the two instead of pushing everything down",
+                ),
+            )
+
+            FeatureGroup(
                 title = "organizing tiles",
                 accent = accent,
                 tokens = tokens,
                 visual = { OrganizingVisual(accent, tokens) },
                 items = listOf(
                     "long-press any tile to enter edit mode",
-                    "drag one tile onto another, centre to centre, to merge them into a folder",
-                    "merge two large tiles (or open a folder and use \"make stack · wide/large\") to turn them into a widget stack — \"keep as folder\" sits right alongside, so you won't convert by accident",
-                    "use a selected tile's resize handle to cycle its size",
+                    "drag one tile onto another, centre to centre, to merge them into a folder — merging two large tiles forms a widget stack directly",
+                    "any folder with 2 or more children can become a widget stack too — tap its colour dot and use the \"show as stack\" toggle at the bottom of the colour picker; \"show as folder\" reverts it just as easily",
+                    "works at any size roomier than a thin strip — medium, wide, large, and the roomier drag-resize sizes; only the thinnest single-row or single-column presets are excluded",
+                    "use a selected tile's resize handle to cycle its size — medium → small → wide → large",
+                    "drag a tile's corner instead of tapping to resize it freely, across 11 sizes in total — from a tiny 1×1 icon up to a full 4×4 tile, including thin banner and column strips along the way",
+                    "dragging a stack's corner resizes and homogenizes every member to the new size at once",
                     "tap the folder icon on a selected folder or stack to expand it in place and manage its members",
-                    "an open stack offers switching to the other size (wide ↔ large) or \"back to folder\" to revert it",
                     "tap × on a selected tile to unpin it — inside an open folder or stack, that sends the member back to start",
                 ),
             )
@@ -307,6 +329,47 @@ private fun GuideVisualCard(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         content = content,
     )
+}
+
+/**
+ * A plain tile swatch (the "tiles" look) beside the five selectable [IconShape]
+ * outlines (the "icons" look) — mirrors [PersonalizeSheet]'s own icon-shape row
+ * without depending on it, since that row is `private` there. The last swatch
+ * (original) is deliberately outline-only/unfilled, matching how the real
+ * sheet distinguishes it from the solid-filled square swatch beside it.
+ */
+@Composable
+private fun HomeStyleVisual(accent: Color, tokens: com.tileshell.core.design.ColorTokens) {
+    GuideVisualCard(tokens) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(accent),
+        )
+        Text("vs", color = tokens.fgDim, fontSize = 12.sp)
+        val filledShapes: List<Shape> = listOf(
+            CircleShape,
+            SquircleShape(),
+            RoundedCornerShape(percent = 30),
+            RectangleShape,
+        )
+        filledShapes.forEach { shape ->
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(shape)
+                    .background(accent),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .clip(RectangleShape)
+                .border(1.dp, tokens.tileLine, RectangleShape),
+        )
+        Spacer(Modifier.weight(1f))
+    }
 }
 
 /** A few real accent [Swatch]es plus a mock tile with the per-tile colour-dot badge. */
