@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -51,7 +52,22 @@ import kotlinx.coroutines.withContext
  * unlike Start's own `IconCellView`, which only ever has a couple dozen
  * on-screen icons at once, the app list can hold hundreds.
  */
-internal data class MaskableAppIcon(val bitmap: ImageBitmap, val isAdaptive: Boolean, val plateColor: Color?)
+/**
+ * [bitmap] is exactly what the OS itself renders for this icon — used
+ * whenever `HomeStyle.TILES` suppresses masking, or [IconShape.ORIGINAL] is
+ * selected, since "original" means "however the device actually shows it."
+ * [unmaskedBitmap] only differs for an adaptive icon (see
+ * [unmaskedIconBitmap]): the raw background/foreground layers with no OS
+ * mask applied, used only when our own [IconShape] clip needs clean content
+ * to work with. See `:feature:start`'s `IconCellView.kt#MaskableIcon` for the
+ * full rationale.
+ */
+internal data class MaskableAppIcon(
+    val bitmap: ImageBitmap,
+    val unmaskedBitmap: ImageBitmap,
+    val isAdaptive: Boolean,
+    val plateColor: Color?,
+)
 
 @Composable
 internal fun rememberMaskableAppIcon(packageName: String, activityName: String): MaskableAppIcon? {
@@ -60,8 +76,9 @@ internal fun rememberMaskableAppIcon(packageName: String, activityName: String):
         value = withContext(Dispatchers.IO) {
             fun load(drawable: Drawable): MaskableAppIcon {
                 val isAdaptive = drawable is AdaptiveIconDrawable
-                val bitmap = unmaskedIconBitmap(drawable)
-                return MaskableAppIcon(bitmap, isAdaptive, if (isAdaptive) null else dominantColor(bitmap))
+                val osBitmap = drawable.toBitmap(width = 96, height = 96).asImageBitmap()
+                val rawBitmap = if (isAdaptive) unmaskedIconBitmap(drawable) else osBitmap
+                return MaskableAppIcon(osBitmap, rawBitmap, isAdaptive, if (isAdaptive) null else dominantColor(osBitmap))
             }
             runCatching {
                 load(context.packageManager.getActivityIcon(ComponentName(packageName, activityName)))
@@ -97,6 +114,7 @@ private fun IconShape.toShape(): Shape? = when (this) {
     IconShape.CIRCLE -> CircleShape
     IconShape.SQUIRCLE -> SquircleShape()
     IconShape.ROUNDED -> RoundedCornerShape(percent = 30)
+    IconShape.SQUARE -> RectangleShape
     IconShape.ORIGINAL -> null
 }
 
@@ -156,7 +174,7 @@ internal fun MaskedAppIcon(
         }
         loaded.isAdaptive -> {
             Image(
-                bitmap = loaded.bitmap,
+                bitmap = loaded.unmaskedBitmap,
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 modifier = modifier.size(size).clip(composeShape),

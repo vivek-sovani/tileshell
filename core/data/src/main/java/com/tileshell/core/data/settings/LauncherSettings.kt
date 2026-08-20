@@ -33,7 +33,7 @@ enum class HomeStyle { TILES, ICONS }
  * only ever holds the persisted value, matching [TileFill]/[FontStyle]/
  * [TileColorSource]/[HomeStyle] above.
  */
-enum class IconShape { CIRCLE, SQUIRCLE, ROUNDED, ORIGINAL }
+enum class IconShape { CIRCLE, SQUIRCLE, ROUNDED, SQUARE, ORIGINAL }
 
 /**
  * How the Start grid closes gaps left by a removed/resized tile (user-selectable

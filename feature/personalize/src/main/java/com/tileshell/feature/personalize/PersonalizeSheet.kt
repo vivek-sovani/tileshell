@@ -880,7 +880,17 @@ fun PersonalizeSheet(
                                         modifier = Modifier
                                             .size(40.dp)
                                             .clip(candidate.previewShape())
-                                            .background(accent)
+                                            .then(
+                                                // ORIGINAL means "unmasked, no colour fill" — an
+                                                // outline-only swatch, so it reads as visually
+                                                // distinct from SQUARE's solid filled rectangle
+                                                // even though both preview the same plain shape.
+                                                if (candidate == IconShape.ORIGINAL) {
+                                                    Modifier.border(1.dp, tokens.tileLine, candidate.previewShape())
+                                                } else {
+                                                    Modifier.background(accent)
+                                                },
+                                            )
                                             .then(
                                                 if (iconShape == candidate) {
                                                     Modifier.border(2.dp, tokens.fg, candidate.previewShape())
@@ -1501,9 +1511,12 @@ private fun RowScope.SegCell(
 
 /**
  * The [Shape] each [IconShape] previews as in the icon-shape swatch row.
- * [IconShape.ORIGINAL] gets a plain rectangle here (real icon-cell rendering
- * skips masking entirely for it, which reads the same for a small square
- * preview swatch). A small local duplicate of `:feature:start`'s
+ * [IconShape.SQUARE] and [IconShape.ORIGINAL] both preview as a plain
+ * rectangle (real icon-cell rendering skips masking entirely for ORIGINAL,
+ * which reads the same for a small square preview swatch as an actual square
+ * mask) — the call site distinguishes them by fill instead: SQUARE renders
+ * solid (a real colour-filled mask), ORIGINAL renders outline-only (no
+ * masking/fill at all). A small local duplicate of `:feature:start`'s
  * `IconCellView.kt#toComposeShape` rather than a shared one: `IconShape`
  * lives in `:core:data` and `SquircleShape` in `:core:design`, and neither
  * core module depends on the other, so each consuming feature module (this
@@ -1514,6 +1527,7 @@ private fun IconShape.previewShape(): Shape = when (this) {
     IconShape.CIRCLE -> CircleShape
     IconShape.SQUIRCLE -> SquircleShape()
     IconShape.ROUNDED -> RoundedCornerShape(percent = 30)
+    IconShape.SQUARE -> RectangleShape
     IconShape.ORIGINAL -> RectangleShape
 }
 

@@ -192,6 +192,7 @@ class SettingsCodecTest {
         assertEquals(IconShape.CIRCLE, SettingsCodec.decode("iconShape=CIRCLE").iconShape)
         assertEquals(IconShape.SQUIRCLE, SettingsCodec.decode("iconShape=SQUIRCLE").iconShape)
         assertEquals(IconShape.ROUNDED, SettingsCodec.decode("iconShape=ROUNDED").iconShape)
+        assertEquals(IconShape.SQUARE, SettingsCodec.decode("iconShape=SQUARE").iconShape)
         assertEquals(
             IconShape.SQUIRCLE,
             SettingsCodec.decode(SettingsCodec.encode(LauncherSettings(iconShape = IconShape.SQUIRCLE))).iconShape,

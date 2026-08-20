@@ -5184,3 +5184,36 @@ emulator: selecting "squircle" now visibly renders adaptive icons (camera, conta
 personalize) as soft-rounded squares instead of circles; legacy icons (Chrome, YouTube Music) keep
 their own circular badge on a squircle-shaped tinted plate, as designed. Build + full unit test suite
 green.
+
+## Real "square" option added; fixed a regression the previous session's masking fix introduced in "original"
+
+Direct same-day follow-up, user-requested: "last shape is square but showing as original. correct
+that. and also need option for original icon if user does want icons to be displayed as original."
+The previous entry's fix correctly made SQUIRCLE/ROUNDED actually mask adaptive icons, but there was
+still no real `SQUARE` value — the 4th/last option was `ORIGINAL` wearing a flat-rectangle preview
+that looked like "square." Added a genuine 5th `IconShape.SQUARE` (`core/data/settings/
+LauncherSettings.kt`) mapping to `RectangleShape` in both `IconCellView.kt` and `AppListIcon.kt`,
+keeping `ORIGINAL` as a distinct 5th option. Since `SQUARE` and `ORIGINAL` preview identically as a
+plain rectangle, the Personalize swatch row (`PersonalizeSheet.kt`) now distinguishes them by fill —
+`SQUARE` renders solid (a real accent-filled mask, like the other three), `ORIGINAL` renders
+outline-only/unfilled (no masking, no colour fill at all) — so the two are visually distinct as well
+as separately labeled. `PersonalizeGuideSheet.kt`'s `HomeStyleVisual` illustration and both sheets'
+one-line summaries were updated to name all five options.
+
+**A real regression was caught while verifying "original" on-device**: after wiring up `SQUARE`,
+selecting "original" no longer showed each icon's true device shape — it rendered adaptive icons as
+plain, slightly-odd squares regardless of the OS's actual icon mask. Root cause: the previous
+session's `unmaskedIconBitmap()` fix (see the entry above) replaced *every* consumer's bitmap with the
+raw, un-OS-masked background/foreground composite — correct for the masked-shape rendering branch,
+but wrong for the `composeShape == null` (ORIGINAL / `HomeStyle.TILES`-suppressed) branch, which needs
+the icon exactly as the OS renders it (the real OS mask baked in), not our own bypass of that mask.
+Fixed by having both `MaskableIcon` (`IconCellView.kt`) and `MaskableAppIcon` (`AppListIcon.kt`) carry
+*two* bitmaps: `bitmap` (plain `drawable.toBitmap()` — the OS-accurate look, used for ORIGINAL/TILES
+and for legacy icons, which were never OS-masked to begin with) and `unmaskedBitmap` (the raw layer
+composite, used only when an adaptive icon is actually being clipped to one of our own shapes). Each
+consumer's `composeShape == null` branch was already reading `bitmap`, so this was a one-line swap at
+each `isAdaptive` masked-render branch (`loaded.bitmap` → `loaded.unmaskedBitmap`) plus splitting the
+loader function to compute both. Verified end-to-end on an emulator: circle/squircle/rounded/square
+each visibly render their intended distinct shape, and original now correctly restores every icon's
+true device appearance (circular on this emulator's stock AOSP mask) exactly as a fresh install looks.
+Build + full unit test suite green (`SettingsCodecTest` extended for `SQUARE` round-trip).

@@ -38,6 +38,20 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **`android-home-style` branch — real "square" icon shape added; fixed a regression the previous
+  masking fix introduced in "original."** Same-day follow-up, user-requested: "last shape is square
+  but showing as original... also need option for original icon." Added a genuine 5th `IconShape.
+  SQUARE` (`core/data/settings/LauncherSettings.kt`) mapping to `RectangleShape`, keeping `ORIGINAL`
+  as its own distinct 5th option — the Personalize swatch row (both preview as a plain rectangle)
+  distinguishes them by fill: `SQUARE` solid/accent-filled, `ORIGINAL` outline-only/unfilled. **Caught
+  a real regression while verifying "original" on-device**: the prior session's adaptive-icon masking
+  fix (below) had made *every* consumer use the raw, un-OS-masked bitmap, including the `ORIGINAL`/
+  `HomeStyle.TILES` branch — so "original" no longer showed each icon's true device shape. Fixed by
+  giving `MaskableIcon`/`MaskableAppIcon` two bitmaps (`bitmap` = OS-accurate, for ORIGINAL/TILES and
+  legacy icons; `unmaskedBitmap` = raw layer composite, only for our own shape-clip branch). See
+  DECISIONS "Real 'square' option added; fixed a regression...". Verified on an emulator: all 5 shapes
+  (circle/squircle/rounded/square/original) render distinctly correct; original restores true device
+  icon appearance. Build + tests green; installed on both the emulator and the physical device.
 - **`android-home-style` branch — icon shape row was unlabeled + adaptive icons weren't actually
   masked to the chosen shape.** User-reported with screenshots: home style "icons," icon shape set to
   what looked like "square," but icons kept their native app shapes (WhatsApp circle, Maps teardrop).

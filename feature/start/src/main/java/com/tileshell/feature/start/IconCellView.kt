@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -396,8 +397,21 @@ private fun IconCellChrome(
     }
 }
 
-/** The result of loading an app's real launcher icon for masking purposes. */
-private data class MaskableIcon(val bitmap: ImageBitmap, val isAdaptive: Boolean)
+/**
+ * The result of loading an app's real launcher icon for masking purposes.
+ * [bitmap] is exactly what the OS itself renders for this icon (an adaptive
+ * icon comes back already clipped to the device's own icon mask — a circle
+ * on stock AOSP/Pixel) — used whenever [IconShape.ORIGINAL] is selected, or
+ * `HomeStyle.TILES` suppresses masking outright, since "original" means
+ * "however the device actually shows it," not "our own unmasked composite."
+ * [unmaskedBitmap] is only meaningfully different for an adaptive icon: the
+ * background/foreground layers drawn with no OS mask applied, needed so our
+ * own [IconShape] clip (squircle/rounded/square) has clean, un-pre-clipped
+ * content to work with (see [unmaskedIconBitmap]'s doc comment) — for a
+ * legacy (non-adaptive) icon the two fields are identical, since
+ * `toBitmap()` never applied any mask for those to begin with.
+ */
+private data class MaskableIcon(val bitmap: ImageBitmap, val unmaskedBitmap: ImageBitmap, val isAdaptive: Boolean)
 
 /**
  * Loads [packageName]/[activityName]'s launcher icon, tagging whether the
@@ -413,15 +427,19 @@ private fun rememberMaskableIcon(packageName: String, activityName: String): Mas
     val context = LocalContext.current
     return produceState<MaskableIcon?>(null, packageName, activityName) {
         value = withContext(Dispatchers.IO) {
+            fun load(drawable: android.graphics.drawable.Drawable): MaskableIcon {
+                val isAdaptive = drawable is AdaptiveIconDrawable
+                val osBitmap = drawable.toBitmap(width = 96, height = 96).asImageBitmap()
+                val rawBitmap = if (isAdaptive) unmaskedIconBitmap(drawable) else osBitmap
+                return MaskableIcon(osBitmap, rawBitmap, isAdaptive)
+            }
             runCatching {
-                val drawable = context.packageManager.getActivityIcon(ComponentName(packageName, activityName))
-                MaskableIcon(unmaskedIconBitmap(drawable), drawable is AdaptiveIconDrawable)
+                load(context.packageManager.getActivityIcon(ComponentName(packageName, activityName)))
             }.recoverCatching {
                 // See rememberTileAppIcon's doc comment: a dead seasonal
                 // activity-alias throws on getActivityIcon even though the
                 // app itself is installed fine — fall back to its real icon.
-                val drawable = context.packageManager.getApplicationIcon(packageName)
-                MaskableIcon(unmaskedIconBitmap(drawable), drawable is AdaptiveIconDrawable)
+                load(context.packageManager.getApplicationIcon(packageName))
             }.getOrNull()
         }
     }.value
@@ -502,7 +520,7 @@ private fun maskedOrGlyphIcon(
         }
         loaded.isAdaptive -> {
             Image(
-                bitmap = loaded.bitmap,
+                bitmap = loaded.unmaskedBitmap,
                 contentDescription = label,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.size(size).clip(composeShape),
@@ -605,5 +623,6 @@ internal fun IconShape.toComposeShape(): Shape? = when (this) {
     IconShape.CIRCLE -> CircleShape
     IconShape.SQUIRCLE -> SquircleShape()
     IconShape.ROUNDED -> RoundedCornerShape(percent = 30)
+    IconShape.SQUARE -> RectangleShape
     IconShape.ORIGINAL -> null
 }

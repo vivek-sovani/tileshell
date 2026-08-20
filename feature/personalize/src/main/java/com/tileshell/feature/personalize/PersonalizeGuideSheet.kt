@@ -6,6 +6,7 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -37,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
@@ -194,7 +196,7 @@ fun PersonalizeGuideSheet(
                     "personalize · home style switches any time between \"tiles\" (the classic windows-phone look) and \"icons\" (a normal android-style grid)",
                     "in icons mode, small tiles render as shaped icons; live tiles, folders, and widget stacks look exactly the same as in tiles mode",
                     "growing an icon past its smallest size turns it into a live tile; shrinking one back down turns it back into an icon",
-                    "in icons mode, personalize · home style also lets you pick an icon shape — circle, squircle, rounded, or your device's own",
+                    "in icons mode, personalize · home style also lets you pick an icon shape — circle, squircle, rounded, square, or original (your device's own, unmasked shape)",
                     "icons mode defaults to \"free\" arrangement (personalize · arrangement) — nothing moves unless you move it, and dropping onto another tile swaps the two instead of pushing everything down",
                 ),
             )
@@ -330,9 +332,11 @@ private fun GuideVisualCard(
 }
 
 /**
- * A plain tile swatch (the "tiles" look) beside the four selectable [IconShape]
+ * A plain tile swatch (the "tiles" look) beside the five selectable [IconShape]
  * outlines (the "icons" look) — mirrors [PersonalizeSheet]'s own icon-shape row
- * without depending on it, since that row is `private` there.
+ * without depending on it, since that row is `private` there. The last swatch
+ * (original) is deliberately outline-only/unfilled, matching how the real
+ * sheet distinguishes it from the solid-filled square swatch beside it.
  */
 @Composable
 private fun HomeStyleVisual(accent: Color, tokens: com.tileshell.core.design.ColorTokens) {
@@ -344,13 +348,13 @@ private fun HomeStyleVisual(accent: Color, tokens: com.tileshell.core.design.Col
                 .background(accent),
         )
         Text("vs", color = tokens.fgDim, fontSize = 12.sp)
-        val shapes: List<Shape> = listOf(
+        val filledShapes: List<Shape> = listOf(
             CircleShape,
             SquircleShape(),
             RoundedCornerShape(percent = 30),
-            RoundedCornerShape(4.dp),
+            RectangleShape,
         )
-        shapes.forEach { shape ->
+        filledShapes.forEach { shape ->
             Box(
                 modifier = Modifier
                     .size(24.dp)
@@ -358,6 +362,12 @@ private fun HomeStyleVisual(accent: Color, tokens: com.tileshell.core.design.Col
                     .background(accent),
             )
         }
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .clip(RectangleShape)
+                .border(1.dp, tokens.tileLine, RectangleShape),
+        )
         Spacer(Modifier.weight(1f))
     }
 }
