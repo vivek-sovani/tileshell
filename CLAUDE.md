@@ -38,6 +38,21 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **`android-home-style` branch — notification tile content was top-aligned instead of centred.**
+  Direct same-day follow-up, user-reported: "though full space is utilised now displayed on top. top
+  aligned. it should be centrally aligned." The previous session's fix made bigger notification tiles
+  actually use their real height, but several no-picture layouts (`NotificationFaceContentLarge`/
+  `XLarge`/`TallMedium`, `feature/livetiles/ConversationTile.kt`) anchored their header+snippet block
+  to the top via a trailing `Spacer(Modifier.weight(1f))`, so a short snippet on a tall tile left
+  visible empty space below the text instead of centering it; `NotificationFaceContentWide` (now also
+  serving `WIDE_MEDIUM`) had the same problem via a fixed `top=28.dp` padding. Fixed by removing the
+  trailing spacers and switching to `Arrangement.Center` for the no-picture case (a picture's own
+  `weight(1f)` already fills all remaining space regardless of arrangement, so picture-present
+  behaviour is unaffected); `Wide` swapped its asymmetric top/bottom padding for symmetric padding +
+  `Center`. `Banner`/`WideSmall`/`Medium` were already correctly centred and needed no change. See
+  DECISIONS "Notification tile content was top-aligned instead of centred...". Build + full unit test
+  suite green; installed on both the emulator and the physical device — same caveat as the prior
+  session, no real pending notification was available in the sandbox to visually confirm centring.
 - **`android-home-style` branch — non-standard notification tile sizes now use their full available
   space.** User-requested: mail/messages/generic-notification live tiles at sizes other than MEDIUM/
   WIDE/LARGE (the 6 drag-resize-only presets `WIDE_SMALL`/`WIDE_MEDIUM`/`TALL_MEDIUM`/`XLARGE`/

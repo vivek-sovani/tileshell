@@ -5257,3 +5257,30 @@ the sandbox to resize through), so this is a code-review-level verification agai
 `fillMaxSize()`/`weight()`/`Column`/`Row` patterns already used and previously verified in this same
 file's MEDIUM/WIDE/LARGE branches, not an on-device visual pass — flagging per project convention
 rather than claiming a check that wasn't actually done.
+
+## Notification tile content was top-aligned instead of centred, once actually using the full space
+
+Direct same-day follow-up, user-reported: "though full space is utilised now displayed on top. top
+aligned. it should be centrally aligned." The previous entry's fix made the bigger/differently-shaped
+notification tiles (WIDE_MEDIUM, TALL_MEDIUM, XLARGE, BANNER, WIDE_SMALL) actually use their real
+available height — but several of the no-picture layouts (`NotificationFaceContentLarge`,
+`NotificationFaceContentXLarge`, `NotificationFaceContentTallMedium`) anchored their header+snippet
+block to the top via a `Column` with the default `Arrangement.Top` plus a trailing
+`Spacer(Modifier.weight(1f))` to soak up the rest — so on a tall tile with a short snippet, the text
+sat pinned at the top with visibly empty space below it, which is exactly what "use the full space"
+was asking to avoid. `NotificationFaceContentWide` (pre-existing, not written this session, but now
+also serving `WIDE_MEDIUM`) had the same problem via a fixed `top = 28.dp` padding.
+
+Fixed by removing every trailing `Spacer(Modifier.weight(1f))` and switching each affected `Column`'s
+`verticalArrangement` to `Arrangement.Center` for the no-picture case — `Large`/`XLarge` set
+`verticalArrangement = if (picture != null) Top else Center` (a picture's own `weight(1f)` already
+fills all remaining space and makes the arrangement setting moot whenever one is present, so this
+only changes behaviour for the no-picture branch); `TallMedium` does the same, keeping its header row
+always at the top of the two-child block but letting the whole header+snippet block centre as a unit
+when there's no picture; `Wide` (and therefore `WIDE_MEDIUM`) swapped its asymmetric
+`top=28.dp/bottom=12.dp` padding for symmetric `vertical=12.dp` plus `Arrangement.Center`. `Banner`/
+`WideSmall`/`Medium` were already correctly centred (`Row` with `verticalAlignment =
+CenterVertically`) and needed no change; `Narrow` (TALL/COLUMN) already used `Arrangement.SpaceEvenly`
+deliberately and was left as-is. Build + full unit test suite green; installed on both the emulator
+and the physical device — same caveat as the previous entry, no real pending notification was
+available in the sandbox to resize through and visually confirm centring at each size.

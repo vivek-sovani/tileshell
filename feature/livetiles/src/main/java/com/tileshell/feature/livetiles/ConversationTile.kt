@@ -343,7 +343,14 @@ private fun NotificationFaceContentTallMedium(
     avatar: ImageBitmap?,
     picture: ImageBitmap?,
 ) {
-    Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+    // See NotificationFaceContentLarge's comment: a picture fills the remaining
+    // space via its own weight regardless of arrangement; with no picture the
+    // header+snippet block is centred instead of pinned to the top with empty
+    // space below it.
+    Column(
+        modifier = Modifier.fillMaxSize().padding(12.dp),
+        verticalArrangement = if (picture != null) Arrangement.Top else Arrangement.Center,
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             SenderAvatar(name = item.sender, photo = avatar, sizeDp = 32)
             Spacer(Modifier.width(10.dp))
@@ -357,38 +364,33 @@ private fun NotificationFaceContentTallMedium(
                 modifier = Modifier.weight(1f),
             )
         }
-        when {
-            picture != null -> {
-                Spacer(Modifier.height(8.dp))
-                Image(
-                    bitmap = picture,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(8.dp)),
-                )
-                if (item.snippet.isNotEmpty()) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = item.snippet,
-                        color = FaceText.copy(alpha = 0.88f),
-                        fontSize = 13.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            item.snippet.isNotEmpty() -> {
-                Spacer(Modifier.height(8.dp))
+        if (picture != null) {
+            Spacer(Modifier.height(8.dp))
+            Image(
+                bitmap = picture,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(8.dp)),
+            )
+            if (item.snippet.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
                 Text(
                     text = item.snippet,
                     color = FaceText.copy(alpha = 0.88f),
                     fontSize = 13.sp,
-                    maxLines = 7,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
                 )
             }
-            else -> Spacer(Modifier.weight(1f))
+        } else if (item.snippet.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = item.snippet,
+                color = FaceText.copy(alpha = 0.88f),
+                fontSize = 13.sp,
+                maxLines = 7,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -406,8 +408,11 @@ private fun NotificationFaceContentWide(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .padding(start = 14.dp, top = 28.dp, end = 10.dp, bottom = 12.dp),
-            verticalArrangement = Arrangement.Top,
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            // Centred rather than pinned to the top — the header+snippet block
+            // doesn't fill a WIDE/WIDE_MEDIUM tile's full height, so anchoring
+            // it to the top just leaves empty space sitting below it.
+            verticalArrangement = Arrangement.Center,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SenderAvatar(name = item.sender, photo = avatar, sizeDp = 40)
@@ -454,9 +459,16 @@ private fun NotificationFaceContentLarge(
     avatar: ImageBitmap?,
     picture: ImageBitmap?,
 ) {
-    Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
-        Spacer(Modifier.height(22.dp))
+    // A picture hero still anchors to the top (it fills all remaining space via
+    // its own weight regardless of arrangement); with no picture there's no
+    // weighted child to soak up the leftover height, so the text block is
+    // centred instead of sitting pinned to the top with empty space below it.
+    Column(
+        modifier = Modifier.fillMaxSize().padding(14.dp),
+        verticalArrangement = if (picture != null) Arrangement.Top else Arrangement.Center,
+    ) {
         if (picture != null) {
+            Spacer(Modifier.height(22.dp))
             Image(
                 bitmap = picture,
                 contentDescription = null,
@@ -505,7 +517,6 @@ private fun NotificationFaceContentLarge(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Spacer(Modifier.weight(1f))
         }
     }
 }
@@ -524,9 +535,16 @@ private fun NotificationFaceContentXLarge(
     avatar: ImageBitmap?,
     picture: ImageBitmap?,
 ) {
-    Column(modifier = Modifier.fillMaxSize().padding(18.dp)) {
-        Spacer(Modifier.height(20.dp))
+    // See NotificationFaceContentLarge's comment: a picture hero fills the
+    // remaining space via its own weight regardless of arrangement; with no
+    // picture the text block is centred instead of pinned to the top with
+    // empty space below it.
+    Column(
+        modifier = Modifier.fillMaxSize().padding(18.dp),
+        verticalArrangement = if (picture != null) Arrangement.Top else Arrangement.Center,
+    ) {
         if (picture != null) {
+            Spacer(Modifier.height(20.dp))
             Image(
                 bitmap = picture,
                 contentDescription = null,
@@ -575,7 +593,6 @@ private fun NotificationFaceContentXLarge(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Spacer(Modifier.weight(1f))
         }
     }
 }
