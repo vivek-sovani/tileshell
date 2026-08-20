@@ -38,6 +38,26 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **`android-home-style` branch — icon shape row was unlabeled + adaptive icons weren't actually
+  masked to the chosen shape.** User-reported with screenshots: home style "icons," icon shape set to
+  what looked like "square," but icons kept their native app shapes (WhatsApp circle, Maps teardrop).
+  Two bugs, one UX and one real: (1) `IconShape`'s 4th/last value is `ORIGINAL` (deliberately
+  unmasked/native-shape), not "square" — no such value exists — but the Personalize swatch row had
+  **no text labels**, and `ORIGINAL`'s swatch previews as a flat rectangle, reading exactly like
+  "pick this for square." Fixed by labeling each swatch (`circle`/`squircle`/`rounded`/`original`).
+  (2) Verifying the fix on-device surfaced a real masking bug: selecting an actual shape (e.g.
+  squircle) still rendered adaptive icons fully circular, because `IconCellView.kt`
+  (`:feature:start`) and its duplicate `AppListIcon.kt` (`:feature:applist`) called
+  `drawable.toBitmap()` directly on the `AdaptiveIconDrawable`, which always clips itself to the OS's
+  own device-wide icon mask (a circle on stock AOSP) before our own `IconShape` clip ever runs — so
+  re-clipping to a squircle just trimmed an already-circular bitmap. Fixed with the standard
+  adaptive-icon re-masking technique: new `unmaskedIconBitmap()` (duplicated in both files) draws the
+  icon's raw background/foreground layers directly with no OS mask applied, then our own shape clips
+  that genuinely-square bitmap. See DECISIONS "Icon shape row was unlabeled...; adaptive-icon masking
+  was silently a no-op." Verified on an emulator: labels render correctly, and selecting "squircle"
+  now visibly re-masks adaptive icons (camera/contacts/files/personalize) into soft-rounded squares;
+  legacy icons (Chrome/YouTube Music) unaffected, still shown on a shaped tinted plate. Build + tests
+  green.
 - **Post-v2.5.1 — picking "icons" in the wizard now actually shrinks the default apps to icons.**
   User-reported: picking "icons" still showed a Start screen dominated by big live tiles — 61% of
   `DefaultLayout.DEFAULT_TILES`' ~18 seeded tiles are MEDIUM/WIDE, seeded before the wizard even

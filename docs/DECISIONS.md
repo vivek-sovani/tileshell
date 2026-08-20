@@ -5145,3 +5145,42 @@ member detail, which had no bullet anywhere before this. Verified on an emulator
 "organizing tiles" in the guide and "widget stacks" in the about sheet — both render the corrected
 bullets with no stale "make stack · wide/large"/"wide ↔ large" text remaining. Build + full unit test
 suite green.
+
+## Icon shape row was unlabeled ("original" read as "square"); adaptive-icon masking was silently a no-op
+
+User report with screenshots: home style set to "icons," icon shape apparently set to "square," but
+icons kept rendering in their own native shapes (WhatsApp circle, Maps teardrop, Contacts' rounded
+red square) instead of a uniform square. Two separate things were wrong, one UX and one a genuine
+rendering bug.
+
+**UX bug**: there is no `SQUARE` value in `IconShape` (`CIRCLE, SQUIRCLE, ROUNDED, ORIGINAL` —
+`core/data/settings/LauncherSettings.kt`) — the 4th/last swatch in Personalize's icon-shape row is
+`ORIGINAL`, which deliberately skips masking and shows the icon's own native shape (see "Icon shape
+masking" above). The row (`PersonalizeSheet.kt`) rendered four plain colour swatches with **no text
+labels at all**; `ORIGINAL`'s swatch previews as a flat rectangle, which reads exactly like "select
+this for square icons" with nothing to correct that impression. Fixed by adding a small label under
+each swatch (`candidate.name.lowercase()` — the enum names already read correctly as "circle" /
+"squircle" / "rounded" / "original") so the last option is now unambiguous.
+
+**Real bug, found while verifying the fix on-device**: after correcting the mix-up and actually
+selecting `SQUIRCLE`, icons *still* rendered fully circular — masking wasn't doing anything visible.
+Root cause in both `IconCellView.kt` (`:feature:start`) and its duplicate `AppListIcon.kt`
+(`:feature:applist`): loading an adaptive icon called `drawable.toBitmap()` directly on the
+`AdaptiveIconDrawable`, but `AdaptiveIconDrawable.draw()` *always* clips itself to the OS's own
+device-wide icon mask first (a circle on stock AOSP/the emulator used for verification) — so the
+bitmap we then re-clipped to our chosen `IconShape` already had the OS's circular mask baked into its
+pixels; clipping an already-circular bitmap to a squircle's bounding shape just trims a few corner
+pixels and still reads as a circle. This is exactly the risk flagged (but left unverified, no device
+being available at the time) in `IconCellGlyph`'s doc comment: "chosen because that finer approach
+can't be verified without a device attached to this environment... revisit if on-device testing shows
+the plate reads wrong" — on-device testing this session showed the *clip*, not just the plate, was
+wrong. Fixed with the standard technique other Android launchers use to re-mask adaptive icons: a new
+`unmaskedIconBitmap()` (duplicated in both files, matching this pair's existing deliberate-duplication
+policy) draws the adaptive icon's raw `background`/`foreground` layers directly onto a bitmap with no
+mask path applied, instead of asking the drawable to flatten+clip itself; our own `IconShape` clip is
+then applied to that genuinely-unmasked square bitmap. Legacy (non-adaptive) icons are unaffected —
+`drawable.toBitmap()` never applied an OS mask for those to begin with. Verified end-to-end on an
+emulator: selecting "squircle" now visibly renders adaptive icons (camera, contacts, files,
+personalize) as soft-rounded squares instead of circles; legacy icons (Chrome, YouTube Music) keep
+their own circular badge on a squircle-shaped tinted plate, as designed. Build + full unit test suite
+green.

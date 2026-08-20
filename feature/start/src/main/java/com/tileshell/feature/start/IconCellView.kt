@@ -1,6 +1,8 @@
 package com.tileshell.feature.start
 
 import android.content.ComponentName
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.drawable.AdaptiveIconDrawable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
@@ -413,16 +415,40 @@ private fun rememberMaskableIcon(packageName: String, activityName: String): Mas
         value = withContext(Dispatchers.IO) {
             runCatching {
                 val drawable = context.packageManager.getActivityIcon(ComponentName(packageName, activityName))
-                MaskableIcon(drawable.toBitmap(width = 96, height = 96).asImageBitmap(), drawable is AdaptiveIconDrawable)
+                MaskableIcon(unmaskedIconBitmap(drawable), drawable is AdaptiveIconDrawable)
             }.recoverCatching {
                 // See rememberTileAppIcon's doc comment: a dead seasonal
                 // activity-alias throws on getActivityIcon even though the
                 // app itself is installed fine — fall back to its real icon.
                 val drawable = context.packageManager.getApplicationIcon(packageName)
-                MaskableIcon(drawable.toBitmap(width = 96, height = 96).asImageBitmap(), drawable is AdaptiveIconDrawable)
+                MaskableIcon(unmaskedIconBitmap(drawable), drawable is AdaptiveIconDrawable)
             }.getOrNull()
         }
     }.value
+}
+
+/**
+ * A flattened 96×96 bitmap of [drawable], deliberately bypassing
+ * [AdaptiveIconDrawable]'s own `draw()` — which always clips to the OS's
+ * device-wide icon mask (a circle on stock AOSP/Pixel) before we ever get a
+ * chance to apply our own [IconShape]. Calling `drawable.toBitmap()` directly
+ * bakes that OS mask into the pixels, so a subsequent clip to a squircle/
+ * rounded-rect shape only trims the already-circular content and still reads
+ * as a circle — confirmed on-device (an emulator's default circular mask)
+ * after this file's original "clip the flattened bitmap" approach shipped.
+ * Fixed by drawing the adaptive icon's background/foreground layers
+ * ourselves at the full bounds with no mask path applied, matching the
+ * standard technique other Android launchers use to re-mask adaptive icons.
+ */
+private fun unmaskedIconBitmap(drawable: android.graphics.drawable.Drawable): ImageBitmap {
+    if (drawable !is AdaptiveIconDrawable) return drawable.toBitmap(width = 96, height = 96).asImageBitmap()
+    val bitmap = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    listOfNotNull(drawable.background, drawable.foreground).forEach { layer ->
+        layer.setBounds(0, 0, 96, 96)
+        layer.draw(canvas)
+    }
+    return bitmap.asImageBitmap()
 }
 
 /**

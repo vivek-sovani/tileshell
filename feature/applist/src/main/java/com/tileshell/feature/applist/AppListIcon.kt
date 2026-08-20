@@ -1,6 +1,8 @@
 package com.tileshell.feature.applist
 
 import android.content.ComponentName
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.Drawable
 import androidx.compose.foundation.Image
@@ -57,8 +59,8 @@ internal fun rememberMaskableAppIcon(packageName: String, activityName: String):
     return produceState<MaskableAppIcon?>(null, packageName, activityName) {
         value = withContext(Dispatchers.IO) {
             fun load(drawable: Drawable): MaskableAppIcon {
-                val bitmap = drawable.toBitmap(width = 96, height = 96).asImageBitmap()
                 val isAdaptive = drawable is AdaptiveIconDrawable
+                val bitmap = unmaskedIconBitmap(drawable)
                 return MaskableAppIcon(bitmap, isAdaptive, if (isAdaptive) null else dominantColor(bitmap))
             }
             runCatching {
@@ -70,6 +72,25 @@ internal fun rememberMaskableAppIcon(packageName: String, activityName: String):
             }.getOrNull()
         }
     }.value
+}
+
+/**
+ * A flattened 96×96 bitmap of [drawable], bypassing [AdaptiveIconDrawable]'s
+ * own `draw()` (which always clips to the OS's device-wide icon mask — a
+ * circle on stock AOSP/Pixel — before our own [IconShape] ever gets applied).
+ * See `:feature:start`'s `IconCellView.kt#unmaskedIconBitmap` for the full
+ * on-device-confirmed rationale; duplicated here for the same reason the rest
+ * of this file's masking logic is duplicated rather than shared.
+ */
+private fun unmaskedIconBitmap(drawable: Drawable): ImageBitmap {
+    if (drawable !is AdaptiveIconDrawable) return drawable.toBitmap(width = 96, height = 96).asImageBitmap()
+    val bitmap = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    listOfNotNull(drawable.background, drawable.foreground).forEach { layer ->
+        layer.setBounds(0, 0, 96, 96)
+        layer.draw(canvas)
+    }
+    return bitmap.asImageBitmap()
 }
 
 private fun IconShape.toShape(): Shape? = when (this) {

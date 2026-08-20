@@ -872,20 +872,30 @@ fun PersonalizeSheet(
                         Text("icon shape", color = tokens.fgDim, fontSize = 13.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             IconShape.entries.forEach { candidate ->
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(candidate.previewShape())
-                                        .background(accent)
-                                        .then(
-                                            if (iconShape == candidate) {
-                                                Modifier.border(2.dp, tokens.fg, candidate.previewShape())
-                                            } else {
-                                                Modifier
-                                            },
-                                        )
-                                        .clickable { onIconShapeChange(candidate) },
-                                )
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(candidate.previewShape())
+                                            .background(accent)
+                                            .then(
+                                                if (iconShape == candidate) {
+                                                    Modifier.border(2.dp, tokens.fg, candidate.previewShape())
+                                                } else {
+                                                    Modifier
+                                                },
+                                            )
+                                            .clickable { onIconShapeChange(candidate) },
+                                    )
+                                    Text(
+                                        candidate.name.lowercase(),
+                                        color = if (iconShape == candidate) tokens.fg else tokens.fgDim,
+                                        fontSize = 10.sp,
+                                    )
+                                }
                             }
                         }
                     }
