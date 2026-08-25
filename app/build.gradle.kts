@@ -294,8 +294,18 @@ android {
         //   since this is the biggest new capability since the original WP recreation: a
         //   second, genuinely different home-screen style living side by side with the first.
         //   See CLAUDE.md and docs/DECISIONS.md for the full session-by-session history.
-        versionCode = 300
-        versionName = "3.0.0"
+        // v3.1.0 (code 310) — drag an app out of an open folder straight to any spot on
+        //   the grid (sticky/free/dense arrangement, plus merging into another tile),
+        //   alongside the existing tap-to-unpin-to-bottom shortcut. Widget stacks now also
+        //   allow Wide Small and Banner sized members. Fixes: a cycling notification tile
+        //   opened the wrong message on tap (always the newest, not whichever was shown);
+        //   weather/calendar/now-playing cards and Quick Panel's active toggle tiles kept
+        //   white text over a light wallpaper-derived accent; music/weather/calendar/clock
+        //   tiles at Wide Small/Banner (one grid row tall) clipped their controls/text,
+        //   clock specifically at 5/6 columns; a folder child dragged to a chosen position
+        //   could still land at the bottom instead, from a client-side ordering bug.
+        versionCode = 310
+        versionName = "3.1.0"
     }
 
     if (keystoreFile.exists()) {

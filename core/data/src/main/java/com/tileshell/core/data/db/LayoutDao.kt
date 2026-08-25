@@ -305,6 +305,20 @@ interface LayoutDao {
                 ),
             )
         }
+        collapseFolderAfterRemoval(folderId)
+    }
+
+    /**
+     * Shared tail of [removeFolderChild], [placeFolderChildAtTopLevel] and
+     * [mergeFolderChildIntoTile]: once a child row is gone from [folderId],
+     * collapse the folder the same way regardless of *why* the child left
+     * (tap-× append-to-bottom, or a drag pulling it out to a specific
+     * top-level placement/merge) — renumber the survivors when 2+ remain,
+     * dissolve to a plain app tile for the lone survivor, or drop the tile +
+     * meta entirely when none remain. See [removeFolderChild]'s original doc
+     * comment for the full rationale of each branch.
+     */
+    private suspend fun collapseFolderAfterRemoval(folderId: String) {
         val remaining = folderChildrenOnce(folderId)
         when {
             remaining.size >= 2 ->
@@ -329,6 +343,78 @@ interface LayoutDao {
                 deleteFolderById(folderId)
             }
         }
+    }
+
+    /**
+     * Pull one app out of a folder and place it as a top-level tile exactly
+     * where a drag released it, instead of always appending to the bottom
+     * ([removeFolderChild]'s tap-× shortcut). [gridSlot] anchors it directly
+     * (sticky/free arrangement); [reorderedIds], when given, is persisted as
+     * the complete final top-level order (dense arrangement's drop-insertion
+     * point, [insertBeforeTarget] in `:feature:start`) — both null just
+     * appends at the bottom, same as [removeFolderChild].
+     */
+    @Transaction
+    suspend fun placeFolderChildAtTopLevel(
+        folderId: String,
+        rowId: Long,
+        newTileId: String,
+        newTileColorId: String,
+        gridSlot: Int? = null,
+        reorderedIds: List<String>? = null,
+    ) {
+        val removed = folderChildrenOnce(folderId).firstOrNull { it.rowId == rowId }
+        deleteFolderChildByRowId(rowId)
+        if (removed != null) {
+            insertTiles(
+                listOf(
+                    TileEntity(
+                        id = newTileId,
+                        position = maxPosition() + 1,
+                        gridSlot = gridSlot,
+                        size = removed.size,
+                        colorId = newTileColorId,
+                        type = TileEntity.TYPE_APP,
+                        packageName = removed.packageName,
+                        activityName = removed.activityName,
+                        label = removed.label,
+                        iconKey = removed.iconKey,
+                        accentOverride = removed.accentOverride,
+                    ),
+                ),
+            )
+        }
+        reorderedIds?.forEachIndexed { index, id -> updateTilePosition(id, index) }
+        collapseFolderAfterRemoval(folderId)
+    }
+
+    /**
+     * Merge a folder child directly into another top-level tile — the
+     * folder-child counterpart of [applyMerge], entered by dragging a child
+     * out of its folder onto another tile's merge zone rather than dragging
+     * an existing top-level tile. [folderTile]/[folder]/[children] are the
+     * merge target's new folder contents (as [applyMerge] builds them,
+     * computed by `LayoutRepository.mergeFolderChildIntoTile` from
+     * `computeMerge`); [rowId] is the pulled-out child's own row, removed
+     * from [folderId] via the same [collapseFolderAfterRemoval] every other
+     * folder-child removal uses.
+     */
+    @Transaction
+    suspend fun mergeFolderChildIntoTile(
+        folderId: String,
+        rowId: Long,
+        folderTile: TileEntity,
+        folder: FolderEntity,
+        children: List<FolderChildEntity>,
+        survivingOrder: List<String>,
+    ) {
+        insertFolders(listOf(folder))
+        insertTiles(listOf(folderTile))
+        deleteFolderChildren(folder.id)
+        insertFolderChildren(children)
+        deleteFolderChildByRowId(rowId)
+        collapseFolderAfterRemoval(folderId)
+        survivingOrder.forEachIndexed { index, id -> updateTilePosition(id, index) }
     }
 
     // ---- uninstall removal (FR-5) ---------------------------------------

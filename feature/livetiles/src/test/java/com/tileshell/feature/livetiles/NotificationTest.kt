@@ -150,6 +150,23 @@ class TileNotificationActionsTest {
         // Both keys clear (so the whole group empties)...
         assertEquals(setOf("summary", "real"), actions.getValue("mail").keys.toSet())
     }
+
+    @Test
+    fun `itemIntents cover every non-summary notification, excluding group summaries`() {
+        val actions = tileNotificationActions(
+            listOf(
+                row("mail", "summary", summary = true, postTime = 300),
+                row("mail", "m1", postTime = 100),
+                row("mail", "m2", postTime = 200),
+            ),
+        )
+        val action = actions.getValue("mail")
+        // Every real (non-summary) notification is individually addressable by its
+        // own key — this is what lets a tap open the specific one the cycling back
+        // face was showing, rather than always the newest.
+        assertEquals(setOf("m1", "m2"), action.itemIntents.keys)
+        assertTrue("summary" !in action.itemIntents)
+    }
 }
 
 class InitialsTest {

@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import com.tileshell.core.data.TileSize
 import com.tileshell.core.design.LocalTileFaceColor
 import com.tileshell.core.design.TileIcons
 import androidx.compose.runtime.Composable
@@ -306,6 +307,11 @@ fun MusicTileFace(
     // live-tile animation gate is held low (animations off, battery saver) — they
     // should only go inert in edit mode, where the grid owns all touch.
     interactive: Boolean = active,
+    // Drives MusicFront's layout — the stacked (EQ / title / artist / controls)
+    // column needs more height than a single grid row provides, so a one-row
+    // size (WIDE_SMALL, BANNER) switches to a compact horizontal row instead.
+    // Default MEDIUM matches every pre-existing call site's actual shape.
+    size: TileSize = TileSize.MEDIUM,
 ) {
     val media by MediaCenter.nowPlaying.collectAsState()
     val artworkMap by MediaCenter.artwork.collectAsState()
@@ -340,6 +346,7 @@ fun MusicTileFace(
                 interactive = interactive,
                 packageName = iconPackage,
                 art = art,
+                size = size,
             )
         },
         back = { MusicBack(packageName = iconPackage, art = art) },
@@ -353,41 +360,81 @@ private fun MusicFront(
     interactive: Boolean,
     packageName: String?,
     art: ImageBitmap?,
+    size: TileSize,
 ) {
     TileImageBackground(art, modifier = Modifier.fillMaxSize()) {
     Box(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(11.dp),
-            verticalArrangement = Arrangement.Center,
-        ) {
-            EqBars(animate = animate)
-            Spacer(Modifier.height(7.dp))
-            Text(
-                text = np.title,
-                color = FaceText,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (np.artist.isNotEmpty()) {
+        if (size.rows == 1 && size.cols > 1) {
+            // One grid row tall (WIDE_SMALL/BANNER, drag-resize-only presets):
+            // the stacked EQ/title/artist/spacer/controls column below needs
+            // more height than a single row provides, which silently clipped
+            // the controls row off the bottom — laid out as one horizontal row
+            // instead, title+artist on the left, compact controls on the right.
+            Row(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 11.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = np.title,
+                        color = FaceText,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (np.artist.isNotEmpty()) {
+                        Text(
+                            text = np.artist,
+                            color = FaceText.copy(alpha = 0.82f),
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                Spacer(Modifier.width(6.dp))
+                MusicControls(
+                    playing = np.playing,
+                    enabled = interactive && packageName != null,
+                    packageName = packageName,
+                    compact = true,
+                )
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(11.dp),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                EqBars(animate = animate)
+                Spacer(Modifier.height(7.dp))
                 Text(
-                    text = np.artist,
-                    color = FaceText.copy(alpha = 0.82f),
-                    fontSize = 13.sp,
+                    text = np.title,
+                    color = FaceText,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (np.artist.isNotEmpty()) {
+                    Text(
+                        text = np.artist,
+                        color = FaceText.copy(alpha = 0.82f),
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                // Transport controls — clickable only while the live gate is active
+                // (so edit-mode drag/select isn't intercepted); they consume the tap,
+                // so the tile doesn't also launch the app.
+                MusicControls(
+                    playing = np.playing,
+                    enabled = interactive && packageName != null,
+                    packageName = packageName,
+                )
             }
-            Spacer(Modifier.weight(1f))
-            // Transport controls — clickable only while the live gate is active
-            // (so edit-mode drag/select isn't intercepted); they consume the tap,
-            // so the tile doesn't also launch the app.
-            MusicControls(
-                playing = np.playing,
-                enabled = interactive && packageName != null,
-                packageName = packageName,
-            )
         }
         // The playing app's own launcher icon, top-left (matches notification tiles).
         if (packageName != null) {
@@ -401,12 +448,13 @@ private fun MusicFront(
 }
 
 @Composable
-private fun MusicControls(playing: Boolean, enabled: Boolean, packageName: String?) {
+private fun MusicControls(playing: Boolean, enabled: Boolean, packageName: String?, compact: Boolean = false) {
     MediaTransportControls(
         playing = playing,
         packageName = packageName,
         tint = FaceText,
         enabled = enabled,
+        compact = compact,
     )
 }
 
@@ -422,20 +470,25 @@ fun MediaTransportControls(
     tint: Color,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    // Shrinks the buttons to fit a single grid row's height (WIDE_SMALL/
+    // BANNER music tile) — every other caller (the ordinary music tile, the
+    // feed's now-playing card) keeps the normal, larger touch target.
+    compact: Boolean = false,
 ) {
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 8.dp),
     ) {
-        ControlButton("prev", "previous", enabled, tint) { MediaCenter.skipToPrevious(packageName) }
+        ControlButton("prev", "previous", enabled, tint, compact) { MediaCenter.skipToPrevious(packageName) }
         ControlButton(
             iconKey = if (playing) "pause" else "play",
             description = if (playing) "pause" else "play",
             enabled = enabled,
             tint = tint,
+            compact = compact,
         ) { MediaCenter.togglePlayPause(packageName) }
-        ControlButton("next", "next", enabled, tint) { MediaCenter.skipToNext(packageName) }
+        ControlButton("next", "next", enabled, tint, compact) { MediaCenter.skipToNext(packageName) }
     }
 }
 
@@ -445,11 +498,12 @@ private fun ControlButton(
     description: String,
     enabled: Boolean,
     tint: Color,
+    compact: Boolean = false,
     onClick: () -> Unit,
 ) {
     Box(
         modifier = Modifier
-            .size(34.dp)
+            .size(if (compact) 26.dp else 34.dp)
             .clip(CircleShape)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -458,7 +512,7 @@ private fun ControlButton(
             imageVector = TileIcons[iconKey],
             contentDescription = description,
             tint = tint,
-            modifier = Modifier.size(22.dp),
+            modifier = Modifier.size(if (compact) 16.dp else 22.dp),
         )
     }
 }

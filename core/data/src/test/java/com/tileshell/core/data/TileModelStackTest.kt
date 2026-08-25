@@ -8,8 +8,8 @@ import org.junit.Test
  * Unit tests for [TileModel.Folder.isStack]/[TileModel.Folder.stackSize]. A
  * folder is only ever rendered as a widget stack when BOTH are true: the
  * explicit [TileModel.Folder.showAsStack] toggle is on, AND every member is
- * currently uniformly one [TileSize.stackable] size (both dimensions > 1 —
- * excludes SMALL, WIDE_SMALL, TALL, BANNER, COLUMN). Eligibility
+ * currently uniformly one [TileSize.stackable] size (more than one column —
+ * excludes SMALL, TALL, COLUMN). Eligibility
  * ([stackSize]) and the toggle ([showAsStack]) are independent —
  * eligible-but-toggled-off and toggled-on-but-not-eligible both read as a
  * plain folder.
@@ -70,10 +70,12 @@ class TileModelStackTest {
     }
 
     @Test
-    fun theFiveExcludedSizesAreNeverEligibleEvenWhenUniformAndToggledOn() {
-        listOf(
-            TileSize.SMALL, TileSize.WIDE_SMALL, TileSize.TALL, TileSize.BANNER, TileSize.COLUMN,
-        ).forEach { size ->
+    fun theThreeExcludedSizesAreNeverEligibleEvenWhenUniformAndToggledOn() {
+        // Single-column sizes only — a one-cell-wide vertical strip is too
+        // cramped to swipe between. WIDE_SMALL/BANNER are single-*row* but
+        // multi-column, so they're allowed (see the sizes-are-now-eligible
+        // test below).
+        listOf(TileSize.SMALL, TileSize.TALL, TileSize.COLUMN).forEach { size ->
             val children = listOf(child(size), child(size))
             assertNull("$size should not be stack-eligible", folder(children).stackSize)
             assertEquals(
@@ -88,7 +90,7 @@ class TileModelStackTest {
     fun everyOtherSizeIsEligibleWhenUniformAndToggledOn() {
         listOf(
             TileSize.MEDIUM, TileSize.WIDE, TileSize.LARGE, TileSize.WIDE_MEDIUM,
-            TileSize.TALL_MEDIUM, TileSize.XLARGE,
+            TileSize.TALL_MEDIUM, TileSize.XLARGE, TileSize.WIDE_SMALL, TileSize.BANNER,
         ).forEach { size ->
             val children = listOf(child(size), child(size))
             assertEquals("$size should be stack-eligible", size, folder(children).stackSize)

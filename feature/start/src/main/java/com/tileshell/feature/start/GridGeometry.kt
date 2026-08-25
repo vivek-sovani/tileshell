@@ -110,6 +110,71 @@ fun heldAsMergeTarget(rect: Rect, point: Offset, alreadyTarget: Boolean): Boolea
     alreadyTarget || inMergeZone(rect, point)
 
 /**
+ * Whether [point] still falls inside a folder's own inline-expanded block —
+ * its own placed cell, or any of its currently-rendered children's cells
+ * (see [GridPacker.expandFolderInline]) — used by the folder-child drag-out
+ * gesture (`StartScreen.editDragGesture`) to tell an intra-folder sibling
+ * reorder (still inside) apart from pulling the app out onto the top-level
+ * grid (moved outside). Pure and decoupled from the synthetic child-id
+ * encoding: the caller tells us which of [placements] belongs to [folderId]
+ * via [isChild] (true for one of its rendered children).
+ */
+fun isInsideFolderBlock(
+    placements: List<TilePlacement>,
+    geom: GridGeometry,
+    folderId: String,
+    point: Offset,
+    isChild: (id: String) -> Boolean,
+): Boolean = placements.any { (it.id == folderId || isChild(it.id)) && geom.rect(it).contains(point) }
+
+/**
+ * Where a folder child pulled out onto the top-level grid (dense/free mode)
+ * should land: spliced into [order] at [beforeId]'s current index — so it
+ * inserts right where it was dropped, mirroring [reorderTiles]'s own
+ * splice-before-target convention — or appended at the end when [beforeId]
+ * is null or no longer present (an empty-area drop). Pure; [order] is
+ * untouched, a new list is returned.
+ */
+fun insertBeforeTarget(order: List<String>, newId: String, beforeId: String?): List<String> {
+    val out = order.toMutableList()
+    val idx = beforeId?.let { out.indexOf(it) }?.takeIf { it >= 0 } ?: out.size
+    out.add(idx, newId)
+    return out
+}
+
+/**
+ * Reconciles the live working order with the freshly persisted layout
+ * ([fresh], DB-ordered): keeps every still-present id in [current]'s own
+ * existing relative order (so a just-applied client-side reorder isn't
+ * clobbered by the async DB round-trip catching up — no flicker), drops ids
+ * that no longer exist, and — unlike a plain "keep the survivors, append
+ * everything new at the end" merge — inserts a brand-new id immediately
+ * before whichever already-known id sits right after it in [fresh], not
+ * always at the very end. A genuinely-appended new pin still lands at the end
+ * here too (nothing already-known follows it in [fresh]), but a tile written
+ * to a specific mid-grid position — e.g. dragged out of a folder to a chosen
+ * spot ([insertBeforeTarget]'s own result, once persisted) — lands there
+ * instead of always reappearing at the bottom regardless of where the DB
+ * actually placed it. Pure; both inputs are untouched.
+ */
+fun mergeOrder(current: List<String>, fresh: List<String>): List<String> {
+    if (current.isEmpty()) return fresh
+    val present = fresh.toHashSet()
+    val kept = current.filter { it in present }
+    val keptSet = kept.toHashSet()
+    val newIds = fresh.filter { it !in keptSet }
+    if (newIds.isEmpty()) return kept
+    val result = kept.toMutableList()
+    for (newId in newIds) {
+        val newIdIndex = fresh.indexOf(newId)
+        val nextKeptId = fresh.drop(newIdIndex + 1).firstOrNull { it in keptSet }
+        val insertAt = if (nextKeptId != null) result.indexOf(nextKeptId) else result.size
+        result.add(insertAt, newId)
+    }
+    return result
+}
+
+/**
  * Move [dragId] to sit where [targetId] currently is (FR-3.2). Mirrors the
  * prototype reorder (`reorder()` in launcher.js): splice the dragged id out,
  * then re-insert it at the target's *original* index — so a forward drag lands

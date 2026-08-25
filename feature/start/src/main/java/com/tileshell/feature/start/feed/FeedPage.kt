@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.palette.graphics.Palette
 import com.tileshell.core.design.Glass
+import com.tileshell.core.design.isLightBackground
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.WallpaperGradient
 import com.tileshell.core.design.WallpaperLayer
@@ -653,10 +654,6 @@ private fun GCard(
     ) { content() }
 }
 
-// White text on the accent-filled "your data" cards (WP live-tile look).
-private val OnAccent = Color.White
-private val OnAccentDim = Color.White.copy(alpha = 0.78f)
-
 /** Accent-filled card (weather/today/now-playing) — the WP live-tile colour block. */
 @Composable
 private fun AccentCard(
@@ -684,13 +681,17 @@ private fun WeatherCard(
     accent: Color,
     onClick: () -> Unit,
 ) {
+    // Card text adapts to this card's own accent fill (not the page background —
+    // a wallpaper-derived accent can be light even when the page itself is dark).
+    val onAccent = Glass.faceTextColor(useDarkText = isLightBackground(accent))
+    val onAccentDim = onAccent.copy(alpha = 0.78f)
     AccentCard(accent, onClick = onClick) {
         Column(modifier = Modifier.padding(14.dp)) {
             if (snapshot == null) {
-                Text("weather unavailable", color = OnAccent, fontSize = 14.sp)
+                Text("weather unavailable", color = onAccent, fontSize = 14.sp)
                 Text(
                     "set a location or allow location access",
-                    color = OnAccentDim,
+                    color = onAccentDim,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 3.dp),
                 )
@@ -701,17 +702,17 @@ private fun WeatherCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top,
             ) {
-                Text("${snapshot.tempC}°", color = OnAccent, fontSize = 34.sp, fontWeight = FontWeight.Thin)
+                Text("${snapshot.tempC}°", color = onAccent, fontSize = 34.sp, fontWeight = FontWeight.Thin)
                 Icon(
                     imageVector = TileIcons["weather"],
                     contentDescription = null,
-                    tint = OnAccent,
+                    tint = onAccent,
                     modifier = Modifier.size(20.dp),
                 )
             }
             Text(
                 snapshot.condition,
-                color = OnAccentDim,
+                color = onAccentDim,
                 fontSize = 12.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -719,7 +720,7 @@ private fun WeatherCard(
             )
             Text(
                 "h ${snapshot.highC}° · l ${snapshot.lowC}°",
-                color = OnAccentDim,
+                color = onAccentDim,
                 fontSize = 11.sp,
                 modifier = Modifier.padding(top = 6.dp),
             )
@@ -740,6 +741,8 @@ private fun AgendaCard(
     onAddSchedule: () -> Unit,
     onClick: () -> Unit,
 ) {
+    val onAccent = Glass.faceTextColor(useDarkText = isLightBackground(accent))
+    val onAccentDim = onAccent.copy(alpha = 0.78f)
     AccentCard(accent, onClick = onClick) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
@@ -747,7 +750,7 @@ private fun AgendaCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("today", color = OnAccentDim, fontSize = 12.sp)
+                Text("today", color = onAccentDim, fontSize = 12.sp)
                 Box(
                     modifier = Modifier
                         .clip(CircleShape)
@@ -760,16 +763,16 @@ private fun AgendaCard(
                 ) {
                     Canvas(modifier = Modifier.size(12.dp)) {
                         val s = size.width
-                        drawLine(OnAccent, Offset(s / 2f, s * 0.1f), Offset(s / 2f, s * 0.9f), strokeWidth = s * 0.14f, cap = StrokeCap.Round)
-                        drawLine(OnAccent, Offset(s * 0.1f, s / 2f), Offset(s * 0.9f, s / 2f), strokeWidth = s * 0.14f, cap = StrokeCap.Round)
+                        drawLine(onAccent, Offset(s / 2f, s * 0.1f), Offset(s / 2f, s * 0.9f), strokeWidth = s * 0.14f, cap = StrokeCap.Round)
+                        drawLine(onAccent, Offset(s * 0.1f, s / 2f), Offset(s * 0.9f, s / 2f), strokeWidth = s * 0.14f, cap = StrokeCap.Round)
                     }
                 }
             }
             Spacer(Modifier.height(6.dp))
             val events = listOfNotNull(agenda.next, agenda.following)
             when {
-                !granted -> Text("allow calendar to see your day", color = OnAccentDim, fontSize = 12.sp)
-                events.isEmpty() -> Text("nothing on your calendar today", color = OnAccentDim, fontSize = 12.sp)
+                !granted -> Text("allow calendar to see your day", color = onAccentDim, fontSize = 12.sp)
+                events.isEmpty() -> Text("nothing on your calendar today", color = onAccentDim, fontSize = 12.sp)
                 else -> events.forEachIndexed { i, e ->
                     if (i > 0) Spacer(Modifier.height(10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -778,12 +781,12 @@ private fun AgendaCard(
                                 .width(3.dp)
                                 .height(30.dp)
                                 .clip(RoundedCornerShape(2.dp))
-                                .background(OnAccent),
+                                .background(onAccent),
                         )
                         Spacer(Modifier.width(10.dp))
                         Column {
-                            Text(e.title.ifEmpty { "(busy)" }, color = OnAccent, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(e.timeLine, color = OnAccentDim, fontSize = 11.sp)
+                            Text(e.title.ifEmpty { "(busy)" }, color = onAccent, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(e.timeLine, color = onAccentDim, fontSize = 11.sp)
                         }
                     }
                 }
@@ -800,6 +803,8 @@ private fun NowPlayingCard(
     accent: Color,
     onClick: (() -> Unit)? = null,
 ) {
+    val onAccent = Glass.faceTextColor(useDarkText = isLightBackground(accent))
+    val onAccentDim = onAccent.copy(alpha = 0.78f)
     AccentCard(accent, onClick = onClick) {
         Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -829,7 +834,7 @@ private fun NowPlayingCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     nowPlaying.title.ifBlank { "now playing" },
-                    color = OnAccent,
+                    color = onAccent,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
@@ -838,7 +843,7 @@ private fun NowPlayingCard(
                 if (nowPlaying.artist.isNotBlank()) {
                     Text(
                         nowPlaying.artist,
-                        color = OnAccentDim,
+                        color = onAccentDim,
                         fontSize = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -849,7 +854,7 @@ private fun NowPlayingCard(
             MediaTransportControls(
                 playing = nowPlaying.playing,
                 packageName = packageName,
-                tint = OnAccent,
+                tint = onAccent,
             )
         }
     }

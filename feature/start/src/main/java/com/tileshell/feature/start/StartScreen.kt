@@ -977,6 +977,16 @@ fun StartScreen(
                         }
                     },
                     onPullOutFolderChild = { folderId, child -> viewModel.removeFolderChild(folderId, child) },
+                    onPullOutFolderChildToMerge = { folderId, child, targetId ->
+                        viewModel.pullFolderChildIntoMerge(folderId, child, targetId)
+                        Toast.makeText(context, "grouped", Toast.LENGTH_SHORT).show()
+                    },
+                    onPullOutFolderChildToSlot = { folderId, child, slot ->
+                        viewModel.pullFolderChildToSlot(folderId, child, slot)
+                    },
+                    onPullOutFolderChildToPosition = { folderId, child, beforeId ->
+                        viewModel.pullFolderChildToPosition(folderId, child, beforeId)
+                    },
                     onResizeFolderChild = { folderId, child -> viewModel.resizeFolderChild(folderId, child) },
                     onResizeFolderChildTo = { folderId, child, size ->
                         viewModel.resizeFolderChildTo(folderId, child, size)
@@ -1632,6 +1642,24 @@ private fun parseFolderChildId(id: String): Pair<String, Long>? {
 }
 
 /**
+ * Where a folder child dragged out past its folder's own expanded block
+ * ([isInsideFolderBlock]) landed at release, resolved by [editDragGesture]'s
+ * `onFolderChildPulledOut` callback into one of [StartViewModel]'s
+ * `pullFolderChildTo*` write paths — contrast [onReorderFolderChildTo] /
+ * [onFolderChildDrop], which stay intra-folder and never reach this type.
+ */
+private sealed interface FolderChildDropTarget {
+    /** Dropped in [targetId]'s merge zone — commits the same drag-merge FR-3.3 uses. */
+    data class Merge(val targetId: String) : FolderChildDropTarget
+
+    /** Dropped on a sticky/free-mode grid cell (see [GridPacker.encodeSlot]). */
+    data class Cell(val slot: Int) : FolderChildDropTarget
+
+    /** Dropped in dense/free mode: lands right before [beforeId] (null = append at the end). */
+    data class Position(val beforeId: String?) : FolderChildDropTarget
+}
+
+/**
  * A [FolderChild] as a stand-in [TileModel.App] so it renders through the
  * exact same [TileView]/[AppTileContent] path as any pinned app (icon, label,
  * badges, corner controls) — this is a *rendering* convenience only; taps and
@@ -1717,6 +1745,14 @@ private fun StartPage(
     onTile: (TileModel) -> Unit,
     onLaunchFolderChild: (FolderChild) -> Unit,
     onPullOutFolderChild: (folderId: String, child: FolderChild) -> Unit,
+    // Dragging a folder child out past its own folder's expanded block, onto
+    // the top-level grid — the drag counterpart of [onPullOutFolderChild]
+    // (which is tap-× only and always appends to the bottom). Exactly one of
+    // these three fires per such drop, depending on where it landed; see
+    // [FolderChildDropTarget].
+    onPullOutFolderChildToMerge: (folderId: String, child: FolderChild, targetId: String) -> Unit,
+    onPullOutFolderChildToSlot: (folderId: String, child: FolderChild, slot: Int) -> Unit,
+    onPullOutFolderChildToPosition: (folderId: String, child: FolderChild, beforeId: String?) -> Unit,
     onResizeFolderChild: (folderId: String, child: FolderChild) -> Unit,
     onSetFolderChildColor: (folderId: String, rowId: Long, colorId: String?) -> Unit,
     onRenameFolder: (folderId: String, name: String) -> Unit,
@@ -1789,27 +1825,21 @@ private fun StartPage(
     var stickyPreview by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     LaunchedEffect(byId) { stickyPreview = emptyMap() }
     // Reconcile the working order with the persisted layout: keep the existing
-    // relative order of surviving ids, drop removed ones, append new ones in
-    // persisted order. This preserves a just-dropped reorder (the async DB write
-    // lands the same order, so no flicker) while still absorbing pins/uninstalls.
+    // relative order of surviving ids, drop removed ones, insert new ones at
+    // their own position from the fresh (DB-ordered) list — see
+    // GridGeometry.mergeOrder. This preserves a just-dropped reorder (the async
+    // DB write lands the same order, so no flicker) while still absorbing
+    // pins/uninstalls, and — unlike a blind append-at-the-end — respects a new
+    // tile's own written position (e.g. a folder child dragged out to a chosen
+    // spot) instead of always landing it at the bottom.
     LaunchedEffect(specs) {
         if (draggingId != null) return@LaunchedEffect
-        val ids = specs.map { it.id }
-        val merged = if (order.isEmpty()) {
-            ids
-        } else {
-            val present = ids.toHashSet()
-            val kept = order.filter { it in present }
-            val keptSet = kept.toHashSet()
-            kept + ids.filter { it !in keptSet }
-        }
+        val merged = mergeOrder(order.toList(), specs.map { it.id })
         if (merged != order.toList()) {
             order.clear()
             order.addAll(merged)
         }
     }
-    val displaySpecs = order.mapNotNull { id -> byId[id]?.let { TileSpec(id, it.size) } }
-
     // FR-4 WP-style inline folder expand/collapse: the expanded folder's
     // children are spliced into the *same* grid via synthetic ids
     // (folderChildTileId) so they flow through the exact packing/drag/hit-test
@@ -1832,6 +1862,11 @@ private fun StartPage(
     val expandedFolder = remember(byId, expandedFolderId) {
         expandedFolderId?.let { byId[it] as? TileModel.Folder }
     }
+    // Additive over [byId] — every genuine top-level id resolves identically
+    // through either map (only synthetic child ids gain a new entry), so
+    // switching a `byId[id]` lookup to `augmentedById[id]` never changes the
+    // result for a real top-level tile; it only *adds* the ability to resolve
+    // a synthetic child id that would otherwise miss.
     val augmentedById: Map<String, TileModel> = remember(byId, expandedFolder) {
         if (expandedFolder == null) {
             byId
@@ -1842,6 +1877,15 @@ private fun StartPage(
             }
         }
     }
+    // Resolved via [augmentedById] (not the plain [byId]) so a folder child
+    // temporarily spliced into [order] — while it's being dragged out onto the
+    // dense-mode top-level grid, see the pulled-out-preview machinery below —
+    // resolves to a real spec instead of vanishing from the pack entirely.
+    // Behavior-preserving for every other case: [augmentedById] only adds
+    // entries beyond [byId] (see its own comment above), and a synthetic
+    // child id is never a member of the *persisted* `order`/`specs` outside
+    // of that one live-preview splice.
+    val displaySpecs = order.mapNotNull { id -> augmentedById[id]?.let { TileSpec(id, it.size) } }
     // Working order of the currently-expanded folder's children, as synthetic
     // child ids — mirrors the persisted order except during a drag on one of
     // them, when reorder mutates it live (same pattern, and the same
@@ -2084,6 +2128,52 @@ private fun StartPage(
                     }
                 },
                 onFolderChildDrop = ::commitFolderChildReorder,
+                onFolderChildPulledOut = { childId, target ->
+                    val ref = folderChildRef(childId)
+                    if (ref != null) {
+                        val (folderId, child) = ref
+                        when (target) {
+                            is FolderChildDropTarget.Merge ->
+                                onPullOutFolderChildToMerge(folderId, child, target.targetId)
+                            is FolderChildDropTarget.Cell ->
+                                onPullOutFolderChildToSlot(folderId, child, target.slot)
+                            is FolderChildDropTarget.Position ->
+                                onPullOutFolderChildToPosition(folderId, child, target.beforeId)
+                        }
+                    }
+                },
+                // Dense-mode live reflow (see editDragGesture's own doc on
+                // these two params): splice the synthetic child id into the
+                // real top-level `order` at the hovered position, mirroring
+                // onReorderTo's own live-mutation pattern above, and drop it
+                // out of folderChildOrder at the same time so it isn't ALSO
+                // rendered inline inside the folder — expandTransform reads
+                // folderChildOrder live (see its own comment), so this takes
+                // effect immediately, no memo invalidation needed.
+                onFolderChildDensePreview = { childId, beforeId ->
+                    folderChildOrder.remove(childId)
+                    val next = insertBeforeTarget(order.toList(), childId, beforeId)
+                    if (next != order.toList()) {
+                        order.clear()
+                        order.addAll(next)
+                    }
+                },
+                // Reverts the splice above: drop the synthetic id back out of
+                // `order`, and — if the same folder is still expanded —
+                // reinsert it into folderChildOrder at its real persisted
+                // position among the folder's children (not just appended),
+                // so the existing intra-folder sibling-reorder logic resumes
+                // from the right spot rather than the child jumping to the
+                // end of its siblings.
+                onFolderChildDensePreviewClear = { childId ->
+                    order.remove(childId)
+                    val folder = expandedFolder
+                    if (folder != null && childId !in folderChildOrder && parseFolderChildId(childId)?.first == folder.id) {
+                        val ids = folder.children.map { folderChildTileId(folder.id, it.rowId) }
+                        val idx = ids.indexOf(childId).let { if (it >= 0) it else folderChildOrder.size }
+                        folderChildOrder.add(idx.coerceIn(0, folderChildOrder.size), childId)
+                    }
+                },
             )
 
             DenseTileGrid(
@@ -2459,8 +2549,8 @@ private fun StartPage(
             // docs/DECISIONS.md): shown only for a real top-level folder
             // (never a folder child, which is a synthetic App), and only when
             // it's either already a stack (always safe to un-toggle) or has
-            // ≥2 children at a `TileSize.stackable` footprint (both
-            // dimensions > 1) to uniform into a stack.
+            // ≥2 children at a `TileSize.stackable` footprint (more than one
+            // column) to uniform into a stack.
             val stackToggle = (model as? TileModel.Folder)?.let { folder ->
                 when {
                     childRef != null -> null
@@ -3563,6 +3653,26 @@ private fun Modifier.editDragGesture(
     // Both no-op by default for every caller that doesn't support expansion.
     onReorderFolderChildTo: (dragId: String, targetId: String) -> Unit = { _, _ -> },
     onFolderChildDrop: () -> Unit = {},
+    // Fires once, at release, when a folder-child drag ended outside its own
+    // folder's expanded block ([isInsideFolderBlock]) — i.e. the child was
+    // pulled out onto the top-level grid rather than just reordered among its
+    // siblings. No-op by default for every caller that doesn't support
+    // expansion, same as the two callbacks above.
+    onFolderChildPulledOut: (childId: String, target: FolderChildDropTarget) -> Unit = { _, _ -> },
+    // Dense mode only (slotOf == null): live reflow while a pulled-out folder
+    // child hovers a non-merge spot, splicing the synthetic child id into the
+    // real top-level `order` at the hovered position so GridPacker.pack
+    // repacks the surrounding real tiles around it — exactly what an ordinary
+    // top-level reorder already gets for free from mutating `order` directly.
+    // [beforeId] is the same "insert before this id, or append at the end
+    // when null" convention [onReorderTo]/[insertBeforeTarget] already use.
+    // No-op by default for every caller that doesn't support expansion, same
+    // as the folder-child callbacks above.
+    onFolderChildDensePreview: (childId: String, beforeId: String?) -> Unit = { _, _ -> },
+    // Reverts the splice above — called the moment the drag crosses back into
+    // the folder block, enters a merge, or the gesture ends for any reason, so
+    // the synthetic id never lingers in `order` past the gesture.
+    onFolderChildDensePreviewClear: (childId: String) -> Unit = {},
 ): Modifier = pointerInput(editMode, widthPx, columns, gapPx, byId, selectedId()) {
     // Re-keyed on byId so a resize/unpin mid-session refreshes the captured tile
     // sizes, and on the selected id so an in-edit selection switch refreshes the
@@ -3679,6 +3789,35 @@ private fun Modifier.editDragGesture(
         // Sticky mode only: the free cell currently under the dragged tile's
         // top-left corner, or null when that cell is occupied (invalid drop).
         var pendingSlot: Int? = null
+        // Folder-child drag only: whether the *current* tick's point has moved
+        // outside the folder's own expanded block (see isInsideFolderBlock) —
+        // recomputed fresh every tick, so whatever it reads at release is
+        // simply "where the finger was when it let go." The three fields below
+        // it record which kind of top-level target (if any) is currently
+        // hovered in that pulled-out state, mirroring dwellId/mergeId/pendingSlot's
+        // role for an ordinary top-level drag but kept separate from them since
+        // a folder child was never part of `order`/the sticky anchors to begin
+        // with.
+        var pulledOut = false
+        var pulledOutMergeId: String? = null
+        var pulledOutTargetId: String? = null
+        var pulledOutSlot: Int? = null
+        // Dense mode only: the top-level id the pulled-out child is currently
+        // spliced-in before (or null when spliced at the very end, or when
+        // nothing has been spliced yet) — mirrors [lastTarget]'s
+        // change-detection role so the splice is only recomputed when the
+        // hovered target actually changes, not every tick.
+        var pulledOutDenseTarget: String? = null
+        var pulledOutDenseSpliced = false
+        // Dwell tracking for the pulled-out merge zone, mirroring dwellId/
+        // dwellAnchor/dwellStartMs above (kept separate since the two systems
+        // are mutually exclusive within one gesture — allowMerge is false
+        // whenever a folder is expanded, which is required to drag a folder
+        // child at all — but sharing state across two conceptually different
+        // checks would be fragile).
+        var pulledOutDwellId: String? = null
+        var pulledOutDwellAnchor = Offset.Zero
+        var pulledOutDwellStartMs = 0L
 
         while (true) {
             val event = awaitPointerEvent()
@@ -3766,20 +3905,181 @@ private fun Modifier.editDragGesture(
                     }
                 } else {
                     if (mergeId != null) { mergeId = null; onMergeTarget(null) }
-                    val folderChildDrag = startId != null && parseFolderChildId(startId) != null
-                    if (folderChildDrag && startId != null) {
-                        // In-folder reorder: children have their own persisted
-                        // order, independent of whichever top-level arrangement
-                        // mode is active — swap within the expanded folder's own
-                        // block instead of touching the top-level order or
-                        // computing a sticky push-down preview.
+                    val folderChildInfo = startId?.let(::parseFolderChildId)
+                    if (folderChildInfo != null && startId != null) {
+                        val dragFolderId = folderChildInfo.first
                         val placements = placementsNow()
-                        val target = placements.firstOrNull {
-                            it.id != startId && parseFolderChildId(it.id) != null && geom.rect(it).contains(pos)
+                        val insideBlock = isInsideFolderBlock(placements, geom, dragFolderId, pos) { id ->
+                            // Excludes the dragged child's own id: once the
+                            // dense-mode live-splice below is active, [startId]
+                            // gains a real placement of its own (spliced into
+                            // `order`) that naturally tracks close to wherever
+                            // it's currently hovering — without this exclusion
+                            // that self-placement would trip "inside the
+                            // block" the instant it's spliced in, immediately
+                            // reverting the very splice that made it true, in
+                            // an endless splice/unsplice flicker.
+                            id != startId && parseFolderChildId(id)?.first == dragFolderId
                         }
-                        if (target != null && target.id != lastTarget) {
-                            lastTarget = target.id
-                            onReorderFolderChildTo(startId, target.id)
+                        if (insideBlock) {
+                            if (pulledOut) {
+                                // Just crossed back into the block: tear down
+                                // whichever pulled-out preview was showing so it
+                                // doesn't linger once we're back to a plain
+                                // sibling reorder.
+                                pulledOut = false
+                                if (pulledOutMergeId != null) { pulledOutMergeId = null; onMergeTarget(null) }
+                                if (slotOf != null) onStickyPreview(emptyMap())
+                                if (pulledOutDenseSpliced) {
+                                    onFolderChildDensePreviewClear(startId)
+                                    pulledOutDenseSpliced = false
+                                }
+                                pulledOutTargetId = null
+                                pulledOutSlot = null
+                                pulledOutDwellId = null
+                                pulledOutDenseTarget = null
+                            }
+                            // In-folder reorder: children have their own persisted
+                            // order, independent of whichever top-level arrangement
+                            // mode is active — swap within the expanded folder's own
+                            // block instead of touching the top-level order or
+                            // computing a sticky push-down preview.
+                            val target = placements.firstOrNull {
+                                it.id != startId && parseFolderChildId(it.id) != null && geom.rect(it).contains(pos)
+                            }
+                            if (target != null && target.id != lastTarget) {
+                                lastTarget = target.id
+                                onReorderFolderChildTo(startId, target.id)
+                            }
+                        } else {
+                            // Pulled out onto the top-level grid: the exact same
+                            // merge-zone check (inner 22-78% band) an ordinary
+                            // top-level drag uses, judged from the same floating
+                            // tile's centre computed above — then, when not
+                            // merging, the same dense-hit-test / sticky push-down
+                            // preview a top-level drop into that spot would show,
+                            // restricted to real top-level tiles (a folder child
+                            // is never a valid target for another folder child).
+                            pulledOut = true
+                            lastTarget = null
+                            // Excludes the folder's own tile too — the floating
+                            // tile's centre (dragCentre, used for the merge-zone
+                            // check below) can briefly sit over it even while
+                            // [pos] itself is already outside the block (e.g. the
+                            // child was grabbed off-centre), and merging/placing a
+                            // child back onto its own source folder makes no sense.
+                            val topLevel = placements.filter { parseFolderChildId(it.id) == null && it.id != dragFolderId }
+                            val hoveredMerge = topLevel.firstOrNull { geom.rect(it).contains(dragCentre) }
+                            val inZone = hoveredMerge != null && inMergeZone(geom.rect(hoveredMerge), dragCentre)
+                            // Same intent-gating as the ordinary top-level merge
+                            // above (FR-3.3): a moving finger passing through a
+                            // neighbour's merge zone on its way somewhere else
+                            // must not commit to a merge — only a dwell of
+                            // [mergeDwellMs] while the centre stays put does. Without
+                            // this, since the zone is 56%x56% of every tile and
+                            // tiles sit only a few dp apart, almost any release
+                            // point on the way to a specific spot lands inside
+                            // *some* tile's zone, leaving no real way to just
+                            // place the tile next to one without merging into it.
+                            if (inZone) {
+                                if (pulledOutDwellId != hoveredMerge!!.id ||
+                                    (pos - pulledOutDwellAnchor).getDistance() > dwellMoveTol
+                                ) {
+                                    pulledOutDwellId = hoveredMerge.id
+                                    pulledOutDwellAnchor = pos
+                                    pulledOutDwellStartMs = change.uptimeMillis
+                                }
+                            } else {
+                                pulledOutDwellId = null
+                            }
+                            val pulledOutDwelled = inZone &&
+                                change.uptimeMillis - pulledOutDwellStartMs >= mergeDwellMs
+                            val pulledOutMergeNow = inZone && (pulledOutDwelled || pulledOutMergeId == hoveredMerge?.id)
+                            if (pulledOutMergeNow) {
+                                if (pulledOutMergeId != hoveredMerge!!.id) {
+                                    pulledOutMergeId = hoveredMerge.id
+                                    onMergeTarget(hoveredMerge.id)
+                                }
+                                pulledOutTargetId = null
+                                if (pulledOutSlot != null) {
+                                    pulledOutSlot = null
+                                    if (slotOf != null) onStickyPreview(emptyMap())
+                                }
+                                // Entering a merge: the dense-mode order-splice
+                                // preview (if any) must revert too — the same
+                                // reason the sticky push-down preview above is
+                                // cleared, no push-down/reflow preview applies
+                                // while merging.
+                                if (pulledOutDenseSpliced) {
+                                    onFolderChildDensePreviewClear(startId)
+                                    pulledOutDenseSpliced = false
+                                    pulledOutDenseTarget = null
+                                }
+                            } else {
+                                if (pulledOutMergeId != null) { pulledOutMergeId = null; onMergeTarget(null) }
+                                if (slotOf != null) {
+                                    val childSize = byId[startId]?.size ?: TileSize.SMALL
+                                    val w = childSize.cols.coerceAtMost(columns)
+                                    val cell = geom.cellAt(pos - grab, columns, w)
+                                    pulledOutSlot = GridPacker.encodeSlot(cell.x, cell.y)
+                                    pulledOutTargetId = null
+                                    val anchored = order.mapNotNull { id ->
+                                        val t = byId[id] ?: return@mapNotNull null
+                                        val slot = t.gridSlot ?: return@mapNotNull null
+                                        TilePlacement(id, t.size, GridPacker.decodeSlotCol(slot), GridPacker.decodeSlotRow(slot))
+                                    }
+                                    onStickyPreview(
+                                        GridPacker.stickyPlacement(anchored, startId, childSize, cell.x, cell.y, columns),
+                                    )
+                                } else {
+                                    // Dense mode: live-splice the child into the
+                                    // real top-level `order` at the hovered
+                                    // position — the drop counterpart of
+                                    // pulledOutTargetId (still tracked below for
+                                    // the final release-time
+                                    // FolderChildDropTarget), but *also* fed
+                                    // back into `order` so GridPacker.pack
+                                    // repacks the surrounding real tiles around
+                                    // it right now, mirroring the live reflow an
+                                    // ordinary top-level reorder gets for free.
+                                    // Only re-spliced when the hovered target id
+                                    // actually changes (same debounce as
+                                    // lastTarget/onReorderTo), not every tick.
+                                    val target = topLevel.firstOrNull { geom.rect(it).contains(pos) }?.id
+                                    if (target != null) {
+                                        pulledOutTargetId = target
+                                        if (!pulledOutDenseSpliced || target != pulledOutDenseTarget) {
+                                            pulledOutDenseTarget = target
+                                            pulledOutDenseSpliced = true
+                                            onFolderChildDensePreview(startId, target)
+                                        }
+                                    } else {
+                                        // No tile under the finger this tick —
+                                        // mirrors the ordinary top-level reorder
+                                        // below: only treat this as "the trailing
+                                        // empty region, append at the end" once
+                                        // the finger is genuinely past the bottom
+                                        // of all content. Otherwise (a miss in an
+                                        // interior gap — e.g. the few dp seam
+                                        // between two tiles, very easy to clip
+                                        // right as the finger lifts to release)
+                                        // leave the current target/splice exactly
+                                        // as it was; without this, a momentary
+                                        // release-time jitter into a seam would
+                                        // silently downgrade a perfectly good
+                                        // drop into "always lands at the bottom."
+                                        val contentBottom = topLevel.maxOfOrNull { geom.rect(it).bottom } ?: 0f
+                                        if (pos.y > contentBottom) {
+                                            pulledOutTargetId = null
+                                            if (!pulledOutDenseSpliced || pulledOutDenseTarget != null) {
+                                                pulledOutDenseTarget = null
+                                                pulledOutDenseSpliced = true
+                                                onFolderChildDensePreview(startId, null)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     } else if (slotOf != null && startId != null) {
                         // Sticky mode: the tile floats to wherever the finger drops
@@ -3845,7 +4145,22 @@ private fun Modifier.editDragGesture(
                 when {
                     lifted || draggingId() != null -> {
                         if (startId != null && parseFolderChildId(startId) != null) {
-                            onFolderChildDrop()
+                            if (pulledOut) {
+                                val target = when {
+                                    pulledOutMergeId != null -> FolderChildDropTarget.Merge(pulledOutMergeId!!)
+                                    pulledOutSlot != null -> FolderChildDropTarget.Cell(pulledOutSlot!!)
+                                    else -> FolderChildDropTarget.Position(pulledOutTargetId)
+                                }
+                                onFolderChildPulledOut(startId, target)
+                                // Tear down the dense-mode live-splice preview
+                                // now that the real write has been dispatched —
+                                // the eventual real top-level tile gets a brand
+                                // new DB id, never this synthetic one, so it
+                                // must not linger in `order` past this gesture.
+                                if (pulledOutDenseSpliced) onFolderChildDensePreviewClear(startId)
+                            } else {
+                                onFolderChildDrop()
+                            }
                         } else if (slotOf != null && mergeId == null) {
                             startId?.let { onStickyDrop(it, pendingSlot) }
                         }
@@ -3982,6 +4297,7 @@ private fun AppTileContent(
                 interactive = interactive,
                 fallback = staticGlyph,
                 modifier = Modifier.fillMaxSize(),
+                size = tile.size,
             )
             return
         }
@@ -4007,6 +4323,7 @@ private fun AppTileContent(
                         )
                     },
                     modifier = Modifier.fillMaxSize(),
+                    size = tile.size,
                 )
                 return
             }

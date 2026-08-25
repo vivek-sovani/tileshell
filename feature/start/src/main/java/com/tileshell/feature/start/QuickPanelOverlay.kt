@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.tileshell.core.design.ColorTokens
 import com.tileshell.core.design.Glass
+import com.tileshell.core.design.isLightBackground
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
@@ -891,7 +892,10 @@ private fun QuickPanelTile(
     modifier: Modifier = Modifier,
 ) {
     val bg = if (tile.active) accent else tokens.chip
-    val fg = if (tile.active) Color.White else tokens.fgDim
+    // An active tile's text must adapt to its own accent fill (not just the
+    // panel's overall background lightness, which panelFg tracks) — a
+    // wallpaper-derived accent can be light even on a dark panel.
+    val fg = if (tile.active) Glass.faceTextColor(useDarkText = isLightBackground(accent)) else tokens.fgDim
     val haptics = LocalHapticFeedback.current
     Column(
         modifier = modifier

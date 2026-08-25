@@ -1015,6 +1015,58 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Drag-pulled a folder child out onto the top-level grid (dense/free
+     * arrangement): inserts it as a new top-level tile right where
+     * [beforeId] currently sits (or appended at the end when [beforeId] is
+     * null/no longer present — an empty-area drop), instead of always
+     * appending to the bottom like the tap-× shortcut ([removeFolderChild]).
+     * [beforeId]'s position is read fresh from [tiles] rather than trusting
+     * the caller's own copy of the order, so it can't have drifted stale.
+     */
+    fun pullFolderChildToPosition(folderId: String, child: FolderChild, beforeId: String?) {
+        val newTileId = "pin-${child.packageName}-${System.currentTimeMillis()}"
+        val reorderedIds = insertBeforeTarget(tiles.value.map { it.id }, newTileId, beforeId)
+        viewModelScope.launch(writeContext) {
+            repository.placeFolderChildAtTopLevel(folderId, child, newTileId, reorderedIds = reorderedIds)
+        }
+    }
+
+    /**
+     * Drag-pulled a folder child out onto a sticky/free-arrangement grid cell
+     * ([slot], see [GridPacker.encodeSlot]) — mirrors [setTileGridSlot]'s
+     * push-down for a tile that doesn't exist yet: [stickySlotsForPlacement]
+     * is computed as if a fresh tile were already anchored there, and every
+     * tile it displaces is written alongside the new tile's own resolved
+     * slot, all in one go.
+     */
+    fun pullFolderChildToSlot(folderId: String, child: FolderChild, slot: Int) {
+        val newTileId = "pin-${child.packageName}-${System.currentTimeMillis()}"
+        val finalSlots = stickySlotsForPlacement(
+            movedId = newTileId,
+            size = child.size,
+            targetCol = GridPacker.decodeSlotCol(slot),
+            targetRow = GridPacker.decodeSlotRow(slot),
+        )
+        viewModelScope.launch(writeContext) {
+            repository.placeFolderChildAtTopLevel(folderId, child, newTileId, gridSlot = finalSlots[newTileId])
+            finalSlots.filterKeys { it != newTileId }.forEach { (id, s) -> repository.setTileGridSlot(id, s) }
+        }
+    }
+
+    /**
+     * Drag-pulled a folder child out onto another top-level tile's merge
+     * zone — the drag-out counterpart of [merge]: [child] (still inside
+     * [folderId] until this commits) is folded into [targetId] exactly like
+     * an ordinary top-level drag-merge would.
+     */
+    fun pullFolderChildIntoMerge(folderId: String, child: FolderChild, targetId: String) {
+        val survivingOrder = tiles.value.map { it.id }
+        viewModelScope.launch(writeContext) {
+            repository.mergeFolderChildIntoTile(folderId, child, targetId, survivingOrder)
+        }
+    }
+
+    /**
      * Resize a folder child. Cycles the full small→medium→wide→large steps (same
      * as a top-level tile — see [AppCategories.allowsLargeTile]). A LARGE child is
      * a widget-stack member, so resizing it collapses the stack back to a normal

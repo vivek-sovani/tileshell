@@ -71,14 +71,20 @@ data class NotificationImages(
 )
 
 /**
- * What a tile does when its live notification is tapped: open the newest
- * notification's [contentIntent] (jumping straight to the relevant screen inside
- * the app) and clear that app's notifications by cancelling [keys]. Holds live
- * framework objects, so it is kept out of the pure [summarizeNotifications] path
- * and the recomposition-driving [NotificationSnapshot].
+ * What a tile does when its live notification is tapped: open a notification's
+ * [contentIntent] (jumping straight to the relevant screen inside the app) — the
+ * newest one by default, or whichever specific one [itemIntents] says the face was
+ * actually showing at tap time — and clear that app's notifications by cancelling
+ * [keys]. Holds live framework objects, so it is kept out of the pure
+ * [summarizeNotifications] path and the recomposition-driving [NotificationSnapshot].
+ *
+ * @property itemIntents every dismissable, non-summary notification's own content
+ *   intent, keyed by [NotificationActionRow.key] — lets a tap open the specific
+ *   notification the cycling back face was displaying, not just the newest.
  */
 data class TileNotificationAction(
     val contentIntent: PendingIntent?,
+    val itemIntents: Map<String, PendingIntent?>,
     val keys: List<String>,
 )
 
@@ -163,6 +169,21 @@ object NotificationCenter {
     @Volatile private var actions: Map<String, TileNotificationAction> = emptyMap()
     @Volatile private var listener: NotificationListenerService? = null
 
+    // The notification key each cycling back face is CURRENTLY showing per package,
+    // reported by ConversationTileFace/NotificationTileFace on every step (and
+    // cleared back to null whenever the front/count face is showing instead) — so a
+    // tap opens whichever specific notification was actually on screen at that
+    // moment, not always the newest. Same imperative, non-StateFlow pattern as
+    // [actions]/[listener] above, for the same reason.
+    @Volatile private var displayedKeys: Map<String, String> = emptyMap()
+
+    /** Records which notification a cycling face is currently displaying for
+     * [packageName], or clears it (pass null) once that face returns to its
+     * front/count face — called from the tile face composables, not user code. */
+    fun reportDisplayedKey(packageName: String, key: String?) {
+        displayedKeys = if (key == null) displayedKeys - packageName else displayedKeys + (packageName to key)
+    }
+
     fun publish(snapshot: NotificationSnapshot) {
         _snapshot.value = snapshot
     }
@@ -208,7 +229,17 @@ object NotificationCenter {
      */
     fun openAndClear(context: Context, packageName: String): Boolean {
         val action = actions[packageName] ?: return false
-        val opened = action.contentIntent?.let { intent -> sendContentIntent(context, intent) } ?: false
+        // Prefer whichever notification the cycling face was actually showing —
+        // falling back to the newest whenever nothing was reported, or the
+        // reported key belongs to a notification that's no longer in this action
+        // (already cleared / superseded since it was last displayed).
+        val preferredKey = displayedKeys[packageName]
+        val intent = if (preferredKey != null && action.itemIntents.containsKey(preferredKey)) {
+            action.itemIntents[preferredKey]
+        } else {
+            action.contentIntent
+        }
+        val opened = intent?.let { sendContentIntent(context, it) } ?: false
         listener?.let { service ->
             if (action.keys.isNotEmpty()) {
                 runCatching { service.cancelNotifications(action.keys.toTypedArray()) }
@@ -236,6 +267,7 @@ object NotificationCenter {
         actions = emptyMap()
         _images.value = emptyMap()
         _itemImages.value = emptyMap()
+        displayedKeys = emptyMap()
     }
 }
 
@@ -256,6 +288,10 @@ fun tileNotificationActions(
             ?: list.first()
         TileNotificationAction(
             contentIntent = newest.contentIntent,
+            // Same non-summary rows summarizeNotifications hands out as
+            // ConversationItem.notificationKey for the cycling face — so a key
+            // reported as "currently displayed" always resolves here.
+            itemIntents = list.filterNot { it.isGroupSummary }.associate { it.key to it.contentIntent },
             keys = list.map { it.key },
         )
     }

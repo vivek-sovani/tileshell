@@ -319,11 +319,21 @@ private fun ClockFront(face: ClockFace, size: TileSize) {
     // centred, width-safe layout instead, spread across whatever row height the
     // tile has via SpaceEvenly (COLUMN's 4 rows get roomier gaps than TALL's 2).
     val narrow = size.narrowLive
+    // WIDE_SMALL/BANNER: one grid row tall. [clockFaceScale]'s continuous
+    // height-based scale is calibrated off a 2-row tile's reference height and
+    // floors at 0.6x — at 5/6 columns (denser grid, so every cell, including a
+    // 1-row one, is smaller again) that floor stops it shrinking far enough,
+    // clipping the date line. Fixed, already-small sizes — the same approach
+    // that fixed weather/calendar's identical squeeze — sidestep the floor
+    // entirely instead of trying to lower it further.
+    val short = size.shortLive
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val scale = clockFaceScale(maxHeight)
-        val timeSize = (if (narrow) 20f else if (big) 64f else 42f).sp * scale
+        val timeSize = if (short) 24.sp else (if (narrow) 20f else if (big) 64f else 42f).sp * scale
         Column(
-            modifier = Modifier.fillMaxSize().padding((if (narrow) 4f else 11f).dp * scale),
+            modifier = Modifier.fillMaxSize().padding(
+                if (short) 4.dp else (if (narrow) 4f else 11f).dp * scale,
+            ),
             verticalArrangement = if (narrow) Arrangement.SpaceEvenly else Arrangement.Center,
             horizontalAlignment = if (narrow) Alignment.CenterHorizontally else Alignment.End,
         ) {
@@ -344,11 +354,11 @@ private fun ClockFront(face: ClockFace, size: TileSize) {
                     ),
                 ),
             )
-            if (!narrow) Spacer(Modifier.height(4.dp * scale))
+            if (!narrow && !short) Spacer(Modifier.height(4.dp * scale))
             Text(
                 text = if (narrow) face.weekday.take(3) else face.weekday,
                 color = FaceText,
-                fontSize = (if (narrow) 13f else 15f).sp * scale,
+                fontSize = if (short) 10.sp else (if (narrow) 13f else 15f).sp * scale,
                 maxLines = 1,
                 overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
                 textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
@@ -356,7 +366,7 @@ private fun ClockFront(face: ClockFace, size: TileSize) {
             Text(
                 text = face.fullDate,
                 color = FaceText.copy(alpha = 0.82f),
-                fontSize = (if (narrow) 11f else 12f).sp * scale,
+                fontSize = if (short) 9.sp else (if (narrow) 11f else 12f).sp * scale,
                 maxLines = if (narrow) 2 else 1,
                 overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
                 textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
@@ -368,12 +378,18 @@ private fun ClockFront(face: ClockFace, size: TileSize) {
 @Composable
 private fun ClockBack(face: ClockFace, size: TileSize) {
     val narrow = size.narrowLive
+    // See ClockFront's comment: fixed, already-small sizes for a single-row
+    // tile instead of relying on clockFaceScale's floor, which doesn't shrink
+    // far enough at 5/6 columns.
+    val short = size.shortLive
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val scale = clockFaceScale(maxHeight)
-        val bigSize = (if (narrow) 20f else 30f).sp * scale
-        val smallSize = (if (narrow) 10f else 12f).sp * scale
+        val bigSize = if (short) 16.sp else (if (narrow) 20f else 30f).sp * scale
+        val smallSize = if (short) 9.sp else (if (narrow) 10f else 12f).sp * scale
         Column(
-            modifier = Modifier.fillMaxSize().padding((if (narrow) 4f else 11f).dp * scale),
+            modifier = Modifier.fillMaxSize().padding(
+                if (short) 4.dp else (if (narrow) 4f else 11f).dp * scale,
+            ),
             verticalArrangement = if (narrow) Arrangement.SpaceEvenly else Arrangement.Center,
             horizontalAlignment = if (narrow) Alignment.CenterHorizontally else Alignment.End,
         ) {
@@ -393,7 +409,7 @@ private fun ClockBack(face: ClockFace, size: TileSize) {
                     overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
                     textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
                 )
-                if (!narrow) Spacer(Modifier.height(2.dp * scale))
+                if (!narrow && !short) Spacer(Modifier.height(2.dp * scale))
                 Text(
                     text = face.alarm,
                     color = FaceText,
@@ -405,7 +421,7 @@ private fun ClockBack(face: ClockFace, size: TileSize) {
                     overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
                     textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
                 )
-                if (!narrow) Spacer(Modifier.height(8.dp * scale))
+                if (!narrow && !short) Spacer(Modifier.height(8.dp * scale))
                 Text(
                     // The reminder/alarm's own date, not necessarily today's — e.g. an
                     // alarm set for the 25th while today is the 23rd shows "25 ...".

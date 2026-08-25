@@ -87,6 +87,82 @@ class LayoutRepository(
         )
 
     /**
+     * Pull one app out of a folder and place it as a top-level tile exactly
+     * where a drag released it (contrast [removeFolderChild], which always
+     * appends to the bottom). [gridSlot] anchors it directly (sticky/free
+     * arrangement); [reorderedIds], when given, is persisted as the complete
+     * final top-level order (dense arrangement's drop-insertion point — see
+     * `insertBeforeTarget` in `:feature:start`).
+     */
+    suspend fun placeFolderChildAtTopLevel(
+        folderId: String,
+        child: FolderChild,
+        newTileId: String,
+        gridSlot: Int? = null,
+        reorderedIds: List<String>? = null,
+    ) = dao.placeFolderChildAtTopLevel(
+        folderId = folderId,
+        rowId = child.rowId,
+        newTileId = newTileId,
+        newTileColorId = TileColors.defaultIdFor(child.packageName),
+        gridSlot = gridSlot,
+        reorderedIds = reorderedIds,
+    )
+
+    /**
+     * Merge a folder child directly into another top-level tile (FR-3.3) —
+     * the drag-out counterpart of [mergeTiles]: [child] (still inside
+     * [folderId] until this commits) is treated as the "dragged" tile and
+     * [targetId] as the merge target, using the exact same [computeMerge]
+     * result-building [mergeTiles] does. [survivingOrder] is persisted the
+     * same way [mergeTiles] uses it, minus the "drop the dragged tile's own
+     * id" step — the pulled-out child was never a top-level tile to begin
+     * with, so there's nothing of its own to remove from the order.
+     */
+    suspend fun mergeFolderChildIntoTile(folderId: String, child: FolderChild, targetId: String, survivingOrder: List<String>) {
+        val tiles = dao.tilesOnce().map(::toModel)
+        val target = tiles.firstOrNull { it.id == targetId } ?: return
+        val dragged = TileModel.App(
+            id = "folder-child-$folderId-${child.rowId}",
+            position = 0,
+            size = child.size,
+            colorId = "blue",
+            packageName = child.packageName,
+            activityName = child.activityName,
+            label = child.label,
+            iconKey = child.iconKey,
+            accentOverride = child.accentOverride,
+        )
+
+        val result = computeMerge(dragged, target)
+        val folderTile = TileEntity(
+            id = target.id,
+            position = target.position,
+            size = result.size,
+            colorId = result.colorId,
+            type = TileEntity.TYPE_FOLDER,
+            folderId = result.folderId,
+            gridSlot = target.gridSlot,
+        )
+        val folder = FolderEntity(id = result.folderId, name = result.name, showAsStack = result.isStack)
+        val children = result.children.mapIndexed { index, c ->
+            FolderChildEntity(
+                folderId = result.folderId,
+                position = index,
+                packageName = c.packageName,
+                activityName = c.activityName,
+                label = c.label,
+                iconKey = c.iconKey,
+                size = c.size,
+                accentOverride = c.accentOverride,
+            )
+        }
+        val existing = tiles.mapTo(HashSet()) { it.id }
+        val ordered = survivingOrder.filter { it in existing }
+        dao.mergeFolderChildIntoTile(folderId, child.rowId, folderTile, folder, children, ordered)
+    }
+
+    /**
      * Merge the dragged tile onto the target (FR-3.3): the target becomes a
      * folder holding the de-duplicated union of both tiles' apps and the dragged
      * tile is removed. No-op if either id is missing or they are the same tile.

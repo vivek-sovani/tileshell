@@ -140,15 +140,18 @@ private fun CalendarDateColumn(today: CalendarToday, size: TileSize) {
     // lines above clip at that width, so narrow tiles get a centred, width-safe
     // layout instead, spread across whatever row height the tile has.
     val narrow = size.narrowLive
+    // WIDE_SMALL/BANNER: one grid row tall, plenty of width — same left-aligned
+    // stack as the default layout, just shrunk to fit one row instead of two.
+    val short = size.shortLive
     Column(
-        modifier = Modifier.fillMaxSize().padding(if (narrow) 4.dp else 11.dp),
+        modifier = Modifier.fillMaxSize().padding(if (narrow || short) 4.dp else 11.dp),
         verticalArrangement = if (narrow) Arrangement.SpaceEvenly else Arrangement.Center,
         horizontalAlignment = if (narrow) Alignment.CenterHorizontally else Alignment.Start,
     ) {
         Text(
             text = if (narrow) today.weekday.take(3) else today.weekday,
             color = FaceText,
-            fontSize = if (narrow) 12.sp else 14.sp,
+            fontSize = if (narrow) 12.sp else if (short) 11.sp else 14.sp,
             maxLines = 1,
             overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
             textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
@@ -156,8 +159,8 @@ private fun CalendarDateColumn(today: CalendarToday, size: TileSize) {
         Text(
             text = today.day.toString(),
             color = FaceText,
-            fontSize = if (narrow) 34.sp else if (big) 60.sp else 44.sp,
-            lineHeight = if (narrow) 34.sp else if (big) 60.sp else 44.sp,
+            fontSize = if (narrow) 34.sp else if (short) 26.sp else if (big) 60.sp else 44.sp,
+            lineHeight = if (narrow) 34.sp else if (short) 26.sp else if (big) 60.sp else 44.sp,
             fontWeight = FontWeight.ExtraLight,
             letterSpacing = (-2).sp,
             maxLines = 1,
@@ -167,7 +170,7 @@ private fun CalendarDateColumn(today: CalendarToday, size: TileSize) {
         Text(
             text = if (narrow) today.month.take(3) else today.month,
             color = FaceText.copy(alpha = 0.82f),
-            fontSize = if (narrow) 11.sp else 13.sp,
+            fontSize = if (narrow) 11.sp else if (short) 10.sp else 13.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
@@ -193,33 +196,34 @@ private fun CalendarDateColumn(today: CalendarToday, size: TileSize) {
 @Composable
 private fun CalendarFaceColumn(heading: String, event: CalendarEvent, size: TileSize = TileSize.MEDIUM) {
     val narrow = size.narrowLive
+    val short = size.shortLive
     Column(
-        modifier = Modifier.fillMaxSize().padding(if (narrow) 4.dp else 11.dp),
+        modifier = Modifier.fillMaxSize().padding(if (narrow || short) 4.dp else 11.dp),
         verticalArrangement = if (narrow) Arrangement.SpaceEvenly else Arrangement.Center,
         horizontalAlignment = if (narrow) Alignment.CenterHorizontally else Alignment.Start,
     ) {
         Text(
             text = heading,
             color = FaceText.copy(alpha = 0.82f),
-            fontSize = if (narrow) 11.sp else 12.sp,
+            fontSize = if (narrow) 11.sp else if (short) 10.sp else 12.sp,
             maxLines = 1,
             textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
         )
-        if (!narrow) Spacer(Modifier.height(3.dp))
+        if (!narrow && !short) Spacer(Modifier.height(3.dp))
         Text(
             text = event.title,
             color = FaceText,
-            fontSize = if (narrow) 14.sp else 16.sp,
+            fontSize = if (narrow) 14.sp else if (short) 13.sp else 16.sp,
             fontWeight = FontWeight.Medium,
-            maxLines = if (narrow) 3 else 2,
+            maxLines = if (narrow) 3 else if (short) 1 else 2,
             overflow = TextOverflow.Ellipsis,
             textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
         )
-        if (!narrow) Spacer(Modifier.height(3.dp))
+        if (!narrow && !short) Spacer(Modifier.height(3.dp))
         Text(
             text = event.timeLine,
             color = FaceText.copy(alpha = 0.82f),
-            fontSize = if (narrow) 11.sp else 12.sp,
+            fontSize = if (narrow) 11.sp else if (short) 10.sp else 12.sp,
             maxLines = if (narrow) 2 else 1,
             overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
             textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,

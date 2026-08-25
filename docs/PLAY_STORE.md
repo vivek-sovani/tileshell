@@ -144,6 +144,77 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
+## Release notes (v3.1.0)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+**Note:** almost entirely fixes and polish, plus one real feature (drag a folder child to
+any spot) and one widened rule (widget-stack eligibility) — per this doc's usual split,
+they're both surfaced above the fixes here rather than pushed to the changelog-only section,
+matching how a fix-heavy release (see v1.1.1) is handled.
+
+```
+TileShell 3.1.0
+
+• New: drag an app out of a folder straight to any spot on the grid
+• Changed: widget stacks now allow Wide Small and Banner sized tiles
+• Fixed: tapping a cycling notification tile opens the message shown, not always the newest
+• Fixed: weather, calendar, and Quick Panel tiles stay readable over a light wallpaper colour
+• Fixed: music/weather/calendar/clock tiles no longer clip text or controls at Wide Small/Banner size
+```
+
+*(Character count 452, under Play's 500 limit.)*
+
+### Full changelog since v3.0.0 (for reference — not the Play-facing blurb above)
+
+- **Drag an app out of a folder to a chosen spot**: alongside the existing tap-the-corner-×
+  unpin shortcut (which still always appends to the bottom), a folder child can now be
+  press-and-dragged out and dropped exactly where released — onto an empty cell (sticky/free
+  push-down, or dense-mode live reflow of the surrounding tiles), or onto another tile's merge
+  zone to fold into it, matching how every other tile move in this app already works. Three
+  real bugs were caught and fixed while building and verifying this on-device:
+  - The merge zone committed to a merge the instant the drag passed through it, with no
+    dwell — unlike every other merge in the app, which needs a deliberate ~250 ms pause. This
+    made it read as if dense mode only ever offered "merge" or "append at the bottom," since
+    almost any drag path toward a specific spot grazed some tile's merge zone along the way.
+  - Dense mode's drop preview had no live reflow — sticky mode already showed the other tiles
+    sliding out of the way as you dragged, but dense mode gave no visual feedback at all about
+    where the tile would land. Fixed by temporarily splicing the dragged child into the real
+    top-level tile order during the hover, the same mechanism an ordinary tile drag already
+    gets for free.
+  - The real root cause of "it still lands at the bottom sometimes": a client-side effect that
+    reconciles the on-screen tile order after each database write blindly appended any
+    brand-new tile id to the very end, discarding the specific position the database had
+    actually just written for it. Ordinary new pins never exposed this (appending is exactly
+    where they belong anyway) — this drag-out feature was the first case where a brand-new
+    tile needed to land in the middle of the grid.
+- **Widget stacks: Wide Small and Banner now allowed.** Stack eligibility required both tile
+  dimensions greater than one cell, which excluded these two single-row (but multi-column)
+  presets even though they have plenty of horizontal room. Loosened to "more than one column,"
+  so Wide Small/Banner folders can now become stacks too; Tall/Column (single-*column*) stay
+  excluded, since a one-cell-wide strip is still too cramped to swipe between.
+- **Notification tile tap mismatch, fixed.** A cycling mail/messages/notification tile
+  genuinely shows a different message every ~2.6s, but tapping it always opened the newest
+  one's screen regardless of which message was actually on display — the visual cycling and
+  the tap target were entirely disconnected. Fixed by having the tile report which specific
+  message it's currently showing, and opening exactly that one.
+- **Adaptive text colour for wallpaper-accented surfaces.** The glance screen's weather/
+  today/now-playing cards and the Quick Panel's active toggle tiles (wifi, bluetooth, theme,
+  etc.) always rendered white text over their accent fill — unreadable once that
+  wallpaper-derived accent turned out light. Both now pick dark or light text based on their
+  own fill's brightness, reusing the same contrast helper the feed page already uses elsewhere.
+- **Single-row tile fixes (Wide Small/Banner): music, weather, calendar, clock.** Each of
+  these live faces laid out its content as a stack of lines/controls that needed more height
+  than one grid row provides, so the last item — the music tile's play/pause/skip row, or the
+  weather/calendar tile's last text line — was silently clipped off. Music now switches to a
+  compact horizontal layout at this size; weather and calendar shrink their fonts and padding
+  to fit the same left-aligned stack in one row. Clock needed its own fix: it already
+  continuously scales its font size to its measured height, but that scale is floored at 60%
+  — fine at the default 4 columns, but at 5 or 6 columns (where every tile, including a
+  one-row one, is smaller again) the floor stopped it shrinking far enough, clipping the date
+  line specifically at higher column counts. Fixed with fixed, already-small sizes for this
+  one case instead of relying on the floored scale.
+
 ## Release notes (v3.0.0)
 
 *"What's new" — newest release first. Keep under Play's 500-character limit.*

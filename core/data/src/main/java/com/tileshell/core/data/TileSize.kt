@@ -72,16 +72,18 @@ enum class TileSize(val cols: Int, val rows: Int) {
         if (largeAllowed) next(largeAllowed = true) else if (this == SMALL) MEDIUM else SMALL
 
     /**
-     * Whether this size is roomy enough to be a widget-stack member: both
-     * dimensions greater than 1, i.e. not [SMALL] (1×1), [WIDE_SMALL] (2×1),
-     * [TALL] (1×2), [BANNER] (4×1), or [COLUMN] (1×4) — a single live tile
-     * face along a one-cell-thin strip reads too cramped to be worth swiping
-     * between. Originally a stack required uniform [WIDE] or [LARGE] members;
-     * widened to this broader "any roomy size" rule per user request (see
-     * docs/DECISIONS.md).
+     * Whether this size is roomy enough to be a widget-stack member: more
+     * than one column, i.e. not [SMALL] (1×1), [TALL] (1×2), or [COLUMN]
+     * (1×4) — a single live tile face squeezed into a one-cell-thin *column*
+     * reads too cramped to be worth swiping between. [WIDE_SMALL] (2×1) and
+     * [BANNER] (4×1) — single-row but multi-column — are allowed per user
+     * request: a wide single-row face has plenty of horizontal room even at
+     * one row tall. Originally a stack required uniform [WIDE] or [LARGE]
+     * members; widened to this broader "any roomy-enough size" rule per user
+     * request (see docs/DECISIONS.md).
      */
     val stackable: Boolean
-        get() = cols > 1 && rows > 1
+        get() = cols > 1
 
     /**
      * True for [TALL] and [COLUMN] — the same 1-column width as [SMALL] but with
@@ -93,4 +95,15 @@ enum class TileSize(val cols: Int, val rows: Int) {
      */
     val narrowLive: Boolean
         get() = cols == 1 && this != SMALL
+
+    /**
+     * True for [WIDE_SMALL] and [BANNER] — a single grid row tall but more
+     * than one column wide, the row-axis counterpart of [narrowLive]'s
+     * column-axis squeeze. A live face's normal stacked text (label/value/
+     * caption, each on its own line) needs roughly two rows' worth of height
+     * to avoid clipping the last line; live-face composables branch on this
+     * to shrink fonts/padding to fit comfortably within one row instead.
+     */
+    val shortLive: Boolean
+        get() = rows == 1 && cols > 1
 }

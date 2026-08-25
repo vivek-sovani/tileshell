@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableIntStateOf
@@ -72,6 +73,16 @@ fun NotificationTileFace(
     }
     val current = preview.items.getOrElse(itemIndex.intValue) {
         ConversationItem(sender = preview.sender, snippet = preview.snippet)
+    }
+    // Report which notification is actually on screen so a tap opens *that* one
+    // (see NotificationCenter.openAndClear) — only while the back face (this
+    // specific notification) is showing; the front/count face reverts it to null
+    // so a tap there still opens the newest, as before.
+    SideEffect {
+        NotificationCenter.reportDisplayedKey(
+            packageName,
+            if (flipped) current.notificationKey.ifEmpty { null } else null,
+        )
     }
     val imgs = itemImages[current.notificationKey] ?: fallbackImages[packageName]
 
