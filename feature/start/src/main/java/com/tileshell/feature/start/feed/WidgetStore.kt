@@ -33,6 +33,35 @@ data class HostedWidget(
 )
 
 /**
+ * Sentinel [HostedWidget.widgetId]s for the feed's built-in glance cards (weather,
+ * agenda, now-playing), which have no real `AppWidgetHost`-bound id — see
+ * `WidgetSlot.kt`'s `BuiltinCardView`. Negative so they can never collide with a
+ * real `AppWidgetHost.allocateAppWidgetId()` result (always ≥ 1); reusing the
+ * existing `HostedWidget`/`WidgetCodec`/packing/reorder machinery for them (rather
+ * than a parallel model) works because none of that logic actually requires
+ * `widgetId` to resolve to a real widget, only to be a stable unique `Int`.
+ */
+const val BUILTIN_WEATHER_WIDGET_ID = -1
+const val BUILTIN_AGENDA_WIDGET_ID = -2
+const val BUILTIN_NOWPLAYING_WIDGET_ID = -3
+private val BUILTIN_WIDGET_IDS = listOf(BUILTIN_WEATHER_WIDGET_ID, BUILTIN_AGENDA_WIDGET_ID, BUILTIN_NOWPLAYING_WIDGET_ID)
+
+/**
+ * Pure core of [WidgetStore.seedBuiltinsIfAbsent] — inserts any of the three
+ * built-in sentinel ids missing from [current], at the front, ahead of whatever's
+ * already there; a no-op (returns [current] unchanged) once all three exist.
+ * Weather and agenda default to half-width, now-playing to full width; `heightDp`
+ * is irrelevant for a built-in card (see [BUILTIN_WEATHER_WIDGET_ID]'s doc) so
+ * it's seeded as 0.
+ */
+internal fun seedMissingBuiltinWidgets(current: List<HostedWidget>): List<HostedWidget> {
+    val missing = BUILTIN_WIDGET_IDS.filterNot { id -> current.any { it.widgetId == id } }
+    if (missing.isEmpty()) return current
+    val seeded = missing.map { id -> HostedWidget(id, heightDp = 0, halfWidth = id != BUILTIN_NOWPLAYING_WIDGET_ID) }
+    return seeded + current
+}
+
+/**
  * The app widgets hosted in the feed's glance tab, in display order. Each carries a
  * user-adjustable height. Empty = none added. Kept in its own DataStore (mirroring
  * the other feed stores) so widgets survive relaunches.
@@ -154,6 +183,11 @@ class WidgetStore(private val store: DataStore<WidgetData>) {
      */
     suspend fun replaceAll(data: WidgetData) {
         store.updateData { data }
+    }
+
+    /** One-time migration — see [seedMissingBuiltinWidgets] for the actual logic. */
+    suspend fun seedBuiltinsIfAbsent() {
+        store.updateData { data -> data.copy(widgets = seedMissingBuiltinWidgets(data.widgets)) }
     }
 
     companion object {

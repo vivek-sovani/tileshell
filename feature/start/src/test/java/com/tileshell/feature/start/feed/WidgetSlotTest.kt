@@ -427,4 +427,73 @@ class WidgetSlotTest {
         val widgets = listOf(stacked(1, stackId = 1), stacked(2, stackId = 1), full(3))
         assertSame(widgets, reorderWidgets(widgets, dragId = 1, targetId = 2))
     }
+
+    // ---- seedMissingBuiltinWidgets (built-in glance card sentinel ids) --------
+
+    @Test
+    fun `seedMissingBuiltinWidgets inserts all three built-ins at the front on a fresh list`() {
+        val seeded = seedMissingBuiltinWidgets(emptyList())
+        assertEquals(
+            listOf(BUILTIN_WEATHER_WIDGET_ID, BUILTIN_AGENDA_WIDGET_ID, BUILTIN_NOWPLAYING_WIDGET_ID),
+            seeded.map { it.widgetId },
+        )
+        assertEquals(listOf(true, true, false), seeded.map { it.halfWidth })
+    }
+
+    @Test
+    fun `seedMissingBuiltinWidgets inserts missing built-ins ahead of existing hosted widgets`() {
+        val existing = listOf(full(7))
+        val seeded = seedMissingBuiltinWidgets(existing)
+        assertEquals(
+            listOf(BUILTIN_WEATHER_WIDGET_ID, BUILTIN_AGENDA_WIDGET_ID, BUILTIN_NOWPLAYING_WIDGET_ID, 7),
+            seeded.map { it.widgetId },
+        )
+    }
+
+    @Test
+    fun `seedMissingBuiltinWidgets is a no-op once all three already exist`() {
+        val existing = listOf(
+            HostedWidget(BUILTIN_WEATHER_WIDGET_ID, 0),
+            full(7),
+            HostedWidget(BUILTIN_AGENDA_WIDGET_ID, 0),
+            HostedWidget(BUILTIN_NOWPLAYING_WIDGET_ID, 0),
+        )
+        assertSame(existing, seedMissingBuiltinWidgets(existing))
+    }
+
+    @Test
+    fun `seedMissingBuiltinWidgets only inserts the ones actually missing`() {
+        val existing = listOf(HostedWidget(BUILTIN_WEATHER_WIDGET_ID, 0), full(7))
+        val seeded = seedMissingBuiltinWidgets(existing)
+        assertEquals(
+            listOf(BUILTIN_AGENDA_WIDGET_ID, BUILTIN_NOWPLAYING_WIDGET_ID, BUILTIN_WEATHER_WIDGET_ID, 7),
+            seeded.map { it.widgetId },
+        )
+    }
+
+    // ---- negative sentinel ids need no special-casing in packing/reordering ---
+
+    @Test
+    fun `packWidgetRows packs built-in sentinel ids exactly like any other widget`() {
+        val widgets = listOf(
+            HostedWidget(BUILTIN_WEATHER_WIDGET_ID, 0, halfWidth = true),
+            HostedWidget(BUILTIN_AGENDA_WIDGET_ID, 0, halfWidth = true),
+            HostedWidget(BUILTIN_NOWPLAYING_WIDGET_ID, 0, halfWidth = false),
+        )
+        val rows = packWidgetRows(widgets)
+        assertEquals(2, rows.size)
+        assertTrue(rows[0] is WidgetRow.Pair)
+        assertTrue(rows[1] is WidgetRow.Single)
+    }
+
+    @Test
+    fun `reorderWidgets moves a built-in sentinel id past a real hosted widget`() {
+        val widgets = listOf(
+            HostedWidget(BUILTIN_WEATHER_WIDGET_ID, 0, halfWidth = true),
+            HostedWidget(BUILTIN_AGENDA_WIDGET_ID, 0, halfWidth = true),
+            full(7),
+        )
+        val result = reorderWidgets(widgets, dragId = BUILTIN_WEATHER_WIDGET_ID, targetId = 7)
+        assertEquals(listOf(BUILTIN_AGENDA_WIDGET_ID, 7, BUILTIN_WEATHER_WIDGET_ID), ids(result))
+    }
 }

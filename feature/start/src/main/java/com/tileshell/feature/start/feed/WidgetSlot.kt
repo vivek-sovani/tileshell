@@ -89,6 +89,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tileshell.core.design.ColorTokens
+import com.tileshell.feature.livetiles.CalendarFace
+import com.tileshell.feature.livetiles.NowPlaying
+import com.tileshell.feature.livetiles.WeatherSnapshot
 import com.tileshell.feature.livetiles.rememberAppIconBitmap
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -403,17 +406,39 @@ private fun halfContentWidthDp(info: AppWidgetProviderInfo, widthDp: Int, densit
     maxOf(widthDp / 2, providerMinWidthDp(info, density)).coerceAtMost(widthDp)
 
 /**
- * Hosts any number of Android app widgets on the feed's glance tab. Self-contained:
- * owns an [AppWidgetHost] (started while composed), adds widgets through a custom
+ * Hosts any number of Android app widgets on the feed's glance tab, **plus** the
+ * three built-in glance cards (weather/agenda/now-playing) folded into the same
+ * ordered list — see [BUILTIN_WEATHER_WIDGET_ID] etc. Self-contained: owns an
+ * [AppWidgetHost] (started while composed), adds widgets through a custom
  * preview picker + the bind/configure flow (via activity-result launchers — the
  * composition is already activity-hosted, so `:app` needs no plumbing), persists the
  * bound ids + heights in [WidgetStore], and renders each live
  * [android.appwidget.AppWidgetHostView] through [AndroidView] at its stored height.
- * Each widget has resize (±) / edit / remove controls. All guarded — a device that
- * blocks third-party hosting just shows the "add a widget" prompt.
+ * All guarded — a device that blocks third-party hosting just shows the "add a
+ * widget" prompt.
+ *
+ * A single [editMode] toggle (see [FeedPage]'s "edit"/"done" header action, and
+ * Quick Panel's identically-shaped toggle) drives every card's resize/move handles
+ * at once — there's no more per-card "edit" tap-in.
  */
 @Composable
-fun WidgetSection(accent: Color, tokens: ColorTokens, labelColor: Color = tokens.fgDim) {
+fun WidgetSection(
+    accent: Color,
+    tokens: ColorTokens,
+    labelColor: Color = tokens.fgDim,
+    weatherSnapshot: WeatherSnapshot?,
+    onWeatherClick: () -> Unit,
+    agenda: CalendarFace,
+    calendarGranted: Boolean,
+    onAddSchedule: () -> Unit,
+    onAgendaClick: () -> Unit,
+    nowPlaying: NowPlaying?,
+    nowPlayingPackage: String?,
+    nowPlayingArt: Bitmap?,
+    onNowPlayingClick: (() -> Unit)?,
+    editMode: Boolean,
+    onEditModeChange: (Boolean) -> Unit,
+) {
     val context = LocalContext.current
     val appContext = context.applicationContext
     val host = remember { FeedAppWidgetHost(appContext, WIDGET_HOST_ID) }
@@ -547,8 +572,9 @@ fun WidgetSection(accent: Color, tokens: ColorTokens, labelColor: Color = tokens
     // survive that, so a reorder used to silently drop back out of edit mode.
     // State keyed by id in this stable parent survives regardless of which row
     // the widget ends up packed into.
+    LaunchedEffect(Unit) { store.seedBuiltinsIfAbsent() }
+
     val widgetBounds = remember { mutableStateMapOf<Int, Rect>() }
-    val editingIds = remember { mutableStateMapOf<Int, Boolean>() }
     var draggingId by remember { mutableStateOf<Int?>(null) }
     var dragDelta by remember { mutableStateOf(Offset.Zero) }
     var dragTargetId by remember { mutableStateOf<Int?>(null) }
@@ -570,6 +596,10 @@ fun WidgetSection(accent: Color, tokens: ColorTokens, labelColor: Color = tokens
         // Conditions for a merge; a miss on any of them means a plain reorder.
         dragMergeCandidate = when {
             rect == null || dragged == null || target == null -> false
+            // A built-in glance card (sentinel negative id — see BUILTIN_WEATHER_WIDGET_ID
+            // etc.) has no AppWidgetHost view to carousel, so it can never join or
+            // receive a stack; a drag involving one always just reorders.
+            dragged.widgetId < 0 || target.widgetId < 0 -> false
             // A drag that starts on a stack only ever reorders. Merging is per-widget,
             // so letting a stacked widget merge tore just its dragged member out of
             // the group and dissolved the rest — the stack appeared to fall apart
@@ -612,9 +642,23 @@ fun WidgetSection(accent: Color, tokens: ColorTokens, labelColor: Color = tokens
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionHeader("widgets", actionText = "add", accent = accent, labelColor = labelColor, showPlus = true, onAction = { showPicker = true })
+        SectionHeader(
+            "widgets", actionText = "add", accent = accent, labelColor = labelColor, showPlus = true, onAction = { showPicker = true },
+            secondaryActionText = if (editMode) "done" else "edit",
+            onSecondaryAction = { onEditModeChange(!editMode) },
+        )
 
-        val rows = remember(widgets.widgets) { packWidgetRows(widgets.widgets) }
+        // The now-playing built-in card keeps its reserved slot in the *persisted*
+        // order regardless of whether anything's playing right now — only the
+        // render pass drops it, so it reappears in the same relative position once
+        // playback resumes instead of losing its place in the list. Any half-width
+        // neighbor it was paired with just gets its own solo row for this pass,
+        // exactly like packWidgetRows already handles an orphaned half-width card.
+        val renderedWidgets = remember(widgets.widgets, nowPlaying) {
+            if (nowPlaying == null) widgets.widgets.filterNot { it.widgetId == BUILTIN_NOWPLAYING_WIDGET_ID }
+            else widgets.widgets
+        }
+        val rows = remember(renderedWidgets) { packWidgetRows(renderedWidgets) }
 
         // Only ids that currently own a rendered card belong in `widgetBounds`. A
         // stack reports one rect under its first member's id, so its other members
@@ -644,8 +688,8 @@ fun WidgetSection(accent: Color, tokens: ColorTokens, labelColor: Color = tokens
                     widget = hw,
                     widthDp = widthDp,
                     accent = accent,
-                    editing = editingIds[hw.widgetId] == true,
-                    onEditingChange = { open -> editingIds[hw.widgetId] = open },
+                    editing = editMode,
+                    onEditingChange = { onEditModeChange(false) },
                     isDragging = draggingId == hw.widgetId,
                     dragOffset = if (draggingId == hw.widgetId) dragDelta else Offset.Zero,
                     isMergeTarget = dragTargetId == hw.widgetId && dragMergeCandidate,
@@ -681,8 +725,8 @@ fun WidgetSection(accent: Color, tokens: ColorTokens, labelColor: Color = tokens
                     members = members,
                     widthDp = widthDp,
                     accent = accent,
-                    editing = editingIds[anchor.widgetId] == true,
-                    onEditingChange = { open -> editingIds[anchor.widgetId] = open },
+                    editing = editMode,
+                    onEditingChange = { onEditModeChange(false) },
                     isDragging = draggingId == anchor.widgetId,
                     dragOffset = if (draggingId == anchor.widgetId) dragDelta else Offset.Zero,
                     isMergeTarget = dragTargetId == anchor.widgetId && dragMergeCandidate,
@@ -707,13 +751,62 @@ fun WidgetSection(accent: Color, tokens: ColorTokens, labelColor: Color = tokens
             }
         }
 
-        // A card is a lone widget or a whole stack; both take part in row packing the
-        // same way, so a half-width stack shares its row with a neighbour instead of
-        // leaving dead space beside it.
+        @Composable
+        fun builtinCardView(hw: HostedWidget, modifier: Modifier, content: @Composable () -> Unit) {
+            key(hw.widgetId) {
+                BuiltinCardView(
+                    id = hw.widgetId,
+                    halfWidth = hw.halfWidth,
+                    widthDp = widthDp,
+                    accent = accent,
+                    editing = editMode,
+                    isDragging = draggingId == hw.widgetId,
+                    dragOffset = if (draggingId == hw.widgetId) dragDelta else Offset.Zero,
+                    onDragStart = {
+                        draggingId = hw.widgetId
+                        dragDelta = Offset.Zero
+                        dragTargetId = null
+                        dragMergeCandidate = false
+                    },
+                    onDragBy = { delta -> onWidgetDragBy(hw.widgetId, delta) },
+                    onDragEnd = { onWidgetDragEnd(hw.widgetId) },
+                    onBoundsChanged = { rect -> widgetBounds[hw.widgetId] = rect },
+                    onResize = { newHalf -> scope.launch { store.setSize(hw.widgetId, heightDp = 0, halfWidth = newHalf) } },
+                    onDismiss = { onEditModeChange(false) },
+                    modifier = modifier,
+                    content = content,
+                )
+            }
+        }
+
+        // A card is a lone widget, a whole stack, or one of the three built-in
+        // glance cards (sentinel negative id — see BUILTIN_WEATHER_WIDGET_ID); all
+        // take part in row packing the same way, so a half-width stack (or a
+        // built-in) shares its row with a neighbour instead of leaving dead space
+        // beside it.
         @Composable
         fun cardView(card: WidgetCard, modifier: Modifier) {
             when (card) {
-                is WidgetCard.Solo -> widgetView(card.widget, modifier)
+                is WidgetCard.Solo -> when (card.widget.widgetId) {
+                    BUILTIN_WEATHER_WIDGET_ID -> builtinCardView(card.widget, modifier) {
+                        WeatherCard(snapshot = weatherSnapshot, accent = accent, onClick = onWeatherClick)
+                    }
+                    BUILTIN_AGENDA_WIDGET_ID -> builtinCardView(card.widget, modifier) {
+                        AgendaCard(
+                            agenda = agenda, granted = calendarGranted, accent = accent,
+                            onAddSchedule = onAddSchedule, onClick = onAgendaClick,
+                        )
+                    }
+                    // renderedWidgets already drops this sentinel whenever nowPlaying is
+                    // null, so it's always non-null by the time this branch renders.
+                    BUILTIN_NOWPLAYING_WIDGET_ID -> builtinCardView(card.widget, modifier) {
+                        NowPlayingCard(
+                            nowPlaying = nowPlaying!!, packageName = nowPlayingPackage,
+                            art = nowPlayingArt, accent = accent, onClick = onNowPlayingClick,
+                        )
+                    }
+                    else -> widgetView(card.widget, modifier)
+                }
                 is WidgetCard.Stack -> stackView(card.members, modifier)
             }
         }
@@ -815,23 +908,6 @@ private fun WidgetHostedView(
     }
 }
 
-/** The always-visible "edit" affordance at a card's top-right corner. */
-@Composable
-private fun BoxScope.WidgetEditPill(onClick: () -> Unit) {
-    Text(
-        "edit",
-        color = Color.White.copy(alpha = 0.55f),
-        fontSize = 11.sp,
-        modifier = Modifier
-            .align(Alignment.TopEnd)
-            .padding(8.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(Color.Black.copy(alpha = 0.20f))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 9.dp, vertical = 4.dp),
-    )
-}
-
 /**
  * Accent outline drawn over a card that a drag is currently hovering in "merge"
  * position — releasing here groups the two into a widget stack rather than
@@ -871,12 +947,22 @@ private fun BoxScope.MergeTargetHighlight(accent: Color) {
 private fun BoxScope.WidgetEditOverlay(
     accent: Color,
     dragKey: Int,
-    info: AppWidgetProviderInfo,
+    /** Null for a built-in glance card (weather/agenda/now-playing — see cardsOf's
+     *  sentinel-id integration), which has no real AppWidgetHost provider. Only
+     *  gates the "edit"/reconfigure pill and the width-drag provider-minimum floor;
+     *  everything else (drag, resize handles, remove) works identically either way. */
+    info: AppWidgetProviderInfo?,
     halfWidthDp: Int,
     fullWidthDp: Int,
     liveWidthState: MutableState<Int>,
     liveHeightState: MutableState<Int>,
     currentHalfWidth: () -> Boolean,
+    /** False for a built-in glance card (B6: fixed content-sized height, not
+     *  drag-resizable) — hides the height and corner (both-axes) handles, leaving
+     *  only the width handle. */
+    resizableHeight: Boolean = true,
+    /** False for a built-in glance card — it can be reordered/resized but never removed. */
+    removable: Boolean = true,
     onResize: (heightDp: Int, halfWidth: Boolean) -> Unit,
     onDragStart: () -> Unit,
     onDragBy: (Offset) -> Unit,
@@ -933,8 +1019,8 @@ private fun BoxScope.WidgetEditOverlay(
                 modifier = Modifier.padding(start = 8.dp),
             ) {
                 extraActions()
-                if (info.configure != null) EditPill("edit", accent) { onEdit(info) }
-                EditPill("remove", Color(0xFFD6262B)) { onRemove() }
+                if (info != null && info.configure != null) EditPill("edit", accent) { onEdit(info) }
+                if (removable) EditPill("remove", Color(0xFFD6262B)) { onRemove() }
             }
         }
         // Three independent resize handles — bottom edge (height only), right edge
@@ -944,24 +1030,28 @@ private fun BoxScope.WidgetEditOverlay(
         // halfWidthDp and fullWidthDp for smooth visual feedback, but only those two
         // sizes are ever persisted — crossing the midpoint on release flips the
         // half/full classification (and the row's pairing) rather than storing an
-        // arbitrary in-between width.
-        val widthFloor = maxOf(WIDGET_MIN_H, providerMinWidthDp(info, density))
+        // arbitrary in-between width. A built-in glance card has no provider to floor
+        // against and (per resizableHeight) no height/corner handles at all — only
+        // its width can be dragged, between a fixed half/full pair.
+        val widthFloor = maxOf(WIDGET_MIN_H, info?.let { providerMinWidthDp(it, density) } ?: WIDGET_MIN_H)
         fun settleWidth(): Boolean {
             val midpoint = (halfWidthDp + fullWidthDp) / 2f
             val newHalf = liveWidth < midpoint
             liveWidth = if (newHalf) halfWidthDp else fullWidthDp
             return newHalf
         }
-        ResizeHandle(
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
-            width = 32.dp,
-            height = 4.dp,
-            widgetId = dragKey,
-            onDrag = { _, dy ->
-                liveHeight = (liveHeight + dy / density).roundToInt().coerceIn(WIDGET_MIN_H, WIDGET_MAX_H)
-            },
-            onDragEnd = { onResize(liveHeight, currentHalfWidth()) },
-        )
+        if (resizableHeight) {
+            ResizeHandle(
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
+                width = 32.dp,
+                height = 4.dp,
+                widgetId = dragKey,
+                onDrag = { _, dy ->
+                    liveHeight = (liveHeight + dy / density).roundToInt().coerceIn(WIDGET_MIN_H, WIDGET_MAX_H)
+                },
+                onDragEnd = { onResize(liveHeight, currentHalfWidth()) },
+            )
+        }
         ResizeHandle(
             modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp),
             width = 4.dp,
@@ -972,15 +1062,17 @@ private fun BoxScope.WidgetEditOverlay(
             },
             onDragEnd = { onResize(liveHeight, settleWidth()) },
         )
-        CornerArcHandle(
-            modifier = Modifier.align(Alignment.BottomEnd),
-            widgetId = dragKey,
-            onDrag = { dx, dy ->
-                liveWidth = (liveWidth + dx / density).roundToInt().coerceIn(widthFloor, fullWidthDp)
-                liveHeight = (liveHeight + dy / density).roundToInt().coerceIn(WIDGET_MIN_H, WIDGET_MAX_H)
-            },
-            onDragEnd = { onResize(liveHeight, settleWidth()) },
-        )
+        if (resizableHeight) {
+            CornerArcHandle(
+                modifier = Modifier.align(Alignment.BottomEnd),
+                widgetId = dragKey,
+                onDrag = { dx, dy ->
+                    liveWidth = (liveWidth + dx / density).roundToInt().coerceIn(widthFloor, fullWidthDp)
+                    liveHeight = (liveHeight + dy / density).roundToInt().coerceIn(WIDGET_MIN_H, WIDGET_MAX_H)
+                },
+                onDragEnd = { onResize(liveHeight, settleWidth()) },
+            )
+        }
     }
 }
 
@@ -1047,7 +1139,6 @@ private fun WidgetView(
             )
 
             if (isMergeTarget) MergeTargetHighlight(accent)
-            if (!editing) WidgetEditPill { onEditingChange(true) }
 
             if (editing) {
                 WidgetEditOverlay(
@@ -1066,6 +1157,80 @@ private fun WidgetView(
                     onEdit = onEdit,
                     onRemove = onRemove,
                     onDismiss = { onEditingChange(false) },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * One of the feed's three built-in glance cards (weather/agenda/now-playing —
+ * sentinel [HostedWidget.widgetId], see [BUILTIN_WEATHER_WIDGET_ID]) participating
+ * in the same drag/resize/persistence machinery as a real hosted widget, minus
+ * everything [AppWidgetHost]-specific: no [WidgetHostedView], no
+ * [rememberWidgetInfo] (there's no provider to resolve), and — unlike [WidgetView]
+ * — never a merge/stack target (a built-in card has no carousel to join; see the
+ * `dragged.widgetId < 0` guard in [WidgetSection]'s merge-candidate check). Its
+ * [content] is whichever of `WeatherCard`/`AgendaCard`/`NowPlayingCard`
+ * (`FeedPage.kt`) the caller supplies. Mirrors [WidgetView]'s own shape closely so
+ * the two read as one family.
+ */
+@Composable
+private fun BuiltinCardView(
+    id: Int,
+    halfWidth: Boolean,
+    widthDp: Int,
+    accent: Color,
+    editing: Boolean,
+    isDragging: Boolean,
+    dragOffset: Offset,
+    onDragStart: () -> Unit,
+    onDragBy: (Offset) -> Unit,
+    onDragEnd: () -> Unit,
+    onBoundsChanged: (Rect) -> Unit,
+    onResize: (halfWidth: Boolean) -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    val halfWidthDp = widthDp / 2
+    val fullWidthDp = widthDp
+    val liveWidthState = remember(halfWidth, widthDp) { mutableStateOf(if (halfWidth) halfWidthDp else fullWidthDp) }
+    val liveWidth by liveWidthState
+    // Never actually dragged (resizableHeight = false below) — a fixed placeholder
+    // satisfies WidgetEditOverlay's shared liveHeightState contract.
+    val liveHeightState = remember { mutableStateOf(0) }
+
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .width(liveWidth.dp)
+                .onGloballyPositioned { onBoundsChanged(it.boundsInRoot()) }
+                .graphicsLayer {
+                    translationX = if (isDragging) dragOffset.x else 0f
+                    translationY = if (isDragging) dragOffset.y else 0f
+                },
+        ) {
+            content()
+            if (editing) {
+                WidgetEditOverlay(
+                    accent = accent,
+                    dragKey = id,
+                    info = null,
+                    halfWidthDp = halfWidthDp,
+                    fullWidthDp = fullWidthDp,
+                    liveWidthState = liveWidthState,
+                    liveHeightState = liveHeightState,
+                    currentHalfWidth = { halfWidth },
+                    resizableHeight = false,
+                    removable = false,
+                    onResize = { _, newHalf -> onResize(newHalf) },
+                    onDragStart = onDragStart,
+                    onDragBy = onDragBy,
+                    onDragEnd = onDragEnd,
+                    onEdit = {},
+                    onRemove = {},
+                    onDismiss = onDismiss,
                 )
             }
         }
@@ -1299,7 +1464,6 @@ private fun WidgetStackView(
             }
 
             if (isMergeTarget) MergeTargetHighlight(accent)
-            if (!editing) WidgetEditPill { onEditingChange(true) }
 
             // Edit mode acts on whichever member is showing — that's the one the user
             // is looking at — while resize applies to the whole stack, since they

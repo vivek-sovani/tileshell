@@ -38,6 +38,95 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **`main` — Quick Panel tiles and glance cards get One-UI-inspired resize +
+  reorder, via a single global edit toggle.** New ask, not in the WP prototype/
+  spec — user drew an explicit parallel to One UI's resizable quick-settings
+  tiles and orientation-flexible sliders (sliders themselves stayed out of scope
+  this session — separate future work). Planned in Plan Mode after two rounds of
+  code-level research + a design pass; visual language (thin bars for move/
+  height/width, a quarter-circle arc for the corner both-axes handle, no per-tile
+  labels) was iterated live with the user via the visualize tool before
+  implementation, including one correction ("it is round not a line in corner")
+  and one proportions fix ("handle width is just like horizontal and vertical
+  handle. it is shown thin"). Three parts:
+  **(A) Quick Panel** (`QuickPanelOverlay.kt`) — toggle tiles resize square↔wide
+  and drag-reorder via a new header "edit" toggle (new pencil glyph in
+  `TileIcons`) instead of per-tile long-press; every tile shows its handles at
+  once when editing. `QuickPanelTileSpec` gained a stable `id` (independent of a
+  tile's conditional presence, e.g. "allow access" only exists pre-grant). New
+  `QuickPanelLayout.kt`: pure, unit-tested `applyQuickPanelOrder`/
+  `reorderQuickPanelTiles`/`settleQuickPanelTileSize`/`packQuickPanelRows`/
+  `encode·decodeQuickPanelSizes`, mirroring `feed/WidgetSlot.kt`'s
+  `reorderWidgets`/`packWidgetRows` shape; a local `QuickPanelTileSize` enum
+  (`SQUARE`/`WIDE`) deliberately doesn't reuse Start's `core/data/TileSize` (an
+  11-preset, Room-coupled, two-axis enum — massive overkill for a one-row-tall,
+  two-state panel tile). Height/corner handles were deliberately dropped for
+  Quick Panel specifically: its tiles are laid out in `Row`s with forced
+  `aspectRatio`, so height is derived from width, not an independent draggable
+  axis — only move (top) + width (right edge) handles apply. Persisted via two
+  new `LauncherSettings` fields (`quickPanelTileOrder`, `quickPanelTileSizes`),
+  following the existing `edgeStripApps` pipe-joined `List<String>` codec idiom.
+  Edit-mode state is local `remember` (not a `StartViewModel` `StateFlow` like
+  Start's own `editMode`) since it only affects rendering inside the panel
+  composable, which fully unmounts on close.
+  **(B) Shared handle restyle** (`feed/WidgetSlot.kt`) — the existing generic
+  `ResizeHandle`/`DragHandlePill` (used by the feed's real hosted Android
+  widgets) were restyled to the approved thin-bar design (replacing a "≡" text
+  pill and a rounded-square/dot corner handle) — a new `CornerArcHandle` draws
+  the corner as a `Canvas`-drawn quarter-circle stroke arc instead. Deliberately
+  upgrades already-shipped hosted-widget resize/move handles too, since they're
+  small, self-contained, provider-agnostic composables reused by (C) below — one
+  visual language across the whole app instead of two. Every handle's real
+  `pointerInput` hit area stays padded to a comfortable ≥40dp regardless of how
+  thin the visible bar/arc is, so the touch target didn't shrink along with the
+  visuals.
+  **(C) Glance page built-in cards** (`WeatherCard`/`AgendaCard`/`NowPlayingCard`,
+  `feed/FeedPage.kt`) — folded into the feed's *existing* hosted-widget sizing/
+  packing/persistence/edit-overlay system (`feed/WidgetSlot.kt`,
+  `feed/WidgetStore.kt`) rather than a parallel one, via three reserved negative
+  sentinel `widgetId`s (`BUILTIN_WEATHER_WIDGET_ID` -1 / `BUILTIN_AGENDA_WIDGET_ID`
+  -2 / `BUILTIN_NOWPLAYING_WIDGET_ID` -3, `WidgetStore.kt`) — nothing in
+  `WidgetCodec`/`packWidgetRows`/`reorderWidgets`/persistence actually requires a
+  `widgetId` to resolve to a real `AppWidgetHost` widget, only to be a stable
+  unique `Int`, so reuse needed zero schema changes and no duplicated packing/
+  reorder logic. `WidgetStore.seedBuiltinsIfAbsent()` (pure core factored out as
+  `seedMissingBuiltinWidgets`, unit-tested) is a one-time migration inserting any
+  missing built-in ahead of existing hosted widgets, preserving an upgrading
+  install's current visual order. New `BuiltinCardView` mirrors `WidgetView`'s
+  shape minus everything `AppWidgetHost`-specific (no real provider to resolve,
+  so `WidgetEditOverlay`'s `info` param is now nullable, gating only the
+  "edit"/reconfigure pill and the width-drag provider-minimum floor) — built-ins
+  never join a stack (new `dragged.widgetId < 0 || target.widgetId < 0 -> false`
+  merge-candidate guard in `WidgetSection`) and never resize height (new
+  `WidgetEditOverlay` params `resizableHeight`/`removable`, both false for a
+  built-in — fixed content-sized height, and reorderable/resizable but never
+  removable). The **global edit toggle also replaces hosted widgets' old
+  per-card "edit" tap-in pill** (`WidgetEditPill`, deleted — dead code once every
+  card is globally driven) — one `editMode`/`onEditModeChange` pair, threaded
+  from a new "edit"/"done" action in `WidgetSection`'s own header (`SectionHeader`
+  gained an optional `secondaryActionText`/`onSecondaryAction`), now drives every
+  card (built-in and real) simultaneously — the "single button, no per-tile
+  entry point" design applies to the whole glance section, not just the three
+  new cards. Now-playing's card keeps its reserved slot in the *persisted* order
+  even while nothing's playing — only the render pass filters the sentinel out
+  when `nowPlaying == null`, so it reappears in the same relative position once
+  playback resumes rather than losing its place; an orphaned half-width neighbor
+  just gets its own solo row for that pass, reusing `packWidgetRows`'s existing
+  orphan handling. `WeatherCard`/`AgendaCard`/`NowPlayingCard` widened from
+  `private` to `internal` so `WidgetSlot.kt` can render them.
+  Build + full unit test suite green throughout (new `QuickPanelLayoutTest.kt`;
+  `WidgetSlotTest.kt`/`SettingsCodecTest.kt` extended, including sentinel-id
+  packing/reordering cases); installed on the physical device with no crash —
+  Start screen (icons mode, live weather/music/calendar tiles) verified working
+  post-install, but swiping to the glance/feed page to visually confirm the new
+  edit-mode UI there wasn't completed this session (adb-synthesized swipes
+  weren't registering as a page change — a known class of issue in this
+  codebase's own history with ADB-driven drag gestures near screen edges/on the
+  pager axis; needs a real finger or further investigation, not yet a confirmed
+  app bug). **Manual on-device verification of the actual resize/reorder/handle
+  gestures is still pending** — build/tests passing is not itself proof the
+  gestures feel right; treat this entry as implementation-complete but
+  gesture-unverified until confirmed by hand.
 - **`main` — app list didn't pick up the wallpaper-derived accent colour.** User-reported: "when
   accent color is picked up from wallpaper same is not applied to app list screen." Root cause:
   `StartScreen.kt`'s `CompositionLocalProvider` fed `LocalAccent` (consumed by the app list's section

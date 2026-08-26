@@ -252,6 +252,14 @@ fun FeedPage(
 
     var feedSettingsOpen by rememberSaveable { mutableStateOf(false) }
 
+    // Single global edit-mode toggle for the glance section (weather/agenda/
+    // now-playing + hosted widgets — see WidgetSection's "edit"/"done" header
+    // action), same shape as Quick Panel's own toggle: local UI state, reset when
+    // the page stops being the active pager page rather than surviving in the
+    // background indefinitely.
+    var glanceEditMode by remember { mutableStateOf(false) }
+    LaunchedEffect(active) { if (!active) glanceEditMode = false }
+
     Box(
         modifier = modifier
             .fillMaxSize(),
@@ -281,39 +289,23 @@ fun FeedPage(
                 .navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Box(modifier = Modifier.weight(1f)) {
-                    WeatherCard(
-                        snapshot = snapshot,
-                        accent = feedAccent,
-                        onClick = { onWeatherDetails(("weather " + (snapshot?.place ?: "")).trim()) },
-                    )
-                }
-                Box(modifier = Modifier.weight(1f)) {
-                    AgendaCard(
-                        agenda = agenda,
-                        granted = calGranted,
-                        accent = feedAccent,
-                        onAddSchedule = onAddSchedule,
-                        onClick = { openCalendar(context) },
-                    )
-                }
-            }
-
-            if (nowPlaying != null) {
-                NowPlayingCard(
-                    nowPlaying = nowPlaying,
-                    packageName = nowPlayingPackage,
-                    art = nowPlayingPackage?.let { artwork[it] },
-                    accent = feedAccent,
-                    onClick = nowPlayingPackage?.let { pkg -> { launchPackage(context, pkg) } },
-                )
-            }
-
-            WidgetSection(accent = feedAccent, tokens = tokens, labelColor = feedFgDim)
+            WidgetSection(
+                accent = feedAccent,
+                tokens = tokens,
+                labelColor = feedFgDim,
+                weatherSnapshot = snapshot,
+                onWeatherClick = { onWeatherDetails(("weather " + (snapshot?.place ?: "")).trim()) },
+                agenda = agenda,
+                calendarGranted = calGranted,
+                onAddSchedule = onAddSchedule,
+                onAgendaClick = { openCalendar(context) },
+                nowPlaying = nowPlaying,
+                nowPlayingPackage = nowPlayingPackage,
+                nowPlayingArt = nowPlayingPackage?.let { artwork[it] },
+                onNowPlayingClick = nowPlayingPackage?.let { pkg -> { launchPackage(context, pkg) } },
+                editMode = glanceEditMode,
+                onEditModeChange = { glanceEditMode = it },
+            )
 
             NewsHeader(
                 accent = feedAccent,
@@ -612,6 +604,10 @@ internal fun SectionHeader(
     labelColor: Color,
     showPlus: Boolean = false,
     onAction: () -> Unit,
+    /** A second, plain text action rendered before [actionText] — used for the
+     *  glance section's "edit"/"done" edit-mode toggle. */
+    secondaryActionText: String? = null,
+    onSecondaryAction: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
@@ -619,22 +615,35 @@ internal fun SectionHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Text(text, color = labelColor, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp))
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
-                .clickable(onClick = onAction)
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (showPlus) {
-                Canvas(modifier = Modifier.size(14.dp)) {
-                    val s = size.width
-                    drawLine(accent, Offset(s / 2f, s * 0.1f), Offset(s / 2f, s * 0.9f), strokeWidth = s * 0.12f, cap = StrokeCap.Round)
-                    drawLine(accent, Offset(s * 0.1f, s / 2f), Offset(s * 0.9f, s / 2f), strokeWidth = s * 0.12f, cap = StrokeCap.Round)
-                }
-                Spacer(Modifier.width(4.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (secondaryActionText != null && onSecondaryAction != null) {
+                Text(
+                    secondaryActionText,
+                    color = accent,
+                    fontSize = 13.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(onClick = onSecondaryAction)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
             }
-            Text(actionText, color = accent, fontSize = 13.sp)
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(onClick = onAction)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (showPlus) {
+                    Canvas(modifier = Modifier.size(14.dp)) {
+                        val s = size.width
+                        drawLine(accent, Offset(s / 2f, s * 0.1f), Offset(s / 2f, s * 0.9f), strokeWidth = s * 0.12f, cap = StrokeCap.Round)
+                        drawLine(accent, Offset(s * 0.1f, s / 2f), Offset(s * 0.9f, s / 2f), strokeWidth = s * 0.12f, cap = StrokeCap.Round)
+                    }
+                    Spacer(Modifier.width(4.dp))
+                }
+                Text(actionText, color = accent, fontSize = 13.sp)
+            }
         }
     }
 }
@@ -676,7 +685,7 @@ private fun AccentCard(
  * separate now/high/low stat trio the full-width version used to show.
  */
 @Composable
-private fun WeatherCard(
+internal fun WeatherCard(
     snapshot: com.tileshell.feature.livetiles.WeatherSnapshot?,
     accent: Color,
     onClick: () -> Unit,
@@ -734,7 +743,7 @@ private fun WeatherCard(
  * separate [SectionHeader] above it.
  */
 @Composable
-private fun AgendaCard(
+internal fun AgendaCard(
     agenda: CalendarFace,
     granted: Boolean,
     accent: Color,
@@ -796,7 +805,7 @@ private fun AgendaCard(
 }
 
 @Composable
-private fun NowPlayingCard(
+internal fun NowPlayingCard(
     nowPlaying: NowPlaying,
     packageName: String?,
     art: android.graphics.Bitmap?,
