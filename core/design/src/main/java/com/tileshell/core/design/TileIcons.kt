@@ -261,6 +261,14 @@ object TileIcons {
 
         put("check", vector("check", p("M5 12l5 5 9-11")))
 
+        // Simple pencil silhouette outline — the "enter edit mode" toggle for
+        // Quick Panel / glance-page tile resizing (see QuickPanelOverlay.kt,
+        // feed/WidgetSlot.kt).
+        put("edit", vector("edit",
+            p("M4 20l1-4L15 6l3 3L8 19l-4 1z"),
+            p(line(13.0, 8.0, 16.0, 11.0)),
+        ))
+
         put("chevron", vector("chevron", p("M9 6l6 6-6 6")))
 
         put("back", vector("back", p("M15 6l-6 6 6 6")))

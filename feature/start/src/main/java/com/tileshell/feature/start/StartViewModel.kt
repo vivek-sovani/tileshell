@@ -1547,6 +1547,14 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setEdgeStripApps(apps) }
     }
 
+    fun setQuickPanelTileOrder(order: List<String>) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setQuickPanelTileOrder(order) }
+    }
+
+    fun setQuickPanelTileSizes(sizes: List<String>) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setQuickPanelTileSizes(sizes) }
+    }
+
     fun setEdgeStripBackground(bgId: String) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setEdgeStripBackground(bgId) }
     }

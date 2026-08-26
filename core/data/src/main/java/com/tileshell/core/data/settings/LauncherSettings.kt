@@ -210,6 +210,10 @@ data class LauncherSettings(
     val liveTilesEnabled: Boolean = true,
     val feedNoBackground: Boolean = false,
     val hideStatusBar: Boolean = true,
+    /** Persisted Quick Panel tile order, pipe-separated ids in the codec (`QuickPanelTileSpec.id`). */
+    val quickPanelTileOrder: List<String> = emptyList(),
+    /** Persisted Quick Panel tile sizes as `"id:cols"` tokens, pipe-separated in the codec. */
+    val quickPanelTileSizes: List<String> = emptyList(),
 ) {
     companion object {
         const val DEFAULT_COLUMNS = 4
@@ -270,7 +274,9 @@ object SettingsCodec {
         append("userName=").append(settings.userName).append('\n')
         append("liveTiles=").append(settings.liveTilesEnabled).append('\n')
         append("feedNoBg=").append(settings.feedNoBackground).append('\n')
-        append("hideStatusBar=").append(settings.hideStatusBar)
+        append("hideStatusBar=").append(settings.hideStatusBar).append('\n')
+        append("quickPanelOrder=").append(settings.quickPanelTileOrder.joinToString("|")).append('\n')
+        append("quickPanelSizes=").append(settings.quickPanelTileSizes.joinToString("|"))
     }
 
     fun decode(text: String): LauncherSettings {
@@ -313,6 +319,8 @@ object SettingsCodec {
         var liveTilesEnabled = d.liveTilesEnabled
         var feedNoBackground = d.feedNoBackground
         var hideStatusBar = d.hideStatusBar
+        var quickPanelTileOrder = d.quickPanelTileOrder
+        var quickPanelTileSizes = d.quickPanelTileSizes
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
             if (sep <= 0) return@forEach
@@ -369,6 +377,10 @@ object SettingsCodec {
                 "liveTiles" -> liveTilesEnabled = value.toBooleanStrictOrNull() ?: liveTilesEnabled
                 "feedNoBg" -> feedNoBackground = value.toBooleanStrictOrNull() ?: feedNoBackground
                 "hideStatusBar" -> hideStatusBar = value.toBooleanStrictOrNull() ?: hideStatusBar
+                "quickPanelOrder" -> quickPanelTileOrder = if (value.isEmpty()) emptyList()
+                    else value.split("|").filter { it.isNotBlank() }
+                "quickPanelSizes" -> quickPanelTileSizes = if (value.isEmpty()) emptyList()
+                    else value.split("|").filter { it.isNotBlank() }
             }
         }
         return LauncherSettings(
@@ -410,6 +422,8 @@ object SettingsCodec {
             liveTilesEnabled = liveTilesEnabled,
             feedNoBackground = feedNoBackground,
             hideStatusBar = hideStatusBar,
+            quickPanelTileOrder = quickPanelTileOrder,
+            quickPanelTileSizes = quickPanelTileSizes,
         )
     }
 }

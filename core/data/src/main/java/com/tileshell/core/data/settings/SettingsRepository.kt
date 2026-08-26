@@ -321,6 +321,14 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(edgeStripApps = apps) }
     }
 
+    suspend fun setQuickPanelTileOrder(order: List<String>) {
+        store.updateData { it.copy(quickPanelTileOrder = order) }
+    }
+
+    suspend fun setQuickPanelTileSizes(sizes: List<String>) {
+        store.updateData { it.copy(quickPanelTileSizes = sizes) }
+    }
+
     suspend fun setEdgeStripBackground(bgId: String) {
         store.updateData { it.copy(edgeStripBackgroundId = bgId) }
     }

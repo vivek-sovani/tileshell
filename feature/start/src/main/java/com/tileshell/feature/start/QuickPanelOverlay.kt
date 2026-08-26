@@ -12,17 +12,21 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -36,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -45,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -55,6 +61,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -151,6 +159,12 @@ fun QuickPanelOverlay(
     noWallpaper: Boolean = false,
     /** The glance page's own "no background" opt-out (personalize · feed & glance) — the panel honours the same choice rather than having a separate toggle. */
     feedNoBackground: Boolean = false,
+    /** Persisted tile order (ids), applied over the live tiles' natural order — see [applyQuickPanelOrder]. */
+    tileOrder: List<String> = emptyList(),
+    /** Persisted tile sizes as `"id:cols"` tokens — see [decodeQuickPanelSizes]. */
+    tileSizes: List<String> = emptyList(),
+    onTileOrderChange: (List<String>) -> Unit = {},
+    onTileSizesChange: (List<String>) -> Unit = {},
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -193,6 +207,16 @@ fun QuickPanelOverlay(
     val panelFgDim = panelFg.copy(alpha = 0.62f)
 
     BackHandler(enabled = visible) { onDismiss() }
+
+    // Single global edit-mode toggle (see QuickPanelHeader's "edit" icon) — shows
+    // move+width handles on every tile at once rather than a per-tile long-press,
+    // per the approved One-UI-inspired design. Purely local UI state: unlike
+    // Start's own editMode (a StartViewModel StateFlow, since it coordinates
+    // pager-swipe suppression and live-tile pausing elsewhere in the composition),
+    // this only affects rendering inside this composable, which fully unmounts
+    // when the panel closes — so it's reset explicitly instead of surviving.
+    var quickPanelEditMode by remember { mutableStateOf(false) }
+    LaunchedEffect(visible) { if (!visible) quickPanelEditMode = false }
 
     val wifiOn = rememberWifiEnabled()
     val bluetoothOn = rememberBluetoothOn()
@@ -252,6 +276,8 @@ fun QuickPanelOverlay(
                 wifiOn = wifiOn,
                 airplaneOn = airplaneOn,
                 androidSettingsIcon = androidSettingsIcon,
+                editMode = quickPanelEditMode,
+                onToggleEdit = { quickPanelEditMode = !quickPanelEditMode },
                 onOpenPersonalize = { onDismiss(); onOpenPersonalize() },
                 onOpenAndroidSettings = { deepLink(context, Settings.ACTION_SETTINGS) },
                 onLockScreen = { onDismiss(); onLockScreen() },
@@ -276,24 +302,100 @@ fun QuickPanelOverlay(
                 onThemeChange = onThemeChange,
                 onFollowSystemThemeChange = onFollowSystemThemeChange,
             )
+            // Persisted order/size (see quickPanelTileOrder/quickPanelTileSizes)
+            // applied over the live, device-state-derived tile list; packed into
+            // rows honoring each tile's column span (square=1, wide=2) rather than
+            // the old fixed 4-per-row chunking, so a wide tile still wraps cleanly.
+            val orderedTiles = remember(tiles, tileOrder) {
+                val byId = tiles.associateBy { it.id }
+                applyQuickPanelOrder(tiles.map { it.id }, tileOrder).mapNotNull { byId[it] }
+            }
+            val sizesMap = remember(tileSizes) { decodeQuickPanelSizes(tileSizes) }
+            fun sizeOf(id: String) = sizesMap[id] ?: QuickPanelTileSize.SQUARE
+            val rows = remember(orderedTiles, sizesMap) {
+                packQuickPanelRows(orderedTiles, QUICK_PANEL_COLUMNS) { sizeOf(it.id).cols }
+            }
+
+            // Hoisted edit-mode drag state — same live-bounds hit-testing +
+            // commit-on-release shape as feed/WidgetSlot.kt's widget reorder/resize
+            // (widgetBounds/draggingId/dragDelta/dragTargetId), keyed by tile id
+            // string instead of widget int id.
+            val tileBounds = remember { mutableStateMapOf<String, Rect>() }
+            var draggingTileId by remember { mutableStateOf<String?>(null) }
+            var dragDelta by remember { mutableStateOf(Offset.Zero) }
+            var dragTargetId by remember { mutableStateOf<String?>(null) }
+            var resizingTileId by remember { mutableStateOf<String?>(null) }
+            var resizeDeltaPx by remember { mutableStateOf(0f) }
+
+            fun commitReorder(dragId: String) {
+                val targetId = dragTargetId
+                if (targetId != null) {
+                    val currentOrder = orderedTiles.map { it.id }
+                    val next = reorderQuickPanelTiles(currentOrder, dragId, targetId)
+                    if (next != currentOrder) onTileOrderChange(next)
+                }
+                draggingTileId = null
+                dragDelta = Offset.Zero
+                dragTargetId = null
+            }
+
+            fun commitResize(id: String) {
+                val currentCols = sizeOf(id).cols
+                val colWidthPx = tileBounds[id]?.let { it.width / currentCols }?.takeIf { it > 0f }
+                val liveCols = if (colWidthPx != null) currentCols + resizeDeltaPx / colWidthPx else currentCols.toFloat()
+                val settled = settleQuickPanelTileSize(liveCols)
+                if (settled != sizeOf(id)) {
+                    val next = sizesMap.toMutableMap().apply {
+                        if (settled == QuickPanelTileSize.SQUARE) remove(id) else this[id] = settled
+                    }
+                    onTileSizesChange(encodeQuickPanelSizes(next))
+                }
+                resizingTileId = null
+                resizeDeltaPx = 0f
+            }
+
             Column(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                tiles.chunked(QUICK_PANEL_COLUMNS).forEach { row ->
+                rows.forEach { row ->
+                    val rowCols = row.sumOf { sizeOf(it.id).cols }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         row.forEach { tile ->
+                            val size = sizeOf(tile.id)
                             QuickPanelTile(
                                 tile,
                                 tokens = tokens,
                                 accent = accent,
-                                modifier = Modifier.weight(1f).aspectRatio(1f),
+                                editMode = quickPanelEditMode,
+                                isDragging = draggingTileId == tile.id,
+                                isDragTarget = quickPanelEditMode && dragTargetId == tile.id && draggingTileId != tile.id,
+                                dragOffset = if (draggingTileId == tile.id) dragDelta else Offset.Zero,
+                                onMoveDragStart = { draggingTileId = tile.id; dragDelta = Offset.Zero; dragTargetId = null },
+                                onMoveDragBy = { delta ->
+                                    dragDelta += delta
+                                    val origin = tileBounds[tile.id]?.center
+                                    if (origin != null) {
+                                        val point = origin + dragDelta
+                                        dragTargetId = tileBounds.entries
+                                            .firstOrNull { (otherId, rect) -> otherId != tile.id && rect.contains(point) }
+                                            ?.key
+                                    }
+                                },
+                                onMoveDragEnd = { commitReorder(tile.id) },
+                                onWidthDragStart = { resizingTileId = tile.id; resizeDeltaPx = 0f },
+                                onWidthDragBy = { dx -> resizeDeltaPx += dx },
+                                onWidthDragEnd = { commitResize(tile.id) },
+                                modifier = Modifier
+                                    .weight(size.cols.toFloat())
+                                    .aspectRatio(size.cols.toFloat())
+                                    .onGloballyPositioned { tileBounds[tile.id] = it.boundsInRoot() },
                             )
                         }
-                        repeat(QUICK_PANEL_COLUMNS - row.size) { Box(modifier = Modifier.weight(1f)) }
+                        if (rowCols < QUICK_PANEL_COLUMNS) Box(modifier = Modifier.weight((QUICK_PANEL_COLUMNS - rowCols).toFloat()))
                     }
                 }
             }
@@ -381,6 +483,8 @@ private fun QuickPanelHeader(
     wifiOn: Boolean,
     airplaneOn: Boolean,
     androidSettingsIcon: ImageBitmap?,
+    editMode: Boolean,
+    onToggleEdit: () -> Unit,
     onOpenPersonalize: () -> Unit,
     onOpenAndroidSettings: () -> Unit,
     onLockScreen: () -> Unit,
@@ -453,6 +557,12 @@ private fun QuickPanelHeader(
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
         ) {
+            QuickPanelHeaderIcon(
+                icon = "edit",
+                description = if (editMode) "done editing" else "edit layout",
+                fg = if (editMode) accent else fg,
+                onClick = onToggleEdit,
+            )
             QuickPanelHeaderIcon(icon = "settings", description = "personalize", fg = fg, onClick = onOpenPersonalize)
             QuickPanelHeaderIcon(
                 icon = "settings",
@@ -549,7 +659,19 @@ private fun QuickPanelHeaderIcon(
     }
 }
 
+/**
+ * Square vs. wide, mirroring One UI's resizable quick-settings tiles — a wide
+ * tile spans 2 of the panel's 4 columns but stays exactly one row tall (row
+ * height is uniform per [QUICK_PANEL_COLUMNS]'s `Row`-based layout, so height
+ * is never an independent resize axis here; see [packQuickPanelRows]).
+ */
+internal enum class QuickPanelTileSize(val cols: Int) { SQUARE(1), WIDE(2) }
+
 private data class QuickPanelTileSpec(
+    /** Stable across recompositions/app versions — the key persisted order/size are
+     *  keyed by. A literal per call site in [quickPanelTiles], independent of a
+     *  tile's conditional presence (e.g. "allow access" only exists pre-grant). */
+    val id: String,
     val icon: String,
     val label: String,
     /** Binary on/off tint (accent vs neutral). Value tiles (brightness, settings, …) pass false — they're always neutral, matching the real device's non-toggle tiles. */
@@ -774,40 +896,40 @@ private fun quickPanelTiles(
     onFollowSystemThemeChange: (Boolean) -> Unit,
 ): List<QuickPanelTileSpec> = buildList {
     // Connectivity toggles.
-    add(QuickPanelTileSpec(icon = "wifi", label = "wifi", active = wifiOn, onClick = { openWifiSettings(context) }))
+    add(QuickPanelTileSpec(id = "wifi", icon = "wifi", label = "wifi", active = wifiOn, onClick = { openWifiSettings(context) }))
     add(
         QuickPanelTileSpec(
-            icon = "bluetooth", label = "bluetooth", active = bluetoothOn,
+            id = "bluetooth", icon = "bluetooth", label = "bluetooth", active = bluetoothOn,
             onClick = { deepLink(context, Settings.ACTION_BLUETOOTH_SETTINGS) },
         ),
     )
     add(
         QuickPanelTileSpec(
-            icon = "maps", label = "location", active = locationOn,
+            id = "location", icon = "maps", label = "location", active = locationOn,
             onClick = { deepLink(context, Settings.ACTION_LOCATION_SOURCE_SETTINGS) },
         ),
     )
     add(
         QuickPanelTileSpec(
-            icon = "airplane", label = "airplane", active = airplaneOn,
+            id = "airplane", icon = "airplane", label = "airplane", active = airplaneOn,
             onClick = { deepLink(context, Settings.ACTION_AIRPLANE_MODE_SETTINGS) },
         ),
     )
 
     // Device-mode toggles.
-    add(QuickPanelTileSpec(icon = "flashlight", label = "flashlight", active = torchOn, onClick = toggleTorch))
+    add(QuickPanelTileSpec(id = "flashlight", icon = "flashlight", label = "flashlight", active = torchOn, onClick = toggleTorch))
 
     if (!writeSettingsGranted) {
         add(
             QuickPanelTileSpec(
-                icon = "settings", label = "allow access", active = false,
+                id = "allow_access", icon = "settings", label = "allow access", active = false,
                 onClick = { openWriteSettingsAccess(context) },
             ),
         )
     }
     add(
         QuickPanelTileSpec(
-            icon = "rotate", label = "rotation lock", active = rotationLockOn,
+            id = "rotation_lock", icon = "rotate", label = "rotation lock", active = rotationLockOn,
             onClick = {
                 // A genuine toggle once WRITE_SETTINGS is granted; until then, tapping
                 // deep-links to the grant screen instead of silently no-op'ing.
@@ -818,7 +940,7 @@ private fun quickPanelTiles(
     if (writeSettingsGranted) {
         add(
             QuickPanelTileSpec(
-                icon = "clock", label = screenTimeoutLabel(screenTimeoutMs), active = false,
+                id = "screen_timeout", icon = "clock", label = screenTimeoutLabel(screenTimeoutMs), active = false,
                 onClick = { setScreenTimeoutMs(nextScreenTimeoutPreset(screenTimeoutMs)) },
             ),
         )
@@ -826,7 +948,7 @@ private fun quickPanelTiles(
 
     add(
         QuickPanelTileSpec(
-            icon = "dnd", label = "dnd", active = dndOn,
+            id = "dnd", icon = "dnd", label = "dnd", active = dndOn,
             onClick = {
                 // Once access is granted this is a genuine toggle; until then, deep-link
                 // to the general "Do Not Disturb" settings screen (which also surfaces
@@ -847,7 +969,7 @@ private fun quickPanelTiles(
             // volume value tiles) — it always represents the current selection,
             // the same way Personalize's own theme tiles accent-highlight whichever
             // of dark/light/auto is currently chosen.
-            icon = themeChoice.icon, label = themeChoice.label, active = true,
+            id = "theme", icon = themeChoice.icon, label = themeChoice.label, active = true,
             onClick = {
                 when (nextThemeChoice(themeChoice)) {
                     ThemeChoice.DARK -> { onFollowSystemThemeChange(false); onThemeChange(true) }
@@ -889,6 +1011,16 @@ private fun QuickPanelTile(
     tile: QuickPanelTileSpec,
     tokens: ColorTokens,
     accent: Color,
+    editMode: Boolean,
+    isDragging: Boolean,
+    isDragTarget: Boolean,
+    dragOffset: Offset,
+    onMoveDragStart: () -> Unit,
+    onMoveDragBy: (Offset) -> Unit,
+    onMoveDragEnd: () -> Unit,
+    onWidthDragStart: () -> Unit,
+    onWidthDragBy: (Float) -> Unit,
+    onWidthDragEnd: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val bg = if (tile.active) accent else tokens.chip
@@ -896,39 +1028,128 @@ private fun QuickPanelTile(
     // panel's overall background lightness, which panelFg tracks) — a
     // wallpaper-derived accent can be light even on a dark panel.
     val fg = if (tile.active) Glass.faceTextColor(useDarkText = isLightBackground(accent)) else tokens.fgDim
+    // Edit-mode handles always need to read against this tile's own fill,
+    // regardless of on/off state — reuse the same contrast rule as fg.
+    val handleColor = Glass.faceTextColor(useDarkText = isLightBackground(bg))
     val haptics = LocalHapticFeedback.current
-    Column(
+    Box(
         modifier = modifier
+            .graphicsLayer {
+                translationX = dragOffset.x
+                translationY = dragOffset.y
+                alpha = if (isDragging) 0.85f else 1f
+            }
             .clip(RoundedCornerShape(10.dp))
             .background(bg)
-            .clickable(onClick = {
-                haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                tile.onClick()
-            })
-            .padding(6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        if (tile.iconBitmap != null) {
-            Image(
-                bitmap = tile.iconBitmap,
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.size(18.dp),
+            .then(
+                if (isDragTarget) Modifier.border(2.dp, accent, RoundedCornerShape(10.dp))
+                else Modifier
             )
-        } else {
-            Icon(TileIcons[tile.icon], null, tint = fg, modifier = Modifier.size(18.dp))
+            .then(
+                if (editMode) Modifier
+                else Modifier.clickable(onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                    tile.onClick()
+                })
+            ),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            if (tile.iconBitmap != null) {
+                Image(
+                    bitmap = tile.iconBitmap,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(18.dp),
+                )
+            } else {
+                Icon(TileIcons[tile.icon], null, tint = fg, modifier = Modifier.size(18.dp))
+            }
+            Text(
+                tile.label,
+                color = fg,
+                fontSize = 9.sp,
+                lineHeight = 11.sp,
+                maxLines = 2,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
-        Text(
-            tile.label,
-            color = fg,
-            fontSize = 9.sp,
-            lineHeight = 11.sp,
-            maxLines = 2,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 4.dp),
-        )
+        if (editMode) {
+            QuickPanelMoveHandle(
+                color = handleColor,
+                onDragStart = onMoveDragStart,
+                onDragBy = onMoveDragBy,
+                onDragEnd = onMoveDragEnd,
+            )
+            QuickPanelWidthHandle(
+                color = handleColor,
+                onDragStart = onWidthDragStart,
+                onDragBy = onWidthDragBy,
+                onDragEnd = onWidthDragEnd,
+            )
+        }
     }
+}
+
+/**
+ * Thin top-edge bar — drag to reorder. Approved One-UI-inspired edit-mode
+ * design: no per-tile label, just a bar you grab. Straddles the tile's top
+ * edge (small negative padding) so it reads as attached to the tile, not
+ * floating above it.
+ */
+@Composable
+private fun BoxScope.QuickPanelMoveHandle(
+    color: Color,
+    onDragStart: () -> Unit,
+    onDragBy: (Offset) -> Unit,
+    onDragEnd: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .align(Alignment.TopCenter)
+            .offset(y = (-3).dp)
+            .size(width = 24.dp, height = 4.dp)
+            .clip(RoundedCornerShape(2.dp))
+            .background(color)
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { onDragStart() },
+                    onDrag = { change, drag -> change.consume(); onDragBy(drag) },
+                    onDragEnd = { onDragEnd() },
+                    onDragCancel = { onDragEnd() },
+                )
+            },
+    )
+}
+
+/** Thin right-edge bar (vertically centered) — drag to resize width (square ↔ wide). */
+@Composable
+private fun BoxScope.QuickPanelWidthHandle(
+    color: Color,
+    onDragStart: () -> Unit,
+    onDragBy: (Float) -> Unit,
+    onDragEnd: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .align(Alignment.CenterEnd)
+            .offset(x = 3.dp)
+            .size(width = 4.dp, height = 24.dp)
+            .clip(RoundedCornerShape(2.dp))
+            .background(color)
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { onDragStart() },
+                    onDrag = { change, drag -> change.consume(); onDragBy(drag.x) },
+                    onDragEnd = { onDragEnd() },
+                    onDragCancel = { onDragEnd() },
+                )
+            },
+    )
 }
 
 private fun openWifiSettings(context: Context) {

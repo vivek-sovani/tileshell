@@ -1438,6 +1438,10 @@ fun StartScreen(
             customWallpaperPhoto = customWallpaperBitmap,
             noWallpaper = noWallpaper,
             feedNoBackground = settings.feedNoBackground,
+            tileOrder = settings.quickPanelTileOrder,
+            tileSizes = settings.quickPanelTileSizes,
+            onTileOrderChange = viewModel::setQuickPanelTileOrder,
+            onTileSizesChange = viewModel::setQuickPanelTileSizes,
             rightHalf = isLandscape,
         )
 

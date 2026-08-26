@@ -289,4 +289,15 @@ class SettingsCodecTest {
         val s = LauncherSettings(feedNoBackground = true)
         assertEquals(true, SettingsCodec.decode(SettingsCodec.encode(s)).feedNoBackground)
     }
+
+    @Test
+    fun `quickPanelTileOrder and quickPanelTileSizes round-trip and default to empty`() {
+        assertEquals(emptyList<String>(), LauncherSettings().quickPanelTileOrder)
+        assertEquals(emptyList<String>(), LauncherSettings().quickPanelTileSizes)
+        val s = LauncherSettings(
+            quickPanelTileOrder = listOf("bluetooth", "wifi", "location"),
+            quickPanelTileSizes = listOf("flashlight:2", "wifi:1"),
+        )
+        assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
+    }
 }
