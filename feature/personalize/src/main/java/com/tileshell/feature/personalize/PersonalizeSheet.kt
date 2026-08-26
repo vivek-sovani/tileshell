@@ -239,7 +239,18 @@ fun PersonalizeSheet(
     if (!visible && progress == 0f) return
 
     val tokens = colorTokens(dark)
-    val accent = TileAccents.forId(accentId)
+    // The sheet's own chrome (selected pills, sliders, highlights) must match
+    // whichever accent tiles themselves are actually using — when the user has
+    // picked "wallpaper" as the tile colour source, that's the wallpaper-
+    // derived colour (wallpaperAccentPreview, already resolved with the same
+    // no-wallpaper fallback Start/feed/Quick Panel use), not the plain global
+    // accentId. Real bug, user-reported: "wallpaper based accent color not
+    // used in personalisation screen."
+    val accent = if (tileColorSource == TileColorSource.WALLPAPER_ACCENT) {
+        wallpaperAccentPreview
+    } else {
+        TileAccents.forId(accentId)
+    }
     var showResetTileStyleConfirm by remember { mutableStateOf(false) }
     var showLiveTilesPermissionPrompt by remember { mutableStateOf(false) }
 

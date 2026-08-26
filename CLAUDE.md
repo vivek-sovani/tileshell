@@ -38,6 +38,23 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **`main` — the Personalize sheet itself didn't pick up the wallpaper-derived
+  accent colour.** User-reported: "wallpaper based accent color not used in
+  personalisation screen." Same class of bug as the app-list fix a few
+  entries below, different location: `PersonalizeSheet.kt` always resolved
+  its own chrome colour (selected pills, sliders, highlights) as `TileAccents
+  .forId(accentId)` — the plain global accent — regardless of `tileColorSource`,
+  even though the sheet already receives both `tileColorSource` and
+  `wallpaperAccentPreview` (the wallpaper-derived colour, already correctly
+  falling back to the plain accent when there's no wallpaper — same value
+  Start/feed/Quick Panel/app list use). Fixed by resolving the sheet's local
+  `accent` val as `wallpaperAccentPreview` when `tileColorSource ==
+  WALLPAPER_ACCENT`, else the plain accent — a one-line fix that propagates
+  everywhere, since every other spot in the file (20 call sites, including
+  every sub-sheet it opens) already consumes this same local `accent` rather
+  than re-resolving from `accentId` independently. Build + full unit test
+  suite green; installed on the physical device (debug build, same signature,
+  no data loss) and the emulator, launched with no crash in `adb logcat`.
 - **`main` — actually bumped the app's version to 3.2.0.** Direct correction,
   user-flagged: "version no is not changed to 3.2.0." The previous entry below
   drafted a v3.2.0 release-notes section in `docs/PLAY_STORE.md` but
