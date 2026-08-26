@@ -668,14 +668,20 @@ private fun GCard(
 private fun AccentCard(
     accent: Color,
     onClick: (() -> Unit)? = null,
+    /** Lets a caller stretch the card to fill a taller container (e.g. a
+     *  resized built-in glance card, see `WidgetSlot.kt`'s `BuiltinCardView`) —
+     *  the accent fill then covers the whole resized area instead of leaving
+     *  blank space below a natural-height card. */
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .background(accent),
+        contentAlignment = Alignment.Center,
     ) { content() }
 }
 
@@ -694,7 +700,7 @@ internal fun WeatherCard(
     // a wallpaper-derived accent can be light even when the page itself is dark).
     val onAccent = Glass.faceTextColor(useDarkText = isLightBackground(accent))
     val onAccentDim = onAccent.copy(alpha = 0.78f)
-    AccentCard(accent, onClick = onClick) {
+    AccentCard(accent, onClick = onClick, modifier = Modifier.fillMaxHeight()) {
         Column(modifier = Modifier.padding(14.dp)) {
             if (snapshot == null) {
                 Text("weather unavailable", color = onAccent, fontSize = 14.sp)
@@ -752,7 +758,7 @@ internal fun AgendaCard(
 ) {
     val onAccent = Glass.faceTextColor(useDarkText = isLightBackground(accent))
     val onAccentDim = onAccent.copy(alpha = 0.78f)
-    AccentCard(accent, onClick = onClick) {
+    AccentCard(accent, onClick = onClick, modifier = Modifier.fillMaxHeight()) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -814,7 +820,7 @@ internal fun NowPlayingCard(
 ) {
     val onAccent = Glass.faceTextColor(useDarkText = isLightBackground(accent))
     val onAccentDim = onAccent.copy(alpha = 0.78f)
-    AccentCard(accent, onClick = onClick) {
+    AccentCard(accent, onClick = onClick, modifier = Modifier.fillMaxHeight()) {
         Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier

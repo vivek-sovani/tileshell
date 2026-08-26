@@ -41,6 +41,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -102,6 +103,21 @@ import kotlin.random.Random
 private const val WIDGET_HOST_ID = 0x54_53 // "TS"
 private const val WIDGET_MIN_H = 72
 private const val WIDGET_MAX_H = 720
+
+/**
+ * Starting heights for the three built-in glance cards the first time they're
+ * resized (a `HostedWidget.heightDp` of 0 means "never manually resized" — see
+ * [BuiltinCardView]) — a real hosted widget gets its starting height from its
+ * provider's own declared minimum; a built-in card has no provider, so these are
+ * plain reasonable guesses matching each card's typical un-resized content
+ * height. A resize handle drag can only ever grow a card past its own natural
+ * content height (see [BuiltinCardView]'s `heightIn(min = ...)`), so a guess
+ * that's too small just means the card renders at its natural height until
+ * dragged taller — never clipped.
+ */
+private const val BUILTIN_WEATHER_DEFAULT_HEIGHT_DP = 190
+private const val BUILTIN_AGENDA_DEFAULT_HEIGHT_DP = 190
+private const val BUILTIN_NOWPLAYING_DEFAULT_HEIGHT_DP = 130
 
 /**
  * Auto-rotate interval for a feed widget stack — matches Start's own widget-stack
@@ -752,11 +768,13 @@ fun WidgetSection(
         }
 
         @Composable
-        fun builtinCardView(hw: HostedWidget, modifier: Modifier, content: @Composable () -> Unit) {
+        fun builtinCardView(hw: HostedWidget, defaultHeightDp: Int, modifier: Modifier, content: @Composable () -> Unit) {
             key(hw.widgetId) {
                 BuiltinCardView(
                     id = hw.widgetId,
                     halfWidth = hw.halfWidth,
+                    heightDp = hw.heightDp,
+                    defaultHeightDp = defaultHeightDp,
                     widthDp = widthDp,
                     accent = accent,
                     editing = editMode,
@@ -771,7 +789,7 @@ fun WidgetSection(
                     onDragBy = { delta -> onWidgetDragBy(hw.widgetId, delta) },
                     onDragEnd = { onWidgetDragEnd(hw.widgetId) },
                     onBoundsChanged = { rect -> widgetBounds[hw.widgetId] = rect },
-                    onResize = { newHalf -> scope.launch { store.setSize(hw.widgetId, heightDp = 0, halfWidth = newHalf) } },
+                    onResize = { newHeight, newHalf -> scope.launch { store.setSize(hw.widgetId, newHeight, newHalf) } },
                     onDismiss = { onEditModeChange(false) },
                     modifier = modifier,
                     content = content,
@@ -788,10 +806,10 @@ fun WidgetSection(
         fun cardView(card: WidgetCard, modifier: Modifier) {
             when (card) {
                 is WidgetCard.Solo -> when (card.widget.widgetId) {
-                    BUILTIN_WEATHER_WIDGET_ID -> builtinCardView(card.widget, modifier) {
+                    BUILTIN_WEATHER_WIDGET_ID -> builtinCardView(card.widget, BUILTIN_WEATHER_DEFAULT_HEIGHT_DP, modifier) {
                         WeatherCard(snapshot = weatherSnapshot, accent = accent, onClick = onWeatherClick)
                     }
-                    BUILTIN_AGENDA_WIDGET_ID -> builtinCardView(card.widget, modifier) {
+                    BUILTIN_AGENDA_WIDGET_ID -> builtinCardView(card.widget, BUILTIN_AGENDA_DEFAULT_HEIGHT_DP, modifier) {
                         AgendaCard(
                             agenda = agenda, granted = calendarGranted, accent = accent,
                             onAddSchedule = onAddSchedule, onClick = onAgendaClick,
@@ -799,7 +817,7 @@ fun WidgetSection(
                     }
                     // renderedWidgets already drops this sentinel whenever nowPlaying is
                     // null, so it's always non-null by the time this branch renders.
-                    BUILTIN_NOWPLAYING_WIDGET_ID -> builtinCardView(card.widget, modifier) {
+                    BUILTIN_NOWPLAYING_WIDGET_ID -> builtinCardView(card.widget, BUILTIN_NOWPLAYING_DEFAULT_HEIGHT_DP, modifier) {
                         NowPlayingCard(
                             nowPlaying = nowPlaying!!, packageName = nowPlayingPackage,
                             art = nowPlayingArt, accent = accent, onClick = onNowPlayingClick,
@@ -1040,9 +1058,14 @@ private fun BoxScope.WidgetEditOverlay(
             liveWidth = if (newHalf) halfWidthDp else fullWidthDp
             return newHalf
         }
+        // Positioned with an OUTWARD offset (past the card's own edge), not inward
+        // padding — sitting at the true border instead of well inside the card,
+        // per on-device feedback ("handle position is inside widget, it should be
+        // at the border"), which also made the width handle hard to grab cleanly
+        // since it competed with the card's own content underneath it.
         if (resizableHeight) {
             ResizeHandle(
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).offset(y = 4.dp),
                 width = 32.dp,
                 height = 4.dp,
                 widgetId = dragKey,
@@ -1053,7 +1076,7 @@ private fun BoxScope.WidgetEditOverlay(
             )
         }
         ResizeHandle(
-            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp),
+            modifier = Modifier.align(Alignment.CenterEnd).offset(x = 4.dp),
             width = 4.dp,
             height = 32.dp,
             widgetId = dragKey,
@@ -1179,6 +1202,10 @@ private fun WidgetView(
 private fun BuiltinCardView(
     id: Int,
     halfWidth: Boolean,
+    /** 0 means "never manually resized" — falls back to [defaultHeightDp] rather
+     *  than rendering a near-zero-height card. */
+    heightDp: Int,
+    defaultHeightDp: Int,
     widthDp: Int,
     accent: Color,
     editing: Boolean,
@@ -1188,7 +1215,7 @@ private fun BuiltinCardView(
     onDragBy: (Offset) -> Unit,
     onDragEnd: () -> Unit,
     onBoundsChanged: (Rect) -> Unit,
-    onResize: (halfWidth: Boolean) -> Unit,
+    onResize: (heightDp: Int, halfWidth: Boolean) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
@@ -1197,14 +1224,16 @@ private fun BuiltinCardView(
     val fullWidthDp = widthDp
     val liveWidthState = remember(halfWidth, widthDp) { mutableStateOf(if (halfWidth) halfWidthDp else fullWidthDp) }
     val liveWidth by liveWidthState
-    // Never actually dragged (resizableHeight = false below) — a fixed placeholder
-    // satisfies WidgetEditOverlay's shared liveHeightState contract.
-    val liveHeightState = remember { mutableStateOf(0) }
+    val liveHeightState = remember(heightDp, defaultHeightDp) {
+        mutableStateOf(if (heightDp > 0) heightDp else defaultHeightDp)
+    }
+    val liveHeight by liveHeightState
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier
                 .width(liveWidth.dp)
+                .height(liveHeight.dp)
                 .onGloballyPositioned { onBoundsChanged(it.boundsInRoot()) }
                 .graphicsLayer {
                     translationX = if (isDragging) dragOffset.x else 0f
@@ -1222,9 +1251,8 @@ private fun BuiltinCardView(
                     liveWidthState = liveWidthState,
                     liveHeightState = liveHeightState,
                     currentHalfWidth = { halfWidth },
-                    resizableHeight = false,
                     removable = false,
-                    onResize = { _, newHalf -> onResize(newHalf) },
+                    onResize = onResize,
                     onDragStart = onDragStart,
                     onDragBy = onDragBy,
                     onDragEnd = onDragEnd,
@@ -1715,11 +1743,13 @@ private fun EditPill(label: String, color: Color, onClick: () -> Unit) {
 }
 
 /**
- * Press-and-drag handle to reorder a widget — a thin bar (approved One-UI-inspired
- * edit-mode design, shared with Quick Panel's own move handle) instead of the
- * earlier "≡" text pill. The pointerInput/hit area stays a comfortable 40x24dp
- * even though the visible bar itself is much smaller, so the smaller visual
- * doesn't shrink the real touch target.
+ * Press-and-drag handle to reorder a widget — a small grip-dot pattern (3
+ * columns × 2 rows), deliberately a different SHAPE from the resize handles'
+ * single straight bar/arc rather than just a different colour, after on-device
+ * feedback that a same-shaped thin bar read as "just another resize handle."
+ * The pointerInput/hit area stays a comfortable 40x24dp even though the visible
+ * grip itself is much smaller, so the smaller visual doesn't shrink the real
+ * touch target.
  */
 @Composable
 private fun DragHandlePill(
@@ -1745,10 +1775,30 @@ private fun DragHandlePill(
     ) {
         Box(
             modifier = Modifier
-                .size(width = 28.dp, height = 4.dp)
-                .clip(RoundedCornerShape(2.dp))
+                .size(width = 26.dp, height = 16.dp)
+                .clip(RoundedCornerShape(8.dp))
                 .background(accent),
-        )
+        ) {
+            GripDots(modifier = Modifier.fillMaxSize())
+        }
+    }
+}
+
+/** 3×2 grid of small dots — the move-handle glyph shared by [DragHandlePill] and
+ *  Quick Panel's own move handle (see `QuickPanelOverlay.kt`'s identical helper). */
+@Composable
+private fun GripDots(modifier: Modifier = Modifier) {
+    ComposeCanvas(modifier = modifier) {
+        val dotRadius = 1.3.dp.toPx()
+        val cols = 3
+        val rows = 2
+        for (r in 0 until rows) {
+            for (c in 0 until cols) {
+                val x = size.width * (c + 0.5f) / cols
+                val y = size.height * (r + 0.5f) / rows
+                drawCircle(color = Color.White.copy(alpha = 0.9f), radius = dotRadius, center = Offset(x, y))
+            }
+        }
     }
 }
 
@@ -1768,8 +1818,15 @@ private fun BoxScope.ResizeHandle(
     onDrag: (dx: Float, dy: Float) -> Unit,
     onDragEnd: () -> Unit,
 ) {
-    val hitWidth = maxOf(width, 40.dp)
-    val hitHeight = maxOf(height, 40.dp)
+    // Additive, not maxOf(dimension, 40dp) — a flat 40dp minimum on the bar's
+    // thin axis made a 4dp-thick handle's real hit area balloon to 40dp wide,
+    // which (combined with sitting right at the card's border — see the
+    // outward offset at the call site) reached far enough into a paired
+    // half-width neighbour's own bounds to compete with its content/handles
+    // for the touch. A modest, additive enlargement keeps the touch target
+    // comfortably bigger than the visible bar without that overlap.
+    val hitWidth = width + 16.dp
+    val hitHeight = height + 16.dp
     Box(
         modifier = modifier.size(width = hitWidth, height = hitHeight)
             .pointerInput(widgetId) {
@@ -1804,7 +1861,7 @@ private fun BoxScope.CornerArcHandle(
     onDragEnd: () -> Unit,
 ) {
     Box(
-        modifier = modifier.size(40.dp)
+        modifier = modifier.size(44.dp)
             .pointerInput(widgetId) {
                 detectDragGestures(
                     onDrag = { change, drag -> change.consume(); onDrag(drag.x, drag.y) },
@@ -1813,8 +1870,8 @@ private fun BoxScope.CornerArcHandle(
             },
         contentAlignment = Alignment.Center,
     ) {
-        ComposeCanvas(modifier = Modifier.size(18.dp)) {
-            val stroke = 2.5.dp.toPx()
+        ComposeCanvas(modifier = Modifier.size(24.dp)) {
+            val stroke = 3.dp.toPx()
             val inset = stroke / 2
             drawArc(
                 color = Color.White.copy(alpha = 0.9f),

@@ -38,6 +38,63 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **`main` — resize/reorder follow-up: seven on-device-reported fixes to the
+  Quick Panel/glance handle work below.** Direct same-day follow-up after the
+  user tried the feature on their physical device. Reported, and fixed:
+  (1) **glance width-handle "not working properly" + handles sitting inside the
+  card instead of at the border** — root-caused as the same issue: Part C's
+  restyle had enlarged every `ResizeHandle`'s touch target to a flat `maxOf(dim,
+  40dp)` on its thin axis (a 4dp-thick bar got a 40dp hit box) while ALSO moving
+  from inward `padding` to (in this same follow-up) an outward border offset —
+  combined, the oversized hit box reached well into a paired half-width
+  neighbour's own content/bounds, competing for the touch. Fixed by switching to
+  an *additive* `dimension + 16.dp` hit enlargement (not a flat 40dp minimum)
+  plus a modest 4dp outward offset (not 8dp inward) — comfortably bigger than
+  the visible bar without reaching into a neighbour. (2) **corner handle
+  "slightly bigger"** — `CornerArcHandle`'s visual arc grew 18dp→24dp, stroke
+  2.5dp→3dp, hit box 40dp→44dp. (3) **the move handle "should visually look
+  different, otherwise it looks like a resize handle"** (both surfaces) — was a
+  real design gap: the move handle and the resize bars were both plain thin
+  straight bars, differing only by position. Both `feed/WidgetSlot.kt`'s
+  `DragHandlePill` and `QuickPanelOverlay.kt`'s `QuickPanelMoveHandle` now
+  render a small 3×2 grip-dot pattern (`GripDots`, drawn with `Canvas`/
+  `drawCircle`) inside a pill instead of a straight bar — a different *shape*,
+  not just a different colour. (4) **vertical resize for the built-in glance
+  cards** (weather/agenda/now-playing — user: "if I have a big set of
+  appointments") — `WidgetEditOverlay`'s `resizableHeight = false` restriction
+  for built-ins was lifted (now defaults `true`, matching real hosted widgets);
+  `BuiltinCardView` gained a real `heightDp`/`defaultHeightDp` (three new
+  per-card-type starting-height constants, since a built-in has no provider to
+  size from the way a real widget does) and switched its outer sizing from an
+  unbounded-parent-incompatible `heightIn(min=)` to a bounded `.height()`,
+  matching `WidgetView`'s own established pattern exactly; `AccentCard`
+  (`FeedPage.kt`, shared by all three built-in cards) gained an optional
+  `modifier` param + centred content alignment so a taller card's accent fill
+  actually covers the resized area instead of leaving blank space below a
+  natural-height card. **Explicitly out of scope, noted for the user**: making
+  `AgendaCard` show *more* appointments when taller — `CalendarFace`/
+  `queryUpcomingEvents` (`:feature:livetiles`) are hardcoded to the next 2
+  events and also back the Start-screen calendar live tile, so widening that
+  shape is a real, separate follow-up, not attempted here to avoid an
+  unreviewed change to an already-shipped live tile. (5) **Quick Panel: a
+  separate "done" button at the edit icon's position while editing** — was
+  already the same tap target/position, but only recoloured the pencil icon;
+  now swaps to the existing "check" glyph (`TileIcons`) so "tap here to finish"
+  reads as a distinct action, not just a tint change. (6) **Quick Panel handle
+  position** — user confirmed already correct, no change needed there.
+  (7) **vertical/horizontal-resizable sliders (brightness/ring/media)** —
+  explicitly deferred again, unchanged from the original plan's scoping
+  (`QuickPanelSliders` are still three separate fixed-orientation Material3
+  `Slider` rows below the tile grid); genuinely new, larger work (no vertical-
+  slider precedent anywhere in this codebase — would need the Compose rotated-
+  slider trick, plus folding sliders into the same order/size grid system as
+  the toggle tiles) — flagged to the user as a distinct next step rather than
+  attempted in this same pass. Build + full unit test suite green; installed on
+  the physical device, launched without crash (confirmed via `adb logcat`), but
+  the specific gesture fixes (handle position/hit-testing, height-resize visual
+  result) are **not yet visually re-confirmed on-device** — the user had asked
+  to check manually rather than continue iterating via ADB-synthesized swipes/
+  screenshots this session.
 - **`main` — Quick Panel tiles and glance cards get One-UI-inspired resize +
   reorder, via a single global edit toggle.** New ask, not in the WP prototype/
   spec — user drew an explicit parallel to One UI's resizable quick-settings

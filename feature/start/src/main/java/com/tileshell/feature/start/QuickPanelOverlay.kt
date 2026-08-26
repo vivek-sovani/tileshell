@@ -558,7 +558,10 @@ private fun QuickPanelHeader(
             horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
         ) {
             QuickPanelHeaderIcon(
-                icon = "edit",
+                // A distinct checkmark glyph while editing — not just a colour
+                // change on the same pencil icon — so "tap here to finish" reads
+                // clearly at a glance, per on-device feedback.
+                icon = if (editMode) "check" else "edit",
                 description = if (editMode) "done editing" else "edit layout",
                 fg = if (editMode) accent else fg,
                 onClick = onToggleEdit,
@@ -1096,10 +1099,11 @@ private fun QuickPanelTile(
 }
 
 /**
- * Thin top-edge bar — drag to reorder. Approved One-UI-inspired edit-mode
- * design: no per-tile label, just a bar you grab. Straddles the tile's top
- * edge (small negative padding) so it reads as attached to the tile, not
- * floating above it.
+ * Small grip-dot pill straddling the tile's top edge — drag to reorder.
+ * Deliberately a different SHAPE from the plain thin resize bar below it (a 3×2
+ * dot grid, not a straight line), after on-device feedback that a same-shaped
+ * bar read as "just another resize handle" rather than the distinct move
+ * affordance it is.
  */
 @Composable
 private fun BoxScope.QuickPanelMoveHandle(
@@ -1111,9 +1115,9 @@ private fun BoxScope.QuickPanelMoveHandle(
     Box(
         modifier = Modifier
             .align(Alignment.TopCenter)
-            .offset(y = (-3).dp)
-            .size(width = 24.dp, height = 4.dp)
-            .clip(RoundedCornerShape(2.dp))
+            .offset(y = (-5).dp)
+            .size(width = 22.dp, height = 12.dp)
+            .clip(RoundedCornerShape(6.dp))
             .background(color)
             .pointerInput(Unit) {
                 detectDragGestures(
@@ -1123,7 +1127,24 @@ private fun BoxScope.QuickPanelMoveHandle(
                     onDragCancel = { onDragEnd() },
                 )
             },
-    )
+        contentAlignment = Alignment.Center,
+    ) {
+        // Dots contrast against the pill's own [color] fill (which itself
+        // already contrasts against the tile) rather than a fixed shade, so
+        // they stay visible whichever of the two Glass.faceTextColor outcomes
+        // [color] happens to be.
+        val dotColor = Glass.faceTextColor(useDarkText = isLightBackground(color))
+        Canvas(modifier = Modifier.size(width = 16.dp, height = 8.dp)) {
+            val dotRadius = 1.1.dp.toPx()
+            for (r in 0 until 2) {
+                for (c in 0 until 3) {
+                    val x = size.width * (c + 0.5f) / 3
+                    val y = size.height * (r + 0.5f) / 2
+                    drawCircle(color = dotColor, radius = dotRadius, center = Offset(x, y))
+                }
+            }
+        }
+    }
 }
 
 /** Thin right-edge bar (vertically centered) — drag to resize width (square ↔ wide). */
