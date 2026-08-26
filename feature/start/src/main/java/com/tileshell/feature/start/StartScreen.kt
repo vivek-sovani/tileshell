@@ -810,7 +810,7 @@ fun StartScreen(
     val density = LocalDensity.current
     CompositionLocalProvider(
         LocalColorTokens provides tokens,
-        LocalAccent provides accent,
+        LocalAccent provides (wallpaperAccent ?: accent),
         LocalTileCornerRadius provides settings.cornerRadius,
         LocalTileGradient provides (settings.tileFill == TileFill.GRADIENT),
         LocalTileFont provides tileFont,
