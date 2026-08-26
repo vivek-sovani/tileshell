@@ -38,6 +38,22 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **`main` — folded the Personalize accent fix into the same v3.2.0 (not a new
+  version bump).** User: "include this change in the same 3.2.0. i have yet
+  not uploaded it to play console" — since nothing had shipped yet, this is a
+  same-versionCode re-cut rather than a v3.2.1. Updated `versionCode = 320`'s
+  changelog comment in `app/build.gradle.kts` and both the Play-facing blurb
+  and full changelog in `docs/PLAY_STORE.md`'s "Release notes (v3.2.0)" to
+  mention the fix (blurb re-trimmed to merge the two "Fixed" lines and stay
+  under Play's 500-char limit — 424 chars). Rebuilt the signed release APK +
+  AAB — same `versionCode`/`versionName` (320/3.2.0), confirmed via
+  `apksigner verify` that the signing identity still matches every prior
+  release exactly, and confirmed via MD5 that the APK's actual content
+  changed (the fix is really in there, not a no-op rebuild). Overwrote
+  `release-out/tileshell-3.2.0-release.{apk,aab}` in place — these were only
+  ever local artifacts, never uploaded, so overwriting is the correct move
+  here rather than cutting a new version. Installed the new release APK on
+  the emulator, launched with no crash in `adb logcat`.
 - **`main` — the Personalize sheet itself didn't pick up the wallpaper-derived
   accent colour.** User-reported: "wallpaper based accent color not used in
   personalisation screen." Same class of bug as the app-list fix a few

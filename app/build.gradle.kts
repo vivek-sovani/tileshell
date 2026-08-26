@@ -314,6 +314,9 @@ android {
         //   a feed card competed with the card's own content for the touch; resizing or
         //   reordering the same tile a second time in one edit session could silently do
         //   nothing (a stale Compose gesture-callback closure, fixed with rememberUpdatedState).
+        //   Also: the Personalize sheet's own chrome (selected pills, sliders, highlights)
+        //   now correctly follows the wallpaper-derived accent when that's the chosen tile
+        //   colour source, instead of always showing the plain global accent.
         versionCode = 320
         versionName = "3.2.0"
     }

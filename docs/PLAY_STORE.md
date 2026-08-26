@@ -161,10 +161,10 @@ TileShell 3.2.0
 • New: drag to reorder Quick Panel tiles, or weather/agenda/now-playing on the feed
 • New: one edit toggle now shows move/resize handles on every tile or card at once
 • Changed: distinct move (grip-dot) vs resize (bar/arc) handles, matching One UI
-• Fixed: several resize/reorder bugs (wrong tile resizing, second resize not sticking)
+• Fixed: resize/reorder bugs, and personalize not following the wallpaper accent
 ```
 
-*(Character count 430, under Play's 500 limit.)*
+*(Character count 424, under Play's 500 limit.)*
 
 ### Full changelog since v3.1.0 (for reference — not the Play-facing blurb above)
 
@@ -195,6 +195,10 @@ TileShell 3.2.0
   second time within one edit session could silently do nothing, traced to a well-known
   Jetpack Compose gesture-handler pitfall (a drag handler's callbacks getting "frozen" after
   the very first use unless explicitly kept fresh) affecting every handle built this session.
+- **Fixed**: the Personalize sheet's own chrome (selected pills, sliders, highlights) always
+  showed the plain global accent colour, even when "wallpaper" was chosen as the tile colour
+  source — every other screen (Start, feed, Quick Panel, app list) already followed the
+  wallpaper-derived accent correctly; Personalize itself was the one screen still out of sync.
 
 ## Release notes (v3.1.0)
 
