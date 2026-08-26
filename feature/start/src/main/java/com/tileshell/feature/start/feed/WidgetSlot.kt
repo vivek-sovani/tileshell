@@ -19,6 +19,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas as ComposeCanvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -66,8 +67,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -950,8 +954,8 @@ private fun BoxScope.WidgetEditOverlay(
         }
         ResizeHandle(
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
-            width = 44.dp,
-            height = 6.dp,
+            width = 32.dp,
+            height = 4.dp,
             widgetId = dragKey,
             onDrag = { _, dy ->
                 liveHeight = (liveHeight + dy / density).roundToInt().coerceIn(WIDGET_MIN_H, WIDGET_MAX_H)
@@ -960,19 +964,16 @@ private fun BoxScope.WidgetEditOverlay(
         )
         ResizeHandle(
             modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp),
-            width = 6.dp,
-            height = 44.dp,
+            width = 4.dp,
+            height = 32.dp,
             widgetId = dragKey,
             onDrag = { dx, _ ->
                 liveWidth = (liveWidth + dx / density).roundToInt().coerceIn(widthFloor, fullWidthDp)
             },
             onDragEnd = { onResize(liveHeight, settleWidth()) },
         )
-        ResizeHandle(
-            modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
-            width = 14.dp,
-            height = 14.dp,
-            cornerRadius = 6.dp,
+        CornerArcHandle(
+            modifier = Modifier.align(Alignment.BottomEnd),
             widgetId = dragKey,
             onDrag = { dx, dy ->
                 liveWidth = (liveWidth + dx / density).roundToInt().coerceIn(widthFloor, fullWidthDp)
@@ -1549,7 +1550,13 @@ private fun EditPill(label: String, color: Color, onClick: () -> Unit) {
     )
 }
 
-/** Press-and-drag handle to reorder a widget — same pill styling as [EditPill], but a drag gesture instead of a click. */
+/**
+ * Press-and-drag handle to reorder a widget — a thin bar (approved One-UI-inspired
+ * edit-mode design, shared with Quick Panel's own move handle) instead of the
+ * earlier "≡" text pill. The pointerInput/hit area stays a comfortable 40x24dp
+ * even though the visible bar itself is much smaller, so the smaller visual
+ * doesn't shrink the real touch target.
+ */
 @Composable
 private fun DragHandlePill(
     accent: Color,
@@ -1559,13 +1566,9 @@ private fun DragHandlePill(
     onDragEnd: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Text(
-        "≡",
-        color = Color.White,
-        fontSize = 14.sp,
+    Box(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(accent)
+            .size(width = 40.dp, height = 24.dp)
             .pointerInput(widgetId) {
                 detectDragGestures(
                     onDragStart = { onDragStart() },
@@ -1573,12 +1576,24 @@ private fun DragHandlePill(
                     onDragEnd = { onDragEnd() },
                     onDragCancel = { onDragEnd() },
                 )
-            }
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    )
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 28.dp, height = 4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(accent),
+        )
+    }
 }
 
-/** A small draggable pill/dot used to resize a widget in one or both directions. */
+/**
+ * A thin draggable bar used to resize a widget in one direction (width or
+ * height) — approved One-UI-inspired design. [width]/[height] size the visible
+ * bar; the pointerInput hit area is padded out to at least 40dp on the bar's
+ * long axis so a thin bar stays comfortably draggable.
+ */
 @Composable
 private fun BoxScope.ResizeHandle(
     modifier: Modifier,
@@ -1589,18 +1604,65 @@ private fun BoxScope.ResizeHandle(
     onDrag: (dx: Float, dy: Float) -> Unit,
     onDragEnd: () -> Unit,
 ) {
+    val hitWidth = maxOf(width, 40.dp)
+    val hitHeight = maxOf(height, 40.dp)
     Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(cornerRadius))
-            .background(Color.White.copy(alpha = 0.9f))
-            .size(width = width, height = height)
+        modifier = modifier.size(width = hitWidth, height = hitHeight)
             .pointerInput(widgetId) {
                 detectDragGestures(
                     onDrag = { change, drag -> change.consume(); onDrag(drag.x, drag.y) },
                     onDragEnd = { onDragEnd() },
                 )
             },
-    )
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = width, height = height)
+                .clip(RoundedCornerShape(cornerRadius))
+                .background(Color.White.copy(alpha = 0.9f)),
+        )
+    }
+}
+
+/**
+ * Bottom-right corner resize handle drawn as a quarter-circle arc (approved
+ * One-UI-inspired design) instead of a dot/rounded-square — sweeps from the
+ * right edge down to the bottom edge, reading as "pull the corner outward."
+ * Drags both width and height at once. Same enlarged-hit-area treatment as
+ * [ResizeHandle].
+ */
+@Composable
+private fun BoxScope.CornerArcHandle(
+    modifier: Modifier,
+    widgetId: Int,
+    onDrag: (dx: Float, dy: Float) -> Unit,
+    onDragEnd: () -> Unit,
+) {
+    Box(
+        modifier = modifier.size(40.dp)
+            .pointerInput(widgetId) {
+                detectDragGestures(
+                    onDrag = { change, drag -> change.consume(); onDrag(drag.x, drag.y) },
+                    onDragEnd = { onDragEnd() },
+                )
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        ComposeCanvas(modifier = Modifier.size(18.dp)) {
+            val stroke = 2.5.dp.toPx()
+            val inset = stroke / 2
+            drawArc(
+                color = Color.White.copy(alpha = 0.9f),
+                startAngle = 0f,
+                sweepAngle = 90f,
+                useCenter = false,
+                topLeft = Offset(inset, inset),
+                size = Size(size.width - stroke, size.height - stroke),
+                style = Stroke(width = stroke, cap = StrokeCap.Round),
+            )
+        }
+    }
 }
 
 /** Renders a [Drawable] (widget preview/icon) to a bitmap for Compose. */
