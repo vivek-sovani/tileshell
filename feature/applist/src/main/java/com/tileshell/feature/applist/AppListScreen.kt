@@ -74,9 +74,11 @@ import com.tileshell.core.data.AppLauncher
 import com.tileshell.core.data.PinResult
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
+import com.tileshell.core.design.Glass
 import com.tileshell.core.design.LocalAccent
 import com.tileshell.core.design.LocalColorTokens
 import com.tileshell.core.design.TileIcons
+import com.tileshell.core.design.isLightBackground
 import com.tileshell.feature.livetiles.NotificationCenter
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -501,7 +503,7 @@ private fun JumpGrid(
                         ) {
                             Text(
                                 text = letter,
-                                color = if (has) Color.White else LocalColorTokens.current.fgDim.copy(alpha = 0.3f),
+                                color = if (has) Glass.faceTextColor(useDarkText = isLightBackground(accent)) else LocalColorTokens.current.fgDim.copy(alpha = 0.3f),
                                 fontSize = fontSize,
                                 fontWeight = FontWeight.ExtraLight,
                             )

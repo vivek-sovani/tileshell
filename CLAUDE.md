@@ -38,6 +38,23 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **`main` — app list didn't pick up the wallpaper-derived accent colour.** User-reported: "when
+  accent color is picked up from wallpaper same is not applied to app list screen." Root cause:
+  `StartScreen.kt`'s `CompositionLocalProvider` fed `LocalAccent` (consumed by the app list's section
+  headers, letter headers, and jump grid for their accent tint — `AppListScreen.kt`'s
+  `LocalAccent.current`) the plain global `accent` unconditionally, never the `wallpaperAccent`
+  computed a few lines above for `TileColorSource.WALLPAPER_ACCENT` — so switching tile colour source
+  to "wallpaper" recoloured Start's own tiles (which read `wallpaperAccent ?: accent` directly) but
+  left the app list (and any other `LocalAccent` consumer) on the old accent. One-line fix:
+  `LocalAccent provides (wallpaperAccent ?: accent)`, matching the same fallback tiles already use.
+  Build + full unit test suite green; installed on the user's physical device and confirmed the app
+  list's letters/headers now pick up the same wallpaper-derived tan/gold accent as Start. **Same-day
+  follow-up, user-spotted while verifying on-device**: with that light wallpaper accent now correctly
+  reaching the app list's jump grid (`AppListScreen.kt`'s `JumpGrid`), its "present" letter tiles were
+  still hardcoded to `Color.White` text — fine against the old fixed dark-blue accent, unreadable
+  against a light accent colour. Fixed the same way `QuickPanelOverlay.kt`/`FeedPage.kt` already
+  pick text colour for an arbitrary accent-filled surface: `Glass.faceTextColor(useDarkText =
+  isLightBackground(accent))` instead of a fixed white. Build + tests green; installed on-device.
 - **`android-home-style` branch — notification tile content was top-aligned instead of centred.**
   Direct same-day follow-up, user-reported: "though full space is utilised now displayed on top. top
   aligned. it should be centrally aligned." The previous session's fix made bigger notification tiles
