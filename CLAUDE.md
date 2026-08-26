@@ -38,6 +38,21 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **`main` — actually bumped the app's version to 3.2.0.** Direct correction,
+  user-flagged: "version no is not changed to 3.2.0." The previous entry below
+  drafted a v3.2.0 release-notes section in `docs/PLAY_STORE.md` but
+  deliberately left `app/build.gradle.kts`'s real `versionCode`/`versionName`
+  at 310/3.1.0, reasoning that cutting/signing an actual release is normally
+  its own separate session in this project. The user wanted the real app
+  version updated too (so e.g. the About sheet's "v3.1.0" — read live from
+  `PackageManager.getPackageInfo`, not the doc — would actually say 3.2.0),
+  so `versionCode = 320` / `versionName = "3.2.0"` now, with the same
+  changelog-comment convention every prior bump uses. Still just a debug
+  build, not a signed release artifact — that's unchanged and wasn't asked
+  for. Build + full unit test suite green; installed on both the physical
+  device and the `Medium_Phone_API_36.1` emulator, confirmed `versionName=
+  3.2.0` via `dumpsys package`, launched on both with no crash in `adb
+  logcat`.
 - **`main` — documented the Quick Panel/glance resize+reorder feature: release
   notes, About sheet, and the Personalize guide.** User asked to "update
   release & info and guide" once the feature itself (and its five on-device

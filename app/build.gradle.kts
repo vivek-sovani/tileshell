@@ -304,8 +304,18 @@ android {
         //   tiles at Wide Small/Banner (one grid row tall) clipped their controls/text,
         //   clock specifically at 5/6 columns; a folder child dragged to a chosen position
         //   could still land at the bottom instead, from a client-side ordering bug.
-        versionCode = 310
-        versionName = "3.1.0"
+        // v3.2.0 (code 320) — Quick Panel tiles and the feed's built-in weather/agenda/
+        //   now-playing cards gain One UI-inspired resize (drag between square and wide,
+        //   or width/height/both for feed cards) and drag-to-reorder, via a single global
+        //   edit toggle instead of per-tile long-press. Distinct move (grip-dot) vs resize
+        //   (bar/arc) handles; a live scale-based resize preview instead of a hard snap on
+        //   release. Fixes found while shipping this: a Quick Panel tile could occasionally
+        //   resize its neighbour instead of itself; a resize handle sitting too far inside
+        //   a feed card competed with the card's own content for the touch; resizing or
+        //   reordering the same tile a second time in one edit session could silently do
+        //   nothing (a stale Compose gesture-callback closure, fixed with rememberUpdatedState).
+        versionCode = 320
+        versionName = "3.2.0"
     }
 
     if (keystoreFile.exists()) {
