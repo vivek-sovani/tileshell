@@ -38,6 +38,45 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **`main` — resize/reorder follow-up #5: fixed a stale-closure bug where a
+  SECOND resize/reorder on the same tile/card silently did nothing.**
+  User-reported: "within a single edit session suppose I resize a tile from
+  small to long and again I want to resize the same tile to small it doesn't
+  happen" — then, unprompted, confirmed it's symmetric ("and a vice a
+  versa"), which was the key clue pointing away from any square↔wide-specific
+  math bug and toward a general "second gesture on the same handle" bug.
+  Root cause, present in every drag handle built/touched this session
+  (`QuickPanelMoveHandle`/`QuickPanelWidthHandle` in `QuickPanelOverlay.kt`;
+  `DragHandlePill`/`ResizeHandle`/`CornerArcHandle` in `feed/WidgetSlot.kt`):
+  each wraps `detectDragGestures` inside `pointerInput(Unit)` or
+  `pointerInput(widgetId)` — for a *given* tile/card, that key never changes
+  across repeated gestures in one edit session, so the gesture coroutine
+  launches exactly once and never restarts. `detectDragGestures`'s own
+  `onDragStart`/`onDrag`/`onDragEnd` callback closures — plain `{
+  onDragStart() }`-style wrappers around the handle's function parameters —
+  are therefore captured **once, at that first launch**, and never updated on
+  later recompositions even though fresh callback lambdas are passed in every
+  time (this is the standard, documented Compose `pointerInput` gotcha).
+  The very first drag on a given handle instance works correctly (it
+  genuinely *is* the fresh state); every subsequent drag on that *same*
+  instance still invokes the **original, frozen** closure — which itself
+  closed over whatever `sizesMap`/`sizeOf`/`commitResize` (Quick Panel) or
+  `WidgetSection`'s equivalent state existed back at that first drag. In
+  `commitResize`'s case specifically, the frozen closure's `sizeOf(id).cols`
+  read the tile's *pre-first-resize* size forever after, so the size-vs-
+  settled comparison silently concluded "no change needed" on every later
+  attempt — nothing ever got persisted again, for either direction. Fixed
+  with `rememberUpdatedState` (the standard fix for exactly this class of
+  bug) on every drag callback in all five handle composables — the gesture
+  coroutine still never restarts, but each callback invocation now reads
+  through to the *current* reference instead of the one frozen at first
+  launch. This is a foundational fix underneath the whole session's resize/
+  reorder work — every earlier follow-up in this log was layered on top of
+  code that could only ever reliably handle *one* gesture per tile/card per
+  edit session; this is what makes repeated use actually work. Build + full
+  unit test suite green; installed on the physical device, launched with no
+  crash in `adb logcat` — the actual "resize back and forth repeatedly" check
+  still needs the user's own hands-on confirmation.
 - **`main` — resize/reorder follow-up #4: fixed Quick Panel resizing the
   wrong (usually adjacent) tile.** User-reported: "when I try to resize
   certain tile another tile is resized some times. mostly adjacent." Real

@@ -45,6 +45,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -1172,6 +1173,24 @@ private fun BoxScope.QuickPanelMoveHandle(
     onDragBy: (Offset) -> Unit,
     onDragEnd: () -> Unit,
 ) {
+    // A real bug fixed on user report ("resize small->long once, then
+    // long->small on the same tile doesn't happen — and vice versa"):
+    // pointerInput(Unit) launches its gesture coroutine exactly once (the key
+    // never changes) and never restarts, so detectDragGestures's own callback
+    // closures — { onDragStart() } etc. — permanently capture whichever
+    // onDragStart/onDragBy/onDragEnd REFERENCES existed at that first launch.
+    // Every later drag on this same tile (its identity now correctly
+    // preserved by key(tile.id) at the call site) still invokes those frozen
+    // first-composition closures instead of the fresh ones passed on
+    // subsequent recompositions — which themselves close over whatever
+    // sizesMap/sizeOf/commitResize existed back then. The first gesture ever
+    // works (it genuinely IS the fresh state); every later one on the same
+    // handle silently operates on stale state instead. rememberUpdatedState
+    // is the standard fix: the gesture coroutine still never restarts, but it
+    // now reads through to the CURRENT callback on every invocation.
+    val currentOnDragStart by rememberUpdatedState(onDragStart)
+    val currentOnDragBy by rememberUpdatedState(onDragBy)
+    val currentOnDragEnd by rememberUpdatedState(onDragEnd)
     Box(
         modifier = Modifier
             .align(Alignment.TopCenter)
@@ -1181,10 +1200,10 @@ private fun BoxScope.QuickPanelMoveHandle(
             .background(color)
             .pointerInput(Unit) {
                 detectDragGestures(
-                    onDragStart = { onDragStart() },
-                    onDrag = { change, drag -> change.consume(); onDragBy(drag) },
-                    onDragEnd = { onDragEnd() },
-                    onDragCancel = { onDragEnd() },
+                    onDragStart = { currentOnDragStart() },
+                    onDrag = { change, drag -> change.consume(); currentOnDragBy(drag) },
+                    onDragEnd = { currentOnDragEnd() },
+                    onDragCancel = { currentOnDragEnd() },
                 )
             },
         contentAlignment = Alignment.Center,
@@ -1215,6 +1234,10 @@ private fun BoxScope.QuickPanelWidthHandle(
     onDragBy: (Float) -> Unit,
     onDragEnd: () -> Unit,
 ) {
+    // See QuickPanelMoveHandle's comment — same stale-closure fix.
+    val currentOnDragStart by rememberUpdatedState(onDragStart)
+    val currentOnDragBy by rememberUpdatedState(onDragBy)
+    val currentOnDragEnd by rememberUpdatedState(onDragEnd)
     Box(
         modifier = Modifier
             .align(Alignment.CenterEnd)
@@ -1224,10 +1247,10 @@ private fun BoxScope.QuickPanelWidthHandle(
             .background(color)
             .pointerInput(Unit) {
                 detectDragGestures(
-                    onDragStart = { onDragStart() },
-                    onDrag = { change, drag -> change.consume(); onDragBy(drag.x) },
-                    onDragEnd = { onDragEnd() },
-                    onDragCancel = { onDragEnd() },
+                    onDragStart = { currentOnDragStart() },
+                    onDrag = { change, drag -> change.consume(); currentOnDragBy(drag.x) },
+                    onDragEnd = { currentOnDragEnd() },
+                    onDragCancel = { currentOnDragEnd() },
                 )
             },
     )

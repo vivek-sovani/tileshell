@@ -1807,6 +1807,22 @@ private fun BoxScope.DragHandlePill(
     onDragBy: (Offset) -> Unit,
     onDragEnd: () -> Unit,
 ) {
+    // A real bug fixed on user report (Quick Panel: "resize small->long once,
+    // then long->small on the same tile doesn't happen — and vice versa";
+    // this handle shares the identical shape of problem). pointerInput(widgetId)
+    // only restarts its gesture coroutine when widgetId itself CHANGES — for
+    // repeated gestures on the SAME card across one edit session, widgetId is
+    // constant, so the coroutine never restarts and detectDragGestures's own
+    // callback closures permanently capture whichever onDragStart/onDragBy/
+    // onDragEnd references existed at the FIRST drag. Every later drag on this
+    // same card still invokes those frozen first-drag closures — which
+    // themselves closed over whatever WidgetSection state existed back then —
+    // instead of the fresh ones passed on later recompositions.
+    // rememberUpdatedState is the standard fix: the coroutine still never
+    // restarts, but it now reads through to the CURRENT callback every time.
+    val currentOnDragStart by rememberUpdatedState(onDragStart)
+    val currentOnDragBy by rememberUpdatedState(onDragBy)
+    val currentOnDragEnd by rememberUpdatedState(onDragEnd)
     Box(
         modifier = Modifier
             .align(Alignment.TopCenter)
@@ -1816,10 +1832,10 @@ private fun BoxScope.DragHandlePill(
             .background(accent)
             .pointerInput(widgetId) {
                 detectDragGestures(
-                    onDragStart = { onDragStart() },
-                    onDrag = { change, drag -> change.consume(); onDragBy(drag) },
-                    onDragEnd = { onDragEnd() },
-                    onDragCancel = { onDragEnd() },
+                    onDragStart = { currentOnDragStart() },
+                    onDrag = { change, drag -> change.consume(); currentOnDragBy(drag) },
+                    onDragEnd = { currentOnDragEnd() },
+                    onDragCancel = { currentOnDragEnd() },
                 )
             },
         contentAlignment = Alignment.Center,
@@ -1871,12 +1887,15 @@ private fun BoxScope.ResizeHandle(
     // comfortably bigger than the visible bar without that overlap.
     val hitWidth = width + 16.dp
     val hitHeight = height + 16.dp
+    // Same stale-closure fix as DragHandlePill — see its comment.
+    val currentOnDrag by rememberUpdatedState(onDrag)
+    val currentOnDragEnd by rememberUpdatedState(onDragEnd)
     Box(
         modifier = modifier.size(width = hitWidth, height = hitHeight)
             .pointerInput(widgetId) {
                 detectDragGestures(
-                    onDrag = { change, drag -> change.consume(); onDrag(drag.x, drag.y) },
-                    onDragEnd = { onDragEnd() },
+                    onDrag = { change, drag -> change.consume(); currentOnDrag(drag.x, drag.y) },
+                    onDragEnd = { currentOnDragEnd() },
                 )
             },
         contentAlignment = Alignment.Center,
@@ -1904,12 +1923,15 @@ private fun BoxScope.CornerArcHandle(
     onDrag: (dx: Float, dy: Float) -> Unit,
     onDragEnd: () -> Unit,
 ) {
+    // Same stale-closure fix as DragHandlePill — see its comment.
+    val currentOnDrag by rememberUpdatedState(onDrag)
+    val currentOnDragEnd by rememberUpdatedState(onDragEnd)
     Box(
         modifier = modifier.size(44.dp)
             .pointerInput(widgetId) {
                 detectDragGestures(
-                    onDrag = { change, drag -> change.consume(); onDrag(drag.x, drag.y) },
-                    onDragEnd = { onDragEnd() },
+                    onDrag = { change, drag -> change.consume(); currentOnDrag(drag.x, drag.y) },
+                    onDragEnd = { currentOnDragEnd() },
                 )
             },
         contentAlignment = Alignment.Center,
