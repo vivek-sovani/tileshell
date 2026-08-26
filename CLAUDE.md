@@ -38,6 +38,26 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **`main` — documented the Quick Panel/glance resize+reorder feature: release
+  notes, About sheet, and the Personalize guide.** User asked to "update
+  release & info and guide" once the feature itself (and its five on-device
+  follow-up fixes above) was done. Added a new **v3.2.0** entry at the top of
+  `docs/PLAY_STORE.md`'s release notes (Play-facing blurb + full changelog) —
+  a draft only, app `versionCode`/`versionName` in `app/build.gradle.kts`
+  deliberately left at 310/3.1.0 (unchanged), since bumping/signing an actual
+  release build is its own separate, deliberate session in this project's
+  convention, not implied by "update the release notes." **About sheet**
+  (`AboutSheet.kt`, "features & info"): the "quick panel" group gained the
+  edit-icon → move/resize-handle → checkmark flow; the "widgets" group was
+  rewritten to describe the single edit toggle now covering weather/agenda/
+  now-playing alongside hosted widgets, replacing the stale "tap 'edit' on a
+  widget" per-card description. **Guide sheet** (`PersonalizeGuideSheet.kt`,
+  "how to personalize"): matching updates to its own "quick panel" and "feed:
+  glance & news" groups; `QuickPanelVisual`'s small illustration gained a tiny
+  resize-handle indicator on its wifi tile so the mockup itself hints at the
+  new capability, not just the bullet text. Build + full unit test suite
+  green; installed on the physical device, launched with no crash in `adb
+  logcat`.
 - **`main` — resize/reorder follow-up #5: fixed a stale-closure bug where a
   SECOND resize/reorder on the same tile/card silently did nothing.**
   User-reported: "within a single edit session suppose I resize a tile from

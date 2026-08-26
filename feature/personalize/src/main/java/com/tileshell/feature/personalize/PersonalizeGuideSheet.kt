@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -245,7 +246,8 @@ fun PersonalizeGuideSheet(
                     "greeting auto-fills your name from your contact profile if available — edit or clear it any time in personalize · feed & glance",
                     "tap the search pill to jump straight into quick search",
                     "narrow widgets automatically pair up side by side — drag a widget's edge past the midpoint to switch it between side-by-side and full width",
-                    "drag a widget's handle to reorder it",
+                    "weather, agenda, and now-playing share this same system too — tap \"edit\" next to \"widgets\" to turn on move/resize handles for every card at once, hosted widgets included",
+                    "drag a card's move handle (top) to reorder it, its edge handle to resize width or height, or its corner to resize both at once",
                     "pick any number of news regions — india plus ~20 other countries, defaulting to your device's own",
                     "tap the ⚙ in the news section to add your own rss/atom feeds and pick categories",
                     "personalize · feed & glance · \"no background\" gives the feed its own flat look, independent of start's wallpaper",
@@ -282,6 +284,9 @@ fun PersonalizeGuideSheet(
                     "personalize, android settings, and lock screen icons sit in a second row under the status row",
                     "true square tiles, four across, just like windows phone's action center",
                     "tap a tile to toggle wi-fi, bluetooth, flashlight, dnd, airplane mode, location, or rotation lock",
+                    "tap the pencil icon at the top of the panel to edit the grid — every tile shows a move handle (top) and a resize handle (right edge) at once, no long-press needed",
+                    "drag a tile's move handle to reorder it, or drag its resize handle to switch it between square and wide",
+                    "tap the checkmark where the pencil was to finish editing",
                     "brightness, ring volume, and media volume are real drag sliders below the tile grid",
                     "tap the bell or speaker icon on the ring/media sliders to mute or unmute",
                     "tap the screen-timeout tile to cycle through presets",
@@ -632,6 +637,17 @@ private fun QuickPanelVisual(accent: Color, tokens: com.tileshell.core.design.Co
             contentAlignment = Alignment.Center,
         ) {
             Icon(TileIcons["wifi"], contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+            // A tiny resize-handle hint on the corner, showing edit mode's own
+            // thin-bar handles — see this group's new "drag its resize handle"
+            // bullet.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .offset(x = 2.dp)
+                    .size(width = 3.dp, height = 10.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color.White.copy(alpha = 0.85f)),
+            )
         }
         Box(
             modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)).background(tokens.tileLine.copy(alpha = 0.6f)),

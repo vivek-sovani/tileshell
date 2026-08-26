@@ -144,6 +144,58 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
+## Release notes (v3.2.0)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+**Note:** a genuine new capability (Quick Panel and glance-page resize/reorder, One UI-
+inspired), not a fix-only release — surfaced above the fixes here, per this doc's usual
+split. The fixes are real bugs found and fixed during the SAME on-device testing pass that
+shipped the feature, not separate pre-existing issues, so they're folded into this one
+changelog entry rather than a follow-up patch release.
+
+```
+TileShell 3.2.0
+
+• New: resize Quick Panel tiles between square and wide — drag the edge handle
+• New: drag to reorder Quick Panel tiles, or weather/agenda/now-playing on the feed
+• New: one edit toggle now shows move/resize handles on every tile or card at once
+• Changed: distinct move (grip-dot) vs resize (bar/arc) handles, matching One UI
+• Fixed: several resize/reorder bugs (wrong tile resizing, second resize not sticking)
+```
+
+*(Character count 430, under Play's 500 limit.)*
+
+### Full changelog since v3.1.0 (for reference — not the Play-facing blurb above)
+
+- **Quick Panel tiles are now resizable and reorderable**, mirroring One UI's own resizable
+  quick-settings tiles (the explicit reference point for this whole feature) — a new pencil
+  icon in the panel header toggles edit mode, showing a move handle (top) and a width-resize
+  handle (right edge) on every tile at once, no per-tile long-press. Drag a tile's resize
+  handle to switch it between square (1 column) and wide (2 columns); drag its move handle
+  to reorder. The edit icon swaps to a checkmark while editing.
+- **Weather, agenda, and now-playing on the feed page are now resizable and reorderable too**,
+  folded into the exact same system the feed's hosted Android widgets already used — one
+  "edit"/"done" toggle next to "widgets" now drives every card (built-in and hosted) at once,
+  replacing the old per-widget "edit" tap-in. These three cards can resize both width and
+  height now, not just width.
+- **Handle redesign**: move and resize now use visually distinct shapes — a small grip-dot
+  pill for move (previously a "≡" glyph, then briefly a plain bar indistinguishable from a
+  resize handle), thin bars for single-axis resize, and a quarter-circle arc (not a dot) for
+  the corner both-axes handle — applied consistently across the Quick Panel and every feed
+  widget/card.
+- **Live resize preview**: dragging a resize handle now shows the tile/card growing or
+  shrinking smoothly in real time (a lightweight visual scale, not a full relayout), instead
+  of no feedback at all until release (Quick Panel) or a discontinuous jump once you let go
+  (feed cards paired side by side).
+- *Fixes found and made during this session's own on-device testing (not pre-existing
+  issues)*: a Quick Panel tile could occasionally resize its neighbour instead of itself; a
+  resize handle sitting too far inside a feed card made it compete with the card's own
+  content for the touch; and — the deepest one — resizing or reordering the *same* tile a
+  second time within one edit session could silently do nothing, traced to a well-known
+  Jetpack Compose gesture-handler pitfall (a drag handler's callbacks getting "frozen" after
+  the very first use unless explicitly kept fresh) affecting every handle built this session.
+
 ## Release notes (v3.1.0)
 
 *"What's new" — newest release first. Keep under Play's 500-character limit.*
