@@ -38,6 +38,29 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **`main` — resize/reorder follow-up #4: fixed Quick Panel resizing the
+  wrong (usually adjacent) tile.** User-reported: "when I try to resize
+  certain tile another tile is resized some times. mostly adjacent." Real
+  bug, not a hit-testing/positioning issue this time: the `QuickPanelTile(...)`
+  calls in the row-packing loop (`QuickPanelOverlay.kt`) were never wrapped in
+  `key(tile.id)`, so Compose identified each tile instance — and the
+  `pointerInput(Unit)` gesture coroutines inside its move/width handles, which
+  never restart since their key is a constant `Unit` — by *position* in the
+  loop, not by the tile's own stable id. A resize or reorder commit reflows
+  which tile occupies which row/slot on the very next recomposition (that's
+  the whole point of `packQuickPanelRows`); without a data-identity key, a
+  tile that shifts into a position a neighbour used to occupy could inherit
+  that neighbour's still-running gesture coroutine — and its stale captured
+  `tile.id` closures — misattributing a drag on "whatever's now at this
+  position" to the tile that used to be there. `feed/WidgetSlot.kt`'s
+  `WidgetView`/`WidgetStackView` already key by `widgetId`/`stackId` for
+  exactly this reason (a pattern from earlier in the project's history); this
+  was a real gap in the Quick Panel tile grid added this session that never
+  got the same treatment. Fixed with `key(tile.id) { QuickPanelTile(...) }`.
+  Build + full unit test suite green; installed on the physical device,
+  launched with no crash in `adb logcat` — the actual "does it now always
+  resize the tile I meant" check still needs the user's own hands-on
+  confirmation.
 - **`main` — resize/reorder follow-up #3: redesigned horizontal resize as a
   scale-preview during drag, commit-on-release, for both Quick Panel and
   glance.** Direct same-day follow-up after follow-up #2's fix still wasn't

@@ -40,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -386,35 +387,51 @@ fun QuickPanelOverlay(
                     ) {
                         row.forEach { tile ->
                             val size = sizeOf(tile.id)
-                            QuickPanelTile(
-                                tile,
-                                tokens = tokens,
-                                accent = accent,
-                                editMode = quickPanelEditMode,
-                                isDragging = draggingTileId == tile.id,
-                                isDragTarget = quickPanelEditMode && dragTargetId == tile.id && draggingTileId != tile.id,
-                                dragOffset = if (draggingTileId == tile.id) dragDelta else Offset.Zero,
-                                resizeScaleX = if (resizingTileId == tile.id) resizingScaleX ?: 1f else 1f,
-                                onMoveDragStart = { draggingTileId = tile.id; dragDelta = Offset.Zero; dragTargetId = null },
-                                onMoveDragBy = { delta ->
-                                    dragDelta += delta
-                                    val origin = tileBounds[tile.id]?.center
-                                    if (origin != null) {
-                                        val point = origin + dragDelta
-                                        dragTargetId = tileBounds.entries
-                                            .firstOrNull { (otherId, rect) -> otherId != tile.id && rect.contains(point) }
-                                            ?.key
-                                    }
-                                },
-                                onMoveDragEnd = { commitReorder(tile.id) },
-                                onWidthDragStart = { resizingTileId = tile.id; resizeDeltaPx = 0f },
-                                onWidthDragBy = { dx -> resizeDeltaPx += dx },
-                                onWidthDragEnd = { commitResize(tile.id) },
-                                modifier = Modifier
-                                    .weight(size.cols.toFloat())
-                                    .aspectRatio(size.cols.toFloat())
-                                    .onGloballyPositioned { tileBounds[tile.id] = it.boundsInRoot() },
-                            )
+                            // Keyed by the tile's own stable id, NOT its position in this
+                            // loop — a real bug fixed on user report ("resizing a tile
+                            // sometimes resizes another, mostly adjacent"). Without this,
+                            // Compose identifies each QuickPanelTile instance (and the
+                            // pointerInput(Unit) gesture coroutines inside its move/width
+                            // handles, which never restart since their key never changes)
+                            // by its POSITION in this loop. A resize or reorder commit
+                            // reflows which tile occupies which row/position on the very
+                            // next recomposition — without a data-identity key, a tile
+                            // that shifts into a position a NEIGHBOUR used to occupy can
+                            // inherit that neighbour's still-running gesture coroutine
+                            // (and its stale captured tile.id), misattributing the drag.
+                            // `feed/WidgetSlot.kt`'s WidgetView/WidgetStackView already
+                            // key by widgetId/stackId for exactly this reason.
+                            key(tile.id) {
+                                QuickPanelTile(
+                                    tile,
+                                    tokens = tokens,
+                                    accent = accent,
+                                    editMode = quickPanelEditMode,
+                                    isDragging = draggingTileId == tile.id,
+                                    isDragTarget = quickPanelEditMode && dragTargetId == tile.id && draggingTileId != tile.id,
+                                    dragOffset = if (draggingTileId == tile.id) dragDelta else Offset.Zero,
+                                    resizeScaleX = if (resizingTileId == tile.id) resizingScaleX ?: 1f else 1f,
+                                    onMoveDragStart = { draggingTileId = tile.id; dragDelta = Offset.Zero; dragTargetId = null },
+                                    onMoveDragBy = { delta ->
+                                        dragDelta += delta
+                                        val origin = tileBounds[tile.id]?.center
+                                        if (origin != null) {
+                                            val point = origin + dragDelta
+                                            dragTargetId = tileBounds.entries
+                                                .firstOrNull { (otherId, rect) -> otherId != tile.id && rect.contains(point) }
+                                                ?.key
+                                        }
+                                    },
+                                    onMoveDragEnd = { commitReorder(tile.id) },
+                                    onWidthDragStart = { resizingTileId = tile.id; resizeDeltaPx = 0f },
+                                    onWidthDragBy = { dx -> resizeDeltaPx += dx },
+                                    onWidthDragEnd = { commitResize(tile.id) },
+                                    modifier = Modifier
+                                        .weight(size.cols.toFloat())
+                                        .aspectRatio(size.cols.toFloat())
+                                        .onGloballyPositioned { tileBounds[tile.id] = it.boundsInRoot() },
+                                )
+                            }
                         }
                         if (rowCols < QUICK_PANEL_COLUMNS) Box(modifier = Modifier.weight((QUICK_PANEL_COLUMNS - rowCols).toFloat()))
                     }
