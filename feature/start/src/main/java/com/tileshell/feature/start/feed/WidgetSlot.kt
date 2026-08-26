@@ -831,12 +831,28 @@ fun WidgetSection(
 
         rows.forEach { row ->
             when (row) {
+                // Deliberately NOT Modifier.weight(1f) here (a real bug fixed on
+                // user report: "horizontal resizing is not yet smooth"). Each card
+                // already sizes itself from its own live drag state via an inner
+                // `.width(liveWidth.dp)` (see WidgetView/BuiltinCardView) — a
+                // weight(1f) ancestor gives fill=true fixed (min=max) constraints,
+                // which coerces that inner width request down to the fixed 50%
+                // share no matter how far the live drag goes. The card visually
+                // never grew past its paired half-share; it only "jumped" to full
+                // width once released and the row repacked — reading as broken/
+                // non-smooth rather than a continuous resize. Un-weighted Row
+                // children each get sized to their own request instead, so a
+                // growing card smoothly pushes its neighbour along
+                // (Arrangement.spacedBy places children sequentially by their own
+                // measured size) exactly as the finger moves; only on release does
+                // settleWidth() decide whether it snaps back to half or commits to
+                // full and the row repacks.
                 is WidgetRow.Pair -> Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    cardView(row.first, Modifier.weight(1f))
-                    cardView(row.second, Modifier.weight(1f))
+                    cardView(row.first, Modifier)
+                    cardView(row.second, Modifier)
                 }
                 is WidgetRow.Single -> cardView(row.card, Modifier.fillMaxWidth())
             }
@@ -1005,42 +1021,39 @@ private fun BoxScope.WidgetEditOverlay(
                 indication = null,
             ) { onDismiss() },
     ) {
-        // One top row holding the drag handle and the action pills, laid out so they
-        // can't overlap. They used to be two independently-aligned children (handle at
-        // TopStart, actions at TopEnd), which silently covered the handle as soon as
-        // the actions grew wider than the gap between them: a stack adds a third pill
-        // ("unstack") on top of edit + remove, so on a narrow card the handle vanished
-        // underneath them and the stack couldn't be dragged at all (user-reported).
-        // SpaceBetween reserves the handle's own space, and the actions wrap onto
-        // another line rather than encroaching on it.
-        //
-        // Drag the handle up or down past another card to swap places with it, or onto
-        // its centre to stack them. The reorder only commits once, on release — see
-        // `onWidgetDragEnd` — so the list never restructures mid-gesture.
+        // Action pills in their own top-right row (edit/remove/unstack).
         Row(
             modifier = Modifier
-                .align(Alignment.TopStart)
-                .fillMaxWidth()
+                .align(Alignment.TopEnd)
                 .padding(8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            DragHandlePill(
-                accent = accent,
-                widgetId = dragKey,
-                onDragStart = onDragStart,
-                onDragBy = onDragBy,
-                onDragEnd = onDragEnd,
-            )
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.padding(start = 8.dp),
             ) {
                 extraActions()
                 if (info != null && info.configure != null) EditPill("edit", accent) { onEdit(info) }
                 if (removable) EditPill("remove", Color(0xFFD6262B)) { onRemove() }
             }
         }
+        // Move/reorder handle — top-center, straddling the card's own top edge,
+        // matching Quick Panel's identically-shaped-and-positioned move handle
+        // exactly (same grip-dot pill, same offset) per explicit user request
+        // ("use same type of handle and position even on glance screen") — no
+        // longer sharing a row with the action pills (that used to squeeze both
+        // into the top-left corner; a stack's extra "unstack" pill could crowd
+        // the handle out entirely on a narrow card).
+        //
+        // Drag it up or down past another card to swap places with it, or onto
+        // its centre to stack them. The reorder only commits once, on release —
+        // see `onWidgetDragEnd` — so the list never restructures mid-gesture.
+        DragHandlePill(
+            accent = accent,
+            widgetId = dragKey,
+            onDragStart = onDragStart,
+            onDragBy = onDragBy,
+            onDragEnd = onDragEnd,
+        )
         // Three independent resize handles — bottom edge (height only), right edge
         // (width only), corner (both at once, diagonal) — so any widget can be
         // resized in whichever direction makes sense for it, rather than the host
@@ -1752,17 +1765,20 @@ private fun EditPill(label: String, color: Color, onClick: () -> Unit) {
  * touch target.
  */
 @Composable
-private fun DragHandlePill(
+private fun BoxScope.DragHandlePill(
     accent: Color,
     widgetId: Int,
     onDragStart: () -> Unit,
     onDragBy: (Offset) -> Unit,
     onDragEnd: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = modifier
-            .size(width = 40.dp, height = 24.dp)
+        modifier = Modifier
+            .align(Alignment.TopCenter)
+            .offset(y = (-5).dp)
+            .size(width = 22.dp, height = 12.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(accent)
             .pointerInput(widgetId) {
                 detectDragGestures(
                     onDragStart = { onDragStart() },
@@ -1773,14 +1789,7 @@ private fun DragHandlePill(
             },
         contentAlignment = Alignment.Center,
     ) {
-        Box(
-            modifier = Modifier
-                .size(width = 26.dp, height = 16.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(accent),
-        ) {
-            GripDots(modifier = Modifier.fillMaxSize())
-        }
+        GripDots(modifier = Modifier.size(width = 16.dp, height = 8.dp))
     }
 }
 

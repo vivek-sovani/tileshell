@@ -38,6 +38,42 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **`main` — resize/reorder follow-up #2: fixed a real "paired half-width
+  resize isn't smooth" bug, and matched the glance move handle to Quick
+  Panel's exactly.** Direct same-day follow-up. (1) **"horizontal resizing is
+  not yet smooth on app widgets, like calendar, weather, and now playing"** —
+  root-caused as a genuine bug, not just a feel/polish issue: the two-card
+  `WidgetRow.Pair` `Row` in `WidgetSection` (`feed/WidgetSlot.kt`) gave each
+  card `Modifier.weight(1f)` (default `fill = true`), which hands the card
+  *fixed* (min=max) width constraints equal to its 50% share — a
+  `SizeModifier` from `.width(liveWidth.dp)` deeper inside (`WidgetView`/
+  `BuiltinCardView`) coerces its requested width into whatever constraints it's
+  given, so the live drag's `liveWidth` state kept updating correctly (the
+  gesture wasn't literally broken) but the card's actual on-screen width was
+  pinned at exactly 50% no matter how far past that the finger dragged; only
+  on release did `settleWidth()` read the (correctly, silently, uncapped)
+  tracked state and snap straight to full width — reading as an unresponsive,
+  discontinuous jump rather than a smooth resize. Fixed by dropping
+  `Modifier.weight(1f)` for both cards in a `Pair` row in favour of each
+  card's own unconstrained `.width(liveWidth.dp)` — an un-weighted `Row` gives
+  each child its own requested size instead of an equal fixed share, so a
+  growing card now smoothly pushes its (un-shrinking) neighbour along via
+  `Arrangement.spacedBy`'s sequential placement, tracking the finger in real
+  time; the commit-and-repack behaviour on release is unchanged. Applies to
+  real hosted widgets too, sharing the same `Pair`-row code path. (2) **"the
+  glance movement handle should use the same handle type and position as Quick
+  Panel's (already good)"** — `WidgetEditOverlay`'s drag handle used to share a
+  cramped top-left corner `Row` with the edit/remove/unstack action pills
+  (`SpaceBetween`); it's now a self-positioned `BoxScope.DragHandlePill`
+  (`.align(Alignment.TopCenter).offset(y = -5.dp)`, 22×12dp grip-dot pill) —
+  same shape, size, and border-straddling position as
+  `QuickPanelOverlay.kt`'s `QuickPanelMoveHandle`, byte-for-byte matched per
+  explicit request rather than just "similar." The action pills now sit alone
+  in their own top-right row. Build + full unit test suite green; installed on
+  the physical device, launched with no crash in `adb logcat` — the actual
+  smoothness/positioning still needs the user's own on-device confirmation
+  (this is exactly the kind of live-drag feel that's hard to fully verify
+  without a real finger).
 - **`main` — resize/reorder follow-up: seven on-device-reported fixes to the
   Quick Panel/glance handle work below.** Direct same-day follow-up after the
   user tried the feature on their physical device. Reported, and fixed:
