@@ -38,6 +38,46 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **`main` — resize/reorder follow-up #3: redesigned horizontal resize as a
+  scale-preview during drag, commit-on-release, for both Quick Panel and
+  glance.** Direct same-day follow-up after follow-up #2's fix still wasn't
+  "smooth and visually improved" enough on either surface. Root causes this
+  time were structural, not just tuning: **Quick Panel had NO live resize
+  preview at all** — `QuickPanelTile`'s real layout only ever read the
+  *committed* `sizesMap`, so `resizeDeltaPx` was tracked but never fed back
+  into anything visible; the tile just sat still for the whole drag and hard-
+  snapped to its new size only once released. **Glance cards had a live
+  preview, but it drove a real relayout every drag frame** (`.width(liveWidth
+  .dp)` directly) — for a *paired* half-width card that's still wrapped in
+  `Modifier.weight(1f)` (put back after follow-up #2 tried removing it), a
+  real relayout to a wider value just gets silently coerced back to the fixed
+  weighted share every frame; for a *real hosted widget*, a live relayout also
+  meant calling `AppWidgetHostView.updateAppWidgetSize` — a real IPC call to
+  the widget's own process — on every single pixel of drag. Both explain "not
+  smooth" precisely. Fixed with the standard live-resize-preview technique
+  instead: the REAL layout (`WidgetView`/`BuiltinCardView`'s outer `.width()`/
+  `.height()`, and Quick Panel's `.weight(cols)`/`.aspectRatio(cols)`) now
+  stays pinned at the last-*committed* size for the entire drag — nothing
+  reflows, no real-widget IPC, no `weight(1f)` capping, because it's the
+  same value that constraint would produce anyway. The live drag feedback is
+  a `graphicsLayer { scaleX = live/committed }` (Quick Panel: `scaleX` only —
+  height is provably unchanged, since a WIDE tile is exactly a SQUARE tile at
+  2× width and the same one-row height, so a pure horizontal scale is exact,
+  not an approximation; glance cards: `scaleX` **and** `scaleY`, since a real
+  widget's height genuinely does change) with `transformOrigin = (0,0)`
+  (glance) `/ (0, 0.5)` (Quick Panel, matching its centre-anchored width
+  handle) and a `zIndex` bump while resizing, so the growing tile/card paints
+  above its neighbour instead of composition order arbitrarily deciding which
+  one's on top. This is pure paint-layer scaling — cheap, GPU-composited, immune
+  to layout constraints, and exactly the same class of fix as the graphicsLayer
+  translation the MOVE/reorder drag already used for its own smoothness. On
+  release, the existing `settleWidth()`/`settleQuickPanelTileSize()` commit
+  logic is unchanged — it reads the (always-correctly-tracked, never actually
+  broken) live delta and persists the real size, which repacks the row/grid
+  exactly once instead of every frame. Build + full unit test suite green;
+  installed on the physical device, launched with no crash in `adb logcat` —
+  the actual drag *feel* (the whole point of this round) still needs the
+  user's own on-device confirmation.
 - **`main` — resize/reorder follow-up #2: fixed a real "paired half-width
   resize isn't smooth" bug, and matched the glance move handle to Quick
   Panel's exactly.** Direct same-day follow-up. (1) **"horizontal resizing is

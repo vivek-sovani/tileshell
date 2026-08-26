@@ -71,6 +71,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
@@ -83,6 +84,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -831,28 +833,22 @@ fun WidgetSection(
 
         rows.forEach { row ->
             when (row) {
-                // Deliberately NOT Modifier.weight(1f) here (a real bug fixed on
-                // user report: "horizontal resizing is not yet smooth"). Each card
-                // already sizes itself from its own live drag state via an inner
-                // `.width(liveWidth.dp)` (see WidgetView/BuiltinCardView) — a
-                // weight(1f) ancestor gives fill=true fixed (min=max) constraints,
-                // which coerces that inner width request down to the fixed 50%
-                // share no matter how far the live drag goes. The card visually
-                // never grew past its paired half-share; it only "jumped" to full
-                // width once released and the row repacked — reading as broken/
-                // non-smooth rather than a continuous resize. Un-weighted Row
-                // children each get sized to their own request instead, so a
-                // growing card smoothly pushes its neighbour along
-                // (Arrangement.spacedBy places children sequentially by their own
-                // measured size) exactly as the finger moves; only on release does
-                // settleWidth() decide whether it snaps back to half or commits to
-                // full and the row repacks.
+                // Back to Modifier.weight(1f): the REAL layout width of a paired
+                // card is only ever its committed half-share now (see
+                // WidgetView/BuiltinCardView's committedWidthDp) — the live drag
+                // preview is a graphicsLayer scale on top, which paints past the
+                // weighted cell's own bounds without needing to escape the
+                // constraint at all. (A prior attempt dropped weight(1f) instead,
+                // relying on a real relayout every drag frame — technically un-
+                // capped, but the per-frame reflow of real card/widget content is
+                // what actually read as "not smooth"; the scale-based preview
+                // fixes that at the source, so the safer weighted layout is back.)
                 is WidgetRow.Pair -> Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    cardView(row.first, Modifier)
-                    cardView(row.second, Modifier)
+                    cardView(row.first, Modifier.weight(1f))
+                    cardView(row.second, Modifier.weight(1f))
                 }
                 is WidgetRow.Single -> cardView(row.card, Modifier.fillMaxWidth())
             }
@@ -1152,25 +1148,40 @@ private fun WidgetView(
     val liveWidth by liveWidthState
     val liveHeight by liveHeightState
 
+    // The REAL layout stays pinned at the last-committed size throughout a drag —
+    // see the shared rationale on BuiltinCardView's identical committedWidthDp/
+    // scaleX/scaleY block below.
+    val committedWidthDp = if (widget.halfWidth) halfWidthDp else fullWidthDp
+    val committedHeightDp = widget.heightDp
+    val scaleX = if (committedWidthDp > 0) liveWidth.toFloat() / committedWidthDp else 1f
+    val scaleY = if (committedHeightDp > 0) liveHeight.toFloat() / committedHeightDp else 1f
+    val isResizing = scaleX != 1f || scaleY != 1f
+
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier
-                .width(liveWidth.dp)
+                .width(committedWidthDp.dp)
                 .onGloballyPositioned { onBoundsChanged(it.boundsInRoot()) }
                 .graphicsLayer {
                     translationX = if (isDragging) dragOffset.x else 0f
                     translationY = if (isDragging) dragOffset.y else 0f
-                },
+                    if (isResizing) {
+                        this.scaleX = scaleX
+                        this.scaleY = scaleY
+                        transformOrigin = TransformOrigin(0f, 0f)
+                    }
+                }
+                .zIndex(if (isDragging || isResizing) 1f else 0f),
         ) {
             WidgetHostedView(
                 host = host,
                 widgetId = widget.widgetId,
                 info = info,
-                contentWidthDp = liveWidth,
-                heightDp = liveHeight,
+                contentWidthDp = committedWidthDp,
+                heightDp = committedHeightDp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(liveHeight.dp)
+                    .height(committedHeightDp.dp)
                     .clip(RoundedCornerShape(20.dp)),
             )
 
@@ -1235,23 +1246,47 @@ private fun BuiltinCardView(
 ) {
     val halfWidthDp = widthDp / 2
     val fullWidthDp = widthDp
-    val liveWidthState = remember(halfWidth, widthDp) { mutableStateOf(if (halfWidth) halfWidthDp else fullWidthDp) }
+    val committedWidthDp = if (halfWidth) halfWidthDp else fullWidthDp
+    val committedHeightDp = if (heightDp > 0) heightDp else defaultHeightDp
+    val liveWidthState = remember(halfWidth, widthDp) { mutableStateOf(committedWidthDp) }
     val liveWidth by liveWidthState
-    val liveHeightState = remember(heightDp, defaultHeightDp) {
-        mutableStateOf(if (heightDp > 0) heightDp else defaultHeightDp)
-    }
+    val liveHeightState = remember(heightDp, defaultHeightDp) { mutableStateOf(committedHeightDp) }
     val liveHeight by liveHeightState
+
+    // The REAL layout (.width/.height below) stays pinned at the last-committed
+    // size for the ENTIRE drag — it only jumps once on commit, when the row
+    // repacks. The live drag feedback comes entirely from a graphicsLayer
+    // scale instead: cheap (GPU-compositing, no relayout/reflow per frame — no
+    // text re-wrapping, no repeated real-widget updateAppWidgetSize IPC calls
+    // for real hosted widgets), and immune to a paired half-width card's
+    // Modifier.weight(1f) capping its real measured width at 50% (a real,
+    // now-fixed bug: relaying out to liveWidth directly every frame either got
+    // silently clamped to the weighted share, or — after an earlier, since-
+    // reverted attempt to fix that by dropping weight(1f) — pushed a
+    // real-widget-content reflow on every pixel, which is what actually read
+    // as "not smooth"). zIndex ensures the scaled-up card draws above its
+    // neighbour instead of underneath it (composition order alone would put
+    // whichever card composes later on top, not necessarily the growing one).
+    val scaleX = if (committedWidthDp > 0) liveWidth.toFloat() / committedWidthDp else 1f
+    val scaleY = if (committedHeightDp > 0) liveHeight.toFloat() / committedHeightDp else 1f
+    val isResizing = scaleX != 1f || scaleY != 1f
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier
-                .width(liveWidth.dp)
-                .height(liveHeight.dp)
+                .width(committedWidthDp.dp)
+                .height(committedHeightDp.dp)
                 .onGloballyPositioned { onBoundsChanged(it.boundsInRoot()) }
                 .graphicsLayer {
                     translationX = if (isDragging) dragOffset.x else 0f
                     translationY = if (isDragging) dragOffset.y else 0f
-                },
+                    if (isResizing) {
+                        this.scaleX = scaleX
+                        this.scaleY = scaleY
+                        transformOrigin = TransformOrigin(0f, 0f)
+                    }
+                }
+                .zIndex(if (isDragging || isResizing) 1f else 0f),
         ) {
             content()
             if (editing) {

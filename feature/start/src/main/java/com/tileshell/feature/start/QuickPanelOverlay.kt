@@ -56,6 +56,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
@@ -68,6 +69,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
@@ -358,6 +360,24 @@ fun QuickPanelOverlay(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                // Live width-drag preview for whichever tile is currently being
+                // width-resized, expressed as a plain scale factor against its own
+                // currently-committed width (tracked in tileBounds) — see
+                // QuickPanelTile's resizeScaleX doc comment for why this fixes the
+                // "no live feedback at all until release" gap (the real grid never
+                // moved during a drag before this; only settleQuickPanelTileSize's
+                // result was ever visible, on release).
+                val resizingScaleX = resizingTileId?.let { id ->
+                    val currentCols = sizeOf(id).cols
+                    val colWidthPx = tileBounds[id]?.let { it.width / currentCols }?.takeIf { it > 0f }
+                    if (colWidthPx != null) {
+                        val liveCols = (currentCols + resizeDeltaPx / colWidthPx).coerceIn(0.6f, 2.3f)
+                        liveCols / currentCols
+                    } else {
+                        null
+                    }
+                }
+
                 rows.forEach { row ->
                     val rowCols = row.sumOf { sizeOf(it.id).cols }
                     Row(
@@ -374,6 +394,7 @@ fun QuickPanelOverlay(
                                 isDragging = draggingTileId == tile.id,
                                 isDragTarget = quickPanelEditMode && dragTargetId == tile.id && draggingTileId != tile.id,
                                 dragOffset = if (draggingTileId == tile.id) dragDelta else Offset.Zero,
+                                resizeScaleX = if (resizingTileId == tile.id) resizingScaleX ?: 1f else 1f,
                                 onMoveDragStart = { draggingTileId = tile.id; dragDelta = Offset.Zero; dragTargetId = null },
                                 onMoveDragBy = { delta ->
                                     dragDelta += delta
@@ -1018,6 +1039,22 @@ private fun QuickPanelTile(
     isDragging: Boolean,
     isDragTarget: Boolean,
     dragOffset: Offset,
+    /**
+     * Live width-drag preview (1f = no change) — square↔wide only ever changes
+     * width, never height (Quick Panel tiles are always exactly one row tall,
+     * see [QuickPanelTileSize]'s own doc comment), so a pure horizontal scale
+     * is not just cheap but geometrically exact: a WIDE tile really is a
+     * SQUARE tile at 2x width and unchanged height. The real layout (this
+     * tile's actual measured size) stays pinned at its last-committed
+     * [QuickPanelTileSize] for the whole drag — see [packQuickPanelRows]'s
+     * caller — so nothing reflows per frame; only this paint-time scale
+     * tracks the finger, exactly the technique `feed/WidgetSlot.kt`'s
+     * `WidgetView`/`BuiltinCardView` use for the identical smoothness
+     * problem (a live-relayout preview either gets capped by a sibling's
+     * `weight(1f)` share or, if un-capped, reflows real content every frame —
+     * both of which read as "not smooth").
+     */
+    resizeScaleX: Float,
     onMoveDragStart: () -> Unit,
     onMoveDragBy: (Offset) -> Unit,
     onMoveDragEnd: () -> Unit,
@@ -1035,13 +1072,19 @@ private fun QuickPanelTile(
     // regardless of on/off state — reuse the same contrast rule as fg.
     val handleColor = Glass.faceTextColor(useDarkText = isLightBackground(bg))
     val haptics = LocalHapticFeedback.current
+    val resizing = resizeScaleX != 1f
     Box(
         modifier = modifier
             .graphicsLayer {
                 translationX = dragOffset.x
                 translationY = dragOffset.y
                 alpha = if (isDragging) 0.85f else 1f
+                if (resizing) {
+                    scaleX = resizeScaleX
+                    transformOrigin = TransformOrigin(0f, 0.5f)
+                }
             }
+            .zIndex(if (isDragging || resizing) 1f else 0f)
             .clip(RoundedCornerShape(10.dp))
             .background(bg)
             .then(
