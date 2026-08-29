@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         FolderChildEntity::class,
         AppCacheEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -104,9 +104,31 @@ abstract class TileShellDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v7→v8: add the ICONS-home-style "show as icon"/"show as tile" toggle
+         * for a single app tile (user-requested — icons should stretch to any
+         * of 4 square sizes like OneUI/Nothing OS, and since a stretched icon
+         * can't also show live content, the user picks per-app whether it's an
+         * icon or a live tile at MEDIUM+). Defaults to `1` (icon) even for
+         * existing rows — the user's explicit ask was "by default it should be
+         * icon in icon mode," not just for newly pinned apps — the render gate
+         * additionally requires a non-blank `packageName` (see StartScreen.kt),
+         * so this default is inert for the blank-package weather/calendar/
+         * clock/personalize tiles, which keep showing live content exactly as
+         * before regardless of this column's value.
+         */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tiles ADD COLUMN displayAsIcon INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
         /** Versioned migrations, added as the schema evolves. */
         val MIGRATIONS: Array<Migration> =
-            arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+            arrayOf(
+                MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
+                MIGRATION_7_8,
+            )
 
         @Volatile
         private var instance: TileShellDatabase? = null

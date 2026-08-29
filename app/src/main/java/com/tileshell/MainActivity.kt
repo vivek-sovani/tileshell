@@ -82,7 +82,7 @@ class MainActivity : ComponentActivity() {
             },
         )
 
-        handleShareIntent(intent)
+        handleWallpaperTargetIntent(intent)
 
         setContent {
             DefaultLauncherPrompt()
@@ -152,7 +152,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (handleShareIntent(intent)) return
+        if (handleWallpaperTargetIntent(intent)) return
         startViewModel.goHome()
         // Dismiss the keyboard when returning to Start via the Home button.
         // The search field in the app list / feed retains IME focus after
@@ -163,21 +163,29 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Handles a share-sheet `ACTION_SEND` intent carrying an image, sent from another app
-     * (e.g. Gallery/Photos' own "share"), forwarding the shared photo to
-     * [StartViewModel.receiveSharedImage] so `StartScreen` can import it and open the
-     * crop/reframe overlay, same as picking a wallpaper from within the app. Returns true if
-     * this intent was a share (and was handled), so callers can skip their own "just reopened"
-     * home-button handling for it.
+     * Handles any intent that hands TileShell an image to become the Start wallpaper:
+     * a share-sheet `ACTION_SEND` (e.g. Gallery/Photos' own "share"), or a wallpaper
+     * app's "apply via" / "set wallpaper" chooser (`CROP_AND_SET_WALLPAPER`, issued by
+     * `WallpaperManager.getCropAndSetWallpaperIntent()` and fired directly by most
+     * third-party wallpaper apps — the same chooser slot Nova/Apex/etc. occupy) or the
+     * system Photos "set as" chooser (`ACTION_ATTACH_DATA`). All three carry the image
+     * differently (`EXTRA_STREAM` vs. `intent.data`) but converge on the same
+     * [StartViewModel.receiveSharedImage] so `StartScreen` imports it and opens the
+     * crop/reframe overlay, same as picking a wallpaper from within the app. Returns
+     * true if this intent was one of the three (and was handled), so callers can skip
+     * their own "just reopened" home-button handling for it.
      */
-    private fun handleShareIntent(intent: Intent): Boolean {
-        if (intent.action != Intent.ACTION_SEND) return false
+    private fun handleWallpaperTargetIntent(intent: Intent): Boolean {
         if (intent.type?.startsWith("image/") != true) return false
-        val uri = if (android.os.Build.VERSION.SDK_INT >= 33) {
-            intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            intent.getParcelableExtra(Intent.EXTRA_STREAM)
+        val uri = when (intent.action) {
+            Intent.ACTION_SEND -> if (android.os.Build.VERSION.SDK_INT >= 33) {
+                intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(Intent.EXTRA_STREAM)
+            }
+            "android.service.wallpaper.CROP_AND_SET_WALLPAPER", Intent.ACTION_ATTACH_DATA -> intent.data
+            else -> null
         } ?: return false
         startViewModel.receiveSharedImage(uri)
         return true

@@ -1322,6 +1322,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) { repository.setTileAccent(id, colorId) }
     }
 
+    /** Set a single app tile's "show as icon"/"show as tile" toggle (ICONS home style only). */
+    fun setTileDisplayAsIcon(id: String, displayAsIcon: Boolean) {
+        viewModelScope.launch(writeContext) { repository.setTileDisplayAsIcon(id, displayAsIcon) }
+    }
+
     /** Unpin (remove) a tile from the Start grid (FR-3.5). */
     fun unpin(id: String) {
         // A full row gap is never allowed: removing a tile can leave its row

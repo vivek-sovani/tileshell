@@ -57,10 +57,6 @@ enum class TileSize(val cols: Int, val rows: Int) {
         WIDE_SMALL, TALL, WIDE_MEDIUM, TALL_MEDIUM, XLARGE, BANNER, COLUMN -> MEDIUM
     }
 
-    val area get() = cols * rows
-
-    fun nextIsLarger(largeAllowed: Boolean = false) = next(largeAllowed).area > area
-
     /**
      * Resize cycle for a folder child, which is deliberately tighter than a
      * top-level tile's: when [largeAllowed] it gets the full [next] cycle

@@ -176,6 +176,24 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="image/*" />
             </intent-filter>
+            <!-- Lets a wallpaper app's own "apply / set wallpaper" button offer TileShell
+                 in its launcher chooser (the same slot Nova/Apex/etc. occupy). This is the
+                 action WallpaperManager.getCropAndSetWallpaperIntent() issues, and what
+                 most third-party wallpaper apps fire directly rather than going through
+                 the share sheet. Routed through the same crop/reframe overlay as SEND. -->
+            <intent-filter>
+                <action android:name="android.service.wallpaper.CROP_AND_SET_WALLPAPER" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <!-- The system Photos/Gallery "set as" chooser (contact photo / wallpaper / etc.)
+                 uses ATTACH_DATA rather than CROP_AND_SET_WALLPAPER — same target, same
+                 handling, so TileShell shows up there too. -->
+            <intent-filter>
+                <action android:name="android.intent.action.ATTACH_DATA" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
         </activity>
     </application>
 

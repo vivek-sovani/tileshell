@@ -37,6 +37,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.TileSize
+import com.tileshell.core.data.settings.HomeStyle
+import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.design.LocalTileFaceColor
 import kotlinx.coroutines.delay
 
@@ -61,6 +63,8 @@ fun ConversationTileFace(
     active: Boolean,
     fallback: @Composable () -> Unit,
     size: TileSize = TileSize.MEDIUM,
+    homeStyle: HomeStyle = HomeStyle.TILES,
+    iconShape: IconShape = IconShape.ORIGINAL,
     modifier: Modifier = Modifier,
 ) {
     val snapshot by NotificationCenter.snapshot.collectAsState()
@@ -113,6 +117,8 @@ fun ConversationTileFace(
         )
         AppIconCorner(
             packageName = packageName,
+            homeStyle = homeStyle,
+            iconShape = iconShape,
             modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
         )
     }

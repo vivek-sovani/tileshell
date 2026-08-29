@@ -248,17 +248,6 @@ object TileIcons {
             p(line(18.0, 6.0, 6.0, 18.0)),
         ))
 
-        put("resize", vector("resize",
-            p("M4 10V4h6M20 14v6h-6"),
-            p(line(4.0, 4.0, 10.0, 10.0)),
-            p(line(20.0, 20.0, 14.0, 14.0)),
-        ))
-
-        // Inward brackets: shown when the next resize step is smaller.
-        put("resize-shrink", vector("resize-shrink",
-            p("M10 4v6h-6M14 20v-6h6"),
-        ))
-
         put("check", vector("check", p("M5 12l5 5 9-11")))
 
         // Simple pencil silhouette outline — the "enter edit mode" toggle for

@@ -39,6 +39,11 @@ data class TileEntity(
     val label: String? = null,
     val iconKey: String? = null,
     val folderId: String? = null,
+    // ICONS home style's per-tile "show as icon" (true) vs "show as tile"
+    // (false) toggle — see TileModel.App.displayAsIcon's doc comment. Added
+    // in schema v8; defaults true (icon) for every row, including ones that
+    // existed before this column did.
+    val displayAsIcon: Boolean = true,
 ) {
     companion object {
         const val TYPE_APP = "app"

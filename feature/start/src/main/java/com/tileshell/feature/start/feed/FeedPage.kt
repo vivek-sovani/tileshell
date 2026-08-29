@@ -70,11 +70,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.palette.graphics.Palette
 import com.tileshell.core.design.Glass
 import com.tileshell.core.design.isLightBackground
+import com.tileshell.core.design.LocalTileGradient
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.WallpaperGradient
 import com.tileshell.core.design.WallpaperLayer
 import com.tileshell.core.design.wallpaperBackground
 import com.tileshell.core.design.Wallpapers
+import com.tileshell.core.design.tileGradientBrush
 import com.tileshell.feature.personalize.FeedSourceItem
 import com.tileshell.feature.personalize.RegionChipGrid
 import com.tileshell.feature.personalize.RegionOption
@@ -680,7 +682,12 @@ private fun AccentCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .background(accent),
+            // Follows the personalize "gradient fill" setting, same as Start tiles
+            // and Quick Panel tiles, so all three surfaces read as one style.
+            .then(
+                if (LocalTileGradient.current) Modifier.background(tileGradientBrush(accent))
+                else Modifier.background(accent)
+            ),
         contentAlignment = Alignment.Center,
     ) { content() }
 }

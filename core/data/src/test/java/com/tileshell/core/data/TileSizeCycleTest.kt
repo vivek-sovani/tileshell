@@ -43,32 +43,6 @@ class TileSizeCycleTest {
     }
 
     @Test
-    fun areaMatchesFootprint() {
-        assertEquals(1, TileSize.SMALL.area)
-        assertEquals(4, TileSize.MEDIUM.area)
-        assertEquals(8, TileSize.WIDE.area)
-        assertEquals(9, TileSize.LARGE.area)
-    }
-
-    @Test
-    fun nextIsLargerDefaultCycle() {
-        // MEDIUM(4) → SMALL(1): shrink
-        assertEquals(false, TileSize.MEDIUM.nextIsLarger())
-        // SMALL(1) → WIDE(8): grow
-        assertEquals(true, TileSize.SMALL.nextIsLarger())
-        // WIDE(8) → MEDIUM(4): shrink
-        assertEquals(false, TileSize.WIDE.nextIsLarger())
-    }
-
-    @Test
-    fun nextIsLargerWithLargeAllowed() {
-        // WIDE(8) → LARGE(9): grow when large is allowed
-        assertEquals(true, TileSize.WIDE.nextIsLarger(largeAllowed = true))
-        // LARGE(9) → MEDIUM(4): shrink
-        assertEquals(false, TileSize.LARGE.nextIsLarger(largeAllowed = true))
-    }
-
-    @Test
     fun folderChildTogglesSmallMediumOnFourColumns() {
         // A 4-column grid keeps folder children to a tight two-size toggle,
         // unlike a top-level tile's medium→small→wide cycle.

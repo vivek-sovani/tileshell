@@ -58,6 +58,10 @@ class LayoutRepository(
     suspend fun setTileAccent(id: String, accentOverride: String?) =
         dao.updateTileAccent(id, accentOverride)
 
+    /** Set an app tile's "show as icon"/"show as tile" toggle (ICONS home style). */
+    suspend fun setTileDisplayAsIcon(id: String, displayAsIcon: Boolean) =
+        dao.updateTileDisplayAsIcon(id, displayAsIcon)
+
     /**
      * Anchor (or, with null, un-anchor) a tile at an absolute grid cell —
      * windows-phone-style gap-preserving arrangement. No-op in dense mode
@@ -606,6 +610,7 @@ class LayoutRepository(
                 iconKey = t.iconKey,
                 accentOverride = t.accentOverride,
                 gridSlot = t.gridSlot,
+                displayAsIcon = t.displayAsIcon,
             )
         }
     }

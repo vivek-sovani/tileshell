@@ -9,10 +9,12 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,6 +34,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -114,6 +117,15 @@ internal fun IconCellView(
     onResizeDragStart: () -> Unit = {},
     onResizeDragBy: (dxPx: Float, dyPx: Float) -> Unit = { _, _ -> },
     onResizeDragEnd: () -> Unit = {},
+    // Shows the corner colour dot — the only affordance that opens the tile
+    // colour picker sheet, which is also where the "show as icon"/"show as
+    // tile" toggle lives (StartScreen.kt's TileColorPicker). Previously always
+    // false here ("icon colour comes from the app's own icon"), which was
+    // correct while this composable only ever rendered a SMALL cell with no
+    // toggle to reach — now that a single app tile can also render here at
+    // MEDIUM+ (via displayAsIcon), the dot needs to be reachable so that
+    // toggle has an entry point; the caller decides when that applies.
+    showColorDot: Boolean = false,
 ) {
     val tokens = colorTokens(darkTheme)
     IconCellChrome(
@@ -123,7 +135,15 @@ internal fun IconCellView(
         dragging = dragging,
         index = index,
         jigglePhase = jigglePhase,
-        badgeCount = badgeCount,
+        // Badge is drawn on the icon's own corner below instead of the whole
+        // cell's corner — the two only coincide when the icon fills the cell
+        // edge-to-edge (the weather/calendar/clock live-face branches); once
+        // a real app icon is centred with room to spare (a stretched
+        // displayAsIcon tile, or a label underneath), a cell-corner badge
+        // reads as floating away from the icon it's meant to belong to
+        // (user-reported). So the chrome's own generic badge is always off
+        // here — see each branch below for where it actually renders.
+        badgeCount = 0,
         darkTheme = darkTheme,
         onTap = onTap,
         onLongPress = onLongPress,
@@ -137,34 +157,82 @@ internal fun IconCellView(
         onResizeDragStart = onResizeDragStart,
         onResizeDragBy = onResizeDragBy,
         onResizeDragEnd = onResizeDragEnd,
+        showColorDot = showColorDot,
     ) {
         when (tile.iconKey) {
-            "weather" -> LiveIconTile(accent) {
+            "weather" -> LiveIconTile(accent, badgeCount, darkTheme) {
                 WeatherSmallFace(
-                    fallback = { IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape) },
+                    fallback = {
+                        IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp)
+                    },
                     modifier = Modifier.fillMaxSize(),
                 )
             }
-            "calendar" -> LiveIconTile(accent) {
+            "calendar" -> LiveIconTile(accent, badgeCount, darkTheme) {
                 CalendarSmallFace(active = liveActive, modifier = Modifier.fillMaxSize())
             }
-            "clock" -> LiveIconTile(accent) {
+            "clock" -> LiveIconTile(accent, badgeCount, darkTheme) {
                 ClockSmallFace(active = liveActive, modifier = Modifier.fillMaxSize())
             }
             else -> {
-                IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape)
                 // Hide the label at 6 columns — a 1×1 cell is too narrow there
                 // for icon plus text without truncating (see
                 // LauncherSettings.HomeStyle's design notes / DECISIONS.md
                 // "cells stay square").
-                if (columns < 6) {
-                    Spacer(Modifier.size(4.dp))
-                    Text(
-                        text = (tile.label ?: tile.iconKey ?: "").lowercase(),
-                        color = tokens.fg,
-                        fontSize = 11.sp,
-                        maxLines = 1,
-                    )
+                val showLabel = columns < 6
+                BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    // The icon fills as much of the actual cell as it can —
+                    // computed from the real measured size handed down by the
+                    // grid (which already varies by TileSize, column count and
+                    // screen width) rather than a fixed dp table, so a
+                    // stretched icon (MEDIUM/LARGE/XLARGE via displayAsIcon)
+                    // reads as genuinely bigger, not a small glyph floating in
+                    // a big cell (user-reported).
+                    val reserveForLabel = if (showLabel) 20.dp else 0.dp
+                    val span = minOf(maxWidth, (maxHeight - reserveForLabel).coerceAtLeast(0.dp))
+                    val size = (span * 0.82f).coerceAtLeast(24.dp)
+                    val glyphSize = size * 0.72f
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        // Badged on the icon's own box, not the whole cell —
+                        // see the badgeCount = 0 comment on the IconCellChrome
+                        // call above for why (user-reported).
+                        Box(modifier = Modifier.size(size)) {
+                            IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = size, glyphSize = glyphSize)
+                            if (badgeCount > 0) {
+                                // Scales with the icon itself (18dp at a SMALL
+                                // 40dp icon, up to a cap at the biggest
+                                // stretched sizes) rather than a fixed size
+                                // that reads as too small on a big icon
+                                // (user-reported: "should be proportionate").
+                                val badgeDiameter = (size * 0.28f).coerceIn(18.dp, 34.dp)
+                                // Sits right on the icon's corner, roughly a
+                                // third overlapping outside its bounds — the
+                                // usual "badge on the corner" look — rather
+                                // than inset inward, which read as floating
+                                // inside the icon at small sizes especially
+                                // (user-reported).
+                                NotificationBadge(
+                                    count = badgeCount,
+                                    dark = darkTheme,
+                                    small = true,
+                                    sizeOverride = badgeDiameter,
+                                    cornerInset = false,
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .offset(x = badgeDiameter * 0.35f, y = -badgeDiameter * 0.35f),
+                                )
+                            }
+                        }
+                        if (showLabel) {
+                            Spacer(Modifier.size(4.dp))
+                            Text(
+                                text = (tile.label ?: tile.iconKey ?: "").lowercase(),
+                                color = tokens.fg,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -173,9 +241,11 @@ internal fun IconCellView(
 
 /** An [accent]-filled, rounded-square "mini tile" occupying the whole icon
  *  cell — see [IconCellView]'s doc comment on why weather/calendar/clock
- *  render this way instead of a masked icon. */
+ *  render this way instead of a masked icon. Fills the entire cell edge-to-
+ *  edge, so a corner badge here is already at the "icon's" own corner (there
+ *  being no separate icon vs. cell distinction for these three). */
 @Composable
-private fun LiveIconTile(accent: Color, content: @Composable () -> Unit) {
+private fun LiveIconTile(accent: Color, badgeCount: Int, darkTheme: Boolean, content: @Composable () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -183,6 +253,14 @@ private fun LiveIconTile(accent: Color, content: @Composable () -> Unit) {
             .background(accent),
     ) {
         content()
+        if (badgeCount > 0) {
+            NotificationBadge(
+                count = badgeCount,
+                dark = darkTheme,
+                small = true,
+                modifier = Modifier.align(Alignment.TopEnd),
+            )
+        }
     }
 }
 
@@ -318,6 +396,7 @@ private fun IconCellChrome(
     onResizeDragStart: () -> Unit,
     onResizeDragBy: (dxPx: Float, dyPx: Float) -> Unit,
     onResizeDragEnd: () -> Unit,
+    showColorDot: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val tokens = colorTokens(darkTheme)
@@ -389,10 +468,13 @@ private fun IconCellChrome(
             )
         }
         if (selected && editMode) {
-            // Only unpin — no colour dot (icon colour comes from the app's own
-            // icon, not a per-tile accent). Resize has no visible control at
+            // The colour dot is the entry point to the tile colour picker
+            // sheet — which, for an icon-mode app tile, is also where the
+            // "show as icon"/"show as tile" toggle lives (see showColorDot's
+            // own doc comment); picking an accent colour itself is still a
+            // no-op for a masked real icon. Resize has no visible control at
             // all now — see the tileStretchGesture modifier above.
-            TileControls(showColor = false, dotColor = tokens.fg, nextSizeIsLarger = true)
+            TileControls(showColor = showColorDot, dotColor = tokens.fg)
         }
     }
 }
@@ -411,7 +493,7 @@ private fun IconCellChrome(
  * legacy (non-adaptive) icon the two fields are identical, since
  * `toBitmap()` never applied any mask for those to begin with.
  */
-private data class MaskableIcon(val bitmap: ImageBitmap, val unmaskedBitmap: ImageBitmap, val isAdaptive: Boolean)
+internal data class MaskableIcon(val bitmap: ImageBitmap, val unmaskedBitmap: ImageBitmap, val isAdaptive: Boolean)
 
 /**
  * Loads [packageName]/[activityName]'s launcher icon, tagging whether the
@@ -423,14 +505,14 @@ private data class MaskableIcon(val bitmap: ImageBitmap, val unmaskedBitmap: Ima
  * icon-shape masking does.
  */
 @Composable
-private fun rememberMaskableIcon(packageName: String, activityName: String): MaskableIcon? {
+internal fun rememberMaskableIcon(packageName: String, activityName: String, sizePx: Int = 96): MaskableIcon? {
     val context = LocalContext.current
-    return produceState<MaskableIcon?>(null, packageName, activityName) {
+    return produceState<MaskableIcon?>(null, packageName, activityName, sizePx) {
         value = withContext(Dispatchers.IO) {
             fun load(drawable: android.graphics.drawable.Drawable): MaskableIcon {
                 val isAdaptive = drawable is AdaptiveIconDrawable
-                val osBitmap = drawable.toBitmap(width = 96, height = 96).asImageBitmap()
-                val rawBitmap = if (isAdaptive) unmaskedIconBitmap(drawable) else osBitmap
+                val osBitmap = drawable.toBitmap(width = sizePx, height = sizePx).asImageBitmap()
+                val rawBitmap = if (isAdaptive) unmaskedIconBitmap(drawable, sizePx) else osBitmap
                 return MaskableIcon(osBitmap, rawBitmap, isAdaptive)
             }
             runCatching {
@@ -446,7 +528,7 @@ private fun rememberMaskableIcon(packageName: String, activityName: String): Mas
 }
 
 /**
- * A flattened 96×96 bitmap of [drawable], deliberately bypassing
+ * A flattened [sizePx]×[sizePx] bitmap of [drawable], deliberately bypassing
  * [AdaptiveIconDrawable]'s own `draw()` — which always clips to the OS's
  * device-wide icon mask (a circle on stock AOSP/Pixel) before we ever get a
  * chance to apply our own [IconShape]. Calling `drawable.toBitmap()` directly
@@ -457,13 +539,17 @@ private fun rememberMaskableIcon(packageName: String, activityName: String): Mas
  * Fixed by drawing the adaptive icon's background/foreground layers
  * ourselves at the full bounds with no mask path applied, matching the
  * standard technique other Android launchers use to re-mask adaptive icons.
+ * [sizePx] is the caller's actual on-screen size (not a fixed 96px) — a
+ * "show as icon" tile stretched up to 120dp+ needs a source bitmap decoded at
+ * (or above) that real resolution, or the masked result reads visibly blurred
+ * once scaled up from a small fixed source (user-reported).
  */
-private fun unmaskedIconBitmap(drawable: android.graphics.drawable.Drawable): ImageBitmap {
-    if (drawable !is AdaptiveIconDrawable) return drawable.toBitmap(width = 96, height = 96).asImageBitmap()
-    val bitmap = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
+private fun unmaskedIconBitmap(drawable: android.graphics.drawable.Drawable, sizePx: Int): ImageBitmap {
+    if (drawable !is AdaptiveIconDrawable) return drawable.toBitmap(width = sizePx, height = sizePx).asImageBitmap()
+    val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
     listOfNotNull(drawable.background, drawable.foreground).forEach { layer ->
-        layer.setBounds(0, 0, 96, 96)
+        layer.setBounds(0, 0, sizePx, sizePx)
         layer.draw(canvas)
     }
     return bitmap.asImageBitmap()
@@ -497,7 +583,11 @@ private fun maskedOrGlyphIcon(
     glyphSize: Dp,
 ) {
     val useAppIcon = packageName.isNotBlank()
-    val loaded: MaskableIcon? = if (useAppIcon) rememberMaskableIcon(packageName, activityName) else null
+    // Decode at the actual on-screen resolution, not a fixed 96px — a "show
+    // as icon" tile stretched up to 120dp+ needs a source bitmap that large
+    // (or bigger) to avoid visibly blurring once scaled up (user-reported).
+    val sizePx = with(LocalDensity.current) { size.roundToPx() }.coerceAtLeast(96)
+    val loaded: MaskableIcon? = if (useAppIcon) rememberMaskableIcon(packageName, activityName, sizePx) else null
     val composeShape = shape.toComposeShape()
 
     when {
@@ -563,7 +653,7 @@ private fun maskedOrGlyphIcon(
  * verification. Revisit if on-device testing shows the plate reads wrong.
  */
 @Composable
-private fun IconCellGlyph(tile: TileModel.App, tint: Color, shape: IconShape) {
+private fun IconCellGlyph(tile: TileModel.App, tint: Color, shape: IconShape, size: Dp, glyphSize: Dp) {
     maskedOrGlyphIcon(
         iconKey = tile.iconKey,
         label = tile.label,
@@ -571,8 +661,8 @@ private fun IconCellGlyph(tile: TileModel.App, tint: Color, shape: IconShape) {
         activityName = tile.activityName,
         tint = tint,
         shape = shape,
-        size = 40.dp,
-        glyphSize = 32.dp,
+        size = size,
+        glyphSize = glyphSize,
     )
 }
 

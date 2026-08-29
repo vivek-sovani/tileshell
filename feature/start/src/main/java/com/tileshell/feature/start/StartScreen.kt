@@ -18,6 +18,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -139,6 +140,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -150,7 +152,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.tileshell.core.data.AppCategories
 import com.tileshell.core.data.AppLauncher
 import com.tileshell.core.data.CachedScreenshotPrefs
 import com.tileshell.core.data.ContactTile
@@ -219,6 +220,7 @@ import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.data.settings.isAnchored
+import com.tileshell.core.design.CornerArcGlyph
 import com.tileshell.core.design.DarkColorTokens
 import com.tileshell.core.design.Glass
 import com.tileshell.core.design.LIGHT_BACKGROUND_LUMINANCE_THRESHOLD
@@ -837,15 +839,27 @@ fun StartScreen(
         } else if (noWallpaper) {
             Box(modifier = Modifier.fillMaxSize().background(tokens.bg))
         } else {
-            WallpaperBackground(
-                gradient = wallpaper,
-                customWallpaperUri = settings.customWallpaperUri,
-                blur = settings.blur,
-                alignX = settings.wallpaperAlignX,
-                alignY = settings.wallpaperAlignY,
-                zoom = settings.wallpaperZoom,
-                dark = dark,
-            )
+            // Cross-fades whenever the wallpaper's actual identity changes (a new
+            // custom photo confirmed from the crop overlay, a Bing image applied, a
+            // different bundled gradient picked) — keyed on that identity alone, not
+            // alignment/zoom, so re-framing the *same* photo updates in place with no
+            // fade flash. Without this the swap was an instant, jarring cut.
+            val wallpaperIdentity = settings.customWallpaperUri ?: settings.wallpaperId
+            Crossfade(
+                targetState = wallpaperIdentity,
+                animationSpec = tween(420),
+                label = "wallpaperCrossfade",
+            ) {
+                WallpaperBackground(
+                    gradient = wallpaper,
+                    customWallpaperUri = settings.customWallpaperUri,
+                    blur = settings.blur,
+                    alignX = settings.wallpaperAlignX,
+                    alignY = settings.wallpaperAlignY,
+                    zoom = settings.wallpaperZoom,
+                    dark = dark,
+                )
+            }
         }
 
         // Horizontal pager gesture, parameterised by the width of the page being
@@ -1026,6 +1040,7 @@ fun StartScreen(
                     onResizeStack = viewModel::convertFolderToStack,
                     onUnpin = viewModel::unpin,
                     onSetTileColor = viewModel::setTileColor,
+                    onSetTileDisplayAsIcon = viewModel::setTileDisplayAsIcon,
                     onAdd = {
                         viewModel.exitEdit()
                         settleTo(1f)
@@ -1573,36 +1588,57 @@ fun StartScreen(
 
         // Wallpaper crop overlay: shown immediately after the user picks a photo so
         // they can drag to position the image before it becomes the live wallpaper.
-        val cropUri = pendingWallpaperCropUri
-        if (cropUri != null) {
-            WallpaperCropOverlay(
-                uri = cropUri,
-                onConfirm = { alignX, alignY, zoom ->
-                    viewModel.setCustomWallpaper(cropUri, alignX, alignY, zoom)
-                    pendingWallpaperCropUri = null
-                },
-                onCancel = { pendingWallpaperCropUri = null },
-                rightHalf = isLandscape,
-            )
-        }
+        // Reads pendingWallpaperCropUri directly (not a captured local) inside
+        // onConfirm, so it still resolves to the right uri even though the host
+        // below keeps this composed for a moment after the state goes null (its
+        // fade-out) — read at call time, not the moment now null.
+        WallpaperCropOverlayHost(
+            uri = pendingWallpaperCropUri,
+            tiles = tiles,
+            settings = settings,
+            accent = accent,
+            wallpaperGradient = wallpaper,
+            notifications = notifications,
+            darkTheme = dark,
+            glassLine = tokens.glassLine,
+            onConfirm = { alignX, alignY, zoom ->
+                pendingWallpaperCropUri?.let { viewModel.setCustomWallpaper(it, alignX, alignY, zoom) }
+                pendingWallpaperCropUri = null
+                // Reached via personalize → wallpaper → photo (or the share/
+                // "apply via" entry points, where this is a harmless no-op since
+                // personalize was never open) — once applied, land back on Start
+                // instead of leaving the personalize sheet showing underneath.
+                viewModel.closePersonalize()
+            },
+            onCancel = { pendingWallpaperCropUri = null },
+            rightHalf = isLandscape,
+        )
 
         // Re-frame the active wallpaper (own photo or Bing image): same drag UI, but
         // only the alignment is written — the image/daily-mode are left untouched.
-        val adjustUri = settings.customWallpaperUri
-        if (adjustingWallpaper && adjustUri != null) {
-            WallpaperCropOverlay(
-                uri = adjustUri,
-                initialAlignX = settings.wallpaperAlignX,
-                initialAlignY = settings.wallpaperAlignY,
-                initialZoom = settings.wallpaperZoom,
-                onConfirm = { alignX, alignY, zoom ->
-                    viewModel.setWallpaperAlignment(alignX, alignY, zoom)
-                    adjustingWallpaper = false
-                },
-                onCancel = { adjustingWallpaper = false },
-                rightHalf = isLandscape,
-            )
-        }
+        WallpaperCropOverlayHost(
+            uri = if (adjustingWallpaper) settings.customWallpaperUri else null,
+            tiles = tiles,
+            settings = settings,
+            accent = accent,
+            wallpaperGradient = wallpaper,
+            notifications = notifications,
+            darkTheme = dark,
+            glassLine = tokens.glassLine,
+            initialAlignX = settings.wallpaperAlignX,
+            initialAlignY = settings.wallpaperAlignY,
+            initialZoom = settings.wallpaperZoom,
+            onConfirm = { alignX, alignY, zoom ->
+                viewModel.setWallpaperAlignment(alignX, alignY, zoom)
+                adjustingWallpaper = false
+                // Same as the initial set-wallpaper flow above — reframing is only
+                // ever reached from personalize, so applying it should land back
+                // on Start rather than leaving personalize open underneath.
+                viewModel.closePersonalize()
+            },
+            onCancel = { adjustingWallpaper = false },
+            rightHalf = isLandscape,
+        )
 
         // Recent-Bing-wallpapers viewer (personalize → "recent bing wallpapers").
         BingHistorySheet(
@@ -1681,6 +1717,11 @@ private fun FolderChild.asTileModel(id: String): TileModel.App = TileModel.App(
     label = label,
     iconKey = iconKey,
     accentOverride = accentOverride,
+    // The "show as icon"/"show as tile" toggle is single-app-tile only (no
+    // persisted FolderChild field for it) — a folder child keeps its
+    // original SMALL-only-icon / MEDIUM+-live-tile behaviour regardless of
+    // TileModel.App's own icon-favouring default.
+    displayAsIcon = false,
 )
 
 @Composable
@@ -1783,6 +1824,7 @@ private fun StartPage(
     onResizeStack: (folderId: String, size: TileSize) -> Unit,
     onUnpin: (String) -> Unit,
     onSetTileColor: (id: String, colorId: String?) -> Unit,
+    onSetTileDisplayAsIcon: (id: String, displayAsIcon: Boolean) -> Unit = { _, _ -> },
     onAdd: () -> Unit,
     onPersonalize: () -> Unit,
     onQuickPanel: () -> Unit = {},
@@ -2322,15 +2364,27 @@ private fun StartPage(
 
                     // ICONS home style renders a SMALL app tile as a plain shaped
                     // icon, and a SMALL folder as the same shaped icon holding a
-                    // 2x2 mini-grid of its children — 2x2+ (and a widget stack,
-                    // whose own size is always WIDE/LARGE, never SMALL) always
-                    // falls through to TileView unchanged (see HomeStyle's doc
-                    // comment). Inline-expanded folder children are covered by
-                    // the first branch too: they're synthetic TileModel.App
-                    // instances at whatever size they were resized to (see
-                    // FolderChild.asTileModel), so a SMALL one already renders
-                    // as a plain icon with zero extra code here.
-                    if (homeStyle == HomeStyle.ICONS && model is TileModel.App && model.size == TileSize.SMALL) {
+                    // 2x2 mini-grid of its children. A single app tile can also
+                    // stretch that same shaped-icon rendering up to MEDIUM/WIDE/
+                    // LARGE/XLARGE via its own displayAsIcon toggle (user-requested
+                    // "show as icon"/"show as tile" — OneUI/Nothing-OS-style resizable
+                    // icons; since a stretched icon can't also show live content,
+                    // this is per-tile, defaulting to icon) — gated on a real
+                    // resolvable package so the blank-package weather/calendar/
+                    // clock/personalize liveOnly tiles (and pinned contacts, whose
+                    // packageName is also blank) always keep showing live content
+                    // regardless of the flag's default. A widget stack (whose own
+                    // size is always WIDE/LARGE, never SMALL) always falls through
+                    // to TileView unchanged (see HomeStyle's doc comment).
+                    // Inline-expanded folder children are covered by the first
+                    // branch too: they're synthetic TileModel.App instances at
+                    // whatever size they were resized to (see FolderChild.asTileModel,
+                    // which pins displayAsIcon = false so a child keeps its original
+                    // SMALL-only-icon behaviour), so a SMALL one already renders as a
+                    // plain icon with zero extra code here.
+                    if (homeStyle == HomeStyle.ICONS && model is TileModel.App &&
+                        (model.size == TileSize.SMALL || (model.displayAsIcon && model.packageName.isNotBlank()))
+                    ) {
                         IconCellView(
                             tile = model,
                             editMode = editMode,
@@ -2357,6 +2411,12 @@ private fun StartPage(
                             onResizeDragStart = onResizeDragStartAction,
                             onResizeDragBy = onResizeDragByAction,
                             onResizeDragEnd = onResizeDragEndAction,
+                            // The colour dot (→ tile colour picker → the "show
+                            // as icon"/"show as tile" toggle) only for a real
+                            // top-level app tile — never a folder child, which
+                            // has no such toggle (see TileColorPicker's own
+                            // childRef gating).
+                            showColorDot = model.packageName.isNotBlank() && folderChildRef(model.id) == null,
                         )
                     } else if (homeStyle == HomeStyle.ICONS && model is TileModel.Folder && model.size == TileSize.SMALL) {
                         IconFolderCell(
@@ -2394,6 +2454,7 @@ private fun StartPage(
                             mergeTarget = model.id == mergeTargetId,
                             isExpanded = spec.id == expandedFolderId,
                             homeStyle = homeStyle,
+                            iconShape = iconShape,
                             accent = tileAccent,
                             glass = glass,
                             transparency = transparency,
@@ -2431,19 +2492,6 @@ private fun StartPage(
                             inlineFolderLaunch = model.size != TileSize.SMALL || columns == 4,
                             appIconColors = appIconColors,
                             wallpaperAccent = wallpaperAccent,
-                            nextSizeIsLarger = model.size.nextIsLarger(
-                                // A plain folder gets the same large step as an app tile
-                                // (see StartViewModel.resize) — only a widget stack (whose
-                                // resize is a no-op) doesn't, so it doesn't matter here.
-                                largeAllowed = when (model) {
-                                    is TileModel.App -> AppCategories.allowsLargeTile(
-                                        iconKey = model.iconKey,
-                                        app = apps.firstOrNull { entry -> entry.packageName == model.packageName },
-                                        columns = columns,
-                                    )
-                                    is TileModel.Folder -> true
-                                },
-                            ),
                             onTap = onTapAction,
                             onLongPress = onLongPressAction,
                             onLaunchFolderChild = onLaunchFolderChild,
@@ -2563,6 +2611,20 @@ private fun StartPage(
                     else -> null
                 }
             }
+            // The "show as icon"/"show as tile" toggle: single top-level app
+            // tiles only (never a folder child — mirrors childRef != null
+            // exclusion above, since FolderChild has no persisted field for
+            // this), only in ICONS home style (meaningless in TILES mode),
+            // and only with a real resolvable package (a blank-package
+            // liveOnly tile — weather/calendar/clock/personalize — has no
+            // icon to show and always stays a live tile regardless).
+            val iconToggle = if (
+                homeStyle == HomeStyle.ICONS && childRef == null && app != null && app.packageName.isNotBlank()
+            ) {
+                if (app.displayAsIcon) "show as tile" to "recents" else "show as icon" to "app"
+            } else {
+                null
+            }
             TileColorPicker(
                 current = current,
                 suggestedNearestId = suggestion?.nearestId,
@@ -2573,6 +2635,17 @@ private fun StartPage(
                     onToggleFolderStack(pickId)
                     colorPickerFor = null
                 },
+                iconToggleLabel = iconToggle?.first,
+                iconToggleIconKey = iconToggle?.second,
+                onToggleIconDisplay = {
+                    onSetTileDisplayAsIcon(pickId, !app!!.displayAsIcon)
+                    colorPickerFor = null
+                },
+                // A masked real icon ignores accentOverride entirely, so the
+                // swatch grid has no visible effect while showing as icon —
+                // hide it rather than offer a choice that silently does
+                // nothing (user-reported).
+                showColorOptions = !(homeStyle == HomeStyle.ICONS && app?.displayAsIcon == true),
                 onPick = { colorId ->
                     if (childRef != null) {
                         onSetFolderChildColor(childRef.first, childRef.second.rowId, colorId)
@@ -2612,6 +2685,16 @@ private fun BoxScope.TileColorPicker(
     stackToggleLabel: String? = null,
     stackToggleIconKey: String? = null,
     onToggleStack: () -> Unit = {},
+    iconToggleLabel: String? = null,
+    iconToggleIconKey: String? = null,
+    onToggleIconDisplay: () -> Unit = {},
+    // A tile "showing as icon" (ICONS home style) renders its real masked app
+    // icon, ignoring any accent override entirely — so the colour swatches
+    // below have no visible effect there and are just noise (user-reported).
+    // Hidden in exactly that one case; a folder, a TILES-mode app, or an
+    // ICONS-mode app currently "showing as tile" all still use their accent
+    // for a real fill colour, so they keep the full picker.
+    showColorOptions: Boolean = true,
     onPick: (String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -2639,77 +2722,81 @@ private fun BoxScope.TileColorPicker(
             )
             .padding(20.dp),
     ) {
-        Text("tile colour", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-        Spacer(Modifier.height(14.dp))
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(20.dp))
-                .border(
-                    1.dp,
-                    if (current == null) Color.White else Color.White.copy(alpha = 0.3f),
-                    RoundedCornerShape(20.dp),
-                )
-                .clickable { onPick(null) }
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-        ) {
-            Text("use default colour", color = Color.White, fontSize = 13.sp)
-        }
-        if (suggestedExact != null && exactHex != null) {
-            Spacer(Modifier.height(10.dp))
-            SuggestionRow(
-                swatch = suggestedExact,
-                label = "exact · from icon",
-                ringed = current == exactHex,
-                onClick = { onPick(exactHex) },
-            )
-        }
-        if (suggestedNearestId != null) {
-            Spacer(Modifier.height(10.dp))
-            SuggestionRow(
-                swatch = TileAccents.forId(suggestedNearestId),
-                label = "nearest accent",
-                ringed = current == suggestedNearestId,
-                onClick = { onPick(suggestedNearestId) },
-            )
-        }
-        Spacer(Modifier.height(14.dp))
-        TileColors.IDS.chunked(7).forEach { rowIds ->
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.padding(bottom = 10.dp),
+        if (showColorOptions) {
+            Text("tile colour", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(14.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .border(
+                        1.dp,
+                        if (current == null) Color.White else Color.White.copy(alpha = 0.3f),
+                        RoundedCornerShape(20.dp),
+                    )
+                    .clickable { onPick(null) }
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
-                rowIds.forEach { id ->
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(TileAccents.forId(id))
-                            .border(
-                                width = if (current == id) 2.dp else 0.dp,
-                                color = if (current == id) Color.White else Color.Transparent,
-                                shape = RoundedCornerShape(6.dp),
-                            )
-                            .clickable { onPick(id) },
-                        contentAlignment = Alignment.TopEnd,
-                    ) {
-                        // A small white dot badges the nearest-accent suggestion
-                        // so it's findable within the grid too.
-                        if (id == suggestedNearestId) {
-                            Box(
-                                modifier = Modifier
-                                    .padding(3.dp)
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White),
-                            )
+                Text("use default colour", color = Color.White, fontSize = 13.sp)
+            }
+            if (suggestedExact != null && exactHex != null) {
+                Spacer(Modifier.height(10.dp))
+                SuggestionRow(
+                    swatch = suggestedExact,
+                    label = "exact · from icon",
+                    ringed = current == exactHex,
+                    onClick = { onPick(exactHex) },
+                )
+            }
+            if (suggestedNearestId != null) {
+                Spacer(Modifier.height(10.dp))
+                SuggestionRow(
+                    swatch = TileAccents.forId(suggestedNearestId),
+                    label = "nearest accent",
+                    ringed = current == suggestedNearestId,
+                    onClick = { onPick(suggestedNearestId) },
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+            TileColors.IDS.chunked(7).forEach { rowIds ->
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.padding(bottom = 10.dp),
+                ) {
+                    rowIds.forEach { id ->
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(TileAccents.forId(id))
+                                .border(
+                                    width = if (current == id) 2.dp else 0.dp,
+                                    color = if (current == id) Color.White else Color.Transparent,
+                                    shape = RoundedCornerShape(6.dp),
+                                )
+                                .clickable { onPick(id) },
+                            contentAlignment = Alignment.TopEnd,
+                        ) {
+                            // A small white dot badges the nearest-accent suggestion
+                            // so it's findable within the grid too.
+                            if (id == suggestedNearestId) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(3.dp)
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White),
+                                )
+                            }
                         }
                     }
                 }
             }
         }
         if (stackToggleLabel != null) {
-            Spacer(Modifier.height(16.dp))
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.15f)))
+            if (showColorOptions) {
+                Spacer(Modifier.height(16.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.15f)))
+            }
             Spacer(Modifier.height(16.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -2728,6 +2815,31 @@ private fun BoxScope.TileColorPicker(
                 )
                 Spacer(Modifier.width(12.dp))
                 Text(stackToggleLabel, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+        if (iconToggleLabel != null) {
+            if (showColorOptions) {
+                Spacer(Modifier.height(16.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.15f)))
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.White.copy(alpha = 0.12f))
+                    .clickable(onClick = onToggleIconDisplay)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+            ) {
+                Icon(
+                    imageVector = TileIcons[iconToggleIconKey],
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(iconToggleLabel, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -2822,6 +2934,9 @@ internal fun TileView(
     // icon there too, matching the top-level icon-vs-glyph rule; TILES mode
     // keeps the WP-authentic monoline glyph unchanged.
     homeStyle: HomeStyle = HomeStyle.TILES,
+    // Threaded down to AppTileContent's live faces, whose AppIconCorner badge
+    // masks to this shape in ICONS home style — see AppIconCorner's doc comment.
+    iconShape: IconShape = IconShape.ORIGINAL,
     accent: Color,
     glass: Boolean,
     transparency: Float,
@@ -2859,7 +2974,15 @@ internal fun TileView(
     // folder's children / a stack's members so they resolve their own colour
     // the same way the top-level tile already did via its `accent` param.
     wallpaperAccent: Color? = null,
-    nextSizeIsLarger: Boolean = false,
+    // True only for the non-interactive wallpaper-crop live preview
+    // (WallpaperStartPreview): renders the exact same tile content (icons,
+    // live faces, colours, wallpaper windowing) but attaches none of the
+    // tile's own touch-consuming gesture recognisers (tiltOnPress,
+    // tap/long-press, music transport controls, a widget stack's
+    // swipe-to-flip), so the crop overlay's own pinch/drag-to-position
+    // gesture underneath is never intercepted. Every real Start-screen call
+    // site leaves this at its default (false) and is completely unaffected.
+    readOnly: Boolean = false,
     // Gesture-based drag resize (Stage 2 of the icons-mode arc). Only shown
     // when true — a widget stack gets the same corner-drag gesture as any
     // other tile (the call site's onResizeDragEnd routes a stack's drag
@@ -2925,7 +3048,7 @@ internal fun TileView(
                 shadowElevation = elevation * 18.dp.toPx()
             }
             // The press-tilt effect (S7) is replaced by the jiggle while editing.
-            .then(if (editMode) Modifier else Modifier.tiltOnPress())
+            .then(if (editMode || readOnly) Modifier else Modifier.tiltOnPress())
             // Optional rounded corners (personalisation setting 0–20 dp).
             .then(
                 if (tileCornerRadius > 0f)
@@ -2990,7 +3113,7 @@ internal fun TileView(
             // (tap = launch current member, long-press = open folder overlay), so
             // the outer gesture is suppressed for them too.
             .then(
-                if (editMode || isStackTile) Modifier
+                if (editMode || isStackTile || readOnly) Modifier
                 else Modifier.tileGesture(onTap = onTap, onLongPress = onLongPress),
             )
             // Gesture-based resize (drag from the tile's bottom-right corner)
@@ -3052,16 +3175,24 @@ internal fun TileView(
                 tile,
                 flipped = flipped,
                 liveActive = liveActive,
-                interactive = !editMode,
+                interactive = !editMode && !readOnly,
+                homeStyle = homeStyle,
+                iconShape = iconShape,
             )
             tile is TileModel.Folder ->
-                if (tile.isStack) {
+                // A widget stack's own carousel face owns a swipe-to-flip gesture
+                // (right-edge zone) — skipped in the read-only preview in favour of
+                // the plain closed mini-grid, so nothing there can intercept the
+                // crop overlay's own drag/pinch.
+                if (tile.isStack && !readOnly) {
                     StackTileContent(
                         tile = tile,
                         editMode = editMode,
                         selected = selected,
                         liveActive = liveActive,
                         accent = accent,
+                        homeStyle = homeStyle,
+                        iconShape = iconShape,
                         appIconColors = appIconColors,
                         glass = glass,
                         transparency = transparency,
@@ -3092,6 +3223,7 @@ internal fun TileView(
                         tiledWallpaper = tiledWallpaper,
                         notifications = notifications,
                         homeStyle = homeStyle,
+                        iconShape = iconShape,
                         onLaunchChild = onLaunchFolderChild,
                         onOpenFolder = onTap,
                         onEnterEdit = onLongPress,
@@ -3124,8 +3256,8 @@ internal fun TileView(
         // resize/recolour/unpin while it's just a collapse affordance.
         if (selected && !isExpanded) {
             when {
-                tile is TileModel.Folder -> TileControls(showColor = showColorDot, dotColor = accent, nextSizeIsLarger = nextSizeIsLarger, isFolder = true)
-                else -> TileControls(showColor = showColorDot, dotColor = accent, nextSizeIsLarger = nextSizeIsLarger)
+                tile is TileModel.Folder -> TileControls(showColor = showColorDot, dotColor = accent, isFolder = true)
+                else -> TileControls(showColor = showColorDot, dotColor = accent)
             }
         }
     }
@@ -3284,11 +3416,19 @@ internal fun NotificationBadge(
     small: Boolean,
     modifier: Modifier = Modifier,
     cornerInset: Boolean = true,
+    // Scales the badge continuously to a specific diameter instead of the
+    // plain small/large choice [small] gives — for a "show as icon" tile
+    // whose icon can be anywhere from 40dp to 120dp+, a fixed-size badge
+    // reads as too small on the bigger end (user-reported: "should be
+    // proportionate"). Every existing caller leaves this null and keeps the
+    // original fixed 18dp/22dp look exactly as before.
+    sizeOverride: Dp? = null,
 ) {
     val bg = if (dark) Color.White else Color(0xFF111111)
     val fg = if (dark) Color(0xFF111111) else Color.White
-    val diameter = if (small) 18.dp else 22.dp
-    val inset = if (small) 5.dp else 8.dp
+    val diameter = sizeOverride ?: if (small) 18.dp else 22.dp
+    val inset = sizeOverride?.let { it * 0.25f } ?: if (small) 5.dp else 8.dp
+    val fontSize = sizeOverride?.let { (it.value * 0.5f).sp } ?: if (small) 11.sp else 13.sp
     Box(
         modifier = modifier
             .then(if (cornerInset) Modifier.padding(top = inset, end = inset) else Modifier)
@@ -3301,7 +3441,7 @@ internal fun NotificationBadge(
         Text(
             text = if (count > 99) "99+" else count.toString(),
             color = fg,
-            fontSize = if (small) 11.sp else 13.sp,
+            fontSize = fontSize,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
         )
@@ -3338,22 +3478,27 @@ internal fun FolderChildBadge(count: Int, dark: Boolean, modifier: Modifier = Mo
 /**
  * Corner controls shown on the selected tile in edit mode (prototype
  * `.tile-controls`): top-left shows a close icon for app tiles or a folder icon
- * for folder tiles (opens the overlay to pull apps out one-by-one); resize is
- * bottom-right; and — for app tiles ([showColor]) — a colour dot bottom-left.
- * These are the visual affordance; the taps are handled by the grid's
- * [editDragGesture] corner hot-zones (FR-3.4/3.5/7).
+ * for folder tiles (opens the overlay to pull apps out one-by-one); a
+ * corner-arc drag-resize handle is bottom-right (the same glyph used for
+ * drag-resize on Quick Panel tiles and glance cards); and — for app tiles
+ * ([showColor]) — a colour dot bottom-left. These are the visual affordance;
+ * the taps are handled by the grid's [editDragGesture] corner hot-zones
+ * (FR-3.4/3.5/7), and the resize drag itself by [tileStretchGesture].
  */
 @Composable
-internal fun BoxScope.TileControls(showColor: Boolean, dotColor: Color, nextSizeIsLarger: Boolean, isFolder: Boolean = false) {
+internal fun BoxScope.TileControls(
+    showColor: Boolean,
+    dotColor: Color,
+    isFolder: Boolean = false,
+) {
     TileControl(
         iconKey = if (isFolder) "folder" else "close",
         description = if (isFolder) "open folder" else "unpin",
         modifier = Modifier.align(Alignment.TopStart),
     )
-    TileControl(
-        iconKey = if (nextSizeIsLarger) "resize" else "resize-shrink",
-        description = "resize",
-        modifier = Modifier.align(Alignment.BottomEnd),
+    CornerArcGlyph(
+        tint = LocalTileFaceColor.current,
+        modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp).size(20.dp),
     )
     if (showColor) {
         Box(
@@ -4205,6 +4350,11 @@ private fun AppTileContent(
     // is controlled by StackTileContent (hoisted above AnimatedContent so it survives
     // composition recycling). Null = standalone tile, normal 3 s timer.
     photosStackIndex: Int? = null,
+    // Threaded down to every live face's own AppIconCorner so a MEDIUM+ tile's
+    // app-icon badge picks up the same shape masking a SMALL ICONS-mode icon
+    // cell already gets — see AppIconCorner's own doc comment.
+    homeStyle: HomeStyle = HomeStyle.TILES,
+    iconShape: IconShape = IconShape.ORIGINAL,
 ) {
     // A pinned contact (quick search → "pin to start") is a plain App tile whose
     // activityName encodes the contact's identity (ContactTile) rather than a
@@ -4220,7 +4370,7 @@ private fun AppTileContent(
     // apps with no live face fall through to the static glyph; weather/calendar
     // also fall back to it when their opt-in permission is denied or no data is
     // cached (the live composables call the slot).
-    val staticGlyph = @Composable { StaticTileGlyph(tile) }
+    val staticGlyph = @Composable { StaticTileGlyph(tile, homeStyle, iconShape) }
 
     // Small (1×1) clock / calendar tiles get a compact non-flipping live face —
     // the time, and today's day number — instead of the static glyph.
@@ -4270,6 +4420,8 @@ private fun AppTileContent(
                 active = liveActive,
                 fallback = staticGlyph,
                 size = tile.size,
+                homeStyle = homeStyle,
+                iconShape = iconShape,
                 modifier = Modifier.fillMaxSize(),
             )
             return
@@ -4290,6 +4442,8 @@ private fun AppTileContent(
                 packageName = tile.packageName,
                 size = tile.size,
                 forcedIndex = photosStackIndex,
+                homeStyle = homeStyle,
+                iconShape = iconShape,
                 modifier = Modifier.fillMaxSize(),
             )
             return
@@ -4302,6 +4456,8 @@ private fun AppTileContent(
                 fallback = staticGlyph,
                 modifier = Modifier.fillMaxSize(),
                 size = tile.size,
+                homeStyle = homeStyle,
+                iconShape = iconShape,
             )
             return
         }
@@ -4323,11 +4479,15 @@ private fun AppTileContent(
                             active = liveActive,
                             fallback = staticGlyph,
                             size = tile.size,
+                            homeStyle = homeStyle,
+                            iconShape = iconShape,
                             modifier = Modifier.fillMaxSize(),
                         )
                     },
                     modifier = Modifier.fillMaxSize(),
                     size = tile.size,
+                    homeStyle = homeStyle,
+                    iconShape = iconShape,
                 )
                 return
             }
@@ -4336,15 +4496,55 @@ private fun AppTileContent(
     staticGlyph()
 }
 
-/** The non-live tile face: the monoline glyph, with a label above small size. */
+/**
+ * The non-live tile face: the monoline glyph, with a label above small size —
+ * or, whenever a real app icon is shown instead ([useAppIcon]: any app with no
+ * WP-recognized category glyph, the common case for an ordinary third-party
+ * pinned app), masked to [iconShape] in ICONS home style, matching the
+ * top-level SMALL icon cell and every other icon surface (user-reported
+ * inconsistency: this is the *default* MEDIUM+ face for most pinned apps, so
+ * it was the most visible unmasked spot of all).
+ */
 @Composable
-private fun StaticTileGlyph(tile: TileModel.App) {
+private fun StaticTileGlyph(
+    tile: TileModel.App,
+    homeStyle: HomeStyle = HomeStyle.TILES,
+    iconShape: IconShape = IconShape.ORIGINAL,
+) {
     val useAppIcon = !TileIcons.hasIcon(tile.iconKey)
-    val appIcon = if (useAppIcon) rememberTileAppIcon(tile.packageName, tile.activityName) else null
+    val composeShape = if (homeStyle == HomeStyle.ICONS) iconShape.toComposeShape() else null
+    // Decode at (roughly) the actual dp this glyph will render at — mirrors
+    // the size TileIconContent below picks by tile.size — rather than a
+    // fixed 96px regardless of size, so LARGE's 46dp glyph doesn't visibly
+    // blur on a high-density device (user-reported blur at bigger sizes).
+    val monolineDp = when {
+        tile.size == TileSize.SMALL -> 30
+        tile.size.rows == 1 && tile.size.cols > 1 -> 26
+        tile.size == TileSize.LARGE -> 46
+        else -> 34
+    }
+    val sizePx = with(LocalDensity.current) { monolineDp.dp.roundToPx() }.coerceAtLeast(96)
+    val maskable = if (useAppIcon && composeShape != null) {
+        rememberMaskableIcon(tile.packageName, tile.activityName, sizePx)
+    } else {
+        null
+    }
+    val appIcon = if (useAppIcon && maskable == null) {
+        rememberTileAppIcon(tile.packageName, tile.activityName, sizePx)
+    } else {
+        null
+    }
 
     @Composable
     fun TileIconContent(monolineSize: Int) {
-        if (useAppIcon && appIcon != null) {
+        if (useAppIcon && maskable != null) {
+            Image(
+                bitmap = if (maskable.isAdaptive) maskable.unmaskedBitmap else maskable.bitmap,
+                contentDescription = tile.label,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(monolineSize.dp).clip(composeShape!!),
+            )
+        } else if (useAppIcon && appIcon != null) {
             Image(
                 bitmap = appIcon,
                 contentDescription = tile.label,
@@ -4441,14 +4641,14 @@ private fun ContactTileFace(contactId: Long, name: String, size: TileSize, modif
 }
 
 @Composable
-internal fun rememberTileAppIcon(packageName: String, activityName: String): ImageBitmap? {
+internal fun rememberTileAppIcon(packageName: String, activityName: String, sizePx: Int = 96): ImageBitmap? {
     val context = LocalContext.current
-    return produceState<ImageBitmap?>(null, packageName, activityName) {
+    return produceState<ImageBitmap?>(null, packageName, activityName, sizePx) {
         value = withContext(Dispatchers.IO) {
             runCatching {
                 context.packageManager
                     .getActivityIcon(ComponentName(packageName, activityName))
-                    .toBitmap(width = 96, height = 96)
+                    .toBitmap(width = sizePx, height = sizePx)
                     .asImageBitmap()
             }.recoverCatching {
                 // Some apps (Flipkart, Myntra, etc.) launch via a seasonal
@@ -4460,7 +4660,7 @@ internal fun rememberTileAppIcon(packageName: String, activityName: String): Ima
                 // tile permanently blank.
                 context.packageManager
                     .getApplicationIcon(packageName)
-                    .toBitmap(width = 96, height = 96)
+                    .toBitmap(width = sizePx, height = sizePx)
                     .asImageBitmap()
             }.getOrNull()
         }
@@ -4584,7 +4784,11 @@ private fun averageLuminance(bitmap: ImageBitmap): Float {
  * matches a known category) unchanged.
  */
 @Composable
-private fun FolderChildIcon(child: FolderChild?, homeStyle: HomeStyle = HomeStyle.TILES) {
+private fun FolderChildIcon(
+    child: FolderChild?,
+    homeStyle: HomeStyle = HomeStyle.TILES,
+    iconShape: IconShape = IconShape.ORIGINAL,
+) {
     // Always call rememberTileAppIcon so the composable call count is stable
     // regardless of whether child is null or has a WP icon.
     val pkg = child?.packageName.orEmpty()
@@ -4603,20 +4807,36 @@ private fun FolderChildIcon(child: FolderChild?, homeStyle: HomeStyle = HomeStyl
     // is no square around." TILES mode keeps the original 18dp, tuned for
     // sitting on its own tinted-square backdrop.
     val iconSize = if (homeStyle == HomeStyle.ICONS) 26.dp else 18.dp
-    if (useAppIcon && appIcon != null) {
-        Image(
-            bitmap = appIcon,
-            contentDescription = null,
-            contentScale = ContentScale.Fit,
-            modifier = Modifier.size(iconSize),
-        )
-    } else {
-        Icon(
-            imageVector = TileIcons[child.iconKey],
-            contentDescription = null,
-            tint = LocalTileFaceColor.current,
-            modifier = Modifier.size(iconSize),
-        )
+    // ICONS mode masks this child's icon to the chosen shape too — matching the
+    // top-level SMALL icon cell (IconCellView) — instead of always drawing the
+    // OS's own native-shaped bitmap (user-reported inconsistency).
+    val composeShape = if (homeStyle == HomeStyle.ICONS) iconShape.toComposeShape() else null
+    val maskable = if (useAppIcon && composeShape != null) rememberMaskableIcon(pkg, act) else null
+    when {
+        useAppIcon && maskable != null -> {
+            Image(
+                bitmap = if (maskable.isAdaptive) maskable.unmaskedBitmap else maskable.bitmap,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(iconSize).clip(composeShape!!),
+            )
+        }
+        useAppIcon && appIcon != null -> {
+            Image(
+                bitmap = appIcon,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(iconSize),
+            )
+        }
+        else -> {
+            Icon(
+                imageVector = TileIcons[child.iconKey],
+                contentDescription = null,
+                tint = LocalTileFaceColor.current,
+                modifier = Modifier.size(iconSize),
+            )
+        }
     }
 }
 
@@ -4633,6 +4853,7 @@ private fun FolderTileContent(
     tiledWallpaper: Boolean,
     notifications: NotificationSnapshot,
     homeStyle: HomeStyle = HomeStyle.TILES,
+    iconShape: IconShape = IconShape.ORIGINAL,
     onLaunchChild: (FolderChild) -> Unit,
     onOpenFolder: () -> Unit,
     onEnterEdit: () -> Unit,
@@ -4735,7 +4956,7 @@ private fun FolderTileContent(
                                     fontWeight = FontWeight.Medium,
                                 )
                             } else {
-                                FolderChildIcon(child, homeStyle)
+                                FolderChildIcon(child, homeStyle, iconShape)
                             }
                             // Per-app count — lets a closed folder be scanned for
                             // *which* app has unread items, not just how many in
@@ -4808,6 +5029,8 @@ private fun StackTileContent(
     selected: Boolean,
     liveActive: Boolean,
     accent: Color,
+    homeStyle: HomeStyle = HomeStyle.TILES,
+    iconShape: IconShape = IconShape.ORIGINAL,
     appIconColors: Boolean,
     glass: Boolean,
     transparency: Float,
@@ -5052,6 +5275,8 @@ private fun StackTileContent(
                         liveActive = liveActive && (i == safeIndex),
                         interactive = true,
                         photosStackIndex = if (child.iconKey == "photos") photosStackIndex.value else null,
+                        homeStyle = homeStyle,
+                        iconShape = iconShape,
                     )
                     // Per-member notification count — top-right, same corner as a
                     // plain app tile's badge (AppIconCorner, when a live face draws

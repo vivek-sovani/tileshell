@@ -76,6 +76,10 @@ interface LayoutDao {
     @Query("UPDATE tiles SET accentOverride = :accentOverride WHERE id = :id")
     suspend fun updateTileAccent(id: String, accentOverride: String?)
 
+    /** Set an app tile's "show as icon"/"show as tile" toggle (ICONS home style). */
+    @Query("UPDATE tiles SET displayAsIcon = :displayAsIcon WHERE id = :id")
+    suspend fun updateTileDisplayAsIcon(id: String, displayAsIcon: Boolean)
+
     /**
      * Remove a top-level tile (FR-3.5 unpin). A folder tile shares its id with
      * its `folders` row, so deleting that row too drops the folder meta and

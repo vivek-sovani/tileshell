@@ -53,6 +53,19 @@ sealed interface TileModel {
         /** Per-tile accent override (FR-7); null = follow the global accent. */
         val accentOverride: String? = null,
         override val gridSlot: Int? = null,
+        /**
+         * ICONS home style's per-tile "show as icon" vs "show as tile" choice
+         * (a single app's parallel to [Folder.showAsStack]) — defaults to
+         * `true` (icon) per the user's own request, so a fresh or upgraded
+         * install shows icons rather than live content unless a tile is
+         * explicitly switched to "show as tile." Only actually takes effect
+         * when [homeStyle][com.tileshell.core.data.settings.HomeStyle] is
+         * `ICONS` *and* [packageName] is non-blank — TILES mode ignores it
+         * entirely, and a blank-package liveOnly tile (weather/calendar/clock/
+         * personalize, which has no real app icon to show) always renders as
+         * a live tile regardless of this flag's value.
+         */
+        val displayAsIcon: Boolean = true,
     ) : TileModel
 
     data class Folder(

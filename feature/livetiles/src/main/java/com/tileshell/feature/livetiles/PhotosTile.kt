@@ -27,6 +27,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.TileSize
+import com.tileshell.core.data.settings.HomeStyle
+import com.tileshell.core.data.settings.IconShape
 import kotlinx.coroutines.delay
 
 private const val SLIDE_MS = 3_000L
@@ -69,6 +71,8 @@ fun PhotosTileFace(
     packageName: String = "",
     size: TileSize = TileSize.WIDE,
     forcedIndex: Int? = null,
+    homeStyle: HomeStyle = HomeStyle.TILES,
+    iconShape: IconShape = IconShape.ORIGINAL,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -99,6 +103,8 @@ fun PhotosTileFace(
                 )
                 AppIconCorner(
                     packageName = packageName,
+                    homeStyle = homeStyle,
+                    iconShape = iconShape,
                     modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
                 )
             }
@@ -193,6 +199,8 @@ fun PhotosTileFace(
                 // The gallery app's own icon in the top-left corner.
                 AppIconCorner(
                     packageName = packageName,
+                    homeStyle = homeStyle,
+                    iconShape = iconShape,
                     modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
                 )
             },

@@ -29,6 +29,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import com.tileshell.core.data.TileSize
+import com.tileshell.core.data.settings.HomeStyle
+import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.design.LocalTileFaceColor
 import com.tileshell.core.design.TileIcons
 import androidx.compose.runtime.Composable
@@ -312,6 +314,8 @@ fun MusicTileFace(
     // size (WIDE_SMALL, BANNER) switches to a compact horizontal row instead.
     // Default MEDIUM matches every pre-existing call site's actual shape.
     size: TileSize = TileSize.MEDIUM,
+    homeStyle: HomeStyle = HomeStyle.TILES,
+    iconShape: IconShape = IconShape.ORIGINAL,
 ) {
     val media by MediaCenter.nowPlaying.collectAsState()
     val artworkMap by MediaCenter.artwork.collectAsState()
@@ -347,9 +351,11 @@ fun MusicTileFace(
                 packageName = iconPackage,
                 art = art,
                 size = size,
+                homeStyle = homeStyle,
+                iconShape = iconShape,
             )
         },
-        back = { MusicBack(packageName = iconPackage, art = art) },
+        back = { MusicBack(packageName = iconPackage, art = art, homeStyle = homeStyle, iconShape = iconShape) },
     )
 }
 
@@ -361,6 +367,8 @@ private fun MusicFront(
     packageName: String?,
     art: ImageBitmap?,
     size: TileSize,
+    homeStyle: HomeStyle = HomeStyle.TILES,
+    iconShape: IconShape = IconShape.ORIGINAL,
 ) {
     TileImageBackground(art, modifier = Modifier.fillMaxSize()) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -440,6 +448,8 @@ private fun MusicFront(
         if (packageName != null) {
             AppIconCorner(
                 packageName = packageName,
+                homeStyle = homeStyle,
+                iconShape = iconShape,
                 modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
             )
         }
@@ -518,7 +528,12 @@ private fun ControlButton(
 }
 
 @Composable
-private fun MusicBack(packageName: String?, art: ImageBitmap?) {
+private fun MusicBack(
+    packageName: String?,
+    art: ImageBitmap?,
+    homeStyle: HomeStyle = HomeStyle.TILES,
+    iconShape: IconShape = IconShape.ORIGINAL,
+) {
     TileImageBackground(art, modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(
@@ -532,6 +547,8 @@ private fun MusicBack(packageName: String?, art: ImageBitmap?) {
             if (packageName != null) {
                 AppIconCorner(
                     packageName = packageName,
+                    homeStyle = homeStyle,
+                    iconShape = iconShape,
                     modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
                 )
             }

@@ -78,11 +78,13 @@ import androidx.core.graphics.drawable.toBitmap
 import com.tileshell.core.design.ColorTokens
 import com.tileshell.core.design.Glass
 import com.tileshell.core.design.isLightBackground
+import com.tileshell.core.design.LocalTileGradient
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.WallpaperGradient
 import com.tileshell.core.design.colorTokens
+import com.tileshell.core.design.tileGradientBrush
 import com.tileshell.core.design.wallpaperBackground
 import com.tileshell.feature.livetiles.Connectivity
 import com.tileshell.feature.livetiles.nextScreenTimeoutPreset
@@ -1104,7 +1106,13 @@ private fun QuickPanelTile(
             }
             .zIndex(if (isDragging || resizing) 1f else 0f)
             .clip(RoundedCornerShape(10.dp))
-            .background(bg)
+            // An active tile follows the personalize "gradient fill" setting, same
+            // as Start tiles (TileView); the inactive/off chip fill stays flat —
+            // there's no accent to gradient there.
+            .then(
+                if (tile.active && LocalTileGradient.current) Modifier.background(tileGradientBrush(accent))
+                else Modifier.background(bg)
+            )
             .then(
                 if (isDragTarget) Modifier.border(2.dp, accent, RoundedCornerShape(10.dp))
                 else Modifier
