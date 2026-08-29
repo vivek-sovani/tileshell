@@ -317,8 +317,24 @@ android {
         //   Also: the Personalize sheet's own chrome (selected pills, sliders, highlights)
         //   now correctly follows the wallpaper-derived accent when that's the chosen tile
         //   colour source, instead of always showing the plain global accent.
-        versionCode = 320
-        versionName = "3.2.0"
+        // v3.3.0 (code 330) — resizable icons-mode app icons (OneUI/Nothing-OS style): any
+        //   icon in "icons" home style can now be stretched 1x1 up to 4x4, with a per-app
+        //   "show as icon"/"show as tile" toggle in the colour picker (defaults to icon; a
+        //   stretched icon can't also show live content). Icon-shape masking (circle/
+        //   squircle/rounded/square/original) now applies consistently at every size, not
+        //   just 1x1. Wallpaper crop/apply now shows a real live preview of the actual Start
+        //   screen composited on the candidate photo (not an approximate mockup), covering
+        //   picking a photo, sharing one in, and other apps' "apply via"/"set as wallpaper"
+        //   choosers — plus a visible apply animation and landing back on Start once applied.
+        //   Gradient tile fill now also applies to Quick Panel tiles and feed glance cards,
+        //   not just Start tiles. Fixes made shipping this: "wallpaper behind tiles" mode was
+        //   leaking the full photo behind everything in the new preview; icons were blurred
+        //   at larger sizes (fixed decode resolution → dynamic, matching on-screen size);
+        //   notification badges on a resized icon sat at the whole tile's corner instead of
+        //   the icon's own corner, at a fixed size instead of scaling with it, and inset
+        //   inward instead of sitting right at the edge.
+        versionCode = 330
+        versionName = "3.3.0"
     }
 
     if (keystoreFile.exists()) {

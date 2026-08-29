@@ -144,6 +144,54 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
+## Release notes (v3.3.0)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 3.3.0
+
+• New: in icons mode, stretch any app icon from 1x1 up to 4x4 — pick "show as
+  icon" or "show as tile" per app from the colour picker
+• New: wallpaper crop/apply shows a live preview of your real Start screen on
+  the photo, with an apply animation
+• Changed: gradient tile fill now also applies to Quick Panel and glance cards
+• Fixed: icon blur at bigger sizes, notification badge scale/position on
+  resized icons, icon shape masking, wallpaper-behind-tiles leak in preview
+```
+
+*(Character count 494, under Play's 500 limit.)*
+
+### Full changelog since v3.2.0 (for reference — not the Play-facing blurb above)
+
+- **Resizable icons-mode app icons**, a OneUI/Nothing-OS-style capability: in "icons" home
+  style, any app icon can now be stretched from 1×1 up to 4×4 (previously fixed at 1×1, with
+  anything bigger auto-rendering as a live tile). A new per-app **"show as icon" / "show as
+  tile"** toggle lives in the tile's colour picker (mirroring the folder stack toggle) — icons
+  mode still defaults every app to a plain icon, and the toggle only appears once the app is
+  resized past 1×1, since a stretched icon can't also show live content.
+- **Icon-shape masking made consistent at every size** — the chosen shape (circle/squircle/
+  rounded/square/original) previously only applied correctly to 1×1 icons; icons rendered
+  inside bigger tiles (notification/music/photos corner icons, folder mini-grid children, and
+  the new resizable icons above) now all mask to the same shape.
+- **Icon blur at larger sizes fixed** — icon bitmaps now decode at a resolution matching their
+  actual on-screen size instead of a fixed low resolution, so a stretched-up icon stays sharp.
+- **Notification badges on resized icons** now anchor to the icon's own corner (not the whole
+  cell), scale proportionally with icon size, and sit right at the corner edge instead of
+  inset inward.
+- **Wallpaper crop/apply gets a real live preview**: choosing a photo — from Personalize,
+  sharing one into TileShell, or another app's "apply via" / "set as wallpaper" chooser — now
+  shows the actual Start screen (real tiles, real grid) composited on the candidate photo,
+  instead of a bare photo or an approximate mockup. Confirming plays a short apply animation
+  and, when opened from Personalize, returns straight to Start instead of leaving Personalize
+  open.
+- **Fixed**: the new wallpaper preview leaked the full photo behind everything when
+  "wallpaper behind tiles" mode was active, instead of respecting the flat-background/
+  tiled-window split that mode uses everywhere else.
+- **Gradient tile fill extended**: the existing "gradient fill" tile-style setting previously
+  only painted Start tiles — it now also applies to Quick Panel tiles and the feed's glance
+  cards (weather/agenda/now-playing).
+
 ## Release notes (v3.2.0)
 
 *"What's new" — newest release first. Keep under Play's 500-character limit.*
