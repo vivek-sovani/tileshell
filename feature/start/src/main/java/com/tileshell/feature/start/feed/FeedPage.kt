@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.tileshell.feature.start.feed
 
 import android.Manifest
@@ -11,7 +13,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -876,6 +880,13 @@ private fun GCard(
 internal fun AccentCard(
     accent: Color,
     onClick: (() -> Unit)? = null,
+    /** Long-press to enter edit mode, same effect as the header's "edit" action —
+     *  see `WidgetSlot.kt`'s `customCardView`. `null` (the default) adds no
+     *  long-press handling at all, which matters for a card whose own content
+     *  owns the *whole* tap itself (e.g. the flashlight toggle) — combining
+     *  [onClick] with a long-press there would require a non-null [onClick]
+     *  too, stealing taps that need to reach the content directly instead. */
+    onLongClick: (() -> Unit)? = null,
     /** Lets a caller stretch the card to fill a taller container (e.g. a
      *  resized built-in glance card, see `WidgetSlot.kt`'s `BuiltinCardView`) —
      *  the accent fill then covers the whole resized area instead of leaving
@@ -887,7 +898,13 @@ internal fun AccentCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(
+                when {
+                    onLongClick != null -> Modifier.combinedClickable(onClick = onClick ?: {}, onLongClick = onLongClick)
+                    onClick != null -> Modifier.clickable(onClick = onClick)
+                    else -> Modifier
+                }
+            )
             // Follows the personalize "gradient fill" setting, same as Start tiles
             // and Quick Panel tiles, so all three surfaces read as one style.
             .then(
@@ -908,12 +925,13 @@ internal fun WeatherCard(
     snapshot: com.tileshell.feature.livetiles.WeatherSnapshot?,
     accent: Color,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
 ) {
     // Card text adapts to this card's own accent fill (not the page background —
     // a wallpaper-derived accent can be light even when the page itself is dark).
     val onAccent = Glass.faceTextColor(useDarkText = isLightBackground(accent))
     val onAccentDim = onAccent.copy(alpha = 0.78f)
-    AccentCard(accent, onClick = onClick, modifier = Modifier.fillMaxHeight()) {
+    AccentCard(accent, onClick = onClick, onLongClick = onLongClick, modifier = Modifier.fillMaxHeight()) {
         Column(modifier = Modifier.padding(14.dp)) {
             if (snapshot == null) {
                 Text("weather unavailable", color = onAccent, fontSize = 14.sp)
@@ -968,10 +986,11 @@ internal fun AgendaCard(
     accent: Color,
     onAddSchedule: () -> Unit,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val onAccent = Glass.faceTextColor(useDarkText = isLightBackground(accent))
     val onAccentDim = onAccent.copy(alpha = 0.78f)
-    AccentCard(accent, onClick = onClick, modifier = Modifier.fillMaxHeight()) {
+    AccentCard(accent, onClick = onClick, onLongClick = onLongClick, modifier = Modifier.fillMaxHeight()) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1030,10 +1049,11 @@ internal fun NowPlayingCard(
     art: android.graphics.Bitmap?,
     accent: Color,
     onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val onAccent = Glass.faceTextColor(useDarkText = isLightBackground(accent))
     val onAccentDim = onAccent.copy(alpha = 0.78f)
-    AccentCard(accent, onClick = onClick, modifier = Modifier.fillMaxHeight()) {
+    AccentCard(accent, onClick = onClick, onLongClick = onLongClick, modifier = Modifier.fillMaxHeight()) {
         Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier

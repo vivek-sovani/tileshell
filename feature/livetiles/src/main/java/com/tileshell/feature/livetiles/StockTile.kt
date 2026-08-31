@@ -87,9 +87,16 @@ private fun indexInfoFor(selection: StockTile.Selection, primary: StockSymbolRef
  * ([StockTile.Selection.MultiStock]). A single-stock tile shows that stock's
  * price up front and its own intraday sparkline on the back, throughout every
  * size. A category/multi-stock tile instead leads with its **index**'s trend
- * (no one member represents the whole group) and flips to a list of members'
- * own prices — one member (the lead) below [TileSize.LARGE], every member at
- * [TileSize.LARGE]. Re-polls every [STOCK_REFRESH_MS] while [active] (a
+ * (no one member represents the whole group) and flips to a list of every
+ * member's own price — gated by [showAllMembers] rather than size alone,
+ * defaulting to [TileSize.LARGE] for a Start tile (one member (the lead)
+ * below that, every member at LARGE) but overridable, since the glance page's
+ * own custom cards always render at [TileSize.WIDE] (there's no larger size
+ * to grow into there) yet have plenty of room for a short list — passing
+ * `true` there is what actually shows every stock the user picked instead of
+ * silently stopping at the lead member forever (user-reported: "when i select
+ * multiple stocks or select category only one stock is shown"). Re-polls
+ * every [STOCK_REFRESH_MS] while [active] (a
  * Personalize "live data refresh" [refreshRate] overrides that interval;
  * either way [com.tileshell.core.data.effectiveMarketRefreshMs] slows it
  * further outside 9am-4pm weekday market hours, and [delayUntilNextRefresh]
@@ -107,6 +114,7 @@ fun StockTileFace(
     active: Boolean,
     selection: StockTile.Selection?,
     refreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
+    showAllMembers: Boolean = size == TileSize.LARGE,
     modifier: Modifier = Modifier,
 ) {
     if (selection == null) {
@@ -128,13 +136,13 @@ fun StockTileFace(
     var indexSparkline by remember(selection) { mutableStateOf<List<Double>>(emptyList()) }
     var singleSparkline by remember(selection) { mutableStateOf<List<Double>>(emptyList()) }
 
-    LaunchedEffect(selection, big, active, refreshRate) {
+    LaunchedEffect(selection, showAllMembers, active, refreshRate) {
         if (!active) return@LaunchedEffect
         while (true) {
             if (indexInfo != null) {
                 indexQuote = fetchStockQuote(indexInfo.first)
                 indexSparkline = fetchStockSparkline(indexInfo.first)
-                val listTargets = if (big) refs else listOf(primary)
+                val listTargets = if (showAllMembers) refs else listOf(primary)
                 val fetched = LinkedHashMap<String, StockQuote?>()
                 listTargets.forEach { ref -> fetched[ref.symbol] = fetchStockQuote(ref.symbol) }
                 listQuotes = fetched
@@ -164,7 +172,7 @@ fun StockTileFace(
         },
         back = {
             if (isGroup) {
-                StockListBack(if (big) refs else listOf(primary), listQuotes, size)
+                StockListBack(if (showAllMembers) refs else listOf(primary), listQuotes, size)
             } else {
                 StockSparklineBack(primary.displayName, listQuotes[primary.symbol], singleSparkline, size)
             }

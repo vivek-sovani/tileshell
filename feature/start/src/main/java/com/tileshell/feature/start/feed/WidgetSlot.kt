@@ -940,9 +940,17 @@ fun WidgetSection(
                 // no-config kind's own interactive elements (the flashlight
                 // toggle, a task checkbox) need the tap to reach them
                 // directly, not get consumed by an outer no-op click first.
+                //
+                // Long-press enters edit mode everywhere, the same as tapping
+                // the header's "edit" action — except on FLASHLIGHT, whose
+                // whole card *is* its own tap-to-toggle (FlashlightTileFace's
+                // own `.clickable`); giving AccentCard a long-press there would
+                // force a non-null onClick too (combinedClickable requires
+                // one), which would steal the toggle's own tap.
                 AccentCard(
                     accent = accent,
                     onClick = if (editMode || !kind.needsConfig) null else ({ onCustomCardTap(hw.widgetId, kind) }),
+                    onLongClick = if (editMode || kind == CustomCardKind.FLASHLIGHT) null else ({ onEditModeChange(true) }),
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     CustomCardBody(
@@ -968,13 +976,19 @@ fun WidgetSection(
         fun cardView(card: WidgetCard, modifier: Modifier) {
             when (card) {
                 is WidgetCard.Solo -> when (card.widget.widgetId) {
+                    // Long-press enters edit mode on every glance card, built-ins
+                    // included — the same effect as the header's "edit" action.
                     BUILTIN_WEATHER_WIDGET_ID -> builtinCardView(card.widget, BUILTIN_WEATHER_DEFAULT_HEIGHT_DP, modifier) {
-                        WeatherCard(snapshot = weatherSnapshot, accent = accent, onClick = onWeatherClick)
+                        WeatherCard(
+                            snapshot = weatherSnapshot, accent = accent, onClick = onWeatherClick,
+                            onLongClick = if (editMode) null else ({ onEditModeChange(true) }),
+                        )
                     }
                     BUILTIN_AGENDA_WIDGET_ID -> builtinCardView(card.widget, BUILTIN_AGENDA_DEFAULT_HEIGHT_DP, modifier) {
                         AgendaCard(
                             agenda = agenda, granted = calendarGranted, accent = accent,
                             onAddSchedule = onAddSchedule, onClick = onAgendaClick,
+                            onLongClick = if (editMode) null else ({ onEditModeChange(true) }),
                         )
                     }
                     // renderedWidgets already drops this sentinel whenever nowPlaying is
@@ -983,6 +997,7 @@ fun WidgetSection(
                         NowPlayingCard(
                             nowPlaying = nowPlaying!!, packageName = nowPlayingPackage,
                             art = nowPlayingArt, accent = accent, onClick = onNowPlayingClick,
+                            onLongClick = if (editMode) null else ({ onEditModeChange(true) }),
                         )
                     }
                     else -> if (card.widget.customKind.isNotEmpty()) customCardView(card.widget, modifier) else widgetView(card.widget, modifier)
@@ -1684,6 +1699,7 @@ private fun WidgetStackView(
                         commodityRefreshRate = commodityRefreshRate,
                         sportsRefreshRate = sportsRefreshRate,
                         onCustomCardTap = onCustomCardTap,
+                        onEnterEditMode = { onEditingChange(true) },
                         onMissing = { onRemove(member.widgetId) },
                     )
                 }
@@ -1778,6 +1794,7 @@ private fun WidgetStackMemberView(
     commodityRefreshRate: LiveRefreshRate,
     sportsRefreshRate: LiveRefreshRate,
     onCustomCardTap: (widgetId: Int, kind: CustomCardKind) -> Unit,
+    onEnterEditMode: () -> Unit,
     onMissing: () -> Unit,
 ) {
     if (widget.customKind.isNotEmpty()) {
@@ -1785,9 +1802,11 @@ private fun WidgetStackMemberView(
         // Same accent-filled background + tap-to-configure convention as a lone
         // custom card (see WidgetSection's own customCardView) — a card doesn't
         // change how it looks or behaves just because it's currently stacked.
+        // Same long-press-enters-edit-mode / FLASHLIGHT exception too.
         AccentCard(
             accent = accent,
             onClick = if (editing || !kind.needsConfig) null else ({ onCustomCardTap(widget.widgetId, kind) }),
+            onLongClick = if (editing || kind == CustomCardKind.FLASHLIGHT) null else onEnterEditMode,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(heightDp.dp)
@@ -1871,6 +1890,11 @@ private fun CustomCardBody(
             active = !editMode,
             selection = StockTile.decode(hw.customConfig),
             refreshRate = stockRefreshRate,
+            // The glance card never reaches TileSize.LARGE (there's no bigger
+            // size to grow into here), but it has plenty of room for a short
+            // list — show every picked stock/category member, not just the
+            // lead one StockTileFace would otherwise stop at below LARGE.
+            showAllMembers = true,
             modifier = Modifier.fillMaxSize(),
         )
         CustomCardKind.COMMODITY -> {
