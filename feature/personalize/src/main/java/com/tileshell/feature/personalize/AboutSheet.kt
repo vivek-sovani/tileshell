@@ -317,12 +317,34 @@ fun AboutSheet(
                 items = listOf(
                     "add any android app widget to the feed page",
                     "widget picker is grouped by app, and each app's group can be collapsed",
+                    "tileshell's own gadgets (see below) sit at the top of the picker, ahead of real apps",
                     "narrow widgets automatically pair up side by side, like weather and today's agenda",
                     "weather, agenda, and now-playing share this same system too — resize and reorder them exactly like any hosted widget",
                     "tap \"edit\" next to \"widgets\" to turn on move/resize handles for every card at once — hosted widgets and weather/agenda/now-playing together, no more tapping into each one individually",
+                    "or skip the \"edit\" tap entirely — long-press any card to jump straight into edit mode, hosted widgets included",
                     "drag a card's move handle (top) to reorder it",
                     "drag its edge handle to resize width or height independently, or drag the corner to resize both at once",
                     "tap \"done\" where \"edit\" was to finish",
+                ),
+            )
+
+            FeatureGroup(
+                title = "glance gadgets",
+                accent = accent,
+                tokens = tokens,
+                items = listOf(
+                    "tileshell's own cards for the feed's widgets section — pin them alongside real android widgets, from the same picker",
+                    "stock market — track one stock, a curated sector/country basket, or build your own list; shows live price, change, and a sparkline",
+                    "commodities — gold, silver, platinum, copper, crude oil, and major currency pairs",
+                    "sports — live scores for football, cricket, and more leagues; follow one specific team",
+                    "calendar systems — a second calendar alongside gregorian: hindu panchang (tithi, nakshatra, and moon phase), islamic, hebrew, chinese, buddhist, and more",
+                    "countdown — count down to any date you pick, with your own label",
+                    "sticky note — a colourful note tile; pin as many as you like, each independent",
+                    "notes — one shared notepad, open and add to it from any pinned notes card",
+                    "tasks — a checklist card; each pinned tasks card keeps its own independent list",
+                    "battery, alarm, and moon phase — at-a-glance device and sky status",
+                    "flashlight — the card itself is a tap-to-toggle torch switch",
+                    "steps — today's step count, read straight from your device's step sensor",
                 ),
             )
 

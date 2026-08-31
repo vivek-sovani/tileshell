@@ -333,8 +333,23 @@ android {
         //   notification badges on a resized icon sat at the whole tile's corner instead of
         //   the icon's own corner, at a fixed size instead of scaling with it, and inset
         //   inward instead of sitting right at the edge.
-        versionCode = 330
-        versionName = "3.3.0"
+        // v3.5.0 (code 350) — glance gadgets: a catalog of tileshell's own cards for the
+        //   feed's "add widget" picker, alongside real android widgets — stock market
+        //   (one stock, a curated sector/country basket, or a custom list; live price,
+        //   change, and sparkline), commodities (metals/energy/currency pairs), sports
+        //   (football/cricket/other leagues, follow one team), calendar systems (a second
+        //   calendar alongside gregorian, including hindu panchang with tithi/nakshatra/moon
+        //   phase), countdown, sticky note, a shared notes card, tasks (each pinned card
+        //   keeps its own independent checklist), plus battery/alarm/moon-phase/flashlight/
+        //   steps at-a-glance cards. Long-press any glance card (gadget, hosted widget, or
+        //   weather/agenda/now-playing) now jumps straight into edit mode, no need to tap
+        //   "edit" first — covers a lone card and every member of a widget stack too.
+        //   Fixed: the stock card only ever showed its first member's price when a category
+        //   or multiple stocks were picked, since it gated a full list on a tile size the
+        //   glance card can never reach; now shows every picked stock. Also: colourful
+        //   four-accent launcher icon, replacing the old monoline outline.
+        versionCode = 350
+        versionName = "3.5.0"
     }
 
     if (keystoreFile.exists()) {

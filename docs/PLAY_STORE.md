@@ -144,6 +144,58 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
+## Release notes (v3.5.0)
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 3.5.0
+
+• New: glance gadgets - pin stock/commodity/sports trackers, extra
+  calendar systems (Hindu Panchang and more), countdown, sticky note,
+  notes, tasks, battery, alarm, moon phase, flashlight, and steps
+  cards to the feed, alongside real Android widgets
+• New: long-press any glance card to jump straight into edit mode
+• Fixed: stock card only showed one stock when you picked multiple or
+  a whole category
+• Changed: colourful new launcher icon
+```
+
+*(Character count 465, under Play's 500 limit.)*
+
+### Full changelog since v3.3.0 (for reference — not the Play-facing blurb above)
+
+- **Glance gadgets**: a catalog of TileShell's own cards for the feed's "add widget" picker,
+  listed ahead of real apps in the same picker. **Stock market** — one stock, a curated
+  sector/country basket, or a user-built custom list; shows live price, change, and an
+  intraday sparkline, backed by Yahoo Finance's public chart endpoint. **Commodities** —
+  gold, silver, platinum, copper, crude oil, and major currency pairs, same price source.
+  **Sports** — live scores across football, cricket, and other leagues via ESPN's public site
+  API (cricket via a dedicated source), following one chosen team. **Calendar systems** — a
+  second calendar alongside the Gregorian one: Hindu Panchang (tithi, nakshatra, lunar month,
+  Shaka/Vikram Samvat year, and a moon-phase glyph, computed directly rather than via ICU),
+  plus Islamic, Hebrew, Chinese, Buddhist, and more via Android's own ICU calendars.
+  **Countdown** — count down to any date, your own label, one independent countdown per
+  pinned card. **Sticky note** — a colourful note tile, independent per pin. **Notes** — one
+  shared notepad, opened and edited from any pinned notes card. **Tasks** — a checklist card;
+  each pinned Tasks card now keeps its own independent list rather than sharing one global
+  checklist. **Battery**, **alarm**, and **moon phase** — at-a-glance device/sky status cards.
+  **Flashlight** — the whole card is a tap-to-toggle torch switch. **Steps** — today's step
+  count read from the device's step-counter sensor.
+- **Long-press any glance card to enter edit mode**, the same effect as tapping the feed
+  header's "edit" action — previously edit mode was reachable only via that header button.
+  Covers hosted Android widgets, TileShell's own gadget cards, the built-in weather/agenda/
+  now-playing cards, and every member of a widget stack (gadget or real-widget stacks alike).
+  A real hosted widget needed a dedicated passthrough gesture watcher rather than a plain
+  Compose long-press modifier, since a Compose gesture wrapping a real widget's view would
+  otherwise have to steal some of its own touch handling (taps, scrolling, buttons) to
+  recognize the long-press.
+- **Fixed**: picking multiple stocks or a whole sector/country category on the stock card
+  only ever showed the lead member's price — the full-member list was gated on a tile size
+  the glance page's card can never reach. Every picked stock now shows.
+- **Colourful launcher icon**: replaces the old monoline outline glyph with a four-accent
+  tile mosaic (blue/magenta/amber/green), on the same dark background.
+
 ## Release notes (v3.3.0)
 
 *"What's new" — newest release first. Keep under Play's 500-character limit.*
