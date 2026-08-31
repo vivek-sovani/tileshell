@@ -68,6 +68,28 @@ val TilePackMode.isAnchored: Boolean get() = this != TilePackMode.DENSE
 enum class TileColorSource { GLOBAL_ACCENT, APP_ICON, WALLPAPER_ACCENT }
 
 /**
+ * How often a live-data tile (stock, commodity, sports) re-polls its network
+ * source, user-selectable per category (Personalize's "live data refresh").
+ * [DEFAULT] keeps that category's own original interval — see each tile
+ * file's own `*_REFRESH_MS` constant ([resolveMs]'s fallback) — the slower
+ * fixed options exist purely as a battery/data tradeoff a user can opt into;
+ * nothing about correctness depends on which one is picked. Stock/commodity
+ * tiles also fold in `effectiveMarketRefreshMs` on top of whichever interval
+ * this resolves to, slowing down further outside market hours regardless of
+ * the chosen rate.
+ */
+enum class LiveRefreshRate { DEFAULT, EVERY_1_MIN, EVERY_5_MIN, EVERY_15_MIN, EVERY_30_MIN }
+
+/** The interval, in milliseconds, this rate resolves to — [defaultMs] is the calling tile's own normal-case interval, substituted for [LiveRefreshRate.DEFAULT]. */
+fun LiveRefreshRate.resolveMs(defaultMs: Long): Long = when (this) {
+    LiveRefreshRate.DEFAULT -> defaultMs
+    LiveRefreshRate.EVERY_1_MIN -> 60_000L
+    LiveRefreshRate.EVERY_5_MIN -> 5 * 60_000L
+    LiveRefreshRate.EVERY_15_MIN -> 15 * 60_000L
+    LiveRefreshRate.EVERY_30_MIN -> 30 * 60_000L
+}
+
+/**
  * Persisted personalization (FR-7). Kept deliberately flat and framework-free so
  * it can be serialized by [SettingsCodec] and unit-tested without Android.
  *
@@ -214,6 +236,14 @@ data class LauncherSettings(
     val quickPanelTileOrder: List<String> = emptyList(),
     /** Persisted Quick Panel tile sizes as `"id:cols"` tokens, pipe-separated in the codec. */
     val quickPanelTileSizes: List<String> = emptyList(),
+    /** Auto-clear completed tasks once a day (never touches unchecked tasks). */
+    val taskAutoClearDaily: Boolean = true,
+    /** How often stock tiles re-poll — see [LiveRefreshRate]. */
+    val stockRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
+    /** How often commodity/currency tiles re-poll — see [LiveRefreshRate]. */
+    val commodityRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
+    /** How often sports tiles re-poll — see [LiveRefreshRate]. */
+    val sportsRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
 ) {
     companion object {
         const val DEFAULT_COLUMNS = 4
@@ -276,7 +306,11 @@ object SettingsCodec {
         append("feedNoBg=").append(settings.feedNoBackground).append('\n')
         append("hideStatusBar=").append(settings.hideStatusBar).append('\n')
         append("quickPanelOrder=").append(settings.quickPanelTileOrder.joinToString("|")).append('\n')
-        append("quickPanelSizes=").append(settings.quickPanelTileSizes.joinToString("|"))
+        append("quickPanelSizes=").append(settings.quickPanelTileSizes.joinToString("|")).append('\n')
+        append("taskAutoClearDaily=").append(settings.taskAutoClearDaily).append('\n')
+        append("stockRefreshRate=").append(settings.stockRefreshRate.name).append('\n')
+        append("commodityRefreshRate=").append(settings.commodityRefreshRate.name).append('\n')
+        append("sportsRefreshRate=").append(settings.sportsRefreshRate.name)
     }
 
     fun decode(text: String): LauncherSettings {
@@ -321,6 +355,10 @@ object SettingsCodec {
         var hideStatusBar = d.hideStatusBar
         var quickPanelTileOrder = d.quickPanelTileOrder
         var quickPanelTileSizes = d.quickPanelTileSizes
+        var taskAutoClearDaily = d.taskAutoClearDaily
+        var stockRefreshRate = d.stockRefreshRate
+        var commodityRefreshRate = d.commodityRefreshRate
+        var sportsRefreshRate = d.sportsRefreshRate
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
             if (sep <= 0) return@forEach
@@ -381,6 +419,14 @@ object SettingsCodec {
                     else value.split("|").filter { it.isNotBlank() }
                 "quickPanelSizes" -> quickPanelTileSizes = if (value.isEmpty()) emptyList()
                     else value.split("|").filter { it.isNotBlank() }
+                "taskAutoClearDaily" -> taskAutoClearDaily =
+                    value.toBooleanStrictOrNull() ?: taskAutoClearDaily
+                "stockRefreshRate" ->
+                    LiveRefreshRate.entries.find { it.name == value }?.let { stockRefreshRate = it }
+                "commodityRefreshRate" ->
+                    LiveRefreshRate.entries.find { it.name == value }?.let { commodityRefreshRate = it }
+                "sportsRefreshRate" ->
+                    LiveRefreshRate.entries.find { it.name == value }?.let { sportsRefreshRate = it }
             }
         }
         return LauncherSettings(
@@ -424,6 +470,10 @@ object SettingsCodec {
             hideStatusBar = hideStatusBar,
             quickPanelTileOrder = quickPanelTileOrder,
             quickPanelTileSizes = quickPanelTileSizes,
+            taskAutoClearDaily = taskAutoClearDaily,
+            stockRefreshRate = stockRefreshRate,
+            commodityRefreshRate = commodityRefreshRate,
+            sportsRefreshRate = sportsRefreshRate,
         )
     }
 }

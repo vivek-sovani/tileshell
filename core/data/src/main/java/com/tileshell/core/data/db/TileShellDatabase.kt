@@ -15,14 +15,18 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         FolderEntity::class,
         FolderChildEntity::class,
         AppCacheEntity::class,
+        TaskEntity::class,
+        NoteEntity::class,
     ],
-    version = 8,
+    version = 11,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
 abstract class TileShellDatabase : RoomDatabase() {
 
     abstract fun layoutDao(): LayoutDao
+    abstract fun taskDao(): TaskDao
+    abstract fun noteDao(): NoteDao
 
     companion object {
         private const val NAME = "tileshell.db"
@@ -123,11 +127,77 @@ abstract class TileShellDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v8→v9: add the `tasks` table backing the new Tasks live tile (a single
+         * global checklist, not per-pinned-tile). A fresh, empty table — nothing
+         * to backfill.
+         */
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `tasks` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `text` TEXT NOT NULL,
+                        `done` INTEGER NOT NULL,
+                        `position` INTEGER NOT NULL,
+                        `createdAt` INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+            }
+        }
+
+        /**
+         * v9→v10: add the `notes` table backing the new Notes live tile (one
+         * shared notepad, not per-pinned-tile). A fresh, empty table — nothing
+         * to backfill.
+         */
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `notes` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `text` TEXT NOT NULL,
+                        `updatedAt` INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+            }
+        }
+
+        /**
+         * v10→v11: give the Tasks live tile a real per-instance list, keyed by
+         * `listId` (the owning tile/gadget's own stable id) — user-reported:
+         * pinning a second Tasks tile just showed the same single global list
+         * again, instead of a fresh independent one. Existing rows default to
+         * the literal string `"default"` via the column default; the second
+         * statement then reassigns them to whichever Tasks tile already exists
+         * on Start (oldest by grid position, if more than one somehow does),
+         * so an upgrading install's real existing tasks stay visible on that
+         * tile instead of silently becoming orphaned under an id nothing reads
+         * — a no-op when no Tasks tile is pinned yet.
+         */
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tasks ADD COLUMN listId TEXT NOT NULL DEFAULT 'default'")
+                db.execSQL(
+                    """
+                    UPDATE tasks SET listId = (
+                        SELECT id FROM tiles WHERE iconKey = 'tasks' ORDER BY position LIMIT 1
+                    )
+                    WHERE EXISTS (SELECT 1 FROM tiles WHERE iconKey = 'tasks')
+                    """.trimIndent(),
+                )
+            }
+        }
+
         /** Versioned migrations, added as the schema evolves. */
         val MIGRATIONS: Array<Migration> =
             arrayOf(
                 MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
-                MIGRATION_7_8,
+                MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
             )
 
         @Volatile

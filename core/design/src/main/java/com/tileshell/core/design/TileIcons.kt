@@ -448,5 +448,105 @@ object TileIcons {
             p(circle(12.0, 12.0, 4.0)),
             p("M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"),
         ))
+
+        // A disc with an S-curved terminator, not the plain "moon"/"dnd" crescent —
+        // that shape is already claimed by the theme selector's "dark" tile, and a
+        // phase widget's whole point is showing a *specific* phase, not just "night."
+        put("moonphase", vector("moonphase",
+            p(circle(12.0, 12.0, 9.0)),
+            p("M12 3a9 9 0 0 0 0 18a5 5 0 0 1 0-18z"),
+        ))
+
+        // Two uneven stacked rectangles — deliberately distinct from "app"'s uniform
+        // 2x2 grid, since this glyph means "widgets" (mixed tile sizes), not "apps."
+        put("widgets", vector("widgets",
+            p(rect(4.0, 4.0, 9.0, 9.0, 1.0)),
+            p(rect(10.5, 11.0, 9.5, 9.0, 1.0)),
+        ))
+
+        // A two-row checklist: a checked box + line, an unchecked box + line.
+        put("tasks", vector("tasks",
+            p(rect(4.0, 5.0, 5.0, 5.0, 1.0)),
+            p("M5.3 7.5l.9.9 1.7-1.9"),
+            p(line(12.0, 7.5, 20.0, 7.5)),
+            p(rect(4.0, 14.0, 5.0, 5.0, 1.0)),
+            p(line(12.0, 16.5, 20.0, 16.5)),
+        ))
+
+        // Same glyph as "note" (a plain note page), under its own key — "note"
+        // is reserved for the dead `DefaultLayout` app-pin placeholder for a
+        // real (not-yet-resolvable) third-party notes app, so the in-app
+        // notepad widget uses a distinct identity even though it looks the
+        // same, and never collides if that placeholder is ever wired up.
+        put("notepad", vector("notepad",
+            p(rect(5.0, 3.0, 14.0, 18.0, 1.5)),
+            p(line(8.0, 8.0, 16.0, 8.0)),
+            p(line(8.0, 12.0, 16.0, 12.0)),
+            p(line(8.0, 16.0, 13.0, 16.0)),
+        ))
+
+        // A page with a folded top-right corner — the classic sticky-note
+        // silhouette, distinct from "notepad"'s plain ruled page (that one's a
+        // list of many notes; this one is always exactly one).
+        put("stickynote", vector("stickynote",
+            p("M5 4h11l4 4v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"),
+            p("M16 4v4h4"),
+        ))
+
+        // A down-arrow into a tray — "save a copy" (export to device/Drive via
+        // the system file picker), distinct from "cloud"'s outline-only glyph.
+        put("download", vector("download",
+            p(line(12.0, 3.0, 12.0, 14.0)),
+            p("M7.5 9.5L12 14l4.5-4.5"),
+            p("M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"),
+        ))
+
+        // A pennant flag on a pole — "counting down to an event," distinct
+        // from "calendar"'s grid glyph.
+        put("countdown", vector("countdown",
+            p(line(6.0, 3.0, 6.0, 21.0)),
+            p("M6 4h11l-3 3.2 3 3.2H6z"),
+        ))
+
+        // Two footprints, offset diagonally as if mid-stride.
+        put("steps", vector("steps",
+            p(ellipse(8.0, 16.0, 2.6, 4.2)),
+            p(ellipse(16.0, 8.0, 2.6, 4.2)),
+        ))
+
+        // A ball: a circle with two curved seam lines, generic across sports
+        // rather than any one game's own equipment.
+        put("sports", vector("sports",
+            p(circle(12.0, 12.0, 9.0)),
+            p("M4 8c4 3 12 3 16 0"),
+            p("M4 16c4-3 12-3 16 0"),
+        ))
+
+        // An upward trend line with an arrowhead — a stock ticker's price
+        // line, not a bar/candlestick chart, to stay monoline like the rest
+        // of the family.
+        put("stock", vector("stock",
+            p("M4 16l5-5 4 4 7-8"),
+            p("M14 7h6v6"),
+        ))
+
+        // A coin: an outer disc rim + a smaller inner ring, distinct from
+        // "stock"'s trend-line glyph — generic across metals/energy/currency
+        // rather than any one commodity's own symbol.
+        put("commodity", vector("commodity",
+            p(circle(12.0, 12.0, 9.0)),
+            p(circle(12.0, 12.0, 4.0)),
+        ))
+
+        // "calendar"'s grid body with a small crescent in place of a date
+        // number — a date shown in another (often lunar) calendar system,
+        // distinct from the plain grid-only "calendar" glyph.
+        put("calsys", vector("calsys",
+            p(rect(3.0, 5.0, 18.0, 16.0, 1.5)),
+            p(line(3.0, 9.0, 21.0, 9.0)),
+            p(line(8.0, 3.0, 8.0, 6.0)),
+            p(line(16.0, 3.0, 16.0, 6.0)),
+            p("M14.5 12.2a3.1 3.1 0 0 0 0 6a3.6 3.6 0 0 1 0-6z"),
+        ))
     }
 }

@@ -92,10 +92,53 @@ class WidgetSlotTest {
         assertFalse(isInMergeZone(200f, 300f, 100f, 100f, pointX = 250f, pointY = 305f))
     }
 
+    // isStackMergeEligible — id/kind/stack/width preconditions, independent of aim.
+    private fun realWidget(id: Int, halfWidth: Boolean = false, stackId: Int? = null) =
+        HostedWidget(id, heightDp = 120, halfWidth = halfWidth, stackId = stackId)
+    private fun customCard(id: Int, kind: String = "clock", halfWidth: Boolean = false, stackId: Int? = null) =
+        HostedWidget(id, heightDp = 0, halfWidth = halfWidth, stackId = stackId, customKind = kind)
+    private fun builtinCard(id: Int, halfWidth: Boolean = false) =
+        HostedWidget(id, heightDp = 0, halfWidth = halfWidth)
+
+    @Test
+    fun `isStackMergeEligible allows two real hosted widgets of matching width`() {
+        assertTrue(isStackMergeEligible(realWidget(1), realWidget(2)))
+    }
+
+    @Test
+    fun `isStackMergeEligible allows two TileShell custom cards of matching width`() {
+        assertTrue(isStackMergeEligible(customCard(-4, halfWidth = true), customCard(-5, halfWidth = true)))
+    }
+
+    @Test
+    fun `isStackMergeEligible rejects a built-in glance card on either side`() {
+        assertFalse(isStackMergeEligible(builtinCard(BUILTIN_WEATHER_WIDGET_ID), realWidget(1)))
+        assertFalse(isStackMergeEligible(realWidget(1), builtinCard(BUILTIN_AGENDA_WIDGET_ID)))
+        assertFalse(isStackMergeEligible(builtinCard(BUILTIN_WEATHER_WIDGET_ID), customCard(-4)))
+    }
+
+    @Test
+    fun `isStackMergeEligible rejects mixing a custom card with a real hosted widget`() {
+        assertFalse(isStackMergeEligible(customCard(-4), realWidget(1)))
+        assertFalse(isStackMergeEligible(realWidget(1), customCard(-4)))
+    }
+
+    @Test
+    fun `isStackMergeEligible rejects a drag starting on an already-stacked widget`() {
+        assertFalse(isStackMergeEligible(realWidget(1, stackId = 1), realWidget(2)))
+        assertFalse(isStackMergeEligible(customCard(-4, stackId = -4), customCard(-5)))
+    }
+
+    @Test
+    fun `isStackMergeEligible rejects mismatched half-full width`() {
+        assertFalse(isStackMergeEligible(realWidget(1, halfWidth = true), realWidget(2, halfWidth = false)))
+        assertFalse(isStackMergeEligible(customCard(-4, halfWidth = true), customCard(-5, halfWidth = false)))
+    }
+
     private fun full(id: Int) = HostedWidget(id, heightDp = 120, halfWidth = false)
     private fun half(id: Int) = HostedWidget(id, heightDp = 120, halfWidth = true)
-    private fun stacked(id: Int, stackId: Int, heightDp: Int = 120, halfWidth: Boolean = false) =
-        HostedWidget(id, heightDp = heightDp, halfWidth = halfWidth, stackId = stackId)
+    private fun stacked(id: Int, stackId: Int, heightDp: Int = 120, halfWidth: Boolean = false, customKind: String = "") =
+        HostedWidget(id, heightDp = heightDp, halfWidth = halfWidth, stackId = stackId, customKind = customKind)
 
     // Row/card expectation builders — rows are packed from cards (a lone widget or a
     // whole stack), so these keep the expectations readable.
@@ -239,6 +282,33 @@ class WidgetSlotTest {
     fun `stackHeightDp is the max of members' own heights`() {
         assertEquals(200, stackHeightDp(listOf(stacked(1, 1, heightDp = 120), stacked(2, 1, heightDp = 200))))
         assertEquals(120, stackHeightDp(listOf(stacked(1, 1, heightDp = 120))))
+    }
+
+    @Test
+    fun `stackHeightDp falls back to each custom card kind's own default when never resized`() {
+        // Every custom card starts at heightDp 0 (WidgetStore.addCustomCard) until
+        // manually dragged taller — a stack of two never-resized custom cards used
+        // to collapse to 0dp (max of two zeros) and render as nothing, reading as
+        // "the other half of this row is empty" (user-reported). Regression for
+        // that: the stack must fall back to its members' own real default heights.
+        val stickyPlusNotes = stackHeightDp(
+            listOf(
+                stacked(-10, -10, heightDp = 0, halfWidth = true, customKind = "stickynote"),
+                stacked(-11, -10, heightDp = 0, halfWidth = true, customKind = "notepad"),
+            ),
+        )
+        assertTrue(stickyPlusNotes > 0)
+
+        // A member that WAS manually resized still wins over a never-resized one.
+        assertEquals(
+            300,
+            stackHeightDp(
+                listOf(
+                    stacked(-8, -8, heightDp = 0, halfWidth = true, customKind = "moonphase"),
+                    stacked(-7, -8, heightDp = 300, halfWidth = true, customKind = "flashlight"),
+                ),
+            ),
+        )
     }
 
     // mergeIntoStack — forming and joining groups.

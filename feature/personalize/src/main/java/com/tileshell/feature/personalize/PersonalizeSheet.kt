@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.tileshell.core.data.settings.FontStyle
+import com.tileshell.core.data.settings.LiveRefreshRate
 import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.data.settings.HomeStyle
@@ -205,6 +206,13 @@ fun PersonalizeSheet(
     /** Master on/off switch for live-tile flipping/updates. */
     liveTilesEnabled: Boolean,
     onLiveTilesEnabledChange: (Boolean) -> Unit,
+    /** How often stock/commodity/sports tiles re-poll — a battery/data tradeoff, default matches the original hardcoded cadence. */
+    stockRefreshRate: LiveRefreshRate,
+    onStockRefreshRateChange: (LiveRefreshRate) -> Unit,
+    commodityRefreshRate: LiveRefreshRate,
+    onCommodityRefreshRateChange: (LiveRefreshRate) -> Unit,
+    sportsRefreshRate: LiveRefreshRate,
+    onSportsRefreshRateChange: (LiveRefreshRate) -> Unit,
     /** Badges & live mail — grouped with live tiles, since it feeds their content. */
     notificationsEnabled: Boolean,
     onNotificationAccess: () -> Unit,
@@ -1066,6 +1074,24 @@ fun PersonalizeSheet(
                 }
             }
 
+            // ---- live data refresh: per-category poll interval, a battery/data
+            // tradeoff — "default" keeps each category's original cadence
+            // (stock/commodity 60s, sports 90s); the tile itself also slows
+            // stock/commodity polling further outside 9am-4pm weekday market
+            // hours regardless of which rate is picked here. ----
+            SettingGroup(label = "live data refresh", tokens.fgDim) {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Text(
+                        "how often stock, commodity, and sports tiles re-poll — a battery/data tradeoff; slower saves more",
+                        color = tokens.fgDim,
+                        fontSize = 12.sp,
+                    )
+                    RefreshRateRow("stock", stockRefreshRate, accent, tokens, onStockRefreshRateChange)
+                    RefreshRateRow("commodity", commodityRefreshRate, accent, tokens, onCommodityRefreshRateChange)
+                    RefreshRateRow("sports", sportsRefreshRate, accent, tokens, onSportsRefreshRateChange)
+                }
+            }
+
             // ---- live photos (FR-2 photos tile) ----
             SettingGroup(label = "live photos", tokens.fgDim) {
                 Row(
@@ -1473,6 +1499,37 @@ private fun ThemeTile(
     ) {
         Icon(TileIcons[icon], null, tint = fg, modifier = Modifier.size(20.dp))
         Text(label, color = fg, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+    }
+}
+
+private val REFRESH_RATE_LABELS = listOf(
+    LiveRefreshRate.DEFAULT to "default",
+    LiveRefreshRate.EVERY_1_MIN to "1m",
+    LiveRefreshRate.EVERY_5_MIN to "5m",
+    LiveRefreshRate.EVERY_15_MIN to "15m",
+    LiveRefreshRate.EVERY_30_MIN to "30m",
+)
+
+/** One category's "live data refresh" selector — a label above a 5-pill segmented row (default/1m/5m/15m/30m), matching the arrangement/home-style rows' own [SegCell] shape. */
+@Composable
+private fun RefreshRateRow(
+    label: String,
+    rate: LiveRefreshRate,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+    onChange: (LiveRefreshRate) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, color = tokens.fg, fontSize = 14.sp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, tokens.tileLine),
+        ) {
+            REFRESH_RATE_LABELS.forEach { (value, text) ->
+                SegCell(text, selected = rate == value, accent = accent, fg = tokens.fg) { onChange(value) }
+            }
+        }
     }
 }
 

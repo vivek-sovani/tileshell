@@ -43,18 +43,34 @@ enum class TileSize(val cols: Int, val rows: Int) {
      * → medium. When true ([AppCategories.allowsLargeTile], now unconditional — any
      * app tile on any grid density) wide steps up to [LARGE] before wrapping back to
      * medium: medium → small → wide → large → medium.
+     *
+     * [requireTallCycle] drops [SMALL] (and every other 1-row preset) from the
+     * cycle entirely — medium → wide → (large →) medium — for a tile whose
+     * content genuinely needs 2+ rows to show anything (e.g. the Tasks
+     * checklist; see [AppCategories.requiresTallTile]).
      */
-    fun next(largeAllowed: Boolean = false): TileSize = when (this) {
-        MEDIUM -> SMALL
-        SMALL -> WIDE
-        WIDE -> if (largeAllowed) LARGE else MEDIUM
-        LARGE -> MEDIUM
-        // Only reached via drag-to-resize, never by this cycle itself (see the
-        // class doc comment). Tapping resize while at one of these newer
-        // presets folds back into the original four-size cycle at MEDIUM —
-        // the cycle's own documented "always starts and returns" landing
-        // size — rather than extending the tap cycle to eleven stops.
-        WIDE_SMALL, TALL, WIDE_MEDIUM, TALL_MEDIUM, XLARGE, BANNER, COLUMN -> MEDIUM
+    fun next(largeAllowed: Boolean = false, requireTallCycle: Boolean = false): TileSize {
+        if (requireTallCycle) {
+            return when (this) {
+                WIDE -> if (largeAllowed) LARGE else MEDIUM
+                LARGE -> MEDIUM
+                // MEDIUM, or anything else this tile could never actually be in
+                // (SMALL / any 1-row preset) — always recovers to a 2+-row size.
+                else -> WIDE
+            }
+        }
+        return when (this) {
+            MEDIUM -> SMALL
+            SMALL -> WIDE
+            WIDE -> if (largeAllowed) LARGE else MEDIUM
+            LARGE -> MEDIUM
+            // Only reached via drag-to-resize, never by this cycle itself (see the
+            // class doc comment). Tapping resize while at one of these newer
+            // presets folds back into the original four-size cycle at MEDIUM —
+            // the cycle's own documented "always starts and returns" landing
+            // size — rather than extending the tap cycle to eleven stops.
+            WIDE_SMALL, TALL, WIDE_MEDIUM, TALL_MEDIUM, XLARGE, BANNER, COLUMN -> MEDIUM
+        }
     }
 
     /**
@@ -62,10 +78,18 @@ enum class TileSize(val cols: Int, val rows: Int) {
      * top-level tile's: when [largeAllowed] it gets the full [next] cycle
      * (small→medium→wide→large); otherwise it keeps a plain small↔medium toggle
      * rather than [next]'s medium→small→wide, since a WIDE child would crowd the
-     * folder overlay's grid.
+     * folder overlay's grid. [requireTallCycle] (see [next]) drops the small↔medium
+     * toggle to a fixed MEDIUM when large isn't allowed, since neither SMALL nor
+     * any other 1-row size is ever a valid target for this tile.
      */
-    fun nextForFolderChild(largeAllowed: Boolean): TileSize =
-        if (largeAllowed) next(largeAllowed = true) else if (this == SMALL) MEDIUM else SMALL
+    fun nextForFolderChild(largeAllowed: Boolean, requireTallCycle: Boolean = false): TileSize =
+        when {
+            requireTallCycle && largeAllowed -> next(largeAllowed = true, requireTallCycle = true)
+            requireTallCycle -> MEDIUM
+            largeAllowed -> next(largeAllowed = true)
+            this == SMALL -> MEDIUM
+            else -> SMALL
+        }
 
     /**
      * Whether this size is roomy enough to be a widget-stack member: more

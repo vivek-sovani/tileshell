@@ -29,6 +29,19 @@ fun List<TileModel>.hasPersonalizeTile(): Boolean = any {
     it is TileModel.App && it.packageName.isBlank() && it.label == "personalize"
 }
 
+/**
+ * True if [this] already contains the shared-notepad live tile ("notes" in the
+ * widget catalog, iconKey `"notepad"`). Notes has exactly one repository-backed
+ * list behind every pinned tile (see `NoteRepository`), so a second pin would
+ * just show the same shared content twice — the widget catalog uses this to
+ * grey that entry out once one exists. A sticky note tile is the opposite: its
+ * text lives on the tile's own row (`LayoutRepository.setTileText`), so each
+ * pin is independent and this check doesn't apply to it.
+ */
+fun List<TileModel>.hasNotesTile(): Boolean = any {
+    it is TileModel.App && it.packageName.isBlank() && it.iconKey == "notepad"
+}
+
 sealed interface TileModel {
     val id: String
     val position: Int

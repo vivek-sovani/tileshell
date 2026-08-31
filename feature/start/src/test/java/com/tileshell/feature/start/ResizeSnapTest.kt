@@ -2,6 +2,7 @@ package com.tileshell.feature.start
 
 import com.tileshell.core.data.TileSize
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -108,5 +109,37 @@ class ResizeSnapTest {
             geom, currentCols = 2, currentRows = 2, dxPx = geom.step * 10, dyPx = 0f, columns = 4,
         )
         assertEquals(4, target.cols)
+    }
+
+    @Test
+    fun `minRows excludes every 1-row preset from the candidate set`() {
+        // No movement would normally keep a 1x1 footprint at SMALL; with
+        // minRows=2 (a tile like Tasks that needs 2+ rows) it has to land on
+        // the nearest 2+ row preset instead.
+        val target = snapResizeTarget(
+            geom, currentCols = 1, currentRows = 1, dxPx = 0f, dyPx = 0f, columns = 4, minRows = 2,
+        )
+        assertTrue(target.rows >= 2)
+    }
+
+    @Test
+    fun `minRows never lands on wide-small or banner even when the drag targets them exactly`() {
+        val towardWideSmall = snapResizeTarget(
+            geom, currentCols = 1, currentRows = 1, dxPx = geom.step, dyPx = -geom.step * 0.4f, columns = 4, minRows = 2,
+        )
+        assertTrue(towardWideSmall.rows >= 2)
+
+        val towardBanner = snapResizeTarget(
+            geom, currentCols = 1, currentRows = 1, dxPx = geom.step * 3, dyPx = 0f, columns = 4, minRows = 2,
+        )
+        assertTrue(towardBanner.rows >= 2)
+    }
+
+    @Test
+    fun `default minRows of 1 keeps existing behaviour unchanged`() {
+        val target = snapResizeTarget(
+            geom, currentCols = 1, currentRows = 1, dxPx = 0f, dyPx = 0f, columns = 4,
+        )
+        assertEquals(TileSize.SMALL, target)
     }
 }

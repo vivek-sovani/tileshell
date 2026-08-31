@@ -46,15 +46,26 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
+import com.tileshell.core.data.CommodityTile
+import com.tileshell.core.data.CountdownTile
+import com.tileshell.core.data.StockTile
 import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.settings.IconShape
+import com.tileshell.core.data.settings.LiveRefreshRate
 import com.tileshell.core.design.SquircleShape
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.colorTokens
+import com.tileshell.feature.livetiles.BatterySmallFace
 import com.tileshell.feature.livetiles.CalendarSmallFace
+import com.tileshell.feature.livetiles.CalendarSystemSmallFace
 import com.tileshell.feature.livetiles.ClockSmallFace
+import com.tileshell.feature.livetiles.CountdownSmallFace
+import com.tileshell.feature.livetiles.FlashlightSmallFace
 import com.tileshell.feature.livetiles.NotificationSnapshot
+import com.tileshell.feature.livetiles.StepsSmallFace
+import com.tileshell.feature.livetiles.StockSmallFace
+import com.tileshell.feature.livetiles.CommoditySmallFace
 import com.tileshell.feature.livetiles.WeatherSmallFace
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -111,6 +122,8 @@ internal fun IconCellView(
     canMoveBack: Boolean,
     canMoveForward: Boolean,
     iconShape: IconShape = IconShape.ORIGINAL,
+    stockRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
+    commodityRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
     accent: Color = Color.Gray,
     liveActive: Boolean = false,
     resizeHandlesEnabled: Boolean = false,
@@ -173,6 +186,41 @@ internal fun IconCellView(
             }
             "clock" -> LiveIconTile(accent, badgeCount, darkTheme) {
                 ClockSmallFace(active = liveActive, modifier = Modifier.fillMaxSize())
+            }
+            "battery" -> LiveIconTile(accent, badgeCount, darkTheme) {
+                BatterySmallFace(modifier = Modifier.fillMaxSize())
+            }
+            "flashlight" -> LiveIconTile(accent, badgeCount, darkTheme) {
+                FlashlightSmallFace(interactive = !editMode, modifier = Modifier.fillMaxSize())
+            }
+            "countdown" -> LiveIconTile(accent, badgeCount, darkTheme) {
+                val (isoDate, _) = CountdownTile.decode(tile.activityName) ?: ("" to "")
+                CountdownSmallFace(targetIsoDate = isoDate, modifier = Modifier.fillMaxSize())
+            }
+            "steps" -> LiveIconTile(accent, badgeCount, darkTheme) {
+                StepsSmallFace(
+                    fallback = { IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp) },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            "stock" -> LiveIconTile(accent, badgeCount, darkTheme) {
+                StockSmallFace(
+                    selection = StockTile.decode(tile.activityName),
+                    fallback = { IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp) },
+                    refreshRate = stockRefreshRate,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            "commodity" -> LiveIconTile(accent, badgeCount, darkTheme) {
+                CommoditySmallFace(
+                    symbol = CommodityTile.decode(tile.activityName)?.first,
+                    fallback = { IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp) },
+                    refreshRate = commodityRefreshRate,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            "calsys" -> LiveIconTile(accent, badgeCount, darkTheme) {
+                CalendarSystemSmallFace(modifier = Modifier.fillMaxSize())
             }
             else -> {
                 // Hide the label at 6 columns — a 1×1 cell is too narrow there

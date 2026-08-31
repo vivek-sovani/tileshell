@@ -212,6 +212,10 @@ private val MAX_PRESET_ROWS = TileSize.entries.maxOf { it.rows }
  * every drag tick from the *total* delta since the gesture started, not
  * incrementally — so it can never drift from what a single call with the
  * same inputs would produce.
+ *
+ * [minRows] excludes every preset shorter than it from the candidate set —
+ * for a tile whose content needs 2+ rows (see [AppCategories.requiresTallTile]),
+ * passing 2 here keeps a drag from ever landing on SMALL/WIDE_SMALL/BANNER.
  */
 fun snapResizeTarget(
     geom: GridGeometry,
@@ -220,14 +224,17 @@ fun snapResizeTarget(
     dxPx: Float,
     dyPx: Float,
     columns: Int,
+    minRows: Int = 1,
 ): TileSize {
     val dCols = (dxPx / geom.step).roundToInt()
     val dRows = (dyPx / geom.step).roundToInt()
     val targetCols = (currentCols + dCols).coerceIn(1, columns.coerceAtLeast(1))
     val targetRows = (currentRows + dRows).coerceIn(1, MAX_PRESET_ROWS)
-    return TileSize.entries.minByOrNull { candidate ->
-        val colsDiff = candidate.cols - targetCols
-        val rowsDiff = candidate.rows - targetRows
-        colsDiff * colsDiff + rowsDiff * rowsDiff
-    } ?: TileSize.MEDIUM
+    return TileSize.entries
+        .filter { it.rows >= minRows }
+        .minByOrNull { candidate ->
+            val colsDiff = candidate.cols - targetCols
+            val rowsDiff = candidate.rows - targetRows
+            colsDiff * colsDiff + rowsDiff * rowsDiff
+        } ?: TileSize.MEDIUM
 }

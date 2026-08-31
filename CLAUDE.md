@@ -38,6 +38,201 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 <!-- Update this block at the end of every session -->
+- **`main` — glance widgets: real stack-collapse bug fix, header-text contrast
+  fix (with a same-session inverted-logic correction), Panchang/Tasks visual
+  follow-ups.** Continuing the same glance-widgets facility as the entries
+  below. (1) **"if widget is on right side and left side is emty it cant be
+  movd on left side"** — took real back-and-forth to pin down (a lone
+  half-width card centers, so this wasn't the orphan-solo case it first
+  sounded like); the user eventually confirmed it was reproducible on their
+  *physical* device specifically and pointed at "check task widget," and a raw
+  `feed_widget.pb` pull off that device (`adb shell run-as com.tileshell cat
+  files/datastore/feed_widget.pb`) found the real cause: a widget **stack**
+  whose members had never been manually resized (`heightDp = 0`, the value
+  every custom card starts at — `WidgetStore.addCustomCard`) rendered at
+  **zero height** — `stackHeightDp(members) = members.maxOf { it.heightDp }`
+  had no fallback for that, unlike a lone card's own `BuiltinCardView`, which
+  already falls back to `customCardDefaultHeightDp(kind)` when `heightDp <=
+  0`. A stack that collapses to nothing still reserves its full share of its
+  *row's* width (Row weighting only affects width) — so its `Pair` partner
+  card, sized normally, was left looking like it was alone on "the right"
+  with a genuinely blank "left" where the invisible stack sat. Fixed by giving
+  `stackHeightDp` the same per-kind default fallback via a new
+  `effectiveMemberHeightDp`, unit-tested; reproduced the *exact* failing
+  layout on the emulator (pushed the physical device's own `stickynote`+
+  `notepad` stack rows via `adb push` + `run-as ... cat > feed_widget.pb`) and
+  confirmed both members now render at a real height, side by side with their
+  pair partner, no blank space. (2) **"observe the add edit buttons for
+  widgets not visible. it gets merged with background"** — `SectionHeader`'s
+  "edit"/"add"/"refresh" actions used the raw `feedAccent` (the wallpaper's
+  own extracted dominant colour, deliberately close in hue to the page
+  background by design, for tinting *cards*) directly as text colour sitting
+  *on* that same background with no card behind it — so by construction the
+  two could read as nearly the same colour. First attempt added a same-
+  brightness check against `labelColor` (already the correct, guaranteed-
+  readable colour for text in this exact spot) to fall back away from accent
+  when needed — but shipped with the comparison **inverted** (a *match* in
+  lightness between accent and labelColor is the GOOD-contrast case, since
+  labelColor's own lightness is deliberately the opposite of the true
+  background's; a *mismatch* means accent is pulling toward the background's
+  own brightness, which is the bad one) — verified wrong the moment the user
+  re-tested on the physical device's dark wallpaper ("add edit buttob
+  visisbility not solved"), root-caused by hand-checking the luminance of the
+  default blue accent (`#2B78E4` ≈ 0.43, classified "dark") against a dark
+  background (needs light/white text) — the old code's match/mismatch
+  branches were swapped. Fixed by swapping them; user confirmed fixed on their
+  physical device ("done ok") after reinstall. (3) **"moon phase should be
+  shown on both side with big size"** — `PanchangFace` redesigned around a
+  big [MoonPhaseVisual] (52-72dp depending on tile size, matching
+  `MoonPhaseTile`'s own front-face sizing convention) beside a text column, on
+  *both* the Devanagari and English faces, not just the back. (4) **"this
+  gadget card should be by default shown full width"** — `addCustomCard`
+  defaults `CALENDAR_SYSTEM` to full width now (every other kind stays half);
+  only affects newly-added cards, not ones already pinned. (5) **"two column
+  tasks doesnt show full task text"** — `TaskPreviewRow` gained a `maxLines`
+  param (1 in the normal single-column list, 2 in the two-column layout,
+  top-aligning the checkbox instead of centering it once text can wrap).
+  (6) **"use accent color to show tithi and month"**, clarified via
+  AskUserQuestion to mean a fixed, always-readable highlight tint rather than
+  the tile's own (potentially same-as-background) accent — tithi+month now
+  renders in `TileAccents.Amber`, distinct from the plain white/dark
+  face-text used everywhere else on the tile. (7) **"task tile on start should
+  also show one face" / "only task list should be shown"** — already covered
+  by the same-session `TasksTileFace` flip removal below (one shared
+  composable for both surfaces); reconfirmed by pinning a fresh Tasks tile on
+  Start and watching it hold the same face across several seconds with no
+  flip. Build + full unit test suite green throughout (new `stackHeightDp`
+  fallback case, `WidgetSlotTest`); installed on both the physical device and
+  the emulator every round, launched with no crash in `adb logcat`.
+- **`main` — glance widgets facility: seven more follow-up fixes (per-instance
+  task lists, colour, dedup, Tasks/Panchang face changes, cursor focus).**
+  Direct user follow-ups on the same glance-widgets facility as the entry
+  below. (1) **"each task addition (tile/glance gadget) should open a new
+  task list. currently it add a new tile or gadget but the same task list"**
+  — Tasks was a single global checklist shared by every pinned tile/gadget
+  (deliberately, mirroring weather/calendar); the user wants each pinned
+  instance independent instead. `tasks` table gained a `listId` column
+  (v10→v11 migration, `TileShellDatabase.MIGRATION_10_11` — existing rows
+  default to `"default"`, then get reassigned to whichever Tasks tile already
+  exists on Start, oldest by position, so an upgrading install's real tasks
+  stay visible instead of orphaned); `TaskRepository`/`TaskDao` every method
+  now takes/filters by `listId` (a new `clearCompletedEverywhere()` covers the
+  daily auto-clear worker, which still applies globally since the toggle
+  itself is one global setting). `listId` is just the owning tile's own
+  already-unique `TileModel.App.id` (Start) or `HostedWidget.widgetId`
+  (glance) — both were already fresh-generated per pin, so no new identity
+  scheme was needed, just threading the existing one through
+  `TasksTileFace`/`TaskListSheet`/`StartViewModel.tasksOpen` (now
+  `StateFlow<String?>`, null=closed). (2) **"tasks will have only one face.
+  no back face. only task list should be shown"** — `LiveFace.TASKS` flipped
+  to `flips = false` (matching `PEOPLE`/`STICKYNOTE`/`STEPS`) and
+  `TasksTileFace`/`TasksFront` dropped the `FlipTile` wrapper and the
+  `flipped`/`TasksBack` back-face composable entirely — always renders the
+  checklist now. (3) **"gadgest addition is alphabetical order of app names.
+  can we keep tileshell gadgets on top"** — `WidgetPicker`'s app-group list no
+  longer sorts the synthetic "tileshell" group in with real apps
+  alphabetically; it's now unconditionally first, every real app group
+  alphabetical after it. (4) **"add widgets on start screen shows colourful
+  widget icons while as on glance add widgets show monochrome. change it to
+  colourful"** — `CustomCardKind` gained a `colorId` (a `TileAccents` id,
+  copied 1:1 from `WidgetListSheet`'s own `WIDGET_CATALOG` per kind, so the
+  same kind reads as the same colour on both surfaces) and glance's
+  `CustomCardPickerRow` now fills its icon plate with that accent + a white
+  glyph instead of a flat monochrome tile-foreground plate. (5) **"notes can
+  be added only once just like done on start screen"** — glance's picker had
+  no dedup gate at all (Start's `WidgetListSheet` already greys Notes out
+  once pinned, since it's one shared notepad); `WidgetPicker` gained the same
+  `notesAlreadyPinned` check + greyed "already added to glance" row.
+  (6) **"text color on gadget card should follow the glance screen norm...
+  currently sometimes other text color is white and added gadget is black or
+  vice a versa"** — every live-tile face reads `LocalTileFaceColor`, which on
+  *Start* is provided once globally (WP tiles are always white-on-accent,
+  deliberately accent-independent) but which glance's own cards
+  (Weather/Agenda/NowPlaying) do NOT use that way — each instead picks
+  black-or-white per its own accent's brightness via
+  `Glass.faceTextColor(isLightBackground(accent))`, since glance mixes far
+  more varied (including light, wallpaper-derived) accents. A custom card had
+  no override at all, so it silently inherited plain white regardless of its
+  own accent. Fixed by wrapping `CustomCardBody`'s content in
+  `CompositionLocalProvider(LocalTileFaceColor provides Glass.faceTextColor
+  (isLightBackground(accent)))` — matches glance's own norm, not Start's.
+  (7) **"in notes (sticky or normal). cursor should blick in text area"** — a
+  `BasicTextField` with nothing focused shows no cursor at all; none of
+  `NotesSheet`'s per-note editor, `StickyNoteEditorSheet`, or (once the user
+  asked for the same fix there too) `TaskListSheet`'s "add a task" field ever
+  claimed focus, so opening any of them showed no cursor until a manual tap.
+  All three now claim focus + raise the keyboard the moment their editor
+  appears (`FocusRequester` + `LocalSoftwareKeyboardController`), mirroring
+  each other. **Also user-requested, unrelated to the facility itself**: the
+  Hindu Panchang calendar tile's *back* (English) face now shows a small
+  moon-phase crescent (`MoonPhaseTile.kt`'s `MoonPhaseVisual`, widened to
+  `internal` for reuse) beside its tithi+month line — tithi is fundamentally a
+  lunar-phase measure (each of the 30 tithis is a fixed 12° band of the
+  Moon-Sun elongation, the same angle a phase fraction is measured from), so
+  a new pure `tithiMoonFraction(paksha, tithiInPaksha)` inverts that mapping
+  exactly (unit-tested) rather than reusing the generic epoch-day
+  approximation, which could disagree with the displayed tithi by up to half
+  a tithi near a cycle boundary; front (Devanagari) face is unchanged, no
+  glyph. All seven fixes plus the Panchang moon glyph: build + full unit test
+  suite green throughout (new `isStackMergeEligible`-style pure-function
+  coverage, `CalendarSystemTileTest` new); installed on both the physical
+  device and the emulator, launched with no crash in `adb logcat`, and each
+  fix visually confirmed on the emulator (colour-coded picker icons, Notes
+  greyed out with "already added to glance," Panchang crescent rendering
+  beside "krishna paksha · tritiya · shravana," a Tasks card showing only its
+  checklist, and two independently-pinned Tasks gadgets holding two separate
+  lists — one stayed "no tasks yet" while a task was added to the other).
+- **`main` — glance widgets facility: three follow-up fixes (tasks/notes add,
+  picker ordering, custom-card stacking).** Direct user follow-ups on the same-
+  session "add TileShell's own live tiles as glance widgets" facility (`feed/
+  WidgetStore.kt`/`WidgetSlot.kt`/`FeedPage.kt`, see the entries below this one
+  for the facility itself). (1) **"note and task taps not working on glance for
+  adding tasks/notes"** — `TasksTileFace`/`NotesTileFace` are preview/toggle-only
+  (no "add new item" affordance of their own); `CustomCardKind.TASKS`/`NOTEPAD`
+  were wrongly classified `needsConfig = false` ("no tap handler needed"), so
+  tapping did nothing. Reclassified both `needsConfig = true` and routed their
+  tap through new `tasksSheetOpen`/`notesSheetOpen` state in `FeedPage.kt` that
+  opens the real `TaskListSheet`/`NotesSheet` — the exact same shared management
+  sheets tapping the Tasks/Notes tile opens on Start — instead of the per-card
+  picker flow every other `needsConfig` kind uses (there's nothing per-card to
+  pick; the list is shared across every pinned instance). `taskAutoClearDaily`/
+  `onTaskAutoClearDailyChange` threaded from `StartScreen.kt`'s real setting.
+  Verified on-device: tapping "notes" opens the sheet with its own "＋ new note"
+  action, which opens a real blank note editor. (2) **"can we keep tileshell
+  gadgets on top of this list"** — the widget picker's app groups were all
+  sorted alphabetically together, so "tileshell" landed wherever "t" fell
+  amongst installed apps. `WidgetPicker`'s group list now pins the synthetic
+  TileShell group first, unconditionally, with every real app group still
+  alphabetical after it. Verified on-device. (3) **"can atleast tileshell
+  created gadgets can merge within each other?"** — the stack-merge guard
+  (`WidgetSection`'s drag hit-test) excluded every negative-sentinel-id card
+  outright, which correctly kept the three fixed builtins (weather/agenda/
+  now-playing — no carousel-able content) out of stacking but also blocked two
+  TileShell custom cards from merging with EACH OTHER, since a custom card's id
+  is also a negative sentinel. Extracted the eligibility check into a pure,
+  unit-tested `isStackMergeEligible(dragged, target)` (`WidgetSlotTest.kt`): a
+  built-in (negative id, blank `customKind`) still can't merge on either side,
+  and a custom card still can't mix with a real hosted widget (whose stack
+  rendering path resolves a live `AppWidgetProviderInfo`), but two custom cards
+  now can merge with each other — their content is our own Compose face, not a
+  real `AppWidgetHostView`, so `WidgetStackMemberView` gained a `customKind`
+  branch (rendering via new shared `CustomCardBody`, factored out of the lone-
+  card `customCardView` so both paths stay identical) that skips
+  `rememberWidgetInfo` entirely for a custom member — resolving one for a
+  negative id would have spent its 15s "missing" grace period polling an id
+  `AppWidgetManager` was never going to know about, then deleted the card
+  outright as if its provider had been uninstalled. `WidgetEditOverlay`'s
+  existing `info: AppWidgetProviderInfo? = null` path (already used by the three
+  fixed builtins) covers a custom stack member's edit overlay too. On-device: a
+  drag between two custom cards was confirmed to at least reorder correctly
+  (proving the guard no longer blocks them); actually landing inside the merge
+  zone to confirm the visual carousel itself needs a real finger, per this
+  codebase's own established ADB-synthetic-drag limitation (single `input
+  swipe`/`motionevent` calls deliver too few motion samples for
+  `detectDragGestures` to track precisely) — same caveat as every other
+  drag-to-merge feature in this log. Build + full unit test suite green
+  throughout (5 new `isStackMergeEligible` cases); installed on both the
+  physical device and the emulator, launched with no crash in `adb logcat`.
 - **`main` — folded the Personalize accent fix into the same v3.2.0 (not a new
   version bump).** User: "include this change in the same 3.2.0. i have yet
   not uploaded it to play console" — since nothing had shipped yet, this is a

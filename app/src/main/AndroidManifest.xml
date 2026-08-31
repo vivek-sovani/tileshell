@@ -16,6 +16,10 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- People tile (FR-2): contact names + thumbnails for the avatar mosaic. -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Steps tile: reads the device's built-in step-counter sensor. A dangerous
+         runtime permission on API 29+; a normal, auto-granted-at-install
+         permission below that, so requesting it there is a harmless no-op. -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     <!-- Weather tile (FR-2): fetch a live, location-specific forecast from the
          no-API-key Open-Meteo service. -->
     <uses-permission android:name="android.permission.INTERNET" />

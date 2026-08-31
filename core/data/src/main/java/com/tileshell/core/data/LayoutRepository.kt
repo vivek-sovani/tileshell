@@ -41,9 +41,9 @@ class LayoutRepository(
      * step (medium → small → wide → large → medium); otherwise the cycle is
      * medium → small → wide → medium.
      */
-    suspend fun cycleTileSize(id: String, largeAllowed: Boolean = false) {
+    suspend fun cycleTileSize(id: String, largeAllowed: Boolean = false, requireTallCycle: Boolean = false) {
         val current = dao.tilesOnce().firstOrNull { it.tile.id == id }?.tile?.size ?: return
-        dao.updateTileSize(id, current.next(largeAllowed).name)
+        dao.updateTileSize(id, current.next(largeAllowed, requireTallCycle).name)
     }
 
     /**
@@ -61,6 +61,9 @@ class LayoutRepository(
     /** Set an app tile's "show as icon"/"show as tile" toggle (ICONS home style). */
     suspend fun setTileDisplayAsIcon(id: String, displayAsIcon: Boolean) =
         dao.updateTileDisplayAsIcon(id, displayAsIcon)
+
+    /** Overwrite a Sticky Note tile's own text (see [LayoutDao.updateTileText]). */
+    suspend fun setTileText(id: String, text: String) = dao.updateTileText(id, text)
 
     /**
      * Anchor (or, with null, un-anchor) a tile at an absolute grid cell —
@@ -396,8 +399,13 @@ class LayoutRepository(
      * untouched either way. Cycles the full small→medium→wide→large steps
      * when [largeAllowed], else the tighter small↔medium toggle.
      */
-    suspend fun resizeFolderChild(folderId: String, child: FolderChild, largeAllowed: Boolean = false) {
-        dao.updateFolderChildSize(child.rowId, child.size.nextForFolderChild(largeAllowed))
+    suspend fun resizeFolderChild(
+        folderId: String,
+        child: FolderChild,
+        largeAllowed: Boolean = false,
+        requireTallCycle: Boolean = false,
+    ) {
+        dao.updateFolderChildSize(child.rowId, child.size.nextForFolderChild(largeAllowed, requireTallCycle))
     }
 
     /**
@@ -441,14 +449,16 @@ class LayoutRepository(
     }
 
     /**
-     * Re-add a single default live tile (e.g. clock/weather/calendar that was
-     * deleted) by [appId], appended to the grid with its designed size/colour/icon
-     * key and the seeder's resolved launch target (blank for the self-contained
-     * liveOnly tiles). Returns false when there is no such default tile or it can't
-     * be seeded (a non-liveOnly role that doesn't resolve on this device).
+     * Pin a tile by [appId] from [DefaultLayout.ALL_TILE_TEMPLATES] — either
+     * re-adding a deleted default live tile (clock/weather/calendar) or pinning an
+     * opt-in-only widget (battery/alarm/moon phase, ...) for the first time —
+     * appended to the grid with its designed size/colour/icon key and the seeder's
+     * resolved launch target (blank for the self-contained liveOnly tiles). Returns
+     * false when there is no such template or it can't be seeded (a non-liveOnly
+     * role that doesn't resolve on this device).
      */
     suspend fun addDefaultTile(appId: String): Boolean {
-        val template = DefaultLayout.DEFAULT_TILES
+        val template = DefaultLayout.ALL_TILE_TEMPLATES
             .firstOrNull { !it.isGroup && it.app == appId } ?: return false
         val seeded = seeder.seed(listOf(template), resolver)
             .filterIsInstance<SeededTile.App>()

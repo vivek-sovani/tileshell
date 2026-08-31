@@ -2,6 +2,7 @@ package com.tileshell.core.data
 
 import android.content.pm.ApplicationInfo
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -186,5 +187,12 @@ class AppCategoriesTest {
         // even an unresolved tile (null app, no icon key) qualifies at any density.
         assertTrue(AppCategories.allowsLargeTile(iconKey = null, app = null, columns = 6))
         assertTrue(AppCategories.allowsLargeTile(iconKey = null, app = null, columns = 4))
+    }
+
+    @Test
+    fun `only the tasks tile requires a tall size`() {
+        assertTrue(AppCategories.requiresTallTile("tasks"))
+        assertFalse(AppCategories.requiresTallTile("weather"))
+        assertFalse(AppCategories.requiresTallTile(null))
     }
 }

@@ -49,8 +49,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -91,11 +93,39 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tileshell.core.data.CalendarSystemTile
+import com.tileshell.core.data.CommodityTile
+import com.tileshell.core.data.CountdownTile
+import com.tileshell.core.data.SportsTile
+import com.tileshell.core.data.StockTile
+import com.tileshell.core.data.TileSize
+import com.tileshell.core.data.settings.LiveRefreshRate
 import com.tileshell.core.design.ColorTokens
+import com.tileshell.core.design.Glass
+import com.tileshell.core.design.LocalTileFaceColor
+import com.tileshell.core.design.TileAccents
+import com.tileshell.core.design.TileIcons
+import com.tileshell.core.design.isLightBackground
+import com.tileshell.feature.livetiles.AlarmTileFace
+import com.tileshell.feature.livetiles.BatteryTileFace
 import com.tileshell.feature.livetiles.CalendarFace
+import com.tileshell.feature.livetiles.CalendarSystemTileFace
+import com.tileshell.feature.livetiles.ClockTileFace
+import com.tileshell.feature.livetiles.CommodityTileFace
+import com.tileshell.feature.livetiles.CountdownTileFace
+import com.tileshell.feature.livetiles.FlashlightTileFace
+import com.tileshell.feature.livetiles.FlipState
+import com.tileshell.feature.livetiles.MoonPhaseTileFace
+import com.tileshell.feature.livetiles.NotesTileFace
 import com.tileshell.feature.livetiles.NowPlaying
+import com.tileshell.feature.livetiles.SportsTileFace
+import com.tileshell.feature.livetiles.StepsTileFace
+import com.tileshell.feature.livetiles.StickyNoteTileFace
+import com.tileshell.feature.livetiles.StockTileFace
+import com.tileshell.feature.livetiles.TasksTileFace
 import com.tileshell.feature.livetiles.WeatherSnapshot
 import com.tileshell.feature.livetiles.rememberAppIconBitmap
+import com.tileshell.feature.livetiles.rememberFlipState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -120,6 +150,23 @@ private const val WIDGET_MAX_H = 720
 private const val BUILTIN_WEATHER_DEFAULT_HEIGHT_DP = 190
 private const val BUILTIN_AGENDA_DEFAULT_HEIGHT_DP = 190
 private const val BUILTIN_NOWPLAYING_DEFAULT_HEIGHT_DP = 130
+
+/**
+ * Starting height for a just-added custom card, before any manual resize
+ * (every custom card is still height-resizable afterward, same as a real
+ * hosted widget). Rough per-kind guesses matching each face's typical
+ * un-resized content height at [com.tileshell.core.data.TileSize.WIDE] on
+ * Start — a guess that's too small just means the card renders at its
+ * natural content height until dragged taller, never clipped.
+ */
+private fun customCardDefaultHeightDp(kind: CustomCardKind): Int = when (kind) {
+    CustomCardKind.TASKS -> 220
+    CustomCardKind.NOTEPAD, CustomCardKind.STICKYNOTE -> 190
+    CustomCardKind.STOCK, CustomCardKind.COMMODITY, CustomCardKind.SPORTS,
+    CustomCardKind.CALENDAR_SYSTEM, CustomCardKind.MOONPHASE, CustomCardKind.COUNTDOWN -> 160
+    CustomCardKind.CLOCK, CustomCardKind.ALARM -> 140
+    CustomCardKind.BATTERY, CustomCardKind.FLASHLIGHT, CustomCardKind.STEPS -> 120
+}
 
 /**
  * Auto-rotate interval for a feed widget stack — matches Start's own widget-stack
@@ -189,6 +236,37 @@ internal fun isInMergeZone(
     val fx = (pointX - rectLeft) / rectWidth
     val fy = (pointY - rectTop) / rectHeight
     return fx in zoneMin..zoneMax && fy in zoneMin..zoneMax
+}
+
+/**
+ * Whether [dragged] could ever merge into [target]'s stack — everything about the
+ * pair EXCEPT where the finger actually is (that's [isInMergeZone]'s job). Pure so
+ * the id/kind/stack/width eligibility rules are unit-testable without a real drag.
+ *
+ * A built-in glance card (sentinel negative id with no [HostedWidget.customKind] —
+ * see `BUILTIN_WEATHER_WIDGET_ID` etc.) has no carousel-able content at all, so it
+ * can never join or receive a stack. A TileShell custom card is ALSO a negative
+ * sentinel id, but its content is our own Compose face rather than a real
+ * `AppWidgetHostView` — two custom cards CAN stack with each other exactly like two
+ * real hosted widgets can (see `WidgetStackMemberView`'s `customKind` branch), just
+ * never mixed with a real hosted widget's own `rememberWidgetInfo`-driven path.
+ */
+internal fun isStackMergeEligible(dragged: HostedWidget, target: HostedWidget): Boolean {
+    if ((dragged.widgetId < 0 && dragged.customKind.isEmpty()) ||
+        (target.widgetId < 0 && target.customKind.isEmpty())
+    ) {
+        return false
+    }
+    if (dragged.customKind.isNotEmpty() != target.customKind.isNotEmpty()) return false
+    // A drag that starts on a stack only ever reorders. Merging is per-widget, so
+    // letting a stacked widget merge tore just its dragged member out of the group
+    // and dissolved the rest — the stack appeared to fall apart instead of moving
+    // (user-reported). Combining two stacks isn't supported.
+    if (dragged.stackId != null) return false
+    // Half-width and full-width can't share one card, mirroring Start's rule that a
+    // stack's members are uniformly sized.
+    if (dragged.halfWidth != target.halfWidth) return false
+    return true
 }
 
 /**
@@ -409,7 +487,27 @@ internal fun removeFromStack(widgets: List<HostedWidget>, widgetId: Int): List<H
  * card jump. Resizing the stack writes the new height to every member
  * ([WidgetStore.setStackSize]), which converges them.
  */
-internal fun stackHeightDp(members: List<HostedWidget>): Int = members.maxOf { it.heightDp }
+internal fun stackHeightDp(members: List<HostedWidget>): Int = members.maxOf { effectiveMemberHeightDp(it) }
+
+/**
+ * A member's real height, falling back to its own kind's default when it's
+ * never been manually resized ([HostedWidget.heightDp] `0`, the value every
+ * custom card starts at — see [WidgetStore.addCustomCard]). A lone custom
+ * card already gets this fallback via [BuiltinCardView]'s own `heightDp > 0`
+ * check; [stackHeightDp] took the raw stored value with no such fallback, so
+ * a stack whose members had never been resized collapsed to 0dp and rendered
+ * as nothing — a real widget still occupying its row's width but showing
+ * blank, which read as "the other half of this row is empty and can't be
+ * dropped into" (user-reported). A real hosted widget's own height is always
+ * seeded to a real value when it's first bound (never via this code path with
+ * `customKind` blank), so the 110dp floor below is a defensive fallback, not
+ * an expected case.
+ */
+private fun effectiveMemberHeightDp(widget: HostedWidget): Int {
+    if (widget.heightDp > 0) return widget.heightDp
+    val kind = CustomCardKind.entries.find { it.iconKey == widget.customKind }
+    return kind?.let { customCardDefaultHeightDp(it) } ?: 110
+}
 
 private fun providerMinWidthDp(info: AppWidgetProviderInfo, density: Float): Int =
     (info.minWidth / density).roundToInt()
@@ -456,6 +554,20 @@ fun WidgetSection(
     onNowPlayingClick: (() -> Unit)?,
     editMode: Boolean,
     onEditModeChange: (Boolean) -> Unit,
+    // For sizing the "tileshell card" cards' live faces to match
+    // Personalize's "live data refresh" setting.
+    stockRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
+    commodityRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
+    sportsRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
+    // A new or re-tapped custom card's own picker sheet can't be rendered
+    // from in here — this composable sits inside FeedPage's own
+    // Modifier.verticalScroll() column, and those picker sheets contain a
+    // LazyColumn, which crashes ("measured with infinite height") if
+    // composed anywhere under a vertical scroll. FeedPage owns that sheet
+    // instead, rendered from its own non-scrolling outer Box; these two
+    // callbacks are how this composable asks for one to open.
+    onAddCustomCard: (CustomCardKind) -> Unit = {},
+    onCustomCardTap: (widgetId: Int, kind: CustomCardKind) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
     val appContext = context.applicationContext
@@ -467,6 +579,14 @@ fun WidgetSection(
     val manager = remember { AppWidgetManager.getInstance(appContext) }
     val store = remember(context) { WidgetStore.create(context) }
     val widgets by store.data.collectAsStateWithLifecycle(initialValue = WidgetData())
+    // Custom cards flip between their two faces the same way Start's own live
+    // tiles do — one shared scheduler (rememberFlipState, from :feature:
+    // livetiles, already generic — not Start-specific) turning a random one
+    // every ~2.6s, paused while editing.
+    val customCardIds = remember(widgets.widgets) {
+        widgets.widgets.filter { it.customKind.isNotEmpty() }.map { it.widgetId.toString() }
+    }
+    val customCardFlipState = rememberFlipState(customCardIds, active = !editMode)
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current.density
     val widthDp = (LocalConfiguration.current.screenWidthDp - 28).coerceAtLeast(120)
@@ -614,18 +734,7 @@ fun WidgetSection(
         // Conditions for a merge; a miss on any of them means a plain reorder.
         dragMergeCandidate = when {
             rect == null || dragged == null || target == null -> false
-            // A built-in glance card (sentinel negative id — see BUILTIN_WEATHER_WIDGET_ID
-            // etc.) has no AppWidgetHost view to carousel, so it can never join or
-            // receive a stack; a drag involving one always just reorders.
-            dragged.widgetId < 0 || target.widgetId < 0 -> false
-            // A drag that starts on a stack only ever reorders. Merging is per-widget,
-            // so letting a stacked widget merge tore just its dragged member out of
-            // the group and dissolved the rest — the stack appeared to fall apart
-            // instead of moving (user-reported). Combining two stacks isn't supported.
-            dragged.stackId != null -> false
-            // Half-width and full-width can't share one card, mirroring Start's rule
-            // that a stack's members are uniformly sized.
-            dragged.halfWidth != target.halfWidth -> false
+            !isStackMergeEligible(dragged, target) -> false
             // Aim required: the drop has to land in the target's inner zone, not just
             // brush its edge on the way past — and much closer to dead centre when the
             // target is already a stack, so "place this beside it" stays easy.
@@ -744,6 +853,11 @@ fun WidgetSection(
                     widthDp = widthDp,
                     accent = accent,
                     editing = editMode,
+                    customCardFlipState = customCardFlipState,
+                    stockRefreshRate = stockRefreshRate,
+                    commodityRefreshRate = commodityRefreshRate,
+                    sportsRefreshRate = sportsRefreshRate,
+                    onCustomCardTap = onCustomCardTap,
                     onEditingChange = { onEditModeChange(false) },
                     isDragging = draggingId == anchor.widgetId,
                     dragOffset = if (draggingId == anchor.widgetId) dragDelta else Offset.Zero,
@@ -770,7 +884,14 @@ fun WidgetSection(
         }
 
         @Composable
-        fun builtinCardView(hw: HostedWidget, defaultHeightDp: Int, modifier: Modifier, content: @Composable () -> Unit) {
+        fun builtinCardView(
+            hw: HostedWidget,
+            defaultHeightDp: Int,
+            modifier: Modifier,
+            removable: Boolean = false,
+            onRemove: () -> Unit = {},
+            content: @Composable () -> Unit,
+        ) {
             key(hw.widgetId) {
                 BuiltinCardView(
                     id = hw.widgetId,
@@ -793,9 +914,48 @@ fun WidgetSection(
                     onBoundsChanged = { rect -> widgetBounds[hw.widgetId] = rect },
                     onResize = { newHeight, newHalf -> scope.launch { store.setSize(hw.widgetId, newHeight, newHalf) } },
                     onDismiss = { onEditModeChange(false) },
+                    removable = removable,
+                    onRemove = onRemove,
                     modifier = modifier,
                     content = content,
                 )
+            }
+        }
+
+        @Composable
+        fun customCardView(hw: HostedWidget, modifier: Modifier) {
+            val kind = CustomCardKind.entries.find { it.iconKey == hw.customKind } ?: return
+            builtinCardView(
+                hw,
+                customCardDefaultHeightDp(kind),
+                modifier,
+                removable = true,
+                onRemove = { deleteWidget(hw.widgetId) },
+            ) {
+                // Same accent-filled card background weather/agenda/now-playing
+                // already use (AccentCard) — these tile faces render their own
+                // text via LocalTileFaceColor, designed for exactly this kind
+                // of accent-filled background, same as on Start. Only a
+                // needsConfig kind gets an outer tap-to-configure handler — a
+                // no-config kind's own interactive elements (the flashlight
+                // toggle, a task checkbox) need the tap to reach them
+                // directly, not get consumed by an outer no-op click first.
+                AccentCard(
+                    accent = accent,
+                    onClick = if (editMode || !kind.needsConfig) null else ({ onCustomCardTap(hw.widgetId, kind) }),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    CustomCardBody(
+                        kind = kind,
+                        hw = hw,
+                        accent = accent,
+                        editMode = editMode,
+                        customCardFlipState = customCardFlipState,
+                        stockRefreshRate = stockRefreshRate,
+                        commodityRefreshRate = commodityRefreshRate,
+                        sportsRefreshRate = sportsRefreshRate,
+                    )
+                }
             }
         }
 
@@ -825,7 +985,7 @@ fun WidgetSection(
                             art = nowPlayingArt, accent = accent, onClick = onNowPlayingClick,
                         )
                     }
-                    else -> widgetView(card.widget, modifier)
+                    else -> if (card.widget.customKind.isNotEmpty()) customCardView(card.widget, modifier) else widgetView(card.widget, modifier)
                 }
                 is WidgetCard.Stack -> stackView(card.members, modifier)
             }
@@ -860,7 +1020,9 @@ fun WidgetSection(
             manager = manager,
             tokens = tokens,
             onPick = { provider -> showPicker = false; addProvider(provider) },
+            onPickCustom = { kind -> showPicker = false; onAddCustomCard(kind) },
             onDismiss = { showPicker = false },
+            notesAlreadyPinned = widgets.widgets.any { it.customKind == CustomCardKind.NOTEPAD.iconKey },
         )
     }
 }
@@ -1241,6 +1403,10 @@ private fun BuiltinCardView(
     onBoundsChanged: (Rect) -> Unit,
     onResize: (heightDp: Int, halfWidth: Boolean) -> Unit,
     onDismiss: () -> Unit,
+    // false/no-op for the three fixed builtins (weather/agenda/now-playing —
+    // can't be removed, only a user-added custom card can).
+    removable: Boolean = false,
+    onRemove: () -> Unit = {},
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
@@ -1299,13 +1465,13 @@ private fun BuiltinCardView(
                     liveWidthState = liveWidthState,
                     liveHeightState = liveHeightState,
                     currentHalfWidth = { halfWidth },
-                    removable = false,
+                    removable = removable,
                     onResize = onResize,
                     onDragStart = onDragStart,
                     onDragBy = onDragBy,
                     onDragEnd = onDragEnd,
                     onEdit = {},
-                    onRemove = {},
+                    onRemove = onRemove,
                     onDismiss = onDismiss,
                 )
             }
@@ -1347,6 +1513,11 @@ private fun WidgetStackView(
     widthDp: Int,
     accent: Color,
     editing: Boolean,
+    customCardFlipState: FlipState,
+    stockRefreshRate: LiveRefreshRate,
+    commodityRefreshRate: LiveRefreshRate,
+    sportsRefreshRate: LiveRefreshRate,
+    onCustomCardTap: (widgetId: Int, kind: CustomCardKind) -> Unit,
     onEditingChange: (Boolean) -> Unit,
     isDragging: Boolean,
     dragOffset: Offset,
@@ -1375,17 +1546,26 @@ private fun WidgetStackView(
     val lastDir = remember { mutableIntStateOf(1) }
     val visibleMember = members[safeIndex]
 
-    // Every member's provider info, resolved up front and keyed so the slots stay
-    // stable as the list changes. It has to be all of them, not just the visible one:
-    // `halfContentWidthDp` floors the width at the provider's own declared minimum,
-    // and members can declare different minimums — sizing from whichever happened to
-    // be showing made the card visibly resize every time it rotated. `onMissing` is a
-    // no-op here so the single removal path stays [WidgetStackMemberView]'s and a
-    // vanished provider can't be reported twice.
+    // Every REAL member's provider info, resolved up front and keyed so the slots
+    // stay stable as the list changes. It has to be all of them, not just the
+    // visible one: `halfContentWidthDp` floors the width at the provider's own
+    // declared minimum, and members can declare different minimums — sizing from
+    // whichever happened to be showing made the card visibly resize every time it
+    // rotated. `onMissing` is a no-op here so the single removal path stays
+    // [WidgetStackMemberView]'s and a vanished provider can't be reported twice.
+    // A TileShell custom member has no real provider at all — resolving one for it
+    // would just spend rememberWidgetInfo's 15s "missing" grace period polling a
+    // widgetId AppWidgetManager was never going to know about, then delete the card
+    // outright as if its provider had been uninstalled — so custom members short-
+    // circuit to null directly, without ever composing rememberWidgetInfo.
     val memberInfos = members.map { m ->
-        key(m.widgetId) { rememberWidgetInfo(manager, m.widgetId, onMissing = {}) }
+        if (m.customKind.isNotEmpty()) null else key(m.widgetId) { rememberWidgetInfo(manager, m.widgetId, onMissing = {}) }
     }
-    // Used for the overlay's own controls (its configure action, resize floor).
+    // Used for the overlay's own controls (its configure action, resize floor) —
+    // null both when the provider hasn't resolved yet and, structurally the same
+    // as far as this overlay's own logic goes, when the visible member is a custom
+    // card (see [WidgetEditOverlay]'s existing info-less path, also used by
+    // [BuiltinCardView]).
     val visibleInfo = memberInfos.getOrNull(safeIndex)
 
     val liveHeightState = remember(sharedHeightDp) { mutableStateOf(sharedHeightDp) }
@@ -1497,6 +1677,13 @@ private fun WidgetStackView(
                         widget = member,
                         contentWidthDp = liveWidth,
                         heightDp = liveHeight,
+                        accent = accent,
+                        editing = editing,
+                        customCardFlipState = customCardFlipState,
+                        stockRefreshRate = stockRefreshRate,
+                        commodityRefreshRate = commodityRefreshRate,
+                        sportsRefreshRate = sportsRefreshRate,
+                        onCustomCardTap = onCustomCardTap,
                         onMissing = { onRemove(member.widgetId) },
                     )
                 }
@@ -1543,8 +1730,12 @@ private fun WidgetStackView(
 
             // Edit mode acts on whichever member is showing — that's the one the user
             // is looking at — while resize applies to the whole stack, since they
-            // share one card.
-            if (editing && visibleInfo != null) {
+            // share one card. A custom member has no real provider info (visibleInfo
+            // is deliberately null for it — see memberInfos above) but still gets the
+            // overlay: WidgetEditOverlay already treats a null info as "no
+            // edit/reconfigure pill, everything else works the same," the exact same
+            // path BuiltinCardView already relies on for the three fixed builtins.
+            if (editing && (visibleInfo != null || visibleMember.customKind.isNotEmpty())) {
                 WidgetEditOverlay(
                     accent = accent,
                     dragKey = visibleMember.widgetId,
@@ -1580,8 +1771,41 @@ private fun WidgetStackMemberView(
     widget: HostedWidget,
     contentWidthDp: Int,
     heightDp: Int,
+    accent: Color,
+    editing: Boolean,
+    customCardFlipState: FlipState,
+    stockRefreshRate: LiveRefreshRate,
+    commodityRefreshRate: LiveRefreshRate,
+    sportsRefreshRate: LiveRefreshRate,
+    onCustomCardTap: (widgetId: Int, kind: CustomCardKind) -> Unit,
     onMissing: () -> Unit,
 ) {
+    if (widget.customKind.isNotEmpty()) {
+        val kind = CustomCardKind.entries.find { it.iconKey == widget.customKind } ?: return
+        // Same accent-filled background + tap-to-configure convention as a lone
+        // custom card (see WidgetSection's own customCardView) — a card doesn't
+        // change how it looks or behaves just because it's currently stacked.
+        AccentCard(
+            accent = accent,
+            onClick = if (editing || !kind.needsConfig) null else ({ onCustomCardTap(widget.widgetId, kind) }),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(heightDp.dp)
+                .clip(RoundedCornerShape(20.dp)),
+        ) {
+            CustomCardBody(
+                kind = kind,
+                hw = widget,
+                accent = accent,
+                editMode = editing,
+                customCardFlipState = customCardFlipState,
+                stockRefreshRate = stockRefreshRate,
+                commodityRefreshRate = commodityRefreshRate,
+                sportsRefreshRate = sportsRefreshRate,
+            )
+        }
+        return
+    }
     val info = rememberWidgetInfo(manager, widget.widgetId, onMissing) ?: return
     WidgetHostedView(
         host = host,
@@ -1597,11 +1821,161 @@ private fun WidgetStackMemberView(
 }
 
 /** One app's widgets in the picker — [appLabel] drives both sort order and the group header. */
+/** One row the picker can show under an app group — a real bound-able widget, or one of TileShell's own cards (rendered identically, in the exact same list — see [WidgetPicker]'s doc comment). */
+private sealed class WidgetPickerEntry {
+    data class Real(val provider: AppWidgetProviderInfo) : WidgetPickerEntry()
+    data class Custom(val kind: CustomCardKind) : WidgetPickerEntry()
+}
+
 private data class WidgetAppGroup(
     val packageName: String,
     val appLabel: String,
-    val providers: List<AppWidgetProviderInfo>,
+    val entries: List<WidgetPickerEntry>,
 )
+
+/**
+ * One TileShell custom card's actual live-tile face, dispatched by [kind] — the
+ * content that goes inside an [AccentCard]. Shared by a lone custom card
+ * ([WidgetSection]'s own `customCardView`) and a custom card stacked with
+ * another one ([WidgetStackMemberView]'s `customKind` branch), so a card renders
+ * identically whichever way it's shown.
+ */
+@Composable
+private fun CustomCardBody(
+    kind: CustomCardKind,
+    hw: HostedWidget,
+    accent: Color,
+    editMode: Boolean,
+    customCardFlipState: FlipState,
+    stockRefreshRate: LiveRefreshRate,
+    commodityRefreshRate: LiveRefreshRate,
+    sportsRefreshRate: LiveRefreshRate,
+) {
+    // Every live-tile face reads LocalTileFaceColor for its own text/icon
+    // colour. On Start that's provided once, globally, deliberately independent
+    // of any one tile's accent (WP tiles are always white-on-accent). The
+    // glance page's own cards (Weather/Agenda/NowPlaying) don't follow that
+    // rule — each picks black-or-white per its OWN accent's brightness via
+    // Glass.faceTextColor(isLightBackground(accent)), since glance mixes much
+    // more varied (including light, wallpaper-derived) accents than Start's
+    // fixed global one. A custom card had no local override at all here, so it
+    // silently fell through to the ambient default (plain white) regardless of
+    // its own accent — invisible-ish on a light accent while its Weather/Agenda
+    // neighbour correctly switched to dark text for the very same colour
+    // (user-reported). Matching glance's own norm here, not Start's.
+    CompositionLocalProvider(LocalTileFaceColor provides Glass.faceTextColor(useDarkText = isLightBackground(accent))) {
+    when (kind) {
+        CustomCardKind.STOCK -> StockTileFace(
+            size = TileSize.WIDE,
+            flipped = customCardFlipState.isFlipped(hw.widgetId.toString()),
+            active = !editMode,
+            selection = StockTile.decode(hw.customConfig),
+            refreshRate = stockRefreshRate,
+            modifier = Modifier.fillMaxSize(),
+        )
+        CustomCardKind.COMMODITY -> {
+            val decoded = CommodityTile.decode(hw.customConfig)
+            CommodityTileFace(
+                size = TileSize.WIDE,
+                flipped = customCardFlipState.isFlipped(hw.widgetId.toString()),
+                active = !editMode,
+                symbol = decoded?.first,
+                displayName = decoded?.second,
+                refreshRate = commodityRefreshRate,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        CustomCardKind.SPORTS -> {
+            val selection = SportsTile.decode(hw.customConfig)
+            SportsTileFace(
+                size = TileSize.WIDE,
+                flipped = customCardFlipState.isFlipped(hw.widgetId.toString()),
+                active = !editMode,
+                tileId = "glance-${hw.widgetId}",
+                leagueSlug = selection?.leagueSlug.orEmpty(),
+                teamId = selection?.teamId.orEmpty(),
+                teamLabel = selection?.teamLabel.orEmpty(),
+                refreshRate = sportsRefreshRate,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        CustomCardKind.CALENDAR_SYSTEM -> CalendarSystemTileFace(
+            size = TileSize.WIDE,
+            flipped = customCardFlipState.isFlipped(hw.widgetId.toString()),
+            active = !editMode,
+            systemId = CalendarSystemTile.decode(hw.customConfig),
+            modifier = Modifier.fillMaxSize(),
+        )
+        CustomCardKind.COUNTDOWN -> {
+            val (isoDate, label) = CountdownTile.decode(hw.customConfig) ?: ("" to "")
+            CountdownTileFace(
+                size = TileSize.WIDE,
+                flipped = customCardFlipState.isFlipped(hw.widgetId.toString()),
+                targetIsoDate = isoDate,
+                label = label,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        CustomCardKind.STICKYNOTE -> StickyNoteTileFace(
+            size = TileSize.WIDE,
+            text = hw.customConfig,
+            modifier = Modifier.fillMaxSize(),
+        )
+        CustomCardKind.CLOCK -> ClockTileFace(
+            size = TileSize.WIDE,
+            flipped = customCardFlipState.isFlipped(hw.widgetId.toString()),
+            active = !editMode,
+            modifier = Modifier.fillMaxSize(),
+        )
+        CustomCardKind.BATTERY -> BatteryTileFace(
+            size = TileSize.WIDE,
+            flipped = customCardFlipState.isFlipped(hw.widgetId.toString()),
+            modifier = Modifier.fillMaxSize(),
+        )
+        CustomCardKind.ALARM -> AlarmTileFace(
+            size = TileSize.WIDE,
+            flipped = customCardFlipState.isFlipped(hw.widgetId.toString()),
+            active = !editMode,
+            modifier = Modifier.fillMaxSize(),
+        )
+        CustomCardKind.MOONPHASE -> MoonPhaseTileFace(
+            size = TileSize.WIDE,
+            flipped = customCardFlipState.isFlipped(hw.widgetId.toString()),
+            active = !editMode,
+            modifier = Modifier.fillMaxSize(),
+        )
+        CustomCardKind.TASKS -> TasksTileFace(
+            size = TileSize.WIDE,
+            interactive = !editMode,
+            listId = hw.widgetId.toString(),
+            modifier = Modifier.fillMaxSize(),
+        )
+        CustomCardKind.NOTEPAD -> NotesTileFace(
+            size = TileSize.WIDE,
+            flipped = customCardFlipState.isFlipped(hw.widgetId.toString()),
+            modifier = Modifier.fillMaxSize(),
+        )
+        CustomCardKind.FLASHLIGHT -> FlashlightTileFace(
+            size = TileSize.WIDE,
+            interactive = !editMode,
+            modifier = Modifier.fillMaxSize(),
+        )
+        CustomCardKind.STEPS -> StepsTileFace(
+            size = TileSize.WIDE,
+            fallback = { NoCustomCardDataFace(kind.label) },
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+    }
+}
+
+/** Plain-text fallback for a custom card whose data isn't ready yet (e.g. [StepsTileFace] before the sensor reports anything) — text only, no static glyph exists at this size outside Start's own tile grid. */
+@Composable
+private fun NoCustomCardDataFace(label: String) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(text = label, color = Color.White.copy(alpha = 0.85f), fontSize = 15.sp)
+    }
+}
 
 /**
  * Full-screen widget picker dialog: installed providers with preview + label,
@@ -1609,19 +1983,31 @@ private data class WidgetAppGroup(
  * apps — a flat list made it hard to find, say, "the calendar app's" widgets
  * among everything else). Groups and their contents are both sorted by label so
  * the picker reads the same way every time it's opened.
+ *
+ * TileShell's own cards (stock/commodity/sports/...) are folded into this
+ * exact same grouped list, under a synthetic "TileShell" group using this
+ * app's own icon/label — not a separate chooser step — so from the user's
+ * side, adding a TileShell card and adding a real widget from any other app
+ * are the same action in the same list, the app just happens to be this one.
  */
 @Composable
 private fun WidgetPicker(
     manager: AppWidgetManager,
     tokens: ColorTokens,
     onPick: (AppWidgetProviderInfo) -> Unit,
+    onPickCustom: (CustomCardKind) -> Unit,
     onDismiss: () -> Unit,
+    // Notes has one shared notepad behind every pinned card on glance too — a
+    // second one would just show the same content twice — so it greys out
+    // once one exists here, matching Start's own WidgetListSheet dedup rule
+    // (user-reported: glance let it be added more than once).
+    notesAlreadyPinned: Boolean = false,
 ) {
     val context = LocalContext.current
     val groups = remember {
         runCatching {
             val pm = context.packageManager
-            manager.installedProviders
+            val realGroups = manager.installedProviders
                 .groupBy { it.provider.packageName }
                 .map { (packageName, providers) ->
                     val appLabel = runCatching {
@@ -1630,10 +2016,22 @@ private fun WidgetPicker(
                     WidgetAppGroup(
                         packageName = packageName,
                         appLabel = appLabel,
-                        providers = providers.sortedBy { it.loadLabel(pm).lowercase() },
+                        entries = providers.sortedBy { it.loadLabel(pm).lowercase() }.map { WidgetPickerEntry.Real(it) },
                     )
                 }
-                .sortedBy { it.appLabel.lowercase() }
+            val ownPackage = context.packageName
+            val ownLabel = runCatching {
+                pm.getApplicationLabel(pm.getApplicationInfo(ownPackage, 0)).toString()
+            }.getOrDefault("TileShell")
+            val customGroup = WidgetAppGroup(
+                packageName = ownPackage,
+                appLabel = ownLabel,
+                entries = CustomCardKind.entries.sortedBy { it.label }.map { WidgetPickerEntry.Custom(it) },
+            )
+            // TileShell's own gadgets are pinned first rather than sorted in with
+            // everyone else alphabetically — they're the app's own facility, not
+            // just another provider that happens to start with a low letter.
+            listOf(customGroup) + realGroups.sortedBy { it.appLabel.lowercase() }
         }.getOrDefault(emptyList())
     }
     // Collapsed by default — with widgets spread across many apps, showing every
@@ -1660,7 +2058,7 @@ private fun WidgetPicker(
                             WidgetGroupHeader(
                                 packageName = group.packageName,
                                 appLabel = group.appLabel,
-                                count = group.providers.size,
+                                count = group.entries.size,
                                 expanded = isExpanded,
                                 tokens = tokens,
                                 onClick = {
@@ -1674,10 +2072,21 @@ private fun WidgetPicker(
                         }
                         if (isExpanded) {
                             items(
-                                group.providers,
-                                key = { "${group.packageName}/${it.provider.className}" },
-                            ) { p ->
-                                WidgetPickerRow(p, tokens) { onPick(p) }
+                                group.entries,
+                                key = { entry ->
+                                    when (entry) {
+                                        is WidgetPickerEntry.Real -> "${group.packageName}/${entry.provider.provider.className}"
+                                        is WidgetPickerEntry.Custom -> "${group.packageName}/custom/${entry.kind.name}"
+                                    }
+                                },
+                            ) { entry ->
+                                when (entry) {
+                                    is WidgetPickerEntry.Real -> WidgetPickerRow(entry.provider, tokens) { onPick(entry.provider) }
+                                    is WidgetPickerEntry.Custom -> {
+                                        val disabled = entry.kind == CustomCardKind.NOTEPAD && notesAlreadyPinned
+                                        CustomCardPickerRow(entry.kind, tokens, enabled = !disabled) { onPickCustom(entry.kind) }
+                                    }
+                                }
                             }
                         }
                     }
@@ -1728,6 +2137,40 @@ private fun WidgetGroupHeader(
             color = tokens.fgDim,
             fontSize = 13.sp,
         )
+    }
+}
+
+/** A TileShell card's own row in the merged picker — same shape as [WidgetPickerRow], a monoline glyph plate standing in for a loaded preview image (there's no real provider to load one from). [enabled] false greys the row out and blocks the tap — used for Notes once one is already pinned (one shared notepad, same dedup rule as Start's own catalog). */
+@Composable
+private fun CustomCardPickerRow(kind: CustomCardKind, tokens: ColorTokens, enabled: Boolean = true, onClick: () -> Unit) {
+    val alpha = if (enabled) 1f else 0.4f
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(tokens.sheet)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .clip(RoundedCornerShape(8.dp))
+                // Matches Start's own "add widget" catalog (WidgetListSheet) — a
+                // colour-coded accent plate per kind with a white glyph, not a
+                // flat monochrome tile-foreground plate.
+                .background(TileAccents.forId(kind.colorId).copy(alpha = alpha)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(TileIcons[kind.iconKey], null, tint = Color.White, modifier = Modifier.size(32.dp))
+        }
+        Column(modifier = Modifier.padding(start = 12.dp).graphicsLayer { this.alpha = alpha }) {
+            Text(kind.label, color = tokens.fg, fontSize = 15.sp)
+            if (!enabled) {
+                Text("already added to glance", color = tokens.fgDim, fontSize = 12.sp)
+            }
+        }
     }
 }
 

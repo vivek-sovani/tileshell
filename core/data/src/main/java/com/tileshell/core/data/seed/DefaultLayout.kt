@@ -134,4 +134,31 @@ object DefaultLayout {
         DefaultTile("t-files", TileSize.SMALL, "amber", app = "files"),
         DefaultTile("t-calc", TileSize.SMALL, "steel", app = "calc"),
     )
+
+    /**
+     * Templates for widgets a user adds explicitly via the Start edit-mode "add
+     * widgets" list (`WidgetListSheet`) — unlike [DEFAULT_TILES], these are never
+     * part of the seeded fresh-install layout or a "reset start layout," only
+     * reachable through [LayoutRepository.addDefaultTile] via [ALL_TILE_TEMPLATES].
+     * All three are liveOnly/blank-package (no real app backs a battery, alarm, or
+     * moon-phase tile), same as weather/calendar/clock.
+     */
+    val OPT_IN_WIDGET_TILES: List<DefaultTile> = listOf(
+        DefaultTile("t-battery", TileSize.MEDIUM, "green", app = "battery", liveOnly = true),
+        DefaultTile("t-alarm", TileSize.MEDIUM, "purple", app = "alarm", liveOnly = true),
+        DefaultTile("t-moonphase", TileSize.MEDIUM, "slate", app = "moonphase", liveOnly = true),
+        DefaultTile("t-tasks", TileSize.MEDIUM, "blue", app = "tasks", liveOnly = true),
+        DefaultTile("t-notepad", TileSize.MEDIUM, "amber", app = "notepad", liveOnly = true),
+        DefaultTile("t-stickynote", TileSize.MEDIUM, "amber", app = "stickynote", liveOnly = true),
+        DefaultTile("t-flashlight", TileSize.MEDIUM, "steel", app = "flashlight", liveOnly = true),
+        DefaultTile("t-countdown", TileSize.MEDIUM, "magenta", app = "countdown", liveOnly = true),
+        DefaultTile("t-steps", TileSize.MEDIUM, "lime", app = "steps", liveOnly = true),
+        DefaultTile("t-sports", TileSize.MEDIUM, "red", app = "sports", liveOnly = true),
+        DefaultTile("t-stock", TileSize.MEDIUM, "teal", app = "stock", liveOnly = true),
+        DefaultTile("t-commodity", TileSize.MEDIUM, "mauve", app = "commodity", liveOnly = true),
+        DefaultTile("t-calsys", TileSize.MEDIUM, "cobalt", app = "calsys", liveOnly = true),
+    )
+
+    /** Every known tile template — the default-layout set plus opt-in-only widgets. */
+    val ALL_TILE_TEMPLATES: List<DefaultTile> = DEFAULT_TILES + OPT_IN_WIDGET_TILES
 }

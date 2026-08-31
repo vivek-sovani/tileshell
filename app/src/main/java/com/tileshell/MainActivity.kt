@@ -373,6 +373,7 @@ private fun RequestRuntimePermissionsOnStart() {
                     Manifest.permission.READ_CONTACTS,
                     Manifest.permission.READ_CALENDAR,
                     Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.ACTIVITY_RECOGNITION,
                 ),
             )
         }

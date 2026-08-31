@@ -62,4 +62,37 @@ class TileSizeCycleTest {
             seen,
         )
     }
+
+    @Test
+    fun requireTallCycleSkipsSmallEntirely() {
+        // medium -> wide -> medium, never touching a 1-row size.
+        assertEquals(TileSize.WIDE, TileSize.MEDIUM.next(requireTallCycle = true))
+        assertEquals(TileSize.MEDIUM, TileSize.WIDE.next(requireTallCycle = true))
+    }
+
+    @Test
+    fun requireTallCycleStillOffersLargeWhenAllowed() {
+        assertEquals(TileSize.WIDE, TileSize.MEDIUM.next(largeAllowed = true, requireTallCycle = true))
+        assertEquals(TileSize.LARGE, TileSize.WIDE.next(largeAllowed = true, requireTallCycle = true))
+        assertEquals(TileSize.MEDIUM, TileSize.LARGE.next(largeAllowed = true, requireTallCycle = true))
+    }
+
+    @Test
+    fun requireTallCycleRecoversFromAnyOneRowPresetToWide() {
+        // Should never actually happen (these tiles never reach a 1-row size),
+        // but a stray SMALL/WIDE_SMALL/BANNER value still recovers to a 2+ row
+        // size instead of reintroducing SMALL.
+        assertEquals(TileSize.WIDE, TileSize.SMALL.next(requireTallCycle = true))
+        assertEquals(TileSize.WIDE, TileSize.WIDE_SMALL.next(requireTallCycle = true))
+        assertEquals(TileSize.WIDE, TileSize.BANNER.next(requireTallCycle = true))
+    }
+
+    @Test
+    fun requireTallCycleFolderChildNeverReachesSmall() {
+        assertEquals(TileSize.MEDIUM, TileSize.MEDIUM.nextForFolderChild(largeAllowed = false, requireTallCycle = true))
+        assertEquals(
+            TileSize.WIDE,
+            TileSize.MEDIUM.nextForFolderChild(largeAllowed = true, requireTallCycle = true),
+        )
+    }
 }

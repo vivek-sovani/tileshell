@@ -106,6 +106,36 @@ data class AppCacheEntity(
     val lastSeen: Long,
 )
 
+/**
+ * One item in the Tasks live tile's checklist, in [position] order within its
+ * own [listId] — the owning pinned tile/gadget's own stable id, so each
+ * pinned Tasks instance keeps an independent list (v10→v11 migration; rows
+ * written before that default to `"default"`, backfilled to the oldest
+ * existing Tasks tile so its data isn't orphaned on upgrade — see
+ * `TileShellDatabase.MIGRATION_10_11`).
+ */
+@Entity(tableName = "tasks")
+data class TaskEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val text: String,
+    val done: Boolean = false,
+    val listId: String = "default",
+    val position: Int,
+    val createdAt: Long,
+)
+
+/**
+ * One note in the Notes live tile's notepad, most-recently-edited first
+ * ([updatedAt] desc). Independent of any specific pinned tile — one shared
+ * notepad, same as the Tasks checklist is one shared list.
+ */
+@Entity(tableName = "notes")
+data class NoteEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val text: String,
+    val updatedAt: Long,
+)
+
 // ---- relations ----------------------------------------------------------
 
 /** A folder with its ordered children, assembled by Room. */

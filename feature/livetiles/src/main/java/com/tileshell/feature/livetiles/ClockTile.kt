@@ -41,10 +41,10 @@ import com.tileshell.core.design.LocalTileFaceColor
 import kotlinx.coroutines.delay
 import java.util.Calendar
 
-private val WEEKDAYS = listOf(
+internal val WEEKDAYS = listOf(
     "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
 )
-private val MONTHS = listOf(
+internal val MONTHS = listOf(
     "january", "february", "march", "april", "may", "june",
     "july", "august", "september", "october", "november", "december",
 )

@@ -23,6 +23,8 @@ import kotlin.random.Random
  *   turn to. Photos (a cross-fade slideshow) never flip; the clock does. People
  *   also never flips — its own bubble cluster cross-fades and pops
  *   independently (user-requested removal of the flip, see DECISIONS.md).
+ *   Sticky note never flips either — the whole tile front already is the note,
+ *   there's no separate "back" content worth revealing.
  */
 enum class LiveFace(val flips: Boolean) {
     CLOCK(flips = true),
@@ -33,6 +35,23 @@ enum class LiveFace(val flips: Boolean) {
     PEOPLE(flips = false),
     PHOTOS(flips = false),
     MUSIC(flips = true),
+    BATTERY(flips = true),
+    ALARM(flips = true),
+    MOONPHASE(flips = true),
+    // Only the checklist itself is useful at a glance — the flip's back face
+    // (a bare "x left" count) added nothing worth the flip (user-requested:
+    // "tasks will have only one face. no back face. only task list should be
+    // shown").
+    TASKS(flips = false),
+    NOTES(flips = true),
+    STICKYNOTE(flips = false),
+    FLASHLIGHT(flips = false),
+    COUNTDOWN(flips = true),
+    STEPS(flips = false),
+    SPORTS(flips = true),
+    STOCK(flips = true),
+    COMMODITY(flips = true),
+    CALENDAR_SYSTEM(flips = true),
     ;
 
     companion object {
@@ -52,6 +71,19 @@ enum class LiveFace(val flips: Boolean) {
                 "people" -> PEOPLE
                 "photos" -> PHOTOS
                 "music" -> MUSIC
+                "battery" -> BATTERY
+                "alarm" -> ALARM
+                "moonphase" -> MOONPHASE
+                "tasks" -> TASKS
+                "notepad" -> NOTES
+                "stickynote" -> STICKYNOTE
+                "flashlight" -> FLASHLIGHT
+                "countdown" -> COUNTDOWN
+                "steps" -> STEPS
+                "sports" -> SPORTS
+                "stock" -> STOCK
+                "commodity" -> COMMODITY
+                "calsys" -> CALENDAR_SYSTEM
                 else -> null
             }
         }

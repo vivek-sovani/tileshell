@@ -300,4 +300,53 @@ class SettingsCodecTest {
         )
         assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
     }
+
+    @Test
+    fun `taskAutoClearDaily defaults on, round-trips, and a bad value keeps default`() {
+        assertEquals(true, LauncherSettings().taskAutoClearDaily)
+        assertEquals(false, SettingsCodec.decode("taskAutoClearDaily=false").taskAutoClearDaily)
+        assertEquals(
+            LauncherSettings().taskAutoClearDaily,
+            SettingsCodec.decode("taskAutoClearDaily=nope").taskAutoClearDaily,
+        )
+        val s = LauncherSettings(taskAutoClearDaily = false)
+        assertEquals(false, SettingsCodec.decode(SettingsCodec.encode(s)).taskAutoClearDaily)
+    }
+
+    @Test
+    fun `stock, commodity and sports refresh rates default, round-trip, and a bad value keeps default`() {
+        assertEquals(LiveRefreshRate.DEFAULT, LauncherSettings().stockRefreshRate)
+        assertEquals(LiveRefreshRate.DEFAULT, LauncherSettings().commodityRefreshRate)
+        assertEquals(LiveRefreshRate.DEFAULT, LauncherSettings().sportsRefreshRate)
+
+        assertEquals(LiveRefreshRate.EVERY_15_MIN, SettingsCodec.decode("stockRefreshRate=EVERY_15_MIN").stockRefreshRate)
+        assertEquals(LiveRefreshRate.EVERY_5_MIN, SettingsCodec.decode("commodityRefreshRate=EVERY_5_MIN").commodityRefreshRate)
+        assertEquals(LiveRefreshRate.EVERY_30_MIN, SettingsCodec.decode("sportsRefreshRate=EVERY_30_MIN").sportsRefreshRate)
+
+        assertEquals(LiveRefreshRate.DEFAULT, SettingsCodec.decode("stockRefreshRate=GARBLED").stockRefreshRate)
+
+        val s = LauncherSettings(
+            stockRefreshRate = LiveRefreshRate.EVERY_1_MIN,
+            commodityRefreshRate = LiveRefreshRate.EVERY_15_MIN,
+            sportsRefreshRate = LiveRefreshRate.EVERY_30_MIN,
+        )
+        assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
+    }
+}
+
+class LiveRefreshRateResolveMsTest {
+
+    @Test
+    fun `DEFAULT resolves to the caller's own supplied interval`() {
+        assertEquals(90_000L, LiveRefreshRate.DEFAULT.resolveMs(90_000L))
+        assertEquals(60_000L, LiveRefreshRate.DEFAULT.resolveMs(60_000L))
+    }
+
+    @Test
+    fun `every fixed rate resolves to its own interval regardless of the caller's default`() {
+        assertEquals(60_000L, LiveRefreshRate.EVERY_1_MIN.resolveMs(90_000L))
+        assertEquals(5 * 60_000L, LiveRefreshRate.EVERY_5_MIN.resolveMs(90_000L))
+        assertEquals(15 * 60_000L, LiveRefreshRate.EVERY_15_MIN.resolveMs(90_000L))
+        assertEquals(30 * 60_000L, LiveRefreshRate.EVERY_30_MIN.resolveMs(90_000L))
+    }
 }

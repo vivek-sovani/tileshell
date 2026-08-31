@@ -224,6 +224,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(hideStatusBar = hidden) }
     }
 
+    /** Auto-clear completed tasks once a day (never touches unchecked tasks). */
+    suspend fun setTaskAutoClearDaily(enabled: Boolean) {
+        store.updateData { it.copy(taskAutoClearDaily = enabled) }
+    }
+
     /** Toggle following the device dark-mode setting (vs. the manual [dark] choice). */
     suspend fun setFollowSystemTheme(follow: Boolean) {
         store.updateData { it.copy(followSystemTheme = follow) }
@@ -289,6 +294,21 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
     /** Switch the Start grid's cell renderer between WP tiles and Android-style icons. */
     suspend fun setHomeStyle(style: HomeStyle) {
         store.updateData { it.copy(homeStyle = style) }
+    }
+
+    /** How often stock tiles re-poll (Personalize's "live data refresh"). */
+    suspend fun setStockRefreshRate(rate: LiveRefreshRate) {
+        store.updateData { it.copy(stockRefreshRate = rate) }
+    }
+
+    /** How often commodity/currency tiles re-poll. */
+    suspend fun setCommodityRefreshRate(rate: LiveRefreshRate) {
+        store.updateData { it.copy(commodityRefreshRate = rate) }
+    }
+
+    /** How often sports tiles re-poll. */
+    suspend fun setSportsRefreshRate(rate: LiveRefreshRate) {
+        store.updateData { it.copy(sportsRefreshRate = rate) }
     }
 
     /** Set the icon mask used in ICONS home style. */

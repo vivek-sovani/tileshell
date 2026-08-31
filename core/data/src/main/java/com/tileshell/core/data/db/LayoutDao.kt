@@ -81,6 +81,15 @@ interface LayoutDao {
     suspend fun updateTileDisplayAsIcon(id: String, displayAsIcon: Boolean)
 
     /**
+     * Overwrite a blank-package liveOnly tile's [TileEntity.activityName] with
+     * arbitrary text — the Sticky Note tile's storage (one note's text lives
+     * directly on its own tile row, not in a separate table, since exactly one
+     * note belongs to exactly one tile and disappears with it).
+     */
+    @Query("UPDATE tiles SET activityName = :text WHERE id = :id")
+    suspend fun updateTileText(id: String, text: String)
+
+    /**
      * Remove a top-level tile (FR-3.5 unpin). A folder tile shares its id with
      * its `folders` row, so deleting that row too drops the folder meta and
      * cascades its children; for an app tile the folder delete is a no-op.

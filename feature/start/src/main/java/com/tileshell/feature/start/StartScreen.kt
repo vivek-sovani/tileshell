@@ -152,18 +152,46 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.tileshell.core.data.AppCategories
 import com.tileshell.core.data.AppLauncher
 import com.tileshell.core.data.CachedScreenshotPrefs
+import com.tileshell.core.data.CalendarSystemTile
+import com.tileshell.core.data.CommodityTile
 import com.tileshell.core.data.ContactTile
+import com.tileshell.core.data.CountdownTile
 import com.tileshell.core.data.FolderChild
+import com.tileshell.core.data.SportsTile
+import com.tileshell.core.data.StockTile
+import com.tileshell.core.data.hasNotesTile
 import com.tileshell.core.data.TileColors
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.TileSize
 import com.tileshell.feature.applist.AppListScreen
+import com.tileshell.feature.livetiles.AlarmTileFace
+import com.tileshell.feature.livetiles.BatterySmallFace
+import com.tileshell.feature.livetiles.BatteryTileFace
 import com.tileshell.feature.livetiles.CalendarSmallFace
+import com.tileshell.feature.livetiles.CalendarSystemSmallFace
+import com.tileshell.feature.livetiles.CalendarSystemTileFace
 import com.tileshell.feature.livetiles.CalendarTileFace
 import com.tileshell.feature.livetiles.ClockSmallFace
 import com.tileshell.feature.livetiles.ClockTileFace
+import com.tileshell.feature.livetiles.CountdownSmallFace
+import com.tileshell.feature.livetiles.CountdownTileFace
+import com.tileshell.feature.livetiles.FlashlightSmallFace
+import com.tileshell.feature.livetiles.FlashlightTileFace
+import com.tileshell.feature.livetiles.SportsLinks
+import com.tileshell.feature.livetiles.SportsTileFace
+import com.tileshell.feature.livetiles.StepsSmallFace
+import com.tileshell.feature.livetiles.StepsTileFace
+import com.tileshell.feature.livetiles.StockSmallFace
+import com.tileshell.feature.livetiles.StockTileFace
+import com.tileshell.feature.livetiles.CommoditySmallFace
+import com.tileshell.feature.livetiles.CommodityTileFace
+import com.tileshell.feature.livetiles.MoonPhaseTileFace
+import com.tileshell.feature.livetiles.NotesTileFace
+import com.tileshell.feature.livetiles.StickyNoteTileFace
+import com.tileshell.feature.livetiles.TasksTileFace
 import com.tileshell.feature.livetiles.ConversationTileFace
 import com.tileshell.feature.livetiles.LiveFace
 import com.tileshell.feature.livetiles.MediaSessionsEffect
@@ -201,6 +229,11 @@ import com.tileshell.feature.personalize.BackupRestoreSheet
 import com.tileshell.feature.personalize.LayoutHistorySheet
 import com.tileshell.feature.livetiles.LayoutAutoBackupWorker
 import com.tileshell.feature.personalize.CategoryFolderSheet
+import com.tileshell.feature.personalize.CountdownEditorSheet
+import com.tileshell.feature.personalize.SportsPickerSheet
+import com.tileshell.feature.personalize.StockPickerSheet
+import com.tileshell.feature.personalize.CommodityPickerSheet
+import com.tileshell.feature.personalize.CalendarSystemPickerSheet
 import com.tileshell.feature.personalize.FeedSourceItem
 import com.tileshell.feature.personalize.EdgeStripSheet
 import com.tileshell.feature.personalize.HiddenAppsSheet
@@ -209,13 +242,18 @@ import com.tileshell.feature.personalize.PermissionsSheet
 import com.tileshell.feature.personalize.PersonalizeGuidePrefs
 import com.tileshell.feature.personalize.PersonalizeGuideSheet
 import com.tileshell.feature.personalize.PersonalizeSheet
+import com.tileshell.feature.personalize.NotesSheet
 import com.tileshell.feature.personalize.RegionOption
+import com.tileshell.feature.personalize.StickyNoteEditorSheet
+import com.tileshell.feature.personalize.TaskListSheet
+import com.tileshell.feature.personalize.WidgetListSheet
 import com.tileshell.feature.system.AppUpdateState
 import com.tileshell.feature.system.rememberAppUpdateState
 import com.tileshell.feature.system.rememberDefaultLauncherState
 import com.tileshell.core.data.settings.FontStyle
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
+import com.tileshell.core.data.settings.LiveRefreshRate
 import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.data.settings.TilePackMode
@@ -286,6 +324,15 @@ fun StartScreen(
     val backupOpen by viewModel.backupOpen.collectAsStateWithLifecycle()
     val foldersOpen by viewModel.foldersOpen.collectAsStateWithLifecycle()
     val hiddenAppsOpen by viewModel.hiddenAppsOpen.collectAsStateWithLifecycle()
+    val addWidgetsOpen by viewModel.addWidgetsOpen.collectAsStateWithLifecycle()
+    val tasksOpen by viewModel.tasksOpen.collectAsStateWithLifecycle()
+    val notesOpen by viewModel.notesOpen.collectAsStateWithLifecycle()
+    val stickyNoteEditTileId by viewModel.stickyNoteEditTileId.collectAsStateWithLifecycle()
+    val countdownEditTileId by viewModel.countdownEditTileId.collectAsStateWithLifecycle()
+    val sportsEditTileId by viewModel.sportsEditTileId.collectAsStateWithLifecycle()
+    val stockEditTileId by viewModel.stockEditTileId.collectAsStateWithLifecycle()
+    val commodityEditTileId by viewModel.commodityEditTileId.collectAsStateWithLifecycle()
+    val calendarSystemEditTileId by viewModel.calendarSystemEditTileId.collectAsStateWithLifecycle()
     val permissionsOpen by viewModel.permissionsOpen.collectAsStateWithLifecycle()
     val newsRegionOpen by viewModel.newsRegionOpen.collectAsStateWithLifecycle()
     val edgeStripOpen by viewModel.edgeStripOpen.collectAsStateWithLifecycle()
@@ -670,7 +717,9 @@ fun StartScreen(
     // the sheet flags are checked directly since they don't touch it).
     val restingAtStart = abs(progress.value) < 0.05f
     val anySheetOpen = personalizeOpen || aboutOpen || historyOpen || backupOpen ||
-        foldersOpen || hiddenAppsOpen
+        foldersOpen || hiddenAppsOpen || addWidgetsOpen || (tasksOpen != null) || notesOpen ||
+        (stickyNoteEditTileId != null) || (countdownEditTileId != null) || (sportsEditTileId != null) || (stockEditTileId != null) ||
+        (commodityEditTileId != null) || (calendarSystemEditTileId != null)
     val quickSearchEnabled = swipeEnabled && restingAtStart && !searchOpen && !quickPanelOpen && !anySheetOpen
     val quickPanelEnabled = swipeEnabled && restingAtStart && !searchOpen && !quickPanelOpen && !anySheetOpen
     // Runs in the Initial pass like the pager, but keys off pointer *count* (2)
@@ -927,6 +976,9 @@ fun StartScreen(
                     accent = accent,
                     accentId = settings.accentId,
                     appIconColors = settings.tileColorSource == TileColorSource.APP_ICON,
+                    stockRefreshRate = settings.stockRefreshRate,
+                    commodityRefreshRate = settings.commodityRefreshRate,
+                    sportsRefreshRate = settings.sportsRefreshRate,
                     wallpaperAccent = wallpaperAccent,
                     // Tiled-wallpaper mode ignores the gap setting (stays tight) so
                     // wider spacing never fragments the show-through wallpaper.
@@ -976,6 +1028,70 @@ fun StartScreen(
                                 // stay decoupled.
                                 if (tile.packageName.isBlank() && tile.label == "personalize") {
                                     viewModel.openPersonalize()
+                                } else if (tile.packageName.isBlank() && tile.iconKey == "tasks") {
+                                    // The Tasks tile is a small in-app checklist, not a
+                                    // launchable app — tapping it opens its own sheet
+                                    // instead of falling into the liveOnly-fallback-intent
+                                    // path every other blank-package tile uses. Each
+                                    // pinned Tasks tile keeps its own independent list,
+                                    // keyed by the tile's own stable id (user-reported:
+                                    // every Tasks tile used to show the same one list).
+                                    viewModel.openTasks(tile.id)
+                                } else if (tile.packageName.isBlank() && tile.iconKey == "notepad") {
+                                    viewModel.openNotes()
+                                } else if (tile.packageName.isBlank() && tile.iconKey == "stickynote") {
+                                    viewModel.openStickyNoteEditor(tile.id)
+                                } else if (tile.packageName.isBlank() && tile.iconKey == "countdown") {
+                                    viewModel.openCountdownEditor(tile.id)
+                                } else if (tile.packageName.isBlank() && tile.iconKey == "sports") {
+                                    // A configured tile opens the match's own
+                                    // ESPN page (cached from the tile's own poll
+                                    // loop — see SportsLinks); no team picked
+                                    // yet, or no page cached, falls back to the
+                                    // team picker.
+                                    val configured = SportsTile.decode(tile.activityName) != null
+                                    val webUrl = if (configured) SportsLinks.get(tile.id) else null
+                                    when {
+                                        webUrl != null -> runCatching {
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)))
+                                        }
+                                        configured -> Toast.makeText(context, "match details still loading", Toast.LENGTH_SHORT).show()
+                                        else -> viewModel.openSportsEditor(tile.id)
+                                    }
+                                } else if (tile.packageName.isBlank() && tile.iconKey == "stock") {
+                                    // A single-symbol tile opens that stock's real Yahoo
+                                    // Finance page (a static URL from the symbol alone —
+                                    // no cached-link machinery like SportsLinks needed);
+                                    // a category tile, or no selection yet, reopens the
+                                    // picker instead — there's no one page for a sector.
+                                    val selection = StockTile.decode(tile.activityName)
+                                    when (selection) {
+                                        is StockTile.Selection.Single -> runCatching {
+                                            val url = "https://finance.yahoo.com/quote/${Uri.encode(selection.symbol)}"
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                        }
+                                        else -> viewModel.openStockEditor(tile.id)
+                                    }
+                                } else if (tile.packageName.isBlank() && tile.iconKey == "commodity") {
+                                    // Same "open the real Yahoo Finance page, or the
+                                    // picker if nothing's picked yet" pattern as the
+                                    // stock tile — a commodity/currency tile is always
+                                    // a single symbol, so there's no category-vs-single
+                                    // branch needed here.
+                                    val decoded = CommodityTile.decode(tile.activityName)
+                                    if (decoded != null) {
+                                        runCatching {
+                                            val url = "https://finance.yahoo.com/quote/${Uri.encode(decoded.first)}"
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                        }
+                                    } else {
+                                        viewModel.openCommodityEditor(tile.id)
+                                    }
+                                } else if (tile.packageName.isBlank() && tile.iconKey == "calsys") {
+                                    // No external page for a calendar system — tapping
+                                    // always (re)opens the picker, whether or not one's
+                                    // already picked, so the choice can be changed later.
+                                    viewModel.openCalendarSystemEditor(tile.id)
                                 } else {
                                     onTileClick(context, tile)
                                 }
@@ -986,6 +1102,13 @@ fun StartScreen(
                     onLaunchFolderChild = { child ->
                         if (child.packageName.isBlank() && child.label == "personalize") {
                             viewModel.openPersonalize()
+                        } else if (child.packageName.isBlank() && child.iconKey == "tasks") {
+                            // Matches the listId a folder child's own inline-expanded
+                            // rendering uses (its synthetic AppTileContent `tile.id`),
+                            // so the sheet shows exactly what that tile is displaying.
+                            viewModel.openTasks(folderChildTileId(expandedFolderId.orEmpty(), child.rowId))
+                        } else if (child.packageName.isBlank() && child.iconKey == "notepad") {
+                            viewModel.openNotes()
                         } else {
                             launchFolderChild(context, child)
                         }
@@ -1048,6 +1171,7 @@ fun StartScreen(
                             .show()
                     },
                     onPersonalize = viewModel::openPersonalize,
+                    onAddWidgets = viewModel::openAddWidgets,
                     onQuickPanel = viewModel::openQuickPanel,
                 )
         }
@@ -1094,6 +1218,12 @@ fun StartScreen(
                     Toast.makeText(context, "refreshing news", Toast.LENGTH_SHORT).show()
                 },
                 active = active,
+                accentId = settings.accentId,
+                stockRefreshRate = settings.stockRefreshRate,
+                commodityRefreshRate = settings.commodityRefreshRate,
+                sportsRefreshRate = settings.sportsRefreshRate,
+                taskAutoClearDaily = settings.taskAutoClearDaily,
+                onTaskAutoClearDailyChange = viewModel::setTaskAutoClearDaily,
             )
         }
 
@@ -1288,6 +1418,12 @@ fun StartScreen(
             onUserNameChange = viewModel::setUserName,
             liveTilesEnabled = settings.liveTilesEnabled,
             onLiveTilesEnabledChange = viewModel::setLiveTilesEnabled,
+            stockRefreshRate = settings.stockRefreshRate,
+            onStockRefreshRateChange = viewModel::setStockRefreshRate,
+            commodityRefreshRate = settings.commodityRefreshRate,
+            onCommodityRefreshRateChange = viewModel::setCommodityRefreshRate,
+            sportsRefreshRate = settings.sportsRefreshRate,
+            onSportsRefreshRateChange = viewModel::setSportsRefreshRate,
             notificationsEnabled = notificationAccess,
             onNotificationAccess = {
                 runCatching { context.startActivity(NotificationAccess.settingsIntent()) }
@@ -1515,11 +1651,120 @@ fun StartScreen(
                 Toast.makeText(context, "$verb \"$name\" folder", Toast.LENGTH_SHORT).show()
             },
             onDismiss = viewModel::closeFolders,
-            onAddLiveTile = { appId ->
+            existingFolderPackages = { name -> existingFoldersByName[name.lowercase()] ?: emptySet() },
+        )
+
+        // Add-widgets sheet (edit bar → add widgets).
+        WidgetListSheet(
+            visible = addWidgetsOpen,
+            rightHalf = isLandscape,
+            dark = dark,
+            accentId = settings.accentId,
+            notesAlreadyPinned = tiles.hasNotesTile(),
+            onAddWidget = { appId ->
                 viewModel.addLiveTile(appId)
+                // Land back on a normal, settled Start screen showing the new
+                // tile in place, instead of leaving edit mode's jiggle/edit-bar
+                // up — matches the existing "add" (app list) entry point,
+                // which already exits edit mode the moment it's used.
+                viewModel.exitEdit()
                 Toast.makeText(context, "added $appId tile", Toast.LENGTH_SHORT).show()
             },
-            existingFolderPackages = { name -> existingFoldersByName[name.lowercase()] ?: emptySet() },
+            onDismiss = viewModel::closeAddWidgets,
+        )
+
+        // Tasks sheet (tapping a Tasks tile) — scoped to that tile's own list.
+        TaskListSheet(
+            visible = tasksOpen != null,
+            listId = tasksOpen.orEmpty(),
+            rightHalf = isLandscape,
+            dark = dark,
+            accentId = settings.accentId,
+            autoClearDaily = settings.taskAutoClearDaily,
+            onAutoClearDailyChange = viewModel::setTaskAutoClearDaily,
+            onDismiss = viewModel::closeTasks,
+        )
+
+        // Notes sheet (tapping the Notes tile).
+        NotesSheet(
+            visible = notesOpen,
+            rightHalf = isLandscape,
+            dark = dark,
+            accentId = settings.accentId,
+            onDismiss = viewModel::closeNotes,
+        )
+
+        // Sticky Note tile's own editor (tapping that tile).
+        StickyNoteEditorSheet(
+            visible = stickyNoteEditTileId != null,
+            rightHalf = isLandscape,
+            dark = dark,
+            accentId = settings.accentId,
+            tileId = stickyNoteEditTileId,
+            initialText = (tiles.firstOrNull { it.id == stickyNoteEditTileId } as? TileModel.App)
+                ?.activityName.orEmpty(),
+            onTextChange = viewModel::setStickyNoteText,
+            onDismiss = viewModel::closeStickyNoteEditor,
+        )
+
+        // Countdown tile's own editor (tapping that tile).
+        CountdownEditorSheet(
+            visible = countdownEditTileId != null,
+            rightHalf = isLandscape,
+            dark = dark,
+            accentId = settings.accentId,
+            tileId = countdownEditTileId,
+            initialTargetIsoDate = (tiles.firstOrNull { it.id == countdownEditTileId } as? TileModel.App)
+                ?.activityName?.let { CountdownTile.decode(it)?.first }.orEmpty(),
+            initialLabel = (tiles.firstOrNull { it.id == countdownEditTileId } as? TileModel.App)
+                ?.activityName?.let { CountdownTile.decode(it)?.second }.orEmpty(),
+            onDataChange = viewModel::setCountdownData,
+            onDismiss = viewModel::closeCountdownEditor,
+        )
+
+        // Sports tile's own team picker (tapping that tile).
+        SportsPickerSheet(
+            visible = sportsEditTileId != null,
+            rightHalf = isLandscape,
+            dark = dark,
+            accentId = settings.accentId,
+            tileId = sportsEditTileId,
+            onTeamPicked = viewModel::setSportsTeam,
+            onDismiss = viewModel::closeSportsEditor,
+        )
+
+        // Stock tile's own picker (tapping that tile).
+        StockPickerSheet(
+            visible = stockEditTileId != null,
+            rightHalf = isLandscape,
+            dark = dark,
+            accentId = settings.accentId,
+            tileId = stockEditTileId,
+            onSinglePicked = viewModel::setStockSingle,
+            onCategoryPicked = viewModel::setStockCategory,
+            onMultiPicked = viewModel::setStockMulti,
+            onDismiss = viewModel::closeStockEditor,
+        )
+
+        // Commodity/currency tile's own picker (tapping that tile).
+        CommodityPickerSheet(
+            visible = commodityEditTileId != null,
+            rightHalf = isLandscape,
+            dark = dark,
+            accentId = settings.accentId,
+            tileId = commodityEditTileId,
+            onPicked = viewModel::setCommodity,
+            onDismiss = viewModel::closeCommodityEditor,
+        )
+
+        // "Calendar systems" tile's own picker (tapping that tile).
+        CalendarSystemPickerSheet(
+            visible = calendarSystemEditTileId != null,
+            rightHalf = isLandscape,
+            dark = dark,
+            accentId = settings.accentId,
+            onPick = { systemId -> calendarSystemEditTileId?.let { viewModel.setCalendarSystem(it, systemId) } },
+            onDismiss = viewModel::closeCalendarSystemEditor,
         )
 
         // Permissions sheet (personalize → permissions).
@@ -1739,6 +1984,11 @@ private fun StartPage(
     accent: Color,
     accentId: String,
     appIconColors: Boolean,
+    // Personalize's "live data refresh" — threaded down to TileView for the
+    // stock/commodity/sports live faces.
+    stockRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
+    commodityRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
+    sportsRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
     // Resolved wallpaper-accent colour when TileColorSource.WALLPAPER_ACCENT is
     // active (null otherwise) — same value the feed/glance page and Quick Panel
     // derive via rememberFeedPalette, computed once at the top and threaded down
@@ -1804,7 +2054,8 @@ private fun StartPage(
     onToggleFolderStack: (folderId: String) -> Unit,
     onReorderFolderChildren: (List<FolderChild>) -> Unit,
     onChevron: () -> Unit,
-    onEnterEdit: (String) -> Unit,
+    // Empty-space long-press passes null (enter edit with nothing selected).
+    onEnterEdit: (String?) -> Unit,
     onSelectTile: (String) -> Unit,
     onExitEdit: () -> Unit,
     onReorder: (List<String>) -> Unit,
@@ -1827,6 +2078,7 @@ private fun StartPage(
     onSetTileDisplayAsIcon: (id: String, displayAsIcon: Boolean) -> Unit = { _, _ -> },
     onAdd: () -> Unit,
     onPersonalize: () -> Unit,
+    onAddWidgets: () -> Unit = {},
     onQuickPanel: () -> Unit = {},
 ) {
     // Single jiggle phase shared by every tile (only composed while editing, so
@@ -2055,6 +2307,22 @@ private fun StartPage(
                 slotOf = slotOf,
                 postProcess = expandTransform,
                 onExit = onCollapseFolder,
+            )
+            // Long-press on empty grid space also enters edit mode (with
+            // nothing selected), matching a tile's own long-press — only
+            // when there's no folder inline-expanded (that's the tap-to-
+            // collapse gesture above's territory instead).
+            .emptySpaceEnterEdit(
+                active = !editMode && expandedFolderId == null,
+                widthPx = widthPx,
+                columns = columns,
+                gapPx = tileGapPx,
+                tiles = displaySpecs,
+                slotOf = slotOf,
+                postProcess = expandTransform,
+                contentTopPx = if (hideStatusBar) 0f else statusBarTopPx,
+                scrollOffsetPx = { scrollState.value.toFloat() },
+                onEnterEdit = { onEnterEdit(null) },
             ),
     ) {
         Column(
@@ -2329,6 +2597,7 @@ private fun StartPage(
                         resizeAccumDy = 0f
                         resizePreviewSize = model.size
                     }
+                    val requireTallCycle = AppCategories.requiresTallTile((model as? TileModel.App)?.iconKey)
                     val onResizeDragByAction = { dx: Float, dy: Float ->
                         resizeAccumDx += dx
                         resizeAccumDy += dy
@@ -2339,6 +2608,7 @@ private fun StartPage(
                             dxPx = resizeAccumDx,
                             dyPx = resizeAccumDy,
                             columns = columns,
+                            minRows = if (requireTallCycle) 2 else 1,
                         )
                     }
                     val onResizeDragEndAction = {
@@ -2405,6 +2675,8 @@ private fun StartPage(
                             canMoveBack = canMoveBack,
                             canMoveForward = canMoveForward,
                             iconShape = iconShape,
+                            stockRefreshRate = stockRefreshRate,
+                            commodityRefreshRate = commodityRefreshRate,
                             accent = tileAccent,
                             liveActive = liveActive,
                             resizeHandlesEnabled = resizeHandlesEnabled,
@@ -2455,6 +2727,9 @@ private fun StartPage(
                             isExpanded = spec.id == expandedFolderId,
                             homeStyle = homeStyle,
                             iconShape = iconShape,
+                            stockRefreshRate = stockRefreshRate,
+                            commodityRefreshRate = commodityRefreshRate,
+                            sportsRefreshRate = sportsRefreshRate,
                             accent = tileAccent,
                             glass = glass,
                             transparency = transparency,
@@ -2575,6 +2850,7 @@ private fun StartPage(
         EditBar(
             visible = editMode,
             onAdd = onAdd,
+            onAddWidgets = onAddWidgets,
             onPersonalize = onPersonalize,
             onDone = onExitEdit,
             modifier = Modifier.align(Alignment.BottomCenter),
@@ -2644,8 +2920,21 @@ private fun StartPage(
                 // A masked real icon ignores accentOverride entirely, so the
                 // swatch grid has no visible effect while showing as icon —
                 // hide it rather than offer a choice that silently does
-                // nothing (user-reported).
-                showColorOptions = !(homeStyle == HomeStyle.ICONS && app?.displayAsIcon == true),
+                // nothing (user-reported). Only applies to a tile actually
+                // rendering as a masked icon, though: a blank-package liveOnly
+                // tile (weather/calendar/clock/battery/alarm/moonphase/tasks/
+                // notepad/stickynote) has no icon to mask to and always stays
+                // a live tile regardless of `displayAsIcon`'s stored value
+                // (mirrors `iconToggle`'s own `packageName.isNotBlank()` guard
+                // just above) — omitting this check left the whole picker
+                // rendering empty (no swatches, no toggle) for those tiles
+                // whenever ICONS home style was active, reading as "the
+                // colour picker isn't shown at all" (user-reported).
+                showColorOptions = !(
+                    homeStyle == HomeStyle.ICONS &&
+                        app?.displayAsIcon == true &&
+                        app.packageName.isNotBlank()
+                ),
                 onPick = { colorId ->
                     if (childRef != null) {
                         onSetFolderChildColor(childRef.first, childRef.second.rowId, colorId)
@@ -2937,6 +3226,11 @@ internal fun TileView(
     // Threaded down to AppTileContent's live faces, whose AppIconCorner badge
     // masks to this shape in ICONS home style — see AppIconCorner's doc comment.
     iconShape: IconShape = IconShape.ORIGINAL,
+    // Personalize's "live data refresh" — threaded down to the stock/commodity/
+    // sports live faces, which fall back to their own hardcoded interval when left DEFAULT.
+    stockRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
+    commodityRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
+    sportsRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
     accent: Color,
     glass: Boolean,
     transparency: Float,
@@ -3049,12 +3343,13 @@ internal fun TileView(
             }
             // The press-tilt effect (S7) is replaced by the jiggle while editing.
             .then(if (editMode || readOnly) Modifier else Modifier.tiltOnPress())
-            // Optional rounded corners (personalisation setting 0–20 dp).
-            .then(
-                if (tileCornerRadius > 0f)
-                    Modifier.clip(RoundedCornerShape(tileCornerRadius.dp))
-                else Modifier
-            )
+            // Rounded corners (personalisation setting 0–20 dp) — clipped
+            // unconditionally (0dp is just a plain rectangular clip) so a
+            // live face with a lot of text (e.g. a long sticky/notes preview)
+            // can never bleed past this tile's own bounds into whatever sits
+            // below it, instead of only clipping once a corner radius happens
+            // to be set.
+            .clip(RoundedCornerShape(tileCornerRadius.dp))
             // Tile fill, in priority order:
             //  • "wallpaper behind tiles" → a window onto the screen-anchored
             //    wallpaper (custom photo if set, else the bundled gradient), with a
@@ -3178,6 +3473,9 @@ internal fun TileView(
                 interactive = !editMode && !readOnly,
                 homeStyle = homeStyle,
                 iconShape = iconShape,
+                stockRefreshRate = stockRefreshRate,
+                commodityRefreshRate = commodityRefreshRate,
+                sportsRefreshRate = sportsRefreshRate,
             )
             tile is TileModel.Folder ->
                 // A widget stack's own carousel face owns a swipe-to-flip gesture
@@ -3193,6 +3491,9 @@ internal fun TileView(
                         accent = accent,
                         homeStyle = homeStyle,
                         iconShape = iconShape,
+                        stockRefreshRate = stockRefreshRate,
+                        commodityRefreshRate = commodityRefreshRate,
+                        sportsRefreshRate = sportsRefreshRate,
                         appIconColors = appIconColors,
                         glass = glass,
                         transparency = transparency,
@@ -3535,14 +3836,16 @@ private fun TileControl(iconKey: String, description: String, modifier: Modifier
 }
 
 /**
- * Bottom edit bar (prototype `.edit-bar`): add / personalize / done, sliding up
- * from below while editing. add → app list (with a hint toast), personalize →
- * stub sheet, done → exit edit.
+ * Bottom edit bar (prototype `.edit-bar`): add / add widgets / personalize /
+ * done, sliding up from below while editing. add → app list (with a hint
+ * toast), add widgets → the widget catalog sheet, personalize → the
+ * personalize sheet, done → exit edit.
  */
 @Composable
 private fun EditBar(
     visible: Boolean,
     onAdd: () -> Unit,
+    onAddWidgets: () -> Unit,
     onPersonalize: () -> Unit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
@@ -3563,6 +3866,8 @@ private fun EditBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         EditBarButton("plus", "add", enabled = true, onClick = onAdd)
+        Spacer(Modifier.size(34.dp))
+        EditBarButton("widgets", "add widgets", enabled = true, onClick = onAddWidgets)
         Spacer(Modifier.size(34.dp))
         EditBarButton("settings", "personalize", enabled = true, onClick = onPersonalize)
         Spacer(Modifier.size(34.dp))
@@ -3698,6 +4003,69 @@ private fun Modifier.folderCollapseOnEmptyTap(
                 }
                 break
             }
+        }
+    }
+}
+
+/**
+ * Long-press on genuinely empty Start-grid space enters edit mode with
+ * nothing selected — the add/add-widgets/personalize/done toolbar until now
+ * only ever appeared from a per-tile long-press ([tileGesture]), which never
+ * covers the gaps between tiles. Same 600 ms/7 px timing as [tileGesture]'s
+ * own long-press. Hit-tests the *down* position against the real tile
+ * placements (same pack/packSticky + postProcess pipeline as
+ * [folderCollapseOnEmptyTap]) and bails out immediately when it lands on a
+ * tile — [tileGesture] owns that touch, and starting our own timer there too
+ * would race it (a plain tile never consumes its down, so both gestures
+ * would otherwise see the same stream).
+ *
+ * This modifier sits on the outer, unscrolled Box (so it also covers the
+ * area below the last row), while [GridGeometry]/[tileAt] work in grid
+ * *content* space — the same content space [contentTopPx]/[scrollOffsetPx]
+ * already convert to/from at the call site's other scroll-aware gestures
+ * (e.g. the screen-Y math next to `scrollState.value` a few lines up). A
+ * touch's raw position must get the same conversion here, or hit-testing
+ * silently drifts by the current scroll offset the moment the grid has been
+ * scrolled at all — confirmed live on an emulator (an on-screen gap hit an
+ * unrelated tile below it once scrolled).
+ */
+private fun Modifier.emptySpaceEnterEdit(
+    active: Boolean,
+    widthPx: Float,
+    columns: Int,
+    gapPx: Float?,
+    tiles: List<TileSpec>,
+    slotOf: ((String) -> Int?)?,
+    postProcess: ((List<TilePlacement>) -> List<TilePlacement>)?,
+    contentTopPx: Float,
+    scrollOffsetPx: () -> Float,
+    onEnterEdit: () -> Unit,
+): Modifier = pointerInput(active, widthPx, columns, gapPx, tiles, slotOf, postProcess) {
+    if (!active) return@pointerInput
+    val geom = GridGeometry.of(widthPx, columns, gapPx)
+    val slop = 7.dp.toPx()
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        val contentPos = down.position.copy(y = down.position.y - contentTopPx + scrollOffsetPx())
+        val base = slotOf?.let { GridPacker.packSticky(tiles, it, columns) }
+            ?: GridPacker.pack(tiles, columns)
+        val placements = postProcess?.invoke(base) ?: base
+        if (tileAt(placements, geom, contentPos) != null) return@awaitEachGesture
+        val outcome = withTimeoutOrNull(600L) {
+            while (true) {
+                val event = awaitPointerEvent()
+                val change = event.changes.firstOrNull { it.id == down.id }
+                if (change != null && change.isConsumed) return@withTimeoutOrNull false
+                if (change == null || !change.pressed) return@withTimeoutOrNull true
+                if ((change.position - down.position).getDistance() > slop) {
+                    return@withTimeoutOrNull false
+                }
+            }
+            @Suppress("UNREACHABLE_CODE") false
+        }
+        if (outcome == null) {
+            onEnterEdit()
+            waitForUpOrCancellation()
         }
     }
 }
@@ -4355,6 +4723,9 @@ private fun AppTileContent(
     // cell already gets — see AppIconCorner's own doc comment.
     homeStyle: HomeStyle = HomeStyle.TILES,
     iconShape: IconShape = IconShape.ORIGINAL,
+    stockRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
+    commodityRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
+    sportsRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
 ) {
     // A pinned contact (quick search → "pin to start") is a plain App tile whose
     // activityName encodes the contact's identity (ContactTile) rather than a
@@ -4372,13 +4743,41 @@ private fun AppTileContent(
     // cached (the live composables call the slot).
     val staticGlyph = @Composable { StaticTileGlyph(tile, homeStyle, iconShape) }
 
-    // Small (1×1) clock / calendar tiles get a compact non-flipping live face —
-    // the time, and today's day number — instead of the static glyph.
+    // Small (1×1) clock / calendar / battery tiles get a compact non-flipping
+    // live face — the time, today's day number, or charge percent — instead of
+    // the static glyph.
     if (tile.size == TileSize.SMALL) {
         when (tile.iconKey) {
             "clock" -> { ClockSmallFace(active = liveActive, modifier = Modifier.fillMaxSize()); return }
             "calendar" -> { CalendarSmallFace(active = liveActive, modifier = Modifier.fillMaxSize()); return }
             "weather" -> { WeatherSmallFace(fallback = staticGlyph, modifier = Modifier.fillMaxSize()); return }
+            "battery" -> { BatterySmallFace(modifier = Modifier.fillMaxSize()); return }
+            "flashlight" -> { FlashlightSmallFace(interactive = interactive, modifier = Modifier.fillMaxSize()); return }
+            "countdown" -> {
+                val (isoDate, _) = CountdownTile.decode(tile.activityName) ?: ("" to "")
+                CountdownSmallFace(targetIsoDate = isoDate, modifier = Modifier.fillMaxSize())
+                return
+            }
+            "steps" -> { StepsSmallFace(fallback = staticGlyph, modifier = Modifier.fillMaxSize()); return }
+            "stock" -> {
+                StockSmallFace(
+                    selection = StockTile.decode(tile.activityName),
+                    fallback = staticGlyph,
+                    refreshRate = stockRefreshRate,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                return
+            }
+            "commodity" -> {
+                CommoditySmallFace(
+                    symbol = CommodityTile.decode(tile.activityName)?.first,
+                    fallback = staticGlyph,
+                    refreshRate = commodityRefreshRate,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                return
+            }
+            "calsys" -> { CalendarSystemSmallFace(modifier = Modifier.fillMaxSize()); return }
         }
     }
 
@@ -4448,6 +4847,83 @@ private fun AppTileContent(
             )
             return
         }
+        LiveFace.BATTERY -> {
+            BatteryTileFace(
+                size = tile.size,
+                flipped = flipped,
+                modifier = Modifier.fillMaxSize(),
+            )
+            return
+        }
+        LiveFace.ALARM -> {
+            AlarmTileFace(
+                size = tile.size,
+                flipped = flipped,
+                active = liveActive,
+                modifier = Modifier.fillMaxSize(),
+            )
+            return
+        }
+        LiveFace.MOONPHASE -> {
+            MoonPhaseTileFace(
+                size = tile.size,
+                flipped = flipped,
+                active = liveActive,
+                modifier = Modifier.fillMaxSize(),
+            )
+            return
+        }
+        LiveFace.TASKS -> {
+            TasksTileFace(
+                size = tile.size,
+                interactive = interactive,
+                listId = tile.id,
+                modifier = Modifier.fillMaxSize(),
+            )
+            return
+        }
+        LiveFace.NOTES -> {
+            NotesTileFace(size = tile.size, flipped = flipped, modifier = Modifier.fillMaxSize())
+            return
+        }
+        LiveFace.STICKYNOTE -> {
+            StickyNoteTileFace(size = tile.size, text = tile.activityName, modifier = Modifier.fillMaxSize())
+            return
+        }
+        LiveFace.FLASHLIGHT -> {
+            FlashlightTileFace(size = tile.size, interactive = interactive, modifier = Modifier.fillMaxSize())
+            return
+        }
+        LiveFace.COUNTDOWN -> {
+            val (isoDate, label) = CountdownTile.decode(tile.activityName) ?: ("" to "")
+            CountdownTileFace(
+                size = tile.size,
+                flipped = flipped,
+                targetIsoDate = isoDate,
+                label = label,
+                modifier = Modifier.fillMaxSize(),
+            )
+            return
+        }
+        LiveFace.STEPS -> {
+            StepsTileFace(size = tile.size, fallback = staticGlyph, modifier = Modifier.fillMaxSize())
+            return
+        }
+        LiveFace.SPORTS -> {
+            val selection = SportsTile.decode(tile.activityName)
+            SportsTileFace(
+                size = tile.size,
+                flipped = flipped,
+                active = liveActive,
+                tileId = tile.id,
+                leagueSlug = selection?.leagueSlug.orEmpty(),
+                teamId = selection?.teamId.orEmpty(),
+                teamLabel = selection?.teamLabel.orEmpty(),
+                refreshRate = sportsRefreshRate,
+                modifier = Modifier.fillMaxSize(),
+            )
+            return
+        }
         LiveFace.MUSIC -> {
             MusicTileFace(
                 flipped = flipped,
@@ -4458,6 +4934,40 @@ private fun AppTileContent(
                 size = tile.size,
                 homeStyle = homeStyle,
                 iconShape = iconShape,
+            )
+            return
+        }
+        LiveFace.STOCK -> {
+            StockTileFace(
+                size = tile.size,
+                flipped = flipped,
+                active = liveActive,
+                selection = StockTile.decode(tile.activityName),
+                refreshRate = stockRefreshRate,
+                modifier = Modifier.fillMaxSize(),
+            )
+            return
+        }
+        LiveFace.COMMODITY -> {
+            val decoded = CommodityTile.decode(tile.activityName)
+            CommodityTileFace(
+                size = tile.size,
+                flipped = flipped,
+                active = liveActive,
+                symbol = decoded?.first,
+                displayName = decoded?.second,
+                refreshRate = commodityRefreshRate,
+                modifier = Modifier.fillMaxSize(),
+            )
+            return
+        }
+        LiveFace.CALENDAR_SYSTEM -> {
+            CalendarSystemTileFace(
+                size = tile.size,
+                flipped = flipped,
+                active = liveActive,
+                systemId = CalendarSystemTile.decode(tile.activityName),
+                modifier = Modifier.fillMaxSize(),
             )
             return
         }
@@ -5031,6 +5541,9 @@ private fun StackTileContent(
     accent: Color,
     homeStyle: HomeStyle = HomeStyle.TILES,
     iconShape: IconShape = IconShape.ORIGINAL,
+    stockRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
+    commodityRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
+    sportsRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
     appIconColors: Boolean,
     glass: Boolean,
     transparency: Float,
@@ -5277,6 +5790,9 @@ private fun StackTileContent(
                         photosStackIndex = if (child.iconKey == "photos") photosStackIndex.value else null,
                         homeStyle = homeStyle,
                         iconShape = iconShape,
+                        stockRefreshRate = stockRefreshRate,
+                        commodityRefreshRate = commodityRefreshRate,
+                        sportsRefreshRate = sportsRefreshRate,
                     )
                     // Per-member notification count — top-right, same corner as a
                     // plain app tile's badge (AppIconCorner, when a live face draws
@@ -5500,6 +6016,10 @@ private fun onTileClick(context: Context, tile: TileModel) {
             // component, which otherwise left the tap inert) and matches the tile's
             // alarm-centric face. Falls through to a normal launch if no app handles it.
             if (tile.iconKey == "clock" && openClock(context)) return
+            // Alarm tile: same alarms screen the clock tile opens — there's no
+            // separate "alarm app" to launch, and this is exactly what the tile's
+            // own face is showing.
+            if (tile.iconKey == "alarm" && openClock(context)) return
             if (tile.packageName.isNotBlank()) {
                 // If the tile is currently showing a notification (badge / live
                 // face), tapping opens that notification inside the app and clears
@@ -5549,6 +6069,7 @@ private fun launchFolderChild(context: Context, child: FolderChild) {
         return
     }
     if (child.iconKey == "clock" && openClock(context)) return
+    if (child.iconKey == "alarm" && openClock(context)) return
     if (child.packageName.isNotBlank()) {
         if (NotificationCenter.openAndClear(context, child.packageName)) return
         if (!AppLauncher.launch(context, child.packageName, child.activityName)) {
@@ -5576,6 +6097,14 @@ private fun launchLiveTileFallback(context: Context, iconKey: String?) {
             .setData(Uri.parse("content://com.android.calendar/time"))
         "weather" -> Intent(Intent.ACTION_VIEW)
             .setData(Uri.parse("https://www.google.com/search?q=weather"))
+        // Battery usage screen — standard, app-agnostic (works even on OEM
+        // skins whose Settings app has no fixed package name to launch by).
+        "battery" -> Intent(Intent.ACTION_POWER_USAGE_SUMMARY)
+        // No standard "moon phase" app/intent exists; same fallback pattern as
+        // weather — a web search, handled in-app by the Google app where
+        // present, else the browser.
+        "moonphase" -> Intent(Intent.ACTION_VIEW)
+            .setData(Uri.parse("https://www.google.com/search?q=moon+phase+today"))
         else -> return
     }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     runCatching { context.startActivity(intent) }

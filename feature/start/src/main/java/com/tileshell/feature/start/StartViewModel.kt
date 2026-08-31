@@ -20,6 +20,7 @@ import com.tileshell.core.data.BackupFeedSource
 import com.tileshell.core.data.BackupManager
 import com.tileshell.core.data.BackupWidget
 import com.tileshell.core.data.CachedScreenshotPrefs
+import com.tileshell.core.data.CountdownTile
 import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.HiddenApps
 import com.tileshell.core.data.LayoutHistoryRepository
@@ -27,6 +28,10 @@ import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.LayoutSnapshot
 import com.tileshell.core.data.PinResult
 import com.tileshell.core.data.SettingsAppMigration
+import com.tileshell.core.data.CalendarSystemTile
+import com.tileshell.core.data.CommodityTile
+import com.tileshell.core.data.SportsTile
+import com.tileshell.core.data.StockTile
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.settings.LauncherSettings
@@ -223,6 +228,45 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val _hiddenAppsOpen = MutableStateFlow(false)
     val hiddenAppsOpen: StateFlow<Boolean> = _hiddenAppsOpen.asStateFlow()
 
+    /** True while the add-widgets sheet is open (edit bar → add widgets). */
+    private val _addWidgetsOpen = MutableStateFlow(false)
+    val addWidgetsOpen: StateFlow<Boolean> = _addWidgetsOpen.asStateFlow()
+
+    /** True while the tasks sheet is open (tapping the Tasks tile). */
+    // Null = closed; otherwise the id of the specific Tasks tile/gadget whose
+    // list the sheet should show — each pinned Tasks tile keeps its own
+    // independent checklist now, not one list shared by every instance.
+    private val _tasksOpen = MutableStateFlow<String?>(null)
+    val tasksOpen: StateFlow<String?> = _tasksOpen.asStateFlow()
+
+    /** True while the notes sheet is open (tapping the Notes tile). */
+    private val _notesOpen = MutableStateFlow(false)
+    val notesOpen: StateFlow<Boolean> = _notesOpen.asStateFlow()
+
+    /** Id of the Sticky Note tile currently open in its editor, or null when closed. */
+    private val _stickyNoteEditTileId = MutableStateFlow<String?>(null)
+    val stickyNoteEditTileId: StateFlow<String?> = _stickyNoteEditTileId.asStateFlow()
+
+    /** Id of the Countdown tile currently open in its editor, or null when closed. */
+    private val _countdownEditTileId = MutableStateFlow<String?>(null)
+    val countdownEditTileId: StateFlow<String?> = _countdownEditTileId.asStateFlow()
+
+    /** Id of the Sports tile currently open in its team picker, or null when closed. */
+    private val _sportsEditTileId = MutableStateFlow<String?>(null)
+    val sportsEditTileId: StateFlow<String?> = _sportsEditTileId.asStateFlow()
+
+    /** Id of the Stock tile currently open in its picker, or null when closed. */
+    private val _stockEditTileId = MutableStateFlow<String?>(null)
+    val stockEditTileId: StateFlow<String?> = _stockEditTileId.asStateFlow()
+
+    /** Id of the Commodity tile currently open in its picker, or null when closed. */
+    private val _commodityEditTileId = MutableStateFlow<String?>(null)
+    val commodityEditTileId: StateFlow<String?> = _commodityEditTileId.asStateFlow()
+
+    /** Id of the "calendar systems" tile currently open in its picker, or null when closed. */
+    private val _calendarSystemEditTileId = MutableStateFlow<String?>(null)
+    val calendarSystemEditTileId: StateFlow<String?> = _calendarSystemEditTileId.asStateFlow()
+
     /** True while the permissions sheet is open (personalize → permissions). */
     private val _permissionsOpen = MutableStateFlow(false)
     val permissionsOpen: StateFlow<Boolean> = _permissionsOpen.asStateFlow()
@@ -265,13 +309,16 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Enter edit mode with [tileId] selected (FR-3.1, fired by the 430 ms tile
-     * long-press). Disables the pager swipe and pauses live-tile animations
-     * (the latter is a no-op until `:feature:livetiles` is wired into Start).
-     * A no-op while [LauncherSettings.lockLayout] is on — this is the single
-     * choke point every long-press/edit-mode entry routes through, so gating
-     * here blocks all of them at once without touching each call site.
+     * long-press) — or with nothing selected ([tileId] null) when the
+     * long-press instead landed on empty grid space, which still opens the
+     * same add/add-widgets/personalize/done edit toolbar. Disables the pager
+     * swipe and pauses live-tile animations (the latter is a no-op until
+     * `:feature:livetiles` is wired into Start). A no-op while
+     * [LauncherSettings.lockLayout] is on — this is the single choke point
+     * every long-press/edit-mode entry routes through, so gating here blocks
+     * all of them at once without touching each call site.
      */
-    fun enterEdit(tileId: String) {
+    fun enterEdit(tileId: String?) {
         if (settings.value.lockLayout) return
         _selectedTileId.value = tileId
         _editMode.value = true
@@ -455,6 +502,150 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Close the hidden-apps sheet. */
     fun closeHiddenApps() {
         _hiddenAppsOpen.value = false
+    }
+
+    /** Open the add-widgets sheet (edit bar → add widgets). */
+    fun openAddWidgets() {
+        _addWidgetsOpen.value = true
+    }
+
+    /** Close the add-widgets sheet. */
+    fun closeAddWidgets() {
+        _addWidgetsOpen.value = false
+    }
+
+    /** Open the tasks sheet for one specific pinned Tasks tile's own list. */
+    fun openTasks(listId: String) {
+        _tasksOpen.value = listId
+    }
+
+    /** Close the tasks sheet. */
+    fun closeTasks() {
+        _tasksOpen.value = null
+    }
+
+    /** Open the notes sheet (tapping the Notes tile). */
+    fun openNotes() {
+        _notesOpen.value = true
+    }
+
+    /** Close the notes sheet. */
+    fun closeNotes() {
+        _notesOpen.value = false
+    }
+
+    /** Open a Sticky Note tile's own dedicated editor (tapping that tile). */
+    fun openStickyNoteEditor(id: String) {
+        _stickyNoteEditTileId.value = id
+    }
+
+    /** Close the Sticky Note editor. */
+    fun closeStickyNoteEditor() {
+        _stickyNoteEditTileId.value = null
+    }
+
+    /** Overwrite a Sticky Note tile's own text. */
+    fun setStickyNoteText(id: String, text: String) {
+        viewModelScope.launch(writeContext) { repository.setTileText(id, text) }
+    }
+
+    /** Open a Countdown tile's own dedicated editor (tapping that tile). */
+    fun openCountdownEditor(id: String) {
+        _countdownEditTileId.value = id
+    }
+
+    /** Close the Countdown editor. */
+    fun closeCountdownEditor() {
+        _countdownEditTileId.value = null
+    }
+
+    /** Overwrite a Countdown tile's own encoded target date + label. */
+    fun setCountdownData(id: String, targetIsoDate: String, label: String) {
+        viewModelScope.launch(writeContext) {
+            repository.setTileText(id, CountdownTile.encode(targetIsoDate, label))
+        }
+    }
+
+    /** Open a Sports tile's own team picker (tapping that tile). */
+    fun openSportsEditor(id: String) {
+        _sportsEditTileId.value = id
+    }
+
+    /** Close the Sports team picker. */
+    fun closeSportsEditor() {
+        _sportsEditTileId.value = null
+    }
+
+    /** Overwrite a Sports tile's own encoded league + team selection. */
+    fun setSportsTeam(id: String, leagueSlug: String, teamId: String, teamLabel: String) {
+        viewModelScope.launch(writeContext) {
+            repository.setTileText(id, SportsTile.encode(leagueSlug, teamId, teamLabel))
+        }
+    }
+
+    /** Open a Stock tile's own picker (tapping that tile). */
+    fun openStockEditor(id: String) {
+        _stockEditTileId.value = id
+    }
+
+    /** Close the Stock picker. */
+    fun closeStockEditor() {
+        _stockEditTileId.value = null
+    }
+
+    /** Overwrite a Stock tile's own encoded single-symbol selection. */
+    fun setStockSingle(id: String, symbol: String, displayName: String) {
+        viewModelScope.launch(writeContext) {
+            repository.setTileText(id, StockTile.encodeSingle(symbol, displayName))
+        }
+    }
+
+    /** Overwrite a Stock tile's own encoded category (sector basket) selection. */
+    fun setStockCategory(id: String, categoryId: String, displayName: String) {
+        viewModelScope.launch(writeContext) {
+            repository.setTileText(id, StockTile.encodeCategory(categoryId, displayName))
+        }
+    }
+
+    /** Overwrite a Stock tile's own encoded custom multi-stock list selection. */
+    fun setStockMulti(id: String, symbols: List<Pair<String, String>>, displayName: String) {
+        viewModelScope.launch(writeContext) {
+            repository.setTileText(id, StockTile.encodeMultiStock(symbols, displayName))
+        }
+    }
+
+    /** Open a Commodity tile's own picker (tapping that tile). */
+    fun openCommodityEditor(id: String) {
+        _commodityEditTileId.value = id
+    }
+
+    /** Close the Commodity picker. */
+    fun closeCommodityEditor() {
+        _commodityEditTileId.value = null
+    }
+
+    /** Overwrite a Commodity tile's own encoded symbol selection. */
+    fun setCommodity(id: String, symbol: String, displayName: String) {
+        viewModelScope.launch(writeContext) {
+            repository.setTileText(id, CommodityTile.encode(symbol, displayName))
+        }
+    }
+
+    /** Open a "calendar systems" tile's own picker (tapping that tile). */
+    fun openCalendarSystemEditor(id: String) {
+        _calendarSystemEditTileId.value = id
+    }
+
+    /** Close the calendar system picker. */
+    fun closeCalendarSystemEditor() {
+        _calendarSystemEditTileId.value = null
+    }
+
+    /** Overwrite a "calendar systems" tile's own encoded system selection. */
+    fun setCalendarSystem(id: String, systemId: String) {
+        viewModelScope.launch(writeContext) {
+            repository.setTileText(id, CalendarSystemTile.encode(systemId))
+        }
     }
 
     /** Open the permissions sheet (personalize → permissions). */
@@ -655,9 +846,29 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setLiveTilesEnabled(enabled) }
     }
 
+    /** How often stock tiles re-poll (Personalize's "live data refresh"). */
+    fun setStockRefreshRate(rate: com.tileshell.core.data.settings.LiveRefreshRate) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setStockRefreshRate(rate) }
+    }
+
+    /** How often commodity/currency tiles re-poll. */
+    fun setCommodityRefreshRate(rate: com.tileshell.core.data.settings.LiveRefreshRate) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setCommodityRefreshRate(rate) }
+    }
+
+    /** How often sports tiles re-poll. */
+    fun setSportsRefreshRate(rate: com.tileshell.core.data.settings.LiveRefreshRate) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setSportsRefreshRate(rate) }
+    }
+
     /** Forces the feed/glance screen to a flat background, independent of Start's wallpaper. */
     fun setFeedNoBackground(noBackground: Boolean) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setFeedNoBackground(noBackground) }
+    }
+
+    /** Auto-clear completed tasks once a day (never touches unchecked tasks). */
+    fun setTaskAutoClearDaily(enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setTaskAutoClearDaily(enabled) }
     }
 
     /** Set the tile corner radius 0–12 dp. */
@@ -1078,8 +1289,9 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             app = apps.value.firstOrNull { it.packageName == child.packageName },
             columns = settings.value.columns,
         )
+        val requireTallCycle = AppCategories.requiresTallTile(child.iconKey)
         viewModelScope.launch(writeContext) {
-            repository.resizeFolderChild(folderId, child, largeAllowed)
+            repository.resizeFolderChild(folderId, child, largeAllowed, requireTallCycle)
         }
     }
 
@@ -1164,6 +1376,15 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         closePersonalizeGuide()
         closeFolders()
         closeHiddenApps()
+        closeAddWidgets()
+        closeTasks()
+        closeNotes()
+        closeStickyNoteEditor()
+        closeCountdownEditor()
+        closeSportsEditor()
+        closeStockEditor()
+        closeCommodityEditor()
+        closeCalendarSystemEditor()
         closeBackup()
         closePermissions()
         closeNewsRegion()
@@ -1212,6 +1433,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             is TileModel.Folder -> true
             null -> false
         }
+        val requireTallCycle = (model as? TileModel.App)?.let { AppCategories.requiresTallTile(it.iconKey) } ?: false
         // Sticky mode (FR-3.4 WP variant): an anchored tile stays put, so growing
         // its footprint can collide with a neighbor that dense mode would've just
         // reflowed around. First cut blocked the resize outright on any overlap
@@ -1224,7 +1446,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         // whatever they in turn now overlap — the resized tile always succeeds,
         // and neighbors move the minimum needed to stay out of the way while
         // staying right where they were otherwise.
-        val nextSize = model?.size?.next(largeAllowed)
+        val nextSize = model?.size?.next(largeAllowed, requireTallCycle)
         val finalSlots = if (model != null && nextSize != null) {
             stickyResizeSlots(model, nextSize)
         } else {
@@ -1232,7 +1454,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
         viewModelScope.launch(writeContext) {
             finalSlots.forEach { (movedId, slot) -> repository.setTileGridSlot(movedId, slot) }
-            repository.cycleTileSize(id, largeAllowed)
+            repository.cycleTileSize(id, largeAllowed, requireTallCycle)
         }
     }
 

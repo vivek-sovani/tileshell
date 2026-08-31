@@ -168,6 +168,17 @@ object AppCategories {
      */
     fun allowsLargeTile(iconKey: String?, app: AppEntry?, columns: Int): Boolean = true
 
+    /**
+     * Whether [iconKey] identifies a tile whose content needs 2+ grid rows to
+     * show anything meaningful — a 1-row size (`SMALL`/`WIDE_SMALL`/`BANNER`)
+     * for it would render empty or unreadable. Currently just the Tasks
+     * checklist; a future widget with the same constraint adds itself here.
+     * Threaded into every resize path ([TileSize.next]/[TileSize
+     * .nextForFolderChild]'s `requireTallCycle`, and `GridGeometry
+     * .snapResizeTarget`'s `minRows`) so tap-cycle and drag-resize both honour it.
+     */
+    fun requiresTallTile(iconKey: String?): Boolean = iconKey == "tasks"
+
     /** All installed [apps] that classify into the category with id [categoryId]. */
     fun match(categoryId: String, apps: List<AppEntry>): List<AppEntry> =
         if (ALL.none { it.id == categoryId }) emptyList()
