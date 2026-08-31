@@ -2,14 +2,19 @@ package com.tileshell.feature.start.feed
 
 import android.app.Activity
 import android.appwidget.AppWidgetHost
+import android.appwidget.AppWidgetHostView
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Bundle
+import android.view.GestureDetector
+import android.view.MotionEvent
+import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
@@ -817,6 +822,7 @@ fun WidgetSection(
                     accent = accent,
                     editing = editMode,
                     onEditingChange = { onEditModeChange(false) },
+                    onRequestEdit = { onEditModeChange(true) },
                     isDragging = draggingId == hw.widgetId,
                     dragOffset = if (draggingId == hw.widgetId) dragDelta else Offset.Zero,
                     isMergeTarget = dragTargetId == hw.widgetId && dragMergeCandidate,
@@ -859,6 +865,7 @@ fun WidgetSection(
                     sportsRefreshRate = sportsRefreshRate,
                     onCustomCardTap = onCustomCardTap,
                     onEditingChange = { onEditModeChange(false) },
+                    onRequestEdit = { onEditModeChange(true) },
                     isDragging = draggingId == anchor.widgetId,
                     dragOffset = if (draggingId == anchor.widgetId) dragDelta else Offset.Zero,
                     isMergeTarget = dragTargetId == anchor.widgetId && dragMergeCandidate,
@@ -1080,9 +1087,42 @@ private fun rememberWidgetInfo(
 }
 
 /**
- * Hosts one live [android.appwidget.AppWidgetHostView] at the given size. Shared by
- * the plain per-row widget and each member of a widget stack, so there's a single
- * place that knows how to talk to the host and report a size to the provider.
+ * A [FrameLayout] that watches for a long-press over its content without ever
+ * intercepting or consuming a touch — [onInterceptTouchEvent] always returns
+ * `false`, so every event still reaches the real [AppWidgetHostView] child
+ * exactly as it would with no wrapper at all; the [GestureDetector] only
+ * observes the same event stream for its own long-press timer. This is the
+ * standard Android technique for detecting one gesture "alongside" a child
+ * that owns its own touch handling, and it's the only safe way to add
+ * long-press-to-edit over a real hosted widget: a Compose `pointerInput`/
+ * `combinedClickable` wrapping the `AndroidView` would have to CONSUME part
+ * of the gesture to recognize it, which would steal taps/scrolls/button
+ * presses the widget's own content needs (a real regression this app hit
+ * once already — see `AccentCard`'s `onLongClick` doc comment for the same
+ * lesson on the FLASHLIGHT custom card, whose fix works differently only
+ * because that content is Compose, not a native `AndroidView`).
+ */
+private class LongPressPassthroughFrame(context: Context) : FrameLayout(context) {
+    var onLongPress: (() -> Unit)? = null
+    private val detector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onLongPress(e: MotionEvent) {
+            onLongPress?.invoke()
+        }
+    })
+    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        detector.onTouchEvent(ev)
+        return false
+    }
+}
+
+/**
+ * Hosts one live [AppWidgetHostView] at the given size. Shared by the plain
+ * per-row widget and each member of a widget stack, so there's a single place
+ * that knows how to talk to the host and report a size to the provider.
+ *
+ * [onLongPress] (when non-null) enters edit mode, the same as long-pressing
+ * any other glance card — see [LongPressPassthroughFrame] for why a real
+ * hosted widget needs this rather than a plain Compose long-press modifier.
  */
 @Composable
 private fun WidgetHostedView(
@@ -1091,12 +1131,24 @@ private fun WidgetHostedView(
     info: AppWidgetProviderInfo,
     contentWidthDp: Int,
     heightDp: Int,
+    onLongPress: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
+    val currentOnLongPress by rememberUpdatedState(onLongPress)
     key(widgetId) {
         AndroidView(
-            factory = { ctx -> host.createView(ctx.applicationContext, widgetId, info) },
-            update = { view ->
+            factory = { ctx ->
+                val hosted = host.createView(ctx.applicationContext, widgetId, info)
+                LongPressPassthroughFrame(ctx).apply {
+                    // `onLongPress` unqualified here would resolve to the closure-
+                    // captured composable parameter of the same name (shadows the
+                    // receiver), not this instance's own field — `this.` disambiguates.
+                    this.onLongPress = { currentOnLongPress?.invoke() }
+                    addView(hosted, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+                }
+            },
+            update = { frame ->
+                val hosted = frame.getChildAt(0) as AppWidgetHostView
                 runCatching {
                     // Bundle.EMPTY is Android's immutable singleton — updateAppWidgetSize
                     // calls putInt() on the options bundle internally, which threw
@@ -1104,7 +1156,7 @@ private fun WidgetHostedView(
                     // on every call, so the provider never actually learned its real size
                     // and kept rendering its smallest/narrowest layout regardless of how
                     // big our container was. A fresh mutable Bundle fixes that.
-                    view.updateAppWidgetSize(Bundle(), contentWidthDp, heightDp, contentWidthDp, heightDp)
+                    hosted.updateAppWidgetSize(Bundle(), contentWidthDp, heightDp, contentWidthDp, heightDp)
                 }
             },
             // No backing fill here — any margin the widget's own content doesn't
@@ -1293,7 +1345,13 @@ private fun WidgetView(
     widthDp: Int,
     accent: Color,
     editing: Boolean,
+    // Turns editing OFF only — see WidgetEditOverlay's onDismiss, its one caller.
     onEditingChange: (Boolean) -> Unit,
+    // Turns editing ON — a separate callback rather than `onEditingChange(true)`,
+    // since every call site wires `onEditingChange` as an unconditional "turn
+    // off" (it ignores the boolean it's given), which silently broke this
+    // exact "enter" case the first time it was tried here.
+    onRequestEdit: () -> Unit,
     isDragging: Boolean,
     dragOffset: Offset,
     isMergeTarget: Boolean,
@@ -1356,6 +1414,7 @@ private fun WidgetView(
                 info = info,
                 contentWidthDp = committedWidthDp,
                 heightDp = committedHeightDp,
+                onLongPress = if (editing) null else onRequestEdit,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(committedHeightDp.dp)
@@ -1533,7 +1592,11 @@ private fun WidgetStackView(
     commodityRefreshRate: LiveRefreshRate,
     sportsRefreshRate: LiveRefreshRate,
     onCustomCardTap: (widgetId: Int, kind: CustomCardKind) -> Unit,
+    // Turns editing OFF only — see WidgetEditOverlay's onDismiss, its one caller.
     onEditingChange: (Boolean) -> Unit,
+    // Turns editing ON — see WidgetView's identical param for why this can't
+    // just be `onEditingChange(true)`.
+    onRequestEdit: () -> Unit,
     isDragging: Boolean,
     dragOffset: Offset,
     isMergeTarget: Boolean,
@@ -1699,7 +1762,7 @@ private fun WidgetStackView(
                         commodityRefreshRate = commodityRefreshRate,
                         sportsRefreshRate = sportsRefreshRate,
                         onCustomCardTap = onCustomCardTap,
-                        onEnterEditMode = { onEditingChange(true) },
+                        onEnterEditMode = onRequestEdit,
                         onMissing = { onRemove(member.widgetId) },
                     )
                 }
@@ -1832,6 +1895,7 @@ private fun WidgetStackMemberView(
         info = info,
         contentWidthDp = contentWidthDp,
         heightDp = heightDp,
+        onLongPress = if (editing) null else onEnterEditMode,
         modifier = Modifier
             .fillMaxWidth()
             .height(heightDp.dp)
