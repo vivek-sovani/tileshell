@@ -142,8 +142,17 @@ private fun hintText(accent: Color) = buildAnnotatedString {
     append(" an app to pin.")
 }
 
-/** One-shot "first-run hint seen" flag, kept in the shared launcher prefs. */
-private object FirstRunHintPrefs {
+/**
+ * One-shot "first-run hint seen" flag, kept in the shared launcher prefs.
+ * Widened from `private` to `internal` so [WhatsNewGlanceGadgetsPrefs] can
+ * read it too — an existing install upgrading into a new "what's new" notice
+ * has already dismissed this hint in some earlier session, which is exactly
+ * the signal that distinguishes "existing user" from "fresh install" without
+ * a separate versionCode-tracking mechanism (a fresh install sees the
+ * first-run wizard/hint instead; the two are mutually exclusive by
+ * construction, see [WhatsNewGlanceGadgetsPrefs]'s own doc comment).
+ */
+internal object FirstRunHintPrefs {
     private const val PREFS = "tileshell.prefs"
     private const val KEY = "first_run_hint_shown"
 

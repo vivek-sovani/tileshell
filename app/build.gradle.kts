@@ -348,8 +348,35 @@ android {
         //   or multiple stocks were picked, since it gated a full list on a tile size the
         //   glance card can never reach; now shows every picked stock. Also: colourful
         //   four-accent launcher icon, replacing the old monoline outline.
-        versionCode = 350
-        versionName = "3.5.0"
+        //   NOTE: v3.5.0 was submitted to Play Console and then aborted before completing
+        //   rollout — its versionCode is burned (Play won't accept a re-upload at 350), so
+        //   every fix below that was originally folded into this same entry moved to v3.6.0
+        //   instead, at a new versionCode. This comment block is kept as the historical
+        //   record of what v3.5.0 actually contained.
+        // v3.6.0 (code 360) — generalized the stock-list fix: showing every picked stock/
+        //   category member was gated to exactly the LARGE tile size (still true glance-card-
+        //   only in v3.5.0); now any tile taller than one row (Medium/Wide/Tall/etc., not just
+        //   Large) shows the full list — see StockTile.kt's showAllMembers default.
+        //   Fixed: long-press-to-edit on a glance card could fire mid-gesture (most often
+        //   reported during a feed scroll that paused briefly before the scroll began) —
+        //   raised the long-press timeout to 900ms (from the platform's ~500ms default) and,
+        //   for real hosted widgets, replaced a plain GestureDetector-based watcher with one
+        //   that explicitly cancels the moment a second finger touches down.
+        //   New: a one-time "what's new · glance gadgets" notice (WhatsNewGlanceGadgets.kt)
+        //   tells an existing install updating into this version what was added and how to
+        //   pin it, from either Start or the feed — a fresh install never sees it (it gets
+        //   the home-style wizard/first-run hint instead; see WhatsNewGlanceGadgetsPrefs's
+        //   doc comment for how the two are told apart without a versionCode check).
+        //   Fixed: ACTIVITY_RECOGNITION (the Steps gadget's step-counter sensor permission)
+        //   was bundled into the app's upfront first-launch permission batch regardless of
+        //   whether the user had ever added a Steps tile/card — an unexplained, out-of-
+        //   context ask for a health-adjacent permission, and part of what routes this app
+        //   through Play Console's mandatory Health-apps declaration. Now requested only the
+        //   first time a steps face actually renders (i.e. right after adding one), with its
+        //   own in-app rationale dialog first — see StepsTile.kt's StepsPermissionGate. Privacy
+        //   policy updated to disclose this permission, which it previously omitted entirely.
+        versionCode = 360
+        versionName = "3.6.0"
     }
 
     if (keystoreFile.exists()) {

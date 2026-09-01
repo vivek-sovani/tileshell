@@ -1,7 +1,7 @@
 # TileShell — Privacy Policy
 
 *Effective date: 2026-06-18*  
-*Last updated: 2026-06-18*
+*Last updated: 2026-09-01*
 
 ---
 
@@ -23,6 +23,7 @@ simply stays inactive when a permission is denied.
 | `READ_CONTACTS` | Contact names and profile photos for the People live tile | Stays on device |
 | `READ_CALENDAR` | Upcoming calendar events for the Calendar live tile | Stays on device |
 | `ACCESS_COARSE_LOCATION` | Device coarse location (city level) for the Weather live tile | Sent to Open-Meteo (see §2) |
+| `ACTIVITY_RECOGNITION` | Your phone's built-in step-counter sensor reading, for the Steps tile/card. Asked only the first time you add a Steps tile or card, not at first launch. | Stays on device |
 | `NOTIFICATION_LISTENER` (special access) | Notification titles and snippets for badges and Mail/Messages live tiles | Stays on device |
 | `INTERNET` | Weather forecast fetches, news RSS feeds, wallpaper URLs | Sent to Open-Meteo and each RSS source (see §2) |
 | `BIND_ACCESSIBILITY_SERVICE` (optional) | Used only to issue the "lock screen" action when you long-press the settings icon | Not read; no data transmitted |

@@ -88,14 +88,18 @@ private fun indexInfoFor(selection: StockTile.Selection, primary: StockSymbolRef
  * price up front and its own intraday sparkline on the back, throughout every
  * size. A category/multi-stock tile instead leads with its **index**'s trend
  * (no one member represents the whole group) and flips to a list of every
- * member's own price — gated by [showAllMembers] rather than size alone,
- * defaulting to [TileSize.LARGE] for a Start tile (one member (the lead)
- * below that, every member at LARGE) but overridable, since the glance page's
+ * member's own price — gated by [showAllMembers], overridable but defaulting
+ * to [TileSize.rows] > 1 for a Start tile (one member (the lead) at a 1-row
+ * size — [TileSize.WIDE_SMALL]/[TileSize.BANNER]/[TileSize.SMALL], no room for
+ * a list — every member at any taller size). Originally gated to exactly
+ * [TileSize.LARGE], which left every other 2+-row size (plain [TileSize.WIDE]
+ * included) stuck on the lead member alone despite having the same room a
+ * LARGE tile does (user-reported: "stock tile for multiple stock... not
+ * available for all bigger size tiles than 1 row height"). The glance page's
  * own custom cards always render at [TileSize.WIDE] (there's no larger size
- * to grow into there) yet have plenty of room for a short list — passing
- * `true` there is what actually shows every stock the user picked instead of
- * silently stopping at the lead member forever (user-reported: "when i select
- * multiple stocks or select category only one stock is shown"). Re-polls
+ * to grow into there) and pass `true` explicitly regardless, since that's
+ * already a 2-row size covered by the new default — kept explicit there for
+ * clarity rather than relying on the default matching. Re-polls
  * every [STOCK_REFRESH_MS] while [active] (a
  * Personalize "live data refresh" [refreshRate] overrides that interval;
  * either way [com.tileshell.core.data.effectiveMarketRefreshMs] slows it
@@ -114,7 +118,7 @@ fun StockTileFace(
     active: Boolean,
     selection: StockTile.Selection?,
     refreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
-    showAllMembers: Boolean = size == TileSize.LARGE,
+    showAllMembers: Boolean = size.rows > 1,
     modifier: Modifier = Modifier,
 ) {
     if (selection == null) {

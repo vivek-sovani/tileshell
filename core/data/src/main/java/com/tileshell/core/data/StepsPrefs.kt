@@ -15,8 +15,25 @@ object StepsPrefs {
     private const val PREFS = "tileshell.prefs"
     private const val KEY_BASELINE_COUNTER = "steps_baseline_counter"
     private const val KEY_BASELINE_EPOCH_DAY = "steps_baseline_epoch_day"
+    private const val KEY_PERMISSION_ASKED = "steps_permission_asked"
 
     data class Baseline(val counter: Float, val epochDay: Long)
+
+    /**
+     * One-shot "asked for ACTIVITY_RECOGNITION" flag — set the first time the
+     * in-app rationale dialog is dismissed either way (allow or "not now"), so
+     * a steps tile/card degrades to its static fallback quietly ever after
+     * rather than nagging on every render. See
+     * [com.tileshell.feature.livetiles.StepsTileFace]'s permission-gate doc
+     * comment for why this is asked contextually (the first time a steps
+     * face actually renders) instead of bundled into the app's upfront
+     * permission batch.
+     */
+    fun permissionAsked(context: Context): Boolean = prefs(context).getBoolean(KEY_PERMISSION_ASKED, false)
+
+    fun markPermissionAsked(context: Context) {
+        prefs(context).edit().putBoolean(KEY_PERMISSION_ASKED, true).apply()
+    }
 
     /** Null the very first time this device's steps tile has ever read the sensor. */
     fun readBaseline(context: Context): Baseline? {

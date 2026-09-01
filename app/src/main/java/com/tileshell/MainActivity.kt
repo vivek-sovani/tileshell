@@ -373,7 +373,12 @@ private fun RequestRuntimePermissionsOnStart() {
                     Manifest.permission.READ_CONTACTS,
                     Manifest.permission.READ_CALENDAR,
                     Manifest.permission.ACCESS_COARSE_LOCATION,
-                    Manifest.permission.ACTIVITY_RECOGNITION,
+                    // ACTIVITY_RECOGNITION is deliberately NOT in this upfront batch —
+                    // see StepsTile.kt's StepsPermissionGate doc comment: asking for
+                    // activity-recognition access before the user has ever added a
+                    // Steps tile/card has no obvious justification, which is exactly
+                    // what Play's review flags. It's requested contextually instead,
+                    // with its own rationale, the first time a steps face renders.
                 ),
             )
         }

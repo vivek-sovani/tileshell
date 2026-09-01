@@ -42,6 +42,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,6 +64,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -894,25 +896,50 @@ internal fun AccentCard(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .then(
-                when {
-                    onLongClick != null -> Modifier.combinedClickable(onClick = onClick ?: {}, onLongClick = onLongClick)
-                    onClick != null -> Modifier.clickable(onClick = onClick)
-                    else -> Modifier
-                }
-            )
-            // Follows the personalize "gradient fill" setting, same as Start tiles
-            // and Quick Panel tiles, so all three surfaces read as one style.
-            .then(
-                if (LocalTileGradient.current) Modifier.background(tileGradientBrush(accent))
-                else Modifier.background(accent)
-            ),
-        contentAlignment = Alignment.Center,
-    ) { content() }
+    // Long-press timeout is bumped from the platform default to
+    // GLANCE_LONG_PRESS_MS whenever this card has a long-press handler —
+    // LocalViewConfiguration is only read where combinedClickable's own
+    // gesture detector is installed, just below — see that constant's doc
+    // comment (WidgetSlot.kt) for why. A no-op wrap (same value) when there's
+    // no long-press to time.
+    val ambientViewConfiguration = LocalViewConfiguration.current
+    val viewConfiguration = remember(onLongClick != null, ambientViewConfiguration) {
+        if (onLongClick != null) GlanceLongPressViewConfiguration(ambientViewConfiguration) else ambientViewConfiguration
+    }
+    CompositionLocalProvider(LocalViewConfiguration provides viewConfiguration) {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .then(
+                    when {
+                        onLongClick != null -> Modifier.combinedClickable(onClick = onClick ?: {}, onLongClick = onLongClick)
+                        onClick != null -> Modifier.clickable(onClick = onClick)
+                        else -> Modifier
+                    }
+                )
+                // Follows the personalize "gradient fill" setting, same as Start tiles
+                // and Quick Panel tiles, so all three surfaces read as one style.
+                .then(
+                    if (LocalTileGradient.current) Modifier.background(tileGradientBrush(accent))
+                    else Modifier.background(accent)
+                ),
+            contentAlignment = Alignment.Center,
+        ) { content() }
+    }
+}
+
+/**
+ * Wraps [LocalViewConfiguration] so a `combinedClickable`'s `onLongClick`
+ * waits [GLANCE_LONG_PRESS_MS] instead of the platform default (~500ms) —
+ * every other value (touch slop, double-tap timing, minimum touch target)
+ * passes through to [base] untouched via interface delegation, so this stays
+ * correct across Compose versions without having to enumerate every member.
+ */
+private class GlanceLongPressViewConfiguration(
+    base: androidx.compose.ui.platform.ViewConfiguration,
+) : androidx.compose.ui.platform.ViewConfiguration by base {
+    override val longPressTimeoutMillis: Long = GLANCE_LONG_PRESS_MS
 }
 
 /**

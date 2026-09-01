@@ -14,41 +14,49 @@
 
 ### Full description (4 000 chars max)
 
+*Updated for v3.6.0 — incorporates home style (tiles/icons), glance gadgets, widget stacks on the feed, and the Quick Panel redesign.*
+
 ```
-TileShell brings the iconic Windows Phone / Windows 10 Mobile Start screen to Android — rebuilt in Kotlin, faithful to the original.
-
-★ LIVE TILES
-Clock with date, weekday, and your real next alarm. Live weather with temperature, forecast, and high/low. Next calendar event. Now-playing with album art and transport controls — works with any music app, or pin a dedicated music tile. People mosaic that cycles contact photos. Photos slideshow. Notification counts and message previews on every app tile. All flip on a gentle cycle; pauses automatically in battery saver.
-
-★ NOTIFICATIONS
-Unread count badge on every pinned tile. Notification tiles flip to cycle through each pending message — sender, photo, and snippet. A closed folder shows both its combined total and which app inside actually has something pending. Unpinned apps with notifications appear in App List Recent with a badge count. Works with any app, no configuration needed.
-
-★ WIDGET STACKS
-Merge two Large (3×3) tiles into a swipeable full-size carousel, or open a folder and choose "make stack · wide" or "· large" — "keep as folder" sits right alongside so you're never one accidental tap from converting. Each member keeps its own colour and shows its own notification badge as it rotates. Every live face stays interactive inside. Swipe near the right edge to flip members; swipe anywhere else scrolls Start as normal.
+TileShell brings the iconic Windows Phone / Windows 10 Mobile Start screen to Android — rebuilt in Kotlin, faithful to the original, with real Android widgets and modern personalization on top.
 
 ★ START SCREEN
-4, 5, or 6 columns. Small, Medium, Wide, and Large (3×3) tiles on every grid size. Long-press to enter edit mode: drag, merge into folders, resize, recolour per tile or from the app's own icon, or unpin. Lock the layout from Personalize so nothing moves by accident. Landscape mode puts the feed and Start side by side.
+4, 5, or 6 columns. Small, Medium, Wide, and Large (3×3) live tiles. Long-press to edit: drag, merge into folders or widget stacks, resize, recolour per tile or from the app's icon, or unpin. Prefer a normal Android look? Switch to Icons home style — weather/calendar/clock still live at a glance — with a matching Squircle/Circle/Rounded/Square/Original icon shape. Lock the layout so nothing moves by accident. Landscape puts the feed and Start side by side.
 
-★ QUICK SEARCH
-Two-finger swipe down on Start. Search apps, contacts, and the web in one gesture. Long-press a contact to call, message, or pin it to Start. Choose your search engine — Google, Bing, ChatGPT, Gemini, Claude, or Perplexity.
+★ LIVE TILES
+Clock with date, weekday, and your real next alarm. Live weather, forecast, and high/low. Next calendar event. Now-playing with album art and transport controls — any music app, or a dedicated tile. Contact-photo mosaic. Photos slideshow. Notification counts and message previews on every tile. All flip gently; pause automatically in battery saver.
 
-★ EDGE STRIP
-A quick-launch bar along the bottom of the screen. Search on the left, favourite apps in the centre, recent apps on the right. Collapses to a thin handle when not in use.
+★ GLANCE GADGETS
+Pin TileShell's own live cards to Start or the feed, alongside real Android widgets: stock market (one stock, a sector/country basket, or your own list), commodities, currency pairs, sports scores, a second calendar system alongside Gregorian (including Hindu Panchang), a countdown, a sticky note, a shared notepad, an independent checklist per pin, plus battery, alarm, moon phase, flashlight, and step-count cards. Long-press any card for instant edit mode.
+
+★ WIDGET STACKS
+Merge two same-size tiles or Android widgets — on Start or the feed — into a swipeable carousel. Each member keeps its own colour and badge; every live face stays interactive inside.
+
+★ NOTIFICATIONS
+Unread badge on every pinned tile. Notification tiles flip through each pending message — sender, photo, snippet. A closed folder shows its total and which app inside has something pending. Unpinned apps with notifications surface in App List Recent too.
 
 ★ FEED PAGE (swipe right)
-A personalized greeting, live weather card, and today's calendar agenda side by side, now-playing, and Android widgets that size to fit and can sit side by side — drag to reorder. News feed with RSS articles across 8 categories. Pick any number of news regions — India plus ~20 other countries — defaulting to your device's own. Add any custom RSS or Atom feed.
+A greeting, live weather and today's agenda side by side, now-playing, and gadgets or widgets that resize, reorder, and merge into stacks. News across 8 categories — pick any number of regions, India plus ~20 other countries, or add any custom RSS/Atom feed.
+
+★ QUICK PANEL
+Swipe up from either edge. Resizable, reorderable square tiles for wifi, bluetooth, flashlight, DND, rotation lock, and more; tap-to-step brightness and volume; a one-tap theme tile; quick links to Personalize, Android Settings, and screen lock.
+
+★ QUICK SEARCH
+Two-finger swipe down on Start. Search apps, contacts, and the web in one gesture. Long-press a contact to call, message, or pin it to Start. Choose Google, Bing, ChatGPT, Gemini, Claude, or Perplexity.
+
+★ EDGE STRIP
+A quick-launch bar along the bottom. Search on the left, favourite apps in the centre, recent apps on the right. Collapses to a thin handle when not in use.
 
 ★ APP LIST (swipe left)
-Alphabetical grid with A–Z jump grid and instant search. Recent and newly-installed apps at the top with badge counts, even unpinned. Long-press to pin, hide, or uninstall.
+Alphabetical grid with A–Z jump grid and instant search. Recent and newly-installed apps up top with badge counts, even unpinned. Long-press to pin, hide, or uninstall.
 
 ★ PERSONALIZATION
-14 accent colours · per-tile colour override · colour from the app's own icon · dark/light themes · glass tiles tinted by each tile's own colour · blur · wallpaper-behind-tiles mode · 6 gradient wallpapers · custom photo wallpaper · slideshow · daily Bing wallpaper with history · corner radius · gradient fill · 3 font styles · adjustable tile spacing · lock layout · quick "set as default launcher" · built-in guide.
+14 accent colours, or pull one from your wallpaper · per-tile colour override or colour from the app's icon · dark/light themes · glass tiles tinted per tile · blur · wallpaper-behind-tiles · gradient, custom photo, slideshow, or daily Bing wallpapers with history · corner radius, gradient fill, 3 fonts, adjustable spacing · lock layout · built-in guide.
 
 ★ BACKUP & RESTORE
-Auto-save on a schedule. Browse a visual history of snapshots and restore any version. Export to a file — save it to Google Drive to restore on your next device.
+Auto-save on a schedule. Browse a visual history and restore any version. Export to a file to restore on your next device.
 
 ★ SCREEN LOCK
-Long-press the gear icon to lock the screen instantly. Uses the Accessibility API so biometric unlock (fingerprint / face) is preserved.
+Instant lock from the Quick Panel or a gear long-press, preserving biometric unlock via the Accessibility API.
 
 ★ PRIVACY FIRST
 No accounts. No analytics. No ads. All data stays on your device. Only weather requests leave (Open-Meteo, no API key), and only when you grant location permission.
@@ -56,7 +64,7 @@ No accounts. No analytics. No ads. All data stays on your device. Only weather r
 Requires Android 8.0 (API 26) or higher.
 ```
 
-*(~3 650 chars, under Play's 4 000 limit.)*
+*(3 985 chars, under Play's 4 000 limit.)*
 
 ### Category
 Personalization
@@ -144,7 +152,124 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
+## Release notes (v3.6.0)
+
+*v3.5.0 was submitted to Play Console and then aborted before completing rollout — its
+versionCode (350) is burned, so this release jumps straight to 3.6.0/360. Because 3.5.0
+never actually reached users, this entry's full changelog below deliberately rolls up
+everything since the last release that truly published (v3.3.0), not just what's new since
+then — see the per-section notes for which batch each item originally shipped in.*
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 3.6.0
+
+• New: glance gadgets - stock/commodity/sports trackers, extra
+  calendar systems, countdown, notes, tasks, battery, alarm, moon
+  phase, flashlight & steps cards, on Start or the feed
+• New: resize any icon 1x1-4x4 in icons mode; long-press any card
+  for instant edit mode; wallpaper crop shows a live preview
+• Fixed: stock card shows every pick at any size; edit mode no
+  longer misfires mid-scroll; steps permission asked only when used
+• Changed: colourful new launcher icon
+```
+
+*(Character count 498, under Play's 500 limit.)*
+
+### Full changelog since v3.3.0 (for reference — not the Play-facing blurb above)
+
+**From v3.3.0** (already published):
+
+- **Resizable icons-mode app icons**, a OneUI/Nothing-OS-style capability: in "icons" home
+  style, any app icon can now be stretched from 1×1 up to 4×4 (previously fixed at 1×1, with
+  anything bigger auto-rendering as a live tile). A new per-app **"show as icon" / "show as
+  tile"** toggle lives in the tile's colour picker (mirroring the folder stack toggle) — icons
+  mode still defaults every app to a plain icon, and the toggle only appears once the app is
+  resized past 1×1, since a stretched icon can't also show live content.
+- **Icon-shape masking made consistent at every size** — the chosen shape (circle/squircle/
+  rounded/square/original) previously only applied correctly to 1×1 icons; icons rendered
+  inside bigger tiles (notification/music/photos corner icons, folder mini-grid children, and
+  the new resizable icons above) now all mask to the same shape.
+- **Icon blur at larger sizes fixed** — icon bitmaps now decode at a resolution matching their
+  actual on-screen size instead of a fixed low resolution, so a stretched-up icon stays sharp.
+- **Notification badges on resized icons** now anchor to the icon's own corner (not the whole
+  cell), scale proportionally with icon size, and sit right at the corner edge instead of
+  inset inward.
+- **Wallpaper crop/apply gets a real live preview**: choosing a photo — from Personalize,
+  sharing one into TileShell, or another app's "apply via" / "set as wallpaper" chooser — now
+  shows the actual Start screen (real tiles, real grid) composited on the candidate photo,
+  instead of a bare photo or an approximate mockup. Confirming plays a short apply animation
+  and, when opened from Personalize, returns straight to Start instead of leaving Personalize
+  open.
+- **Fixed**: the new wallpaper preview leaked the full photo behind everything when
+  "wallpaper behind tiles" mode was active, instead of respecting the flat-background/
+  tiled-window split that mode uses everywhere else.
+- **Gradient tile fill extended**: the existing "gradient fill" tile-style setting previously
+  only painted Start tiles — it now also applies to Quick Panel tiles and the feed's glance
+  cards (weather/agenda/now-playing).
+
+**From v3.5.0** (submitted then aborted — never actually reached users):
+
+- **Glance gadgets**: a catalog of TileShell's own cards, pinnable from Start's own "widgets"
+  edit-bar button just as much as from the feed's "add widget" picker — listed ahead of real
+  apps in both. **Stock market** — one stock, a curated sector/country basket, or a user-built
+  custom list; shows live price, change, and an intraday sparkline, backed by Yahoo Finance's
+  public chart endpoint. **Commodities** — gold, silver, platinum, copper, crude oil, and major
+  currency pairs, same price source. **Sports** — live scores across football, cricket, and
+  other leagues via ESPN's public site API (cricket via a dedicated source), following one
+  chosen team. **Calendar systems** — a second calendar alongside the Gregorian one: Hindu
+  Panchang (tithi, nakshatra, lunar month, Shaka/Vikram Samvat year, and a moon-phase glyph,
+  computed directly rather than via ICU), plus Islamic, Hebrew, Chinese, Buddhist, and more via
+  Android's own ICU calendars. **Countdown** — count down to any date, your own label, one
+  independent countdown per pinned card. **Sticky note** — a colourful note tile, independent
+  per pin. **Notes** — one shared notepad, opened and edited from any pinned notes card.
+  **Tasks** — a checklist card; each pinned Tasks card now keeps its own independent list
+  rather than sharing one global checklist. **Battery**, **alarm**, and **moon phase** —
+  at-a-glance device/sky status cards. **Flashlight** — the whole card is a tap-to-toggle torch
+  switch. **Steps** — today's step count read from the device's step-counter sensor.
+- **Long-press any glance card to enter edit mode**, the same effect as tapping the feed
+  header's "edit" action — previously edit mode was reachable only via that header button.
+  Covers hosted Android widgets, TileShell's own gadget cards, the built-in weather/agenda/
+  now-playing cards, and every member of a widget stack (gadget or real-widget stacks alike).
+  A real hosted widget needed a dedicated passthrough gesture watcher rather than a plain
+  Compose long-press modifier, since a Compose gesture wrapping a real widget's view would
+  otherwise have to steal some of its own touch handling (taps, scrolling, buttons) to
+  recognize the long-press.
+- **Fixed**: picking multiple stocks or a whole sector/country category on the stock card
+  only ever showed the lead member's price — the full-member list was gated on a tile size
+  the glance page's card can never reach. Every picked stock now shows (glance card only —
+  see the v3.6.0 generalization below).
+- **Colourful launcher icon**: replaces the old monoline outline glyph with a four-accent
+  tile mosaic (blue/magenta/amber/green), on the same dark background.
+
+**New in v3.6.0:**
+
+- **Fixed further**: the stock full-list fix above was gated to exactly the glance card, which
+  is always [TileSize.WIDE]; generalized to any tile taller than one row (Medium/Wide/Tall/
+  etc., not just Large), so a resized Start-screen stock tile shows every picked stock too.
+- **Fixed**: edit mode could enter by itself on a glance card mid-gesture — most often
+  reported while scrolling the feed with a finger that paused briefly before the scroll
+  began. Long-press-to-edit now waits longer (900ms, up from the ~500ms platform default)
+  before triggering, on every glance card and widget; a real hosted widget's long-press
+  watcher was also rebuilt to explicitly cancel the moment a second finger touches down
+  (e.g. the two-finger quick-panel/quick-search swipe starting over a widget), which its
+  previous plain `GestureDetector`-based implementation didn't reliably guard against.
+- **New**: a one-time "what's new · glance gadgets" notice tells an existing install
+  updating into this version what was added and how to pin it — from either Start (long-press
+  empty space, tap "widgets") or the feed (swipe right, "add" under widgets). A fresh install
+  never sees it — it gets the first-run hint/home-style wizard instead.
+- **Fixed**: the Steps gadget's `ACTIVITY_RECOGNITION` permission was requested upfront at
+  first app launch regardless of whether the user had ever added a Steps tile/card — an
+  unexplained, out-of-context ask for a health-adjacent permission. Now requested only the
+  first time a steps face actually renders, with its own in-app rationale dialog first;
+  the privacy policy was updated to disclose this permission, which it previously omitted.
+
 ## Release notes (v3.5.0)
+
+*Submitted to Play Console and then aborted before completing rollout — kept here as the
+historical record of what this version actually contained; every fix originally folded into
+this entry moved to v3.6.0 instead (a fresh versionCode), see that section above.*
 
 *"What's new" — newest release first. Keep under Play's 500-character limit.*
 

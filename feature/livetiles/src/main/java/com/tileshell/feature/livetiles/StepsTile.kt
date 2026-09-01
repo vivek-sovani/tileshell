@@ -6,6 +6,8 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,8 +19,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -115,6 +119,61 @@ private fun rememberStepsToday(): Int? {
 }
 
 /**
+ * The one-shot ACTIVITY_RECOGNITION rationale + request, shown the first time
+ * a steps face is actually composed with the permission not yet granted —
+ * i.e. the moment a Steps tile/card exists on Start or the glance page,
+ * whichever the user added it from ([StepsTileFace]/[StepsSmallFace] are the
+ * one shared render path for both surfaces, so gating here covers both).
+ * Deliberately *not* bundled into `MainActivity`'s upfront permission batch
+ * (contacts/calendar/location) the way it used to be — asking for activity-
+ * recognition access before the user has ever added anything steps-related
+ * has no obvious justification, which is exactly what Play's review flags
+ * (and separately, ACTIVITY_RECOGNITION routes any app declaring it through
+ * Play Console's mandatory Health-apps declaration regardless of *when* it's
+ * requested, so this doesn't remove that step — it only fixes the in-app
+ * side: an unexplained ask with no connection to what the user just did).
+ * [StepsPrefs.markPermissionAsked] makes this genuinely one-shot: declining
+ * ("not now") never nags again, the same as every other permission-rationale
+ * dialog in this app.
+ */
+@Composable
+private fun StepsPermissionGate(granted: Boolean) {
+    if (granted) return
+    val context = LocalContext.current
+    var showRationale by remember { mutableStateOf(!StepsPrefs.permissionAsked(context)) }
+    val requestPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        StepsPrefs.markPermissionAsked(context)
+    }
+    if (showRationale) {
+        AlertDialog(
+            onDismissRequest = {
+                showRationale = false
+                StepsPrefs.markPermissionAsked(context)
+            },
+            title = { Text("show today's steps?") },
+            text = {
+                Text(
+                    "reads your phone's built-in step-counter sensor to show today's count on this card. " +
+                        "stays on your device — nothing is sent anywhere.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showRationale = false
+                    requestPermission.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                }) { Text("allow") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showRationale = false
+                    StepsPrefs.markPermissionAsked(context)
+                }) { Text("not now") }
+            },
+        )
+    }
+}
+
+/**
  * The live steps tile: today's step count, from the device's own step-counter
  * sensor (see [rememberStepsToday]). Degrades to [fallback] — same slot every
  * other opt-in tile uses — when [Manifest.permission.ACTIVITY_RECOGNITION]
@@ -126,6 +185,7 @@ private fun rememberStepsToday(): Int? {
 @Composable
 fun StepsTileFace(size: TileSize, fallback: @Composable () -> Unit, modifier: Modifier = Modifier) {
     val granted = rememberPermissionGranted(Manifest.permission.ACTIVITY_RECOGNITION)
+    StepsPermissionGate(granted)
     if (!granted) return fallback()
     val steps = rememberStepsToday() ?: return fallback()
 
@@ -195,6 +255,7 @@ private fun StepsGoalBar(progress: Float) {
 @Composable
 fun StepsSmallFace(fallback: @Composable () -> Unit, modifier: Modifier = Modifier) {
     val granted = rememberPermissionGranted(Manifest.permission.ACTIVITY_RECOGNITION)
+    StepsPermissionGate(granted)
     if (!granted) return fallback()
     val steps = rememberStepsToday() ?: return fallback()
 

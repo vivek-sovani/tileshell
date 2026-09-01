@@ -12,8 +12,10 @@ import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Bundle
-import android.view.GestureDetector
+import android.os.Handler
+import android.os.Looper
 import android.view.MotionEvent
+import android.view.ViewConfiguration
 import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -1087,30 +1089,71 @@ private fun rememberWidgetInfo(
 }
 
 /**
+ * Long-press-to-enter-edit-mode duration for every glance widget/card — real
+ * hosted widgets ([LongPressPassthroughFrame]) and the Compose-rendered ones
+ * (`AccentCard`'s `combinedClickable`, `FeedPage.kt`) alike. Deliberately
+ * longer than the platform's own long-press timeout (~500ms), the same class
+ * of deliberate deviation as the app list's own long-press-to-pin (`700ms`,
+ * see `AppListScreen.kt`'s `APP_LIST_LONG_PRESS_MS`) — a glance card competes
+ * with more surrounding gestures than a plain list row (the page's own
+ * vertical scroll, the two-finger quick-panel/quick-search swipes, drag-to-
+ * reorder/resize once already editing), so a shorter window is more prone to
+ * misfiring. User-reported: edit mode opening on its own "at the time of
+ * scrolling up" — a scroll that starts with a brief dwell (finger pauses,
+ * then drags) can sit still for the whole default timeout before the drag
+ * itself moves far enough to register, especially on a page that's mostly
+ * live-tile cards rather than a plain button/list row.
+ */
+internal const val GLANCE_LONG_PRESS_MS = 900L
+
+/**
  * A [FrameLayout] that watches for a long-press over its content without ever
  * intercepting or consuming a touch — [onInterceptTouchEvent] always returns
  * `false`, so every event still reaches the real [AppWidgetHostView] child
- * exactly as it would with no wrapper at all; the [GestureDetector] only
- * observes the same event stream for its own long-press timer. This is the
- * standard Android technique for detecting one gesture "alongside" a child
- * that owns its own touch handling, and it's the only safe way to add
- * long-press-to-edit over a real hosted widget: a Compose `pointerInput`/
- * `combinedClickable` wrapping the `AndroidView` would have to CONSUME part
- * of the gesture to recognize it, which would steal taps/scrolls/button
- * presses the widget's own content needs (a real regression this app hit
- * once already — see `AccentCard`'s `onLongClick` doc comment for the same
- * lesson on the FLASHLIGHT custom card, whose fix works differently only
- * because that content is Compose, not a native `AndroidView`).
+ * exactly as it would with no wrapper at all. This is the standard Android
+ * technique for detecting one gesture "alongside" a child that owns its own
+ * touch handling, and it's the only safe way to add long-press-to-edit over a
+ * real hosted widget: a Compose `pointerInput`/`combinedClickable` wrapping
+ * the `AndroidView` would have to CONSUME part of the gesture to recognize
+ * it, which would steal taps/scrolls/button presses the widget's own content
+ * needs (a real regression this app hit once already — see `AccentCard`'s
+ * `onLongClick` doc comment for the same lesson on the FLASHLIGHT custom
+ * card, whose fix works differently only because that content is Compose,
+ * not a native `AndroidView`).
+ *
+ * Runs its own [GLANCE_LONG_PRESS_MS] timer via a plain [Handler] instead of
+ * `GestureDetector` — a raw `GestureDetector`'s long-press timeout comes from
+ * the platform's `ViewConfiguration.getLongPressTimeout()`, which can't be
+ * overridden to match [GLANCE_LONG_PRESS_MS], and its cancellation doesn't
+ * reliably account for a second finger landing (e.g. the two-finger
+ * quick-panel/quick-search swipe starting over a widget) the way this
+ * explicit [MotionEvent.ACTION_POINTER_DOWN] check does.
  */
 private class LongPressPassthroughFrame(context: Context) : FrameLayout(context) {
     var onLongPress: (() -> Unit)? = null
-    private val detector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-        override fun onLongPress(e: MotionEvent) {
-            onLongPress?.invoke()
-        }
-    })
+    private val handler = Handler(Looper.getMainLooper())
+    private val touchSlopSquare = ViewConfiguration.get(context).scaledTouchSlop.let { it * it }
+    private var downX = 0f
+    private var downY = 0f
+    private val fireLongPress = Runnable { onLongPress?.invoke() }
+
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
-        detector.onTouchEvent(ev)
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = ev.x
+                downY = ev.y
+                handler.removeCallbacks(fireLongPress)
+                handler.postDelayed(fireLongPress, GLANCE_LONG_PRESS_MS)
+            }
+            // A second finger means a multi-finger gesture — never a long-press.
+            MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                handler.removeCallbacks(fireLongPress)
+            MotionEvent.ACTION_MOVE -> {
+                val dx = ev.x - downX
+                val dy = ev.y - downY
+                if (dx * dx + dy * dy > touchSlopSquare) handler.removeCallbacks(fireLongPress)
+            }
+        }
         return false
     }
 }
