@@ -95,6 +95,10 @@ class BatteryWidgetRefreshWorker(
             val layout = if (compact) R.layout.widget_battery_compact else R.layout.widget_battery
             val views = RemoteViews(context.packageName, layout)
             views.setImageViewBitmap(R.id.widget_bg, accentGradientBitmap(accent))
+            // Rounds the widget's own corners (see widget_rounded_background.xml) —
+            // the background drawable provides an Outline; clipToOutline clips
+            // widget_bg's full-bleed gradient (and everything else) to it.
+            views.setBoolean(R.id.widget_root, "setClipToOutline", true)
             views.setOnClickPendingIntent(R.id.widget_root, batteryAppPendingIntent(context, appWidgetId))
             views.setOnClickPendingIntent(R.id.widget_settings, reconfigurePendingIntent(context, appWidgetId))
 

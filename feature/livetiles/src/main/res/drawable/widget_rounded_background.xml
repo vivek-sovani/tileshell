@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- widget_root's own background across every TileShell home-screen widget —
+     user-reported: widgets hosted inside the app's own glance page showed
+     square corners while every other card there is curved, and (separately)
+     that real launchers like One UI DO round third-party widgets. The actual
+     mechanism real launchers rely on isn't the launcher forcibly clipping
+     arbitrary widget content from outside (confirmed by hand this session:
+     doing exactly that — ViewOutlineProvider + clipToOutline set on the
+     hosted AppWidgetHostView itself, re-applied on every content update, the
+     same pattern AOSP Launcher3 uses — ran correctly but had no visible
+     effect here) — it's each WIDGET rounding its own corners, which a
+     GradientDrawable background does automatically once the root view also
+     has clipToOutline set on it (see the `setBoolean(R.id.widget_root,
+     "setClipToOutline", true)` call next to every widget_bg push): a rounded
+     background drawable provides a real Outline, and clipToOutline then
+     clips the widget's own content (including widget_bg's full-bleed
+     gradient bitmap) to it. Since these are TileShell's own widgets, this is
+     ours to fix directly instead of depending on host-side clipping. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="20dp" />
+    <solid android:color="#000000" />
+</shape>

@@ -5,21 +5,12 @@ import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetHostView
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
-import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Outline
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.view.MotionEvent
-import android.view.View
-import android.view.ViewConfiguration
-import android.view.ViewOutlineProvider
-import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
@@ -827,7 +818,6 @@ fun WidgetSection(
                     accent = accent,
                     editing = editMode,
                     onEditingChange = { onEditModeChange(false) },
-                    onRequestEdit = { onEditModeChange(true) },
                     isDragging = draggingId == hw.widgetId,
                     dragOffset = if (draggingId == hw.widgetId) dragDelta else Offset.Zero,
                     isMergeTarget = dragTargetId == hw.widgetId && dragMergeCandidate,
@@ -870,7 +860,6 @@ fun WidgetSection(
                     sportsRefreshRate = sportsRefreshRate,
                     onCustomCardTap = onCustomCardTap,
                     onEditingChange = { onEditModeChange(false) },
-                    onRequestEdit = { onEditModeChange(true) },
                     isDragging = draggingId == anchor.widgetId,
                     dragOffset = if (draggingId == anchor.widgetId) dragDelta else Offset.Zero,
                     isMergeTarget = dragTargetId == anchor.widgetId && dragMergeCandidate,
@@ -952,17 +941,9 @@ fun WidgetSection(
                 // no-config kind's own interactive elements (the flashlight
                 // toggle, a task checkbox) need the tap to reach them
                 // directly, not get consumed by an outer no-op click first.
-                //
-                // Long-press enters edit mode everywhere, the same as tapping
-                // the header's "edit" action — except on FLASHLIGHT, whose
-                // whole card *is* its own tap-to-toggle (FlashlightTileFace's
-                // own `.clickable`); giving AccentCard a long-press there would
-                // force a non-null onClick too (combinedClickable requires
-                // one), which would steal the toggle's own tap.
                 AccentCard(
                     accent = accent,
                     onClick = if (editMode || !kind.needsConfig) null else ({ onCustomCardTap(hw.widgetId, kind) }),
-                    onLongClick = if (editMode || kind == CustomCardKind.FLASHLIGHT) null else ({ onEditModeChange(true) }),
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     CustomCardBody(
@@ -988,19 +969,13 @@ fun WidgetSection(
         fun cardView(card: WidgetCard, modifier: Modifier) {
             when (card) {
                 is WidgetCard.Solo -> when (card.widget.widgetId) {
-                    // Long-press enters edit mode on every glance card, built-ins
-                    // included — the same effect as the header's "edit" action.
                     BUILTIN_WEATHER_WIDGET_ID -> builtinCardView(card.widget, BUILTIN_WEATHER_DEFAULT_HEIGHT_DP, modifier) {
-                        WeatherCard(
-                            snapshot = weatherSnapshot, accent = accent, onClick = onWeatherClick,
-                            onLongClick = if (editMode) null else ({ onEditModeChange(true) }),
-                        )
+                        WeatherCard(snapshot = weatherSnapshot, accent = accent, onClick = onWeatherClick)
                     }
                     BUILTIN_AGENDA_WIDGET_ID -> builtinCardView(card.widget, BUILTIN_AGENDA_DEFAULT_HEIGHT_DP, modifier) {
                         AgendaCard(
                             agenda = agenda, granted = calendarGranted, accent = accent,
                             onAddSchedule = onAddSchedule, onClick = onAgendaClick,
-                            onLongClick = if (editMode) null else ({ onEditModeChange(true) }),
                         )
                     }
                     // renderedWidgets already drops this sentinel whenever nowPlaying is
@@ -1009,7 +984,6 @@ fun WidgetSection(
                         NowPlayingCard(
                             nowPlaying = nowPlaying!!, packageName = nowPlayingPackage,
                             art = nowPlayingArt, accent = accent, onClick = onNowPlayingClick,
-                            onLongClick = if (editMode) null else ({ onEditModeChange(true) }),
                         )
                     }
                     else -> if (card.widget.customKind.isNotEmpty()) customCardView(card.widget, modifier) else widgetView(card.widget, modifier)
@@ -1092,104 +1066,16 @@ private fun rememberWidgetInfo(
 }
 
 /**
- * Long-press-to-enter-edit-mode duration for every glance widget/card — real
- * hosted widgets ([LongPressPassthroughFrame]) and the Compose-rendered ones
- * (`AccentCard`'s `combinedClickable`, `FeedPage.kt`) alike. Deliberately
- * longer than the platform's own long-press timeout (~500ms), the same class
- * of deliberate deviation as the app list's own long-press-to-pin (`700ms`,
- * see `AppListScreen.kt`'s `APP_LIST_LONG_PRESS_MS`) — a glance card competes
- * with more surrounding gestures than a plain list row (the page's own
- * vertical scroll, the two-finger quick-panel/quick-search swipes, drag-to-
- * reorder/resize once already editing), so a shorter window is more prone to
- * misfiring. User-reported: edit mode opening on its own "at the time of
- * scrolling up" — a scroll that starts with a brief dwell (finger pauses,
- * then drags) can sit still for the whole default timeout before the drag
- * itself moves far enough to register, especially on a page that's mostly
- * live-tile cards rather than a plain button/list row.
- */
-internal const val GLANCE_LONG_PRESS_MS = 900L
-
-/**
- * Long-press cancellation distance, as a fraction of the platform's own touch
- * slop, for every glance widget/card's long-press-to-edit detector (native
- * [LongPressPassthroughFrame] and Compose `combinedClickable` via
- * `GlanceLongPressViewConfiguration`, `FeedPage.kt`, alike). User-reported: "a
- * slight press and scroll up ... open in edit mode, and same for scroll
- * down" — [GLANCE_LONG_PRESS_MS]'s 900ms window alone only cancels a long
- * press once the finger has moved past the *full* platform touch slop
- * (~8dp), so a deliberate but slow/gentle scroll — one that stays within that
- * distance of its starting point for a while before picking up — could still
- * sit through the whole timeout and fire the long-press. A page that's
- * mostly live-tile cards has no other affordance competing for a small,
- * careful drag the way a plain button does, so shrinking the cancel-distance
- * threshold (not the timeout, which stays 900ms for a genuinely still press)
- * makes any real, sustained directional movement cancel much sooner, without
- * making a stationary press-and-hold any more sensitive to natural finger
- * tremor.
- */
-internal const val GLANCE_LONG_PRESS_TOUCH_SLOP_SCALE = 0.4f
-
-/**
- * A [FrameLayout] that watches for a long-press over its content without ever
- * intercepting or consuming a touch — [onInterceptTouchEvent] always returns
- * `false`, so every event still reaches the real [AppWidgetHostView] child
- * exactly as it would with no wrapper at all. This is the standard Android
- * technique for detecting one gesture "alongside" a child that owns its own
- * touch handling, and it's the only safe way to add long-press-to-edit over a
- * real hosted widget: a Compose `pointerInput`/`combinedClickable` wrapping
- * the `AndroidView` would have to CONSUME part of the gesture to recognize
- * it, which would steal taps/scrolls/button presses the widget's own content
- * needs (a real regression this app hit once already — see `AccentCard`'s
- * `onLongClick` doc comment for the same lesson on the FLASHLIGHT custom
- * card, whose fix works differently only because that content is Compose,
- * not a native `AndroidView`).
- *
- * Runs its own [GLANCE_LONG_PRESS_MS] timer via a plain [Handler] instead of
- * `GestureDetector` — a raw `GestureDetector`'s long-press timeout comes from
- * the platform's `ViewConfiguration.getLongPressTimeout()`, which can't be
- * overridden to match [GLANCE_LONG_PRESS_MS], and its cancellation doesn't
- * reliably account for a second finger landing (e.g. the two-finger
- * quick-panel/quick-search swipe starting over a widget) the way this
- * explicit [MotionEvent.ACTION_POINTER_DOWN] check does.
- */
-private class LongPressPassthroughFrame(context: Context) : FrameLayout(context) {
-    var onLongPress: (() -> Unit)? = null
-    private val handler = Handler(Looper.getMainLooper())
-    private val touchSlopSquare = (ViewConfiguration.get(context).scaledTouchSlop * GLANCE_LONG_PRESS_TOUCH_SLOP_SCALE)
-        .let { it * it }
-    private var downX = 0f
-    private var downY = 0f
-    private val fireLongPress = Runnable { onLongPress?.invoke() }
-
-    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
-        when (ev.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                downX = ev.x
-                downY = ev.y
-                handler.removeCallbacks(fireLongPress)
-                handler.postDelayed(fireLongPress, GLANCE_LONG_PRESS_MS)
-            }
-            // A second finger means a multi-finger gesture — never a long-press.
-            MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
-                handler.removeCallbacks(fireLongPress)
-            MotionEvent.ACTION_MOVE -> {
-                val dx = ev.x - downX
-                val dy = ev.y - downY
-                if (dx * dx + dy * dy > touchSlopSquare) handler.removeCallbacks(fireLongPress)
-            }
-        }
-        return false
-    }
-}
-
-/**
  * Hosts one live [AppWidgetHostView] at the given size. Shared by the plain
  * per-row widget and each member of a widget stack, so there's a single place
  * that knows how to talk to the host and report a size to the provider.
  *
- * [onLongPress] (when non-null) enters edit mode, the same as long-pressing
- * any other glance card — see [LongPressPassthroughFrame] for why a real
- * hosted widget needs this rather than a plain Compose long-press modifier.
+ * Used to also take an `onLongPress` to enter edit mode, via a native
+ * passthrough wrapper that watched for a long-press without stealing the
+ * widget's own touches — removed (user-reported: still entering edit mode
+ * while scrolling, even after several rounds of tightening the cancel-on-
+ * movement threshold; edit mode is still reachable via the feed's own
+ * explicit "edit" header action, so nothing is lost by dropping the gesture).
  */
 @Composable
 private fun WidgetHostedView(
@@ -1198,53 +1084,29 @@ private fun WidgetHostedView(
     info: AppWidgetProviderInfo,
     contentWidthDp: Int,
     heightDp: Int,
-    onLongPress: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    val currentOnLongPress by rememberUpdatedState(onLongPress)
     // User-reported: "borders are square [while] as glance card borders are
     // curved" — the caller's own Modifier.clip(RoundedCornerShape(20.dp))
     // (below, at both call sites) reliably rounds a Compose-drawn card's own
-    // background, but does not reliably round a real hosted
-    // AppWidgetHostView's native content. Clipping at the native level
-    // (ViewOutlineProvider + clipToOutline + an explicit hardware layer, on
-    // both the real widget view and its wrapper) is a further best-effort
-    // attempt at the same fix — confirmed via temporary instrumentation to
-    // run correctly (right size, right radius, hardware-accelerated,
-    // attached) but still not visibly rounding every widget's corners
-    // on-device, most likely because these widgets flip faces via an inner
-    // ViewFlipper and Android's clipToOutline is known to be unreliable
-    // against animating children. Left in as a harmless best effort rather
-    // than reverted outright; a fully reliable fix (e.g. rendering the
-    // widget through a snapshot bitmap that Compose can clip like any other
-    // image) is a larger change than this pass covers.
+    // background, but did not round a real hosted AppWidgetHostView's native
+    // content when only set once, from here, right after creation (confirmed
+    // via logging to run with the right size/radius/hardware-acceleration,
+    // yet still visibly square). [FeedWidgetHostView.cornerRadiusPx]
+    // (`WidgetHost.kt`) re-applies the same clip every time the widget's real
+    // content is (re)applied — the same pattern real launchers use (AOSP
+    // Launcher3 re-asserts its widget corner clip inside `updateAppWidget`,
+    // not just once at construction) — which is what actually makes it stick.
     val cornerRadiusPx = with(LocalDensity.current) { 20.dp.toPx() }
     key(widgetId) {
         AndroidView(
             factory = { ctx ->
                 val hosted = host.createView(ctx.applicationContext, widgetId, info)
-                val roundedOutline = object : ViewOutlineProvider() {
-                    override fun getOutline(view: View, outline: Outline) {
-                        outline.setRoundRect(0, 0, view.width, view.height, cornerRadiusPx)
-                    }
-                }
-                hosted.elevation = 0f
-                hosted.clipToOutline = true
-                hosted.outlineProvider = roundedOutline
-                hosted.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-                LongPressPassthroughFrame(ctx).apply {
-                    // `onLongPress` unqualified here would resolve to the closure-
-                    // captured composable parameter of the same name (shadows the
-                    // receiver), not this instance's own field — `this.` disambiguates.
-                    this.onLongPress = { currentOnLongPress?.invoke() }
-                    addView(hosted, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
-                    clipToOutline = true
-                    outlineProvider = roundedOutline
-                    setLayerType(View.LAYER_TYPE_HARDWARE, null)
-                }
+                (hosted as? FeedWidgetHostView)?.cornerRadiusPx = cornerRadiusPx
+                hosted
             },
-            update = { frame ->
-                val hosted = frame.getChildAt(0) as AppWidgetHostView
+            update = { hosted ->
+                (hosted as? FeedWidgetHostView)?.cornerRadiusPx = cornerRadiusPx
                 runCatching {
                     // Bundle.EMPTY is Android's immutable singleton — updateAppWidgetSize
                     // calls putInt() on the options bundle internally, which threw
@@ -1443,11 +1305,6 @@ private fun WidgetView(
     editing: Boolean,
     // Turns editing OFF only — see WidgetEditOverlay's onDismiss, its one caller.
     onEditingChange: (Boolean) -> Unit,
-    // Turns editing ON — a separate callback rather than `onEditingChange(true)`,
-    // since every call site wires `onEditingChange` as an unconditional "turn
-    // off" (it ignores the boolean it's given), which silently broke this
-    // exact "enter" case the first time it was tried here.
-    onRequestEdit: () -> Unit,
     isDragging: Boolean,
     dragOffset: Offset,
     isMergeTarget: Boolean,
@@ -1510,7 +1367,6 @@ private fun WidgetView(
                 info = info,
                 contentWidthDp = committedWidthDp,
                 heightDp = committedHeightDp,
-                onLongPress = if (editing) null else onRequestEdit,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(committedHeightDp.dp)
@@ -1690,9 +1546,6 @@ private fun WidgetStackView(
     onCustomCardTap: (widgetId: Int, kind: CustomCardKind) -> Unit,
     // Turns editing OFF only — see WidgetEditOverlay's onDismiss, its one caller.
     onEditingChange: (Boolean) -> Unit,
-    // Turns editing ON — see WidgetView's identical param for why this can't
-    // just be `onEditingChange(true)`.
-    onRequestEdit: () -> Unit,
     isDragging: Boolean,
     dragOffset: Offset,
     isMergeTarget: Boolean,
@@ -1858,7 +1711,6 @@ private fun WidgetStackView(
                         commodityRefreshRate = commodityRefreshRate,
                         sportsRefreshRate = sportsRefreshRate,
                         onCustomCardTap = onCustomCardTap,
-                        onEnterEditMode = onRequestEdit,
                         onMissing = { onRemove(member.widgetId) },
                     )
                 }
@@ -1953,7 +1805,6 @@ private fun WidgetStackMemberView(
     commodityRefreshRate: LiveRefreshRate,
     sportsRefreshRate: LiveRefreshRate,
     onCustomCardTap: (widgetId: Int, kind: CustomCardKind) -> Unit,
-    onEnterEditMode: () -> Unit,
     onMissing: () -> Unit,
 ) {
     if (widget.customKind.isNotEmpty()) {
@@ -1961,11 +1812,9 @@ private fun WidgetStackMemberView(
         // Same accent-filled background + tap-to-configure convention as a lone
         // custom card (see WidgetSection's own customCardView) — a card doesn't
         // change how it looks or behaves just because it's currently stacked.
-        // Same long-press-enters-edit-mode / FLASHLIGHT exception too.
         AccentCard(
             accent = accent,
             onClick = if (editing || !kind.needsConfig) null else ({ onCustomCardTap(widget.widgetId, kind) }),
-            onLongClick = if (editing || kind == CustomCardKind.FLASHLIGHT) null else onEnterEditMode,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(heightDp.dp)
@@ -1991,7 +1840,6 @@ private fun WidgetStackMemberView(
         info = info,
         contentWidthDp = contentWidthDp,
         heightDp = heightDp,
-        onLongPress = if (editing) null else onEnterEditMode,
         modifier = Modifier
             .fillMaxWidth()
             .height(heightDp.dp)

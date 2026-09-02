@@ -11,16 +11,11 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Arrangement
@@ -68,9 +63,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -133,7 +125,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Calendar
 
 /**
@@ -890,13 +881,6 @@ private fun GCard(
 internal fun AccentCard(
     accent: Color,
     onClick: (() -> Unit)? = null,
-    /** Long-press to enter edit mode, same effect as the header's "edit" action —
-     *  see `WidgetSlot.kt`'s `customCardView`. `null` (the default) adds no
-     *  long-press handling at all, which matters for a card whose own content
-     *  owns the *whole* tap itself (e.g. the flashlight toggle) — combining
-     *  [onClick] with a long-press there would require a non-null [onClick]
-     *  too, stealing taps that need to reach the content directly instead. */
-    onLongClick: (() -> Unit)? = null,
     /** Lets a caller stretch the card to fill a taller container (e.g. a
      *  resized built-in glance card, see `WidgetSlot.kt`'s `BuiltinCardView`) —
      *  the accent fill then covers the whole resized area instead of leaving
@@ -908,7 +892,7 @@ internal fun AccentCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .glanceLongPressable(onClick, onLongClick)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             // Follows the personalize "gradient fill" setting, same as Start tiles
             // and Quick Panel tiles, so all three surfaces read as one style.
             .then(
@@ -917,78 +901,6 @@ internal fun AccentCard(
             ),
         contentAlignment = Alignment.Center,
     ) { content() }
-}
-
-/**
- * Tap + long-press gesture for a glance card. Replaces a `combinedClickable`
- * + `LocalViewConfiguration` override that turned out not to be enough:
- * user-reported ("a slight press and scroll up ... open in edit mode, and
- * same for scroll down") that a slow, deliberate scroll could still fire the
- * long-press even after that override tightened the platform's own
- * touch-slop-based cancel distance down to [GLANCE_LONG_PRESS_TOUCH_SLOP_SCALE]
- * (`WidgetSlot.kt`) — rather than keep tuning a value riding on
- * `combinedClickable`'s internal, undocumented handling of that override,
- * this reads the raw pointer stream directly (`awaitEachGesture`) so the
- * cancel-on-movement distance is exactly and only what's written here.
- * `onLongClick == null` skips building the race entirely (plain tap, or no
- * gesture at all if [onClick] is also null) — same shape as the card's own
- * flashlight-toggle case that already relies on this.
- */
-@Composable
-private fun Modifier.glanceLongPressable(
-    onClick: (() -> Unit)?,
-    onLongClick: (() -> Unit)?,
-): Modifier {
-    if (onClick == null && onLongClick == null) return this
-    if (onLongClick == null) return this.clickable(onClick = onClick!!)
-    val interactionSource = remember { MutableInteractionSource() }
-    val indication = LocalIndication.current
-    // awaitEachGesture's scope is @RestrictsSuspension (only members/extensions
-    // of AwaitPointerEventScope may be suspended on inside it) — emitting to
-    // interactionSource (a plain MutableSharedFlow) has to happen on a normal
-    // CoroutineScope instead, so press/release/cancel indication is launched
-    // on this rather than awaited inline.
-    val scope = rememberCoroutineScope()
-    return this
-        .indication(interactionSource, indication)
-        .pointerInput(onClick, onLongClick) {
-            val cancelDistancePx = viewConfiguration.touchSlop * GLANCE_LONG_PRESS_TOUCH_SLOP_SCALE
-            awaitEachGesture {
-                val down = awaitFirstDown(requireUnconsumed = false)
-                val press = PressInteraction.Press(down.position)
-                scope.launch { interactionSource.emit(press) }
-                var accumulated = Offset.Zero
-                // null result = the watch loop ran for the full timeout without
-                // ever exceeding the cancel distance or losing the pointer, i.e.
-                // a genuine still press-and-hold — the long-press condition.
-                val releaseReason = withTimeoutOrNull(GLANCE_LONG_PRESS_MS) {
-                    while (true) {
-                        val event = awaitPointerEvent(PointerEventPass.Main)
-                        val change = event.changes.firstOrNull { it.id == down.id }
-                        if (change == null || !change.pressed) return@withTimeoutOrNull "released"
-                        if (change.isConsumed) return@withTimeoutOrNull "consumed"
-                        accumulated += change.positionChange()
-                        if (accumulated.getDistance() > cancelDistancePx) return@withTimeoutOrNull "moved"
-                    }
-                    @Suppress("UNREACHABLE_CODE") "unreachable"
-                }
-                if (releaseReason == null) {
-                    scope.launch { interactionSource.emit(PressInteraction.Release(press)) }
-                    onLongClick()
-                    // Swallow the rest of the gesture so releasing afterward
-                    // doesn't also fire a click.
-                    do {
-                        val event = awaitPointerEvent(PointerEventPass.Main)
-                        event.changes.forEach { it.consume() }
-                    } while (event.changes.any { it.pressed })
-                } else if (releaseReason == "released") {
-                    scope.launch { interactionSource.emit(PressInteraction.Release(press)) }
-                    onClick?.invoke()
-                } else {
-                    scope.launch { interactionSource.emit(PressInteraction.Cancel(press)) }
-                }
-            }
-        }
 }
 
 /**
@@ -1001,13 +913,12 @@ internal fun WeatherCard(
     snapshot: com.tileshell.feature.livetiles.WeatherSnapshot?,
     accent: Color,
     onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null,
 ) {
     // Card text adapts to this card's own accent fill (not the page background —
     // a wallpaper-derived accent can be light even when the page itself is dark).
     val onAccent = Glass.faceTextColor(useDarkText = isLightBackground(accent))
     val onAccentDim = onAccent.copy(alpha = 0.78f)
-    AccentCard(accent, onClick = onClick, onLongClick = onLongClick, modifier = Modifier.fillMaxHeight()) {
+    AccentCard(accent, onClick = onClick, modifier = Modifier.fillMaxHeight()) {
         Column(modifier = Modifier.padding(14.dp)) {
             if (snapshot == null) {
                 Text("weather unavailable", color = onAccent, fontSize = 14.sp)
@@ -1095,11 +1006,10 @@ internal fun AgendaCard(
     accent: Color,
     onAddSchedule: () -> Unit,
     onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null,
 ) {
     val onAccent = Glass.faceTextColor(useDarkText = isLightBackground(accent))
     val onAccentDim = onAccent.copy(alpha = 0.78f)
-    AccentCard(accent, onClick = onClick, onLongClick = onLongClick, modifier = Modifier.fillMaxHeight()) {
+    AccentCard(accent, onClick = onClick, modifier = Modifier.fillMaxHeight()) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1158,11 +1068,10 @@ internal fun NowPlayingCard(
     art: android.graphics.Bitmap?,
     accent: Color,
     onClick: (() -> Unit)? = null,
-    onLongClick: (() -> Unit)? = null,
 ) {
     val onAccent = Glass.faceTextColor(useDarkText = isLightBackground(accent))
     val onAccentDim = onAccent.copy(alpha = 0.78f)
-    AccentCard(accent, onClick = onClick, onLongClick = onLongClick, modifier = Modifier.fillMaxHeight()) {
+    AccentCard(accent, onClick = onClick, modifier = Modifier.fillMaxHeight()) {
         Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
