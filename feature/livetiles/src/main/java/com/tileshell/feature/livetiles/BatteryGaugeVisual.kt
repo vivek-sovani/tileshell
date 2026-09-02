@@ -23,7 +23,7 @@ fun BatteryGaugeVisual(percent: Int, tint: Color, isCharging: Boolean, modifier:
     val levelColor = when {
         isCharging -> Color(0xFF42A5F5)
         percent < 20 -> Color(0xFFE53935)
-        percent < 50 -> Color(0xFFFFB300)
+        percent < 70 -> Color(0xFFFFB300)
         else -> Color(0xFF43A047)
     }
     Canvas(modifier = modifier) {

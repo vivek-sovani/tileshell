@@ -44,7 +44,7 @@ fun batteryGaugeBitmap(
     val levelColor = when {
         isCharging -> Color.rgb(66, 165, 245) // blue
         percent < 20 -> Color.rgb(229, 57, 53) // red
-        percent < 50 -> Color.rgb(255, 179, 0) // amber
+        percent < 70 -> Color.rgb(255, 179, 0) // amber
         else -> Color.rgb(67, 160, 71) // green
     }
 

@@ -99,6 +99,18 @@ class BatteryWidgetRefreshWorker(
             views.setOnClickPendingIntent(R.id.widget_settings, reconfigurePendingIntent(context, appWidgetId))
 
             val backStatus = if (face.hasData) face.statusLine else "battery status unavailable"
+            // A real filled-bar gauge (user-requested), not a static outline
+            // glyph — see WidgetBatteryVisual.kt. percentText is e.g. "82%"
+            // or "--" when unavailable. Shown at both sizes now — the compact
+            // layout used to omit it (user-reported: "battery widget when in
+            // half mode doesn't show battery symbol, while battery glance
+            // card shows symbol"), smaller only because widget_icon itself is
+            // smaller in widget_battery_compact.xml.
+            val percent = face.percentText.removeSuffix("%").toIntOrNull() ?: 0
+            views.setImageViewBitmap(
+                R.id.widget_icon,
+                batteryGaugeBitmap(percent, onAccent, isCharging = face.isCharging),
+            )
             if (compact) {
                 views.setTextColor(R.id.widget_percent, onAccent)
                 views.setTextColor(R.id.widget_back_status, onAccent)
@@ -109,14 +121,6 @@ class BatteryWidgetRefreshWorker(
                 views.setTextColor(R.id.widget_status, onAccent)
                 views.setTextColor(R.id.widget_back_label, onAccent)
                 views.setTextColor(R.id.widget_back_status, onAccent)
-                // A real filled-bar gauge (user-requested), not a static
-                // outline glyph — see WidgetBatteryVisual.kt. percentText is
-                // e.g. "82%" or "--" when unavailable.
-                val percent = face.percentText.removeSuffix("%").toIntOrNull() ?: 0
-                views.setImageViewBitmap(
-                    R.id.widget_icon,
-                    batteryGaugeBitmap(percent, onAccent, isCharging = face.isCharging),
-                )
                 views.setTextViewText(R.id.widget_percent, face.percentText)
                 views.setTextViewText(R.id.widget_status, face.statusLine)
                 views.setTextViewText(R.id.widget_back_status, backStatus)

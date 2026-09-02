@@ -27,6 +27,16 @@
         android:gravity="center"
         android:padding="8dp">
 
+        <!-- Smaller sibling of widget_battery.xml's own widget_icon — same
+             gauge bitmap (WidgetBatteryVisual.kt), just a smaller ImageView,
+             so the compact layout shows the same battery symbol the full
+             layout and the in-app glance card both do. -->
+        <ImageView
+            android:id="@+id/widget_icon"
+            android:layout_width="40dp"
+            android:layout_height="22dp"
+            android:layout_marginBottom="4dp" />
+
         <TextView
             android:id="@+id/widget_percent"
             android:layout_width="wrap_content"

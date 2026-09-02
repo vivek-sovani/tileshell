@@ -9,13 +9,16 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Outline
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
+import android.view.View
 import android.view.ViewConfiguration
+import android.view.ViewOutlineProvider
 import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -1107,6 +1110,26 @@ private fun rememberWidgetInfo(
 internal const val GLANCE_LONG_PRESS_MS = 900L
 
 /**
+ * Long-press cancellation distance, as a fraction of the platform's own touch
+ * slop, for every glance widget/card's long-press-to-edit detector (native
+ * [LongPressPassthroughFrame] and Compose `combinedClickable` via
+ * `GlanceLongPressViewConfiguration`, `FeedPage.kt`, alike). User-reported: "a
+ * slight press and scroll up ... open in edit mode, and same for scroll
+ * down" — [GLANCE_LONG_PRESS_MS]'s 900ms window alone only cancels a long
+ * press once the finger has moved past the *full* platform touch slop
+ * (~8dp), so a deliberate but slow/gentle scroll — one that stays within that
+ * distance of its starting point for a while before picking up — could still
+ * sit through the whole timeout and fire the long-press. A page that's
+ * mostly live-tile cards has no other affordance competing for a small,
+ * careful drag the way a plain button does, so shrinking the cancel-distance
+ * threshold (not the timeout, which stays 900ms for a genuinely still press)
+ * makes any real, sustained directional movement cancel much sooner, without
+ * making a stationary press-and-hold any more sensitive to natural finger
+ * tremor.
+ */
+internal const val GLANCE_LONG_PRESS_TOUCH_SLOP_SCALE = 0.4f
+
+/**
  * A [FrameLayout] that watches for a long-press over its content without ever
  * intercepting or consuming a touch — [onInterceptTouchEvent] always returns
  * `false`, so every event still reaches the real [AppWidgetHostView] child
@@ -1132,7 +1155,8 @@ internal const val GLANCE_LONG_PRESS_MS = 900L
 private class LongPressPassthroughFrame(context: Context) : FrameLayout(context) {
     var onLongPress: (() -> Unit)? = null
     private val handler = Handler(Looper.getMainLooper())
-    private val touchSlopSquare = ViewConfiguration.get(context).scaledTouchSlop.let { it * it }
+    private val touchSlopSquare = (ViewConfiguration.get(context).scaledTouchSlop * GLANCE_LONG_PRESS_TOUCH_SLOP_SCALE)
+        .let { it * it }
     private var downX = 0f
     private var downY = 0f
     private val fireLongPress = Runnable { onLongPress?.invoke() }
@@ -1178,16 +1202,45 @@ private fun WidgetHostedView(
     modifier: Modifier = Modifier,
 ) {
     val currentOnLongPress by rememberUpdatedState(onLongPress)
+    // User-reported: "borders are square [while] as glance card borders are
+    // curved" — the caller's own Modifier.clip(RoundedCornerShape(20.dp))
+    // (below, at both call sites) reliably rounds a Compose-drawn card's own
+    // background, but does not reliably round a real hosted
+    // AppWidgetHostView's native content. Clipping at the native level
+    // (ViewOutlineProvider + clipToOutline + an explicit hardware layer, on
+    // both the real widget view and its wrapper) is a further best-effort
+    // attempt at the same fix — confirmed via temporary instrumentation to
+    // run correctly (right size, right radius, hardware-accelerated,
+    // attached) but still not visibly rounding every widget's corners
+    // on-device, most likely because these widgets flip faces via an inner
+    // ViewFlipper and Android's clipToOutline is known to be unreliable
+    // against animating children. Left in as a harmless best effort rather
+    // than reverted outright; a fully reliable fix (e.g. rendering the
+    // widget through a snapshot bitmap that Compose can clip like any other
+    // image) is a larger change than this pass covers.
+    val cornerRadiusPx = with(LocalDensity.current) { 20.dp.toPx() }
     key(widgetId) {
         AndroidView(
             factory = { ctx ->
                 val hosted = host.createView(ctx.applicationContext, widgetId, info)
+                val roundedOutline = object : ViewOutlineProvider() {
+                    override fun getOutline(view: View, outline: Outline) {
+                        outline.setRoundRect(0, 0, view.width, view.height, cornerRadiusPx)
+                    }
+                }
+                hosted.elevation = 0f
+                hosted.clipToOutline = true
+                hosted.outlineProvider = roundedOutline
+                hosted.setLayerType(View.LAYER_TYPE_HARDWARE, null)
                 LongPressPassthroughFrame(ctx).apply {
                     // `onLongPress` unqualified here would resolve to the closure-
                     // captured composable parameter of the same name (shadows the
                     // receiver), not this instance's own field — `this.` disambiguates.
                     this.onLongPress = { currentOnLongPress?.invoke() }
                     addView(hosted, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+                    clipToOutline = true
+                    outlineProvider = roundedOutline
+                    setLayerType(View.LAYER_TYPE_HARDWARE, null)
                 }
             },
             update = { frame ->

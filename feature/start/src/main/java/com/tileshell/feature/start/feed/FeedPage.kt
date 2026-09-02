@@ -11,12 +11,16 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Arrangement
@@ -44,7 +48,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,8 +68,10 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -128,6 +133,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Calendar
 
 /**
@@ -898,50 +904,91 @@ internal fun AccentCard(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    // Long-press timeout is bumped from the platform default to
-    // GLANCE_LONG_PRESS_MS whenever this card has a long-press handler —
-    // LocalViewConfiguration is only read where combinedClickable's own
-    // gesture detector is installed, just below — see that constant's doc
-    // comment (WidgetSlot.kt) for why. A no-op wrap (same value) when there's
-    // no long-press to time.
-    val ambientViewConfiguration = LocalViewConfiguration.current
-    val viewConfiguration = remember(onLongClick != null, ambientViewConfiguration) {
-        if (onLongClick != null) GlanceLongPressViewConfiguration(ambientViewConfiguration) else ambientViewConfiguration
-    }
-    CompositionLocalProvider(LocalViewConfiguration provides viewConfiguration) {
-        Box(
-            modifier = modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .then(
-                    when {
-                        onLongClick != null -> Modifier.combinedClickable(onClick = onClick ?: {}, onLongClick = onLongClick)
-                        onClick != null -> Modifier.clickable(onClick = onClick)
-                        else -> Modifier
-                    }
-                )
-                // Follows the personalize "gradient fill" setting, same as Start tiles
-                // and Quick Panel tiles, so all three surfaces read as one style.
-                .then(
-                    if (LocalTileGradient.current) Modifier.background(tileGradientBrush(accent))
-                    else Modifier.background(accent)
-                ),
-            contentAlignment = Alignment.Center,
-        ) { content() }
-    }
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .glanceLongPressable(onClick, onLongClick)
+            // Follows the personalize "gradient fill" setting, same as Start tiles
+            // and Quick Panel tiles, so all three surfaces read as one style.
+            .then(
+                if (LocalTileGradient.current) Modifier.background(tileGradientBrush(accent))
+                else Modifier.background(accent)
+            ),
+        contentAlignment = Alignment.Center,
+    ) { content() }
 }
 
 /**
- * Wraps [LocalViewConfiguration] so a `combinedClickable`'s `onLongClick`
- * waits [GLANCE_LONG_PRESS_MS] instead of the platform default (~500ms) —
- * every other value (touch slop, double-tap timing, minimum touch target)
- * passes through to [base] untouched via interface delegation, so this stays
- * correct across Compose versions without having to enumerate every member.
+ * Tap + long-press gesture for a glance card. Replaces a `combinedClickable`
+ * + `LocalViewConfiguration` override that turned out not to be enough:
+ * user-reported ("a slight press and scroll up ... open in edit mode, and
+ * same for scroll down") that a slow, deliberate scroll could still fire the
+ * long-press even after that override tightened the platform's own
+ * touch-slop-based cancel distance down to [GLANCE_LONG_PRESS_TOUCH_SLOP_SCALE]
+ * (`WidgetSlot.kt`) — rather than keep tuning a value riding on
+ * `combinedClickable`'s internal, undocumented handling of that override,
+ * this reads the raw pointer stream directly (`awaitEachGesture`) so the
+ * cancel-on-movement distance is exactly and only what's written here.
+ * `onLongClick == null` skips building the race entirely (plain tap, or no
+ * gesture at all if [onClick] is also null) — same shape as the card's own
+ * flashlight-toggle case that already relies on this.
  */
-private class GlanceLongPressViewConfiguration(
-    base: androidx.compose.ui.platform.ViewConfiguration,
-) : androidx.compose.ui.platform.ViewConfiguration by base {
-    override val longPressTimeoutMillis: Long = GLANCE_LONG_PRESS_MS
+@Composable
+private fun Modifier.glanceLongPressable(
+    onClick: (() -> Unit)?,
+    onLongClick: (() -> Unit)?,
+): Modifier {
+    if (onClick == null && onLongClick == null) return this
+    if (onLongClick == null) return this.clickable(onClick = onClick!!)
+    val interactionSource = remember { MutableInteractionSource() }
+    val indication = LocalIndication.current
+    // awaitEachGesture's scope is @RestrictsSuspension (only members/extensions
+    // of AwaitPointerEventScope may be suspended on inside it) — emitting to
+    // interactionSource (a plain MutableSharedFlow) has to happen on a normal
+    // CoroutineScope instead, so press/release/cancel indication is launched
+    // on this rather than awaited inline.
+    val scope = rememberCoroutineScope()
+    return this
+        .indication(interactionSource, indication)
+        .pointerInput(onClick, onLongClick) {
+            val cancelDistancePx = viewConfiguration.touchSlop * GLANCE_LONG_PRESS_TOUCH_SLOP_SCALE
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                val press = PressInteraction.Press(down.position)
+                scope.launch { interactionSource.emit(press) }
+                var accumulated = Offset.Zero
+                // null result = the watch loop ran for the full timeout without
+                // ever exceeding the cancel distance or losing the pointer, i.e.
+                // a genuine still press-and-hold — the long-press condition.
+                val releaseReason = withTimeoutOrNull(GLANCE_LONG_PRESS_MS) {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Main)
+                        val change = event.changes.firstOrNull { it.id == down.id }
+                        if (change == null || !change.pressed) return@withTimeoutOrNull "released"
+                        if (change.isConsumed) return@withTimeoutOrNull "consumed"
+                        accumulated += change.positionChange()
+                        if (accumulated.getDistance() > cancelDistancePx) return@withTimeoutOrNull "moved"
+                    }
+                    @Suppress("UNREACHABLE_CODE") "unreachable"
+                }
+                if (releaseReason == null) {
+                    scope.launch { interactionSource.emit(PressInteraction.Release(press)) }
+                    onLongClick()
+                    // Swallow the rest of the gesture so releasing afterward
+                    // doesn't also fire a click.
+                    do {
+                        val event = awaitPointerEvent(PointerEventPass.Main)
+                        event.changes.forEach { it.consume() }
+                    } while (event.changes.any { it.pressed })
+                } else if (releaseReason == "released") {
+                    scope.launch { interactionSource.emit(PressInteraction.Release(press)) }
+                    onClick?.invoke()
+                } else {
+                    scope.launch { interactionSource.emit(PressInteraction.Cancel(press)) }
+                }
+            }
+        }
 }
 
 /**
