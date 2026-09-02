@@ -390,6 +390,15 @@ private fun CountdownPickerScreen(initial: Pair<String, String>?, onPick: (targe
     val context = LocalContext.current
     val pickedDate = remember(targetIsoDate) { runCatching { LocalDate.parse(targetIsoDate) }.getOrNull() }
 
+    // Same "no focus means no cursor" fix as StickyNoteTextScreen — claim
+    // focus + raise the keyboard the moment this screen opens.
+    val focusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+        keyboard?.show()
+    }
+
     fun openDatePicker() {
         val base = pickedDate ?: LocalDate.now()
         DatePickerDialog(
@@ -422,7 +431,7 @@ private fun CountdownPickerScreen(initial: Pair<String, String>?, onPick: (targe
                 if (label.isEmpty()) Text("e.g. birthday", color = ConfigFgDim.copy(alpha = 0.6f), fontSize = 16.sp)
                 inner()
             },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
         )
         Spacer(Modifier.height(20.dp))
         Text("target date", color = ConfigFgDim, fontSize = 12.sp)
