@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -53,6 +55,7 @@ import kotlinx.coroutines.launch
 class NotesWidgetActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
         val appWidgetId = intent?.extras?.getInt(
@@ -174,7 +177,7 @@ private fun NotesListScreen(
 private fun NoteEditScreen(note: NoteItem, onBack: () -> Unit, onTextChange: (String) -> Unit) {
     var text by remember(note.id) { mutableStateOf(note.text) }
     BackHandler { onTextChange(text); onBack() }
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0D)).statusBarsPadding()) {
+    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0D)).statusBarsPadding().imePadding()) {
         Text(
             text = "‹ back",
             color = NoteAccent,

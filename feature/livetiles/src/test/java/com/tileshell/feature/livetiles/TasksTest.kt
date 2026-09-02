@@ -46,6 +46,16 @@ class TasksSummaryTest {
     }
 
     @Test
+    fun `once active tasks overflow the cap, the newest ones are kept`() {
+        // Tasks arrive oldest-first (DB position order). A task just added
+        // to an already-full list must show up immediately, not get sorted
+        // past the cap by tasks added earlier.
+        val tasks = (1..5).map { TaskItem(it.toLong(), "task $it", done = false) }
+        val summary = tasksSummary(tasks, maxPreview = 2)
+        assertEquals(listOf(4L, 5L), summary.preview.map { it.id })
+    }
+
+    @Test
     fun `when everything is done the preview falls back to completed tasks`() {
         val tasks = listOf(TaskItem(1, "a", done = true), TaskItem(2, "b", done = true))
         val summary = tasksSummary(tasks)

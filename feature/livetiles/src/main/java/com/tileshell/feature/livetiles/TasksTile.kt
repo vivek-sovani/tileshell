@@ -56,10 +56,15 @@ data class TasksSummary(
  * Pure — no repository/Flow involved, so the "which tasks show in the
  * preview" choice is unit-testable. Active tasks come first (what you'd want
  * to glance at); once every task is done, the preview falls back to showing
- * completed ones rather than going blank.
+ * completed ones rather than going blank. Tasks arrive oldest-first (DB
+ * position order), so once there are more active tasks than fit, the newest
+ * ones are kept — otherwise a task just added would never appear until
+ * enough older ones were checked off or deleted.
  */
 fun tasksSummary(tasks: List<TaskItem>, maxPreview: Int = 3): TasksSummary {
-    val ordered = tasks.filter { !it.done } + tasks.filter { it.done }
+    val active = tasks.filter { !it.done }
+    val activePreview = if (active.size > maxPreview) active.takeLast(maxPreview) else active
+    val ordered = activePreview + tasks.filter { it.done }
     return TasksSummary(
         doneCount = tasks.count { it.done },
         totalCount = tasks.size,
