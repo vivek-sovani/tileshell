@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Same silhouette as TileIcons["tasks"] (core/design/TileIcons.kt) — two
+     small checkbox+checkmark squares beside two list lines — hand-ported to a
+     real drawable resource, see ic_widget_steps.xml for why. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M4 5h5v5h-5z"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.4"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M5.3 7.5l0.9 0.9 1.7 -1.9"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M12 7.5h8"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M4 14h5v5h-5z"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.4"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M12 16.5h8"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round" />
+</vector>

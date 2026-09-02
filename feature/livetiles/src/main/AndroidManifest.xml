@@ -148,6 +148,43 @@
                 android:resource="@xml/sports_widget_info" />
         </receiver>
 
+        <receiver
+            android:name=".widget.TasksAppWidgetProvider"
+            android:exported="true"
+            android:label="@string/tasks_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.tileshell.feature.livetiles.widget.ACTION_TOGGLE_TASK" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tasks_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.NotesAppWidgetProvider"
+            android:exported="true"
+            android:label="@string/notes_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/notes_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.StickyNoteAppWidgetProvider"
+            android:exported="true"
+            android:label="@string/stickynote_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/stickynote_widget_info" />
+        </receiver>
+
         <!--
             Shared per-widget colour-picker configure activity (every
             android:configure above points here) — see WidgetConfigureActivity's
@@ -164,6 +201,26 @@
                 <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
             </intent-filter>
         </activity>
+
+        <!--
+            Standalone "manage this widget's content" screens for Tasks/Notes
+            — not reachable via any OS-triggered intent-filter, only ever
+            launched via an explicit-component PendingIntent TileShell itself
+            creates (TasksAppWidgetProvider.managePendingIntent /
+            NotesAppWidgetProvider.managePendingIntent), the same way
+            reconfigurePendingIntent already launches WidgetConfigureActivity
+            manually — so exported="false" is correct here (unlike that
+            activity, nothing outside this app ever targets these directly).
+        -->
+        <activity
+            android:name=".widget.TaskListWidgetActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+
+        <activity
+            android:name=".widget.NotesWidgetActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
 
     </application>
 

@@ -13,4 +13,7 @@
     <string name="stock_widget_label">stock market</string>
     <string name="commodity_widget_label">commodity / currency</string>
     <string name="sports_widget_label">sports</string>
+    <string name="tasks_widget_label">tasks</string>
+    <string name="notes_widget_label">notes</string>
+    <string name="stickynote_widget_label">sticky note</string>
 </resources>

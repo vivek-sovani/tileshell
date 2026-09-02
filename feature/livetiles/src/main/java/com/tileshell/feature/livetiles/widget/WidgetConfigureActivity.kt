@@ -130,11 +130,13 @@ class WidgetConfigureActivity : ComponentActivity() {
             StockAppWidgetProvider::class.java.name -> RequiredStep.STOCK
             CommodityAppWidgetProvider::class.java.name -> RequiredStep.COMMODITY
             SportsAppWidgetProvider::class.java.name -> RequiredStep.SPORTS
+            StickyNoteAppWidgetProvider::class.java.name -> RequiredStep.STICKY_NOTE_TEXT
             else -> RequiredStep.NONE
         }
         val existingStock = WidgetConfigStore.stockSelectionEncoded(this, appWidgetId)?.let { StockTile.decode(it) }
         val existingCommodity = WidgetConfigStore.commoditySymbol(this, appWidgetId)
         val existingSports = WidgetConfigStore.sportsSelectionEncoded(this, appWidgetId)?.let { SportsTile.decode(it) }
+        val existingStickyNoteText = WidgetStickyNoteStore.text(this, appWidgetId)
 
         setContent {
             ConfigureScreen(
@@ -142,10 +144,12 @@ class WidgetConfigureActivity : ComponentActivity() {
                 existingStock = existingStock,
                 existingCommodity = existingCommodity,
                 existingSports = existingSports,
+                existingStickyNoteText = existingStickyNoteText,
                 onSystemPicked = { systemId -> WidgetConfigStore.setCalendarSystemId(this, appWidgetId, systemId) },
                 onStockPicked = { encoded -> WidgetConfigStore.setStockSelectionEncoded(this, appWidgetId, encoded) },
                 onCommodityPicked = { symbol, name -> WidgetConfigStore.setCommoditySymbol(this, appWidgetId, symbol, name) },
                 onSportsPicked = { encoded -> WidgetConfigStore.setSportsSelectionEncoded(this, appWidgetId, encoded) },
+                onStickyNoteTextPicked = { text -> WidgetStickyNoteStore.setText(this, appWidgetId, text) },
                 onColorPicked = ::save,
             )
         }
@@ -170,11 +174,14 @@ class WidgetConfigureActivity : ComponentActivity() {
             StockAppWidgetProvider::class.java.name -> StockWidgetRefreshWorker.refreshNow(this)
             CommodityAppWidgetProvider::class.java.name -> CommodityWidgetRefreshWorker.refreshNow(this)
             SportsAppWidgetProvider::class.java.name -> SportsWidgetRefreshWorker.refreshNow(this)
+            TasksAppWidgetProvider::class.java.name -> TasksWidgetRefreshWorker.refreshNow(this)
+            NotesAppWidgetProvider::class.java.name -> NotesWidgetRefreshWorker.refreshNow(this)
+            StickyNoteAppWidgetProvider::class.java.name -> StickyNoteWidgetRefreshWorker.refreshNow(this)
         }
     }
 }
 
-private enum class RequiredStep { NONE, CALENDAR_SYSTEM, STOCK, COMMODITY, SPORTS }
+private enum class RequiredStep { NONE, CALENDAR_SYSTEM, STOCK, COMMODITY, SPORTS, STICKY_NOTE_TEXT }
 private enum class ConfigureStep { FIRST, COLOR }
 
 @Composable
@@ -183,10 +190,12 @@ private fun ConfigureScreen(
     existingStock: StockTile.Selection?,
     existingCommodity: Pair<String, String>?,
     existingSports: SportsTile.Selection?,
+    existingStickyNoteText: String,
     onSystemPicked: (String) -> Unit,
     onStockPicked: (encoded: String) -> Unit,
     onCommodityPicked: (symbol: String, displayName: String) -> Unit,
     onSportsPicked: (encoded: String) -> Unit,
+    onStickyNoteTextPicked: (String) -> Unit,
     onColorPicked: (String?) -> Unit,
 ) {
     var step by remember { mutableStateOf(if (requiredStep == RequiredStep.NONE) ConfigureStep.COLOR else ConfigureStep.FIRST) }
@@ -226,6 +235,13 @@ private fun ConfigureScreen(
                     initial = existingSports,
                     onPick = { encoded ->
                         onSportsPicked(encoded)
+                        step = ConfigureStep.COLOR
+                    },
+                )
+                RequiredStep.STICKY_NOTE_TEXT -> StickyNoteTextScreen(
+                    initial = existingStickyNoteText,
+                    onPick = { text ->
+                        onStickyNoteTextPicked(text)
                         step = ConfigureStep.COLOR
                     },
                 )
@@ -281,6 +297,50 @@ private val ConfigDivider = Color(0xFFF6F6F8).copy(alpha = 0.12f)
 private val ConfigAccent = Color(0xFF2B78E4)
 private val PreviewPositiveGreen = Color(0xFF35C759)
 private val PreviewNegativeRed = Color(0xFFFF453A)
+
+/**
+ * The sticky-note widget's own required first step — write the note's text
+ * before the shared colour picker. Reopening the gear later (see
+ * [StickyNoteWidgetRefreshWorker]) lands back here too, seeded with
+ * [initial], so this doubles as the widget's only way to *edit* its text
+ * after the first placement.
+ */
+@Composable
+private fun StickyNoteTextScreen(initial: String, onPick: (String) -> Unit) {
+    var text by remember { mutableStateOf(initial) }
+    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0D)).padding(20.dp)) {
+        Text("write your note", color = ConfigFg, fontSize = 20.sp, fontWeight = FontWeight.Light)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "shown right on the widget — one note per widget",
+            color = ConfigFgDim,
+            fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(20.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .clip(RoundedCornerShape(10.dp))
+                .background(ConfigFg.copy(alpha = 0.06f))
+                .padding(16.dp),
+        ) {
+            BasicTextField(
+                value = text,
+                onValueChange = { text = it },
+                textStyle = TextStyle(color = ConfigFg, fontSize = 15.sp, lineHeight = 21.sp),
+                cursorBrush = SolidColor(ConfigAccent),
+                modifier = Modifier.fillMaxSize(),
+                decorationBox = { inner ->
+                    if (text.isEmpty()) Text("tap to start writing…", color = ConfigFgDim.copy(alpha = 0.6f), fontSize = 15.sp)
+                    inner()
+                },
+            )
+        }
+        Spacer(Modifier.height(20.dp))
+        ConfirmButton("save", enabled = true, onClick = { onPick(text) })
+    }
+}
 
 /**
  * Full parity with the in-app [com.tileshell.core.data.StockTile.Selection]
