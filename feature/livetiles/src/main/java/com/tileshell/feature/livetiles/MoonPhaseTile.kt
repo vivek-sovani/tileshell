@@ -130,7 +130,8 @@ fun moonPhaseFace(epochDay: Double): MoonPhaseFace {
     )
 }
 
-private fun currentMoonPhaseFace(): MoonPhaseFace =
+/** Widened to internal so the home-screen moon-phase widget can reuse this exact read (S33). */
+internal fun currentMoonPhaseFace(): MoonPhaseFace =
     moonPhaseFace(System.currentTimeMillis() / 86_400_000.0)
 
 private val FaceText: Color

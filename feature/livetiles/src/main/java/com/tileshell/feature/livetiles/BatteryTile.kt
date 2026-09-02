@@ -8,10 +8,12 @@ import android.os.BatteryManager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -43,6 +45,7 @@ data class BatteryFace(
     val hasData: Boolean,
     val percentText: String,
     val statusLine: String,
+    val isCharging: Boolean = false,
 )
 
 /**
@@ -50,17 +53,23 @@ data class BatteryFace(
  * (full / charging-with-estimate / charging-no-estimate / not charging) is
  * unit-testable. [chargeTimeRemainingMillis] is null whenever the OS can't
  * estimate it yet (very common right after plugging in).
+ *
+ * User-reported: "25m left" alone reads as ambiguous while charging — it
+ * could be misread as remaining battery life (as if unplugged) instead of
+ * time until full, its actual meaning ([BatteryManager
+ * .computeChargeTimeRemaining] is *always* "time to 100%", never a discharge
+ * estimate). "25m to full" removes that ambiguity.
  */
 fun batteryFace(percent: Int?, isCharging: Boolean, chargeTimeRemainingMillis: Long?): BatteryFace {
     if (percent == null) return BatteryFace(hasData = false, percentText = "--", statusLine = "unavailable")
     val statusLine = when {
         percent >= 100 -> "fully charged"
         isCharging && chargeTimeRemainingMillis != null && chargeTimeRemainingMillis > 0 ->
-            "${formatChargeDuration(chargeTimeRemainingMillis)} left"
+            "${formatChargeDuration(chargeTimeRemainingMillis)} to full"
         isCharging -> "charging"
         else -> "not charging"
     }
-    return BatteryFace(hasData = true, percentText = "$percent%", statusLine = statusLine)
+    return BatteryFace(hasData = true, percentText = "$percent%", statusLine = statusLine, isCharging = isCharging)
 }
 
 internal fun formatChargeDuration(millis: Long): String {
@@ -74,7 +83,8 @@ internal fun formatChargeDuration(millis: Long): String {
     }
 }
 
-private fun currentBatteryFace(context: Context): BatteryFace {
+/** Widened to internal so the home-screen battery widget can reuse this exact read (S33). */
+internal fun currentBatteryFace(context: Context): BatteryFace {
     val bm = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
     val percent = runCatching {
         bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)?.takeIf { it in 0..100 }
@@ -101,6 +111,13 @@ private val FaceText: Color
  * registration pattern as [ClockTileFace]'s alarm-change listener and
  * [rememberDeviceStatus] in `DeviceStatus.kt`. Shared by [BatteryTileFace] and
  * [BatterySmallFace] so the broadcast registration isn't duplicated.
+ *
+ * Also cascades to the home-screen battery widget (user-reported: unplugging
+ * left a stale "to full" widget) — the widget's own manifest-declared
+ * receiver can't get `ACTION_BATTERY_CHANGED` at all (blocked since API 26),
+ * so this in-app dynamic receiver is the only way it ever hears about a
+ * plug/unplug event *sooner* than its own periodic push; same idea as
+ * [WeatherRefreshWorker] pushing weather's widget after a fresh fetch.
  */
 @Composable
 private fun rememberBatteryFace(): BatteryFace {
@@ -112,6 +129,7 @@ private fun rememberBatteryFace(): BatteryFace {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context?, intent: Intent?) {
                 face = currentBatteryFace(context)
+                com.tileshell.feature.livetiles.widget.BatteryWidgetRefreshWorker.refreshNow(context)
             }
         }
         runCatching { context.registerReceiver(receiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) }
@@ -177,16 +195,36 @@ private fun BatteryFront(face: BatteryFace, size: TileSize) {
         verticalArrangement = if (narrow) Arrangement.SpaceEvenly else Arrangement.Center,
         horizontalAlignment = if (narrow) Alignment.CenterHorizontally else Alignment.Start,
     ) {
-        Text(
-            text = face.percentText,
-            color = FaceText,
-            fontSize = if (short) 26.sp else if (narrow) 28.sp else if (big) 60.sp else 42.sp,
-            lineHeight = if (short) 26.sp else if (narrow) 28.sp else if (big) 60.sp else 42.sp,
-            fontWeight = FontWeight.ExtraLight,
-            letterSpacing = (-1).sp,
-            maxLines = 1,
-            textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
-        )
+        val percentTextComposable = @Composable {
+            Text(
+                text = face.percentText,
+                color = FaceText,
+                fontSize = if (short) 26.sp else if (narrow) 28.sp else if (big) 60.sp else 42.sp,
+                lineHeight = if (short) 26.sp else if (narrow) 28.sp else if (big) 60.sp else 42.sp,
+                fontWeight = FontWeight.ExtraLight,
+                letterSpacing = (-1).sp,
+                maxLines = 1,
+                textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
+            )
+        }
+        if (narrow || !face.hasData) {
+            percentTextComposable()
+        } else {
+            // A real colour-coded gauge beside the percent (user-requested,
+            // matching the home-screen widget's own BatteryGaugeVisual)
+            // instead of plain text with no visual indicator at all.
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                percentTextComposable()
+                BatteryGaugeVisual(
+                    percent = face.percentText.removeSuffix("%").toIntOrNull() ?: 0,
+                    tint = FaceText,
+                    isCharging = face.isCharging,
+                    modifier = Modifier
+                        .width(if (short) 40.dp else if (big) 64.dp else 52.dp)
+                        .height(if (short) 22.dp else if (big) 34.dp else 28.dp),
+                )
+            }
+        }
         Text(
             text = face.statusLine,
             color = FaceText.copy(alpha = 0.82f),

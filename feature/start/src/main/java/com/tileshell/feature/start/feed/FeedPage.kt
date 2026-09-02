@@ -17,6 +17,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -976,11 +978,14 @@ internal fun WeatherCard(
                 verticalAlignment = Alignment.Top,
             ) {
                 Text("${snapshot.tempC}°", color = onAccent, fontSize = 34.sp, fontWeight = FontWeight.Thin)
-                Icon(
-                    imageVector = TileIcons["weather"],
-                    contentDescription = null,
+                // A richer multi-element illustration (user-requested, matching
+                // the home-screen widget's own WeatherConditionVisual) instead
+                // of the flat monoline glyph — same fixed-amber-sun exception
+                // to the tint rule as the widget.
+                com.tileshell.feature.livetiles.WeatherConditionVisual(
+                    condition = snapshot.condition,
                     tint = onAccent,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(28.dp),
                 )
             }
             Text(
@@ -997,6 +1002,36 @@ internal fun WeatherCard(
                 fontSize = 11.sp,
                 modifier = Modifier.padding(top = 6.dp),
             )
+            // The 7-day outlook (user-requested, matching the home-screen
+            // widget's back face) — a fixed-height horizontal scroll so a
+            // long list can't blow out this card's height, which is shared
+            // with whatever it's paired next to in the feed row.
+            if (snapshot.forecast.isNotEmpty()) {
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                        .height(40.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    items(snapshot.forecast) { day ->
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                day.dayLabel.take(3),
+                                color = onAccentDim,
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                            )
+                            Text(
+                                com.tileshell.feature.livetiles.highLowLabel(day.highC, day.lowC),
+                                color = onAccent,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

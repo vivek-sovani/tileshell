@@ -181,6 +181,96 @@ visible on a real device, not in a green build.
 
 ---
 
+## Phase 9 — Home-screen widgets for any launcher (not urgent, user-requested)
+
+The glance gadgets (weather/agenda/tasks/notes/stocks/panchang/etc., built as
+internal Compose composables on TileShell's own feed page) are not reachable
+from other launchers today — only TileShell's own UI can render them. Making
+them placeable from Nova/Pixel Launcher/One UI/etc. means implementing the
+real Android AppWidget framework — a different rendering model (`RemoteViews`,
+not arbitrary Compose) — not a port of existing code.
+
+**Static-first, plain-RemoteViews-first — not a bitmap snapshot.** A real
+Android widget only strictly needs `android.appwidget.AppWidgetProvider` +
+`RemoteViews` — both already part of the SDK, zero new dependencies. An
+earlier draft of this plan reached for a Compose→`Bitmap` snapshot (render
+the gadget's own composable off-screen, push the bitmap into an `ImageView`)
+to get a pixel-identical widget — dropped after review: rendering Compose
+off-screen from a background Worker has no real window to draw into on
+Android 10+ without a `SYSTEM_ALERT_WINDOW` overlay permission, which is a
+heavy, Play-Store-scrutinized ask this project has real rejection history
+with (see CLAUDE.md's accessibility-disclosure entries). Hand-writing a
+plain `RemoteViews` layout instead sidesteps that whole problem and is
+*less* work, not more — the tradeoff is fidelity, not effort. What survives:
+the accent-color background (`RemoteViews.setInt(id, "setBackgroundColor",
+…)` is whitelisted) and the gadget's own monoline icon (just an image
+resource). What's lost: the thin/light custom font weights and exact type
+rhythm (RemoteViews can't set a custom typeface), and the outer corner
+radius/shape, which the *host launcher* draws, not TileShell. Net effect: a
+recognizably-the-same card, genericized. `androidx.glance-appwidget` (a
+Compose-DSL-over-RemoteViews library) isn't needed for this batch either —
+only later, for gadgets that must stay genuinely interactive as a widget —
+see exclusions below.
+
+**Static-safe gadgets (view-only in-app already, or fine as tap-opens-app):**
+weather, agenda, moonphase/panchang (calendar system), stocks, commodities,
+sports, countdown, battery, steps, clock, stickynote (view), notepad (view),
+alarm (shows next alarm only). 13 kinds total.
+
+**Excluded from this batch — need real interactivity or an action, not a
+snapshot, so they wait for a later Glance/PendingIntent-action session:**
+tasks (checkbox toggle), stickynote/notepad *editing* (stays view-only here),
+flashlight (it's a toggle action, not a display — small but different
+mechanism: a single `RemoteViews` button + broadcast receiver, no bitmap
+involved), now-playing (transport buttons need real `PendingIntent`s to be
+worth adding as a widget at all — a static now-playing snapshot is close to
+useless).
+
+### S32 · Plain-RemoteViews widget pilot — weather only
+> Prove the mechanism end-to-end on exactly one gadget before touching the
+> other 12, with no bitmap rendering and no new dependency. New
+> `:feature:widgets` module (or a package in `:feature:livetiles` if a whole
+> module is overkill once this is scoped for real). One `AppWidgetProvider` +
+> `res/xml` metadata (resizable, preview image, min/max size) for weather,
+> plus a `res/layout` `RemoteViews` XML: root layout background colour set to
+> the resolved accent, the existing weather monoline icon as an `ImageView`
+> drawable resource, plain `TextView`s for temperature/condition/high-low
+> (system font — no attempt at the in-app thin weight). A `CoroutineWorker`
+> (periodic, ~30 min minimum per Android's own floor, plus an immediate
+> one-off on weather data refresh) reads the same `WeatherCache`/repository
+> the in-app card already reads and calls `RemoteViews.setTextViewText`/
+> `setInt` + `AppWidgetManager.updateAppWidget` — no rendering step at all.
+> Handle `onAppWidgetOptionsChanged` for at least 2 size buckets (swap to a
+> more/less compact `RemoteViews` layout, e.g. drop the high/low line below a
+> height threshold). Tap opens the app. Verify by placing it on a *different*
+> launcher (or the stock Pixel launcher) on a physical device: correct
+> accent/icon/text render, resize swaps layout correctly, periodic + data-
+> change refresh both land, remove/re-add doesn't leave a stale widget
+> registered. Build, commit. Exit bar for S33: the provider/Worker/resize
+> pattern is generic enough that adding gadget #2 is "new provider + XML
+> layout + point the Worker at an existing repository read", not new
+> plumbing.
+
+### S33 · Roll out static widgets to the remaining 12 gadgets
+> Using S32's now-proven provider/Worker/resize pattern, add an
+> `AppWidgetProvider` + `RemoteViews` XML + preview image per remaining
+> static-safe gadget (agenda, panchang, stocks, commodities, sports,
+> countdown, battery, steps, clock, stickynote-view, notepad-view,
+> alarm-next). Each one is its own small `RemoteViews` layout hand-written
+> to that gadget's actual fields — not a shared generic template, since a
+> stocks list and a battery percentage don't share a shape. If this is too
+> much for one sitting, split by natural grouping (e.g. finance: stocks +
+> commodities; almanac: panchang + moonphase + countdown) rather than doing
+> all 12 in one pass. Each one gets its own on-device placement check, not
+> just a build-passes check — a `RemoteViews` layout bug is visual, not
+> something a unit test catches. Build, commit per sub-batch. **Deferred,
+> not in this phase**: revisiting weather (or any gadget where fidelity
+> turns out to matter) with the bitmap-snapshot idea, if a safe way to
+> render Compose off-screen without the overlay-permission problem turns up
+> later — worth a fresh look before committing to it, not before.
+
+---
+
 ## Getting the most out of Pro (read once)
 
 1. **Chat and Claude Code share the same 5-hour pool** — avoid heavy claude.ai chats on coding days.

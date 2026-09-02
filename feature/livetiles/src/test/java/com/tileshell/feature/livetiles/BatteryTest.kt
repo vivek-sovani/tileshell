@@ -21,10 +21,12 @@ class BatteryFaceTest {
     }
 
     @Test
-    fun `charging with an estimate shows time left`() {
+    fun `charging with an estimate shows time to full, not time left`() {
+        // "left" alone reads as ambiguous while charging (user-reported) —
+        // could be misread as remaining battery life instead of time to 100%.
         val face = batteryFace(percent = 62, isCharging = true, chargeTimeRemainingMillis = (60 + 42) * 60_000L)
         assertEquals("62%", face.percentText)
-        assertEquals("1h 42m left", face.statusLine)
+        assertEquals("1h 42m to full", face.statusLine)
     }
 
     @Test

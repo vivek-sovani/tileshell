@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Same monoline glyph as TileIcons["commodity"] (core/design/TileIcons.kt) —
+     a coin: outer disc rim + a smaller inner ring — hand-ported to a real
+     drawable resource, see ic_widget_weather.xml for why. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

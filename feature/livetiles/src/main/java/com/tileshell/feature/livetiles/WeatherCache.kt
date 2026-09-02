@@ -43,6 +43,17 @@ object WeatherCacheCodec {
             append("detail=").append(s.detail).append('\n')
             // condition last: it is the presence marker for a valid snapshot.
             append("condition=").append(s.condition)
+            // 7-day outlook (user-requested), one `forecastN=` line per day —
+            // `|`-joined since none of these fields can contain a `|`
+            // (day labels are "today"/"tomorrow"/a lowercase weekday name,
+            // conditions come from the fixed weatherCodeToCondition phrases).
+            s.forecast.forEachIndexed { i, day ->
+                append('\n').append("forecast").append(i).append('=')
+                    .append(day.dayLabel).append('|')
+                    .append(day.highC).append('|')
+                    .append(day.lowC).append('|')
+                    .append(day.condition)
+            }
         }
     }
 
@@ -55,20 +66,37 @@ object WeatherCacheCodec {
         var place = ""
         var detail = ""
         var condition: String? = null
+        val forecastByIndex = sortedMapOf<Int, DailyForecast>()
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
             if (sep <= 0) return@forEach
             val key = line.substring(0, sep).trim()
             val value = line.substring(sep + 1)
-            when (key) {
-                "manualCity" -> manualCity = value.trim().ifEmpty { null }
-                "temp" -> temp = value.trim().toIntOrNull()
-                "high" -> high = value.trim().toIntOrNull()
-                "low" -> low = value.trim().toIntOrNull()
-                "fetchedAt" -> fetchedAt = value.trim().toLongOrNull() ?: 0L
-                "place" -> place = value
-                "detail" -> detail = value
-                "condition" -> condition = value.ifEmpty { null }
+            when {
+                key == "manualCity" -> manualCity = value.trim().ifEmpty { null }
+                key == "temp" -> temp = value.trim().toIntOrNull()
+                key == "high" -> high = value.trim().toIntOrNull()
+                key == "low" -> low = value.trim().toIntOrNull()
+                key == "fetchedAt" -> fetchedAt = value.trim().toLongOrNull() ?: 0L
+                key == "place" -> place = value
+                key == "detail" -> detail = value
+                key == "condition" -> condition = value.ifEmpty { null }
+                key.startsWith("forecast") -> {
+                    val index = key.removePrefix("forecast").toIntOrNull() ?: return@forEach
+                    val parts = value.split('|')
+                    if (parts.size == 4) {
+                        val dHigh = parts[1].toIntOrNull()
+                        val dLow = parts[2].toIntOrNull()
+                        if (dHigh != null && dLow != null) {
+                            forecastByIndex[index] = DailyForecast(
+                                dayLabel = parts[0],
+                                highC = dHigh,
+                                lowC = dLow,
+                                condition = parts[3],
+                            )
+                        }
+                    }
+                }
             }
         }
         // A snapshot is only valid with the numeric fields and a condition.
@@ -81,6 +109,7 @@ object WeatherCacheCodec {
                 detail = detail,
                 place = place,
                 fetchedAtMillis = fetchedAt,
+                forecast = forecastByIndex.values.toList(),
             )
         } else {
             null

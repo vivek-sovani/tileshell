@@ -2,4 +2,15 @@
 <resources>
     <!-- Shown in the system "Notification access" list for the listener service. -->
     <string name="notification_listener_label">TileShell live tiles</string>
+    <!-- Shown in the system widget picker for each home-screen widget (S32/S33). -->
+    <string name="weather_widget_label">weather</string>
+    <string name="battery_widget_label">battery</string>
+    <string name="alarm_widget_label">alarm</string>
+    <string name="moonphase_widget_label">moon phase</string>
+    <string name="steps_widget_label">steps</string>
+    <string name="calsys_widget_label">calendar systems</string>
+    <string name="flashlight_widget_label">flashlight</string>
+    <string name="stock_widget_label">stock market</string>
+    <string name="commodity_widget_label">commodity / currency</string>
+    <string name="sports_widget_label">sports</string>
 </resources>

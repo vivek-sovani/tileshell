@@ -29,6 +29,22 @@ data class WeatherSnapshot(
     val detail: String = "",
     val place: String = "",
     val fetchedAtMillis: Long = 0L,
+    val forecast: List<DailyForecast> = emptyList(),
+)
+
+/**
+ * One day of the multi-day outlook (user-requested: "show next 7 days
+ * prediction"). [dayLabel] is "today"/"tomorrow"/a lowercase weekday name,
+ * matching the same today/tomorrow/weekday convention [AlarmFace] already
+ * uses for its own date labelling. Defaults to an empty list on
+ * [WeatherSnapshot] so every existing caller/cache-file compiles/decodes
+ * unchanged — only call sites that actually want the outlook need to read it.
+ */
+data class DailyForecast(
+    val dayLabel: String,
+    val highC: Int,
+    val lowC: Int,
+    val condition: String,
 )
 
 /**

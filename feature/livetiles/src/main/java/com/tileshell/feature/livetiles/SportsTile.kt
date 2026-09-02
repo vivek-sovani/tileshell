@@ -29,8 +29,8 @@ import com.tileshell.core.data.SportsMatchDetail
 import com.tileshell.core.data.SportsSnapshot
 import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.fetchCricketMatchDetail
-import com.tileshell.core.data.fetchCricketMatches
 import com.tileshell.core.data.fetchMatchDetail
+import com.tileshell.core.data.fetchRecentCricketMatchForTeam
 import com.tileshell.core.data.fetchSportsSchedule
 import com.tileshell.core.data.pickRelevantMatch
 import com.tileshell.core.data.settings.LiveRefreshRate
@@ -131,14 +131,15 @@ fun SportsTileFace(
         if (!active) return@LaunchedEffect
         while (true) {
             // Cricket has no per-team schedule endpoint (see CRICKET_LEAGUE_SLUG's
-            // own doc comment) — its cross-tournament feed is filtered to our
-            // team's own games instead.
-            val events = if (leagueSlug == CRICKET_LEAGUE_SLUG) {
-                fetchCricketMatches().filter { it.homeId == teamId || it.awayId == teamId }
+            // own doc comment) — fetchRecentCricketMatchForTeam checks today's
+            // live/imminent cross-tournament feed first, then walks backward day
+            // by day when that's empty, since a finished match otherwise drops
+            // out of that feed within about a day (verified live).
+            val relevant = if (leagueSlug == CRICKET_LEAGUE_SLUG) {
+                fetchRecentCricketMatchForTeam(teamId, System.currentTimeMillis())
             } else {
-                fetchSportsSchedule(leagueSlug, teamId)
+                pickRelevantMatch(fetchSportsSchedule(leagueSlug, teamId), System.currentTimeMillis())
             }
-            val relevant = pickRelevantMatch(events, System.currentTimeMillis())
             val matchDetail = relevant?.let { ev ->
                 if (leagueSlug == CRICKET_LEAGUE_SLUG) {
                     ev.leagueId?.let { fetchCricketMatchDetail(it, ev.id) }

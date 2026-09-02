@@ -63,6 +63,9 @@ class WeatherRefreshWorker(
         val snapshot = runCatching { provider.fetch(query) }.getOrNull()
             ?: return Result.retry()
         cache.putSnapshot(snapshot)
+        // Push any placed home-screen weather widgets right away instead of
+        // making them wait for their own ~30-min cycle (S32).
+        com.tileshell.feature.livetiles.widget.WeatherWidgetRefreshWorker.refreshNow(applicationContext)
         return Result.success()
     }
 

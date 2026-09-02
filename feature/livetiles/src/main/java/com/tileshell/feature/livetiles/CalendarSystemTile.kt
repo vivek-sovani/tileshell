@@ -46,7 +46,7 @@ private val FaceText: Color
  * mechanism used for every other supported system, so no per-system
  * formatting code beyond the keyword lookup.
  */
-private fun formatSelectedSystemDate(systemId: String, epochMillis: Long): String {
+internal fun formatSelectedSystemDate(systemId: String, epochMillis: Long): String {
     val keyword = calendarSystemFor(systemId)?.icuCalendarKeyword ?: return ""
     return runCatching {
         val locale = Locale.Builder().setLanguage("en").setUnicodeLocaleKeyword("ca", keyword).build()

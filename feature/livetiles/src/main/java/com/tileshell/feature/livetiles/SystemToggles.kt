@@ -142,7 +142,14 @@ fun rememberBatterySaverOn(): Boolean {
     return saving
 }
 
-/** Flashlight/torch on/off — true toggle, no permission at all for torch-only use (API 23+). */
+/**
+ * Flashlight/torch on/off — true toggle, no permission at all for torch-only
+ * use (API 23+). Also cascades the real hardware state to the home-screen
+ * flashlight widget (which has no way to query it on its own — see
+ * [com.tileshell.feature.livetiles.widget.WidgetFlashlightState]'s own doc
+ * comment) whenever this callback fires, same "sync while the app happens to
+ * be open" pattern [BatteryTile.kt]'s receiver already uses for battery.
+ */
 @Composable
 fun rememberTorchOn(): Pair<Boolean, () -> Unit> {
     val context = LocalContext.current
@@ -157,7 +164,11 @@ fun rememberTorchOn(): Pair<Boolean, () -> Unit> {
         if (camera == null || cameraId == null) return@DisposableEffect onDispose {}
         val callback = object : CameraManager.TorchCallback() {
             override fun onTorchModeChanged(id: String, enabled: Boolean) {
-                if (id == cameraId) on = enabled
+                if (id == cameraId) {
+                    on = enabled
+                    com.tileshell.feature.livetiles.widget.WidgetFlashlightState.setOn(context, enabled)
+                    com.tileshell.feature.livetiles.widget.FlashlightWidgetRefreshWorker.refreshNow(context)
+                }
             }
         }
         camera.registerTorchCallback(callback, Handler(Looper.getMainLooper()))

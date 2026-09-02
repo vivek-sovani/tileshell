@@ -72,7 +72,8 @@ fun alarmFace(
     return AlarmFace(hasAlarm = true, time = time, dayLabel = dayLabel)
 }
 
-private fun currentAlarmFace(context: Context): AlarmFace {
+/** Widened to internal so the home-screen alarm widget can reuse this exact read (S33). */
+internal fun currentAlarmFace(context: Context): AlarmFace {
     val am = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
     val info = am?.nextAlarmClock
         ?: return alarmFace(false, "", 0, 0, 0, 0, "")

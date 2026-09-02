@@ -76,6 +76,33 @@ class WeatherCacheCodecTest {
         // condition present but temp/high/low absent -> not a valid snapshot.
         assertNull(WeatherCacheCodec.decode("condition=sunny").snapshot)
     }
+
+    @Test
+    fun `snapshot with a forecast round-trips in order`() {
+        val data = WeatherCacheData(
+            snapshot = WeatherSnapshot(
+                tempC = 23,
+                condition = "partly cloudy",
+                highC = 26,
+                lowC = 17,
+                place = "Pune",
+                forecast = listOf(
+                    DailyForecast("today", 26, 17, "partly cloudy"),
+                    DailyForecast("tomorrow", 25, 16, "rain"),
+                    DailyForecast("wednesday", 24, 15, "clear"),
+                ),
+            ),
+        )
+        assertEquals(data, WeatherCacheCodec.decode(WeatherCacheCodec.encode(data)))
+    }
+
+    @Test
+    fun `an old cache file with no forecast lines decodes to an empty forecast`() {
+        val decoded = WeatherCacheCodec.decode(
+            "temp=23\nhigh=26\nlow=17\nplace=Pune\ncondition=clear",
+        )
+        assertEquals(emptyList<DailyForecast>(), decoded.snapshot?.forecast)
+    }
 }
 
 class OpenMeteoTest {
@@ -122,6 +149,45 @@ class OpenMeteoTest {
     fun `forecast without a current temperature is rejected`() {
         assertNull(parseOpenMeteoForecast("""{"daily":{}}""", "x", 0L))
         assertNull(parseOpenMeteoForecast("not json", "x", 0L))
+    }
+
+    @Test
+    fun `day label is today, tomorrow, then the weekday name`() {
+        assertEquals("today", dailyForecastDayLabel(0, "2026-03-05"))
+        assertEquals("tomorrow", dailyForecastDayLabel(1, "2026-03-06"))
+        // 2026-03-07 is a Saturday.
+        assertEquals("saturday", dailyForecastDayLabel(2, "2026-03-07"))
+    }
+
+    @Test
+    fun `malformed date at index 2+ falls back to a day number instead of crashing`() {
+        assertEquals("day 3", dailyForecastDayLabel(2, "not-a-date"))
+    }
+
+    @Test
+    fun `multi-day forecast json parses one entry per day`() {
+        val json = """
+            {
+              "current": { "temperature_2m": 22.6, "weather_code": 2 },
+              "daily": {
+                "time": ["2026-03-05", "2026-03-06", "2026-03-07"],
+                "temperature_2m_max": [26.4, 25.0, 24.0],
+                "temperature_2m_min": [16.5, 16.0, 15.0],
+                "weather_code": [2, 61, 0]
+              }
+            }
+        """.trimIndent()
+        val snap = parseOpenMeteoForecast(json, place = "Pune", nowMillis = 123L)!!
+        assertEquals(3, snap.forecast.size)
+        assertEquals(DailyForecast("today", 26, 17, "partly cloudy"), snap.forecast[0])
+        assertEquals(DailyForecast("tomorrow", 25, 16, "rain"), snap.forecast[1])
+        assertEquals(DailyForecast("saturday", 24, 15, "clear"), snap.forecast[2])
+    }
+
+    @Test
+    fun `missing daily arrays yield an empty forecast, not a crash`() {
+        val json = """{"current": {"temperature_2m": 20, "weather_code": 0}}"""
+        assertEquals(emptyList<DailyForecast>(), parseOpenMeteoForecast(json, "x", 0L)!!.forecast)
     }
 
     @Test

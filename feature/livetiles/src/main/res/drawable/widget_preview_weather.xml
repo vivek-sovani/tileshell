@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Colourful preview for the OS "add widget" picker — matches the same
+     accent-filled plate + white glyph look as TileShell's own in-app widget
+     catalogs (WidgetListSheet / WidgetSlot's CustomCardPickerRow: "weather"
+     is TileAccents.Cyan there), instead of reusing the plain white-stroke
+     runtime icon, which reads as monochrome/invisible on another launcher's
+     own picker background. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#FF1399C6" />
+            <corners android:radius="18dp" />
+            <size android:width="96dp" android:height="96dp" />
+        </shape>
+    </item>
+    <item
+        android:width="52dp"
+        android:height="52dp"
+        android:gravity="center"
+        android:drawable="@drawable/ic_widget_weather" />
+</layer-list>

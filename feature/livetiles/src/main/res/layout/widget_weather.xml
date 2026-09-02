@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Full-size weather widget layout (>=180dp wide). A real 3D card flip (the
+     in-app WeatherTileFace's FlipTile) has no RemoteViews equivalent, so this
+     uses a ViewFlipper instead — a plain widget-native fade between two child
+     layouts, auto-advancing on its own inside the host launcher's process (no
+     Worker/timer needed for the flip itself). Front is today's complete
+     picture (place/temp/condition/high-low/detail — user-requested merge of
+     what used to be a separate back face, once the back face itself became
+     the 7-day outlook instead); back is the outlook (widget_forecast_row0..6
+     — a fixed 7 rows in XML, not a RemoteViewsService collection adapter,
+     since the day count is a known constant). The background is a bitmap
+     (widget_bg, behind the flipper) rather than a flat setBackgroundColor —
+     see WidgetGradient.kt for why a gradient needs a bitmap, not a
+     RemoteViews-settable drawable. Square corners regardless, since the host
+     launcher draws its own widget mask/shape, not TileShell. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/widget_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY" />
+
+<ViewFlipper
+    android:id="@+id/widget_flipper"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:autoStart="true"
+    android:flipInterval="6000"
+    android:inAnimation="@android:anim/fade_in"
+    android:outAnimation="@android:anim/fade_out">
+
+    <!-- Front: today's complete picture. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <TextView
+            android:id="@+id/widget_place"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#FFFFFFFF" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:orientation="horizontal"
+            android:gravity="top">
+
+            <TextView
+                android:id="@+id/widget_temp"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="30sp"
+                android:textColor="#FFFFFFFF" />
+
+            <!-- A real multi-element illustration pushed at runtime (see
+                 WidgetWeatherVisual.kt), not a tinted monoline glyph — the
+                 static src below is only the picker-preview/pre-first-push
+                 fallback, so no setColorFilter here (it would flatten the
+                 sun's own colour into onAccent). -->
+            <ImageView
+                android:id="@+id/widget_icon"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:src="@drawable/ic_widget_weather" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/widget_condition"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textSize="13sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#FFFFFFFF" />
+
+        <TextView
+            android:id="@+id/widget_back_highlow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textSize="16sp"
+            android:maxLines="1"
+            android:textColor="#FFFFFFFF" />
+
+        <TextView
+            android:id="@+id/widget_back_detail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textSize="12sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#FFFFFFFF" />
+
+    </LinearLayout>
+
+    <!-- Back: 7-day outlook, one fixed row per day. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/widget_forecast_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:text="7-day outlook"
+            android:textSize="12sp"
+            android:textColor="#FFFFFFFF" />
+
+        <LinearLayout
+            android:id="@+id/widget_forecast_row0"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <TextView android:id="@+id/widget_forecast_day0" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="11sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <TextView android:id="@+id/widget_forecast_cond0" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="2" android:gravity="end" android:textSize="11sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <TextView android:id="@+id/widget_forecast_hl0" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:textSize="11sp" android:maxLines="1" android:textColor="#FFFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/widget_forecast_row1"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <TextView android:id="@+id/widget_forecast_day1" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="11sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <TextView android:id="@+id/widget_forecast_cond1" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="2" android:gravity="end" android:textSize="11sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <TextView android:id="@+id/widget_forecast_hl1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:textSize="11sp" android:maxLines="1" android:textColor="#FFFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/widget_forecast_row2"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <TextView android:id="@+id/widget_forecast_day2" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="11sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <TextView android:id="@+id/widget_forecast_cond2" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="2" android:gravity="end" android:textSize="11sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <TextView android:id="@+id/widget_forecast_hl2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:textSize="11sp" android:maxLines="1" android:textColor="#FFFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/widget_forecast_row3"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <TextView android:id="@+id/widget_forecast_day3" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="11sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <TextView android:id="@+id/widget_forecast_cond3" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="2" android:gravity="end" android:textSize="11sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <TextView android:id="@+id/widget_forecast_hl3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:textSize="11sp" android:maxLines="1" android:textColor="#FFFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/widget_forecast_row4"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <TextView android:id="@+id/widget_forecast_day4" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="11sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <TextView android:id="@+id/widget_forecast_cond4" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="2" android:gravity="end" android:textSize="11sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <TextView android:id="@+id/widget_forecast_hl4" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:textSize="11sp" android:maxLines="1" android:textColor="#FFFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/widget_forecast_row5"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <TextView android:id="@+id/widget_forecast_day5" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="11sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <TextView android:id="@+id/widget_forecast_cond5" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="2" android:gravity="end" android:textSize="11sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <TextView android:id="@+id/widget_forecast_hl5" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:textSize="11sp" android:maxLines="1" android:textColor="#FFFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/widget_forecast_row6"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <TextView android:id="@+id/widget_forecast_day6" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="11sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <TextView android:id="@+id/widget_forecast_cond6" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="2" android:gravity="end" android:textSize="11sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <TextView android:id="@+id/widget_forecast_hl6" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:textSize="11sp" android:maxLines="1" android:textColor="#FFFFFFFF" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+</ViewFlipper>
+
+    <ImageView
+        android:id="@+id/widget_settings"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="6dp"
+        android:padding="2dp"
+        android:src="@drawable/ic_widget_settings" />
+
+</FrameLayout>

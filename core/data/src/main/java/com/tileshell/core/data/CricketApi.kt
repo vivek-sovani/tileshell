@@ -71,9 +71,16 @@ val IPL_TEAMS: List<SportsTeam> = listOf(
  * ([pickRelevantMatch] + [snapshotFor] then work identically to any other
  * sport once that's done). Empty on any failure, or whenever nothing
  * cricket-related is currently active anywhere.
+ *
+ * [dateYyyymmdd] scopes the same feed to one specific past day instead of
+ * "today" (verified live: the endpoint's own `dates=YYYYMMDD` param works
+ * unchanged) — see [fetchRecentCricketMatchForTeam], which walks this
+ * backward to find a followed team's actual last result once it's fallen out
+ * of the default "right now" window (typically within a day of finishing).
  */
-suspend fun fetchCricketMatches(): List<SportsMatchEvent> {
-    val body = httpGetText("https://site.web.api.espn.com/apis/v2/scoreboard/header?sport=cricket") ?: return emptyList()
+suspend fun fetchCricketMatches(dateYyyymmdd: String? = null): List<SportsMatchEvent> {
+    val dateParam = dateYyyymmdd?.let { "&dates=$it" }.orEmpty()
+    val body = httpGetText("https://site.web.api.espn.com/apis/v2/scoreboard/header?sport=cricket$dateParam") ?: return emptyList()
     return runCatching {
         val sports = JSONObject(body).getJSONArray("sports")
         val events = mutableListOf<SportsMatchEvent>()
@@ -90,6 +97,41 @@ suspend fun fetchCricketMatches(): List<SportsMatchEvent> {
         }
         events
     }.getOrDefault(emptyList())
+}
+
+/**
+ * A followed cricket team's live game if it has one right now, else its
+ * actual most recent result — not just "whatever [fetchCricketMatches]'s
+ * default window still happens to contain," which for a senior international
+ * side can go empty within a day or so of full-time (verified live: India's
+ * last match against Sri Lanka had already dropped out of the undated feed
+ * five days after full-time, on a day when 28 *other* cricket matches
+ * worldwide were still listed). Checks today's default feed first — the
+ * common case, covering a live match or something that finished within the
+ * last day — then only pays for extra calls, one real HTTP request per day
+ * walked backward, when that comes up empty; stops at the first (most
+ * recent) day that has anything for this team. [maxDaysBack] bounds the
+ * worst case (a team with genuinely nothing scheduled in a month) so this
+ * can't spiral into dozens of requests.
+ */
+suspend fun fetchRecentCricketMatchForTeam(teamId: String, nowMillis: Long, maxDaysBack: Int = 30): SportsMatchEvent? {
+    val today = fetchCricketMatches().filter { it.homeId == teamId || it.awayId == teamId }
+    pickRelevantMatch(today, nowMillis)?.let { return it }
+
+    val calendar = java.util.Calendar.getInstance().apply { timeInMillis = nowMillis }
+    repeat(maxDaysBack) {
+        calendar.add(java.util.Calendar.DAY_OF_YEAR, -1)
+        val dateParam = String.format(
+            java.util.Locale.US,
+            "%04d%02d%02d",
+            calendar.get(java.util.Calendar.YEAR),
+            calendar.get(java.util.Calendar.MONTH) + 1,
+            calendar.get(java.util.Calendar.DAY_OF_MONTH),
+        )
+        val events = fetchCricketMatches(dateParam).filter { it.homeId == teamId || it.awayId == teamId }
+        pickRelevantMatch(events, nowMillis)?.let { return it }
+    }
+    return null
 }
 
 private fun parseCricketEvent(ev: JSONObject, leagueId: String?): SportsMatchEvent? {

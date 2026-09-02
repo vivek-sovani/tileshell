@@ -20,6 +20,151 @@
             </intent-filter>
         </service>
 
+        <!--
+            Home-screen widgets (S32 pilot + S33 rollout, plain RemoteViews —
+            no Compose rendering). Each receiver must be exported=true: the
+            update broadcast comes from the system/host launcher, a different
+            package. Declared here so they merge into the app manifest like
+            the notification listener above.
+        -->
+        <receiver
+            android:name=".widget.WeatherAppWidgetProvider"
+            android:exported="true"
+            android:label="@string/weather_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/weather_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.BatteryAppWidgetProvider"
+            android:exported="true"
+            android:label="@string/battery_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/battery_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.AlarmAppWidgetProvider"
+            android:exported="true"
+            android:label="@string/alarm_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/alarm_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.MoonPhaseAppWidgetProvider"
+            android:exported="true"
+            android:label="@string/moonphase_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/moonphase_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.StepsAppWidgetProvider"
+            android:exported="true"
+            android:label="@string/steps_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/steps_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.CalendarSystemAppWidgetProvider"
+            android:exported="true"
+            android:label="@string/calsys_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/calsys_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.FlashlightAppWidgetProvider"
+            android:exported="true"
+            android:label="@string/flashlight_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.tileshell.feature.livetiles.widget.ACTION_TOGGLE_FLASHLIGHT" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/flashlight_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.StockAppWidgetProvider"
+            android:exported="true"
+            android:label="@string/stock_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/stock_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.CommodityAppWidgetProvider"
+            android:exported="true"
+            android:label="@string/commodity_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/commodity_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.SportsAppWidgetProvider"
+            android:exported="true"
+            android:label="@string/sports_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/sports_widget_info" />
+        </receiver>
+
+        <!--
+            Shared per-widget colour-picker configure activity (every
+            android:configure above points here) — see WidgetConfigureActivity's
+            own doc comment for why one Activity serves every kind. Must be
+            exported=true (launched by the system/host launcher's "add widget"
+            flow) and declare the APPWIDGET_CONFIGURE intent-filter the OS
+            requires of a configure activity.
+        -->
+        <activity
+            android:name=".widget.WidgetConfigureActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
     </application>
 
 </manifest>

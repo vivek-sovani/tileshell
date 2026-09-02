@@ -6,6 +6,8 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.time.LocalDate
+import java.time.format.DateTimeParseException
 import kotlin.math.roundToInt
 
 /**
@@ -48,6 +50,45 @@ fun weatherDetail(precipProbabilityMax: Int?): String =
     }
 
 /**
+ * "today" / "tomorrow" / a lowercase weekday name for the [index]th day of a
+ * `daily.time` array, given that day's own ISO date string — same labelling
+ * convention [AlarmFace] already uses. Pure; a malformed date string (should
+ * never happen against a real Open-Meteo response) falls back to "day N".
+ */
+fun dailyForecastDayLabel(index: Int, isoDate: String): String = when (index) {
+    0 -> "today"
+    1 -> "tomorrow"
+    else -> runCatching { LocalDate.parse(isoDate).dayOfWeek.toString().lowercase() }
+        .getOrElse { "day ${index + 1}" }
+}
+
+/**
+ * Parses the `daily.time`/`temperature_2m_max`/`temperature_2m_min`/
+ * `weather_code` arrays into a [DailyForecast] list — as many days as the
+ * response actually carries (up to the `forecast_days` requested), skipping
+ * any index missing a usable high/low/date rather than failing the whole
+ * list. Pure.
+ */
+private fun parseDailyForecastList(daily: JSONObject?): List<DailyForecast> {
+    if (daily == null) return emptyList()
+    val times = daily.optJSONArray("time") ?: return emptyList()
+    val highs = daily.optJSONArray("temperature_2m_max") ?: return emptyList()
+    val lows = daily.optJSONArray("temperature_2m_min") ?: return emptyList()
+    val codes = daily.optJSONArray("weather_code")
+    return (0 until times.length()).mapNotNull { i ->
+        val isoDate = times.optString(i, "")
+        val high = highs.optDoubleOrNull(i)?.roundToInt() ?: return@mapNotNull null
+        val low = lows.optDoubleOrNull(i)?.roundToInt() ?: return@mapNotNull null
+        DailyForecast(
+            dayLabel = dailyForecastDayLabel(i, isoDate),
+            highC = high,
+            lowC = low,
+            condition = weatherCodeToCondition(codes?.optInt(i, -1) ?: -1),
+        )
+    }
+}
+
+/**
  * Parses an Open-Meteo `/v1/forecast` response into a [WeatherSnapshot] for
  * [place]. Returns null when the payload lacks a usable current temperature. Pure
  * (no network) so the field extraction / rounding is unit-testable.
@@ -74,6 +115,7 @@ fun parseOpenMeteoForecast(json: String, place: String, nowMillis: Long): Weathe
         detail = weatherDetail(precip),
         place = place,
         fetchedAtMillis = nowMillis,
+        forecast = parseDailyForecastList(daily),
     )
 }
 
@@ -98,13 +140,15 @@ private fun org.json.JSONArray.optDoubleOrNull(index: Int): Double? =
 private fun org.json.JSONArray.optIntOrNull(index: Int): Int? =
     if (isNull(index)) null else optInt(index, Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
 
-/** Open-Meteo forecast endpoint for [lat]/[lon] (current + today's range). */
+/** Open-Meteo forecast endpoint for [lat]/[lon] (current + a 7-day outlook). */
 fun openMeteoForecastUrl(lat: Double, lon: Double): String =
     "https://api.open-meteo.com/v1/forecast" +
         "?latitude=$lat&longitude=$lon" +
         "&current=temperature_2m,weather_code" +
-        "&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
-        "&timezone=auto&forecast_days=1"
+        "&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code" +
+        // 7 days (user-requested outlook), not just today — daily.time
+        // comes back automatically alongside any other daily field.
+        "&timezone=auto&forecast_days=7"
 
 /** Open-Meteo geocoding endpoint for a typed city [name]. */
 fun openMeteoGeocodeUrl(name: String): String =

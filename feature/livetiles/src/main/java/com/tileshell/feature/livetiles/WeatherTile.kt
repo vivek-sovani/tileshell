@@ -4,10 +4,15 @@ import android.Manifest
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -131,17 +136,40 @@ private fun WeatherFront(snapshot: WeatherSnapshot, size: TileSize) {
             textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
         )
         if (!narrow && !short) Spacer(Modifier.height(2.dp))
-        Text(
-            text = tempLabel(snapshot.tempC),
-            color = FaceText,
-            fontSize = tempSize,
-            lineHeight = tempSize * 0.9f,
-            fontWeight = FontWeight.ExtraLight,
-            letterSpacing = (-2).sp,
-            maxLines = 1,
-            overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
-            textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
-        )
+        if (narrow) {
+            Text(
+                text = tempLabel(snapshot.tempC),
+                color = FaceText,
+                fontSize = tempSize,
+                lineHeight = tempSize * 0.9f,
+                fontWeight = FontWeight.ExtraLight,
+                letterSpacing = (-2).sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+            )
+        } else {
+            // A richer multi-element illustration beside the temperature
+            // (user-requested, matching the home-screen widget's own
+            // WeatherConditionVisual) instead of no icon at all.
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = tempLabel(snapshot.tempC),
+                    color = FaceText,
+                    fontSize = tempSize,
+                    lineHeight = tempSize * 0.9f,
+                    fontWeight = FontWeight.ExtraLight,
+                    letterSpacing = (-2).sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip,
+                )
+                WeatherConditionVisual(
+                    condition = snapshot.condition,
+                    tint = FaceText,
+                    modifier = Modifier.size(if (short) 22.dp else if (big) 40.dp else 30.dp),
+                )
+            }
+        }
         if (!narrow && !short) Spacer(Modifier.height(4.dp))
         Text(
             text = snapshot.condition,
@@ -191,6 +219,23 @@ private fun WeatherBack(snapshot: WeatherSnapshot, size: TileSize) {
                 overflow = TextOverflow.Ellipsis,
                 textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
             )
+        }
+        // The 7-day outlook (user-requested, matching the home-screen
+        // widget's back face) — only at LARGE, the one size with room for it
+        // beyond today's own high/low + detail.
+        if (size == TileSize.LARGE && snapshot.forecast.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                items(snapshot.forecast) { day ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(day.dayLabel.take(3), color = FaceText.copy(alpha = 0.75f), fontSize = 10.sp, maxLines = 1)
+                        Text(highLowLabel(day.highC, day.lowC), color = FaceText, fontSize = 11.sp, maxLines = 1)
+                    }
+                }
+            }
         }
     }
 }

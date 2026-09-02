@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Full-size sports widget layout. Front = both sides' abbreviation + score
+     side by side, plus the match's status line — mirrors the in-app tile's
+     own SportsFront. Back = who you're following (team + league) and up to
+     4 contributor lines (soccer goal scorers, or cricket batting then
+     bowling) when a live/recent match has them — mirrors SportsBack, with
+     unused lines hidden via View.GONE the same way the stock widget's
+     member-list rows are. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/widget_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY" />
+
+<ViewFlipper
+    android:id="@+id/widget_flipper"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:autoStart="true"
+    android:flipInterval="6000"
+    android:inAnimation="@android:anim/fade_in"
+    android:outAnimation="@android:anim/fade_out">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+                <TextView android:id="@+id/widget_team_abbr" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" android:alpha="0.82" android:textColor="#FFFFFFFF" />
+                <!-- A cricket score can run to two innings ("290 & 177/7 (46.5
+                     ov)") — split across these two lines the same way the
+                     in-app tile's own TeamScoreColumn does (splitInningsScore,
+                     up to the last 2 innings); widget_team_score_2 stays GONE
+                     for every other sport's plain single-line score. -->
+                <TextView android:id="@+id/widget_team_score" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textSize="22sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+                <TextView android:id="@+id/widget_team_score_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:visibility="gone" android:textSize="22sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:layout_marginBottom="6dp"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp"
+                android:text="vs"
+                android:textSize="13sp"
+                android:alpha="0.6"
+                android:textColor="#FFFFFFFF" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="end">
+                <TextView android:id="@+id/widget_opp_abbr" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" android:gravity="end" android:alpha="0.82" android:textColor="#FFFFFFFF" />
+                <TextView android:id="@+id/widget_opp_score" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textSize="22sp" android:maxLines="1" android:ellipsize="end" android:gravity="end" android:textColor="#FFFFFFFF" />
+                <TextView android:id="@+id/widget_opp_score_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:visibility="gone" android:textSize="22sp" android:maxLines="1" android:ellipsize="end" android:gravity="end" android:textColor="#FFFFFFFF" />
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/widget_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:textSize="13sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:alpha="0.85"
+            android:textColor="#FFFFFFFF" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <TextView
+            android:id="@+id/widget_back_team"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:alpha="0.82"
+            android:textColor="#FFFFFFFF" />
+
+        <TextView
+            android:id="@+id/widget_back_league"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textSize="12sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:alpha="0.6"
+            android:textColor="#FFFFFFFF" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="vertical">
+
+            <TextView android:id="@+id/widget_line_1" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textSize="13sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <TextView android:id="@+id/widget_line_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textSize="13sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <TextView android:id="@+id/widget_line_3" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textSize="13sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <TextView android:id="@+id/widget_line_4" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textSize="13sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</ViewFlipper>
+
+    <ImageView
+        android:id="@+id/widget_settings"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="6dp"
+        android:padding="2dp"
+        android:src="@drawable/ic_widget_settings" />
+
+</FrameLayout>

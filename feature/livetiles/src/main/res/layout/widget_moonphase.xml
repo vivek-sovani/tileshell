@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Full-size moon-phase widget layout. Front mirrors MoonPhaseFront
+     (icon/name/illumination — widget_icon's real phase shape is pushed at
+     runtime as a bitmap, see WidgetMoonPhaseVisual.kt; the android:src below
+     is only the picker-preview/pre-first-push fallback), back mirrors
+     MoonPhaseBack (label/next event). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/widget_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY" />
+
+<ViewFlipper
+    android:id="@+id/widget_flipper"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:autoStart="true"
+    android:flipInterval="6000"
+    android:inAnimation="@android:anim/fade_in"
+    android:outAnimation="@android:anim/fade_out">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="14dp">
+
+        <!-- Big, like the in-app MoonPhaseFront's crescent beside the text —
+             user-reported: the first pass's 20dp corner icon (matching every
+             other gadget's small accent icon) read as an afterthought for a
+             gadget whose whole identity IS the crescent glyph. -->
+        <ImageView
+            android:id="@+id/widget_icon"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:layout_marginEnd="12dp"
+            android:src="@drawable/ic_widget_moonphase" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widget_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="18sp"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+
+            <TextView
+                android:id="@+id/widget_illumination"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textSize="13sp"
+                android:maxLines="1"
+                android:textColor="#FFFFFFFF" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:padding="14dp">
+
+        <TextView
+            android:id="@+id/widget_back_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="moon phase"
+            android:textSize="22sp"
+            android:textColor="#FFFFFFFF" />
+
+        <TextView
+            android:id="@+id/widget_back_next"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textSize="13sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#FFFFFFFF" />
+
+    </LinearLayout>
+
+</ViewFlipper>
+
+    <ImageView
+        android:id="@+id/widget_settings"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="6dp"
+        android:padding="2dp"
+        android:src="@drawable/ic_widget_settings" />
+
+</FrameLayout>

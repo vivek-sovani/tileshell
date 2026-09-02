@@ -1,0 +1,111 @@
+package com.tileshell.feature.livetiles.widget
+
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
+import android.content.Context
+import android.widget.RemoteViews
+import androidx.work.CoroutineWorker
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.WorkerParameters
+import com.tileshell.feature.livetiles.MoonPhaseFace
+import com.tileshell.feature.livetiles.R
+import com.tileshell.feature.livetiles.currentMoonPhaseFace
+import java.util.concurrent.TimeUnit
+
+/**
+ * Builds + pushes the moon-phase widget's [RemoteViews] from
+ * [currentMoonPhaseFace] — pure local date math, same as the in-app tile, no
+ * permission/cache/network at all. Periodic push is generous (the phase only
+ * meaningfully changes about once a day) but kept at the same ~30-min floor
+ * as every other widget in this batch for consistency.
+ */
+class MoonPhaseWidgetRefreshWorker(
+    context: Context,
+    params: WorkerParameters,
+) : CoroutineWorker(context, params) {
+
+    override suspend fun doWork(): Result {
+        pushAll(applicationContext)
+        return Result.success()
+    }
+
+    companion object {
+        private const val UNIQUE_PERIODIC = "tileshell_moonphase_widget_refresh"
+        private const val UNIQUE_NOW = "tileshell_moonphase_widget_refresh_now"
+
+        fun ensureScheduled(context: Context) {
+            WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
+                UNIQUE_PERIODIC,
+                ExistingPeriodicWorkPolicy.KEEP,
+                PeriodicWorkRequestBuilder<MoonPhaseWidgetRefreshWorker>(30, TimeUnit.MINUTES).build(),
+            )
+        }
+
+        fun cancel(context: Context) {
+            WorkManager.getInstance(context.applicationContext).cancelUniqueWork(UNIQUE_PERIODIC)
+        }
+
+        fun refreshNow(context: Context) {
+            WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
+                UNIQUE_NOW,
+                ExistingWorkPolicy.REPLACE,
+                OneTimeWorkRequestBuilder<MoonPhaseWidgetRefreshWorker>().build(),
+            )
+        }
+
+        suspend fun pushAll(context: Context) {
+            val manager = AppWidgetManager.getInstance(context)
+            val ids = manager.getAppWidgetIds(ComponentName(context, MoonPhaseAppWidgetProvider::class.java))
+            if (ids.isEmpty()) return
+
+            val face = currentMoonPhaseFace()
+            ids.forEach { id ->
+                val minWidthDp = manager.getAppWidgetOptions(id)
+                    .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 110)
+                val (accent, onAccent) = resolveWidgetAccent(context, id)
+                val views = buildRemoteViews(context, id, face, accent, onAccent, isCompactWidget(minWidthDp))
+                manager.updateAppWidget(id, views)
+            }
+        }
+
+        private fun buildRemoteViews(
+            context: Context,
+            appWidgetId: Int,
+            face: MoonPhaseFace,
+            accent: Int,
+            onAccent: Int,
+            compact: Boolean,
+        ): RemoteViews {
+            val layout = if (compact) R.layout.widget_moonphase_compact else R.layout.widget_moonphase
+            val views = RemoteViews(context.packageName, layout)
+            views.setImageViewBitmap(R.id.widget_bg, accentGradientBitmap(accent))
+            views.setOnClickPendingIntent(R.id.widget_root, moonPhaseAppPendingIntent(context, appWidgetId))
+            views.setOnClickPendingIntent(R.id.widget_settings, reconfigurePendingIntent(context, appWidgetId))
+            val illumination = "${face.illuminationPercent}% lit"
+
+            if (compact) {
+                views.setTextColor(R.id.widget_name, onAccent)
+                views.setTextColor(R.id.widget_illumination, onAccent)
+                views.setTextViewText(R.id.widget_name, face.name)
+                views.setTextViewText(R.id.widget_illumination, illumination)
+            } else {
+                views.setTextColor(R.id.widget_name, onAccent)
+                views.setTextColor(R.id.widget_illumination, onAccent)
+                views.setTextColor(R.id.widget_back_label, onAccent)
+                views.setTextColor(R.id.widget_back_next, onAccent)
+                // The real phase shape (user-reported: a generic glyph wasn't
+                // good enough), not a static tinted icon — see
+                // WidgetMoonPhaseVisual.kt.
+                views.setImageViewBitmap(R.id.widget_icon, moonPhaseBitmap(face.fraction, onAccent))
+                views.setTextViewText(R.id.widget_name, face.name)
+                views.setTextViewText(R.id.widget_illumination, illumination)
+                views.setTextViewText(R.id.widget_back_next, face.nextEventLabel)
+            }
+            return views
+        }
+    }
+}

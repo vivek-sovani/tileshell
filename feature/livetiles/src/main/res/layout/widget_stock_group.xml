@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Full-size stock widget layout for a Category/MultiStock selection —
+     front is identical in shape to widget_stock.xml's front (same ids) but
+     shows the group's tracked index (NIFTY Bank, S&P 500, ...) rather than
+     any one member; back lists each member's own price change instead of a
+     sparkline (RemoteViews has no per-item adapter view simple enough here,
+     so this is a fixed 6-row list — matches the in-app tile's own
+     `refs.take(6)` cap — with unused rows hidden via View.GONE). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/widget_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY" />
+
+<ViewFlipper
+    android:id="@+id/widget_flipper"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:autoStart="true"
+    android:flipInterval="6000"
+    android:inAnimation="@android:anim/fade_in"
+    android:outAnimation="@android:anim/fade_out">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <TextView
+            android:id="@+id/widget_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:alpha="0.82"
+            android:textColor="#FFFFFFFF" />
+
+        <TextView
+            android:id="@+id/widget_price"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textSize="30sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#FFFFFFFF" />
+
+        <TextView
+            android:id="@+id/widget_change"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textSize="15sp"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/widget_market"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textSize="12sp"
+            android:alpha="0.75"
+            android:textColor="#FFFFFFFF" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <TextView
+            android:id="@+id/widget_back_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:alpha="0.82"
+            android:textColor="#FFFFFFFF" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="vertical">
+
+            <LinearLayout android:id="@+id/widget_member_row_1" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingTop="3dp" android:paddingBottom="3dp">
+                <TextView android:id="@+id/widget_member_name_1" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="13sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+                <TextView android:id="@+id/widget_member_price_1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="8dp" android:textSize="13sp" android:textColor="#FFFFFFFF" />
+                <TextView android:id="@+id/widget_member_change_1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:fontFamily="sans-serif-medium" />
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/widget_member_row_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingTop="3dp" android:paddingBottom="3dp">
+                <TextView android:id="@+id/widget_member_name_2" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="13sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+                <TextView android:id="@+id/widget_member_price_2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="8dp" android:textSize="13sp" android:textColor="#FFFFFFFF" />
+                <TextView android:id="@+id/widget_member_change_2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:fontFamily="sans-serif-medium" />
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/widget_member_row_3" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingTop="3dp" android:paddingBottom="3dp">
+                <TextView android:id="@+id/widget_member_name_3" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="13sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+                <TextView android:id="@+id/widget_member_price_3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="8dp" android:textSize="13sp" android:textColor="#FFFFFFFF" />
+                <TextView android:id="@+id/widget_member_change_3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:fontFamily="sans-serif-medium" />
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/widget_member_row_4" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingTop="3dp" android:paddingBottom="3dp">
+                <TextView android:id="@+id/widget_member_name_4" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="13sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+                <TextView android:id="@+id/widget_member_price_4" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="8dp" android:textSize="13sp" android:textColor="#FFFFFFFF" />
+                <TextView android:id="@+id/widget_member_change_4" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:fontFamily="sans-serif-medium" />
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/widget_member_row_5" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingTop="3dp" android:paddingBottom="3dp">
+                <TextView android:id="@+id/widget_member_name_5" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="13sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+                <TextView android:id="@+id/widget_member_price_5" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="8dp" android:textSize="13sp" android:textColor="#FFFFFFFF" />
+                <TextView android:id="@+id/widget_member_change_5" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:fontFamily="sans-serif-medium" />
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/widget_member_row_6" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingTop="3dp" android:paddingBottom="3dp">
+                <TextView android:id="@+id/widget_member_name_6" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="13sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+                <TextView android:id="@+id/widget_member_price_6" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="8dp" android:textSize="13sp" android:textColor="#FFFFFFFF" />
+                <TextView android:id="@+id/widget_member_change_6" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:fontFamily="sans-serif-medium" />
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</ViewFlipper>
+
+    <ImageView
+        android:id="@+id/widget_settings"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="6dp"
+        android:padding="2dp"
+        android:src="@drawable/ic_widget_settings" />
+
+</FrameLayout>
