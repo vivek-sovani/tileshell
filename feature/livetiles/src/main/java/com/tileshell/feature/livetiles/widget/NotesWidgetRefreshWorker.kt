@@ -35,7 +35,10 @@ class NotesWidgetRefreshWorker(
 
     companion object {
         private const val UNIQUE_NOW = "tileshell_notes_widget_refresh_now"
-        private const val MAX_ROWS = 3
+
+        // Matches the number of widget_note_row_N slots actually declared in
+        // widget_notes.xml — the ceiling listWidgetRowsForHeight can return.
+        private const val MAX_ROW_SLOTS = 6
 
         fun ensureScheduled(context: Context) {
             refreshNow(context)
@@ -60,10 +63,11 @@ class NotesWidgetRefreshWorker(
 
             val notes = NoteRepository.create(context).notes.first()
             ids.forEach { id ->
-                val minWidthDp = manager.getAppWidgetOptions(id)
-                    .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 110)
+                val options = manager.getAppWidgetOptions(id)
+                val minWidthDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 110)
+                val minHeightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 110)
                 val (accent, onAccent) = resolveWidgetAccent(context, id)
-                val views = buildRemoteViews(context, id, notes, accent, onAccent, isCompactWidget(minWidthDp))
+                val views = buildRemoteViews(context, id, notes, accent, onAccent, isCompactWidget(minWidthDp), listWidgetRowsForHeight(minHeightDp))
                 manager.updateAppWidget(id, views)
             }
         }
@@ -75,6 +79,7 @@ class NotesWidgetRefreshWorker(
             accent: Int,
             onAccent: Int,
             compact: Boolean,
+            maxRows: Int,
         ): RemoteViews {
             val layout = if (compact) R.layout.widget_notes_compact else R.layout.widget_notes
             val views = RemoteViews(context.packageName, layout)
@@ -101,18 +106,21 @@ class NotesWidgetRefreshWorker(
             views.setTextColor(R.id.widget_add_label, onAccent)
             views.setInt(R.id.widget_add_icon, "setColorFilter", onAccent)
 
-            val titleIds = intArrayOf(R.id.widget_note_title_0, R.id.widget_note_title_1, R.id.widget_note_title_2)
-            val snippetIds = intArrayOf(R.id.widget_note_snippet_0, R.id.widget_note_snippet_1, R.id.widget_note_snippet_2)
-            val rowIds = intArrayOf(R.id.widget_note_row_0, R.id.widget_note_row_1, R.id.widget_note_row_2)
+            val titleIds = intArrayOf(R.id.widget_note_title_0, R.id.widget_note_title_1, R.id.widget_note_title_2, R.id.widget_note_title_3, R.id.widget_note_title_4, R.id.widget_note_title_5)
+            val snippetIds = intArrayOf(R.id.widget_note_snippet_0, R.id.widget_note_snippet_1, R.id.widget_note_snippet_2, R.id.widget_note_snippet_3, R.id.widget_note_snippet_4, R.id.widget_note_snippet_5)
+            val rowIds = intArrayOf(R.id.widget_note_row_0, R.id.widget_note_row_1, R.id.widget_note_row_2, R.id.widget_note_row_3, R.id.widget_note_row_4, R.id.widget_note_row_5)
 
             if (notes.isEmpty()) {
                 views.setViewVisibility(R.id.widget_empty, View.VISIBLE)
                 views.setTextColor(R.id.widget_empty, onAccent)
-                for (i in 0 until MAX_ROWS) views.setViewVisibility(rowIds[i], View.GONE)
+                for (i in 0 until MAX_ROW_SLOTS) views.setViewVisibility(rowIds[i], View.GONE)
             } else {
                 views.setViewVisibility(R.id.widget_empty, View.GONE)
-                for (i in 0 until MAX_ROWS) {
-                    val note = notes.getOrNull(i)
+                // Beyond MAX_ROW_SLOTS every row past `maxRows` (this resize's
+                // own row budget) stays hidden — a widget shrunk back down
+                // after once being taller must not leave stale rows showing.
+                for (i in 0 until MAX_ROW_SLOTS) {
+                    val note = if (i < maxRows) notes.getOrNull(i) else null
                     if (note == null) {
                         views.setViewVisibility(rowIds[i], View.GONE)
                         continue

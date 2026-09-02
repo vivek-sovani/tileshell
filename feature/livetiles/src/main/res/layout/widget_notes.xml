@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Full-size notes widget. Front: up to 3 most-recent note previews (title +
-     snippet, see NoteRepository.notePreview) or an empty-state message. Back:
-     total count. Whole body opens NotesWidgetActivity (see
+<!-- Full-size notes widget. Front: up to 6 most-recent note previews (title +
+     snippet, see NoteRepository.notePreview) or an empty-state message — how
+     many actually show scales with the widget's resized height, see
+     WidgetLayoutRules.listWidgetRowsForHeight and
+     NotesWidgetRefreshWorker.buildRemoteViews (default size shows 3; a
+     taller resize reveals more, user-reported it used to stay capped at 3).
+     Back: total count. Whole body opens NotesWidgetActivity (see
      NotesWidgetRefreshWorker — there's no per-row RemoteViews interaction). -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
@@ -52,6 +56,21 @@
         <LinearLayout android:id="@+id/widget_note_row_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:orientation="vertical">
             <TextView android:id="@+id/widget_note_title_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
             <TextView android:id="@+id/widget_note_snippet_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:alpha="0.75" android:textSize="12sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/widget_note_row_3" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:orientation="vertical">
+            <TextView android:id="@+id/widget_note_title_3" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <TextView android:id="@+id/widget_note_snippet_3" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:alpha="0.75" android:textSize="12sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/widget_note_row_4" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:orientation="vertical">
+            <TextView android:id="@+id/widget_note_title_4" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <TextView android:id="@+id/widget_note_snippet_4" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:alpha="0.75" android:textSize="12sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/widget_note_row_5" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:orientation="vertical">
+            <TextView android:id="@+id/widget_note_title_5" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <TextView android:id="@+id/widget_note_snippet_5" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:alpha="0.75" android:textSize="12sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
         </LinearLayout>
 
         <LinearLayout

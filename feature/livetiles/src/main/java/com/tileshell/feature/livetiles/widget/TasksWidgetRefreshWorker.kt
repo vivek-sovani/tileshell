@@ -37,7 +37,10 @@ class TasksWidgetRefreshWorker(
 
     companion object {
         private const val UNIQUE_NOW = "tileshell_tasks_widget_refresh_now"
-        private const val MAX_ROWS = 3
+
+        // Matches the number of widget_task_row_N slots actually declared in
+        // widget_tasks.xml — the ceiling listWidgetRowsForHeight can return.
+        private const val MAX_ROW_SLOTS = 6
 
         /** No periodic cadence for this widget (see class doc) — this only exists so
          * [WidgetConfigureActivity]'s per-kind dispatch has a consistent shape. */
@@ -64,11 +67,12 @@ class TasksWidgetRefreshWorker(
 
             val repository = TaskRepository.create(context)
             ids.forEach { id ->
-                val minWidthDp = manager.getAppWidgetOptions(id)
-                    .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 110)
+                val options = manager.getAppWidgetOptions(id)
+                val minWidthDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 110)
+                val minHeightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 110)
                 val (accent, onAccent) = resolveWidgetAccent(context, id)
                 val tasks = repository.tasks(TasksAppWidgetProvider.listIdFor(id)).first()
-                val views = buildRemoteViews(context, id, tasks, accent, onAccent, isCompactWidget(minWidthDp))
+                val views = buildRemoteViews(context, id, tasks, accent, onAccent, isCompactWidget(minWidthDp), listWidgetRowsForHeight(minHeightDp))
                 manager.updateAppWidget(id, views)
             }
         }
@@ -80,6 +84,7 @@ class TasksWidgetRefreshWorker(
             accent: Int,
             onAccent: Int,
             compact: Boolean,
+            maxRows: Int,
         ): RemoteViews {
             val layout = if (compact) R.layout.widget_tasks_compact else R.layout.widget_tasks
             val views = RemoteViews(context.packageName, layout)
@@ -87,7 +92,7 @@ class TasksWidgetRefreshWorker(
             views.setBoolean(R.id.widget_root, "setClipToOutline", true)
             views.setOnClickPendingIntent(R.id.widget_settings, reconfigurePendingIntent(context, appWidgetId))
 
-            val summary = tasksSummary(tasks, maxPreview = MAX_ROWS)
+            val summary = tasksSummary(tasks, maxPreview = maxRows)
             val headerText = if (summary.totalCount == 0) "no tasks yet" else "${summary.doneCount} of ${summary.totalCount} done"
 
             if (compact) {
@@ -120,14 +125,17 @@ class TasksWidgetRefreshWorker(
             views.setTextColor(R.id.widget_add_label, onAccent)
             views.setInt(R.id.widget_add_icon, "setColorFilter", onAccent)
 
-            val rowIds = intArrayOf(R.id.widget_task_row_0, R.id.widget_task_row_1, R.id.widget_task_row_2)
-            val checkIds = intArrayOf(R.id.widget_task_check_0, R.id.widget_task_check_1, R.id.widget_task_check_2)
-            val textIds = intArrayOf(R.id.widget_task_text_0, R.id.widget_task_text_1, R.id.widget_task_text_2)
-            val deleteIds = intArrayOf(R.id.widget_task_delete_0, R.id.widget_task_delete_1, R.id.widget_task_delete_2)
+            val rowIds = intArrayOf(R.id.widget_task_row_0, R.id.widget_task_row_1, R.id.widget_task_row_2, R.id.widget_task_row_3, R.id.widget_task_row_4, R.id.widget_task_row_5)
+            val checkIds = intArrayOf(R.id.widget_task_check_0, R.id.widget_task_check_1, R.id.widget_task_check_2, R.id.widget_task_check_3, R.id.widget_task_check_4, R.id.widget_task_check_5)
+            val textIds = intArrayOf(R.id.widget_task_text_0, R.id.widget_task_text_1, R.id.widget_task_text_2, R.id.widget_task_text_3, R.id.widget_task_text_4, R.id.widget_task_text_5)
+            val deleteIds = intArrayOf(R.id.widget_task_delete_0, R.id.widget_task_delete_1, R.id.widget_task_delete_2, R.id.widget_task_delete_3, R.id.widget_task_delete_4, R.id.widget_task_delete_5)
 
-            for (i in 0 until MAX_ROWS) {
+            // Beyond MAX_ROW_SLOTS every row past `maxRows` (this resize's own
+            // row budget) stays hidden — a widget shrunk back down after once
+            // being taller must not leave stale rows showing.
+            for (i in 0 until MAX_ROW_SLOTS) {
                 val item = summary.preview.getOrNull(i)
-                if (item == null) {
+                if (i >= maxRows || item == null) {
                     views.setViewVisibility(rowIds[i], View.GONE)
                     continue
                 }

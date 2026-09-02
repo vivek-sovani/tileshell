@@ -12,6 +12,23 @@ private const val COMPACT_WIDTH_THRESHOLD_DP = 180
 fun isCompactWidget(minWidthDp: Int): Boolean = minWidthDp < COMPACT_WIDTH_THRESHOLD_DP
 
 /**
+ * How many list rows a resizable list-style widget (tasks, notes) shows for a
+ * given resized height — user-reported: the tasks widget stayed capped at 3
+ * rows no matter how tall it was dragged, wasting the extra space a resize is
+ * meant to reveal. Pure/threshold-based, not exact per-dp arithmetic, since a
+ * "cell" is a different real dp height on every launcher; the ceiling of 6
+ * matches the Start tile's own LARGE-size row cap ([maxPreviewFor] in
+ * `TasksTile.kt`), and both the tasks and notes widget layouts must declare
+ * at least this many row view slots for [maxRows] rows to ever actually show.
+ */
+fun listWidgetRowsForHeight(minHeightDp: Int): Int = when {
+    minHeightDp < 150 -> 3
+    minHeightDp < 200 -> 4
+    minHeightDp < 260 -> 5
+    else -> 6
+}
+
+/**
  * Perceived-luminance check on a resolved accent colour, deciding whether the
  * widget's text should be dark (light accent) or white (dark/mid accent) —
  * same rationale as [com.tileshell.core.design.Glass.faceTextColor] elsewhere

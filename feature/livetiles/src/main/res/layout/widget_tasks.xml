@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Full-size tasks widget: header (done/total + progress) with an inline
-     settings gear, up to 3 checkbox rows (each row's checkbox toggles done,
-     its own "×" deletes — see TasksWidgetRefreshWorker.buildRemoteViews),
-     and a persistent "+ add task" row that always stays visible below the
-     list (rather than a small floating icon that could get crowded/lost
-     once the list filled the widget — user-reported "no provision for
-     adding") and opens TaskListWidgetActivity for anything RemoteViews
-     can't do inline. -->
+     settings gear, up to 6 checkbox rows — how many actually show scales
+     with the widget's resized height, see WidgetLayoutRules.
+     listWidgetRowsForHeight and TasksWidgetRefreshWorker.buildRemoteViews
+     (default size shows 3; a taller resize reveals more, user-reported it
+     used to stay capped at 3 no matter how tall) — each row's checkbox
+     toggles done, its own "×" deletes, and a persistent "+ add task" row
+     always stays visible below the list (rather than a small floating icon
+     that could get crowded/lost once the list filled the widget — user-
+     reported "no provision for adding") and opens TaskListWidgetActivity
+     for anything RemoteViews can't do inline. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
@@ -100,6 +103,42 @@
             <ImageView android:id="@+id/widget_task_check_2" android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/ic_widget_checkbox_unchecked" />
             <TextView android:id="@+id/widget_task_text_2" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="10dp" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
             <ImageView android:id="@+id/widget_task_delete_2" android:layout_width="20dp" android:layout_height="20dp" android:padding="2dp" android:layout_marginStart="4dp" android:src="@drawable/ic_widget_delete" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/widget_task_row_3"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <ImageView android:id="@+id/widget_task_check_3" android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/ic_widget_checkbox_unchecked" />
+            <TextView android:id="@+id/widget_task_text_3" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="10dp" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <ImageView android:id="@+id/widget_task_delete_3" android:layout_width="20dp" android:layout_height="20dp" android:padding="2dp" android:layout_marginStart="4dp" android:src="@drawable/ic_widget_delete" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/widget_task_row_4"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <ImageView android:id="@+id/widget_task_check_4" android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/ic_widget_checkbox_unchecked" />
+            <TextView android:id="@+id/widget_task_text_4" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="10dp" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <ImageView android:id="@+id/widget_task_delete_4" android:layout_width="20dp" android:layout_height="20dp" android:padding="2dp" android:layout_marginStart="4dp" android:src="@drawable/ic_widget_delete" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/widget_task_row_5"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <ImageView android:id="@+id/widget_task_check_5" android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/ic_widget_checkbox_unchecked" />
+            <TextView android:id="@+id/widget_task_text_5" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="10dp" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <ImageView android:id="@+id/widget_task_delete_5" android:layout_width="20dp" android:layout_height="20dp" android:padding="2dp" android:layout_marginStart="4dp" android:src="@drawable/ic_widget_delete" />
         </LinearLayout>
 
         <LinearLayout

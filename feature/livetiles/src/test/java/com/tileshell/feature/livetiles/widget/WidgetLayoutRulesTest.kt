@@ -1,5 +1,6 @@
 package com.tileshell.feature.livetiles.widget
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -36,5 +37,17 @@ class WidgetLayoutRulesTest {
     fun `white and black are the extremes`() {
         assertTrue(isLightAccent(0xFFFFFFFF.toInt()))
         assertFalse(isLightAccent(0xFF000000.toInt()))
+    }
+
+    @Test
+    fun `default-sized list widget shows 3 rows`() {
+        assertEquals(3, listWidgetRowsForHeight(110))
+    }
+
+    @Test
+    fun `a taller resize reveals more rows, up to a cap of 6`() {
+        assertEquals(4, listWidgetRowsForHeight(160))
+        assertEquals(5, listWidgetRowsForHeight(220))
+        assertEquals(6, listWidgetRowsForHeight(400))
     }
 }
