@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Same silhouette as TileIcons["countdown"] (core/design/TileIcons.kt) — a
+     flag/pennant marking a target date — hand-ported to a real drawable
+     resource, see ic_widget_steps.xml for why. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M6 3v18"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M6 4h11l-3 3.2 3 3.2H6z"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.6"
+        android:strokeLineJoin="round" />
+</vector>

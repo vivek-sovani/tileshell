@@ -63,6 +63,27 @@ object WidgetConfigStore {
         prefs(context).edit().putString(sportsKey(appWidgetId), encoded).apply()
     }
 
+    /**
+     * A countdown widget's target date + label — same two-key shape as
+     * commodity's symbol/display-name pair, for the same reason: [com
+     * .tileshell.core.data.CountdownTile]'s own `"countdown:"`-prefixed
+     * encoding is meant for a shared `TileModel` column that also has to
+     * identify the tile kind, which a per-appWidgetId key already does by
+     * its own name.
+     */
+    fun countdown(context: Context, appWidgetId: Int): Pair<String, String>? {
+        val isoDate = prefs(context).getString(countdownDateKey(appWidgetId), null) ?: return null
+        val label = prefs(context).getString(countdownLabelKey(appWidgetId), "") ?: ""
+        return isoDate to label
+    }
+
+    fun setCountdown(context: Context, appWidgetId: Int, targetIsoDate: String, label: String) {
+        prefs(context).edit()
+            .putString(countdownDateKey(appWidgetId), targetIsoDate)
+            .putString(countdownLabelKey(appWidgetId), label)
+            .apply()
+    }
+
     /** Called from each provider's `onDeleted` so a removed widget's config doesn't linger forever. */
     fun clear(context: Context, appWidgetId: Int) {
         prefs(context).edit()
@@ -71,6 +92,8 @@ object WidgetConfigStore {
             .remove(commoditySymbolKey(appWidgetId))
             .remove(commodityNameKey(appWidgetId))
             .remove(sportsKey(appWidgetId))
+            .remove(countdownDateKey(appWidgetId))
+            .remove(countdownLabelKey(appWidgetId))
             .apply()
     }
 
@@ -79,6 +102,8 @@ object WidgetConfigStore {
     private fun commoditySymbolKey(appWidgetId: Int) = "commodity_symbol_$appWidgetId"
     private fun commodityNameKey(appWidgetId: Int) = "commodity_name_$appWidgetId"
     private fun sportsKey(appWidgetId: Int) = "sports_selection_$appWidgetId"
+    private fun countdownDateKey(appWidgetId: Int) = "countdown_date_$appWidgetId"
+    private fun countdownLabelKey(appWidgetId: Int) = "countdown_label_$appWidgetId"
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

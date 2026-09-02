@@ -16,4 +16,5 @@
     <string name="tasks_widget_label">tasks</string>
     <string name="notes_widget_label">notes</string>
     <string name="stickynote_widget_label">sticky note</string>
+    <string name="countdown_widget_label">countdown</string>
 </resources>

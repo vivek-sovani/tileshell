@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Colourful OS-picker preview — "countdown" is TileAccents.Magenta in
+     TileShell's own in-app catalogs (CustomCardKind.COUNTDOWN.colorId). See
+     widget_preview_steps.xml. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#FFC4287E" />
+            <corners android:radius="18dp" />
+            <size android:width="96dp" android:height="96dp" />
+        </shape>
+    </item>
+    <item
+        android:width="52dp"
+        android:height="52dp"
+        android:gravity="center"
+        android:drawable="@drawable/ic_widget_countdown" />
+</layer-list>

@@ -1,5 +1,6 @@
 package com.tileshell.feature.livetiles.widget
 
+import android.app.DatePickerDialog
 import android.appwidget.AppWidgetManager
 import android.content.Intent
 import android.os.Bundle
@@ -43,6 +44,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -81,6 +83,9 @@ import com.tileshell.core.data.sportsLeagueFor
 import com.tileshell.core.data.stockCategoryFor
 import com.tileshell.core.design.TileAccents
 import kotlinx.coroutines.delay
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
  * Shown right after a home-screen widget is placed (`android:configure` in
@@ -137,12 +142,14 @@ class WidgetConfigureActivity : ComponentActivity() {
             CommodityAppWidgetProvider::class.java.name -> RequiredStep.COMMODITY
             SportsAppWidgetProvider::class.java.name -> RequiredStep.SPORTS
             StickyNoteAppWidgetProvider::class.java.name -> RequiredStep.STICKY_NOTE_TEXT
+            CountdownAppWidgetProvider::class.java.name -> RequiredStep.COUNTDOWN
             else -> RequiredStep.NONE
         }
         val existingStock = WidgetConfigStore.stockSelectionEncoded(this, appWidgetId)?.let { StockTile.decode(it) }
         val existingCommodity = WidgetConfigStore.commoditySymbol(this, appWidgetId)
         val existingSports = WidgetConfigStore.sportsSelectionEncoded(this, appWidgetId)?.let { SportsTile.decode(it) }
         val existingStickyNoteText = WidgetStickyNoteStore.text(this, appWidgetId)
+        val existingCountdown = WidgetConfigStore.countdown(this, appWidgetId)
 
         setContent {
             ConfigureScreen(
@@ -151,11 +158,13 @@ class WidgetConfigureActivity : ComponentActivity() {
                 existingCommodity = existingCommodity,
                 existingSports = existingSports,
                 existingStickyNoteText = existingStickyNoteText,
+                existingCountdown = existingCountdown,
                 onSystemPicked = { systemId -> WidgetConfigStore.setCalendarSystemId(this, appWidgetId, systemId) },
                 onStockPicked = { encoded -> WidgetConfigStore.setStockSelectionEncoded(this, appWidgetId, encoded) },
                 onCommodityPicked = { symbol, name -> WidgetConfigStore.setCommoditySymbol(this, appWidgetId, symbol, name) },
                 onSportsPicked = { encoded -> WidgetConfigStore.setSportsSelectionEncoded(this, appWidgetId, encoded) },
                 onStickyNoteTextPicked = { text -> WidgetStickyNoteStore.setText(this, appWidgetId, text) },
+                onCountdownPicked = { targetIsoDate, label -> WidgetConfigStore.setCountdown(this, appWidgetId, targetIsoDate, label) },
                 onColorPicked = ::save,
             )
         }
@@ -183,11 +192,12 @@ class WidgetConfigureActivity : ComponentActivity() {
             TasksAppWidgetProvider::class.java.name -> TasksWidgetRefreshWorker.refreshNow(this)
             NotesAppWidgetProvider::class.java.name -> NotesWidgetRefreshWorker.refreshNow(this)
             StickyNoteAppWidgetProvider::class.java.name -> StickyNoteWidgetRefreshWorker.refreshNow(this)
+            CountdownAppWidgetProvider::class.java.name -> CountdownWidgetRefreshWorker.refreshNow(this)
         }
     }
 }
 
-private enum class RequiredStep { NONE, CALENDAR_SYSTEM, STOCK, COMMODITY, SPORTS, STICKY_NOTE_TEXT }
+private enum class RequiredStep { NONE, CALENDAR_SYSTEM, STOCK, COMMODITY, SPORTS, STICKY_NOTE_TEXT, COUNTDOWN }
 private enum class ConfigureStep { FIRST, COLOR }
 
 @Composable
@@ -197,11 +207,13 @@ private fun ConfigureScreen(
     existingCommodity: Pair<String, String>?,
     existingSports: SportsTile.Selection?,
     existingStickyNoteText: String,
+    existingCountdown: Pair<String, String>?,
     onSystemPicked: (String) -> Unit,
     onStockPicked: (encoded: String) -> Unit,
     onCommodityPicked: (symbol: String, displayName: String) -> Unit,
     onSportsPicked: (encoded: String) -> Unit,
     onStickyNoteTextPicked: (String) -> Unit,
+    onCountdownPicked: (targetIsoDate: String, label: String) -> Unit,
     onColorPicked: (String?) -> Unit,
 ) {
     var step by remember { mutableStateOf(if (requiredStep == RequiredStep.NONE) ConfigureStep.COLOR else ConfigureStep.FIRST) }
@@ -248,6 +260,13 @@ private fun ConfigureScreen(
                     initial = existingStickyNoteText,
                     onPick = { text ->
                         onStickyNoteTextPicked(text)
+                        step = ConfigureStep.COLOR
+                    },
+                )
+                RequiredStep.COUNTDOWN -> CountdownPickerScreen(
+                    initial = existingCountdown,
+                    onPick = { targetIsoDate, label ->
+                        onCountdownPicked(targetIsoDate, label)
                         step = ConfigureStep.COLOR
                     },
                 )
@@ -351,6 +370,79 @@ private fun StickyNoteTextScreen(initial: String, onPick: (String) -> Unit) {
         }
         Spacer(Modifier.height(20.dp))
         ConfirmButton("save", enabled = true, onClick = { onPick(text) })
+    }
+}
+
+private val COUNTDOWN_DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH)
+
+/**
+ * A countdown widget's required setup — a target date (via the native
+ * [DatePickerDialog], same as [com.tileshell.feature.personalize
+ * .CountdownEditorSheet]'s in-app editor) plus an optional label. "save" only
+ * enables once a date is actually picked; the label alone isn't enough to
+ * proceed since [com.tileshell.feature.livetiles.countdownFace] has nothing
+ * to count down to without one.
+ */
+@Composable
+private fun CountdownPickerScreen(initial: Pair<String, String>?, onPick: (targetIsoDate: String, label: String) -> Unit) {
+    var label by remember { mutableStateOf(initial?.second ?: "") }
+    var targetIsoDate by remember { mutableStateOf(initial?.first ?: "") }
+    val context = LocalContext.current
+    val pickedDate = remember(targetIsoDate) { runCatching { LocalDate.parse(targetIsoDate) }.getOrNull() }
+
+    fun openDatePicker() {
+        val base = pickedDate ?: LocalDate.now()
+        DatePickerDialog(
+            context,
+            { _, year, month, dayOfMonth -> targetIsoDate = LocalDate.of(year, month + 1, dayOfMonth).toString() },
+            base.year,
+            base.monthValue - 1,
+            base.dayOfMonth,
+        ).show()
+    }
+
+    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0D)).padding(20.dp)) {
+        Text("set a countdown", color = ConfigFg, fontSize = 20.sp, fontWeight = FontWeight.Light)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "shown right on the widget — one target date per widget",
+            color = ConfigFgDim,
+            fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(20.dp))
+        Text("label", color = ConfigFgDim, fontSize = 12.sp)
+        Spacer(Modifier.height(4.dp))
+        BasicTextField(
+            value = label,
+            onValueChange = { label = it },
+            singleLine = true,
+            textStyle = TextStyle(color = ConfigFg, fontSize = 16.sp),
+            cursorBrush = SolidColor(ConfigAccent),
+            decorationBox = { inner ->
+                if (label.isEmpty()) Text("e.g. birthday", color = ConfigFgDim.copy(alpha = 0.6f), fontSize = 16.sp)
+                inner()
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(20.dp))
+        Text("target date", color = ConfigFgDim, fontSize = 12.sp)
+        Spacer(Modifier.height(4.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(ConfigFg.copy(alpha = 0.06f))
+                .clickable(onClick = ::openDatePicker)
+                .padding(16.dp),
+        ) {
+            Text(
+                text = pickedDate?.format(COUNTDOWN_DATE_FORMAT)?.lowercase(Locale.ENGLISH) ?: "tap to pick a date",
+                color = if (pickedDate != null) ConfigFg else ConfigFgDim,
+                fontSize = 15.sp,
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        ConfirmButton("save", enabled = pickedDate != null, onClick = { onPick(targetIsoDate, label) })
     }
 }
 

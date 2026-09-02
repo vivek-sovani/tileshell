@@ -186,6 +186,18 @@
                 android:resource="@xml/stickynote_widget_info" />
         </receiver>
 
+        <receiver
+            android:name=".widget.CountdownAppWidgetProvider"
+            android:exported="true"
+            android:label="@string/countdown_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/countdown_widget_info" />
+        </receiver>
+
         <!--
             Shared per-widget colour-picker configure activity (every
             android:configure above points here) — see WidgetConfigureActivity's
