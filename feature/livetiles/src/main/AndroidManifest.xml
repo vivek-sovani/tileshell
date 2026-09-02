@@ -155,6 +155,7 @@
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="com.tileshell.feature.livetiles.widget.ACTION_TOGGLE_TASK" />
+                <action android:name="com.tileshell.feature.livetiles.widget.ACTION_DELETE_TASK" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -196,6 +197,8 @@
         <activity
             android:name=".widget.WidgetConfigureActivity"
             android:exported="true"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
@@ -211,15 +214,32 @@
             reconfigurePendingIntent already launches WidgetConfigureActivity
             manually — so exported="false" is correct here (unlike that
             activity, nothing outside this app ever targets these directly).
+
+            android:taskAffinity="" + excludeFromRecents on all three of these
+            widget-editor activities (user-reported: backing out of one
+            landed on TileShell's own Start screen instead of whatever host
+            launcher — e.g. Samsung's — was actually showing underneath).
+            Without an explicit affinity, an activity defaults to the app's
+            package name — the same affinity MainActivity itself has — so
+            Android could resolve "what's on top of this task now" back onto
+            a lingering MainActivity task sharing that affinity, instead of
+            truly revealing the host launcher's own separate task. A blank
+            affinity keeps each of these in its own isolated task, so
+            finishing one always uncovers whatever was really in the
+            foreground before it launched.
         -->
         <activity
             android:name=".widget.TaskListWidgetActivity"
             android:exported="false"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
 
         <activity
             android:name=".widget.NotesWidgetActivity"
             android:exported="false"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
 
     </application>

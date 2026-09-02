@@ -37,7 +37,7 @@ class TasksWidgetRefreshWorker(
 
     companion object {
         private const val UNIQUE_NOW = "tileshell_tasks_widget_refresh_now"
-        private const val MAX_ROWS = 4
+        private const val MAX_ROWS = 3
 
         /** No periodic cadence for this widget (see class doc) — this only exists so
          * [WidgetConfigureActivity]'s per-kind dispatch has a consistent shape. */
@@ -105,12 +105,25 @@ class TasksWidgetRefreshWorker(
                 if (summary.totalCount == 0) 0 else (summary.doneCount * 100 / summary.totalCount),
                 false,
             )
-            views.setOnClickPendingIntent(R.id.widget_add, TasksAppWidgetProvider.managePendingIntent(context, appWidgetId))
-            views.setInt(R.id.widget_add, "setColorFilter", onAccent)
+            // Whole-body tap also opens the manage screen — a generous
+            // fallback target alongside the persistent "add task" row below
+            // (each checkbox/delete icon's own, more specific pending intent
+            // still wins over this at its own bounds).
+            views.setOnClickPendingIntent(R.id.widget_root, TasksAppWidgetProvider.managePendingIntent(context, appWidgetId))
 
-            val rowIds = intArrayOf(R.id.widget_task_row_0, R.id.widget_task_row_1, R.id.widget_task_row_2, R.id.widget_task_row_3)
-            val checkIds = intArrayOf(R.id.widget_task_check_0, R.id.widget_task_check_1, R.id.widget_task_check_2, R.id.widget_task_check_3)
-            val textIds = intArrayOf(R.id.widget_task_text_0, R.id.widget_task_text_1, R.id.widget_task_text_2, R.id.widget_task_text_3)
+            // A persistent, clearly-labeled "+ add task" row instead of a
+            // small floating icon (user-reported: no way to find "add" once
+            // a few tasks already filled the widget — a tiny corner icon
+            // crowded against the settings gear was easy to miss/mis-tap).
+            // Always visible, unlike the task rows below it.
+            views.setOnClickPendingIntent(R.id.widget_add_row, TasksAppWidgetProvider.managePendingIntent(context, appWidgetId))
+            views.setTextColor(R.id.widget_add_label, onAccent)
+            views.setInt(R.id.widget_add_icon, "setColorFilter", onAccent)
+
+            val rowIds = intArrayOf(R.id.widget_task_row_0, R.id.widget_task_row_1, R.id.widget_task_row_2)
+            val checkIds = intArrayOf(R.id.widget_task_check_0, R.id.widget_task_check_1, R.id.widget_task_check_2)
+            val textIds = intArrayOf(R.id.widget_task_text_0, R.id.widget_task_text_1, R.id.widget_task_text_2)
+            val deleteIds = intArrayOf(R.id.widget_task_delete_0, R.id.widget_task_delete_1, R.id.widget_task_delete_2)
 
             for (i in 0 until MAX_ROWS) {
                 val item = summary.preview.getOrNull(i)
@@ -134,6 +147,11 @@ class TasksWidgetRefreshWorker(
                 views.setOnClickPendingIntent(
                     checkIds[i],
                     TasksAppWidgetProvider.togglePendingIntent(context, appWidgetId, item.id, !item.done),
+                )
+                views.setInt(deleteIds[i], "setColorFilter", onAccent)
+                views.setOnClickPendingIntent(
+                    deleteIds[i],
+                    TasksAppWidgetProvider.deletePendingIntent(context, appWidgetId, item.id),
                 )
             }
             if (summary.totalCount == 0) {

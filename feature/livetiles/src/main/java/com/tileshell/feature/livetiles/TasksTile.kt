@@ -145,22 +145,41 @@ private fun TasksFront(
     val big = size == TileSize.LARGE
 
     if (narrow) {
-        // Only one column wide (TALL/COLUMN) — too narrow for readable list
-        // text, so just the count, centred.
-        Column(
-            modifier = modifier.fillMaxSize().padding(4.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
+        // Only one column wide (TALL/COLUMN) — still shows the real checklist
+        // (user-reported: a narrow tile only ever showed the bare "x/y" count,
+        // not the tasks themselves), just left-aligned and compact instead of
+        // the wider tile's two-line "x of y done" + progress bar header.
+        Column(modifier = modifier.fillMaxSize().padding(6.dp)) {
             Text(
                 text = "${summary.doneCount}/${summary.totalCount}",
                 color = FaceText,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.ExtraLight,
-                letterSpacing = (-1).sp,
-                textAlign = TextAlign.Center,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Light,
+                maxLines = 1,
             )
-            Text("tasks", color = FaceText.copy(alpha = 0.82f), fontSize = 11.sp, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(6.dp))
+            if (summary.preview.isEmpty()) {
+                Text(
+                    text = "no tasks yet",
+                    color = FaceText.copy(alpha = 0.7f),
+                    fontSize = 11.sp,
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    summary.preview.forEach { item ->
+                        TaskPreviewRow(item = item, interactive = interactive, onToggle = onToggle, maxLines = 2)
+                    }
+                }
+            }
+            // A row of checkboxes can fill the entire narrow tile, leaving no
+            // gap to tap that isn't already claimed by a checkbox's own toggle
+            // (user-reported: no way to reach "add a task" once the list filled
+            // the tile) — this trailing label is the same reserved, always-
+            // untouched tap area the wider layout already keeps below its own
+            // list, so the tile's own tap-to-open-the-sheet handler always has
+            // somewhere to land regardless of how many tasks are shown.
+            Spacer(Modifier.weight(1f))
+            Text("tasks", color = FaceText.copy(alpha = 0.82f), fontSize = 10.sp)
         }
         return
     }

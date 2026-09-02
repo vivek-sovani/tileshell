@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Full-size tasks widget: header (done/total + progress), up to 4 checkbox
-     rows (each row's own checkbox glyph is the tap target — see
-     TasksWidgetRefreshWorker.buildRemoteViews), and a "+" add row that opens
-     TaskListWidgetActivity for anything RemoteViews can't do inline. -->
+<!-- Full-size tasks widget: header (done/total + progress) with an inline
+     settings gear, up to 3 checkbox rows (each row's checkbox toggles done,
+     its own "×" deletes — see TasksWidgetRefreshWorker.buildRemoteViews),
+     and a persistent "+ add task" row that always stays visible below the
+     list (rather than a small floating icon that could get crowded/lost
+     once the list filled the widget — user-reported "no provision for
+     adding") and opens TaskListWidgetActivity for anything RemoteViews
+     can't do inline. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
@@ -21,14 +25,27 @@
         android:orientation="vertical"
         android:padding="14dp">
 
-        <TextView
-            android:id="@+id/widget_header"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textSize="14sp"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:textColor="#FFFFFFFF" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <TextView
+                android:id="@+id/widget_header"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:textSize="14sp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+            <ImageView
+                android:id="@+id/widget_settings"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:padding="1dp"
+                android:src="@drawable/ic_widget_settings" />
+        </LinearLayout>
 
         <ProgressBar
             android:id="@+id/widget_progress"
@@ -44,7 +61,7 @@
             android:layout_height="0dp"
             android:layout_weight="1"
             android:gravity="center"
-            android:text="no tasks yet — tap ＋ to add one"
+            android:text="no tasks yet — tap ＋ add task below"
             android:textSize="13sp"
             android:visibility="gone"
             android:textColor="#FFFFFFFF" />
@@ -58,6 +75,7 @@
             android:gravity="center_vertical">
             <ImageView android:id="@+id/widget_task_check_0" android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/ic_widget_checkbox_unchecked" />
             <TextView android:id="@+id/widget_task_text_0" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="10dp" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <ImageView android:id="@+id/widget_task_delete_0" android:layout_width="20dp" android:layout_height="20dp" android:padding="2dp" android:layout_marginStart="4dp" android:src="@drawable/ic_widget_delete" />
         </LinearLayout>
 
         <LinearLayout
@@ -69,6 +87,7 @@
             android:gravity="center_vertical">
             <ImageView android:id="@+id/widget_task_check_1" android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/ic_widget_checkbox_unchecked" />
             <TextView android:id="@+id/widget_task_text_1" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="10dp" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <ImageView android:id="@+id/widget_task_delete_1" android:layout_width="20dp" android:layout_height="20dp" android:padding="2dp" android:layout_marginStart="4dp" android:src="@drawable/ic_widget_delete" />
         </LinearLayout>
 
         <LinearLayout
@@ -80,38 +99,32 @@
             android:gravity="center_vertical">
             <ImageView android:id="@+id/widget_task_check_2" android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/ic_widget_checkbox_unchecked" />
             <TextView android:id="@+id/widget_task_text_2" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="10dp" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <ImageView android:id="@+id/widget_task_delete_2" android:layout_width="20dp" android:layout_height="20dp" android:padding="2dp" android:layout_marginStart="4dp" android:src="@drawable/ic_widget_delete" />
         </LinearLayout>
 
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
         <LinearLayout
-            android:id="@+id/widget_task_row_3"
+            android:id="@+id/widget_add_row"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:orientation="horizontal"
             android:gravity="center_vertical">
-            <ImageView android:id="@+id/widget_task_check_3" android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/ic_widget_checkbox_unchecked" />
-            <TextView android:id="@+id/widget_task_text_3" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="10dp" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFFFF" />
+            <ImageView android:id="@+id/widget_add_icon" android:layout_width="18dp" android:layout_height="18dp" android:padding="1dp" android:src="@drawable/ic_widget_add" />
+            <TextView
+                android:id="@+id/widget_add_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="add task"
+                android:textSize="13sp"
+                android:textColor="#FFFFFFFF" />
         </LinearLayout>
 
     </LinearLayout>
-
-    <ImageView
-        android:id="@+id/widget_add"
-        android:layout_width="26dp"
-        android:layout_height="26dp"
-        android:layout_gravity="bottom|end"
-        android:layout_marginEnd="38dp"
-        android:layout_margin="6dp"
-        android:padding="2dp"
-        android:src="@drawable/ic_widget_add" />
-
-    <ImageView
-        android:id="@+id/widget_settings"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="6dp"
-        android:padding="2dp"
-        android:src="@drawable/ic_widget_settings" />
 
 </FrameLayout>

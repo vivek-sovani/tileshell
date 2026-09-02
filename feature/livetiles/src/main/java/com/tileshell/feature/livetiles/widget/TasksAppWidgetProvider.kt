@@ -43,6 +43,18 @@ class TasksAppWidgetProvider : AppWidgetProvider() {
             }
             return
         }
+        if (intent.action == ACTION_DELETE_TASK) {
+            val taskId = intent.getLongExtra(EXTRA_TASK_ID, -1L)
+            if (taskId != -1L) {
+                val pending = goAsync()
+                CoroutineScope(Dispatchers.IO).launch {
+                    runCatching { TaskRepository.create(context).delete(taskId) }
+                    TasksWidgetRefreshWorker.refreshNow(context)
+                    pending.finish()
+                }
+            }
+            return
+        }
         super.onReceive(context, intent)
     }
 
@@ -80,6 +92,7 @@ class TasksAppWidgetProvider : AppWidgetProvider() {
 
     companion object {
         private const val ACTION_TOGGLE_TASK = "com.tileshell.feature.livetiles.widget.ACTION_TOGGLE_TASK"
+        private const val ACTION_DELETE_TASK = "com.tileshell.feature.livetiles.widget.ACTION_DELETE_TASK"
         private const val EXTRA_TASK_ID = "task_id"
         private const val EXTRA_TARGET_DONE = "target_done"
 
@@ -103,8 +116,24 @@ class TasksAppWidgetProvider : AppWidgetProvider() {
             )
         }
 
+        fun deletePendingIntent(context: Context, appWidgetId: Int, taskId: Long): PendingIntent {
+            val intent = Intent(context, TasksAppWidgetProvider::class.java)
+                .setAction(ACTION_DELETE_TASK)
+                .putExtra(EXTRA_TASK_ID, taskId)
+            // Distinct action from togglePendingIntent already keeps these from
+            // colliding even where the requestCode arithmetic overlaps — see
+            // that function's own doc comment.
+            return PendingIntent.getBroadcast(
+                context,
+                (appWidgetId.toLong() * 100000 + taskId).toInt(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+        }
+
         fun managePendingIntent(context: Context, appWidgetId: Int): PendingIntent {
             val intent = Intent(context, TaskListWidgetActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             return PendingIntent.getActivity(
                 context,

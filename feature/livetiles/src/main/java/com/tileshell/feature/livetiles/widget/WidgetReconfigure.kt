@@ -19,6 +19,7 @@ import android.content.Intent
  */
 fun reconfigurePendingIntent(context: Context, appWidgetId: Int): PendingIntent {
     val intent = Intent(context, WidgetConfigureActivity::class.java)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
     return PendingIntent.getActivity(
         context,

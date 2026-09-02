@@ -93,6 +93,14 @@ class NotesWidgetRefreshWorker(
                 return views
             }
 
+            // A persistent, clearly-labeled "+ add note" row, same as the
+            // tasks widget's own add row — a discoverable affordance
+            // alongside the whole-body tap, instead of relying on that
+            // alone once a few notes already fill the widget.
+            views.setOnClickPendingIntent(R.id.widget_add_row, NotesAppWidgetProvider.managePendingIntent(context, appWidgetId))
+            views.setTextColor(R.id.widget_add_label, onAccent)
+            views.setInt(R.id.widget_add_icon, "setColorFilter", onAccent)
+
             val titleIds = intArrayOf(R.id.widget_note_title_0, R.id.widget_note_title_1, R.id.widget_note_title_2)
             val snippetIds = intArrayOf(R.id.widget_note_snippet_0, R.id.widget_note_snippet_1, R.id.widget_note_snippet_2)
             val rowIds = intArrayOf(R.id.widget_note_row_0, R.id.widget_note_row_1, R.id.widget_note_row_2)
