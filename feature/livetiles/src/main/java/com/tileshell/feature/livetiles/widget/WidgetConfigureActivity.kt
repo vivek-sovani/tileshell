@@ -39,8 +39,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -311,6 +314,12 @@ private val PreviewNegativeRed = Color(0xFFFF453A)
 @Composable
 private fun StickyNoteTextScreen(initial: String, onPick: (String) -> Unit) {
     var text by remember { mutableStateOf(initial) }
+    val focusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+        keyboard?.show()
+    }
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0D)).padding(20.dp)) {
         Text("write your note", color = ConfigFg, fontSize = 20.sp, fontWeight = FontWeight.Light)
         Spacer(Modifier.height(4.dp))
@@ -333,7 +342,7 @@ private fun StickyNoteTextScreen(initial: String, onPick: (String) -> Unit) {
                 onValueChange = { text = it },
                 textStyle = TextStyle(color = ConfigFg, fontSize = 15.sp, lineHeight = 21.sp),
                 cursorBrush = SolidColor(ConfigAccent),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().focusRequester(focusRequester),
                 decorationBox = { inner ->
                     if (text.isEmpty()) Text("tap to start writing…", color = ConfigFgDim.copy(alpha = 0.6f), fontSize = 15.sp)
                     inner()

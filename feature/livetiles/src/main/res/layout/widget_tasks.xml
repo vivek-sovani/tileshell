@@ -102,7 +102,7 @@
             <ImageView android:id="@+id/widget_task_delete_2" android:layout_width="20dp" android:layout_height="20dp" android:padding="2dp" android:layout_marginStart="4dp" android:src="@drawable/ic_widget_delete" />
         </LinearLayout>
 
-        <Space
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1" />

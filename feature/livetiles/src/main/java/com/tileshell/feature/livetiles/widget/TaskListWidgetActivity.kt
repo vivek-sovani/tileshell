@@ -35,8 +35,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -179,6 +182,15 @@ private fun TaskRow(task: TaskItem, onToggle: () -> Unit, onDelete: () -> Unit) 
 @Composable
 private fun AddTaskRow(onAdd: (String) -> Unit) {
     var text by remember { mutableStateOf("") }
+    // No focus means no cursor and no keyboard until a manual tap — claim
+    // both the moment this screen opens, same convention as the in-app
+    // TaskListSheet's own "add a task" field.
+    val focusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+        keyboard?.show()
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -203,7 +215,7 @@ private fun AddTaskRow(onAdd: (String) -> Unit) {
                 keyboardActions = KeyboardActions(onDone = {
                     if (text.isNotBlank()) { onAdd(text); text = "" }
                 }),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
                 decorationBox = { inner ->
                     if (text.isEmpty()) Text("add a task", color = TaskFgDim.copy(alpha = 0.7f), fontSize = 15.sp)
                     inner()

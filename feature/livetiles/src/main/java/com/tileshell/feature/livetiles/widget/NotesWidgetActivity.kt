@@ -31,8 +31,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -177,6 +180,14 @@ private fun NotesListScreen(
 private fun NoteEditScreen(note: NoteItem, onBack: () -> Unit, onTextChange: (String) -> Unit) {
     var text by remember(note.id) { mutableStateOf(note.text) }
     BackHandler { onTextChange(text); onBack() }
+    // Claim focus + raise the keyboard the moment this screen opens (or a
+    // different note opens in it) — see StickyNoteEditorSheet's identical fix.
+    val focusRequester = remember(note.id) { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(note.id) {
+        focusRequester.requestFocus()
+        keyboard?.show()
+    }
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0D)).statusBarsPadding().imePadding()) {
         Text(
             text = "‹ back",
@@ -192,7 +203,7 @@ private fun NoteEditScreen(note: NoteItem, onBack: () -> Unit, onTextChange: (St
             onValueChange = { text = it },
             textStyle = TextStyle(color = NoteFg, fontSize = 16.sp, lineHeight = 22.sp),
             cursorBrush = SolidColor(NoteAccent),
-            modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp).focusRequester(focusRequester),
             decorationBox = { inner ->
                 if (text.isEmpty()) Text("write your note…", color = NoteFgDim.copy(alpha = 0.6f), fontSize = 16.sp)
                 inner()
