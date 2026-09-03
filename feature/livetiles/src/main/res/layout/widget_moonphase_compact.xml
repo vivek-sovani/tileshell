@@ -28,6 +28,16 @@
         android:gravity="center"
         android:padding="8dp">
 
+        <!-- Real phase-shape bitmap pushed at runtime (see
+             WidgetMoonPhaseVisual.kt / MoonPhaseWidgetRefreshWorker), same as
+             widget_moonphase.xml's own widget_icon — no static src, matching
+             widget_battery_compact.xml's convention for a runtime-drawn icon. -->
+        <ImageView
+            android:id="@+id/widget_icon"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:layout_marginBottom="4dp" />
+
         <TextView
             android:id="@+id/widget_name"
             android:layout_width="wrap_content"

@@ -152,6 +152,7 @@ class CommodityWidgetRefreshWorker(
             views.setTextColor(R.id.widget_price, onAccent)
             views.setTextColor(R.id.widget_back_name, onAccent)
             views.setTextColor(R.id.widget_hilo, onAccent)
+            views.setInt(R.id.widget_icon, "setColorFilter", onAccent)
             if (!compact) views.setTextColor(R.id.widget_market, onAccent)
         }
     }

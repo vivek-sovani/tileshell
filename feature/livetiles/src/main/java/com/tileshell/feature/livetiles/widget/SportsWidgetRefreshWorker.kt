@@ -244,6 +244,7 @@ class SportsWidgetRefreshWorker(
             views.setTextColor(R.id.widget_status, onAccent)
             views.setTextColor(R.id.widget_back_team, onAccent)
             views.setTextColor(R.id.widget_back_league, onAccent)
+            views.setInt(R.id.widget_icon, "setColorFilter", onAccent)
             if (!compact) {
                 views.setTextColor(R.id.widget_opp_abbr, onAccent)
                 views.setTextColor(R.id.widget_opp_score, onAccent)

@@ -94,6 +94,9 @@ class MoonPhaseWidgetRefreshWorker(
             if (compact) {
                 views.setTextColor(R.id.widget_name, onAccent)
                 views.setTextColor(R.id.widget_illumination, onAccent)
+                // Same real phase shape as the full layout (user-reported: a
+                // generic glyph wasn't good enough) — see WidgetMoonPhaseVisual.kt.
+                views.setImageViewBitmap(R.id.widget_icon, moonPhaseBitmap(face.fraction, onAccent))
                 views.setTextViewText(R.id.widget_name, face.name)
                 views.setTextViewText(R.id.widget_illumination, illumination)
             } else {

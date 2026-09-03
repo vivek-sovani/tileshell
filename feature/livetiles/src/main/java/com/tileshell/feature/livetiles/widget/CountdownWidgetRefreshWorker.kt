@@ -100,6 +100,7 @@ class CountdownWidgetRefreshWorker(
             views.setTextViewText(R.id.widget_status, statusText)
             views.setTextColor(R.id.widget_label, onAccent)
             views.setTextViewText(R.id.widget_label, labelText)
+            views.setInt(R.id.widget_icon, "setColorFilter", onAccent)
 
             if (!compact) {
                 views.setTextColor(R.id.widget_back_label, onAccent)

@@ -141,19 +141,17 @@ class WeatherWidgetRefreshWorker(
                 views.setTextViewText(R.id.widget_temp, "—")
                 views.setTextViewText(R.id.widget_condition, "weather unavailable")
                 views.setTextViewText(R.id.widget_back_highlow, "")
+                views.setImageViewBitmap(R.id.widget_icon, weatherConditionBitmap("clear", onAccent))
                 if (!compact) {
                     views.setTextViewText(R.id.widget_place, "")
                     views.setTextViewText(R.id.widget_back_detail, "set a location in tileshell")
-                    views.setImageViewBitmap(R.id.widget_icon, weatherConditionBitmap("clear", onAccent))
                 }
                 setForecastRows(views, onAccent, emptyList())
             } else {
-                if (!compact) {
-                    views.setImageViewBitmap(
-                        R.id.widget_icon,
-                        weatherConditionBitmap(snapshot.condition, onAccent),
-                    )
-                }
+                views.setImageViewBitmap(
+                    R.id.widget_icon,
+                    weatherConditionBitmap(snapshot.condition, onAccent),
+                )
                 views.setTextViewText(R.id.widget_temp, tempLabel(snapshot.tempC))
                 views.setTextViewText(R.id.widget_condition, snapshot.condition)
                 views.setTextViewText(

@@ -95,6 +95,7 @@ class NotesWidgetRefreshWorker(
             if (compact) {
                 views.setTextColor(R.id.widget_count, onAccent)
                 views.setTextViewText(R.id.widget_count, if (notes.isEmpty()) "＋" else notes.size.toString())
+                views.setInt(R.id.widget_icon, "setColorFilter", onAccent)
                 return views
             }
 
@@ -105,6 +106,7 @@ class NotesWidgetRefreshWorker(
             views.setOnClickPendingIntent(R.id.widget_add_row, NotesAppWidgetProvider.managePendingIntent(context, appWidgetId))
             views.setTextColor(R.id.widget_add_label, onAccent)
             views.setInt(R.id.widget_add_icon, "setColorFilter", onAccent)
+            views.setInt(R.id.widget_icon, "setColorFilter", onAccent)
 
             val titleIds = intArrayOf(R.id.widget_note_title_0, R.id.widget_note_title_1, R.id.widget_note_title_2, R.id.widget_note_title_3, R.id.widget_note_title_4, R.id.widget_note_title_5)
             val snippetIds = intArrayOf(R.id.widget_note_snippet_0, R.id.widget_note_snippet_1, R.id.widget_note_snippet_2, R.id.widget_note_snippet_3, R.id.widget_note_snippet_4, R.id.widget_note_snippet_5)

@@ -152,9 +152,9 @@ class StepsWidgetRefreshWorker(
             // without asking, since that's an app-wide manifest change.
             views.setTextColor(R.id.widget_count, onAccent)
             views.setTextViewText(R.id.widget_count, steps?.toString() ?: "--")
+            views.setInt(R.id.widget_icon, "setColorFilter", onAccent)
 
             if (!compact) {
-                views.setInt(R.id.widget_icon, "setColorFilter", onAccent)
                 val progress = if (steps != null) {
                     (stepsGoalProgress(steps, DEFAULT_STEPS_GOAL) * 100).toInt()
                 } else {

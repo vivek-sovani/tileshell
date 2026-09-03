@@ -144,7 +144,7 @@ class CalendarSystemWidgetRefreshWorker(
                 views.setTextColor(R.id.widget_date, onAccent)
                 views.setTextColor(R.id.widget_back_label, onAccent)
                 views.setTextColor(R.id.widget_back_date, onAccent)
-                if (!compact) views.setInt(R.id.widget_icon, "setColorFilter", onAccent)
+                views.setInt(R.id.widget_icon, "setColorFilter", onAccent)
                 views.setTextViewText(R.id.widget_label, displayName)
                 views.setTextViewText(
                     R.id.widget_date,

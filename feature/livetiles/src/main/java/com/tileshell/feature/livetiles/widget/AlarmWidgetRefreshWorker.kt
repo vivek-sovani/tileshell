@@ -95,6 +95,7 @@ class AlarmWidgetRefreshWorker(
             if (compact) {
                 views.setTextColor(R.id.widget_time, onAccent)
                 views.setTextColor(R.id.widget_day, onAccent)
+                views.setInt(R.id.widget_icon, "setColorFilter", onAccent)
                 views.setTextViewText(R.id.widget_time, if (face.hasAlarm) face.time else "--")
                 views.setTextViewText(R.id.widget_day, if (face.hasAlarm) face.dayLabel else "no alarm")
             } else {

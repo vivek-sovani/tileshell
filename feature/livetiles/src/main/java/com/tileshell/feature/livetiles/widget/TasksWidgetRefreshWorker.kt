@@ -98,12 +98,14 @@ class TasksWidgetRefreshWorker(
             if (compact) {
                 views.setTextColor(R.id.widget_count, onAccent)
                 views.setTextViewText(R.id.widget_count, if (summary.totalCount == 0) "＋" else "${summary.doneCount}/${summary.totalCount}")
+                views.setInt(R.id.widget_icon, "setColorFilter", onAccent)
                 views.setOnClickPendingIntent(R.id.widget_root, TasksAppWidgetProvider.managePendingIntent(context, appWidgetId))
                 return views
             }
 
             views.setTextColor(R.id.widget_header, onAccent)
             views.setTextViewText(R.id.widget_header, headerText)
+            views.setInt(R.id.widget_icon, "setColorFilter", onAccent)
             views.setProgressBar(
                 R.id.widget_progress,
                 100,

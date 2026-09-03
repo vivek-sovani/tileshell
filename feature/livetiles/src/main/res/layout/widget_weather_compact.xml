@@ -31,6 +31,16 @@
         android:gravity="center"
         android:padding="8dp">
 
+        <!-- Real multi-element illustration pushed at runtime (see
+             WidgetWeatherVisual.kt / WeatherWidgetRefreshWorker), same as
+             widget_weather.xml's own widget_icon — no static src, matching
+             widget_battery_compact.xml's convention for a runtime-drawn icon. -->
+        <ImageView
+            android:id="@+id/widget_icon"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginBottom="4dp" />
+
         <TextView
             android:id="@+id/widget_temp"
             android:layout_width="wrap_content"

@@ -79,6 +79,7 @@ class StickyNoteWidgetRefreshWorker(
             views.setOnClickPendingIntent(R.id.widget_settings, reconfigurePendingIntent(context, appWidgetId))
             views.setTextColor(R.id.widget_text, onAccent)
             views.setTextViewText(R.id.widget_text, text.ifBlank { "tap to write a note" })
+            views.setInt(R.id.widget_icon, "setColorFilter", onAccent)
             return views
         }
     }
