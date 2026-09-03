@@ -98,6 +98,7 @@ class CommodityWidgetRefreshWorker(
             views.setBoolean(R.id.widget_root, "setClipToOutline", true)
             views.setOnClickPendingIntent(R.id.widget_settings, reconfigurePendingIntent(context, appWidgetId))
             setBaseColors(views, onAccent, compact)
+            views.setImageViewResource(R.id.widget_icon, commodityIconRes(picked?.first))
 
             if (picked == null) {
                 views.setOnClickPendingIntent(R.id.widget_root, reconfigurePendingIntent(context, appWidgetId))
@@ -154,6 +155,14 @@ class CommodityWidgetRefreshWorker(
             views.setTextColor(R.id.widget_hilo, onAccent)
             views.setInt(R.id.widget_icon, "setColorFilter", onAccent)
             if (!compact) views.setTextColor(R.id.widget_market, onAccent)
+        }
+
+        /** Resolves [commodityIconKeyFor]'s pure key to a real drawable — user-requested per-category icon. */
+        private fun commodityIconRes(symbol: String?): Int = when (symbol?.let { commodityIconKeyFor(it) }) {
+            "metal" -> R.drawable.ic_widget_commodity_metal
+            "energy" -> R.drawable.ic_widget_commodity_energy
+            "currency" -> R.drawable.ic_widget_commodity_currency
+            else -> R.drawable.ic_widget_commodity
         }
     }
 }

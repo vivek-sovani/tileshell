@@ -119,6 +119,7 @@ class SportsWidgetRefreshWorker(
             views.setBoolean(R.id.widget_root, "setClipToOutline", true)
             views.setOnClickPendingIntent(R.id.widget_settings, reconfigurePendingIntent(context, appWidgetId))
             setBaseColors(views, onAccent, compact)
+            views.setImageViewResource(R.id.widget_icon, sportsIconRes(selection?.leagueSlug))
 
             if (selection == null) {
                 views.setOnClickPendingIntent(R.id.widget_root, reconfigurePendingIntent(context, appWidgetId))
@@ -215,6 +216,17 @@ class SportsWidgetRefreshWorker(
 
         private fun hideLines(views: RemoteViews) {
             MEMBER_LINE_IDS.forEach { views.setViewVisibility(it, View.GONE) }
+        }
+
+        /** Resolves [sportsIconKeyFor]'s pure key to a real drawable — user-requested per-game icon. */
+        private fun sportsIconRes(leagueSlug: String?): Int = when (sportsIconKeyFor(leagueSlug)) {
+            "cricket" -> R.drawable.ic_widget_sport_cricket
+            "soccer" -> R.drawable.ic_widget_sport_soccer
+            "basketball" -> R.drawable.ic_widget_sport_basketball
+            "football" -> R.drawable.ic_widget_sport_football
+            "baseball" -> R.drawable.ic_widget_sport_baseball
+            "hockey" -> R.drawable.ic_widget_sport_hockey
+            else -> R.drawable.ic_widget_sports
         }
 
         /**
