@@ -50,6 +50,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -73,6 +74,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
@@ -85,6 +87,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.zIndex
@@ -1692,12 +1695,14 @@ private fun WidgetStackMemberView(
     )
 }
 
+/** A provider paired with its own already-resolved label, so search can filter by it without re-querying [android.content.pm.PackageManager] on every keystroke. */
+private data class WidgetPickerItem(val info: AppWidgetProviderInfo, val label: String)
+
 private data class WidgetAppGroup(
     val packageName: String,
     val appLabel: String,
-    val entries: List<AppWidgetProviderInfo>,
+    val entries: List<WidgetPickerItem>,
 )
-
 
 /**
  * Full-screen widget picker dialog: installed providers with preview + label,
@@ -1705,6 +1710,19 @@ private data class WidgetAppGroup(
  * apps — a flat list made it hard to find, say, "the calendar app's" widgets
  * among everything else). Groups and their contents are both sorted by label so
  * the picker reads the same way every time it's opened.
+ *
+ * TileShell's own group is pinned first rather than sorted in with everyone
+ * else alphabetically — its 14 widgets are the app's own facility, not just
+ * another provider that happens to start with a low letter (same "pin first"
+ * convention this picker already used for its now-removed synthetic gadget
+ * cards). Every other app group still sorts alphabetically after it.
+ *
+ * A search field filters by either app name (matching reveals that whole
+ * group) or an individual widget's own label (matching narrows to just that
+ * widget) — user-requested, since scanning every app's group by hand doesn't
+ * scale once there are more than a handful of apps with widgets installed.
+ * A non-blank query also force-expands every group with a match, so results
+ * are visible without an extra tap.
  */
 @Composable
 private fun WidgetPicker(
@@ -1717,7 +1735,8 @@ private fun WidgetPicker(
     val groups = remember {
         runCatching {
             val pm = context.packageManager
-            manager.installedProviders
+            val ownPackage = context.packageName
+            val built = manager.installedProviders
                 .groupBy { it.provider.packageName }
                 .map { (packageName, providers) ->
                     val appLabel = runCatching {
@@ -1726,16 +1745,33 @@ private fun WidgetPicker(
                     WidgetAppGroup(
                         packageName = packageName,
                         appLabel = appLabel,
-                        entries = providers.sortedBy { it.loadLabel(pm).lowercase() },
+                        entries = providers
+                            .map { p -> WidgetPickerItem(p, runCatching { p.loadLabel(pm) }.getOrDefault("")) }
+                            .sortedBy { it.label.lowercase() },
                     )
                 }
-                .sortedBy { it.appLabel.lowercase() }
+            val (own, others) = built.partition { it.packageName == ownPackage }
+            own.sortedBy { it.appLabel.lowercase() } + others.sortedBy { it.appLabel.lowercase() }
         }.getOrDefault(emptyList())
+    }
+    var query by remember { mutableStateOf("") }
+    val filteredGroups = remember(groups, query) {
+        val q = query.trim()
+        if (q.isEmpty()) {
+            groups
+        } else {
+            groups.mapNotNull { group ->
+                val appMatches = group.appLabel.contains(q, ignoreCase = true)
+                val entries = if (appMatches) group.entries else group.entries.filter { it.label.contains(q, ignoreCase = true) }
+                if (entries.isEmpty()) null else group.copy(entries = entries)
+            }
+        }
     }
     // Collapsed by default — with widgets spread across many apps, showing every
     // app's full widget list at once is exactly the clutter grouping was meant to
     // fix. Keyed by package name so expanding "Calendar" survives recomposition.
     var expanded by remember { mutableStateOf(setOf<String>()) }
+    val searching = query.isNotBlank()
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             modifier = Modifier
@@ -1746,12 +1782,37 @@ private fun WidgetPicker(
                 .padding(16.dp),
         ) {
             Text("choose a widget", color = tokens.fg, fontSize = 18.sp, modifier = Modifier.padding(bottom = 10.dp))
-            if (groups.isEmpty()) {
-                Text("no widgets available", color = tokens.fgDim, fontSize = 14.sp)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(tokens.sheet)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            ) {
+                BasicTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    singleLine = true,
+                    textStyle = TextStyle(color = tokens.fg, fontSize = 15.sp),
+                    cursorBrush = SolidColor(tokens.fg),
+                    modifier = Modifier.fillMaxWidth(),
+                    decorationBox = { inner ->
+                        if (query.isEmpty()) Text("search apps or widgets", color = tokens.fgDim, fontSize = 15.sp)
+                        inner()
+                    },
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            if (filteredGroups.isEmpty()) {
+                Text(
+                    if (searching) "no matches" else "no widgets available",
+                    color = tokens.fgDim,
+                    fontSize = 14.sp,
+                )
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    groups.forEach { group ->
-                        val isExpanded = group.packageName in expanded
+                    filteredGroups.forEach { group ->
+                        val isExpanded = searching || group.packageName in expanded
                         item(key = "header/${group.packageName}") {
                             WidgetGroupHeader(
                                 packageName = group.packageName,
@@ -1760,7 +1821,7 @@ private fun WidgetPicker(
                                 expanded = isExpanded,
                                 tokens = tokens,
                                 onClick = {
-                                    expanded = if (isExpanded) {
+                                    expanded = if (group.packageName in expanded) {
                                         expanded - group.packageName
                                     } else {
                                         expanded + group.packageName
@@ -1771,9 +1832,9 @@ private fun WidgetPicker(
                         if (isExpanded) {
                             items(
                                 group.entries,
-                                key = { entry -> "${group.packageName}/${entry.provider.className}" },
+                                key = { entry -> "${group.packageName}/${entry.info.provider.className}" },
                             ) { entry ->
-                                WidgetPickerRow(entry, tokens) { onPick(entry) }
+                                WidgetPickerRow(entry.info, entry.label, tokens) { onPick(entry.info) }
                             }
                         }
                     }
@@ -1830,13 +1891,11 @@ private fun WidgetGroupHeader(
 @Composable
 private fun WidgetPickerRow(
     provider: AppWidgetProviderInfo,
+    label: String,
     tokens: ColorTokens,
     onClick: () -> Unit,
 ) {
     val context = LocalContext.current
-    val label = remember(provider) {
-        runCatching { provider.loadLabel(context.packageManager) }.getOrNull().orEmpty()
-    }
     val preview = remember(provider) {
         runCatching { provider.loadPreviewImage(context, 0) ?: provider.loadIcon(context, 0) }
             .getOrNull()?.toBitmapOrNull()
