@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.Drawable
+import android.os.Build
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -13,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
@@ -23,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
+import com.tileshell.core.design.LocalTileFaceColor
 import com.tileshell.core.design.SquircleShape
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -53,7 +56,12 @@ fun rememberAppIconBitmap(packageName: String, sizePx: Int = 96): ImageBitmap? {
     return image
 }
 
-private data class MaskableAppIcon(val bitmap: ImageBitmap, val unmaskedBitmap: ImageBitmap, val isAdaptive: Boolean)
+private data class MaskableAppIcon(
+    val bitmap: ImageBitmap,
+    val unmaskedBitmap: ImageBitmap,
+    val isAdaptive: Boolean,
+    val monochromeBitmap: ImageBitmap?,
+)
 
 /**
  * Same masking trio as `:feature:start`'s `IconCellView.kt` (`MaskableIcon`/
@@ -80,7 +88,7 @@ private fun rememberMaskableAppIcon(packageName: String, sizePx: Int = 96): Mask
                     val isAdaptive = drawable is AdaptiveIconDrawable
                     val osBitmap = drawable.toBitmap(width = sizePx, height = sizePx).asImageBitmap()
                     val rawBitmap = if (isAdaptive) unmaskedIconBitmap(drawable, sizePx) else osBitmap
-                    MaskableAppIcon(osBitmap, rawBitmap, isAdaptive)
+                    MaskableAppIcon(osBitmap, rawBitmap, isAdaptive, monochromeIconBitmap(drawable, sizePx))
                 }.getOrNull()
             }
         }
@@ -98,6 +106,21 @@ private fun unmaskedIconBitmap(drawable: Drawable, sizePx: Int): ImageBitmap {
         layer.setBounds(0, 0, sizePx, sizePx)
         layer.draw(canvas)
     }
+    return bitmap.asImageBitmap()
+}
+
+/** See `:feature:applist`'s `AppListIcon.kt#monochromeIconBitmap` for the full
+ *  rationale — flattens the Android 13+ themed-icon layer to an untinted alpha
+ *  mask; the caller ([AppIconCorner]) tints it via [ColorFilter] at render
+ *  time. Null below API 33, for a non-adaptive icon, or with no monochrome
+ *  layer declared. */
+private fun monochromeIconBitmap(drawable: Drawable, sizePx: Int): ImageBitmap? {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
+    val mono = (drawable as? AdaptiveIconDrawable)?.monochrome ?: return null
+    val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    mono.setBounds(0, 0, sizePx, sizePx)
+    mono.draw(canvas)
     return bitmap.asImageBitmap()
 }
 
@@ -124,14 +147,37 @@ private fun IconShape.toComposeShape(): Shape? = when (this) {
  * icon left showing its native/OS shape regardless of the chosen shape. TILES
  * mode (or [IconShape.ORIGINAL]) draws the same unmasked bitmap as before —
  * no behaviour change there.
+ *
+ * [themedIcons] takes priority over both of those whenever the app has a
+ * monochrome layer: instead of the badge, it draws the app's themed glyph
+ * tinted to [LocalTileFaceColor] — the tile's own face text/icon colour
+ * (white-on-accent by the WP convention every other face already follows) —
+ * so the badge reads as part of the tile instead of a separate full-colour
+ * icon sitting on top of it. Falls through to the normal badge whenever
+ * there's no monochrome layer to show.
  */
 @Composable
 fun AppIconCorner(
     packageName: String,
     homeStyle: HomeStyle = HomeStyle.TILES,
     iconShape: IconShape = IconShape.ORIGINAL,
+    themedIcons: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    if (themedIcons) {
+        val loaded = rememberMaskableAppIcon(packageName)
+        val mono = loaded?.monochromeBitmap
+        if (mono != null) {
+            Image(
+                bitmap = mono,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                colorFilter = ColorFilter.tint(LocalTileFaceColor.current),
+                modifier = modifier.size(18.dp),
+            )
+            return
+        }
+    }
     if (homeStyle == HomeStyle.ICONS) {
         val shape = iconShape.toComposeShape()
         if (shape != null) {

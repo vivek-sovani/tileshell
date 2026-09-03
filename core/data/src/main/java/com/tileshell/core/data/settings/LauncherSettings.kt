@@ -213,6 +213,18 @@ data class LauncherSettings(
     val homeStyle: HomeStyle = HomeStyle.TILES,
     /** Icon mask applied in ICONS home style; unused in TILES. */
     val iconShape: IconShape = IconShape.ORIGINAL,
+    /**
+     * Use each app's themed/monochrome adaptive-icon layer (Android 13+'s
+     * "themed icons," `AdaptiveIconDrawable.monochrome`) tinted to the
+     * current accent, instead of the app's full-colour icon — in the app
+     * list and on live-tile "posted by" corner badges. Independent of
+     * [homeStyle]/[iconShape] (it's a colour choice, not a shape one) and of
+     * [accentId]/[tileColorSource] (the tint always follows the resolved
+     * accent at each render site). Default off; an app with no monochrome
+     * layer, or a device below API 33, silently falls back to its normal
+     * icon regardless of this flag.
+     */
+    val themedIcons: Boolean = false,
     /** Periodic background layout snapshot saves (for LayoutHistorySheet). */
     val autoBackupEnabled: Boolean = true,
     /** Hours between automatic snapshots: 1, 4, 6, 12, or 24. */
@@ -293,6 +305,7 @@ object SettingsCodec {
         append("tilePackMode=").append(settings.tilePackMode.name).append('\n')
         append("homeStyle=").append(settings.homeStyle.name).append('\n')
         append("iconShape=").append(settings.iconShape.name).append('\n')
+        append("themedIcons=").append(settings.themedIcons).append('\n')
         append("autoBackup=").append(settings.autoBackupEnabled).append('\n')
         append("autoBackupInterval=").append(settings.autoBackupIntervalHours).append('\n')
         append("edgeStripEnabled=").append(settings.edgeStripEnabled).append('\n')
@@ -341,6 +354,7 @@ object SettingsCodec {
         var tilePackMode = d.tilePackMode
         var homeStyle = d.homeStyle
         var iconShape = d.iconShape
+        var themedIcons = d.themedIcons
         var autoBackupEnabled = d.autoBackupEnabled
         var autoBackupIntervalHours = d.autoBackupIntervalHours
         var edgeStripEnabled = d.edgeStripEnabled
@@ -400,6 +414,7 @@ object SettingsCodec {
                 "tilePackMode" -> TilePackMode.entries.find { it.name == value }?.let { tilePackMode = it }
                 "homeStyle" -> HomeStyle.entries.find { it.name == value }?.let { homeStyle = it }
                 "iconShape" -> IconShape.entries.find { it.name == value }?.let { iconShape = it }
+                "themedIcons" -> themedIcons = value.toBooleanStrictOrNull() ?: themedIcons
                 "autoBackup" -> autoBackupEnabled = value.toBooleanStrictOrNull() ?: autoBackupEnabled
                 "autoBackupInterval" -> value.toIntOrNull()?.let {
                     autoBackupIntervalHours = it.coerceIn(1, 24)
@@ -456,6 +471,7 @@ object SettingsCodec {
             tilePackMode = tilePackMode,
             homeStyle = homeStyle,
             iconShape = iconShape,
+            themedIcons = themedIcons,
             autoBackupEnabled = autoBackupEnabled,
             autoBackupIntervalHours = autoBackupIntervalHours,
             edgeStripEnabled = edgeStripEnabled,

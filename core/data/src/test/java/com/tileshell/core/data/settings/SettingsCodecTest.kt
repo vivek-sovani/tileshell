@@ -26,8 +26,15 @@ class SettingsCodecTest {
             fontStyle = FontStyle.NUNITO,
             columns = 6,
             tilePackMode = TilePackMode.STICKY,
+            themedIcons = true,
         )
         assertEquals(settings, SettingsCodec.decode(SettingsCodec.encode(settings)))
+    }
+
+    @Test
+    fun `bad themedIcons keeps the default`() {
+        assertEquals(true, SettingsCodec.decode("themedIcons=true").themedIcons)
+        assertEquals(LauncherSettings().themedIcons, SettingsCodec.decode("themedIcons=maybe").themedIcons)
     }
 
     @Test

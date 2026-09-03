@@ -49,6 +49,7 @@ fun NotificationTileFace(
     size: TileSize = TileSize.MEDIUM,
     homeStyle: HomeStyle = HomeStyle.TILES,
     iconShape: IconShape = IconShape.ORIGINAL,
+    themedIcons: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val snapshot by NotificationCenter.snapshot.collectAsState()
@@ -108,6 +109,7 @@ fun NotificationTileFace(
             packageName = packageName,
             homeStyle = homeStyle,
             iconShape = iconShape,
+            themedIcons = themedIcons,
             modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
         )
     }

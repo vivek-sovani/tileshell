@@ -73,6 +73,7 @@ fun PhotosTileFace(
     forcedIndex: Int? = null,
     homeStyle: HomeStyle = HomeStyle.TILES,
     iconShape: IconShape = IconShape.ORIGINAL,
+    themedIcons: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -105,6 +106,7 @@ fun PhotosTileFace(
                     packageName = packageName,
                     homeStyle = homeStyle,
                     iconShape = iconShape,
+                    themedIcons = themedIcons,
                     modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
                 )
             }
@@ -201,6 +203,7 @@ fun PhotosTileFace(
                     packageName = packageName,
                     homeStyle = homeStyle,
                     iconShape = iconShape,
+                    themedIcons = themedIcons,
                     modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
                 )
             },

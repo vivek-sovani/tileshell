@@ -1007,6 +1007,7 @@ fun StartScreen(
                     sticky = settings.tilePackMode.isAnchored,
                     homeStyle = settings.homeStyle,
                     iconShape = settings.iconShape,
+                    themedIcons = settings.themedIcons,
                     onSetTileSlot = viewModel::setTileGridSlot,
                     expandedFolderId = expandedFolderId,
                     onCollapseFolder = viewModel::collapseFolder,
@@ -1486,6 +1487,8 @@ fun StartScreen(
             onHomeStyleChange = viewModel::setHomeStyle,
             iconShape = settings.iconShape,
             onIconShapeChange = viewModel::setIconShape,
+            themedIcons = settings.themedIcons,
+            onThemedIconsChange = viewModel::setThemedIcons,
             lockLayout = settings.lockLayout,
             onLockLayoutChange = viewModel::setLockLayout,
             hideStatusBar = settings.hideStatusBar,
@@ -2026,6 +2029,9 @@ private fun StartPage(
     homeStyle: HomeStyle = HomeStyle.TILES,
     // The icon mask ICONS home style applies (unused in TILES).
     iconShape: IconShape = IconShape.ORIGINAL,
+    // Themed/monochrome app icons (Personalize) — threaded to TileView for the
+    // live-tile "posted by" corner badge (app list has its own separate path).
+    themedIcons: Boolean = false,
     onSetTileSlot: (id: String, slot: Int?) -> Unit,
     // FR-4 WP-style inline folder expand/collapse: the currently-expanded
     // folder's id (null = none), and the child-scoped actions that used to
@@ -2722,6 +2728,7 @@ private fun StartPage(
                             isExpanded = spec.id == expandedFolderId,
                             homeStyle = homeStyle,
                             iconShape = iconShape,
+                            themedIcons = themedIcons,
                             stockRefreshRate = stockRefreshRate,
                             commodityRefreshRate = commodityRefreshRate,
                             sportsRefreshRate = sportsRefreshRate,
@@ -3221,6 +3228,10 @@ internal fun TileView(
     // Threaded down to AppTileContent's live faces, whose AppIconCorner badge
     // masks to this shape in ICONS home style — see AppIconCorner's doc comment.
     iconShape: IconShape = IconShape.ORIGINAL,
+    // Threaded down to AppTileContent's live faces' AppIconCorner badge —
+    // themed/monochrome icon tinted to the tile's own face colour instead of
+    // the app's full-colour icon (Personalize's "themed icons").
+    themedIcons: Boolean = false,
     // Personalize's "live data refresh" — threaded down to the stock/commodity/
     // sports live faces, which fall back to their own hardcoded interval when left DEFAULT.
     stockRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
@@ -3468,6 +3479,7 @@ internal fun TileView(
                 interactive = !editMode && !readOnly,
                 homeStyle = homeStyle,
                 iconShape = iconShape,
+                themedIcons = themedIcons,
                 stockRefreshRate = stockRefreshRate,
                 commodityRefreshRate = commodityRefreshRate,
                 sportsRefreshRate = sportsRefreshRate,
@@ -3486,6 +3498,7 @@ internal fun TileView(
                         accent = accent,
                         homeStyle = homeStyle,
                         iconShape = iconShape,
+                        themedIcons = themedIcons,
                         stockRefreshRate = stockRefreshRate,
                         commodityRefreshRate = commodityRefreshRate,
                         sportsRefreshRate = sportsRefreshRate,
@@ -4718,6 +4731,7 @@ private fun AppTileContent(
     // cell already gets — see AppIconCorner's own doc comment.
     homeStyle: HomeStyle = HomeStyle.TILES,
     iconShape: IconShape = IconShape.ORIGINAL,
+    themedIcons: Boolean = false,
     stockRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
     commodityRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
     sportsRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
@@ -4816,6 +4830,7 @@ private fun AppTileContent(
                 size = tile.size,
                 homeStyle = homeStyle,
                 iconShape = iconShape,
+                themedIcons = themedIcons,
                 modifier = Modifier.fillMaxSize(),
             )
             return
@@ -4838,6 +4853,7 @@ private fun AppTileContent(
                 forcedIndex = photosStackIndex,
                 homeStyle = homeStyle,
                 iconShape = iconShape,
+                themedIcons = themedIcons,
                 modifier = Modifier.fillMaxSize(),
             )
             return
@@ -4929,6 +4945,7 @@ private fun AppTileContent(
                 size = tile.size,
                 homeStyle = homeStyle,
                 iconShape = iconShape,
+                themedIcons = themedIcons,
             )
             return
         }
@@ -4986,6 +5003,7 @@ private fun AppTileContent(
                             size = tile.size,
                             homeStyle = homeStyle,
                             iconShape = iconShape,
+                            themedIcons = themedIcons,
                             modifier = Modifier.fillMaxSize(),
                         )
                     },
@@ -4993,6 +5011,7 @@ private fun AppTileContent(
                     size = tile.size,
                     homeStyle = homeStyle,
                     iconShape = iconShape,
+                    themedIcons = themedIcons,
                 )
                 return
             }
@@ -5536,6 +5555,7 @@ private fun StackTileContent(
     accent: Color,
     homeStyle: HomeStyle = HomeStyle.TILES,
     iconShape: IconShape = IconShape.ORIGINAL,
+    themedIcons: Boolean = false,
     stockRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
     commodityRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
     sportsRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
@@ -5785,6 +5805,7 @@ private fun StackTileContent(
                         photosStackIndex = if (child.iconKey == "photos") photosStackIndex.value else null,
                         homeStyle = homeStyle,
                         iconShape = iconShape,
+                        themedIcons = themedIcons,
                         stockRefreshRate = stockRefreshRate,
                         commodityRefreshRate = commodityRefreshRate,
                         sportsRefreshRate = sportsRefreshRate,

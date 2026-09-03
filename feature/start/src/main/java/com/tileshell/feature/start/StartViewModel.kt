@@ -1046,6 +1046,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) { settingsRepository.setIconShape(shape) }
     }
 
+    /** Use each app's themed/monochrome icon in the app list and on live-tile corner badges. */
+    fun setThemedIcons(enabled: Boolean) {
+        viewModelScope.launch(writeContext) { settingsRepository.setThemedIcons(enabled) }
+    }
+
     /**
      * Anchor every currently-unslotted tile at its present (dense-packed)
      * cell — called both when the user explicitly switches sticky mode on

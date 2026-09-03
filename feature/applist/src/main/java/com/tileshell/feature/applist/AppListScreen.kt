@@ -193,6 +193,7 @@ fun AppListScreen(
                                 badgeCount = notifications.badgeFor(app.packageName),
                                 homeStyle = settings.homeStyle,
                                 iconShape = settings.iconShape,
+                                themedIcons = settings.themedIcons,
                             )
                         }
                     }
@@ -222,6 +223,7 @@ fun AppListScreen(
                             onUninstall = { uninstallApp(context, app.packageName) },
                             homeStyle = settings.homeStyle,
                             iconShape = settings.iconShape,
+                            themedIcons = settings.themedIcons,
                             onHide = { viewModel.hide(app) },
                         )
                     }
@@ -311,6 +313,7 @@ private fun AppRow(
     badgeCount: Int = 0,
     homeStyle: HomeStyle = HomeStyle.TILES,
     iconShape: IconShape = IconShape.ORIGINAL,
+    themedIcons: Boolean = false,
 ) {
     // Long-press opens a WP-style context menu: pin the app to Start, hide it
     // from the list, or uninstall it (the system uninstall dialog). A quick tap
@@ -372,6 +375,7 @@ private fun AppRow(
                         homeStyle = homeStyle,
                         shape = iconShape,
                         size = 40.dp,
+                        themedIcons = themedIcons,
                     )
                 } else {
                     // No real icon: the monoline glyph on the list background (no square).

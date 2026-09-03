@@ -316,6 +316,7 @@ fun MusicTileFace(
     size: TileSize = TileSize.MEDIUM,
     homeStyle: HomeStyle = HomeStyle.TILES,
     iconShape: IconShape = IconShape.ORIGINAL,
+    themedIcons: Boolean = false,
 ) {
     val media by MediaCenter.nowPlaying.collectAsState()
     val artworkMap by MediaCenter.artwork.collectAsState()
@@ -353,9 +354,18 @@ fun MusicTileFace(
                 size = size,
                 homeStyle = homeStyle,
                 iconShape = iconShape,
+                themedIcons = themedIcons,
             )
         },
-        back = { MusicBack(packageName = iconPackage, art = art, homeStyle = homeStyle, iconShape = iconShape) },
+        back = {
+            MusicBack(
+                packageName = iconPackage,
+                art = art,
+                homeStyle = homeStyle,
+                iconShape = iconShape,
+                themedIcons = themedIcons,
+            )
+        },
     )
 }
 
@@ -369,6 +379,7 @@ private fun MusicFront(
     size: TileSize,
     homeStyle: HomeStyle = HomeStyle.TILES,
     iconShape: IconShape = IconShape.ORIGINAL,
+    themedIcons: Boolean = false,
 ) {
     TileImageBackground(art, modifier = Modifier.fillMaxSize()) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -450,6 +461,7 @@ private fun MusicFront(
                 packageName = packageName,
                 homeStyle = homeStyle,
                 iconShape = iconShape,
+                themedIcons = themedIcons,
                 modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
             )
         }
@@ -533,6 +545,7 @@ private fun MusicBack(
     art: ImageBitmap?,
     homeStyle: HomeStyle = HomeStyle.TILES,
     iconShape: IconShape = IconShape.ORIGINAL,
+    themedIcons: Boolean = false,
 ) {
     TileImageBackground(art, modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -549,6 +562,7 @@ private fun MusicBack(
                     packageName = packageName,
                     homeStyle = homeStyle,
                     iconShape = iconShape,
+                    themedIcons = themedIcons,
                     modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
                 )
             }

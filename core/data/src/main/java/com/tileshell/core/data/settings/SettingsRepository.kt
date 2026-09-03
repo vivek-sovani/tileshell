@@ -316,6 +316,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(iconShape = shape) }
     }
 
+    /** Use each app's themed/monochrome icon (tinted to the current accent) in the app list and on live-tile corner badges. */
+    suspend fun setThemedIcons(enabled: Boolean) {
+        store.updateData { it.copy(themedIcons = enabled) }
+    }
+
     /** Replace all settings with a restored backup value atomically. */
     suspend fun restoreSettings(settings: LauncherSettings) {
         store.updateData { settings }
