@@ -144,7 +144,7 @@ fun WidgetListSheet(
                 )
 
                 Text(
-                    text = "add widgets",
+                    text = "add live tiles",
                     color = tokens.fg,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.W300,

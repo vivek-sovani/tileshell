@@ -3862,7 +3862,7 @@ private fun EditBar(
     ) {
         EditBarButton("plus", "add", enabled = true, onClick = onAdd)
         Spacer(Modifier.size(34.dp))
-        EditBarButton("widgets", "add widgets", enabled = true, onClick = onAddWidgets)
+        EditBarButton("widgets", "add live tiles", enabled = true, onClick = onAddWidgets)
         Spacer(Modifier.size(34.dp))
         EditBarButton("settings", "personalize", enabled = true, onClick = onPersonalize)
         Spacer(Modifier.size(34.dp))
