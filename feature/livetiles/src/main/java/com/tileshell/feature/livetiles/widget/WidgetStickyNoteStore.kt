@@ -7,10 +7,9 @@ import android.content.Context
  * [android.appwidget.AppWidgetManager] id — a sticky note is genuinely one
  * text field per pinned instance, never shared (unlike Notes' single global
  * notepad). Plain `SharedPreferences`, same shape as [WidgetColorStore] — the
- * existing two in-app pin paths for a sticky note (a Start tile reusing
- * `TileEntity.activityName`, a glance card's own `HostedWidget.customConfig`
- * DataStore blob) don't fit a real, independently-lifecycled widget instance,
- * so this is a third, widget-only store rather than reusing either.
+ * existing in-app pin path for a sticky note (a Start tile reusing
+ * `TileEntity.activityName`) doesn't fit a real, independently-lifecycled
+ * widget instance, so this is its own, widget-only store rather than reusing it.
  */
 object WidgetStickyNoteStore {
     private const val PREFS = "tileshell_widget_stickynotes"

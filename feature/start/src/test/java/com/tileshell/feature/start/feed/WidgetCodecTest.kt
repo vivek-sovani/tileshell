@@ -61,48 +61,17 @@ class WidgetCodecTest {
     @Test
     fun `an un-stacked widget writes a blank stackId column that decodes to null`() {
         val encoded = WidgetCodec.encode(WidgetData(listOf(HostedWidget(5, 160))))
-        assertEquals("5,160,0,false,,,", encoded)
+        assertEquals("5,160,0,false,", encoded)
         assertEquals(listOf(HostedWidget(5, 160, 0, false, stackId = null)), WidgetCodec.decode(encoded).widgets)
     }
 
     @Test
-    fun `round-trips a custom card's kind and encoded config`() {
-        val data = WidgetData(listOf(HostedWidget(-4, 0, halfWidth = true, customKind = "stock", customConfig = "stock:single|AAPL|Apple Inc.")))
-        assertEquals(data, WidgetCodec.decode(WidgetCodec.encode(data)))
-    }
-
-    @Test
-    fun `a save file written before customKind-customConfig existed decodes with both blank`() {
-        // Five columns only — no customKind/customConfig fields at all.
+    fun `a save file written while the format still carried customKind-customConfig columns still decodes`() {
+        // Seven columns — the two removed synthetic-"gadget"-card columns are
+        // simply ignored now.
         assertEquals(
-            listOf(HostedWidget(5, 160, 0, true, stackId = null, customKind = "", customConfig = "")),
-            WidgetCodec.decode("5,160,0,true,").widgets,
+            listOf(HostedWidget(5, 160, 0, true, stackId = null)),
+            WidgetCodec.decode("5,160,0,true,,stock,stock:single|AAPL|Apple Inc.").widgets,
         )
-    }
-
-    @Test
-    fun `a customConfig containing a literal comma is not truncated`() {
-        val data = WidgetData(listOf(HostedWidget(-4, 0, customKind = "sports", customConfig = "a,b,c")))
-        assertEquals(data, WidgetCodec.decode(WidgetCodec.encode(data)))
-    }
-}
-
-class NextCustomWidgetIdTest {
-
-    @Test
-    fun `the first custom card lands one below the fixed builtin sentinels`() {
-        assertEquals(-4, nextCustomWidgetId(emptyList()))
-        assertEquals(-4, nextCustomWidgetId(listOf(HostedWidget(BUILTIN_WEATHER_WIDGET_ID, 0), HostedWidget(BUILTIN_NOWPLAYING_WIDGET_ID, 0))))
-    }
-
-    @Test
-    fun `each new custom card gets a lower id than every previous one`() {
-        val existing = listOf(HostedWidget(-4, 0, customKind = "stock"), HostedWidget(-5, 0, customKind = "commodity"))
-        assertEquals(-6, nextCustomWidgetId(existing))
-    }
-
-    @Test
-    fun `real positive widget ids never affect custom id allocation`() {
-        assertEquals(-4, nextCustomWidgetId(listOf(HostedWidget(1, 0), HostedWidget(2, 0))))
     }
 }

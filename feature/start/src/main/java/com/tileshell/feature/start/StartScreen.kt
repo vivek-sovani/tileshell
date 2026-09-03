@@ -338,7 +338,6 @@ fun StartScreen(
     val edgeStripOpen by viewModel.edgeStripOpen.collectAsStateWithLifecycle()
     val quickPanelOpen by viewModel.quickPanelOpen.collectAsStateWithLifecycle()
     val homeStyleWizardOpen by viewModel.homeStyleWizardOpen.collectAsStateWithLifecycle()
-    val whatsNewOpen by viewModel.whatsNewOpen.collectAsStateWithLifecycle()
     val searchOpen by viewModel.searchOpen.collectAsStateWithLifecycle()
     // Hoisted above the EdgeStrip composable so its expanded/collapsed state survives
     // being unmounted while personalize/edit-mode/a folder is on top (it used to live
@@ -1220,11 +1219,6 @@ fun StartScreen(
                 },
                 active = active,
                 accentId = settings.accentId,
-                stockRefreshRate = settings.stockRefreshRate,
-                commodityRefreshRate = settings.commodityRefreshRate,
-                sportsRefreshRate = settings.sportsRefreshRate,
-                taskAutoClearDaily = settings.taskAutoClearDaily,
-                onTaskAutoClearDailyChange = viewModel::setTaskAutoClearDaily,
             )
         }
 
@@ -1829,20 +1823,6 @@ fun StartScreen(
             HomeStyleWizardScreen(
                 onChoose = viewModel::chooseHomeStyle,
                 onSkip = viewModel::skipHomeStyleWizard,
-            )
-        }
-
-        // "What's new · glance gadgets" — one-time notice for an existing
-        // install that just updated into this feature (see
-        // WhatsNewGlanceGadgetsPrefs's doc comment). Suppressed while the
-        // home-style wizard is up for the same reason FirstRunHint is: that
-        // wizard only ever shows on a fresh install, which this notice
-        // never targets anyway, but the guard keeps the two mutually
-        // exclusive by construction rather than by coincidence.
-        if (whatsNewOpen && !homeStyleWizardOpen) {
-            WhatsNewGlanceGadgetsCard(
-                accentId = settings.accentId,
-                onDismiss = viewModel::dismissWhatsNew,
             )
         }
 

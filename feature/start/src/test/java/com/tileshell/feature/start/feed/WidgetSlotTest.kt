@@ -92,11 +92,9 @@ class WidgetSlotTest {
         assertFalse(isInMergeZone(200f, 300f, 100f, 100f, pointX = 250f, pointY = 305f))
     }
 
-    // isStackMergeEligible — id/kind/stack/width preconditions, independent of aim.
+    // isStackMergeEligible — id/stack/width preconditions, independent of aim.
     private fun realWidget(id: Int, halfWidth: Boolean = false, stackId: Int? = null) =
         HostedWidget(id, heightDp = 120, halfWidth = halfWidth, stackId = stackId)
-    private fun customCard(id: Int, kind: String = "clock", halfWidth: Boolean = false, stackId: Int? = null) =
-        HostedWidget(id, heightDp = 0, halfWidth = halfWidth, stackId = stackId, customKind = kind)
     private fun builtinCard(id: Int, halfWidth: Boolean = false) =
         HostedWidget(id, heightDp = 0, halfWidth = halfWidth)
 
@@ -106,39 +104,25 @@ class WidgetSlotTest {
     }
 
     @Test
-    fun `isStackMergeEligible allows two TileShell custom cards of matching width`() {
-        assertTrue(isStackMergeEligible(customCard(-4, halfWidth = true), customCard(-5, halfWidth = true)))
-    }
-
-    @Test
     fun `isStackMergeEligible rejects a built-in glance card on either side`() {
         assertFalse(isStackMergeEligible(builtinCard(BUILTIN_WEATHER_WIDGET_ID), realWidget(1)))
         assertFalse(isStackMergeEligible(realWidget(1), builtinCard(BUILTIN_AGENDA_WIDGET_ID)))
-        assertFalse(isStackMergeEligible(builtinCard(BUILTIN_WEATHER_WIDGET_ID), customCard(-4)))
-    }
-
-    @Test
-    fun `isStackMergeEligible rejects mixing a custom card with a real hosted widget`() {
-        assertFalse(isStackMergeEligible(customCard(-4), realWidget(1)))
-        assertFalse(isStackMergeEligible(realWidget(1), customCard(-4)))
     }
 
     @Test
     fun `isStackMergeEligible rejects a drag starting on an already-stacked widget`() {
         assertFalse(isStackMergeEligible(realWidget(1, stackId = 1), realWidget(2)))
-        assertFalse(isStackMergeEligible(customCard(-4, stackId = -4), customCard(-5)))
     }
 
     @Test
     fun `isStackMergeEligible rejects mismatched half-full width`() {
         assertFalse(isStackMergeEligible(realWidget(1, halfWidth = true), realWidget(2, halfWidth = false)))
-        assertFalse(isStackMergeEligible(customCard(-4, halfWidth = true), customCard(-5, halfWidth = false)))
     }
 
     private fun full(id: Int) = HostedWidget(id, heightDp = 120, halfWidth = false)
     private fun half(id: Int) = HostedWidget(id, heightDp = 120, halfWidth = true)
-    private fun stacked(id: Int, stackId: Int, heightDp: Int = 120, halfWidth: Boolean = false, customKind: String = "") =
-        HostedWidget(id, heightDp = heightDp, halfWidth = halfWidth, stackId = stackId, customKind = customKind)
+    private fun stacked(id: Int, stackId: Int, heightDp: Int = 120, halfWidth: Boolean = false) =
+        HostedWidget(id, heightDp = heightDp, halfWidth = halfWidth, stackId = stackId)
 
     // Row/card expectation builders — rows are packed from cards (a lone widget or a
     // whole stack), so these keep the expectations readable.
@@ -285,30 +269,11 @@ class WidgetSlotTest {
     }
 
     @Test
-    fun `stackHeightDp falls back to each custom card kind's own default when never resized`() {
-        // Every custom card starts at heightDp 0 (WidgetStore.addCustomCard) until
-        // manually dragged taller — a stack of two never-resized custom cards used
-        // to collapse to 0dp (max of two zeros) and render as nothing, reading as
-        // "the other half of this row is empty" (user-reported). Regression for
-        // that: the stack must fall back to its members' own real default heights.
-        val stickyPlusNotes = stackHeightDp(
-            listOf(
-                stacked(-10, -10, heightDp = 0, halfWidth = true, customKind = "stickynote"),
-                stacked(-11, -10, heightDp = 0, halfWidth = true, customKind = "notepad"),
-            ),
-        )
-        assertTrue(stickyPlusNotes > 0)
-
-        // A member that WAS manually resized still wins over a never-resized one.
-        assertEquals(
-            300,
-            stackHeightDp(
-                listOf(
-                    stacked(-8, -8, heightDp = 0, halfWidth = true, customKind = "moonphase"),
-                    stacked(-7, -8, heightDp = 300, halfWidth = true, customKind = "flashlight"),
-                ),
-            ),
-        )
+    fun `stackHeightDp falls back to a defensive floor when every member is 0`() {
+        // A real hosted widget's own height is always seeded to a real value when
+        // first bound, so heightDp 0 should never actually occur — this covers the
+        // defensive floor regardless.
+        assertTrue(stackHeightDp(listOf(stacked(1, 1, heightDp = 0), stacked(2, 1, heightDp = 0))) > 0)
     }
 
     // mergeIntoStack — forming and joining groups.
@@ -539,6 +504,37 @@ class WidgetSlotTest {
             listOf(BUILTIN_AGENDA_WIDGET_ID, BUILTIN_NOWPLAYING_WIDGET_ID, BUILTIN_WEATHER_WIDGET_ID, 7),
             seeded.map { it.widgetId },
         )
+    }
+
+    // ---- stripStaleNegativeIds (removed synthetic "gadget" cards, upgrade path) ----
+
+    @Test
+    fun `stripStaleNegativeIds removes a former custom card, keeping real widgets and builtins`() {
+        val existing = listOf(
+            HostedWidget(BUILTIN_WEATHER_WIDGET_ID, 0),
+            HostedWidget(-4, 0), // a former CustomCardKind.STOCK card
+            full(7),
+        )
+        assertEquals(
+            listOf(BUILTIN_WEATHER_WIDGET_ID, 7),
+            stripStaleNegativeIds(existing).map { it.widgetId },
+        )
+    }
+
+    @Test
+    fun `stripStaleNegativeIds is a no-op with no stale entries`() {
+        val existing = listOf(HostedWidget(BUILTIN_WEATHER_WIDGET_ID, 0), full(7))
+        assertSame(existing, stripStaleNegativeIds(existing))
+    }
+
+    @Test
+    fun `stripStaleNegativeIds un-stacks a survivor left with a dangling stack of one`() {
+        // A real widget stacked with a former custom card partner — removing
+        // the stale partner must not leave the real one as a "stack of one."
+        val existing = listOf(stacked(7, stackId = 7), HostedWidget(-4, 0, stackId = 7))
+        val result = stripStaleNegativeIds(existing)
+        assertEquals(listOf(7), result.map { it.widgetId })
+        assertEquals(null, result.single().stackId)
     }
 
     // ---- negative sentinel ids need no special-casing in packing/reordering ---

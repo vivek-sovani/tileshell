@@ -86,20 +86,7 @@ import com.tileshell.core.design.tileGradientBrush
 import com.tileshell.feature.personalize.FeedSourceItem
 import com.tileshell.feature.personalize.RegionChipGrid
 import com.tileshell.feature.personalize.RegionOption
-import com.tileshell.core.data.CalendarSystemTile
-import com.tileshell.core.data.CommodityTile
-import com.tileshell.core.data.CountdownTile
-import com.tileshell.core.data.SportsTile
-import com.tileshell.core.data.StockTile
 import com.tileshell.core.design.LocalColorTokens
-import com.tileshell.feature.personalize.CalendarSystemPickerSheet
-import com.tileshell.feature.personalize.CommodityPickerSheet
-import com.tileshell.feature.personalize.CountdownEditorSheet
-import com.tileshell.feature.personalize.NotesSheet
-import com.tileshell.feature.personalize.SportsPickerSheet
-import com.tileshell.feature.personalize.StickyNoteEditorSheet
-import com.tileshell.feature.personalize.StockPickerSheet
-import com.tileshell.feature.personalize.TaskListSheet
 import com.tileshell.feature.start.dominantIconColor
 import com.tileshell.feature.start.rememberChosenWallpaperIsLight
 import com.tileshell.feature.start.rememberWallpaperBitmap
@@ -168,16 +155,7 @@ fun FeedPage(
     onOpenArticle: (String) -> Unit,
     onRefresh: () -> Unit,
     active: Boolean,
-    // Threaded down to WidgetSection's "add a tileshell card" facility —
-    // the same picker sheets and refresh-rate settings Start's own stock/
-    // commodity/sports live tiles use.
     accentId: String = "",
-    stockRefreshRate: com.tileshell.core.data.settings.LiveRefreshRate = com.tileshell.core.data.settings.LiveRefreshRate.DEFAULT,
-    commodityRefreshRate: com.tileshell.core.data.settings.LiveRefreshRate = com.tileshell.core.data.settings.LiveRefreshRate.DEFAULT,
-    sportsRefreshRate: com.tileshell.core.data.settings.LiveRefreshRate = com.tileshell.core.data.settings.LiveRefreshRate.DEFAULT,
-    // For the Tasks card's own management sheet (same one Start's Tasks tile opens).
-    taskAutoClearDaily: Boolean = true,
-    onTaskAutoClearDailyChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val tokens = LocalColorTokens.current
@@ -292,38 +270,7 @@ fun FeedPage(
     var glanceEditMode by remember { mutableStateOf(false) }
     LaunchedEffect(active) { if (!active) glanceEditMode = false }
 
-    // A "tileshell card" (stock/commodity/sports/calendar systems) added via
-    // WidgetSection's "add" facility — its picker sheet has to be composed
-    // from here, not from inside WidgetSection itself, since that composable
-    // sits inside this page's own Modifier.verticalScroll() column and these
-    // sheets contain a LazyColumn (crashes there — "measured with infinite
-    // height"). Same underlying DataStore file as WidgetSection's own
-    // WidgetStore.create(context) (a `by dataStore(...)` delegate is a
-    // per-file singleton), so both read/write the same persisted list.
-    val feedWidgetStore = remember(context) { WidgetStore.create(context) }
-    val feedWidgets by feedWidgetStore.data.collectAsStateWithLifecycle(initialValue = WidgetData())
     val scope = rememberCoroutineScope()
-    var pickerWidgetId by remember { mutableStateOf<Int?>(null) }
-    var pickerKind by remember { mutableStateOf<CustomCardKind?>(null) }
-    // The picked card's *current* customConfig — needed so re-opening an
-    // already-configured countdown/sticky note to edit it further pre-fills
-    // with its existing date/label/text instead of starting blank (which
-    // would silently wipe it the moment the user saved).
-    val pickerCustomConfig = pickerWidgetId?.let { id -> feedWidgets.widgets.find { it.widgetId == id }?.customConfig }.orEmpty()
-    // Tasks/Notes cards only ever preview/toggle inline (see CustomCardKind's
-    // own doc comment) — adding a new task or note needs the real management
-    // sheet, the same one tapping the Tasks/Notes tile opens on Start, not a
-    // per-card picker (there's nothing per-card to pick, only the shared
-    // Notes notepad or — see TaskRepository's own doc comment — this specific
-    // card's own independent task list to open). Null = closed; for tasks,
-    // otherwise the tapped/just-added card's own widgetId, since each Tasks
-    // gadget keeps its own list.
-    var tasksSheetListId by remember { mutableStateOf<String?>(null) }
-    var notesSheetOpen by remember { mutableStateOf(false) }
-    fun dismissCustomCardPicker() {
-        pickerWidgetId = null
-        pickerKind = null
-    }
 
     Box(
         modifier = modifier
@@ -370,37 +317,6 @@ fun FeedPage(
                 onNowPlayingClick = nowPlayingPackage?.let { pkg -> { launchPackage(context, pkg) } },
                 editMode = glanceEditMode,
                 onEditModeChange = { glanceEditMode = it },
-                stockRefreshRate = stockRefreshRate,
-                commodityRefreshRate = commodityRefreshRate,
-                sportsRefreshRate = sportsRefreshRate,
-                onAddCustomCard = { kind ->
-                    scope.launch {
-                        val id = feedWidgetStore.addCustomCard(kind)
-                        when {
-                            // A no-config kind (clock, battery, ...) just works
-                            // once added — nothing to pick, so no sheet opens,
-                            // exactly like pinning one of these on Start.
-                            !kind.needsConfig -> Unit
-                            kind == CustomCardKind.TASKS -> tasksSheetListId = id.toString()
-                            kind == CustomCardKind.NOTEPAD -> notesSheetOpen = true
-                            else -> {
-                                pickerWidgetId = id
-                                pickerKind = kind
-                            }
-                        }
-                    }
-                },
-                onCustomCardTap = { widgetId, kind ->
-                    when {
-                        !kind.needsConfig -> Unit
-                        kind == CustomCardKind.TASKS -> tasksSheetListId = widgetId.toString()
-                        kind == CustomCardKind.NOTEPAD -> notesSheetOpen = true
-                        else -> {
-                            pickerWidgetId = widgetId
-                            pickerKind = kind
-                        }
-                    }
-                },
             )
 
             NewsHeader(
@@ -444,101 +360,6 @@ fun FeedPage(
         onDismiss = { feedSettingsOpen = false },
     )
 
-    // Config sheets for a just-added (or re-tapped) "tileshell card" — the
-    // exact same picker sheets Start's own live tiles use; only the
-    // persistence target differs (WidgetStore.setCustomConfig by Int
-    // widgetId here, vs. LayoutRepository.setTileText by String tile id on
-    // Start). Rendered here, not inside WidgetSection, since these contain a
-    // LazyColumn and WidgetSection sits inside this page's own
-    // Modifier.verticalScroll() column — composing one there crashes
-    // ("measured with infinite height").
-    StockPickerSheet(
-        visible = pickerKind == CustomCardKind.STOCK && pickerWidgetId != null,
-        dark = dark,
-        accentId = accentId,
-        tileId = pickerWidgetId?.toString(),
-        onSinglePicked = { id, symbol, name ->
-            id.toIntOrNull()?.let { wid -> scope.launch { feedWidgetStore.setCustomConfig(wid, StockTile.encodeSingle(symbol, name)) } }
-        },
-        onCategoryPicked = { id, categoryId, name ->
-            id.toIntOrNull()?.let { wid -> scope.launch { feedWidgetStore.setCustomConfig(wid, StockTile.encodeCategory(categoryId, name)) } }
-        },
-        onMultiPicked = { id, symbols, name ->
-            id.toIntOrNull()?.let { wid -> scope.launch { feedWidgetStore.setCustomConfig(wid, StockTile.encodeMultiStock(symbols, name)) } }
-        },
-        onDismiss = { dismissCustomCardPicker() },
-    )
-    CommodityPickerSheet(
-        visible = pickerKind == CustomCardKind.COMMODITY && pickerWidgetId != null,
-        dark = dark,
-        accentId = accentId,
-        tileId = pickerWidgetId?.toString(),
-        onPicked = { id, symbol, name ->
-            id.toIntOrNull()?.let { wid -> scope.launch { feedWidgetStore.setCustomConfig(wid, CommodityTile.encode(symbol, name)) } }
-        },
-        onDismiss = { dismissCustomCardPicker() },
-    )
-    SportsPickerSheet(
-        visible = pickerKind == CustomCardKind.SPORTS && pickerWidgetId != null,
-        dark = dark,
-        accentId = accentId,
-        tileId = pickerWidgetId?.toString(),
-        onTeamPicked = { id, leagueSlug, teamId, teamLabel ->
-            id.toIntOrNull()?.let { wid -> scope.launch { feedWidgetStore.setCustomConfig(wid, SportsTile.encode(leagueSlug, teamId, teamLabel)) } }
-        },
-        onDismiss = { dismissCustomCardPicker() },
-    )
-    CalendarSystemPickerSheet(
-        visible = pickerKind == CustomCardKind.CALENDAR_SYSTEM && pickerWidgetId != null,
-        dark = dark,
-        accentId = accentId,
-        onPick = { systemId ->
-            pickerWidgetId?.let { wid -> scope.launch { feedWidgetStore.setCustomConfig(wid, CalendarSystemTile.encode(systemId)) } }
-        },
-        onDismiss = { dismissCustomCardPicker() },
-    )
-    CountdownEditorSheet(
-        visible = pickerKind == CustomCardKind.COUNTDOWN && pickerWidgetId != null,
-        dark = dark,
-        accentId = accentId,
-        tileId = pickerWidgetId?.toString(),
-        initialTargetIsoDate = CountdownTile.decode(pickerCustomConfig)?.first.orEmpty(),
-        initialLabel = CountdownTile.decode(pickerCustomConfig)?.second.orEmpty(),
-        onDataChange = { id, targetIsoDate, label ->
-            id.toIntOrNull()?.let { wid -> scope.launch { feedWidgetStore.setCustomConfig(wid, CountdownTile.encode(targetIsoDate, label)) } }
-        },
-        onDismiss = { dismissCustomCardPicker() },
-    )
-    StickyNoteEditorSheet(
-        visible = pickerKind == CustomCardKind.STICKYNOTE && pickerWidgetId != null,
-        dark = dark,
-        accentId = accentId,
-        tileId = pickerWidgetId?.toString(),
-        initialText = pickerCustomConfig,
-        onTextChange = { id, text ->
-            id.toIntOrNull()?.let { wid -> scope.launch { feedWidgetStore.setCustomConfig(wid, text) } }
-        },
-        onDismiss = { dismissCustomCardPicker() },
-    )
-    // Tasks/Notes cards' shared management sheets — the same TaskListSheet/
-    // NotesSheet Start's own Tasks/Notes tile opens, reached via
-    // onAddCustomCard/onCustomCardTap above. TaskListSheet is scoped to
-    // *this* card's own list (its widgetId); Notes stays one shared notepad.
-    TaskListSheet(
-        visible = tasksSheetListId != null,
-        listId = tasksSheetListId.orEmpty(),
-        dark = dark,
-        accentId = accentId,
-        autoClearDaily = taskAutoClearDaily,
-        onAutoClearDailyChange = onTaskAutoClearDailyChange,
-        onDismiss = { tasksSheetListId = null },
-    )
-    NotesSheet(
-        visible = notesSheetOpen,
-        dark = dark,
-        accentId = accentId,
-        onDismiss = { notesSheetOpen = false },
-    )
     }  // Box
 }
 

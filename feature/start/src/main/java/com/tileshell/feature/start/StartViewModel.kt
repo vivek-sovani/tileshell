@@ -299,18 +299,6 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val _homeStyleWizardOpen = MutableStateFlow(false)
     val homeStyleWizardOpen: StateFlow<Boolean> = _homeStyleWizardOpen.asStateFlow()
 
-    /**
-     * True while the one-shot "what's new · glance gadgets" notice
-     * ([WhatsNewGlanceGadgetsCard]) is open — shown once, only to an
-     * *existing* install upgrading into the feature (see
-     * [WhatsNewGlanceGadgetsPrefs]'s doc comment for how that's told apart
-     * from a fresh install, which gets [homeStyleWizardOpen]/[FirstRunHint]
-     * instead). Set in [init], never re-opened once [dismissWhatsNew] marks
-     * it shown.
-     */
-    private val _whatsNewOpen = MutableStateFlow(false)
-    val whatsNewOpen: StateFlow<Boolean> = _whatsNewOpen.asStateFlow()
-
     fun setAppList(value: Boolean) {
         _isAppList.value = value
     }
@@ -391,13 +379,6 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             migrateSettingsTile()
             if (!HomeStyleWizardPrefs.shown(getApplication())) {
                 _homeStyleWizardOpen.value = true
-            }
-            // Existing-install-only "what's new" notice — see
-            // WhatsNewGlanceGadgetsPrefs's doc comment for why gating on
-            // FirstRunHintPrefs.shown is what distinguishes "existing
-            // install" from "fresh install" here.
-            if (FirstRunHintPrefs.shown(getApplication()) && !WhatsNewGlanceGadgetsPrefs.shown(getApplication())) {
-                _whatsNewOpen.value = true
             }
         }
         // Resolve the news-region preset from the device locale before reconciling
@@ -1060,12 +1041,6 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         _homeStyleWizardOpen.value = false
     }
 
-    /** Dismiss the "what's new · glance gadgets" notice — never shown again. */
-    fun dismissWhatsNew() {
-        WhatsNewGlanceGadgetsPrefs.markShown(getApplication())
-        _whatsNewOpen.value = false
-    }
-
     /** Set the icon mask ICONS home style applies (unused in TILES). */
     fun setIconShape(shape: IconShape) {
         viewModelScope.launch(writeContext) { settingsRepository.setIconShape(shape) }
@@ -1422,7 +1397,6 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         // skip (marks it shown) — same "never nags twice" rule every other
         // one-shot flag in this app follows.
         if (_homeStyleWizardOpen.value) skipHomeStyleWizard()
-        if (_whatsNewOpen.value) dismissWhatsNew()
         _homeRequests.tryEmit(Unit)
     }
 
