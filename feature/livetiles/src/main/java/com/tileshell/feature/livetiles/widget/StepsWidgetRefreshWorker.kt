@@ -58,10 +58,23 @@ class StepsWidgetRefreshWorker(
         private const val UNIQUE_NOW = "tileshell_steps_widget_refresh_now"
 
         fun ensureScheduled(context: Context) {
+            // 15 min, not 30 — WorkManager's own periodic floor, same cadence
+            // Battery/Stock/Commodity already use. A step-counter sensor has
+            // no manifest-deliverable "changed" broadcast the way battery
+            // partly does (see BatteryAppWidgetProvider), so a push-driven
+            // widget refresh genuinely isn't available here — each periodic
+            // run is already a fresh one-shot sensor read (see
+            // readStepCounterOnce), not a stale cached value, so tightening
+            // this interval is the whole fix (user-reported: 30 min felt
+            // stale next to the in-app tile's own live sensor listener).
+            // UPDATE, not KEEP: an install that already had this widget
+            // scheduled at the old 30-min interval would otherwise never
+            // pick up the new one without a reinstall — UPDATE reconciles
+            // an existing schedule to match a changed request in place.
             WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
                 UNIQUE_PERIODIC,
-                ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequestBuilder<StepsWidgetRefreshWorker>(30, TimeUnit.MINUTES).build(),
+                ExistingPeriodicWorkPolicy.UPDATE,
+                PeriodicWorkRequestBuilder<StepsWidgetRefreshWorker>(15, TimeUnit.MINUTES).build(),
             )
         }
 

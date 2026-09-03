@@ -45,6 +45,17 @@
             android:label="@string/battery_widget_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <!-- Push-driven refresh on the moments a user actually looks at
+                     this widget for — plugging in/out, crossing the low-battery
+                     threshold — on top of the existing 15-min periodic backstop.
+                     ACTION_BATTERY_CHANGED itself can't be added here: Android
+                     never delivers it to a manifest-registered receiver, at any
+                     API level, only to a dynamically registered one — see
+                     BatteryAppWidgetProvider's own doc comment. -->
+                <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
+                <action android:name="android.intent.action.ACTION_POWER_DISCONNECTED" />
+                <action android:name="android.intent.action.BATTERY_LOW" />
+                <action android:name="android.intent.action.BATTERY_OKAY" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
