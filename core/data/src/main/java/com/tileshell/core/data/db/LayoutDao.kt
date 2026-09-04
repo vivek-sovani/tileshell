@@ -43,6 +43,15 @@ interface LayoutDao {
     suspend fun appTileCount(packageName: String): Int
 
     /**
+     * Count app tiles already pinned for a specific package+activity — a package
+     * can expose several distinct launcher activities (e.g. Amazon's Fresh/Now/Pay
+     * activity-aliases all under one package) that should be pinnable independently,
+     * so pin de-dupe must key on the pair, not [appTileCount]'s package-only match.
+     */
+    @Query("SELECT COUNT(*) FROM tiles WHERE type = 'app' AND packageName = :packageName AND activityName = :activityName")
+    suspend fun appActivityTileCount(packageName: String, activityName: String): Int
+
+    /**
      * Count app tiles with a given `activityName` — used to de-dupe pinning a
      * contact (quick search → "pin to start"): contact tiles share a blank
      * `packageName` (like the weather/calendar liveOnly tiles) so [appTileCount]

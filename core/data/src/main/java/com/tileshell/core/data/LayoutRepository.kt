@@ -244,12 +244,15 @@ class LayoutRepository(
      * unless the caller overrides it — the ICONS home style pins at SMALL
      * instead, since that's the size that renders as a plain icon) in the
      * app's default colour, appended to the end of the grid. No-op (returns
-     * [PinResult.ALREADY_ON_START]) if a tile for the package already exists.
+     * [PinResult.ALREADY_ON_START]) if a tile for this exact package+activity
+     * already exists — keyed on the pair, not the package alone, since one
+     * package can expose several independently-pinnable launcher activities
+     * (e.g. Amazon's Fresh/Now/Pay activity-aliases).
      * Apps that match a default role (phone, mail, calendar, etc.) get their
      * designed WP icon key; all others default to null and show the real app icon.
      */
     suspend fun pinApp(app: AppEntry, defaultSize: TileSize = TileSize.MEDIUM): PinResult {
-        if (dao.appTileCount(app.packageName) > 0) return PinResult.ALREADY_ON_START
+        if (dao.appActivityTileCount(app.packageName, app.activityName) > 0) return PinResult.ALREADY_ON_START
         dao.insertTiles(
             listOf(
                 TileEntity(

@@ -5341,3 +5341,29 @@ CenterVertically`) and needed no change; `Narrow` (TALL/COLUMN) already used `Ar
 deliberately and was left as-is. Build + full unit test suite green; installed on both the emulator
 and the physical device — same caveat as the previous entry, no real pending notification was
 available in the sandbox to resize through and visually confirm centring at each size.
+
+## "Pin to start" de-duped by package name alone, blocking a package's other launcher activities
+
+User-reported real bug, not a WP-fidelity question: "amazon app has subapps like amazon fresh, amazon
+now, amazon pay. it shows separate in app list but not able to pin individual app separately. when i
+pin one and try to pin another it says already on start." Amazon (and some other apps) expose several
+distinct `LAUNCHER`-category activities/activity-aliases under one package — the App List already
+lists each correctly, since `AppCatalogRepository.query()` maps every `LauncherActivityInfo` to its
+own `AppEntry` carrying both `packageName` and `activityName`. The bug was in the pin path:
+`LayoutRepository.pinApp`'s "already pinned" guard called `LayoutDao.appTileCount(packageName)`, whose
+`SELECT COUNT(*) ... WHERE packageName = :packageName` ignores `activityName` entirely — pinning
+Amazon Fresh made the package-only count `> 0`, so pinning Amazon Now or Amazon Pay afterward always
+hit `PinResult.ALREADY_ON_START`, even though nothing for that specific activity was on Start. Notably
+this dedup key was inconsistent with `TileMerge.mergeKey()` (used for drag-merge-into-folder dedup),
+which already correctly keys on `"$packageName/$activityName"` — the pin path just never adopted that.
+
+Fixed with a new `LayoutDao.appActivityTileCount(packageName, activityName)`
+(`SELECT COUNT(*) ... WHERE packageName = :packageName AND activityName = :activityName`), and
+`pinApp` now checks that instead of the package-only `appTileCount` (which is left in place — still
+used elsewhere/available for a genuine "any tile for this package" check if one is ever needed).
+`AppListViewModel.pinnedPackages` (package-only, used only to route notification badges to the "recent"
+section for unpinned packages) was deliberately left as-is — out of scope for this bug and a
+reasonable simplification for that specific purpose, since badging one already-pinned sub-app's tile
+is an acceptable approximation. Build + full unit test suite green; installed on the emulator, launched
+with no crash in `adb logcat` — the actual multi-activity-pin scenario needs an app with real launcher
+aliases (e.g. the user's own Amazon install) to click-test by hand, not reproducible in the sandbox.
