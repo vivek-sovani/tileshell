@@ -215,7 +215,12 @@ internal fun MaskedAppIcon(
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 colorFilter = ColorFilter.tint(Glass.faceTextColor(isLightBackground(accent))),
-                modifier = Modifier.size(size * 0.6f),
+                // Full size, not shrunk further: a monochrome layer is itself
+                // an AdaptiveIconDrawable layer, so it already carries the
+                // same built-in safe-zone inset as the real full-colour icon
+                // — matching the isAdaptive branch below, which also draws at
+                // full [size] with no extra scale-down.
+                modifier = Modifier.size(size),
             )
         }
         return

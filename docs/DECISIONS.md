@@ -3,6 +3,63 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Themed icons: parked
+
+Built, then immediately parked at the user's request after seeing it on
+real installed apps. The feature (Personalize toggle → each app's Android
+13+ monochrome adaptive-icon layer, tinted to the resolved accent, in the
+App List, Start's ICONS-mode icon cell, live-tile "posted by" corner badges,
+and a real app icon shown directly on a WP tile) worked exactly as built —
+confirmed on-device (emulator, API 36): Google apps that ship a themed layer
+(YouTube, YT Music, Play Store, Settings, Safety, Voice Access) correctly
+rendered as accent-filled circles with a white glyph, while apps with no
+monochrome layer correctly kept their full-colour icon. That correctness is
+exactly the problem the user flagged: **most installed apps don't declare a
+monochrome layer at all**, so real device screens are a visible, uneven mix
+of a handful of themed icons among many full-colour ones — this matches
+real Android launchers' own themed-icon behaviour (Pixel Launcher/One UI
+have the identical limitation, for the identical reason), but the user
+didn't find the mixed result acceptable for this launcher. Offered three
+paths via `AskUserQuestion` (keep as-is / synthesize a monochrome fallback
+for apps with no real layer / turn it off for now); the user chose to turn
+it off.
+
+**"Off," not removed** — every piece of the underlying implementation stays
+in place, dormant, for a future revisit (most likely a synthesized fallback
+for apps with no real monochrome layer, so coverage isn't limited to the
+minority of apps that ship one):
+- `LauncherSettings.themedIcons` + its `SettingsCodec`/`SettingsRepository
+  .setThemedIcons`/`StartViewModel.setThemedIcons` plumbing — untouched,
+  just no longer reachable from any UI.
+- The Personalize "themed icons" `ToggleRow` and its two params on
+  `PersonalizeSheet` — removed (nothing to toggle if nothing reads it).
+- Every render-side `themedIcons: Boolean = false` parameter/branch
+  (`AppListIcon.kt#MaskedAppIcon`, `IconCellView.kt#maskedOrGlyphIcon`/
+  `IconCellGlyph`, `feature/livetiles/AppIcon.kt#AppIconCorner`,
+  `StartScreen.kt#StaticTileGlyph`, and the `monochromeBitmap`/
+  `monochromeIconBitmap()` extraction in all three `MaskableIcon`-family
+  data classes) — untouched, all still default to `false` and are simply
+  never passed `true` anymore: the four call sites that used to read
+  `settings.themedIcons` (`StartScreen.kt`'s `StartPage(...)` call,
+  `AppListScreen.kt`'s two `AppRow(...)` calls) now omit the argument
+  entirely, so the effective value is always `false` regardless of
+  whatever a device already has persisted from testing this session.
+- Sizing fixes made along the way are also left in place, since they're
+  real, independent bug fixes worth keeping for the eventual revisit: the
+  plate-based renderers (App List, Start ICONS-mode) no longer shrink the
+  themed glyph to 60% inside its own plate (a monochrome layer is itself an
+  adaptive-icon layer with its own safe-zone inset already baked in, same
+  as the existing full-size `isAdaptive`-unmasked branch each file already
+  had); `AppIconCorner`'s corner badge grew from a fixed 18dp to 24dp
+  **for every branch, not just the themed one** (user-flagged as a generic
+  "icon too small once a live tile actually has content" issue, unrelated
+  to theming); and `StaticTileGlyph`'s themed branch gained its own
+  `themedDp` size table (60/48/120/78 by tile shape) instead of reusing the
+  tiny WP monoline-glyph constants, decoding the source bitmap at that
+  larger size too so it doesn't upscale-blur.
+- Build + full unit test suite green; verified on both the physical device
+  and the emulator (no crash) after every step of this arc.
+
 ## People tile: flip removed, replaced with an animated bubble cluster
 
 User-requested, two complaints in one: the flip's back face showed the

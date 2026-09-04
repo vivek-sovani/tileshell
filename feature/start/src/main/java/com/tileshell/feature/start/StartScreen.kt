@@ -109,6 +109,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -1007,7 +1008,10 @@ fun StartScreen(
                     sticky = settings.tilePackMode.isAnchored,
                     homeStyle = settings.homeStyle,
                     iconShape = settings.iconShape,
-                    themedIcons = settings.themedIcons,
+                    // themedIcons intentionally not threaded here — parked (see
+                    // DECISIONS.md "Themed icons: parked"); StartPage's own
+                    // themedIcons param stays at its default false regardless
+                    // of any already-persisted LauncherSettings.themedIcons value.
                     onSetTileSlot = viewModel::setTileGridSlot,
                     expandedFolderId = expandedFolderId,
                     onCollapseFolder = viewModel::collapseFolder,
@@ -1487,8 +1491,6 @@ fun StartScreen(
             onHomeStyleChange = viewModel::setHomeStyle,
             iconShape = settings.iconShape,
             onIconShapeChange = viewModel::setIconShape,
-            themedIcons = settings.themedIcons,
-            onThemedIconsChange = viewModel::setThemedIcons,
             lockLayout = settings.lockLayout,
             onLockLayoutChange = viewModel::setLockLayout,
             hideStatusBar = settings.hideStatusBar,
@@ -2676,6 +2678,7 @@ private fun StartPage(
                             canMoveBack = canMoveBack,
                             canMoveForward = canMoveForward,
                             iconShape = iconShape,
+                            themedIcons = themedIcons,
                             stockRefreshRate = stockRefreshRate,
                             commodityRefreshRate = commodityRefreshRate,
                             accent = tileAccent,
@@ -4750,7 +4753,7 @@ private fun AppTileContent(
     // apps with no live face fall through to the static glyph; weather/calendar
     // also fall back to it when their opt-in permission is denied or no data is
     // cached (the live composables call the slot).
-    val staticGlyph = @Composable { StaticTileGlyph(tile, homeStyle, iconShape) }
+    val staticGlyph = @Composable { StaticTileGlyph(tile, homeStyle, iconShape, themedIcons) }
 
     // Small (1×1) clock / calendar / battery tiles get a compact non-flipping
     // live face — the time, today's day number, or charge percent — instead of
@@ -5034,6 +5037,13 @@ private fun StaticTileGlyph(
     tile: TileModel.App,
     homeStyle: HomeStyle = HomeStyle.TILES,
     iconShape: IconShape = IconShape.ORIGINAL,
+    // Themed/monochrome icon (Personalize) — independent of homeStyle/iconShape,
+    // same as everywhere else this setting applies. The tile is already sitting
+    // on its own accent-filled face (drawn by the caller), so unlike the app
+    // list/live-tile-badge renderers there's no separate plate here — the
+    // themed glyph is just tinted to LocalTileFaceColor, matching how the
+    // generic category-glyph fallback below already renders on this exact face.
+    themedIcons: Boolean = false,
 ) {
     val useAppIcon = !TileIcons.hasIcon(tile.iconKey)
     val composeShape = if (homeStyle == HomeStyle.ICONS) iconShape.toComposeShape() else null
@@ -5047,8 +5057,19 @@ private fun StaticTileGlyph(
         tile.size == TileSize.LARGE -> 46
         else -> 34
     }
-    val sizePx = with(LocalDensity.current) { monolineDp.dp.roundToPx() }.coerceAtLeast(96)
-    val maskable = if (useAppIcon && composeShape != null) {
+    // A themed icon renders far bigger than the tiny WP monoline glyph (see
+    // TileIconContent below) — decode at that larger size too, or the
+    // upscaled result reads visibly blurry (user-reported at the small size).
+    val themedDp = when {
+        tile.size == TileSize.SMALL -> 60
+        tile.size.rows == 1 && tile.size.cols > 1 -> 48
+        tile.size == TileSize.LARGE -> 120
+        else -> 78
+    }
+    val sizePx = with(LocalDensity.current) {
+        (if (themedIcons) themedDp else monolineDp).dp.roundToPx()
+    }.coerceAtLeast(96)
+    val maskable = if (useAppIcon && (composeShape != null || themedIcons)) {
         rememberMaskableIcon(tile.packageName, tile.activityName, sizePx)
     } else {
         null
@@ -5058,15 +5079,42 @@ private fun StaticTileGlyph(
     } else {
         null
     }
+    val mono = maskable?.monochromeBitmap
 
     @Composable
     fun TileIconContent(monolineSize: Int) {
-        if (useAppIcon && maskable != null) {
+        if (useAppIcon && themedIcons && mono != null) {
+            // A real app icon reads as noticeably bigger than the tiny WP
+            // monoline glyph every other branch here uses ([monolineSize] is a
+            // deliberate stylized-glyph convention, not an icon size) — uses
+            // its own [themedDp] table instead, so the themed icon matches how
+            // a normal launcher would show the app's own icon, rather than
+            // looking like a shrunken glyph (user-reported still too small at
+            // an earlier 1.8x-of-glyph-size attempt).
+            Image(
+                bitmap = mono,
+                contentDescription = tile.label,
+                contentScale = ContentScale.Fit,
+                colorFilter = ColorFilter.tint(LocalTileFaceColor.current),
+                modifier = Modifier.size(themedDp.dp),
+            )
+        } else if (useAppIcon && maskable != null && composeShape != null) {
             Image(
                 bitmap = if (maskable.isAdaptive) maskable.unmaskedBitmap else maskable.bitmap,
                 contentDescription = tile.label,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.size(monolineSize.dp).clip(composeShape!!),
+                modifier = Modifier.size(monolineSize.dp).clip(composeShape),
+            )
+        } else if (useAppIcon && maskable != null) {
+            // maskable loaded (themedIcons requested it) but there's no themed
+            // layer to show and no shape to mask to — same plain, unmasked
+            // icon TILES mode has always shown, just sourced from the already-
+            // loaded MaskableIcon instead of a second rememberTileAppIcon call.
+            Image(
+                bitmap = maskable.bitmap,
+                contentDescription = tile.label,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(monolineSize.dp),
             )
         } else if (useAppIcon && appIcon != null) {
             Image(

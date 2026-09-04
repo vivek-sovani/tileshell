@@ -198,8 +198,6 @@ fun PersonalizeSheet(
     onHomeStyleChange: (HomeStyle) -> Unit,
     iconShape: IconShape,
     onIconShapeChange: (IconShape) -> Unit,
-    themedIcons: Boolean,
-    onThemedIconsChange: (Boolean) -> Unit,
     lockLayout: Boolean,
     onLockLayoutChange: (Boolean) -> Unit,
     hideStatusBar: Boolean,
@@ -930,16 +928,6 @@ fun PersonalizeSheet(
                             }
                         }
                     }
-                    // Independent of home style/icon shape (a colour choice, not a
-                    // shape one) — an app with no themed layer, or a device below
-                    // Android 13, silently keeps its normal icon either way.
-                    Spacer(Modifier.height(2.dp))
-                    ToggleRow("themed icons", on = themedIcons, accent = accent, tokens, onThemedIconsChange)
-                    Text(
-                        "use each app's monochrome icon, tinted to the accent colour, in the app list and on live-tile app badges",
-                        color = tokens.fgDim,
-                        fontSize = 13.sp,
-                    )
                 }
             }
 

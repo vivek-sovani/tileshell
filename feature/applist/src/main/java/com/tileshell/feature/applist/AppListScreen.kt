@@ -193,7 +193,8 @@ fun AppListScreen(
                                 badgeCount = notifications.badgeFor(app.packageName),
                                 homeStyle = settings.homeStyle,
                                 iconShape = settings.iconShape,
-                                themedIcons = settings.themedIcons,
+                                // themedIcons intentionally not threaded — parked,
+                                // see DECISIONS.md "Themed icons: parked".
                             )
                         }
                     }
@@ -223,7 +224,8 @@ fun AppListScreen(
                             onUninstall = { uninstallApp(context, app.packageName) },
                             homeStyle = settings.homeStyle,
                             iconShape = settings.iconShape,
-                            themedIcons = settings.themedIcons,
+                            // themedIcons intentionally not threaded — parked,
+                            // see DECISIONS.md "Themed icons: parked".
                             onHide = { viewModel.hide(app) },
                         )
                     }

@@ -156,6 +156,12 @@ private fun IconShape.toComposeShape(): Shape? = when (this) {
  * icon sitting on top of it. Falls through to the normal badge whenever
  * there's no monochrome layer to show.
  */
+// User-reported: 18dp read as too small for an actual app icon once a tile
+// has real content to sit next to (mail/messages/music/notification data) —
+// a general sizing fix, independent of themedIcons/iconShape/homeStyle;
+// every branch below shares it so the badge stays the same size across modes.
+private val APP_ICON_CORNER_SIZE = 24.dp
+
 @Composable
 fun AppIconCorner(
     packageName: String,
@@ -173,7 +179,7 @@ fun AppIconCorner(
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 colorFilter = ColorFilter.tint(LocalTileFaceColor.current),
-                modifier = modifier.size(18.dp),
+                modifier = modifier.size(APP_ICON_CORNER_SIZE),
             )
             return
         }
@@ -186,7 +192,7 @@ fun AppIconCorner(
                 bitmap = if (loaded.isAdaptive) loaded.unmaskedBitmap else loaded.bitmap,
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
-                modifier = modifier.size(18.dp).clip(shape),
+                modifier = modifier.size(APP_ICON_CORNER_SIZE).clip(shape),
             )
             return
         }
@@ -196,6 +202,6 @@ fun AppIconCorner(
         bitmap = icon,
         contentDescription = null,
         contentScale = ContentScale.Fit,
-        modifier = modifier.size(18.dp),
+        modifier = modifier.size(APP_ICON_CORNER_SIZE),
     )
 }

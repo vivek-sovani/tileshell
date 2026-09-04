@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.AdaptiveIconDrawable
+import android.os.Build
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -27,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
@@ -53,9 +55,11 @@ import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.data.settings.LiveRefreshRate
+import com.tileshell.core.design.Glass
 import com.tileshell.core.design.SquircleShape
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.colorTokens
+import com.tileshell.core.design.isLightBackground
 import com.tileshell.feature.livetiles.BatterySmallFace
 import com.tileshell.feature.livetiles.CalendarSmallFace
 import com.tileshell.feature.livetiles.CalendarSystemSmallFace
@@ -122,6 +126,7 @@ internal fun IconCellView(
     canMoveBack: Boolean,
     canMoveForward: Boolean,
     iconShape: IconShape = IconShape.ORIGINAL,
+    themedIcons: Boolean = false,
     stockRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
     commodityRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
     accent: Color = Color.Gray,
@@ -176,7 +181,7 @@ internal fun IconCellView(
             "weather" -> LiveIconTile(accent, badgeCount, darkTheme) {
                 WeatherSmallFace(
                     fallback = {
-                        IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp)
+                        IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp, themedIcons = themedIcons, accent = accent)
                     },
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -199,14 +204,14 @@ internal fun IconCellView(
             }
             "steps" -> LiveIconTile(accent, badgeCount, darkTheme) {
                 StepsSmallFace(
-                    fallback = { IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp) },
+                    fallback = { IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp, themedIcons = themedIcons, accent = accent) },
                     modifier = Modifier.fillMaxSize(),
                 )
             }
             "stock" -> LiveIconTile(accent, badgeCount, darkTheme) {
                 StockSmallFace(
                     selection = StockTile.decode(tile.activityName),
-                    fallback = { IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp) },
+                    fallback = { IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp, themedIcons = themedIcons, accent = accent) },
                     refreshRate = stockRefreshRate,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -214,7 +219,7 @@ internal fun IconCellView(
             "commodity" -> LiveIconTile(accent, badgeCount, darkTheme) {
                 CommoditySmallFace(
                     symbol = CommodityTile.decode(tile.activityName)?.first,
-                    fallback = { IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp) },
+                    fallback = { IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp, themedIcons = themedIcons, accent = accent) },
                     refreshRate = commodityRefreshRate,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -245,7 +250,7 @@ internal fun IconCellView(
                         // see the badgeCount = 0 comment on the IconCellChrome
                         // call above for why (user-reported).
                         Box(modifier = Modifier.size(size)) {
-                            IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = size, glyphSize = glyphSize)
+                            IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = size, glyphSize = glyphSize, themedIcons = themedIcons, accent = accent)
                             if (badgeCount > 0) {
                                 // Scales with the icon itself (18dp at a SMALL
                                 // 40dp icon, up to a cap at the biggest
@@ -541,7 +546,12 @@ private fun IconCellChrome(
  * legacy (non-adaptive) icon the two fields are identical, since
  * `toBitmap()` never applied any mask for those to begin with.
  */
-internal data class MaskableIcon(val bitmap: ImageBitmap, val unmaskedBitmap: ImageBitmap, val isAdaptive: Boolean)
+internal data class MaskableIcon(
+    val bitmap: ImageBitmap,
+    val unmaskedBitmap: ImageBitmap,
+    val isAdaptive: Boolean,
+    val monochromeBitmap: ImageBitmap?,
+)
 
 /**
  * Loads [packageName]/[activityName]'s launcher icon, tagging whether the
@@ -561,7 +571,7 @@ internal fun rememberMaskableIcon(packageName: String, activityName: String, siz
                 val isAdaptive = drawable is AdaptiveIconDrawable
                 val osBitmap = drawable.toBitmap(width = sizePx, height = sizePx).asImageBitmap()
                 val rawBitmap = if (isAdaptive) unmaskedIconBitmap(drawable, sizePx) else osBitmap
-                return MaskableIcon(osBitmap, rawBitmap, isAdaptive)
+                return MaskableIcon(osBitmap, rawBitmap, isAdaptive, monochromeIconBitmap(drawable, sizePx))
             }
             runCatching {
                 load(context.packageManager.getActivityIcon(ComponentName(packageName, activityName)))
@@ -604,6 +614,23 @@ private fun unmaskedIconBitmap(drawable: android.graphics.drawable.Drawable, siz
 }
 
 /**
+ * See `:feature:applist`'s `AppListIcon.kt#monochromeIconBitmap` for the full
+ * rationale — flattens the Android 13+ themed-icon layer to an untinted alpha
+ * mask; the caller ([maskedOrGlyphIcon]) tints it via a Compose `ColorFilter`
+ * at render time. Null below API 33, for a non-adaptive icon, or when the app
+ * declared no monochrome layer.
+ */
+private fun monochromeIconBitmap(drawable: android.graphics.drawable.Drawable, sizePx: Int): ImageBitmap? {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
+    val mono = (drawable as? AdaptiveIconDrawable)?.monochrome ?: return null
+    val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    mono.setBounds(0, 0, sizePx, sizePx)
+    mono.draw(canvas)
+    return bitmap.asImageBitmap()
+}
+
+/**
  * The masked-or-glyph rendering shared by a top-level app icon and a folder
  * mini-grid child: the parent app's own real launcher icon whenever one is
  * resolvable, masked to [shape] via the adaptive-vs-legacy split documented
@@ -629,6 +656,12 @@ private fun maskedOrGlyphIcon(
     shape: IconShape,
     size: Dp,
     glyphSize: Dp,
+    // The tile's own resolved accent — only consulted when [themedIcons] is
+    // true and the app actually has a monochrome layer to tint; distinct
+    // from [tint] (the plain fg/dim glyph colour used for the no-real-icon
+    // fallback and the legacy-icon plate default).
+    themedIcons: Boolean = false,
+    accent: Color = tint,
 ) {
     val useAppIcon = packageName.isNotBlank()
     // Decode at the actual on-screen resolution, not a fixed 96px — a "show
@@ -637,8 +670,27 @@ private fun maskedOrGlyphIcon(
     val sizePx = with(LocalDensity.current) { size.roundToPx() }.coerceAtLeast(96)
     val loaded: MaskableIcon? = if (useAppIcon) rememberMaskableIcon(packageName, activityName, sizePx) else null
     val composeShape = shape.toComposeShape()
+    val mono = loaded?.monochromeBitmap
 
     when {
+        useAppIcon && themedIcons && mono != null -> {
+            val plateShape = composeShape ?: CircleShape
+            Box(
+                modifier = Modifier.size(size).clip(plateShape).background(accent),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    bitmap = mono,
+                    contentDescription = label,
+                    contentScale = ContentScale.Fit,
+                    colorFilter = ColorFilter.tint(Glass.faceTextColor(isLightBackground(accent))),
+                    // Full size, not shrunk further — a monochrome layer already
+                    // carries its own adaptive-icon safe-zone inset, matching the
+                    // isAdaptive branch below (also drawn at full [size]).
+                    modifier = Modifier.size(size),
+                )
+            }
+        }
         !useAppIcon || loaded == null -> {
             Icon(
                 imageVector = TileIcons[iconKey],
@@ -701,7 +753,15 @@ private fun maskedOrGlyphIcon(
  * verification. Revisit if on-device testing shows the plate reads wrong.
  */
 @Composable
-private fun IconCellGlyph(tile: TileModel.App, tint: Color, shape: IconShape, size: Dp, glyphSize: Dp) {
+private fun IconCellGlyph(
+    tile: TileModel.App,
+    tint: Color,
+    shape: IconShape,
+    size: Dp,
+    glyphSize: Dp,
+    themedIcons: Boolean = false,
+    accent: Color = tint,
+) {
     maskedOrGlyphIcon(
         iconKey = tile.iconKey,
         label = tile.label,
@@ -711,6 +771,8 @@ private fun IconCellGlyph(tile: TileModel.App, tint: Color, shape: IconShape, si
         shape = shape,
         size = size,
         glyphSize = glyphSize,
+        themedIcons = themedIcons,
+        accent = accent,
     )
 }
 
@@ -722,7 +784,9 @@ private fun IconCellGlyph(tile: TileModel.App, tint: Color, shape: IconShape, si
  * cluttered "square border" crammed into a cell already this small — the
  * mini-grid just isn't the size that masking was designed for. Top-level
  * icons are unaffected; this only ever narrows what a *folder's children*
- * show.
+ * show. For the same reason, this never opts into themed icons either — an
+ * accent-filled plate at 18dp is exactly the same "square border" clutter
+ * this doc comment already describes for real IconShape masking.
  */
 @Composable
 private fun IconFolderChildGlyph(child: FolderChild, tint: Color, size: Dp) {
