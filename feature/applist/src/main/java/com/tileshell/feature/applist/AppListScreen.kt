@@ -114,6 +114,8 @@ fun AppListScreen(
     val query by viewModel.query.collectAsStateWithLifecycle()
     val notifications by NotificationCenter.snapshot.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val siblingsByPackage by viewModel.siblingsByPackage.collectAsStateWithLifecycle()
+    val pinnedActivityKeys by viewModel.pinnedActivityKeys.collectAsStateWithLifecycle()
     val accent = LocalAccent.current // global accent (FR-7, S17)
     val context = LocalContext.current
 
@@ -195,6 +197,9 @@ fun AppListScreen(
                                 iconShape = settings.iconShape,
                                 // themedIcons intentionally not threaded — parked,
                                 // see DECISIONS.md "Themed icons: parked".
+                                siblings = siblingsByPackage[app.packageName].orEmpty(),
+                                pinnedActivityKeys = pinnedActivityKeys,
+                                onPinSibling = { sibling -> viewModel.pin(sibling) },
                             )
                         }
                     }
@@ -227,6 +232,9 @@ fun AppListScreen(
                             // themedIcons intentionally not threaded — parked,
                             // see DECISIONS.md "Themed icons: parked".
                             onHide = { viewModel.hide(app) },
+                            siblings = siblingsByPackage[app.packageName].orEmpty(),
+                            pinnedActivityKeys = pinnedActivityKeys,
+                            onPinSibling = { sibling -> viewModel.pin(sibling) },
                         )
                     }
                 }
@@ -316,6 +324,9 @@ private fun AppRow(
     homeStyle: HomeStyle = HomeStyle.TILES,
     iconShape: IconShape = IconShape.ORIGINAL,
     themedIcons: Boolean = false,
+    siblings: List<AppEntry> = emptyList(),
+    pinnedActivityKeys: Set<String> = emptySet(),
+    onPinSibling: (AppEntry) -> Unit = {},
 ) {
     // Long-press opens a WP-style context menu: pin the app to Start, hide it
     // from the list, or uninstall it (the system uninstall dialog). A quick tap
@@ -324,7 +335,13 @@ private fun AppRow(
     // back) — hide/uninstall don't map onto a non-installed entry.
     val isPseudo = app.packageName.isBlank()
     var menuOpen by remember { mutableStateOf(false) }
+    var siblingsMenuOpen by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
+    // A package can expose more than one launcher activity (e.g. Amazon bundles
+    // Fresh/Now/Pay as separate activities under one package) — [siblings] is
+    // every entry sharing this row's package, itself included, so >1 means
+    // there's genuinely something else to offer in the submenu.
+    val hasSiblings = siblings.size > 1
     Box {
         Row(
             modifier = Modifier
@@ -417,6 +434,12 @@ private fun AppRow(
                 text = { Text("pin to start") },
                 onClick = { menuOpen = false; onPin() },
             )
+            if (hasSiblings) {
+                DropdownMenuItem(
+                    text = { Text("more from this app") },
+                    onClick = { menuOpen = false; siblingsMenuOpen = true },
+                )
+            }
             if (!isPseudo) {
                 DropdownMenuItem(
                     text = { Text("hide") },
@@ -425,6 +448,38 @@ private fun AppRow(
                 DropdownMenuItem(
                     text = { Text("uninstall") },
                     onClick = { menuOpen = false; onUninstall() },
+                )
+            }
+        }
+
+        // "more from this app": every launcher activity sharing this row's
+        // package (itself included), each independently pinnable — see
+        // [hasSiblings]. A checkmark marks whichever are already on Start.
+        DropdownMenu(expanded = siblingsMenuOpen, onDismissRequest = { siblingsMenuOpen = false }) {
+            siblings.forEach { sibling ->
+                val pinned = "${sibling.packageName}/${sibling.activityName}" in pinnedActivityKeys
+                DropdownMenuItem(
+                    text = { Text(sibling.label) },
+                    leadingIcon = {
+                        val siblingIcon = rememberMaskableAppIcon(sibling.packageName, sibling.activityName)
+                        if (siblingIcon != null) {
+                            MaskedAppIcon(
+                                loaded = siblingIcon,
+                                homeStyle = homeStyle,
+                                shape = iconShape,
+                                size = 24.dp,
+                                themedIcons = themedIcons,
+                            )
+                        } else {
+                            Icon(TileIcons["app"], null, tint = LocalColorTokens.current.fg, modifier = Modifier.size(18.dp))
+                        }
+                    },
+                    trailingIcon = if (pinned) {
+                        { Icon(TileIcons["check"], null, tint = LocalAccent.current, modifier = Modifier.size(16.dp)) }
+                    } else {
+                        null
+                    },
+                    onClick = { siblingsMenuOpen = false; onPinSibling(sibling) },
                 )
             }
         }

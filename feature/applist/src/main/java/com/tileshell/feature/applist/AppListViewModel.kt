@@ -118,6 +118,43 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
         )
 
     /**
+     * `"package/activity"` keys currently pinned to Start (top-level or inside a
+     * folder) — finer-grained than [pinnedPackages], since a package can expose
+     * several independently-pinnable launcher activities (e.g. Amazon's Fresh/
+     * Now/Pay). Drives the "more from this app" submenu's per-entry checkmark.
+     */
+    val pinnedActivityKeys: StateFlow<Set<String>> =
+        layout.tiles.map { tiles ->
+            buildSet {
+                tiles.forEach { tile ->
+                    when (tile) {
+                        is TileModel.App -> add("${tile.packageName}/${tile.activityName}")
+                        is TileModel.Folder -> tile.children.mapTo(this) { "${it.packageName}/${it.activityName}" }
+                    }
+                }
+            }
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptySet(),
+        )
+
+    /**
+     * Every launcher activity in the app catalogue, grouped by package — a
+     * package with more than one entry (e.g. Amazon bundles Fresh/Now/Pay as
+     * separate launcher activities) can pin each one independently via the
+     * app list row's "more from this app" submenu, alongside its own row.
+     */
+    val siblingsByPackage: StateFlow<Map<String, List<AppEntry>>> =
+        apps.map { list ->
+            list.filter { it.packageName.isNotBlank() }.groupBy { it.packageName }
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyMap(),
+        )
+
+    /**
      * Packages with a pending notification that aren't pinned to Start, so they
      * have no tile to badge — these get surfaced in the "recent" section instead.
      */

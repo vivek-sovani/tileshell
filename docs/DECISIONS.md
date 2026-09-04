@@ -5342,6 +5342,29 @@ deliberately and was left as-is. Build + full unit test suite green; installed o
 and the physical device — same caveat as the previous entry, no real pending notification was
 available in the sandbox to resize through and visually confirm centring at each size.
 
+## App list: "more from this app" submenu pins a package's other launcher activities
+
+Direct follow-up to the pin de-dupe fix below, user-requested: rather than making the user hunt the
+alphabetical list for each of a package's separately-listed launcher activities (Amazon Fresh/Now/Pay),
+long-pressing any one of them now offers a way to pin the others from right there. The user's first
+suggested label was "other versions," but flagged it themselves as wrong for a case like a camera app
+whose bundled activities aren't "versions" of each other, just separate entries in one package — asked
+via `AskUserQuestion`, the user picked **"more from this app"** over "other apps"/"related apps".
+
+`AppListViewModel` gained `siblingsByPackage: StateFlow<Map<String, List<AppEntry>>>` (the existing
+`apps` catalogue, grouped by `packageName`, blank/pseudo packages excluded) and
+`pinnedActivityKeys: StateFlow<Set<String>>` (`"package/activity"` keys currently pinned, top-level or
+in a folder — the finer-grained sibling of the existing package-only `pinnedPackages`, mirroring
+`TileMerge.mergeKey()`'s own `package/activityName` shape). `AppListScreen`'s `AppRow` takes
+`siblings`/`pinnedActivityKeys`/`onPinSibling`; the long-press menu's new "more from this app" item is
+shown only when `siblings.size > 1` (i.e. this row's package genuinely has other launcher activities
+besides itself) and opens a second `DropdownMenu` listing every sibling with its own real icon and a
+checkmark (`TileAccents`-tinted "check" glyph) beside whichever are already pinned; tapping an unpinned
+one calls the same `LayoutRepository.pinApp` path as any other row. Build + full unit test suite green;
+installed on the emulator, launched with no crash in `adb logcat` — the submenu's real content (a
+package that actually exposes multiple launcher activities, e.g. the user's own Amazon install) still
+needs to be click-tested by hand, same sandbox limitation as the pin de-dupe fix itself.
+
 ## "Pin to start" de-duped by package name alone, blocking a package's other launcher activities
 
 User-reported real bug, not a WP-fidelity question: "amazon app has subapps like amazon fresh, amazon
