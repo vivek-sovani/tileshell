@@ -375,8 +375,33 @@ android {
         //   first time a steps face actually renders (i.e. right after adding one), with its
         //   own in-app rationale dialog first — see StepsTile.kt's StepsPermissionGate. Privacy
         //   policy updated to disclose this permission, which it previously omitted entirely.
-        versionCode = 360
-        versionName = "3.6.0"
+        // v4.0.0 (code 400) — the in-app-only "glance gadgets" (CustomCardKind) are gone,
+        //   replaced by 14 real, standalone AppWidgetProviders: weather, battery, alarm, moon
+        //   phase, steps, calendar systems (Hindu Panchang and others), flashlight, stock
+        //   market, commodities/currency, sports, tasks, notes, sticky note, and countdown —
+        //   installable from any launcher's own widget picker, not just TileShell's. Stock/
+        //   commodity/sports carry their full in-app config (multi-stock lists, sector
+        //   baskets, currency-pair builder, league/team picker) with a live-quote preview;
+        //   sports/commodity show a game-/category-specific icon instead of one generic glyph;
+        //   every widget's full+compact layout now has an icon. Fixed along the way: a crash
+        //   resizing Tasks/Notes larger; both capped at a fixed row count regardless of
+        //   resize (now scales 3→6 with height); missing add/delete affordances and text-
+        //   cursor focus on their editor screens; backing out of a widget editor could land on
+        //   TileShell's own Start instead of the real host launcher (missing task affinity);
+        //   battery/steps widgets now refresh closer to their in-app counterparts.
+        //   New: App List's long-press menu gains "more from this app" (a package's other
+        //   launcher activities, e.g. a shopping app's regional sub-apps, plus its app
+        //   shortcuts — independently pinnable) and "widgets" (that app's own home-screen
+        //   widgets, shown with real preview thumbnails, pinned straight to the glance page).
+        //   Fixed: pin-to-start de-dupe previously keyed on package name alone, so an app with
+        //   several launcher activities could only ever have one pinned at a time.
+        //   Renamed: Start's "add widgets" button → "add live tiles" (it only ever pinned
+        //   TileShell's own live-tile catalogue, never a real widget — misleading name).
+        //   Attempted, then parked (no user-facing change): themed/monochrome App List + Start
+        //   icon rendering — built and reviewed on-device, found visually inconsistent since
+        //   most apps ship no monochrome layer; disabled, code left dormant for a revisit.
+        versionCode = 400
+        versionName = "4.0.0"
     }
 
     if (keystoreFile.exists()) {

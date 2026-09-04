@@ -7,17 +7,21 @@
 ## Store Listing
 
 ### App name
-`TileShell`
+`TileShell Launcher + Widgets`
+
+*(Play Store listing title only — the on-device app/icon label stays "TileShell,"
+unchanged, since that's a separate `android:label` change with much broader
+visible impact for existing users and wasn't part of this ask.)*
 
 ### Short description (80 chars max)
-`Windows Phone–style launcher with live tiles, feed, and deep personalization`
+`Windows Phone–style launcher: live tiles, real widgets, feed, personalization`
 
 ### Full description (4 000 chars max)
 
-*Updated for v3.6.0 — incorporates home style (tiles/icons), glance gadgets, widget stacks on the feed, and the Quick Panel redesign.*
+*Updated for v4.0.0 — 14 real, installable-on-any-launcher home-screen widgets replace the old in-app-only glance gadgets; App List can pin an app's own sub-apps, shortcuts, and widgets directly.*
 
 ```
-TileShell brings the iconic Windows Phone / Windows 10 Mobile Start screen to Android — rebuilt in Kotlin, faithful to the original, with real Android widgets and modern personalization on top.
+TileShell brings the iconic Windows Phone / Windows 10 Mobile Start screen to Android — rebuilt in Kotlin, faithful to the original, with real Android widgets and deep personalization.
 
 ★ START SCREEN
 4, 5, or 6 columns. Small, Medium, Wide, and Large (3×3) live tiles. Long-press to edit: drag, merge into folders or widget stacks, resize, recolour per tile or from the app's icon, or unpin. Prefer a normal Android look? Switch to Icons home style — weather/calendar/clock still live at a glance — with a matching Squircle/Circle/Rounded/Square/Original icon shape. Lock the layout so nothing moves by accident. Landscape puts the feed and Start side by side.
@@ -25,8 +29,8 @@ TileShell brings the iconic Windows Phone / Windows 10 Mobile Start screen to An
 ★ LIVE TILES
 Clock with date, weekday, and your real next alarm. Live weather, forecast, and high/low. Next calendar event. Now-playing with album art and transport controls — any music app, or a dedicated tile. Contact-photo mosaic. Photos slideshow. Notification counts and message previews on every tile. All flip gently; pause automatically in battery saver.
 
-★ GLANCE GADGETS
-Pin TileShell's own live cards to Start or the feed, alongside real Android widgets: stock market (one stock, a sector/country basket, or your own list), commodities, currency pairs, sports scores, a second calendar system alongside Gregorian (including Hindu Panchang), a countdown, a sticky note, a shared notepad, an independent checklist per pin, plus battery, alarm, moon phase, flashlight, and step-count cards. Long-press any card for instant edit mode.
+★ 14 REAL HOME-SCREEN WIDGETS
+Weather, battery, alarm, moon phase, steps, a second calendar system (Hindu Panchang), flashlight, stock market, commodities & currencies, sports scores, tasks, notes, sticky note, and countdown — genuine Android widgets for any launcher's home screen, not just TileShell's — pin one from App List's long-press menu.
 
 ★ WIDGET STACKS
 Merge two same-size tiles or Android widgets — on Start or the feed — into a swipeable carousel. Each member keeps its own colour and badge; every live face stays interactive inside.
@@ -35,7 +39,7 @@ Merge two same-size tiles or Android widgets — on Start or the feed — into a
 Unread badge on every pinned tile. Notification tiles flip through each pending message — sender, photo, snippet. A closed folder shows its total and which app inside has something pending. Unpinned apps with notifications surface in App List Recent too.
 
 ★ FEED PAGE (swipe right)
-A greeting, live weather and today's agenda side by side, now-playing, and gadgets or widgets that resize, reorder, and merge into stacks. News across 8 categories — pick any number of regions, India plus ~20 other countries, or add any custom RSS/Atom feed.
+A greeting, live weather and today's agenda side by side, now-playing, and any widget, resizing, reordering, and merging into stacks. News across 8 categories — pick any number of regions, India plus ~20 other countries, or add any custom RSS/Atom feed.
 
 ★ QUICK PANEL
 Swipe up from either edge. Resizable, reorderable square tiles for wifi, bluetooth, flashlight, DND, rotation lock, and more; tap-to-step brightness and volume; a one-tap theme tile; quick links to Personalize, Android Settings, and screen lock.
@@ -47,7 +51,7 @@ Two-finger swipe down on Start. Search apps, contacts, and the web in one gestur
 A quick-launch bar along the bottom. Search on the left, favourite apps in the centre, recent apps on the right. Collapses to a thin handle when not in use.
 
 ★ APP LIST (swipe left)
-Alphabetical grid with A–Z jump grid and instant search. Recent and newly-installed apps up top with badge counts, even unpinned. Long-press to pin, hide, or uninstall.
+Alphabetical grid with A–Z jump grid and instant search. Recent and newly-installed apps up top with badge counts, even unpinned. Long-press to pin, hide, or uninstall — or reach its sub-apps, shortcuts, and widgets from the same menu.
 
 ★ PERSONALIZATION
 14 accent colours, or pull one from your wallpaper · per-tile colour override or colour from the app's icon · dark/light themes · glass tiles tinted per tile · blur · wallpaper-behind-tiles · gradient, custom photo, slideshow, or daily Bing wallpapers with history · corner radius, gradient fill, 3 fonts, adjustable spacing · lock layout · built-in guide.
@@ -64,7 +68,7 @@ No accounts. No analytics. No ads. All data stays on your device. Only weather r
 Requires Android 8.0 (API 26) or higher.
 ```
 
-*(3 985 chars, under Play's 4 000 limit.)*
+*(3 970 chars, under Play's 4 000 limit.)*
 
 ### Category
 Personalization
@@ -151,6 +155,71 @@ data. Users can also clear app data via Android Settings at any time.
 | Feature graphic | 1024 × 500 px | Required for listing banner |
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
+
+## Release notes (v4.0.0)
+
+*Major version bump — the old in-app-only "glance gadgets" are gone, replaced by 14 real,
+standalone Android `AppWidgetProvider`s installable from any launcher's own widget picker,
+not just TileShell's; plus a round of App List improvements (pin an app's other sub-apps/
+shortcuts/widgets directly from its long-press menu) and assorted widget/UX fixes.*
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 4.0.0
+
+• New: 14 real Android home-screen widgets - weather, battery,
+  alarm, moon, steps, calendar systems, flashlight, stock,
+  commodities, sports, tasks, notes, sticky note & countdown -
+  usable on any launcher, not just TileShell
+• New: App List pins an app's sub-apps, shortcuts & widgets
+  right from its long-press menu, with real previews
+• Fixed: pinning sub-apps; faster battery/steps refresh
+• Renamed: "add widgets" -> "add live tiles"
+```
+
+*(Character count 469, under Play's 500 limit.)*
+
+### Full changelog since v3.6.0 (for reference — not the Play-facing blurb above)
+
+- **14 real, installable-anywhere home-screen widgets** — replaces the old glance-page-only
+  "gadget" cards with genuine `AppWidgetProvider`s: weather, battery, alarm, moon phase, steps,
+  a second calendar system (Hindu Panchang and others), flashlight, stock market, commodities &
+  currency pairs, sports scores, tasks, notes, sticky note, and countdown. Each is a real Android
+  home-screen widget usable from *any* launcher's own widget picker (confirmed in Pixel
+  Launcher's), not just TileShell's in-app glance page — a genuine differentiator, not a
+  cosmetic rename. Stock/commodity/sports widgets carry their full in-app configuration
+  (multi-stock lists, sector baskets, currency-pair builder, league/team picker) with a live
+  preview before confirming; reopening a placed widget's gear pre-fills its current pick to
+  edit. Tasks and Sticky Note each keep an independent per-instance value (own checklist / own
+  note text); Notes is one shared notepad, matching the in-app design. Sports/commodity widgets
+  show a game- or category-specific icon (football, cricket, basketball, metal, energy,
+  currency) instead of one generic glyph; every widget's full and compact layout has its own
+  icon now (several were missing one). Fixed along the way: a crash resizing Tasks/Notes larger
+  (RemoteViews doesn't support `<Space>`); both capped at a fixed row count regardless of resize,
+  now scaling 3→6 rows with height; missing add/delete affordances and no visible text cursor on
+  their editor screens; backing out of a widget's editor could land on TileShell's own Start
+  instead of the real host launcher underneath (missing task affinity). Battery and steps
+  widgets refresh closer to their in-app counterparts (battery reacts to plug-in/unplug/low
+  events immediately; steps tightened from 30 to 15 minutes, WorkManager's own floor).
+- **App List: pin an app's other sub-apps, shortcuts, and widgets** — long-pressing a row now
+  offers "more from this app" (every other launcher activity in the same package, e.g. a
+  shopping app's regional sub-apps, plus its app shortcuts like a camera's selfie/video/portrait/
+  scan quick actions — each independently pinnable, with a checkmark for what's already on
+  Start) and "widgets" (that app's own home-screen widgets, shown with real preview thumbnails
+  exactly like the system picker, picked straight into the glance page). Fixes a real bug too:
+  pinning was previously de-duped by package name alone, so an app with several launcher
+  activities could only ever have one pinned at a time.
+- **"add widgets" renamed to "add live tiles"** on Start's edit bar — it only ever pinned
+  TileShell's own live-tile catalogue, never a real third-party widget (those now live via the
+  glance page's picker or the App List's new "widgets" row), so the old name was misleading.
+  Guide/about sheets updated to match, including a search field added to the glance page's own
+  widget picker (TileShell's own 14 widgets pinned first, searchable by app or widget name).
+- **Also attempted, then parked (no user-facing change)**: themed/monochrome icon rendering
+  (Android 13+'s tinted adaptive-icon layer) for the App List and Start's ICONS mode — built,
+  reviewed on-device, and found to look inconsistent since most installed apps don't ship a
+  monochrome layer; the toggle was removed and the feature disabled, with the underlying code
+  left in place, dormant, for a future revisit.
 
 ## Release notes (v3.6.0)
 
