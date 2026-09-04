@@ -2,6 +2,10 @@ package com.tileshell.feature.applist
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
@@ -52,6 +56,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -526,12 +532,45 @@ private fun AppRow(
             widgets.forEach { provider ->
                 DropdownMenuItem(
                     text = { Text(provider.loadLabel(context.packageManager)) },
+                    leadingIcon = {
+                        val preview = remember(provider) {
+                            runCatching { provider.loadPreviewImage(context, 0) ?: provider.loadIcon(context, 0) }
+                                .getOrNull()?.toBitmapOrNull()
+                        }
+                        Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+                            if (preview != null) {
+                                Image(
+                                    bitmap = preview.asImageBitmap(),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            } else {
+                                Icon(TileIcons["app"], null, tint = LocalColorTokens.current.fg, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    },
                     onClick = { widgetsMenuOpen = false; onPinWidget(provider) },
                 )
             }
         }
     }
 }
+
+/** Renders a [Drawable] (widget preview/icon) to a bitmap for Compose — same
+ *  small helper `:feature:start`'s own `WidgetPicker` uses for the identical
+ *  purpose (`WidgetSlot.kt`'s private `toBitmapOrNull`), duplicated here since
+ *  `:feature:applist` has no dependency path to reach that file. */
+private fun Drawable.toBitmapOrNull(): Bitmap? = runCatching {
+    if (this is BitmapDrawable && bitmap != null) return bitmap
+    val w = intrinsicWidth.coerceIn(1, 1024)
+    val h = intrinsicHeight.coerceIn(1, 1024)
+    val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+    setBounds(0, 0, w, h)
+    draw(canvas)
+    bmp
+}.getOrNull()
 
 /**
  * Launches the system uninstall dialog for [packageName] (the user confirms in the

@@ -5451,3 +5451,18 @@ extended rows — "more from this app" (its shortcuts) and "widgets" both popula
 Google Calendar widget (showing its own "sign in" prompt) pinned alongside weather/today/clock, proving
 the whole cross-module round trip actually works, not just that it compiles. Installed on the physical
 device too, launched with no crash in `adb logcat`.
+
+## App list: "widgets" submenu gets real preview thumbnails, not plain text
+
+Direct same-day follow-up, user-requested: the "widgets" submenu above only showed a text label per
+provider — the glance page's own `WidgetPicker` (`WidgetSlot.kt`'s `WidgetPickerRow`) already renders a
+small preview (`provider.loadPreviewImage(context, 0) ?: provider.loadIcon(context, 0)`, converted to a
+bitmap via a private `Drawable.toBitmapOrNull()`), so each `DropdownMenuItem` here gained a matching
+32dp `leadingIcon` doing the identical load-preview-or-fall-back-to-icon computation. `toBitmapOrNull`
+itself is duplicated into `AppListScreen.kt` (byte-for-byte the same small helper) rather than shared,
+following this file's own established precedent for icon-loading code (`AppListIcon.kt`'s masking logic
+is already deliberately duplicated from `:feature:start`'s `IconCellView.kt` for the same reason:
+`:feature:applist` has no dependency path to `:feature:start`). Build + full unit test suite green;
+verified live on the emulator — the "widgets" submenu now shows each Calendar widget's actual layout
+preview (a small schedule/month-grid thumbnail), matching what the system's own widget picker would
+show, not a generic icon.
