@@ -97,6 +97,42 @@ class AppCatalogRepository(context: Context) {
     }
 
     /**
+     * A package's static + dynamic app shortcuts (e.g. a camera app's "selfie"/
+     * "video"/"portrait"/"scan" quick actions) — a different OS mechanism from
+     * [query]'s launcher activities: these aren't separate `LAUNCHER` components,
+     * they're declared/pushed via `ShortcutManager` and only resolvable to a
+     * launcher holding shortcut-host permission (granted automatically once
+     * TileShell is the default Home app; empty list otherwise, or on any
+     * failure — this is a best-effort "more from this app" enrichment, never a
+     * hard requirement). Represented as [AppEntry]s with the shortcut's id
+     * encoded into `activityName` via [AppShortcutTile] so they flow through
+     * the exact same pin/dedupe/render machinery as a real launcher activity.
+     */
+    fun shortcutsFor(packageName: String): List<AppEntry> {
+        if (!launcherApps.hasShortcutHostPermission()) return emptyList()
+        val query = LauncherApps.ShortcutQuery()
+            .setPackage(packageName)
+            .setQueryFlags(
+                LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST or
+                    LauncherApps.ShortcutQuery.FLAG_MATCH_DYNAMIC or
+                    LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED,
+            )
+        val shortcuts = runCatching { launcherApps.getShortcuts(query, Process.myUserHandle()) }
+            .getOrNull() ?: return emptyList()
+        return shortcuts
+            .filter { it.isEnabled }
+            .distinctBy { it.id }
+            .map { shortcut ->
+                AppEntry(
+                    packageName = packageName,
+                    activityName = AppShortcutTile.encode(shortcut.id),
+                    label = (shortcut.longLabel ?: shortcut.shortLabel)?.toString().orEmpty(),
+                )
+            }
+            .filter { it.label.isNotBlank() }
+    }
+
+    /**
      * Build a package → standard-app-role map by resolving the platform
      * `Intent.CATEGORY_APP_*` selectors. The OS reports which installed apps
      * declare each role (an email app, a maps app, …), refining the coarse

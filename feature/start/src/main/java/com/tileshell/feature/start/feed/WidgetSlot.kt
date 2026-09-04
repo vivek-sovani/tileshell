@@ -521,6 +521,8 @@ fun WidgetSection(
     onNowPlayingClick: (() -> Unit)?,
     editMode: Boolean,
     onEditModeChange: (Boolean) -> Unit,
+    pinRequest: AppWidgetProviderInfo? = null,
+    onPinRequestConsumed: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val appContext = context.applicationContext
@@ -633,6 +635,17 @@ fun WidgetSection(
                 .putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, provider.provider)
             runCatching { bindLauncher.launch(bind) }
                 .onFailure { runCatching { host.deleteAppWidgetId(id) } }
+        }
+    }
+
+    // External trigger for adding a widget without going through [WidgetPicker]'s
+    // own UI — the app list's "widgets" row (long-press an app → "widgets" → pick
+    // one) already knows exactly which provider it wants pinned; this just feeds
+    // it into the same bind/configure/commit pipeline any other pick uses.
+    LaunchedEffect(pinRequest) {
+        pinRequest?.let { provider ->
+            addProvider(provider)
+            onPinRequestConsumed()
         }
     }
 

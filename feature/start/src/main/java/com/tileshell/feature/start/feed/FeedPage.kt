@@ -157,6 +157,8 @@ fun FeedPage(
     active: Boolean,
     accentId: String = "",
     modifier: Modifier = Modifier,
+    pinWidgetRequest: android.appwidget.AppWidgetProviderInfo? = null,
+    onPinWidgetRequestConsumed: () -> Unit = {},
 ) {
     val tokens = LocalColorTokens.current
     val context = LocalContext.current
@@ -317,6 +319,8 @@ fun FeedPage(
                 onNowPlayingClick = nowPlayingPackage?.let { pkg -> { launchPackage(context, pkg) } },
                 editMode = glanceEditMode,
                 onEditModeChange = { glanceEditMode = it },
+                pinRequest = pinWidgetRequest,
+                onPinRequestConsumed = onPinWidgetRequestConsumed,
             )
 
             NewsHeader(

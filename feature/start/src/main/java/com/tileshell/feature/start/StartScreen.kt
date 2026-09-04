@@ -692,6 +692,12 @@ fun StartScreen(
         }
     }
 
+    // The app list's "widgets" row (long-press an app → widgets → pick one)
+    // hands the chosen provider up here; jumping to the feed page (settleTo(-1f))
+    // and feeding it into FeedPage/WidgetSection's own bind pipeline is all this
+    // needs to do — WidgetSection already owns the real add-widget machinery.
+    var pendingFeedWidget by remember { mutableStateOf<android.appwidget.AppWidgetProviderInfo?>(null) }
+
     // If the feed page is turned off in personalize while it is showing, slide
     // back to Start so the pager never rests on a now-absent page.
     LaunchedEffect(feedEnabled) {
@@ -1187,6 +1193,14 @@ fun StartScreen(
                 visible = isAppList,
                 onPinned = { settleTo(0f) },
                 onOpenPersonalize = viewModel::openPersonalize,
+                onAddWidget = { provider ->
+                    if (feedEnabled) {
+                        pendingFeedWidget = provider
+                        settleTo(-1f)
+                    } else {
+                        Toast.makeText(context, "enable the glance page in personalize to pin widgets", Toast.LENGTH_SHORT).show()
+                    }
+                },
             )
         }
 
@@ -1224,6 +1238,8 @@ fun StartScreen(
                 },
                 active = active,
                 accentId = settings.accentId,
+                pinWidgetRequest = pendingFeedWidget,
+                onPinWidgetRequestConsumed = { pendingFeedWidget = null },
             )
         }
 

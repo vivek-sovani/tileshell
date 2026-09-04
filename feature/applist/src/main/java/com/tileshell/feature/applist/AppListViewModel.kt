@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** A completed pin, surfaced once for the UI to toast / navigate on. */
 data class PinOutcome(val result: PinResult, val label: String)
@@ -251,4 +253,31 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
             _hidden.emit(app.label)
         }
     }
+
+    /**
+     * [packageName]'s app shortcuts (e.g. a camera app's "selfie"/"video"
+     * quick actions) — queried lazily, per package, only when a row's "more
+     * from this app" submenu actually opens (see [AppCatalogRepository.
+     * shortcutsFor]'s doc comment for why this isn't part of the eager,
+     * always-loaded [apps] catalogue: it's a real system call per package,
+     * wasteful to run for every row up front).
+     */
+    suspend fun shortcutsFor(packageName: String): List<AppEntry> =
+        withContext(Dispatchers.IO) { repository.shortcutsFor(packageName) }
+
+    /**
+     * [packageName]'s home-screen widgets — queried lazily per package, same
+     * reasoning as [shortcutsFor]. Feeds the app list row's "widgets" submenu;
+     * picking one bubbles up through [AppListScreen]'s `onAddWidget` callback
+     * to `StartScreen`, which pins it to the glance page's own hosted-widget
+     * machinery (`:feature:applist` has no dependency path to reach that code
+     * directly — the module graph runs the other way).
+     */
+    suspend fun widgetsFor(packageName: String): List<android.appwidget.AppWidgetProviderInfo> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val manager = android.appwidget.AppWidgetManager.getInstance(getApplication())
+                manager.getInstalledProvidersForPackage(packageName, null)
+            }.getOrDefault(emptyList())
+        }
 }

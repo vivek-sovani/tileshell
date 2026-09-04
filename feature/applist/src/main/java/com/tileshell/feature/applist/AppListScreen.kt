@@ -107,6 +107,7 @@ fun AppListScreen(
     visible: Boolean = true,
     onPinned: () -> Unit = {},
     onOpenPersonalize: () -> Unit = {},
+    onAddWidget: (android.appwidget.AppWidgetProviderInfo) -> Unit = {},
     viewModel: AppListViewModel = viewModel(),
 ) {
     val apps by viewModel.filteredApps.collectAsStateWithLifecycle()
@@ -200,6 +201,9 @@ fun AppListScreen(
                                 siblings = siblingsByPackage[app.packageName].orEmpty(),
                                 pinnedActivityKeys = pinnedActivityKeys,
                                 onPinSibling = { sibling -> viewModel.pin(sibling) },
+                                loadShortcuts = viewModel::shortcutsFor,
+                                loadWidgets = viewModel::widgetsFor,
+                                onPinWidget = onAddWidget,
                             )
                         }
                     }
@@ -235,6 +239,9 @@ fun AppListScreen(
                             siblings = siblingsByPackage[app.packageName].orEmpty(),
                             pinnedActivityKeys = pinnedActivityKeys,
                             onPinSibling = { sibling -> viewModel.pin(sibling) },
+                            loadShortcuts = viewModel::shortcutsFor,
+                            loadWidgets = viewModel::widgetsFor,
+                            onPinWidget = onAddWidget,
                         )
                     }
                 }
@@ -327,6 +334,9 @@ private fun AppRow(
     siblings: List<AppEntry> = emptyList(),
     pinnedActivityKeys: Set<String> = emptySet(),
     onPinSibling: (AppEntry) -> Unit = {},
+    loadShortcuts: suspend (String) -> List<AppEntry> = { emptyList() },
+    loadWidgets: suspend (String) -> List<android.appwidget.AppWidgetProviderInfo> = { emptyList() },
+    onPinWidget: (android.appwidget.AppWidgetProviderInfo) -> Unit = {},
 ) {
     // Long-press opens a WP-style context menu: pin the app to Start, hide it
     // from the list, or uninstall it (the system uninstall dialog). A quick tap
@@ -336,12 +346,25 @@ private fun AppRow(
     val isPseudo = app.packageName.isBlank()
     var menuOpen by remember { mutableStateOf(false) }
     var siblingsMenuOpen by remember { mutableStateOf(false) }
+    var widgetsMenuOpen by remember { mutableStateOf(false) }
+    // App shortcuts (e.g. a camera app's "selfie"/"video" quick actions) and
+    // home-screen widgets are both real system calls per package, so unlike
+    // [siblings] (already loaded for free from the in-memory catalogue) they're
+    // only fetched lazily, once, on this row's own long-press — see
+    // [AppListViewModel.shortcutsFor] / [AppListViewModel.widgetsFor].
+    var shortcuts by remember(app.key) { mutableStateOf<List<AppEntry>>(emptyList()) }
+    var widgets by remember(app.key) { mutableStateOf<List<android.appwidget.AppWidgetProviderInfo>>(emptyList()) }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
     // A package can expose more than one launcher activity (e.g. Amazon bundles
-    // Fresh/Now/Pay as separate activities under one package) — [siblings] is
-    // every entry sharing this row's package, itself included, so >1 means
-    // there's genuinely something else to offer in the submenu.
-    val hasSiblings = siblings.size > 1
+    // Fresh/Now/Pay as separate activities under one package) and/or app
+    // shortcuts — combined here (itself included), so >1 means there's
+    // genuinely something else to offer in the "more from this app" submenu.
+    // [shortcuts] resolves asynchronously, so this can go from false to true a
+    // beat after the menu opens — the menu item just fades in, not jarring.
+    val allSiblings = remember(siblings, shortcuts) { (siblings + shortcuts).distinctBy { it.key } }
+    val hasSiblings = allSiblings.size > 1
     Box {
         Row(
             modifier = Modifier
@@ -351,6 +374,10 @@ private fun AppRow(
                     onLongPress = {
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         menuOpen = true
+                        if (!isPseudo) {
+                            scope.launch { shortcuts = loadShortcuts(app.packageName) }
+                            scope.launch { widgets = loadWidgets(app.packageName) }
+                        }
                     },
                 )
                 // TalkBack: launch on activate, with pin / hide / uninstall as
@@ -440,6 +467,12 @@ private fun AppRow(
                     onClick = { menuOpen = false; siblingsMenuOpen = true },
                 )
             }
+            if (widgets.isNotEmpty()) {
+                DropdownMenuItem(
+                    text = { Text("widgets") },
+                    onClick = { menuOpen = false; widgetsMenuOpen = true },
+                )
+            }
             if (!isPseudo) {
                 DropdownMenuItem(
                     text = { Text("hide") },
@@ -456,7 +489,7 @@ private fun AppRow(
         // package (itself included), each independently pinnable — see
         // [hasSiblings]. A checkmark marks whichever are already on Start.
         DropdownMenu(expanded = siblingsMenuOpen, onDismissRequest = { siblingsMenuOpen = false }) {
-            siblings.forEach { sibling ->
+            allSiblings.forEach { sibling ->
                 val pinned = "${sibling.packageName}/${sibling.activityName}" in pinnedActivityKeys
                 DropdownMenuItem(
                     text = { Text(sibling.label) },
@@ -480,6 +513,20 @@ private fun AppRow(
                         null
                     },
                     onClick = { siblingsMenuOpen = false; onPinSibling(sibling) },
+                )
+            }
+        }
+
+        // "widgets": every home-screen widget this package provides, picked
+        // straight from the row instead of hunting for the app in the glance
+        // page's own (system-wide) widget picker — selecting one pins it to
+        // glance via [onPinWidget] (handled by StartScreen; see AppListViewModel
+        // .widgetsFor's doc comment for why the actual bind happens elsewhere).
+        DropdownMenu(expanded = widgetsMenuOpen, onDismissRequest = { widgetsMenuOpen = false }) {
+            widgets.forEach { provider ->
+                DropdownMenuItem(
+                    text = { Text(provider.loadLabel(context.packageManager)) },
+                    onClick = { widgetsMenuOpen = false; onPinWidget(provider) },
                 )
             }
         }

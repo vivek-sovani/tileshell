@@ -5390,3 +5390,64 @@ reasonable simplification for that specific purpose, since badging one already-p
 is an acceptable approximation. Build + full unit test suite green; installed on the emulator, launched
 with no crash in `adb logcat` — the actual multi-activity-pin scenario needs an app with real launcher
 aliases (e.g. the user's own Amazon install) to click-test by hand, not reproducible in the sandbox.
+
+## App list: "more from this app" gains app shortcuts too, plus a new "widgets" row
+
+Direct follow-up to the "more from this app" submenu above. Two extensions, both user-requested after
+seeing the submenu work for Amazon's sibling launcher activities: (1) the user pointed out a camera
+app's "selfie"/"video"/"portrait"/"document scan" quick actions wouldn't be covered by that submenu at
+all — those are a completely different OS mechanism (`ShortcutManager`/app shortcuts, resolved via
+`LauncherApps.getShortcuts`), not separate `LAUNCHER` activities, so the sibling-activities-only
+`hasSiblings` check would never see them; asked to "combine both". (2) separately, asked for a new
+"widgets" row on the same long-press menu: pick from that app's own home-screen widgets, without going
+through the glance page's own picker (which lists every installed app's widgets, unfiltered).
+
+**Shortcuts.** New `AppShortcutTile` (`core/data`) mirrors `ContactTile`'s established trick — encode
+identity into `TileModel.App.activityName` instead of adding a schema/DB change — but unlike a contact
+(blank `packageName`), a shortcut's owning package is real, so only `activityName` gets the
+`"shortcut:<id>"` sentinel prefix. `AppLauncher.launch` branches on `AppShortcutTile.decode`: a decoded
+id calls `LauncherApps.startShortcut` instead of `startMainActivity`, deliberately with **no** fallback
+to the app's main activity on failure (a dead shortcut shouldn't silently launch the wrong thing for a
+tile the user specifically pinned as that shortcut). Nothing about pin/dedupe/render needed to change —
+`LayoutRepository.pinApp`/`appActivityTileCount` already key on the literal `activityName` string, so
+the encoded value just flows through like any real class name. New
+`AppCatalogRepository.shortcutsFor(packageName)` queries `LauncherApps.getShortcuts` (static + dynamic
++ pinned, gated on `hasShortcutHostPermission()` — true automatically once TileShell is the default
+Home app) and maps each to an `AppEntry`. **Known limitation, noted rather than solved this session**:
+a pinned shortcut's tile/submenu icon falls back to the *parent app's* real icon, not the shortcut's
+own (e.g. camera's "selfie" shows the camera icon) — `rememberMaskableAppIcon`'s existing
+`getActivityIcon` call throws for the sentinel `activityName` (not a real class), already caught by its
+existing `recoverCatching { getApplicationIcon(pkg) }` fallback, so this degrades gracefully rather than
+crashing; fetching the shortcut's own icon needs `LauncherApps.getShortcutIconDrawable`, a genuinely
+separate icon-loading path duplicated across `:feature:applist` and `:feature:start` — deferred.
+
+Since a per-package shortcut query is a real system call (unlike the sibling-activities list, already
+free in memory from the app catalogue), it's **not** run eagerly for every visible row — `AppRow` fetches
+it lazily, once, on that row's own long-press (`AppListViewModel.shortcutsFor`, IO-dispatched), merged
+into the existing `siblings` list (`allSiblings = (siblings + shortcuts).distinctBy { it.key }`) so the
+"more from this app" item's visibility (and the submenu's contents) can go from hidden to shown a beat
+after the menu opens — acceptable, since the rest of the menu is already visible and interactive.
+
+**Widgets.** New `AppListViewModel.widgetsFor(packageName)` calls
+`AppWidgetManager.getInstalledProvidersForPackage` (also lazy, on long-press, same reasoning) — a
+first-in-codebase use of that API (the glance page's own picker only ever calls the unfiltered
+`installedProviders` and groups client-side). A new "widgets" row (shown only when the package actually
+has any) opens a submenu of provider labels; picking one doesn't bind anything inside `:feature:applist`
+at all — the module graph runs `:feature:start → :feature:applist`, so `:feature:applist` has no path to
+reach the glance page's real widget-hosting code (`WidgetSection`'s `AppWidgetHost`/`AppWidgetManager`/
+`WidgetStore` instances and its bind → optional-configure → commit pipeline are all private to that one
+composable in `WidgetSlot.kt`). Instead the chosen `AppWidgetProviderInfo` bubbles up through a new
+`AppListScreen` `onAddWidget` callback to `StartScreen.kt`, which stashes it in local state
+(`pendingFeedWidget`) and calls the existing `settleTo(-1f)` (already used elsewhere to jump the pager
+to the feed page programmatically) — guarded by `feedEnabled`, toasting instead when the glance page is
+off. `WidgetSection` gained two new optional params, `pinRequest`/`onPinRequestConsumed`, threaded
+through `FeedPage`; a `LaunchedEffect(pinRequest)` feeds it straight into the **exact same**
+`addProvider(provider)` the picker's own `onPick` already calls — same allocate-id → silent-bind-or-
+`ACTION_APPWIDGET_BIND` → optional `ACTION_APPWIDGET_CONFIGURE` → `WidgetStore.add` pipeline, zero
+duplicated binding logic. Build + full unit test suite green throughout; verified live end-to-end on
+the emulator (not just build/tests): long-pressing "camera" (a real device app) showed all three new/
+extended rows — "more from this app" (its shortcuts) and "widgets" both populated — and long-pressing
+"calendar" → "widgets" → "calendar schedule" correctly jumped to the glance page with a real, live
+Google Calendar widget (showing its own "sign in" prompt) pinned alongside weather/today/clock, proving
+the whole cross-module round trip actually works, not just that it compiles. Installed on the physical
+device too, launched with no crash in `adb logcat`.
