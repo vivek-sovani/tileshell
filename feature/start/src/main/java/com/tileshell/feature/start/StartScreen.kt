@@ -166,6 +166,7 @@ import com.tileshell.core.data.StockTile
 import com.tileshell.core.data.hasNotesTile
 import com.tileshell.core.data.TileColors
 import com.tileshell.core.data.TileModel
+import com.tileshell.core.data.shortcutIconDrawable
 import com.tileshell.core.data.TileSize
 import com.tileshell.feature.applist.AppListScreen
 import com.tileshell.feature.livetiles.AlarmTileFace
@@ -5235,6 +5236,12 @@ internal fun rememberTileAppIcon(packageName: String, activityName: String, size
     val context = LocalContext.current
     return produceState<ImageBitmap?>(null, packageName, activityName, sizePx) {
         value = withContext(Dispatchers.IO) {
+            // A pinned app shortcut publishes its own icon and has no resolvable
+            // ComponentName (see shortcutIconDrawable) — without this the tile
+            // showed its parent app's icon instead.
+            shortcutIconDrawable(context, packageName, activityName)?.let {
+                return@withContext it.toBitmap(width = sizePx, height = sizePx).asImageBitmap()
+            }
             runCatching {
                 context.packageManager
                     .getActivityIcon(ComponentName(packageName, activityName))

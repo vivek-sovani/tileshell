@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.core.graphics.drawable.toBitmap
 import com.tileshell.core.data.settings.HomeStyle
+import com.tileshell.core.data.shortcutIconDrawable
 import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.design.Glass
 import com.tileshell.core.design.LocalAccent
@@ -92,6 +93,11 @@ internal fun rememberMaskableAppIcon(packageName: String, activityName: String):
                     monochromeIconBitmap(drawable),
                 )
             }
+            // An app shortcut publishes its own icon and has no resolvable
+            // ComponentName (see shortcutIconDrawable) — without this it fell
+            // through to the parent app's icon below, so every shortcut looked
+            // identical to the app it came from.
+            shortcutIconDrawable(context, packageName, activityName)?.let { return@withContext load(it) }
             runCatching {
                 load(context.packageManager.getActivityIcon(ComponentName(packageName, activityName)))
             }.recoverCatching {

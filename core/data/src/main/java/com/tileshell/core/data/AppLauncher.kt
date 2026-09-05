@@ -34,7 +34,13 @@ object AppLauncher {
             } catch (e: Exception) {
                 false
             }
-            if (ok) RecentApps.record(context, packageName, activityName)
+            // Deliberately not recorded in RecentApps. Its keys are matched
+            // against the app catalogue ([AppListFilter.topApps]), which only
+            // ever contains real launcher activities — a "package/shortcut:id"
+            // key can never resolve, so recording one just consumed a slot in
+            // the capped recent list and silently shrank the App List's
+            // "recent" section, which takes its N *after* dropping unresolved
+            // keys.
             return ok
         }
         val started = try {

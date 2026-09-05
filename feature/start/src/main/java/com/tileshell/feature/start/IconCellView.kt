@@ -53,6 +53,7 @@ import com.tileshell.core.data.CountdownTile
 import com.tileshell.core.data.StockTile
 import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.TileModel
+import com.tileshell.core.data.shortcutIconDrawable
 import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.data.settings.LiveRefreshRate
 import com.tileshell.core.design.Glass
@@ -575,6 +576,11 @@ internal fun rememberMaskableIcon(packageName: String, activityName: String, siz
                 val rawBitmap = if (isAdaptive) unmaskedIconBitmap(drawable, sizePx) else osBitmap
                 return MaskableIcon(osBitmap, rawBitmap, isAdaptive, monochromeIconBitmap(drawable, sizePx))
             }
+            // An app shortcut has no resolvable ComponentName and publishes its
+            // own icon — see shortcutIconDrawable. Without this it fell through
+            // to the parent app's icon, so a pinned "selfie" tile looked exactly
+            // like the plain camera one.
+            shortcutIconDrawable(context, packageName, activityName)?.let { return@withContext load(it) }
             runCatching {
                 load(context.packageManager.getActivityIcon(ComponentName(packageName, activityName)))
             }.recoverCatching {

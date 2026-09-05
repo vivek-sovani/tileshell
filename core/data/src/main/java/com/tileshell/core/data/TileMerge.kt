@@ -19,9 +19,19 @@ data class MergeResult(
     val isStack: Boolean,
 )
 
-/** Demote a WIDE or LARGE child to MEDIUM; folder children are only SMALL / MEDIUM. */
+/**
+ * Demote anything bigger than MEDIUM as it enters a folder — a child arrives at
+ * SMALL or MEDIUM, and may only grow later via the in-folder resize cycle.
+ *
+ * Written as "keep SMALL, otherwise MEDIUM" rather than naming the sizes to
+ * demote. The original listed WIDE and LARGE explicitly, which was complete
+ * when [TileSize] had four presets but silently stopped being so once the seven
+ * drag-only ones landed: dragging a tile out to XLARGE (4×4) and then merging
+ * it produced a 4×4 child inside a mini-grid laid out for 1×1 and 2×2 cells.
+ * Any preset added in future is now handled without touching this.
+ */
 private fun FolderChild.clampForFolder(): FolderChild =
-    if (size == TileSize.WIDE || size == TileSize.LARGE) copy(size = TileSize.MEDIUM) else this
+    if (size == TileSize.SMALL) this else copy(size = TileSize.MEDIUM)
 
 /**
  * The size a merged folder tile may take. Folders never carry the 3×3 LARGE size
