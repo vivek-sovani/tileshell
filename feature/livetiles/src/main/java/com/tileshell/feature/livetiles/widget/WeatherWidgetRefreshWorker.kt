@@ -51,7 +51,13 @@ class WeatherWidgetRefreshWorker(
             WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
                 UNIQUE_PERIODIC,
                 ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequestBuilder<WeatherWidgetRefreshWorker>(30, TimeUnit.MINUTES).build(),
+                // Local-only constraints: this worker renders whatever
+                // WeatherRefreshWorker already cached and makes no network
+                // request of its own, so requiring connectivity here would
+                // block a render that doesn't need it.
+                PeriodicWorkRequestBuilder<WeatherWidgetRefreshWorker>(30, TimeUnit.MINUTES)
+                    .setConstraints(WidgetWork.localConstraints())
+                    .build(),
             )
         }
 

@@ -42,8 +42,17 @@ class AlarmWidgetRefreshWorker(
         fun ensureScheduled(context: Context) {
             WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
                 UNIQUE_PERIODIC,
-                ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequestBuilder<AlarmWidgetRefreshWorker>(30, TimeUnit.MINUTES).build(),
+                // UPDATE, not KEEP: an install already scheduled at the old
+                // 30-minute cadence would otherwise keep it forever.
+                ExistingPeriodicWorkPolicy.UPDATE,
+                // Slow backstop only — AlarmAppWidgetProvider now refreshes on
+                // ACTION_NEXT_ALARM_CLOCK_CHANGED, which is the moment the
+                // rendered value actually changes. This just re-syncs after
+                // anything that could have been missed (e.g. a broadcast while
+                // the app was force-stopped).
+                PeriodicWorkRequestBuilder<AlarmWidgetRefreshWorker>(6, TimeUnit.HOURS)
+                    .setConstraints(WidgetWork.localConstraints())
+                    .build(),
             )
         }
 

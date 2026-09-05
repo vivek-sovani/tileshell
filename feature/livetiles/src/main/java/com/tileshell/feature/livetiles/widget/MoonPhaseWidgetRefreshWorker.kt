@@ -19,9 +19,14 @@ import java.util.concurrent.TimeUnit
 /**
  * Builds + pushes the moon-phase widget's [RemoteViews] from
  * [currentMoonPhaseFace] — pure local date math, same as the in-app tile, no
- * permission/cache/network at all. Periodic push is generous (the phase only
- * meaningfully changes about once a day) but kept at the same ~30-min floor
- * as every other widget in this batch for consistency.
+ * permission/cache/network at all.
+ *
+ * Refreshes **once a day, just after midnight** ([WidgetWork.millisUntilNextMidnight]).
+ * This used to run every 30 minutes "for consistency with the rest of the
+ * batch", which meant 48 full rebuilds a day — each one regenerating a
+ * `Canvas`-drawn phase disc and pushing a fresh `RemoteViews` across a Binder
+ * — to render a value that changes once. The date is the only input, so the
+ * only moment worth waking for is when the date changes.
  */
 class MoonPhaseWidgetRefreshWorker(
     context: Context,
@@ -40,8 +45,13 @@ class MoonPhaseWidgetRefreshWorker(
         fun ensureScheduled(context: Context) {
             WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
                 UNIQUE_PERIODIC,
-                ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequestBuilder<MoonPhaseWidgetRefreshWorker>(30, TimeUnit.MINUTES).build(),
+                // UPDATE, not KEEP: an install already scheduled at the old
+                // 30-minute cadence would otherwise keep it forever.
+                ExistingPeriodicWorkPolicy.UPDATE,
+                PeriodicWorkRequestBuilder<MoonPhaseWidgetRefreshWorker>(1, TimeUnit.DAYS)
+                    .setInitialDelay(WidgetWork.millisUntilNextMidnight(), TimeUnit.MILLISECONDS)
+                    .setConstraints(WidgetWork.localConstraints())
+                    .build(),
             )
         }
 

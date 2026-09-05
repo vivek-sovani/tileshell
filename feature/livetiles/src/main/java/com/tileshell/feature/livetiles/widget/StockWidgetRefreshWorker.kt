@@ -12,6 +12,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.tileshell.core.data.CLOSED_MARKET_REFRESH_MS
 import com.tileshell.core.data.StockTile
 import com.tileshell.core.data.fetchStockQuote
@@ -20,8 +21,10 @@ import com.tileshell.core.data.formatStockChangePercent
 import com.tileshell.core.data.formatStockPrice
 import com.tileshell.core.data.indexDisplayNameFor
 import com.tileshell.core.data.indexTickerFor
+import com.tileshell.core.data.isMarketOpenFor
 import com.tileshell.core.data.stockCategoryFor
 import com.tileshell.feature.livetiles.R
+import com.tileshell.feature.livetiles.primaryStockRef
 import java.util.concurrent.TimeUnit
 
 private const val POSITIVE_GREEN = 0xFF35C759.toInt()
@@ -68,7 +71,7 @@ class StockWidgetRefreshWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        pushAll(applicationContext)
+        pushAll(applicationContext, force = inputData.getBoolean(KEY_FORCE, false))
         return Result.success()
     }
 
@@ -76,11 +79,20 @@ class StockWidgetRefreshWorker(
         private const val UNIQUE_PERIODIC = "tileshell_stock_widget_refresh"
         private const val UNIQUE_NOW = "tileshell_stock_widget_refresh_now"
 
+        /**
+         * Set on the one-off requests that must always fetch (placement,
+         * resize, a newly saved pick). Only the periodic tick is allowed to
+         * skip because the market is shut.
+         */
+        private const val KEY_FORCE = "force"
+
         fun ensureScheduled(context: Context) {
             WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
                 UNIQUE_PERIODIC,
                 ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequestBuilder<StockWidgetRefreshWorker>(CLOSED_MARKET_REFRESH_MS, TimeUnit.MILLISECONDS).build(),
+                PeriodicWorkRequestBuilder<StockWidgetRefreshWorker>(CLOSED_MARKET_REFRESH_MS, TimeUnit.MILLISECONDS)
+                    .setConstraints(WidgetWork.networkConstraints())
+                    .build(),
             )
         }
 
@@ -92,17 +104,29 @@ class StockWidgetRefreshWorker(
             WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
                 UNIQUE_NOW,
                 ExistingWorkPolicy.REPLACE,
-                OneTimeWorkRequestBuilder<StockWidgetRefreshWorker>().build(),
+                OneTimeWorkRequestBuilder<StockWidgetRefreshWorker>()
+                    .setInputData(workDataOf(KEY_FORCE to true))
+                    .build(),
             )
         }
 
-        suspend fun pushAll(context: Context) {
+        /**
+         * [force] bypasses the market-hours check. A plain periodic tick
+         * leaves it false, so a widget tracking a closed exchange makes no
+         * network request at all until that exchange reopens — the price it
+         * is already showing provably cannot move in the meantime.
+         */
+        suspend fun pushAll(context: Context, force: Boolean = false) {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, StockAppWidgetProvider::class.java))
             if (ids.isEmpty()) return
 
             ids.forEach { id ->
                 val selection = WidgetConfigStore.stockSelectionEncoded(context, id)?.let { StockTile.decode(it) }
+                // Resolved from the picked symbol's own exchange suffix, so an
+                // NSE holding follows Mumbai hours and a US one New York.
+                val leadSymbol = selection?.let { primaryStockRef(it)?.symbol }
+                if (!force && leadSymbol != null && !isMarketOpenFor(leadSymbol)) return@forEach
                 val minWidthDp = manager.getAppWidgetOptions(id)
                     .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 110)
                 val (accent, onAccent) = resolveWidgetAccent(context, id)

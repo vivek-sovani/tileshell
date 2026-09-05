@@ -68,6 +68,13 @@
             android:label="@string/alarm_widget_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <!-- The next-alarm time is the widget's entire content, and this
+                     broadcast fires exactly when it changes (alarm set, edited,
+                     cancelled, or fired). Unlike ACTION_BATTERY_CHANGED it IS
+                     delivered to a manifest-registered receiver, so this widget
+                     can be event-driven and keep only a slow periodic backstop
+                     instead of polling every 30 minutes. -->
+                <action android:name="android.app.action.NEXT_ALARM_CLOCK_CHANGED" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

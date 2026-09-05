@@ -212,6 +212,7 @@ internal fun IconCellView(
                 StockSmallFace(
                     selection = StockTile.decode(tile.activityName),
                     fallback = { IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp, themedIcons = themedIcons, accent = accent) },
+                    active = liveActive,
                     refreshRate = stockRefreshRate,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -220,6 +221,7 @@ internal fun IconCellView(
                 CommoditySmallFace(
                     symbol = CommodityTile.decode(tile.activityName)?.first,
                     fallback = { IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp, themedIcons = themedIcons, accent = accent) },
+                    active = liveActive,
                     refreshRate = commodityRefreshRate,
                     modifier = Modifier.fillMaxSize(),
                 )

@@ -30,7 +30,7 @@ import com.tileshell.core.data.StockQuote
 import com.tileshell.core.data.StockSymbolRef
 import com.tileshell.core.data.StockTile
 import com.tileshell.core.data.TileSize
-import com.tileshell.core.data.effectiveMarketRefreshMs
+import com.tileshell.core.data.nextMarketRefreshDelayMs
 import com.tileshell.core.data.fetchStockQuote
 import com.tileshell.core.data.fetchStockSparkline
 import com.tileshell.core.data.formatStockChangePercent
@@ -102,8 +102,11 @@ private fun indexInfoFor(selection: StockTile.Selection, primary: StockSymbolRef
  * clarity rather than relying on the default matching. Re-polls
  * every [STOCK_REFRESH_MS] while [active] (a
  * Personalize "live data refresh" [refreshRate] overrides that interval;
- * either way [com.tileshell.core.data.effectiveMarketRefreshMs] slows it
- * further outside 9am-4pm weekday market hours, and [delayUntilNextRefresh]
+ * either way [com.tileshell.core.data.nextMarketRefreshDelayMs] sleeps it
+ * straight through to the next opening bell whenever the symbol's *own*
+ * exchange is shut — resolved from the ticker's suffix, so an NSE stock
+ * follows Mumbai hours and a bare US ticker follows New York, rather than the
+ * device's local clock — and [delayUntilNextRefresh]
  * aligns every stock tile sharing the same interval to the same wall-clock
  * instants so they all re-poll together instead of at independent offsets),
  * the same on-screen-only gate every other opt-in live tile uses; list
@@ -154,7 +157,13 @@ fun StockTileFace(
                 listQuotes = mapOf(primary.symbol to fetchStockQuote(primary.symbol))
                 singleSparkline = fetchStockSparkline(primary.symbol)
             }
-            delayUntilNextRefresh(effectiveMarketRefreshMs(refreshRate.resolveMs(STOCK_REFRESH_MS)))
+            // Sleep straight through to the opening bell when this symbol's own
+            // exchange is shut, instead of polling a price that provably cannot
+            // move (see nextMarketRefreshDelayMs — the window is the market's,
+            // not the device's).
+            delayUntilNextRefresh(
+                nextMarketRefreshDelayMs(primary.symbol, refreshRate.resolveMs(STOCK_REFRESH_MS)),
+            )
         }
     }
 
@@ -442,6 +451,7 @@ private fun Sparkline(points: List<Double>, lineColor: Color, modifier: Modifier
 fun StockSmallFace(
     selection: StockTile.Selection?,
     fallback: @Composable () -> Unit,
+    active: Boolean = true,
     refreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
     modifier: Modifier = Modifier,
 ) {
@@ -449,10 +459,16 @@ fun StockSmallFace(
     val primary = remember(selection) { primaryStockRef(selection) } ?: return fallback()
 
     var quote by remember(selection) { mutableStateOf<StockQuote?>(null) }
-    LaunchedEffect(selection, refreshRate) {
+    // [active] gates this exactly as it does StockTileFace's loop above. It was
+    // missing here, so a SMALL stock tile kept fetching over the network with
+    // the screen off, the launcher backgrounded, and battery saver on.
+    LaunchedEffect(selection, active, refreshRate) {
+        if (!active) return@LaunchedEffect
         while (true) {
             quote = fetchStockQuote(primary.symbol)
-            delayUntilNextRefresh(effectiveMarketRefreshMs(refreshRate.resolveMs(STOCK_REFRESH_MS)))
+            delayUntilNextRefresh(
+                nextMarketRefreshDelayMs(primary.symbol, refreshRate.resolveMs(STOCK_REFRESH_MS)),
+            )
         }
     }
     val current = quote ?: return fallback()

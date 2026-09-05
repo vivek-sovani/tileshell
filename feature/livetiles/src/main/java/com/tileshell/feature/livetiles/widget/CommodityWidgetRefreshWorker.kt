@@ -12,11 +12,13 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.tileshell.core.data.CLOSED_MARKET_REFRESH_MS
 import com.tileshell.core.data.fetchCommodityQuote
 import com.tileshell.core.data.fetchCommoditySparkline
 import com.tileshell.core.data.formatStockChangePercent
 import com.tileshell.core.data.formatStockPrice
+import com.tileshell.core.data.isMarketOpenFor
 import com.tileshell.feature.livetiles.R
 import java.util.concurrent.TimeUnit
 
@@ -38,7 +40,7 @@ class CommodityWidgetRefreshWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        pushAll(applicationContext)
+        pushAll(applicationContext, force = inputData.getBoolean(KEY_FORCE, false))
         return Result.success()
     }
 
@@ -46,11 +48,16 @@ class CommodityWidgetRefreshWorker(
         private const val UNIQUE_PERIODIC = "tileshell_commodity_widget_refresh"
         private const val UNIQUE_NOW = "tileshell_commodity_widget_refresh_now"
 
+        /** See [StockWidgetRefreshWorker]: forces a fetch past the market-hours check. */
+        private const val KEY_FORCE = "force"
+
         fun ensureScheduled(context: Context) {
             WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
                 UNIQUE_PERIODIC,
                 ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequestBuilder<CommodityWidgetRefreshWorker>(CLOSED_MARKET_REFRESH_MS, TimeUnit.MILLISECONDS).build(),
+                PeriodicWorkRequestBuilder<CommodityWidgetRefreshWorker>(CLOSED_MARKET_REFRESH_MS, TimeUnit.MILLISECONDS)
+                    .setConstraints(WidgetWork.networkConstraints())
+                    .build(),
             )
         }
 
@@ -62,17 +69,25 @@ class CommodityWidgetRefreshWorker(
             WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
                 UNIQUE_NOW,
                 ExistingWorkPolicy.REPLACE,
-                OneTimeWorkRequestBuilder<CommodityWidgetRefreshWorker>().build(),
+                OneTimeWorkRequestBuilder<CommodityWidgetRefreshWorker>()
+                    .setInputData(workDataOf(KEY_FORCE to true))
+                    .build(),
             )
         }
 
-        suspend fun pushAll(context: Context) {
+        /**
+         * [force] bypasses the market-hours check — see
+         * [StockWidgetRefreshWorker.pushAll]. Note a futures or FX symbol is
+         * treated as open all weekday, unlike an equity.
+         */
+        suspend fun pushAll(context: Context, force: Boolean = false) {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, CommodityAppWidgetProvider::class.java))
             if (ids.isEmpty()) return
 
             ids.forEach { id ->
                 val picked = WidgetConfigStore.commoditySymbol(context, id)
+                if (!force && picked != null && !isMarketOpenFor(picked.first)) return@forEach
                 val minWidthDp = manager.getAppWidgetOptions(id)
                     .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 110)
                 val (accent, onAccent) = resolveWidgetAccent(context, id)

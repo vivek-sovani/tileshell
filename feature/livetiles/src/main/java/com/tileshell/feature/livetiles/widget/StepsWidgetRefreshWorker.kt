@@ -74,7 +74,9 @@ class StepsWidgetRefreshWorker(
             WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
                 UNIQUE_PERIODIC,
                 ExistingPeriodicWorkPolicy.UPDATE,
-                PeriodicWorkRequestBuilder<StepsWidgetRefreshWorker>(15, TimeUnit.MINUTES).build(),
+                PeriodicWorkRequestBuilder<StepsWidgetRefreshWorker>(15, TimeUnit.MINUTES)
+                    .setConstraints(WidgetWork.localConstraints())
+                    .build(),
             )
         }
 

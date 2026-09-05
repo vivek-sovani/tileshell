@@ -35,6 +35,10 @@ class SportsAppWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
-        appWidgetIds.forEach { WidgetColorStore.clear(context, it); WidgetConfigStore.clear(context, it) }
+        appWidgetIds.forEach {
+            WidgetColorStore.clear(context, it)
+            WidgetConfigStore.clear(context, it)
+            WidgetSportsStateStore.clear(context, it)
+        }
     }
 }

@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.StockQuote
 import com.tileshell.core.data.TileSize
-import com.tileshell.core.data.effectiveMarketRefreshMs
+import com.tileshell.core.data.nextMarketRefreshDelayMs
 import com.tileshell.core.data.fetchCommodityQuote
 import com.tileshell.core.data.fetchCommoditySparkline
 import com.tileshell.core.data.formatStockChangePercent
@@ -57,11 +57,12 @@ private val FaceText: Color
  * that interval; [delayUntilNextRefresh] then aligns every commodity tile
  * sharing the same interval to the same wall-clock instants), the same
  * on-screen-only gate every other opt-in live tile uses. Also folds in
- * [effectiveMarketRefreshMs]'s 9am-4pm weekday slowdown, same as the stock
- * tile — a simplification for currency pairs and futures, which in reality
- * trade far longer hours than an equity market, but treating them the same
- * way keeps the behaviour predictable and is a strict improvement over
- * polling at the fast rate around the clock.
+ * [nextMarketRefreshDelayMs]'s market-hours gate, same as the stock tile —
+ * but correctly, per instrument: a futures contract or currency pair
+ * (`GC=F`, `EURUSD=X`) trades essentially around the clock on weekdays, so
+ * unlike an equity it is *not* throttled overnight, only over the weekend.
+ * The previous version applied a fixed 9am-4pm equity window to these too,
+ * which throttled a currency pair through the very hours it was moving.
  */
 @Composable
 fun CommodityTileFace(
@@ -86,7 +87,12 @@ fun CommodityTileFace(
         while (true) {
             quote = fetchCommodityQuote(symbol)
             sparkline = fetchCommoditySparkline(symbol)
-            delayUntilNextRefresh(effectiveMarketRefreshMs(refreshRate.resolveMs(COMMODITY_REFRESH_MS)))
+            // Market-aware: a futures or FX symbol trades essentially around
+            // the clock on weekdays, so unlike an equity it is NOT throttled
+            // overnight — but it does sleep through the weekend.
+            delayUntilNextRefresh(
+                nextMarketRefreshDelayMs(symbol, refreshRate.resolveMs(COMMODITY_REFRESH_MS)),
+            )
         }
     }
 
@@ -262,16 +268,23 @@ private fun Sparkline(points: List<Double>, lineColor: Color, modifier: Modifier
 fun CommoditySmallFace(
     symbol: String?,
     fallback: @Composable () -> Unit,
+    active: Boolean = true,
     refreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
     modifier: Modifier = Modifier,
 ) {
     if (symbol.isNullOrBlank()) return fallback()
 
     var quote by remember(symbol) { mutableStateOf<StockQuote?>(null) }
-    LaunchedEffect(symbol, refreshRate) {
+    // [active] gates this exactly as it does CommodityTileFace's loop above —
+    // it was missing here, so a SMALL commodity tile kept fetching with the
+    // screen off and battery saver on.
+    LaunchedEffect(symbol, active, refreshRate) {
+        if (!active) return@LaunchedEffect
         while (true) {
             quote = fetchCommodityQuote(symbol)
-            delayUntilNextRefresh(effectiveMarketRefreshMs(refreshRate.resolveMs(COMMODITY_REFRESH_MS)))
+            delayUntilNextRefresh(
+                nextMarketRefreshDelayMs(symbol, refreshRate.resolveMs(COMMODITY_REFRESH_MS)),
+            )
         }
     }
     val current = quote ?: return fallback()

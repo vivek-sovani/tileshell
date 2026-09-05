@@ -53,7 +53,13 @@ class BatteryWidgetRefreshWorker(
             WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
                 UNIQUE_PERIODIC,
                 ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequestBuilder<BatteryWidgetRefreshWorker>(15, TimeUnit.MINUTES).build(),
+                // Deliberately NOT requiresBatteryNotLow, unlike every other
+                // widget worker: a low battery is exactly when this widget's
+                // reading matters most, so suppressing its refresh then would
+                // be perverse.
+                PeriodicWorkRequestBuilder<BatteryWidgetRefreshWorker>(15, TimeUnit.MINUTES)
+                    .setConstraints(WidgetWork.localConstraints(requiresBatteryNotLow = false))
+                    .build(),
             )
         }
 

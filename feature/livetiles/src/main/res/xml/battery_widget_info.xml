@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- updatePeriodMillis is 0 (no OS update alarm) by design. Each of these
+     widgets already has its own WorkManager periodic refresh (see its
+     *WidgetRefreshWorker), and this provider's onUpdate calls that same
+     refreshNow() — so a non-zero value fired a second, redundant full refresh
+     (network fetch + bitmap regeneration + Binder push) on top of it. onUpdate
+     still runs on placement, reboot and app update regardless of this value,
+     so the "forecast not shown when widget re-added" fix is unaffected. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="110dp"
     android:minHeight="110dp"
@@ -6,7 +13,7 @@
     android:minResizeHeight="70dp"
     android:targetCellWidth="2"
     android:targetCellHeight="2"
-    android:updatePeriodMillis="1800000"
+    android:updatePeriodMillis="0"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
     android:initialLayout="@layout/widget_battery"

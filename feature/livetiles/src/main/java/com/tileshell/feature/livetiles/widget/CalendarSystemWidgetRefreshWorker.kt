@@ -28,7 +28,10 @@ import java.util.concurrent.TimeUnit
  * date math (same as [HinduPanchang]/[com.tileshell.core.data
  * .calendarSystemFor]'s `android.icu` formatting) — no permission, no
  * network, no cache, so — like moon phase — nothing to force-fetch, just a
- * ~30-min periodic re-render so the date rolls over at midnight.
+ * re-render when the date rolls over. That is now a **single daily run just
+ * after midnight** ([WidgetWork.millisUntilNextMidnight]) rather than the
+ * 30-minute poll it used to be: polling 48 times a day to catch one midnight
+ * rollover woke the device 47 times for nothing.
  *
  * Reuses two pure helpers straight from the in-app tile rather than
  * duplicating them: [formatSelectedSystemDate] (widened to internal) for the
@@ -53,8 +56,13 @@ class CalendarSystemWidgetRefreshWorker(
         fun ensureScheduled(context: Context) {
             WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
                 UNIQUE_PERIODIC,
-                ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequestBuilder<CalendarSystemWidgetRefreshWorker>(30, TimeUnit.MINUTES).build(),
+                // UPDATE, not KEEP: an install already scheduled at the old
+                // 30-minute cadence would otherwise keep it forever.
+                ExistingPeriodicWorkPolicy.UPDATE,
+                PeriodicWorkRequestBuilder<CalendarSystemWidgetRefreshWorker>(1, TimeUnit.DAYS)
+                    .setInitialDelay(WidgetWork.millisUntilNextMidnight(), TimeUnit.MILLISECONDS)
+                    .setConstraints(WidgetWork.localConstraints())
+                    .build(),
             )
         }
 

@@ -20,9 +20,12 @@ import java.util.concurrent.TimeUnit
 /**
  * Builds + pushes the countdown widget's [RemoteViews] from [countdownFace] —
  * pure local date math, same as the in-app tile, no permission/cache/network
- * at all. Periodic push kept at the same ~30-min floor as the moon-phase
- * widget for consistency, even though the day count only meaningfully
- * changes once a day.
+ * at all.
+ *
+ * Refreshes **once a day, just after midnight** ([WidgetWork.millisUntilNextMidnight]),
+ * matching the moon-phase widget. The day count is a pure function of the
+ * date, so a 30-minute cadence was 48 wakeups a day to re-render an
+ * unchanged number.
  */
 class CountdownWidgetRefreshWorker(
     context: Context,
@@ -41,8 +44,13 @@ class CountdownWidgetRefreshWorker(
         fun ensureScheduled(context: Context) {
             WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
                 UNIQUE_PERIODIC,
-                ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequestBuilder<CountdownWidgetRefreshWorker>(30, TimeUnit.MINUTES).build(),
+                // UPDATE, not KEEP: an install already scheduled at the old
+                // 30-minute cadence would otherwise keep it forever.
+                ExistingPeriodicWorkPolicy.UPDATE,
+                PeriodicWorkRequestBuilder<CountdownWidgetRefreshWorker>(1, TimeUnit.DAYS)
+                    .setInitialDelay(WidgetWork.millisUntilNextMidnight(), TimeUnit.MILLISECONDS)
+                    .setConstraints(WidgetWork.localConstraints())
+                    .build(),
             )
         }
 

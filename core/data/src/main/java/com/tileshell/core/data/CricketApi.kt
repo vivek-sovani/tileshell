@@ -2,6 +2,7 @@ package com.tileshell.core.data
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Sentinel league slug for cricket in [SPORTS_LEAGUES] — deliberately not a
@@ -113,10 +114,35 @@ suspend fun fetchCricketMatches(dateYyyymmdd: String? = null): List<SportsMatchE
  * recent) day that has anything for this team. [maxDaysBack] bounds the
  * worst case (a team with genuinely nothing scheduled in a month) so this
  * can't spiral into dozens of requests.
+ *
+ * **The backward walk is cached** ([lookbackCache]). Only its result is —
+ * today's undated feed is still fetched fresh on every call, so a live match
+ * or a just-finished one is never served stale. That matters because the walk
+ * is only ever reached when the fresh feed has *nothing* for this team, and
+ * its answer is then either a finished match or nothing at all — both stable
+ * until the team next plays, which the fresh check above would catch first.
+ *
+ * Without this, a followed team that is simply out of season cost the full
+ * `1 + maxDaysBack` = 31 sequential HTTP requests on **every** refresh, every
+ * 30 minutes, forever — the single most expensive thing this app could do to
+ * a radio — to re-derive an answer that had not changed. The cache is
+ * process-scoped rather than persisted, which is enough in practice because
+ * TileShell is the Home app and its process is long-lived; a cold process
+ * simply pays for one walk again.
  */
+private class CricketLookback(val match: SportsMatchEvent?, val resolvedAtMillis: Long)
+
+private val lookbackCache = ConcurrentHashMap<String, CricketLookback>()
+
+private const val CRICKET_LOOKBACK_TTL_MS = 6L * 60 * 60 * 1000
+
 suspend fun fetchRecentCricketMatchForTeam(teamId: String, nowMillis: Long, maxDaysBack: Int = 30): SportsMatchEvent? {
     val today = fetchCricketMatches().filter { it.homeId == teamId || it.awayId == teamId }
     pickRelevantMatch(today, nowMillis)?.let { return it }
+
+    lookbackCache[teamId]
+        ?.takeIf { nowMillis - it.resolvedAtMillis in 0 until CRICKET_LOOKBACK_TTL_MS }
+        ?.let { return it.match }
 
     val calendar = java.util.Calendar.getInstance().apply { timeInMillis = nowMillis }
     repeat(maxDaysBack) {
@@ -129,8 +155,14 @@ suspend fun fetchRecentCricketMatchForTeam(teamId: String, nowMillis: Long, maxD
             calendar.get(java.util.Calendar.DAY_OF_MONTH),
         )
         val events = fetchCricketMatches(dateParam).filter { it.homeId == teamId || it.awayId == teamId }
-        pickRelevantMatch(events, nowMillis)?.let { return it }
+        pickRelevantMatch(events, nowMillis)?.let { found ->
+            lookbackCache[teamId] = CricketLookback(found, nowMillis)
+            return found
+        }
     }
+    // Cache the miss too — it is the expensive case, and "this team has played
+    // nothing in 30 days" is the slowest-changing answer of all.
+    lookbackCache[teamId] = CricketLookback(null, nowMillis)
     return null
 }
 

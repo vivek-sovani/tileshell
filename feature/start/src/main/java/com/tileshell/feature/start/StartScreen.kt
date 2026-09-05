@@ -4791,6 +4791,7 @@ private fun AppTileContent(
                 StockSmallFace(
                     selection = StockTile.decode(tile.activityName),
                     fallback = staticGlyph,
+                    active = liveActive,
                     refreshRate = stockRefreshRate,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -4800,6 +4801,7 @@ private fun AppTileContent(
                 CommoditySmallFace(
                     symbol = CommodityTile.decode(tile.activityName)?.first,
                     fallback = staticGlyph,
+                    active = liveActive,
                     refreshRate = commodityRefreshRate,
                     modifier = Modifier.fillMaxSize(),
                 )

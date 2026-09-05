@@ -12,6 +12,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.tileshell.core.data.CRICKET_LEAGUE_SLUG
 import com.tileshell.core.data.SportsTile
 import com.tileshell.core.data.fetchCricketMatchDetail
@@ -19,6 +20,7 @@ import com.tileshell.core.data.fetchMatchDetail
 import com.tileshell.core.data.fetchRecentCricketMatchForTeam
 import com.tileshell.core.data.fetchSportsSchedule
 import com.tileshell.core.data.pickRelevantMatch
+import com.tileshell.core.data.shouldFetchSports
 import com.tileshell.core.data.snapshotFor
 import com.tileshell.core.data.splitInningsScore
 import com.tileshell.core.data.sportsLeagueFor
@@ -59,7 +61,7 @@ class SportsWidgetRefreshWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        pushAll(applicationContext)
+        pushAll(applicationContext, force = inputData.getBoolean(KEY_FORCE, false))
         return Result.success()
     }
 
@@ -67,11 +69,20 @@ class SportsWidgetRefreshWorker(
         private const val UNIQUE_PERIODIC = "tileshell_sports_widget_refresh"
         private const val UNIQUE_NOW = "tileshell_sports_widget_refresh_now"
 
+        /**
+         * Set on the one-off requests that must always fetch — a fresh pick,
+         * a resize needing a different layout, placement. Only the *periodic*
+         * tick is allowed to skip via [shouldFetchSports].
+         */
+        private const val KEY_FORCE = "force"
+
         fun ensureScheduled(context: Context) {
             WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
                 UNIQUE_PERIODIC,
                 ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequestBuilder<SportsWidgetRefreshWorker>(30, TimeUnit.MINUTES).build(),
+                PeriodicWorkRequestBuilder<SportsWidgetRefreshWorker>(30, TimeUnit.MINUTES)
+                    .setConstraints(WidgetWork.networkConstraints())
+                    .build(),
             )
         }
 
@@ -83,16 +94,34 @@ class SportsWidgetRefreshWorker(
             WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
                 UNIQUE_NOW,
                 ExistingWorkPolicy.REPLACE,
-                OneTimeWorkRequestBuilder<SportsWidgetRefreshWorker>().build(),
+                OneTimeWorkRequestBuilder<SportsWidgetRefreshWorker>()
+                    .setInputData(workDataOf(KEY_FORCE to true))
+                    .build(),
             )
         }
 
-        suspend fun pushAll(context: Context) {
+        /**
+         * [force] bypasses the "is anything actually live" check — used by
+         * every explicit trigger (placement, resize, a newly saved pick). A
+         * plain periodic tick leaves it false, which is what lets a widget
+         * showing a finished match stop hitting the network entirely until
+         * there is a reason to look again (see [shouldFetchSports]).
+         */
+        suspend fun pushAll(context: Context, force: Boolean = false) {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, SportsAppWidgetProvider::class.java))
             if (ids.isEmpty()) return
 
+            val now = System.currentTimeMillis()
             ids.forEach { id ->
+                if (!force) {
+                    val last = WidgetSportsStateStore.snapshot(context, id)
+                    val due = shouldFetchSports(last.state, last.kickoffMillis, last.fetchedAtMillis, now)
+                    // Nothing to learn: the last-rendered match is over or has
+                    // not started, and it's not yet time for the slow re-check.
+                    // Leave the widget showing exactly what it already shows.
+                    if (!due) return@forEach
+                }
                 val selection = WidgetConfigStore.sportsSelectionEncoded(context, id)?.let { SportsTile.decode(it) }
                 val minWidthDp = manager.getAppWidgetOptions(id)
                     .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 110)
@@ -144,6 +173,17 @@ class SportsWidgetRefreshWorker(
             } else {
                 pickRelevantMatch(fetchSportsSchedule(selection.leagueSlug, selection.teamId), System.currentTimeMillis())
             }
+
+            // Remember what we just learned so the next periodic tick can decide
+            // whether it needs to fetch at all — a finished or not-yet-started
+            // match means there is nothing to poll for (see shouldFetchSports).
+            WidgetSportsStateStore.record(
+                context = context,
+                appWidgetId = appWidgetId,
+                state = relevant?.state,
+                kickoffMillis = relevant?.epochMillis,
+                fetchedAtMillis = System.currentTimeMillis(),
+            )
 
             if (relevant == null) {
                 views.setOnClickPendingIntent(R.id.widget_root, sportsAppPendingIntent(context, appWidgetId, null, selection.teamLabel))
