@@ -864,9 +864,21 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setTiledWallpaper(on) }
     }
 
-    /** Toggle the left "feed" page (the 3rd pager page reached by swiping right). */
+    /**
+     * Toggle the left "feed" page (the 3rd pager page reached by swiping right).
+     *
+     * Turning it off also stops the background RSS refresh. That used to be
+     * missing entirely: the worker is scheduled the first time the feed page is
+     * opened and nothing ever cancelled it, so a user who tried the feed once
+     * and then switched it off kept a 30-minute network fetch running for the
+     * life of the install. Turning the feed back on re-schedules it — the feed
+     * page's own `LaunchedEffect` calls `ensureScheduled` whenever it appears.
+     */
     fun setFeedEnabled(enabled: Boolean) {
-        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setFeedEnabled(enabled) }
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsRepository.setFeedEnabled(enabled)
+            if (!enabled) FeedRefreshWorker.cancel(getApplication())
+        }
     }
 
     /** Set the name shown in the feed's "good morning, `<name>`" greeting. */

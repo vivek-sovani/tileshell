@@ -54,12 +54,20 @@ class TasksAppWidgetProvider : AppWidgetProvider() {
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         val pending = goAsync()
+        // Whole body guarded, finish() in a finally — see TaskWidgetActionReceiver.
+        // WidgetColorStore.clear was outside the runCatching, so a corrupt or
+        // locked prefs file while removing a widget could crash the launcher.
         CoroutineScope(Dispatchers.IO).launch {
-            appWidgetIds.forEach { id ->
-                WidgetColorStore.clear(context, id)
-                runCatching { TaskRepository.create(context).clearAll(id.toString()) }
+            try {
+                appWidgetIds.forEach { id ->
+                    WidgetColorStore.clear(context, id)
+                    TaskRepository.create(context).clearAll(id.toString())
+                }
+            } catch (t: Throwable) {
+                // Best-effort cleanup of a removed widget's data.
+            } finally {
+                pending.finish()
             }
-            pending.finish()
         }
     }
 

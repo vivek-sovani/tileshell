@@ -114,7 +114,11 @@ data class AppCacheEntity(
  * existing Tasks tile so its data isn't orphaned on upgrade — see
  * `TileShellDatabase.MIGRATION_10_11`).
  */
-@Entity(tableName = "tasks")
+// Indexed on listId: every TaskDao query filters by it (each pinned Tasks
+// tile/widget keeps its own list), so without this each one is a full table
+// scan. folder_children already had the equivalent index for its own
+// WHERE folderId queries; tasks never got it when listId was introduced.
+@Entity(tableName = "tasks", indices = [Index("listId")])
 data class TaskEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val text: String,

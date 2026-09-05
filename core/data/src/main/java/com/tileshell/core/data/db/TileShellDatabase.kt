@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TaskEntity::class,
         NoteEntity::class,
     ],
-    version = 11,
+    version = 12,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -193,11 +193,25 @@ abstract class TileShellDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Adds the index backing every `WHERE listId = ?` task query. Room
+         * tracks indices as part of the schema, so this needs a real version
+         * bump even though it changes no data. `IF NOT EXISTS` keeps it safe to
+         * re-run, and the name must match what Room generates for
+         * `@Index("listId")` or its schema validation will reject the database.
+         */
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_tasks_listId ON tasks (listId)")
+            }
+        }
+
         /** Versioned migrations, added as the schema evolves. */
         val MIGRATIONS: Array<Migration> =
             arrayOf(
                 MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
                 MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
+                MIGRATION_11_12,
             )
 
         @Volatile

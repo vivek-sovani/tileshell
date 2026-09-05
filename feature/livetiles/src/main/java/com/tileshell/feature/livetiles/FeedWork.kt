@@ -15,6 +15,13 @@ import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.flow.first
+import com.tileshell.core.data.settings.SettingsRepository
 
 /** Maximum number of articles kept in the cache after a merge. */
 const val FEED_ARTICLE_CAP = 40
@@ -67,6 +74,12 @@ class FeedRefreshWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
+        // Second guard, independent of the cancel() the setting now triggers: a
+        // job already enqueued by an older build (or one that outlived a failed
+        // cancel) must not keep fetching after the user turned the feed off.
+        if (!SettingsRepository.create(applicationContext).settings.first().feedEnabled) {
+            return Result.success()
+        }
         val store = FeedStore.create(applicationContext)
         val sources = store.read().sources.filter { it.enabled }
         // No enabled feeds → clear the cache so disabled content stops showing.
@@ -75,24 +88,35 @@ class FeedRefreshWorker(
             return Result.success()
         }
 
-        var anySucceeded = false
-        val perFeed = sources.map { source ->
-            val body = httpGetText(source.url)
-            if (body != null) {
-                anySucceeded = true
-                parseFeed(body, source.name)
-            } else {
-                emptyList()
-            }
+        // Fetched concurrently, not one after another. `sources.map { httpGetText(..) }`
+        // over a suspend call is sequential, so with several regions enabled a
+        // single cycle could issue 20-30 requests back to back, each with its own
+        // 8s connect + 8s read timeout — minutes of continuous radio-on time for
+        // work that fits in one short burst. FETCH_CONCURRENCY caps how many are
+        // in flight so a large feed list can't open dozens of sockets at once.
+        val perFeed = coroutineScope {
+            val gate = Semaphore(FETCH_CONCURRENCY)
+            sources.map { source ->
+                async {
+                    val body = gate.withPermit { httpGetText(source.url) }
+                    if (body != null) parseFeed(body, source.name) else null
+                }
+            }.awaitAll()
         }
-        if (!anySucceeded) return Result.retry()
-        store.setArticles(mergeFeedArticles(perFeed))
+        // A null entry is a failed fetch, distinct from a feed that parsed to zero
+        // articles — only a total failure should retry, so the feed keeps its last
+        // good articles rather than being emptied by one bad network moment.
+        if (perFeed.none { it != null }) return Result.retry()
+        store.setArticles(mergeFeedArticles(perFeed.map { it ?: emptyList() }))
         return Result.success()
     }
 
     companion object {
         private const val UNIQUE_PERIODIC = "tileshell_feed_refresh"
         private const val UNIQUE_NOW = "tileshell_feed_refresh_now"
+
+        /** Max feeds fetched at once — one short radio burst without opening dozens of sockets. */
+        private const val FETCH_CONCURRENCY = 5
 
         // Require a network connection for the background periodic refresh so the
         // worker is not woken up on airplane mode / offline to fail and retry.
@@ -119,6 +143,22 @@ class FeedRefreshWorker(
                 ExistingWorkPolicy.KEEP,
                 OneTimeWorkRequestBuilder<FeedRefreshWorker>().build(),
             )
+        }
+
+        /**
+         * Stops the periodic refresh. Must be called when the feed is turned off
+         * in Personalize.
+         *
+         * Without this the worker was effectively permanent: [ensureScheduled] is
+         * called the first time the feed page is ever opened, enqueues a `KEEP`
+         * unique periodic job, and nothing anywhere cancelled it — no `cancel`
+         * function even existed. Turning "feed" off afterwards left a 30-minute
+         * background RSS fetch running for the life of the install, surviving
+         * reboots via WorkManager, with no way for the user to stop it short of
+         * clearing app data.
+         */
+        fun cancel(context: Context) {
+            WorkManager.getInstance(context.applicationContext).cancelUniqueWork(UNIQUE_PERIODIC)
         }
 
         /** Forces a one-off refresh now (e.g. just after the feed list is edited). */

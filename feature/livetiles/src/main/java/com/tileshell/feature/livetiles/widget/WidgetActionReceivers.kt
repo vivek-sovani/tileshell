@@ -43,23 +43,33 @@ class TaskWidgetActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val taskId = intent.getLongExtra(EXTRA_TASK_ID, -1L)
         if (taskId == -1L) return
-        when (intent.action) {
-            ACTION_TOGGLE_TASK -> {
-                val targetDone = intent.getBooleanExtra(EXTRA_TARGET_DONE, false)
-                val pending = goAsync()
-                CoroutineScope(Dispatchers.IO).launch {
-                    runCatching { TaskRepository.create(context).setDone(taskId, targetDone) }
-                    TasksWidgetRefreshWorker.refreshNow(context)
-                    pending.finish()
-                }
-            }
-            ACTION_DELETE_TASK -> {
-                val pending = goAsync()
-                CoroutineScope(Dispatchers.IO).launch {
-                    runCatching { TaskRepository.create(context).delete(taskId) }
-                    TasksWidgetRefreshWorker.refreshNow(context)
-                    pending.finish()
-                }
+        val done: Boolean? = when (intent.action) {
+            ACTION_TOGGLE_TASK -> intent.getBooleanExtra(EXTRA_TARGET_DONE, false)
+            ACTION_DELETE_TASK -> null
+            else -> return
+        }
+        val deleting = intent.action == ACTION_DELETE_TASK
+
+        // The *entire* body is guarded, and finish() is in a finally.
+        //
+        // This runs on a bare CoroutineScope with no SupervisorJob and no
+        // CoroutineExceptionHandler, so an uncaught throw anywhere in here is
+        // fatal to the process — and this process is the user's Home screen.
+        // Guarding only the repository call (as this originally did) left
+        // refreshNow() exposed, which can genuinely throw in a cold
+        // widget-host process where WorkManager isn't initialised yet. Missing
+        // the finish() on that path would also earn a "BroadcastReceiver did
+        // not call finish()" ANR warning on top of the crash.
+        val pending = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val repo = TaskRepository.create(context)
+                if (deleting) repo.delete(taskId) else repo.setDone(taskId, done == true)
+                TasksWidgetRefreshWorker.refreshNow(context)
+            } catch (t: Throwable) {
+                // Nothing actionable at a widget tap; the next refresh re-syncs.
+            } finally {
+                pending.finish()
             }
         }
     }
@@ -77,17 +87,21 @@ class FlashlightWidgetActionReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION_TOGGLE_FLASHLIGHT) return
-        val next = !WidgetFlashlightState.isOn(context)
+        // Fully guarded for the same reason as [TaskWidgetActionReceiver]: an
+        // uncaught throw here would take the Home process down with it.
         runCatching {
-            val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-            val cameraId = cameraManager.cameraIdList.firstOrNull { id ->
-                cameraManager.getCameraCharacteristics(id)
-                    .get(android.hardware.camera2.CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
-            } ?: return@runCatching
-            cameraManager.setTorchMode(cameraId, next)
+            val next = !WidgetFlashlightState.isOn(context)
+            runCatching {
+                val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+                val cameraId = cameraManager.cameraIdList.firstOrNull { id ->
+                    cameraManager.getCameraCharacteristics(id)
+                        .get(android.hardware.camera2.CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+                } ?: return@runCatching
+                cameraManager.setTorchMode(cameraId, next)
+            }
+            WidgetFlashlightState.setOn(context, next)
+            FlashlightWidgetRefreshWorker.refreshNow(context)
         }
-        WidgetFlashlightState.setOn(context, next)
-        FlashlightWidgetRefreshWorker.refreshNow(context)
     }
 
     companion object {

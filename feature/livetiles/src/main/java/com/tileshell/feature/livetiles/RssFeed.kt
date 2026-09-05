@@ -284,8 +284,22 @@ fun feedAgo(publishedMillis: Long, nowMillis: Long = System.currentTimeMillis())
  * Any parse failure yields an empty list — a broken feed degrades to "no articles".
  */
 fun parseFeed(xml: String, sourceName: String): List<FeedArticle> = runCatching {
+    // Hardened: feeds are arbitrary third-party URLs (the user can add any
+    // custom feed), so this parses genuinely untrusted XML. RSS and Atom never
+    // need a DOCTYPE, and allowing one exposes entity-expansion ("billion
+    // laughs") memory blowups and external-entity resolution. Disallowing
+    // doctypes outright closes both; the other flags are belt-and-braces for
+    // parsers that honour them.
     val doc = DocumentBuilderFactory.newInstance()
-        .apply { isNamespaceAware = false }
+        .apply {
+            isNamespaceAware = false
+            runCatching { setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) }
+            runCatching { setFeature("http://xml.org/sax/features/external-general-entities", false) }
+            runCatching { setFeature("http://xml.org/sax/features/external-parameter-entities", false) }
+            runCatching { setFeature(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING, true) }
+            runCatching { isExpandEntityReferences = false }
+            runCatching { isXIncludeAware = false }
+        }
         .newDocumentBuilder()
         .parse(xml.byteInputStream())
     doc.documentElement?.normalize()
