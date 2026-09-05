@@ -328,15 +328,19 @@ class LayoutRepository(
             // folderChildrenOnce is ORDER BY position, so this is the user's
             // current in-folder order.
             val prevChildren = dao.folderChildrenOnce(existing.id)
-            val prevPackages = prevChildren.mapTo(HashSet()) { it.packageName }
+            val prevComponents = prevChildren.mapTo(HashSet()) { it.packageName + "/" + it.activityName }
             // Preserve any size the user already set on apps that stay in the folder
             // (updateFolderContents deletes + re-inserts, so we must carry it over).
             val prevSizeByComponent = prevChildren.associate {
                 (it.packageName + "/" + it.activityName) to it.size
             }
-            val newPackages = children.mapTo(HashSet()) { it.packageName }
-            // Remove standalone Start tiles only for apps that are newly entering the folder.
-            (newPackages - prevPackages).forEach { pkg -> dao.deleteTilesByPackage(pkg) }
+            // Remove standalone Start tiles only for the exact activities newly
+            // entering the folder — keyed by component, not package, so a
+            // sibling activity of the same package keeps its own tile (see
+            // LayoutDao.deleteTilesByComponent).
+            children
+                .filterNot { (it.packageName + "/" + it.activityName) in prevComponents }
+                .forEach { dao.deleteTilesByComponent(it.packageName, it.activityName) }
             // Preserve the user's in-folder order: keep surviving apps in their prior
             // order, then append newly-added apps (in the sheet's order) at the end —
             // rather than re-sorting everything into the sheet's matched-first order.
@@ -386,8 +390,10 @@ class LayoutRepository(
             )
         }
         dao.createFolder(folderTile, folder, childRows)
-        // Remove any existing individual Start tiles for the apps now in the folder.
-        children.forEach { app -> dao.deleteTilesByPackage(app.packageName) }
+        // Remove the individual Start tile for each activity now in the folder —
+        // by component, not package, so a sibling activity of the same package
+        // (or an app-shortcut tile) isn't deleted along with it.
+        children.forEach { app -> dao.deleteTilesByComponent(app.packageName, app.activityName) }
         return true
     }
 

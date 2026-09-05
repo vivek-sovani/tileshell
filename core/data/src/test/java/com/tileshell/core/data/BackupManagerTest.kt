@@ -255,4 +255,74 @@ class BackupManagerTest {
         assertEquals(emptyList<String>(), data.photoUris)
         assertEquals(emptyList<String>(), data.wallpaperSlideshowUris)
     }
+
+    // --- regression: fields that silently failed to survive a round trip ---
+
+    @Test
+    fun `displayAsIcon survives an export and restore`() {
+        // It was never written to the JSON, so a restore reverted every
+        // per-tile "show as tile" choice back to the entity default.
+        val tiles = listOf(
+            TileEntity(
+                id = "icon", position = 0, size = TileSize.SMALL, colorId = "blue",
+                type = TileEntity.TYPE_APP, packageName = "com.a", activityName = "com.a.Main",
+                displayAsIcon = true,
+            ),
+            TileEntity(
+                id = "tile", position = 1, size = TileSize.MEDIUM, colorId = "blue",
+                type = TileEntity.TYPE_APP, packageName = "com.b", activityName = "com.b.Main",
+                displayAsIcon = false,
+            ),
+        )
+        val restored = BackupManager.parseBackup(
+            BackupManager.buildBackupJson(tiles, emptyList(), emptyList(), sampleSettings),
+        ).tiles
+
+        assertEquals(true, restored.first { it.id == "icon" }.displayAsIcon)
+        assertEquals(false, restored.first { it.id == "tile" }.displayAsIcon)
+    }
+
+    @Test
+    fun `a backup predating displayAsIcon still restores, defaulting it`() {
+        val json = BackupManager.buildBackupJson(sampleTiles, emptyList(), emptyList(), sampleSettings)
+            .replace("\"displayAsIcon\":true", "\"unused\":true")
+            .replace("\"displayAsIcon\":false", "\"unused\":false")
+        val restored = BackupManager.parseBackup(json).tiles
+
+        assertEquals(sampleTiles.size, restored.size)
+        restored.forEach { assertEquals(true, it.displayAsIcon) }
+    }
+
+    @Test
+    fun `layoutHash changes when only a tile colour changes`() {
+        // Previously accentOverride was absent from the hash, so recolouring a
+        // tile and tapping "save now" silently took no snapshot at all.
+        val before = BackupManager.layoutHash(sampleTiles, sampleFolders, sampleChildren, sampleSettings)
+        val after = BackupManager.layoutHash(
+            sampleTiles.map { if (it.id == "t1") it.copy(accentOverride = "#00ff00") else it },
+            sampleFolders, sampleChildren, sampleSettings,
+        )
+        assertNotEquals(before, after)
+    }
+
+    @Test
+    fun `layoutHash changes when only show-as-icon changes`() {
+        val before = BackupManager.layoutHash(sampleTiles, sampleFolders, sampleChildren, sampleSettings)
+        val after = BackupManager.layoutHash(
+            sampleTiles.map { if (it.id == "t1") it.copy(displayAsIcon = !it.displayAsIcon) else it },
+            sampleFolders, sampleChildren, sampleSettings,
+        )
+        assertNotEquals(before, after)
+    }
+
+    @Test
+    fun `layoutHash changes when only a folder child's colour changes`() {
+        val before = BackupManager.layoutHash(sampleTiles, sampleFolders, sampleChildren, sampleSettings)
+        val after = BackupManager.layoutHash(
+            sampleTiles, sampleFolders,
+            sampleChildren.mapIndexed { i, c -> if (i == 0) c.copy(accentOverride = "#123456") else c },
+            sampleSettings,
+        )
+        assertNotEquals(before, after)
+    }
 }

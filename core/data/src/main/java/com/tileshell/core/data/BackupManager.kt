@@ -94,6 +94,10 @@ object BackupManager {
                     putOpt("label", t.label)
                     putOpt("iconKey", t.iconKey)
                     putOpt("folderId", t.folderId)
+                    // Schema v8. Omitted until now, so restoring a backup
+                    // silently reverted every per-tile "show as tile" choice
+                    // back to a plain icon (the entity default).
+                    put("displayAsIcon", t.displayAsIcon)
                 })
             }
         })
@@ -158,18 +162,27 @@ object BackupManager {
         children: List<FolderChildEntity>,
         settings: LauncherSettings,
     ): String = buildString {
+        // Every field that a restore would bring back has to be in here, or a
+        // change to it looks like "nothing changed" and no new snapshot is
+        // taken — the user taps "save now", is told it saved, and later
+        // restores a version without their change. accentOverride,
+        // displayAsIcon, label and iconKey were all missing, so recolouring
+        // tiles or toggling show-as-icon silently produced no snapshot at all.
         tiles.sortedBy { it.id }.forEach { t ->
             append(t.id).append(':').append(t.position).append(':')
                 .append(t.size.name).append(':').append(t.type).append(':')
                 .append(t.packageName).append(':').append(t.folderId).append(':')
-                .append(t.gridSlot).append('|')
+                .append(t.gridSlot).append(':').append(t.accentOverride).append(':')
+                .append(t.displayAsIcon).append(':').append(t.label).append(':')
+                .append(t.iconKey).append('|')
         }
         folders.sortedBy { it.id }.forEach { f ->
             append(f.id).append(':').append(f.name).append(':').append(f.showAsStack).append('|')
         }
         children.sortedWith(compareBy({ it.folderId }, { it.position })).forEach { c ->
             append(c.folderId).append(':').append(c.position).append(':')
-                .append(c.packageName).append(':').append(c.size.name).append('|')
+                .append(c.packageName).append(':').append(c.activityName).append(':')
+                .append(c.size.name).append(':').append(c.accentOverride).append('|')
         }
         append("settings:").append(SettingsCodec.encode(settings))
     }.hashCode().toString()
@@ -207,6 +220,10 @@ object BackupManager {
                     label = o.optString("label", "").ifEmpty { null },
                     iconKey = o.optString("iconKey", "").ifEmpty { null },
                     folderId = o.optString("folderId", "").ifEmpty { null },
+                    // Backups written before this field was exported simply
+                    // don't carry it; the entity default is the right answer
+                    // for them, so an older file still restores cleanly.
+                    displayAsIcon = o.optBoolean("displayAsIcon", true),
                 )
             }
         }

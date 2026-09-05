@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.os.Process
 import android.os.UserHandle
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
@@ -337,9 +338,31 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         _swipeEnabled.value = true
     }
 
-    /** Removes tiles whose app was uninstalled while we were running. */
+    /**
+     * Removes tiles whose app was genuinely uninstalled while we were running.
+     *
+     * Two deliberate narrowings, both of which used to cause silent, permanent
+     * loss of a user's Start layout:
+     *
+     * **Only this user's packages.** [user] was previously ignored, so a
+     * package event in *another* profile deleted the tile for the same package
+     * here. Pausing a work profile ("Pause work apps") or uninstalling an app
+     * from it wiped the personal Start tile for, say, Chrome. The app catalogue
+     * only ever enumerates [Process.myUserHandle] ([com.tileshell.core.data
+     * .AppCatalogRepository]), so a tile can only ever refer to this user's
+     * apps and events from any other profile are simply not ours to act on.
+     *
+     * **Uninstall only, never "unavailable".** [onPackagesUnavailable] does not
+     * mean uninstalled — it fires when the apps are temporarily out of reach,
+     * most commonly because external/adopted storage was unmounted or a
+     * profile was paused. Treating it as an uninstall deleted tiles for apps
+     * that were about to come straight back, and nothing restored them:
+     * [onPackagesAvailable] is intentionally a no-op. A real uninstall always
+     * arrives via [onPackageRemoved], so nothing is missed by ignoring it.
+     */
     private val packageCallback = object : LauncherApps.Callback() {
         override fun onPackageRemoved(packageName: String?, user: UserHandle?) {
+            if (!isCurrentUser(user)) return
             packageName?.let(::prunePackage)
         }
 
@@ -347,9 +370,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             packageNames: Array<out String>?,
             user: UserHandle?,
             replacing: Boolean,
-        ) {
-            if (!replacing) packageNames?.forEach(::prunePackage)
-        }
+        ) = Unit
 
         override fun onPackageAdded(packageName: String?, user: UserHandle?) = Unit
         override fun onPackageChanged(packageName: String?, user: UserHandle?) = Unit
@@ -1810,6 +1831,14 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             settingsRepository.setAutoBackupIntervalHours(hours)
         }
     }
+
+    /**
+     * A null [user] means the platform didn't tell us which profile the event
+     * came from; treat that as ours, since that is the pre-existing behaviour
+     * and the overwhelmingly common case on a single-profile device.
+     */
+    private fun isCurrentUser(user: UserHandle?): Boolean =
+        user == null || user == Process.myUserHandle()
 
     private fun prunePackage(packageName: String) {
         viewModelScope.launch(writeContext) { repository.removeApp(packageName) }

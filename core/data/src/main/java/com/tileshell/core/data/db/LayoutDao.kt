@@ -444,6 +444,20 @@ interface LayoutDao {
     @Query("DELETE FROM tiles WHERE packageName = :packageName")
     suspend fun deleteTilesByPackage(packageName: String)
 
+    /**
+     * Delete only the tile for one specific launcher activity, leaving a
+     * package's other activities alone.
+     *
+     * Correct for foldering, where [deleteTilesByPackage] is not: pinning is
+     * keyed on package **and** activity ([appActivityTileCount]), so one
+     * package can legitimately own several independent tiles (a shopping app's
+     * regional sub-apps, an app-shortcut tile). Moving one of them into a
+     * folder must not silently delete its siblings. Uninstall still uses the
+     * package-wide delete, which is what that case actually wants.
+     */
+    @Query("DELETE FROM tiles WHERE packageName = :packageName AND activityName = :activityName")
+    suspend fun deleteTilesByComponent(packageName: String, activityName: String)
+
     @Query("DELETE FROM folder_children WHERE packageName = :packageName")
     suspend fun deleteFolderChildrenByPackage(packageName: String)
 
