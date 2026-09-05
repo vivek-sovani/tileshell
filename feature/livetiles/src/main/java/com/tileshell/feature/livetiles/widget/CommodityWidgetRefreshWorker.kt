@@ -54,7 +54,11 @@ class CommodityWidgetRefreshWorker(
         fun ensureScheduled(context: Context) {
             WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
                 UNIQUE_PERIODIC,
-                ExistingPeriodicWorkPolicy.KEEP,
+                // UPDATE, not KEEP: ensureScheduled is re-asserted from the
+                // provider's onUpdate on every app update, and KEEP would
+                // silently discard a changed interval or constraint there,
+                // leaving existing installs on the original schedule forever.
+                ExistingPeriodicWorkPolicy.UPDATE,
                 PeriodicWorkRequestBuilder<CommodityWidgetRefreshWorker>(CLOSED_MARKET_REFRESH_MS, TimeUnit.MILLISECONDS)
                     .setConstraints(WidgetWork.networkConstraints())
                     .build(),

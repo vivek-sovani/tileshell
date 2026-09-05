@@ -136,6 +136,22 @@ class WeatherRefreshWorker(
             )
         }
 
+        /**
+         * Stops the periodic forecast fetch. Called when the last home-screen
+         * weather widget is removed ([com.tileshell.feature.livetiles.widget
+         * .WeatherAppWidgetProvider.onDisabled]) — without it, a widget that
+         * had ever been placed left this network poll running every 30 minutes
+         * forever with nothing consuming it.
+         *
+         * Safe to over-cancel: [ensureScheduled] is idempotent and is called
+         * from the in-app weather tile's own `LaunchedEffect`, so a still-pinned
+         * weather tile simply re-arms it the next time it renders.
+         */
+        fun cancel(context: Context) {
+            androidx.work.WorkManager.getInstance(context.applicationContext)
+                .cancelUniqueWork(UNIQUE_PERIODIC)
+        }
+
         /** Forces a one-off refresh now (e.g. just after location is granted). */
         fun refreshNow(context: Context) {
             androidx.work.WorkManager.getInstance(context.applicationContext)

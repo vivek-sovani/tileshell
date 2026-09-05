@@ -52,7 +52,11 @@ class BatteryWidgetRefreshWorker(
         fun ensureScheduled(context: Context) {
             WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
                 UNIQUE_PERIODIC,
-                ExistingPeriodicWorkPolicy.KEEP,
+                // UPDATE, not KEEP: ensureScheduled is re-asserted from the
+                // provider's onUpdate on every app update, and KEEP would
+                // silently discard a changed interval or constraint there,
+                // leaving existing installs on the original schedule forever.
+                ExistingPeriodicWorkPolicy.UPDATE,
                 // Deliberately NOT requiresBatteryNotLow, unlike every other
                 // widget worker: a low battery is exactly when this widget's
                 // reading matters most, so suppressing its refresh then would

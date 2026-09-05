@@ -46,11 +46,15 @@ class WeatherWidgetRefreshWorker(
         private const val UNIQUE_PERIODIC = "tileshell_weather_widget_refresh"
         private const val UNIQUE_NOW = "tileshell_weather_widget_refresh_now"
 
-        /** Idempotent (KEEP) — safe to call from every provider lifecycle callback. */
+        /** Idempotent — safe to call from every provider lifecycle callback. */
         fun ensureScheduled(context: Context) {
             WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
                 UNIQUE_PERIODIC,
-                ExistingPeriodicWorkPolicy.KEEP,
+                // UPDATE, not KEEP: ensureScheduled is re-asserted from the
+                // provider's onUpdate on every app update, and KEEP would
+                // silently discard a changed interval or constraint there,
+                // leaving existing installs on the original schedule forever.
+                ExistingPeriodicWorkPolicy.UPDATE,
                 // Local-only constraints: this worker renders whatever
                 // WeatherRefreshWorker already cached and makes no network
                 // request of its own, so requiring connectivity here would

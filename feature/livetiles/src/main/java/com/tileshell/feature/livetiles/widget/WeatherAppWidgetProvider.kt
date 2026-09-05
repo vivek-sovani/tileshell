@@ -27,6 +27,15 @@ import android.os.Bundle
 class WeatherAppWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        // Also re-assert the schedule here, not only in onEnabled. The OS
+        // broadcasts APPWIDGET_UPDATE to every provider when the app is
+        // updated, and this is the only hook that runs for a widget that was
+        // already placed — without it, an existing install would keep whatever
+        // schedule it was first given (interval, constraints and all) forever,
+        // since onEnabled fires only for the very first instance. Paired with
+        // ExistingPeriodicWorkPolicy.UPDATE in ensureScheduled, this is what
+        // lets a changed cadence or constraint actually reach existing users.
+        WeatherWidgetRefreshWorker.ensureScheduled(context)
         com.tileshell.feature.livetiles.WeatherRefreshWorker.refreshNow(context)
         WeatherWidgetRefreshWorker.refreshNow(context)
     }
@@ -53,6 +62,14 @@ class WeatherAppWidgetProvider : AppWidgetProvider() {
     override fun onDisabled(context: Context) {
         // Last instance removed — the OS only calls this when none remain.
         WeatherWidgetRefreshWorker.cancel(context)
+        // onEnabled also started the *network* forecast poll, which this used to
+        // leave running forever: place a weather widget, remove it, and
+        // WeatherRefreshWorker kept fetching every 30 minutes for the life of
+        // the install with nothing consuming it. Cancel it here too — the in-app
+        // weather tile re-schedules it from its own LaunchedEffect the next time
+        // it renders, so an over-eager cancel self-heals rather than leaving the
+        // tile stale.
+        com.tileshell.feature.livetiles.WeatherRefreshWorker.cancel(context)
     }
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
