@@ -5684,12 +5684,22 @@ private fun StackTileContent(
     // resets when liveActive or editMode toggle briefly (e.g. app list opens and
     // closes). The guard is checked after each full delay, not as a LaunchedEffect
     // key, so a short interruption doesn't shorten the next interval.
+    //
+    // Both flags must be read through rememberUpdatedState. Because the effect
+    // deliberately never restarts, reading them directly captured whatever they
+    // were at first composition and never saw another value — so a stack that
+    // started life with liveActive true kept rotating with the screen off and
+    // battery saver on, and one that started false never rotated at all. Same
+    // stale-closure trap as the drag handles (see DECISIONS, "resize/reorder
+    // follow-up #5"); the feed's own stack rotation already guards this way.
+    val liveActiveRef = rememberUpdatedState(liveActive)
+    val editModeRef = rememberUpdatedState(editMode)
     LaunchedEffect(count) {
         if (count <= 1) return@LaunchedEffect
         delay(rotateOffset)
         while (true) {
             delay(STACK_ROTATE_MS)
-            if (!liveActive || editMode) continue
+            if (!liveActiveRef.value || editModeRef.value) continue
             lastDir.value = 1
             pageIndex.value = (pageIndex.value + 1) % count
         }

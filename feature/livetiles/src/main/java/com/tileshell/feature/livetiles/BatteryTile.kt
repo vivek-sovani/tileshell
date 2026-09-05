@@ -128,8 +128,23 @@ private fun rememberBatteryFace(): BatteryFace {
     DisposableEffect(lifecycleOwner) {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context?, intent: Intent?) {
-                face = currentBatteryFace(context)
-                com.tileshell.feature.livetiles.widget.BatteryWidgetRefreshWorker.refreshNow(context)
+                val next = currentBatteryFace(context)
+                val previous = face
+                face = next
+                // ACTION_BATTERY_CHANGED is a firehose — it fires on voltage and
+                // temperature changes too, which on many devices means every few
+                // seconds while charging. Enqueuing a WorkManager request that
+                // often means a write to WorkManager's own database and a round
+                // of scheduler churn per broadcast, per composed battery tile,
+                // to re-push a widget whose rendered content usually hasn't
+                // changed. Only cascade when something the widget actually
+                // displays is different.
+                if (next.percentText != previous.percentText ||
+                    next.isCharging != previous.isCharging ||
+                    next.statusLine != previous.statusLine
+                ) {
+                    com.tileshell.feature.livetiles.widget.BatteryWidgetRefreshWorker.refreshNow(context)
+                }
             }
         }
         runCatching { context.registerReceiver(receiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) }

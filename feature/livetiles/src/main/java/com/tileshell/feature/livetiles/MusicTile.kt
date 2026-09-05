@@ -61,6 +61,13 @@ import kotlin.random.Random
 private val FaceText: Color
     @Composable get() = LocalTileFaceColor.current
 private const val POLL_MS = 3_000L
+
+/**
+ * Poll interval while no media session exists at all. The session-changed
+ * listener already covers a session *appearing*, so this only needs to be a
+ * slow safety net against a missed callback rather than a real poll.
+ */
+private const val IDLE_POLL_MS = 30_000L
 private const val EQ_STEP_MS = 240L
 
 /**
@@ -267,7 +274,16 @@ fun MediaSessionsEffect(active: Boolean) {
         while (true) {
             val state = buildMediaState(manager, component)
             MediaCenter.publish(state.now, state.controllers, state.artwork)
-            delay(POLL_MS)
+            // This poll exists only to catch in-session track/position changes
+            // that some players never report through MediaController.Callback.
+            // With no session at all there is nothing to miss — a session
+            // *appearing* is delivered reliably by the
+            // OnActiveSessionsChangedListener registered above — so idling here
+            // costs a getActiveSessions() binder round-trip into system_server
+            // every few seconds for nothing, which is the common case on a
+            // device with no music playing. Back off hard until something is
+            // actually playing.
+            delay(if (state.controllers.isEmpty()) IDLE_POLL_MS else POLL_MS)
         }
     }
 }

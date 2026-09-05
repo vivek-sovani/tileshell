@@ -521,6 +521,15 @@ fun WidgetSection(
     onNowPlayingClick: (() -> Unit)?,
     editMode: Boolean,
     onEditModeChange: (Boolean) -> Unit,
+    /**
+     * Whether the feed page is actually on screen. Gates the widget stacks'
+     * auto-rotation — the feed stays composed (translated off-screen) whenever
+     * it is enabled, so without this a stack kept advancing every 10s forever,
+     * and each advance is not a cheap text swap: it composes a different
+     * member's real AppWidgetHostView and issues updateAppWidgetSize IPC into
+     * that provider's process.
+     */
+    active: Boolean = true,
     pinRequest: AppWidgetProviderInfo? = null,
     onPinRequestConsumed: () -> Unit = {},
 ) {
@@ -805,6 +814,7 @@ fun WidgetSection(
             val stackId = anchor.stackId ?: anchor.widgetId
             key(stackId) {
                 WidgetStackView(
+                    active = active,
                     host = host,
                     manager = manager,
                     members = members,
@@ -1452,6 +1462,8 @@ private fun WidgetStackView(
     widthDp: Int,
     accent: Color,
     editing: Boolean,
+    /** See WidgetSection's own `active` — pauses auto-rotation off-screen. */
+    active: Boolean,
     // Turns editing OFF only — see WidgetEditOverlay's onDismiss, its one caller.
     onEditingChange: (Boolean) -> Unit,
     isDragging: Boolean,
@@ -1512,13 +1524,14 @@ private fun WidgetStackView(
     // rather than being a LaunchedEffect key, so a short interruption doesn't
     // shorten the next interval. Same shape as Start's own stack rotation.
     val editingRef = rememberUpdatedState(editing)
+    val activeRef = rememberUpdatedState(active)
     val rotateOffset = remember(count) { Random.nextLong(0L, WIDGET_STACK_ROTATE_MS) }
     LaunchedEffect(count) {
         if (count <= 1) return@LaunchedEffect
         delay(rotateOffset)
         while (true) {
             delay(WIDGET_STACK_ROTATE_MS)
-            if (editingRef.value) continue
+            if (editingRef.value || !activeRef.value) continue
             lastDir.intValue = 1
             pageIndex.intValue = (pageIndex.intValue + 1) % count
         }

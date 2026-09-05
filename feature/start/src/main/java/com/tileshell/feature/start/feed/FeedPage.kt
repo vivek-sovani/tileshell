@@ -248,10 +248,21 @@ fun FeedPage(
         else CalendarFace(null, null)
     }
 
-    // Live clock + date, re-read on each minute boundary (cheap; only while the
-    // page is composed, i.e. the feed is enabled).
+    // Live clock + date, re-read on each minute boundary.
+    //
+    // Keyed on [active], not Unit. The comment here used to claim this cost
+    // nothing because it only runs "while the page is composed" — but the feed
+    // page is composed the whole time the feed is enabled, translated
+    // off-screen rather than removed (see StartScreen's pager), so on Unit this
+    // ticked 1440 times a day while nobody could see it. Worse, `now` is read
+    // at the top level of this composable and Calendar is unstable and freshly
+    // allocated each tick, so every one of those invalidated the entire page —
+    // greeting, cards, the hosted-widget section, the news list — to update two
+    // strings in a header. Re-reads the clock on the way back in, so there is
+    // no stale time when the feed is opened again.
     var now by remember { mutableStateOf(Calendar.getInstance()) }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(active) {
+        if (!active) return@LaunchedEffect
         while (true) {
             now = Calendar.getInstance()
             val secondsToMinute = 60 - now.get(Calendar.SECOND)
@@ -319,6 +330,7 @@ fun FeedPage(
                 onNowPlayingClick = nowPlayingPackage?.let { pkg -> { launchPackage(context, pkg) } },
                 editMode = glanceEditMode,
                 onEditModeChange = { glanceEditMode = it },
+                active = active,
                 pinRequest = pinWidgetRequest,
                 onPinRequestConsumed = onPinWidgetRequestConsumed,
             )
