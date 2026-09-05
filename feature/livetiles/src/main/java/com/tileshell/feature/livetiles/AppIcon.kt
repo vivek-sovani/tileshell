@@ -40,7 +40,11 @@ import kotlinx.coroutines.withContext
 @Composable
 fun rememberAppIconBitmap(packageName: String, sizePx: Int = 96): ImageBitmap? {
     val context = LocalContext.current
-    val image by produceState<ImageBitmap?>(initialValue = null, packageName) {
+    // sizePx must be a key: it is used inside the block, so omitting it meant a
+    // caller that changed only the requested size kept the previously decoded
+    // bitmap at the old resolution (blurry when scaled up). rememberMaskableAppIcon
+    // below already keys on both.
+    val image by produceState<ImageBitmap?>(initialValue = null, packageName, sizePx) {
         value = if (packageName.isBlank()) {
             null
         } else {

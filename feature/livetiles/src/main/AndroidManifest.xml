@@ -117,13 +117,28 @@
                 android:resource="@xml/calsys_widget_info" />
         </receiver>
 
+        <!-- Private receivers for the widget actions that mutate state. These
+             are deliberately NOT AppWidgetProviders: a provider must be
+             exported so the OS can deliver APPWIDGET_UPDATE, and an exported
+             receiver is reachable by an explicit intent from any app, which
+             previously let any installed app delete the user's tasks by
+             guessing a sequential task id, or toggle the torch. A PendingIntent
+             is dispatched with this app's own identity, so the widgets still
+             reach these while nothing else can. See WidgetActionReceivers.kt. -->
+        <receiver
+            android:name=".widget.TaskWidgetActionReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".widget.FlashlightWidgetActionReceiver"
+            android:exported="false" />
+
         <receiver
             android:name=".widget.FlashlightAppWidgetProvider"
             android:exported="true"
             android:label="@string/flashlight_widget_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.tileshell.feature.livetiles.widget.ACTION_TOGGLE_FLASHLIGHT" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -172,8 +187,6 @@
             android:label="@string/tasks_widget_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.tileshell.feature.livetiles.widget.ACTION_TOGGLE_TASK" />
-                <action android:name="com.tileshell.feature.livetiles.widget.ACTION_DELETE_TASK" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

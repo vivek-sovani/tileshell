@@ -554,6 +554,21 @@ internal data class MaskableIcon(
     val unmaskedBitmap: ImageBitmap,
     val isAdaptive: Boolean,
     val monochromeBitmap: ImageBitmap?,
+    /**
+     * Backing-plate colour for the legacy-icon branch, extracted once here on
+     * the IO dispatcher rather than at render time.
+     *
+     * [dominantIconColor] is a full per-pixel scan, and it used to be called
+     * straight from `maskedOrGlyphIcon`'s composable body — on the main
+     * thread, on *every recomposition*, with no `remember` at all. That scan
+     * is sized by the decode resolution, which is not fixed at 96px: a "show
+     * as icon" tile stretched to 120dp+ decodes at ~360px on a 3× device, so
+     * it allocated a 129,600-element IntArray and walked it, per cell, per
+     * recomposition. `:feature:applist`'s equivalent ([AppListIcon]'s
+     * `plateColor`) has always done this correctly off-thread; this is the
+     * same fix. Null for an adaptive icon, which never uses a plate.
+     */
+    val plateColor: Color?,
 )
 
 /**
@@ -574,7 +589,15 @@ internal fun rememberMaskableIcon(packageName: String, activityName: String, siz
                 val isAdaptive = drawable is AdaptiveIconDrawable
                 val osBitmap = drawable.toBitmap(width = sizePx, height = sizePx).asImageBitmap()
                 val rawBitmap = if (isAdaptive) unmaskedIconBitmap(drawable, sizePx) else osBitmap
-                return MaskableIcon(osBitmap, rawBitmap, isAdaptive, monochromeIconBitmap(drawable, sizePx))
+                return MaskableIcon(
+                    osBitmap,
+                    rawBitmap,
+                    isAdaptive,
+                    monochromeIconBitmap(drawable, sizePx),
+                    // Only the legacy branch renders a plate, so don't pay for
+                    // the scan on an adaptive icon. See MaskableIcon.plateColor.
+                    plateColor = if (isAdaptive) null else dominantIconColor(osBitmap),
+                )
             }
             // An app shortcut has no resolvable ComponentName and publishes its
             // own icon — see shortcutIconDrawable. Without this it fell through
@@ -725,7 +748,7 @@ private fun maskedOrGlyphIcon(
             )
         }
         else -> {
-            val plateColor = dominantIconColor(loaded.bitmap) ?: tint
+            val plateColor = loaded.plateColor ?: tint
             Box(
                 modifier = Modifier.size(size).clip(composeShape).background(plateColor),
                 contentAlignment = Alignment.Center,

@@ -29,6 +29,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.core.graphics.drawable.toBitmap
+import com.tileshell.core.data.AppIconCache
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.shortcutIconDrawable
 import com.tileshell.core.data.settings.IconShape
@@ -83,7 +84,14 @@ internal fun rememberMaskableAppIcon(packageName: String, activityName: String):
         value = withContext(Dispatchers.IO) {
             fun load(drawable: Drawable): MaskableAppIcon {
                 val isAdaptive = drawable is AdaptiveIconDrawable
-                val osBitmap = drawable.toBitmap(width = 96, height = 96).asImageBitmap()
+                // Cached process-wide: this list recycles constantly, and without
+                // a cache every scroll re-ran getActivityIcon + toBitmap (+ a
+                // getShortcuts IPC for shortcut rows). See AppIconCache.
+                val cacheKey = AppIconCache.iconCacheKey(packageName, activityName, 96)
+                val osBitmap = (
+                    AppIconCache.getOrPut(cacheKey) { drawable.toBitmap(width = 96, height = 96) }
+                        ?: drawable.toBitmap(width = 96, height = 96)
+                    ).asImageBitmap()
                 val rawBitmap = if (isAdaptive) unmaskedIconBitmap(drawable) else osBitmap
                 return MaskableAppIcon(
                     osBitmap,

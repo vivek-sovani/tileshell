@@ -15,6 +15,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tileshell.core.data.AppCatalogRepository
+import com.tileshell.core.data.AppIconCache
 import com.tileshell.core.data.AppCategories
 import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.BackupFeedSource
@@ -362,6 +363,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      */
     private val packageCallback = object : LauncherApps.Callback() {
         override fun onPackageRemoved(packageName: String?, user: UserHandle?) {
+            AppIconCache.clear()
             if (!isCurrentUser(user)) return
             packageName?.let(::prunePackage)
         }
@@ -373,7 +375,17 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         ) = Unit
 
         override fun onPackageAdded(packageName: String?, user: UserHandle?) = Unit
-        override fun onPackageChanged(packageName: String?, user: UserHandle?) = Unit
+
+        // An app update can change its launcher icon, so the process-wide icon
+        // cache has to be dropped or a stale bitmap would outlive it. Cleared
+        // wholesale rather than per-package: the cache is keyed by
+        // component+size and an update can change any of a package's
+        // activities, so a targeted eviction would need to enumerate them for
+        // no real benefit — a full clear just costs one re-decode per visible
+        // icon, and package changes are rare.
+        override fun onPackageChanged(packageName: String?, user: UserHandle?) {
+            AppIconCache.clear()
+        }
         override fun onPackagesAvailable(
             packageNames: Array<out String>?,
             user: UserHandle?,

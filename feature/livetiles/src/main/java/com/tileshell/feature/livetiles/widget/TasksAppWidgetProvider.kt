@@ -20,43 +20,16 @@ import kotlinx.coroutines.launch
  * `appWidgetId` is always a distinct positive int, so `appWidgetId.toString()`
  * can never collide with either existing form.
  *
- * A checkbox row's tap toggles that one task directly — same [onReceive]-
- * intercepts-a-custom-action mechanism as [FlashlightAppWidgetProvider]'s
- * torch toggle, except the target *done* state is baked into each row's own
- * [PendingIntent] at build time (see `TasksWidgetRefreshWorker
- * .buildRemoteViews`), so the receiver never needs to re-query the task's
- * current state before flipping it.
+ * A checkbox row's tap toggles that one task directly, with the target *done*
+ * state baked into each row's own [PendingIntent] at build time (see
+ * `TasksWidgetRefreshWorker.buildRemoteViews`), so the receiver never needs to
+ * re-query the task's current state before flipping it. Those intents are
+ * handled by [TaskWidgetActionReceiver], a separate non-exported receiver —
+ * they used to be intercepted by an `onReceive` override here, which, because a
+ * provider must be exported, let any installed app delete or complete the
+ * user's tasks by guessing a sequential task id. See that class for details.
  */
 class TasksAppWidgetProvider : AppWidgetProvider() {
-
-    override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == ACTION_TOGGLE_TASK) {
-            val taskId = intent.getLongExtra(EXTRA_TASK_ID, -1L)
-            val targetDone = intent.getBooleanExtra(EXTRA_TARGET_DONE, false)
-            if (taskId != -1L) {
-                val pending = goAsync()
-                CoroutineScope(Dispatchers.IO).launch {
-                    runCatching { TaskRepository.create(context).setDone(taskId, targetDone) }
-                    TasksWidgetRefreshWorker.refreshNow(context)
-                    pending.finish()
-                }
-            }
-            return
-        }
-        if (intent.action == ACTION_DELETE_TASK) {
-            val taskId = intent.getLongExtra(EXTRA_TASK_ID, -1L)
-            if (taskId != -1L) {
-                val pending = goAsync()
-                CoroutineScope(Dispatchers.IO).launch {
-                    runCatching { TaskRepository.create(context).delete(taskId) }
-                    TasksWidgetRefreshWorker.refreshNow(context)
-                    pending.finish()
-                }
-            }
-            return
-        }
-        super.onReceive(context, intent)
-    }
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         TasksWidgetRefreshWorker.refreshNow(context)
@@ -91,19 +64,17 @@ class TasksAppWidgetProvider : AppWidgetProvider() {
     }
 
     companion object {
-        private const val ACTION_TOGGLE_TASK = "com.tileshell.feature.livetiles.widget.ACTION_TOGGLE_TASK"
-        private const val ACTION_DELETE_TASK = "com.tileshell.feature.livetiles.widget.ACTION_DELETE_TASK"
-        private const val EXTRA_TASK_ID = "task_id"
-        private const val EXTRA_TARGET_DONE = "target_done"
-
         /** listId for this widget instance's own independent checklist. */
         fun listIdFor(appWidgetId: Int): String = appWidgetId.toString()
 
         fun togglePendingIntent(context: Context, appWidgetId: Int, taskId: Long, targetDone: Boolean): PendingIntent {
-            val intent = Intent(context, TasksAppWidgetProvider::class.java)
-                .setAction(ACTION_TOGGLE_TASK)
-                .putExtra(EXTRA_TASK_ID, taskId)
-                .putExtra(EXTRA_TARGET_DONE, targetDone)
+            // Targets the private TaskWidgetActionReceiver, not this exported
+            // provider — see that class for why. A PendingIntent is dispatched
+            // with this app's own identity, so a non-exported target is fine.
+            val intent = Intent(context, TaskWidgetActionReceiver::class.java)
+                .setAction(TaskWidgetActionReceiver.ACTION_TOGGLE_TASK)
+                .putExtra(TaskWidgetActionReceiver.EXTRA_TASK_ID, taskId)
+                .putExtra(TaskWidgetActionReceiver.EXTRA_TARGET_DONE, targetDone)
             // requestCode combines the widget id and task id so two different
             // rows (or the same row on two different widgets) never collide
             // onto the same PendingIntent — PendingIntent equality ignores
@@ -117,9 +88,9 @@ class TasksAppWidgetProvider : AppWidgetProvider() {
         }
 
         fun deletePendingIntent(context: Context, appWidgetId: Int, taskId: Long): PendingIntent {
-            val intent = Intent(context, TasksAppWidgetProvider::class.java)
-                .setAction(ACTION_DELETE_TASK)
-                .putExtra(EXTRA_TASK_ID, taskId)
+            val intent = Intent(context, TaskWidgetActionReceiver::class.java)
+                .setAction(TaskWidgetActionReceiver.ACTION_DELETE_TASK)
+                .putExtra(TaskWidgetActionReceiver.EXTRA_TASK_ID, taskId)
             // Distinct action from togglePendingIntent already keeps these from
             // colliding even where the requestCode arithmetic overlaps — see
             // that function's own doc comment.

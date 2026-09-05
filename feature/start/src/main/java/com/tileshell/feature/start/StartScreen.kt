@@ -165,6 +165,7 @@ import com.tileshell.core.data.SportsTile
 import com.tileshell.core.data.StockTile
 import com.tileshell.core.data.hasNotesTile
 import com.tileshell.core.data.TileColors
+import com.tileshell.core.data.AppIconCache
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.shortcutIconDrawable
 import com.tileshell.core.data.TileSize
@@ -5239,13 +5240,20 @@ internal fun rememberTileAppIcon(packageName: String, activityName: String, size
             // A pinned app shortcut publishes its own icon and has no resolvable
             // ComponentName (see shortcutIconDrawable) — without this the tile
             // showed its parent app's icon instead.
+            // Process-wide cache: a scroll-recycle or a page swipe otherwise
+            // re-decodes the same icon from scratch every time. See AppIconCache.
+            val cacheKey = AppIconCache.iconCacheKey(packageName, activityName, sizePx)
+            AppIconCache[cacheKey]?.let { return@withContext it.asImageBitmap() }
             shortcutIconDrawable(context, packageName, activityName)?.let {
-                return@withContext it.toBitmap(width = sizePx, height = sizePx).asImageBitmap()
+                val bmp = it.toBitmap(width = sizePx, height = sizePx)
+                AppIconCache.put(cacheKey, bmp)
+                return@withContext bmp.asImageBitmap()
             }
             runCatching {
                 context.packageManager
                     .getActivityIcon(ComponentName(packageName, activityName))
                     .toBitmap(width = sizePx, height = sizePx)
+                    .also { AppIconCache.put(cacheKey, it) }
                     .asImageBitmap()
             }.recoverCatching {
                 // Some apps (Flipkart, Myntra, etc.) launch via a seasonal
@@ -5258,6 +5266,7 @@ internal fun rememberTileAppIcon(packageName: String, activityName: String, size
                 context.packageManager
                     .getApplicationIcon(packageName)
                     .toBitmap(width = sizePx, height = sizePx)
+                    .also { AppIconCache.put(cacheKey, it) }
                     .asImageBitmap()
             }.getOrNull()
         }
@@ -5273,19 +5282,33 @@ private data class IconSuggestion(val exact: Color, val nearestId: String)
  * beats white/grey chrome) and the nearest of the 14 accents. Null while the
  * icon is loading or it is effectively colourless.
  */
-/** The dominant colour of an app's launcher icon, for app-icon-colour mode (FR-7). */
+/**
+ * The dominant colour of an app's launcher icon, for app-icon-colour mode (FR-7).
+ *
+ * The scan runs on [Dispatchers.IO], not in a `remember` block. [dominantIconColor]
+ * walks every pixel, and `remember`'s calculation executes during composition on
+ * the main thread — so with app-icon colours on, every tile in the grid, every
+ * folder mini-grid cell and every rotated stack member paid for a full 96×96
+ * scan on the UI thread on first composition, and again on each scroll-recycle
+ * since nothing caches decoded icons. Keyed on the decoded bitmap, so it still
+ * runs once per decode; it just no longer runs where it can drop a frame.
+ */
 @Composable
 private fun rememberDominantIconColor(packageName: String, activityName: String): Color? {
     val icon = rememberTileAppIcon(packageName, activityName)
-    return remember(icon) { icon?.let { dominantIconColor(it) } }
+    return produceState<Color?>(null, icon) {
+        value = icon?.let { withContext(Dispatchers.IO) { dominantIconColor(it) } }
+    }.value
 }
 
 @Composable
 private fun rememberIconSuggestion(packageName: String, activityName: String): IconSuggestion? {
     val icon = rememberTileAppIcon(packageName, activityName)
-    return remember(icon) {
-        icon?.let { dominantIconColor(it) }?.let { IconSuggestion(it, TileAccents.nearestAccentId(it)) }
-    }
+    return produceState<IconSuggestion?>(null, icon) {
+        value = icon
+            ?.let { withContext(Dispatchers.IO) { dominantIconColor(it) } }
+            ?.let { IconSuggestion(it, TileAccents.nearestAccentId(it)) }
+    }.value
 }
 
 internal fun dominantIconColor(bitmap: ImageBitmap): Color? {

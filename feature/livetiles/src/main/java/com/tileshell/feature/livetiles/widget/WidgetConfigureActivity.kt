@@ -136,6 +136,22 @@ class WidgetConfigureActivity : ComponentActivity() {
             return
         }
 
+        // This activity is necessarily exported (the OS launches it via
+        // APPWIDGET_CONFIGURE), and it writes real user content — sticky-note
+        // text, a countdown target, a stock pick, a colour. Without this check
+        // any app could start it directly with a guessed appWidgetId belonging
+        // to an already-placed widget and rewrite that widget's configuration.
+        // Requiring the id to resolve to a widget whose provider is ours means
+        // an id we don't own is refused outright.
+        val ownedByUs = AppWidgetManager.getInstance(this)
+            .getAppWidgetInfo(appWidgetId)
+            ?.provider
+            ?.packageName == packageName
+        if (!ownedByUs) {
+            finish()
+            return
+        }
+
         val requiredStep = when (AppWidgetManager.getInstance(this).getAppWidgetInfo(appWidgetId)?.provider?.className) {
             CalendarSystemAppWidgetProvider::class.java.name -> RequiredStep.CALENDAR_SYSTEM
             StockAppWidgetProvider::class.java.name -> RequiredStep.STOCK
