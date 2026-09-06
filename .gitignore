@@ -21,7 +21,11 @@ key.properties
 # Claude Code local settings
 .claude/settings.local.json
 
-# APK/AAB outputs are under build/, already ignored
+# APK/AAB outputs are under build/, already ignored — except the signed
+# release artifacts we cut by hand, which live at the repo root and are not
+# covered by that rule. They are large (~100MB+ across versions) and are
+# reproducible from a tagged commit, so they don't belong in git.
+release-out/
 
 # Word lock/temp files
 ~$*

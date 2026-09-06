@@ -15,11 +15,15 @@ private val COMMODITY_HEADERS = mapOf(
  * (verified live), so it widens to a 5-day window at the same 15-minute
  * granularity; a currency pair trades enough hours to keep the 1-day window.
  */
-suspend fun fetchCommoditySparkline(symbol: String): List<Double> {
+// Cached/de-duplicated like the stock fetches — see QuoteCache. Distinct key
+// prefix from fetchStockSparkline: the commodity request uses a different range
+// for futures, so the two are not interchangeable for the same symbol.
+suspend fun fetchCommoditySparkline(symbol: String): List<Double> = QuoteCache.get("cspark:$symbol") {
     val range = if (isFuturesSymbol(symbol)) "5d" else "1d"
     val encoded = URLEncoder.encode(symbol, "UTF-8")
-    val body = httpGetText("$YAHOO_CHART_BASE_COMMODITY/$encoded?interval=15m&range=$range", COMMODITY_HEADERS) ?: return emptyList()
-    return parseSparklinePoints(body)
+    val body = httpGetText("$YAHOO_CHART_BASE_COMMODITY/$encoded?interval=15m&range=$range", COMMODITY_HEADERS)
+        ?: return@get emptyList()
+    parseSparklinePoints(body)
 }
 
 /** A commodity/currency quote — same shape and fetch path as [fetchStockQuote], just a semantic alias so call sites read clearly. */

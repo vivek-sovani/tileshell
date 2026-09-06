@@ -45,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -699,15 +700,25 @@ fun PersonalizeSheet(
                 // individually is prohibitively expensive (one RenderEffect layer per
                 // visible tile — tried it, caused an ANR).
                 if (currentBackground == TileBackgroundStyle.TRANSPARENT) {
+                    // Local draft so the thumb (and the % readout) track the
+                    // finger at frame rate. The persisted value is debounced
+                    // (StartViewModel's pendingSettingWrites) to avoid rewriting
+                    // the whole settings blob on every frame of the drag, so
+                    // binding straight to the persisted value would leave the
+                    // slider visibly stuck mid-gesture. Re-keyed on the persisted
+                    // value so an external change (reset tile style) still moves
+                    // the thumb; no write lands mid-drag, so this can't fight the
+                    // gesture.
+                    var transparencyDraft by remember(transparency) { mutableFloatStateOf(transparency) }
                     Spacer(Modifier.height(14.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("tile transparency", color = tokens.fgDim, fontSize = 13.sp)
-                        Text("${(transparency * 100).roundToInt()}%", color = tokens.fgDim, fontSize = 13.sp)
+                        Text("${(transparencyDraft * 100).roundToInt()}%", color = tokens.fgDim, fontSize = 13.sp)
                     }
                     Spacer(Modifier.height(4.dp))
                     Slider(
-                        value = transparency,
-                        onValueChange = onTransparencyChange,
+                        value = transparencyDraft,
+                        onValueChange = { transparencyDraft = it; onTransparencyChange(it) },
                         colors = SliderDefaults.colors(
                             thumbColor = accent,
                             activeTrackColor = accent,
@@ -738,9 +749,18 @@ fun PersonalizeSheet(
                             .size(22.dp)
                             .background(accent),
                     )
+                    // Local draft so the thumb tracks the finger at frame rate.
+                    // The persisted value is debounced (StartViewModel's
+                    // pendingSettingWrites) to avoid rewriting the whole settings
+                    // blob on every frame of the drag, so binding the Slider
+                    // straight to the persisted value would leave it visibly
+                    // stuck mid-gesture. Re-keyed on the persisted value so an
+                    // external change (reset tile style) still moves the thumb;
+                    // no write lands mid-drag, so this can't fight the gesture.
+                    var cornerDraft by remember(cornerRadius) { mutableFloatStateOf(cornerRadius) }
                     Slider(
-                        value = cornerRadius,
-                        onValueChange = onCornerRadiusChange,
+                        value = cornerDraft,
+                        onValueChange = { cornerDraft = it; onCornerRadiusChange(it) },
                         valueRange = 0f..20f,
                         colors = SliderDefaults.colors(
                             thumbColor = accent,
@@ -773,9 +793,18 @@ fun PersonalizeSheet(
                             Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
                             Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
                         }
+                    // Local draft so the thumb tracks the finger at frame rate.
+                    // The persisted value is debounced (StartViewModel's
+                    // pendingSettingWrites) to avoid rewriting the whole settings
+                    // blob on every frame of the drag, so binding the Slider
+                    // straight to the persisted value would leave it visibly
+                    // stuck mid-gesture. Re-keyed on the persisted value so an
+                    // external change (reset tile style) still moves the thumb;
+                    // no write lands mid-drag, so this can't fight the gesture.
+                        var gapDraft by remember(tileGap) { mutableFloatStateOf(tileGap) }
                         Slider(
-                            value = tileGap,
-                            onValueChange = onTileGapChange,
+                            value = gapDraft,
+                            onValueChange = { gapDraft = it; onTileGapChange(it) },
                             valueRange = 0f..16f,
                             colors = SliderDefaults.colors(
                                 thumbColor = accent,

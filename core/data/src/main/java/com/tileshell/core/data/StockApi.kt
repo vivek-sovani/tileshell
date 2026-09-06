@@ -97,16 +97,22 @@ internal fun parseStockSearchResults(body: String): List<StockSearchResult> = ru
     }
 }.getOrDefault(emptyList())
 
-suspend fun fetchStockQuote(symbol: String): StockQuote? {
+// Both go through QuoteCache, which collapses duplicate requests for the same
+// symbol — across widget instances within one refresh pass, and across the
+// widget worker, the Start tile and the glance card, all of which fetch
+// independently. See QuoteCache for why a TTL alone wasn't enough.
+suspend fun fetchStockQuote(symbol: String): StockQuote? = QuoteCache.get("quote:$symbol") {
     val encoded = URLEncoder.encode(symbol, "UTF-8")
-    val body = httpGetText("$YAHOO_CHART_BASE/$encoded?interval=1d&range=1d", YAHOO_HEADERS) ?: return null
-    return parseStockQuote(symbol, body, System.currentTimeMillis())
+    val body = httpGetText("$YAHOO_CHART_BASE/$encoded?interval=1d&range=1d", YAHOO_HEADERS)
+        ?: return@get null
+    parseStockQuote(symbol, body, System.currentTimeMillis())
 }
 
-suspend fun fetchStockSparkline(symbol: String): List<Double> {
+suspend fun fetchStockSparkline(symbol: String): List<Double> = QuoteCache.get("spark:$symbol") {
     val encoded = URLEncoder.encode(symbol, "UTF-8")
-    val body = httpGetText("$YAHOO_CHART_BASE/$encoded?interval=15m&range=1d", YAHOO_HEADERS) ?: return emptyList()
-    return parseSparklinePoints(body)
+    val body = httpGetText("$YAHOO_CHART_BASE/$encoded?interval=15m&range=1d", YAHOO_HEADERS)
+        ?: return@get emptyList()
+    parseSparklinePoints(body)
 }
 
 suspend fun fetchStockSearch(query: String): List<StockSearchResult> {

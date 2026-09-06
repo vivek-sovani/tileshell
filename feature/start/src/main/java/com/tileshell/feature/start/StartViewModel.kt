@@ -147,6 +147,30 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST,
     )
 
+    /**
+     * Drag-driven float settings (tile transparency, corner radius, tile gap)
+     * are debounced before they reach DataStore.
+     *
+     * Their sliders bind to `onValueChange`, not `onValueChangeFinished`, so
+     * the tiles behind the sheet preview the change live as the finger moves —
+     * which is the point, and worth keeping. But each setter is a bare
+     * `updateData`, so an un-debounced drag re-serialized and rewrote the
+     * *entire* LauncherSettings blob on every frame of the gesture, dozens of
+     * times per second. Debouncing coalesces that into one write once the value
+     * settles, exactly as [reorderRequests] already does for layout writes,
+     * while the in-memory StateFlow the UI reads still updates immediately.
+     */
+    // Latest pending write per setting key. Holding them in a map rather than
+    // relying on the flow's own conflation means a debounce triggered by one
+    // slider can never discard another slider's pending value — the tick just
+    // drains whatever is outstanding.
+    private val pendingSettingWrites = java.util.concurrent.ConcurrentHashMap<String, suspend () -> Unit>()
+
+    private val settingWrites = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 16,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST,
+    )
+
     /** True once the App-list page is the committed page. */
     private val _isAppList = MutableStateFlow(false)
     val isAppList: StateFlow<Boolean> = _isAppList.asStateFlow()
@@ -396,6 +420,9 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     @OptIn(kotlinx.coroutines.FlowPreview::class)
     private val debouncedReorders = reorderRequests.debounce(REORDER_DEBOUNCE_MS)
 
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
+    private val debouncedSettingWrites = settingWrites.debounce(SETTING_WRITE_DEBOUNCE_MS)
+
     init {
         viewModelScope.launch(writeContext) {
             repository.seedIfEmpty()
@@ -436,6 +463,14 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         seedUserNameFromProfileIfBlank()
         viewModelScope.launch(writeContext) {
             debouncedReorders.collect { repository.reorderTiles(it) }
+        }
+        viewModelScope.launch(writeContext) {
+            debouncedSettingWrites.collect {
+                // Drain every outstanding key, not just the one that triggered.
+                pendingSettingWrites.keys.toList().forEach { key ->
+                    pendingSettingWrites.remove(key)?.invoke()
+                }
+            }
         }
         launcherApps.registerCallback(packageCallback, Handler(Looper.getMainLooper()))
     }
@@ -763,7 +798,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Set the tile-transparency slider value 0..1 (FR-7). */
     fun setTransparency(transparency: Float) {
-        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setTransparency(transparency) }
+        queueSettingWrite("transparency") { settingsRepository.setTransparency(transparency) }
     }
 
     /** Toggle the blur-wallpaper effect (FR-7). */
@@ -918,12 +953,12 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Set the tile corner radius 0–12 dp. */
     fun setCornerRadius(radius: Float) {
-        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setCornerRadius(radius) }
+        queueSettingWrite("cornerRadius") { settingsRepository.setCornerRadius(radius) }
     }
 
     /** Set the inter-tile gap (0–16 dp). */
     fun setTileGap(gap: Float) {
-        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setTileGap(gap) }
+        queueSettingWrite("tileGap") { settingsRepository.setTileGap(gap) }
     }
 
     /** Switch the default tile colour source (global accent vs app-icon colour). */
@@ -1864,6 +1899,12 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private fun isCurrentUser(user: UserHandle?): Boolean =
         user == null || user == Process.myUserHandle()
 
+    /** See [pendingSettingWrites] — coalesces a slider drag into one persisted write. */
+    private fun queueSettingWrite(key: String, apply: suspend () -> Unit) {
+        pendingSettingWrites[key] = apply
+        settingWrites.tryEmit(Unit)
+    }
+
     private fun prunePackage(packageName: String) {
         viewModelScope.launch(writeContext) { repository.removeApp(packageName) }
     }
@@ -1875,6 +1916,13 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private companion object {
         /** Coalesce window for reorder commits (small enough to be invisible). */
         const val REORDER_DEBOUNCE_MS = 120L
+
+        /**
+         * Slider drags settle fast, so this only needs to outlast the gap
+         * between frames of a gesture — long enough to collapse a drag into one
+         * write, short enough that letting go feels instantly persisted.
+         */
+        const val SETTING_WRITE_DEBOUNCE_MS = 150L
 
         /** See [setHomeStyle]'s doc comment: seeded once, only from the 0f default. */
         const val ICONS_MODE_DEFAULT_CORNER_RADIUS = 4f

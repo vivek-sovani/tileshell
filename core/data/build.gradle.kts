@@ -38,4 +38,8 @@ dependencies {
     // Real org.json for unit tests (the android.jar stub throws "not mocked").
     // BackupManager serializes/deserializes JSON in the core data layer.
     testImplementation("org.json:json:20240303")
+    // runTest, for the suspend/concurrent behaviour in QuoteCache — its whole
+    // point is de-duplicating *concurrent* callers, which needs a real
+    // coroutine test scope to exercise.
+    testImplementation(libs.kotlinx.coroutines.test)
 }
