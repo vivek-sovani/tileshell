@@ -100,8 +100,15 @@ private val TaskAccent = Color(0xFF2B78E4)
 private fun TaskListScreen(repository: TaskRepository, listId: String, onChanged: () -> Unit) {
     var tasks by remember { mutableStateOf<List<TaskItem>>(emptyList()) }
     val scope = rememberCoroutineScope()
+    // Guarded: an uncaught exception inside a LaunchedEffect takes the Activity
+    // down, and this one is launched standalone by a foreign widget host —
+    // often in a memory-constrained process, which is exactly where
+    // CursorWindowAllocationException shows up. TileShellDatabase already
+    // self-heals *open-time* corruption, but a failure mid-query (that, or a
+    // SQLiteDatabaseLockedException from a concurrent write) is not covered by
+    // it. Falling back to the last-known list is far better than a crash.
     LaunchedEffect(listId) {
-        repository.tasks(listId).collect { tasks = it }
+        runCatching { repository.tasks(listId).collect { tasks = it } }
     }
 
     Column(

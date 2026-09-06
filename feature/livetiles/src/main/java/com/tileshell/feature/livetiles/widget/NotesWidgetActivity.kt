@@ -91,7 +91,8 @@ private fun NotesScreen(repository: NoteRepository, onChanged: () -> Unit) {
     var notes by remember { mutableStateOf<List<NoteItem>>(emptyList()) }
     var stage by remember { mutableStateOf<NotesStage>(NotesStage.List) }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) { repository.notes.collect { notes = it } }
+    // Guarded for the same reason as TaskListWidgetActivity's collect — see there.
+    LaunchedEffect(Unit) { runCatching { repository.notes.collect { notes = it } } }
 
     when (val current = stage) {
         NotesStage.List -> NotesListScreen(
@@ -108,9 +109,16 @@ private fun NotesScreen(repository: NoteRepository, onChanged: () -> Unit) {
         )
         is NotesStage.Edit -> {
             val note = notes.find { it.id == current.id }
-            if (note == null) {
-                stage = NotesStage.List
-            } else {
+            // The note being edited can disappear from under us — deleted from
+            // Start's own Notes sheet, or from another glance instance, while
+            // this editor is open. Fall back to the list, but do it in an
+            // effect: assigning to `stage` directly in the composable body is a
+            // state write during composition, which Compose explicitly
+            // discourages and which can misbehave rather than settle.
+            LaunchedEffect(current.id, note == null) {
+                if (note == null) stage = NotesStage.List
+            }
+            if (note != null) {
                 NoteEditScreen(
                     note = note,
                     onBack = { stage = NotesStage.List },
