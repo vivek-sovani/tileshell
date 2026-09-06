@@ -163,24 +163,87 @@ standalone Android `AppWidgetProvider`s installable from any launcher's own widg
 not just TileShell's; plus a round of App List improvements (pin an app's other sub-apps/
 shortcuts/widgets directly from its long-press menu) and assorted widget/UX fixes.*
 
+***Re-cut at the same `versionCode` (400).** 400 was built but never uploaded to Play, so
+nothing is burned and this replaces the earlier artifacts in place rather than becoming a
+4.0.1 — the same call made for the v3.2.0 re-cut. The re-cut exists because an audit pass
+over battery, speed, correctness and security found two **exported-receiver
+vulnerabilities** in this release's own new widgets, three silent data-loss bugs, a
+launcher-killing crash path, and a large amount of avoidable background work. **The
+previously built 4.0.0 APK/AAB must not be uploaded** — they contain the vulnerabilities.*
+
 *"What's new" — newest release first. Keep under Play's 500-character limit.*
 
 ```
 TileShell 4.0.0
 
 • New: 14 real Android home-screen widgets - weather, battery,
-  alarm, moon, steps, calendar systems, flashlight, stock,
-  commodities, sports, tasks, notes, sticky note & countdown -
-  usable on any launcher, not just TileShell
+  alarm, moon, steps, calendars, flashlight, stock, commodities,
+  sports, tasks, notes, sticky note & countdown - usable on any
+  launcher, not just TileShell
 • New: App List pins an app's sub-apps, shortcuts & widgets
-  right from its long-press menu, with real previews
-• Fixed: pinning sub-apps; faster battery/steps refresh
-• Renamed: "add widgets" -> "add live tiles"
+  from its long-press menu, with real previews
+• Improved: far lighter on battery - widgets wake much less
+  often, only when their data can change
+• Fixed: security, data-loss & crash fixes
 ```
 
-*(Character count 469, under Play's 500 limit.)*
+*(Character count 499, under Play's 500 limit.)*
 
 ### Full changelog since v3.6.0 (for reference — not the Play-facing blurb above)
+
+**Audit pass folded into the same versionCode 400 (see the note above).**
+
+*Security* — two exported widget receivers let **any installed app silently modify user
+data**. `TasksAppWidgetProvider` acted on a raw `task_id` from an incoming intent with no
+ownership check and no permission guard; Room task ids are small sequential integers, and
+the underlying delete/`setDone` has no list scoping, so a spoofed broadcast could complete
+or permanently delete any task in any list — no permission, no interaction, no UI.
+`FlashlightAppWidgetProvider` could likewise be spoofed to toggle the torch. An
+`AppWidgetProvider` must be exported (that is how the OS delivers `APPWIDGET_UPDATE`) and an
+*explicit* intent reaches an exported component regardless of its `intent-filter`, so both
+actions moved onto non-exported receivers; the widgets' own `PendingIntent`s still reach
+them because a `PendingIntent` dispatches with the app's own identity. `WidgetConfigureActivity`
+now also verifies the incoming `appWidgetId` resolves to a widget owned by this package
+before rewriting its configuration. Verified on a physical device: `cmd package
+query-receivers` for the delete action returns "No receivers found", and the placed widgets'
+live `PendingIntent`s target the new private receivers.
+
+*Data loss* — a package event in **another profile** deleted this profile's tiles (the
+`UserHandle` was ignored), and `onPackagesUnavailable` was treated as an uninstall even
+though it fires for a paused work profile or an unmounted SD card, with nothing restoring
+them. Creating a folder deleted **every tile sharing a package**, undoing this release's own
+multi-activity pinning. `displayAsIcon` was never written to a backup, so every restore
+reverted per-tile "show as tile" choices, and the change-detection hash ignored
+`accentOverride`/`displayAsIcon`, so a colour-only change hashed identically — "save now"
+reported success while taking no snapshot.
+
+*Crash* — a widget broadcast receiver ran `refreshNow()` outside its `runCatching` on a bare
+`CoroutineScope` with no exception handler; that call can throw in a cold widget-host
+process, and an uncaught throw there kills the Home process.
+
+*Battery* — nine widgets declared an OS update alarm **and** a WorkManager job doing the same
+refresh, doubling everything (weather fetched 4×/hour where 2 was intended); no widget worker
+had any `Constraints` at all, so the network ones woke offline to fail; moon phase, countdown
+and calendar system rebuilt every 30 minutes for a value that changes at midnight, and now run
+once daily aligned to it; the alarm widget is event-driven on `ACTION_NEXT_ALARM_CLOCK_CHANGED`;
+cricket's day-by-day lookback cost 31 sequential requests every 30 minutes for an out-of-season
+team and is now cached including the miss; stock and commodity follow the **market's** trading
+hours resolved from the symbol's exchange suffix instead of a fixed 9–4 in the device's
+timezone (which was backwards for anyone watching a foreign exchange, and throttled FX and
+futures through the hours they actually move); sports skips the network entirely unless a match
+is live; RSS feeds fetch concurrently rather than serially; quote fetches are de-duplicated
+across widgets, tiles and cards; and several in-app loops that kept running while off-screen
+were gated. Crucially, `ensureScheduled` only ever ran from `onEnabled` and used `KEEP`, so
+**none of these changes could reach an already-placed widget** — providers now re-assert their
+schedule on app update with `UPDATE`.
+
+*Also* — app shortcuts show their own icon rather than the parent app's; a shared app-icon
+cache (there was none, so every list scroll re-decoded); two per-pixel icon scans moved off the
+main thread; the RSS/Atom parser rejects DOCTYPEs (arbitrary user-supplied feed URLs were parsed
+with entity expansion enabled); turning the feed off now actually stops its background refresh,
+which previously had no `cancel()` at all and ran for the life of the install; slider drags no
+longer rewrite the whole settings blob per frame; and `tasks.listId` is indexed (schema v11 → v12).
+
 
 - **14 real, installable-anywhere home-screen widgets** — replaces the old glance-page-only
   "gadget" cards with genuine `AppWidgetProvider`s: weather, battery, alarm, moon phase, steps,

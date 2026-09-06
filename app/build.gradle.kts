@@ -400,6 +400,40 @@ android {
         //   Attempted, then parked (no user-facing change): themed/monochrome App List + Start
         //   icon rendering — built and reviewed on-device, found visually inconsistent since
         //   most apps ship no monochrome layer; disabled, code left dormant for a revisit.
+        //   --- re-cut at the same versionCode (400 was never uploaded to Play, so nothing is
+        //   burned) after an audit pass over battery, speed, correctness and security: ---
+        //   SECURITY: two exported widget receivers let any installed app silently modify user
+        //   data — TasksAppWidgetProvider acted on a raw task_id from an incoming intent with no
+        //   ownership check or permission guard (Room ids are small sequential integers, so
+        //   enumerable, and the delete/setDone path has no list scoping, reaching every list),
+        //   and FlashlightAppWidgetProvider could be spoofed to toggle the torch. An
+        //   AppWidgetProvider must be exported and an explicit intent reaches an exported
+        //   component regardless of its filters, so both actions moved to non-exported
+        //   receivers. WidgetConfigureActivity now also verifies the incoming appWidgetId
+        //   belongs to this package before rewriting a widget's config.
+        //   DATA LOSS: a package event in another profile deleted this profile's tiles (the
+        //   UserHandle was ignored, and "temporarily unavailable" — a paused work profile or an
+        //   unmounted SD card — was treated as an uninstall, with nothing restoring them);
+        //   creating a folder deleted every tile sharing a package, undoing this release's own
+        //   multi-activity pinning; displayAsIcon was never written to a backup so every restore
+        //   reverted it, and the change-detection hash ignored per-tile colour, so "save now"
+        //   reported success while taking no snapshot.
+        //   CRASH: a widget broadcast receiver ran refreshNow() outside its runCatching on a
+        //   bare CoroutineScope — an uncaught throw there kills the Home process.
+        //   BATTERY: nine widgets had both an OS update alarm and a WorkManager job doing the
+        //   same refresh (double everything); no widget worker had any Constraints; moon phase,
+        //   countdown and calendar system polled every 30 min for a value that changes at
+        //   midnight; the alarm widget is now event-driven; cricket's day-by-day lookback cost
+        //   31 sequential requests every 30 min for an out-of-season team and is now cached;
+        //   stock/commodity now follow the *market's* trading hours resolved from the symbol's
+        //   exchange suffix rather than a fixed 9-4 in the device's timezone; sports skips the
+        //   network entirely when no match is live; RSS feeds fetch concurrently instead of
+        //   serially; quote fetches are de-duplicated across widgets/tiles/cards; and several
+        //   in-app loops that kept running while off-screen were gated.
+        //   Also: schedule changes now actually reach already-placed widgets (ensureScheduled
+        //   only ever ran from onEnabled, and KEEP discarded the new spec); app shortcuts show
+        //   their own icon instead of the parent app's; the RSS parser rejects DOCTYPEs; and
+        //   tasks.listId is indexed (schema v11 -> v12).
         versionCode = 400
         versionName = "4.0.0"
     }
