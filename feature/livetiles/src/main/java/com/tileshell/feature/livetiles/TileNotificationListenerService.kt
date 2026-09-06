@@ -7,14 +7,34 @@ import android.graphics.Bitmap
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import androidx.core.graphics.drawable.toBitmap
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.launch
 
 /**
  * Mirrors the device's active notifications into [NotificationCenter] (FR-1.2
  * badges, FR-2 mail/messages faces). Opt-in: this only runs once the user grants
  * notification access in system settings (deep-linked from the personalize
  * sheet). Every post/removal recomputes the whole snapshot from
- * [getActiveNotifications] — cheap, and it keeps the count correct even if an
- * individual callback is missed.
+ * [getActiveNotifications], which keeps the count correct even if an individual
+ * callback is missed.
+ *
+ * That recompute is **debounced and moved off the main thread**. The comment
+ * here used to call it "cheap"; it isn't. Each pass walks the live notification
+ * array four times, and two of those decode and rescale bitmaps
+ * ([scaledTo]/image extraction) with no cache, so the same avatar is re-decoded
+ * every time. `NotificationListenerService` callbacks arrive on the main
+ * thread, and a burst — a busy group chat, a mail sync — fires one callback per
+ * notification, so N notifications meant N full recomputes with N rounds of
+ * bitmap work on the UI thread. Since TileShell *is* the home screen and is
+ * usually foregrounded, that showed up directly as jank. Coalescing a burst
+ * into a single recompute on a background dispatcher fixes both halves.
  *
  * Reconnect handling: Android may unbind the listener (low memory, app update).
  * [onListenerDisconnected] clears the snapshot — so badges/faces degrade
@@ -22,13 +42,41 @@ import androidx.core.graphics.drawable.toBitmap
  * republishes. Revoking access disconnects permanently, which is the graceful
  * opt-out.
  */
+@OptIn(FlowPreview::class)
 class TileNotificationListenerService : NotificationListenerService() {
+
+    // The service outlives any single callback, so it owns its own scope,
+    // cancelled in onDestroy.
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    // Conflated: a burst needs exactly one recompute, and it must reflect the
+    // state *after* the burst, so dropping intermediate signals is correct.
+    private val refreshSignals = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
+    override fun onCreate() {
+        super.onCreate()
+        scope.launch {
+            refreshSignals.debounce(REFRESH_DEBOUNCE_MS).collect {
+                runCatching { refresh() }
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        scope.cancel()
+        super.onDestroy()
+    }
 
     override fun onListenerConnected() {
         // Register so a tile tap can route through to cancelling this app's
         // notifications (FR-2 tap-to-open + clear).
         NotificationCenter.bindListener(this)
-        refresh()
+        // Immediate rather than debounced: on connect there is no burst to
+        // coalesce and the snapshot is empty, so badges should populate at once.
+        scope.launch { runCatching { refresh() } }
     }
 
     override fun onListenerDisconnected() {
@@ -38,10 +86,15 @@ class TileNotificationListenerService : NotificationListenerService() {
         runCatching { requestRebind(ComponentName(this, javaClass)) }
     }
 
-    override fun onNotificationPosted(sbn: StatusBarNotification?) = refresh()
+    override fun onNotificationPosted(sbn: StatusBarNotification?) {
+        refreshSignals.tryEmit(Unit)
+    }
 
-    override fun onNotificationRemoved(sbn: StatusBarNotification?) = refresh()
+    override fun onNotificationRemoved(sbn: StatusBarNotification?) {
+        refreshSignals.tryEmit(Unit)
+    }
 
+    /** Always invoked off the main thread — see the class doc. */
     private fun refresh() {
         // activeNotifications throws if the listener is not connected — guard it.
         val active = runCatching { activeNotifications }.getOrNull().orEmpty()
@@ -100,6 +153,15 @@ class TileNotificationListenerService : NotificationListenerService() {
                     }
             }
         return result
+    }
+
+    private companion object {
+        /**
+         * Long enough to swallow a notification burst (they arrive within a
+         * few tens of ms of each other), short enough that a lone
+         * notification's badge still looks instant.
+         */
+        const val REFRESH_DEBOUNCE_MS = 200L
     }
 }
 

@@ -724,7 +724,15 @@ fun StartScreen(
     // Two-finger swipe-down opens quick search — only while resting on Start with
     // nothing else already up (edit mode / a folder already disables swipeEnabled;
     // the sheet flags are checked directly since they don't touch it).
-    val restingAtStart = abs(progress.value) < 0.05f
+    // derivedStateOf, like appListShown/feedShown above — and for the same
+    // reason. Read plainly, this is a composition-time read of a value that
+    // changes every frame of a swipe, so it invalidated the whole StartScreen
+    // scope 60-120 times a second mid-gesture. It only feeds three booleans
+    // (quickSearch/quickPanel/edgeSwipe enablement) that flip once, when the
+    // pager crosses the threshold; every other progress.value read in this file
+    // is already deferred into a graphicsLayer block, which reads at draw time
+    // and never recomposes. This one line was the exception.
+    val restingAtStart by remember { derivedStateOf { abs(progress.value) < 0.05f } }
     val anySheetOpen = personalizeOpen || aboutOpen || historyOpen || backupOpen ||
         foldersOpen || hiddenAppsOpen || addWidgetsOpen || (tasksOpen != null) || notesOpen ||
         (stickyNoteEditTileId != null) || (countdownEditTileId != null) || (sportsEditTileId != null) || (stockEditTileId != null) ||
