@@ -4891,7 +4891,7 @@ private fun AppTileContent(
                 CountdownSmallFace(targetIsoDate = isoDate, modifier = Modifier.fillMaxSize())
                 return
             }
-            "steps" -> { StepsSmallFace(fallback = staticGlyph, modifier = Modifier.fillMaxSize()); return }
+            "steps" -> { StepsSmallFace(fallback = staticGlyph, active = liveActive, modifier = Modifier.fillMaxSize()); return }
             "stock" -> {
                 StockSmallFace(
                     selection = StockTile.decode(tile.activityName),
@@ -5044,7 +5044,7 @@ private fun AppTileContent(
             return
         }
         LiveFace.STEPS -> {
-            StepsTileFace(size = tile.size, fallback = staticGlyph, modifier = Modifier.fillMaxSize())
+            StepsTileFace(size = tile.size, fallback = staticGlyph, active = liveActive, modifier = Modifier.fillMaxSize())
             return
         }
         LiveFace.SPORTS -> {

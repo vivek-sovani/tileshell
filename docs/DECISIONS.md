@@ -3,6 +3,76 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Battery diagnosis: news feed's own re-fetch cadence, not widgets, was the real cost
+
+User asked to diagnose TileShell's battery use, suspecting the widget work
+from the last several sessions. Read straight off the physical device
+(`dumpsys batterystats --charged com.tileshell`), not guessed: TileShell was
+the day's #1-consuming app on the device (145 mAh of 2271 mAh total, just
+ahead of WhatsApp's 142), and of that, **65.8 mAh (45%) was `mobile_radio`**
+— 22m11s of radio-active time, 67 radio wakeups, 63 MB received in under
+8 hours on battery. CPU was 42.2 mAh (29%, only 6m46s of actual CPU time);
+screen was 36.0 mAh (inherent to being Home). Sensors measured essentially
+free (0.008 mAh) despite the step-counter sensor being registered 6h57m of
+the 7h41m on battery — worth fixing anyway (below), but not the story here.
+
+**Root cause, found by walking the periodic workers' own schedules**:
+`FeedRefreshWorker` re-downloads all 15 subscribed RSS feeds in full every
+30 minutes (48 cycles/day), whether or not the feed page has ever been
+opened, with no HTTP caching at all (`httpGetText` sent no
+`If-None-Match`/`If-Modified-Since`, so an unchanged feed's full body came
+back every single cycle). Stock/commodity/sports widget polling and article
+thumbnail re-fetches (no disk cache, only an in-memory `LruCache` that a
+process restart empties) are real but secondary contributors. Widget hosting
+itself (the actual subject of the user's suspicion) is not a meaningful
+battery cost on this device — every widget's own periodic worker is
+15 min–1 day, and only weather/stock/commodity/sports/feed even touch the
+network.
+
+**Fixes, user-approved (all four; nothing deferred this time)**:
+1. **Conditional GET for RSS** (`FeedWork.kt`) — `FeedData` gained a
+   `validators: Map<url, FeedValidator>` (etag/last-modified), round-tripped
+   by `FeedCodec`'s new `V` lines; `FeedArticle` gained `feedUrl` (`A` lines'
+   new 8th field, defaulting to `""` for an article cached before this
+   existed) so a `304` response's already-cached articles for that feed can
+   be reused verbatim instead of re-parsed from a re-sent body. A feed with
+   no attributable cached articles (the legacy-cache case) never sends a
+   validator, so a stray 304 can't strand it with nothing to show.
+2. **Skip the periodic tick entirely once idle** — new `FeedUsagePrefs`
+   (`:core:data`, same plain-`SharedPreferences` shape as `StepsPrefs`)
+   records when the feed page last actually became the *visible* page (not
+   merely composed — the pager can keep an adjacent page mounted off-screen),
+   via a `LaunchedEffect(active)` in `FeedPage.kt`. Pure
+   `shouldSkipIdleFeedRefresh(now, lastOpened, idleAfter = 6h)` gates only the
+   *periodic* `doWork` (a new `KEY_FORCE` input flag, same pattern
+   `StockWidgetRefreshWorker` already uses for its own market-hours skip) —
+   every one-off path (placement, a feed-list edit, manual "refresh") still
+   forces a real fetch, so opening the page always shows current content.
+   "Never opened" (0) also counts as idle, and a clock that jumps *backwards*
+   (manual change, timezone/NTP correction) reads as recent rather than idle,
+   so it can never freeze the feed until the clock catches up.
+3. **Bounded on-disk thumbnail cache** (`RemoteImage.kt`) — the raw downloaded
+   bytes (not just the decoded `Bitmap`) are now written under
+   `context.cacheDir/feed_images/<md5(url)>`, capped at 20 MB total
+   (oldest-touched-first eviction after every write, scanning the directory
+   fresh each time — negligible at feed-thumbnail volume). `cacheDir`
+   deliberately, not `filesDir`: this is purely a re-derivable network cache,
+   reclaimable by the OS under storage pressure with no real data loss.
+4. **Step-counter sensor gated on `active`** (`StepsTile.kt`) — the
+   `SensorEventListener` was registered for as long as a Steps tile/card
+   stayed *composed*, with no tie to whether it (or Start at all) was ever
+   actually on screen, unlike every other live tile's own
+   `rememberLiveTilesActive`-driven gate; `StepsTileFace`/`StepsSmallFace`
+   gained an `active: Boolean = true` param (both call sites now pass the
+   same `liveActive` every sibling face already receives) and the
+   registration is also batched (`maxReportLatencyUs` = 60s) so the sensor
+   hardware can queue readings instead of waking the AP for every sample.
+   Measured cost was zero on the diagnosed device (Samsung offloads
+   `step_counter` to its sensor hub), but a plain always-on AP-side
+   registration is real, unnecessary battery risk on any device without that
+   offload — fixed as a real (if here-invisible) bug, not left merely
+   harmless-on-this-hardware.
+
 ## Weather tile/widget location: ask, or pick a place — multiple instances each follow their own
 
 User-requested: "when weather tile and widget is added, ask for current

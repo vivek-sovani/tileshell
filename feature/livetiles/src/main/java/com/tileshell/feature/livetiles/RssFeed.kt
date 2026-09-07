@@ -18,6 +18,18 @@ data class FeedArticle(
     val tag: String,
     val imageUrl: String?,
     val publishedAtMillis: Long,
+    /**
+     * The subscribed [FeedSource.url] this article came from — not the same thing
+     * as [source], which is the *channel's own* title (feeds routinely name
+     * themselves differently from the URL they're subscribed under, and several
+     * feeds can share one channel title). Needed so a conditional refresh can
+     * keep exactly the articles belonging to a feed that answered
+     * `304 Not Modified` without re-downloading it (see `FeedRefreshWorker`).
+     * Defaults to empty for an article decoded from a cache file written before
+     * this field existed; the refresh path never sends a validator for a feed it
+     * has no attributable articles for, so a 304 can't strand a legacy entry.
+     */
+    val feedUrl: String = "",
 )
 
 /**
@@ -283,7 +295,7 @@ fun feedAgo(publishedMillis: Long, nowMillis: Long = System.currentTimeMillis())
  * [sourceName] labels each article (the channel/feed title wins when present).
  * Any parse failure yields an empty list — a broken feed degrades to "no articles".
  */
-fun parseFeed(xml: String, sourceName: String): List<FeedArticle> = runCatching {
+fun parseFeed(xml: String, sourceName: String, feedUrl: String = ""): List<FeedArticle> = runCatching {
     // Hardened: feeds are arbitrary third-party URLs (the user can add any
     // custom feed), so this parses genuinely untrusted XML. RSS and Atom never
     // need a DOCTYPE, and allowing one exposes entity-expansion ("billion
@@ -310,11 +322,11 @@ fun parseFeed(xml: String, sourceName: String): List<FeedArticle> = runCatching 
     val items = doc.getElementsByTagName("item")
     val nodes = if (items.length > 0) items else doc.getElementsByTagName("entry")
     (0 until nodes.length).mapNotNull { i ->
-        (nodes.item(i) as? Element)?.let { articleFrom(it, label) }
+        (nodes.item(i) as? Element)?.let { articleFrom(it, label, feedUrl) }
     }
 }.getOrDefault(emptyList())
 
-private fun articleFrom(item: Element, source: String): FeedArticle? {
+private fun articleFrom(item: Element, source: String, feedUrl: String): FeedArticle? {
     val title = stripHtml(childText(item, "title"))
     if (title.isEmpty()) return null
     val link = linkOf(item)
@@ -330,6 +342,7 @@ private fun articleFrom(item: Element, source: String): FeedArticle? {
         tag = tag ?: "news",
         imageUrl = imageOf(item),
         publishedAtMillis = date,
+        feedUrl = feedUrl,
     )
 }
 

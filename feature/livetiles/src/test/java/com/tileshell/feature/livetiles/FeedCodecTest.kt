@@ -48,6 +48,41 @@ class FeedCodecTest {
     }
 
     @Test
+    fun `an article's owning feed url round-trips`() {
+        val data = FeedData(
+            articles = listOf(
+                FeedArticle("Title", "https://a.com/1", "A News", "tech", null, 1234L, feedUrl = "https://a.com/rss"),
+            ),
+        )
+        assertEquals("https://a.com/rss", FeedCodec.decode(FeedCodec.encode(data)).articles.single().feedUrl)
+    }
+
+    @Test
+    fun `an article cached before feedUrl existed decodes to a blank one, not a crash`() {
+        // No trailing 8th field — exactly what an older cache file on disk looks like.
+        val decoded = FeedCodec.decode("A\ttitle\tlink\tsrc\ttag\t\t100")
+        assertEquals("", decoded.articles.single().feedUrl)
+    }
+
+    @Test
+    fun `per-feed validators round-trip, and a blank one isn't written at all`() {
+        val data = FeedData(
+            validators = mapOf(
+                "https://a.com/rss" to FeedValidator(etag = "\"abc123\"", lastModified = "Mon, 01 Jan 2026 00:00:00 GMT"),
+                "https://b.com/rss" to FeedValidator(etag = "", lastModified = ""),
+            ),
+        )
+        val encoded = FeedCodec.encode(data)
+        val decoded = FeedCodec.decode(encoded)
+        assertEquals(
+            FeedValidator(etag = "\"abc123\"", lastModified = "Mon, 01 Jan 2026 00:00:00 GMT"),
+            decoded.validators.getValue("https://a.com/rss"),
+        )
+        assertTrue("a fully-blank validator must not round-trip as a real entry", "https://b.com/rss" !in decoded.validators)
+        assertTrue("a fully-blank validator has nothing worth an encoded line for", "https://b.com/rss" !in encoded)
+    }
+
+    @Test
     fun `regions round-trip, multiple at once, and are omitted when unset`() {
         val withRegions = FeedData(regions = setOf("INTL", "US"))
         assertEquals(setOf("INTL", "US"), FeedCodec.decode(FeedCodec.encode(withRegions)).regions)

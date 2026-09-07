@@ -23,14 +23,32 @@ data class FeedData(
     val sources: List<FeedSource> = DEFAULT_FEED_SOURCES,
     val articles: List<FeedArticle> = emptyList(),
     val regions: Set<String> = emptySet(),
+    /**
+     * Per-feed HTTP cache validators (`ETag` / `Last-Modified`), keyed by
+     * [FeedSource.url] — what makes the refresh a *conditional* GET, so a feed
+     * with nothing new answers `304 Not Modified` (a few hundred header bytes)
+     * instead of re-sending its whole body every 30 minutes. Only written after
+     * a real 200, and only for feeds whose articles were stored alongside them.
+     */
+    val validators: Map<String, FeedValidator> = emptyMap(),
 )
+
+/**
+ * One feed's HTTP cache validators, as the server last gave them. Either may be
+ * blank (plenty of feeds send only one of the two); a fully blank pair is never
+ * stored, since it would make the next request unconditional anyway.
+ */
+data class FeedValidator(val etag: String = "", val lastModified: String = "") {
+    val isEmpty: Boolean get() = etag.isBlank() && lastModified.isBlank()
+}
 
 /**
  * Tab-delimited, line-oriented codec for [FeedData], mirroring the project's other
  * flat codecs (DECISIONS S17/S21): pure, JVM-testable, tolerant — malformed lines
  * are skipped. `S` lines are sources (`S<TAB>enabled<TAB>url<TAB>name`); `A` lines
- * are cached articles. Field values have tabs/newlines stripped on encode so each
- * record stays on one line and splits back cleanly.
+ * are cached articles; `V` lines are per-feed HTTP validators. Field values have
+ * tabs/newlines stripped on encode so each record stays on one line and splits
+ * back cleanly.
  */
 object FeedCodec {
     private const val TAB = "\t"
@@ -48,6 +66,13 @@ object FeedCodec {
             append("A").append(TAB).append(clean(a.title)).append(TAB).append(clean(a.link))
                 .append(TAB).append(clean(a.source)).append(TAB).append(clean(a.tag))
                 .append(TAB).append(clean(a.imageUrl)).append(TAB).append(a.publishedAtMillis)
+                .append(TAB).append(clean(a.feedUrl))
+                .append('\n')
+        }
+        data.validators.forEach { (url, v) ->
+            if (v.isEmpty) return@forEach
+            append("V").append(TAB).append(clean(url))
+                .append(TAB).append(clean(v.etag)).append(TAB).append(clean(v.lastModified))
                 .append('\n')
         }
     }
@@ -56,6 +81,7 @@ object FeedCodec {
         val sources = ArrayList<FeedSource>()
         val articles = ArrayList<FeedArticle>()
         val regions = LinkedHashSet<String>()
+        val validators = LinkedHashMap<String, FeedValidator>()
         text.lineSequence().forEach { line ->
             if (line.isBlank()) return@forEach
             val f = line.split(TAB)
@@ -79,12 +105,19 @@ object FeedCodec {
                             tag = f[4],
                             imageUrl = f[5].ifEmpty { null },
                             publishedAtMillis = f[6].toLongOrNull() ?: 0L,
+                            // Absent in cache files written before articles
+                            // recorded their owning feed — see FeedArticle.feedUrl.
+                            feedUrl = f.getOrNull(7).orEmpty(),
                         ),
                     )
                 }
+                "V" -> if (f.size >= 3 && f[1].isNotEmpty()) {
+                    val v = FeedValidator(etag = f.getOrNull(2).orEmpty(), lastModified = f.getOrNull(3).orEmpty())
+                    if (!v.isEmpty) validators[f[1]] = v
+                }
             }
         }
-        return FeedData(sources = sources, articles = articles, regions = regions)
+        return FeedData(sources = sources, articles = articles, regions = regions, validators = validators)
     }
 }
 
@@ -111,8 +144,14 @@ class FeedStore(private val store: DataStore<FeedData>) {
 
     suspend fun read(): FeedData = store.data.first()
 
-    suspend fun setArticles(articles: List<FeedArticle>) {
-        store.updateData { it.copy(articles = articles) }
+    /**
+     * Stores a refresh's result: the merged article list, plus the validators to
+     * send on the next cycle ([FeedData.validators]) — replaced wholesale rather
+     * than merged, so a feed the user has since unsubscribed from stops carrying
+     * a stale validator around forever.
+     */
+    suspend fun setArticles(articles: List<FeedArticle>, validators: Map<String, FeedValidator> = emptyMap()) {
+        store.updateData { it.copy(articles = articles, validators = validators) }
     }
 
     suspend fun addSource(url: String, name: String) {

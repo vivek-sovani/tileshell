@@ -90,6 +90,7 @@ import com.tileshell.core.design.LocalColorTokens
 import com.tileshell.feature.start.dominantIconColor
 import com.tileshell.feature.start.rememberChosenWallpaperIsLight
 import com.tileshell.feature.start.rememberWallpaperBitmap
+import com.tileshell.core.data.FeedUsagePrefs
 import com.tileshell.feature.livetiles.CalendarFace
 import com.tileshell.feature.livetiles.FeedArticle
 import com.tileshell.feature.livetiles.FeedData
@@ -239,6 +240,11 @@ fun FeedPage(
     val feedStore = remember(context) { FeedStore.create(context) }
     val feedData by feedStore.data.collectAsStateWithLifecycle(initialValue = FeedData())
     LaunchedEffect(Unit) { FeedRefreshWorker.ensureScheduled(context) }
+    // Records when the page was actually looked at (not merely composed — the
+    // pager can keep an adjacent page mounted off-screen), so the periodic
+    // refresh can stop fetching for a feed nobody's opened in hours. See
+    // FeedUsagePrefs/shouldSkipIdleFeedRefresh.
+    LaunchedEffect(active) { if (active) FeedUsagePrefs.markOpened(context) }
 
     // Today's agenda (reuse the calendar query); empty until READ_CALENDAR is granted.
     val calGranted = rememberPermissionGranted(Manifest.permission.READ_CALENDAR)

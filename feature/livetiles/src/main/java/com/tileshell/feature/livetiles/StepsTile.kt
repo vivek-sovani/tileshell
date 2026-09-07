@@ -101,14 +101,36 @@ private val FaceText: Color
     @Composable get() = LocalTileFaceColor.current
 
 /**
- * Listens to the raw step-counter sensor while composed, resolving each
- * reading against the persisted baseline (see [resolveSteps]) and writing
- * the baseline back only when it actually changes (a fresh reading on the
- * same day never needs a write). Returns null before the first sensor event
- * arrives, or when there's no step sensor on this device at all.
+ * How long the step-counter's own hardware (a Sensor Hub coprocessor on most
+ * devices, confirmed via `dumpsys sensorservice` reporting a non-zero
+ * `batching_period` for this sensor on real hardware) may batch readings
+ * before waking the AP to deliver them. Passed as `maxReportLatencyUs` on
+ * [SensorManager.registerListener] — this tile only ever needs "today's
+ * count," never per-step timing, so there's no reason to wake for every
+ * single sample the way [SensorManager.SENSOR_DELAY_NORMAL] alone implies.
+ */
+private const val STEPS_BATCH_LATENCY_US = 60_000_000
+
+/**
+ * Listens to the raw step-counter sensor while composed *and* [active],
+ * resolving each reading against the persisted baseline (see [resolveSteps])
+ * and writing the baseline back only when it actually changes (a fresh
+ * reading on the same day never needs a write). Returns null before the
+ * first sensor event arrives, or when there's no step sensor on this device.
+ *
+ * [active] mirrors every other live tile's own gate (edit mode, app list,
+ * battery saver, animations off — see `rememberLiveTilesActive`), which this
+ * one had never actually received: a real on-device battery diagnosis found
+ * the sensor registered essentially the entire time on battery (6h57m of
+ * 7h41m) regardless of whether Start — let alone a Steps tile specifically —
+ * was ever on screen, since the listener was tied only to composition, not
+ * to visibility. Measured cost on that device was negligible (this sensor is
+ * hub-offloaded there), but a plain always-on AP-side registration is real,
+ * unnecessary battery risk on any device without that offload, so this fixes
+ * the actual bug rather than leaving it merely harmless-here.
  */
 @Composable
-private fun rememberStepsToday(): Int? {
+private fun rememberStepsToday(active: Boolean): Int? {
     val context = LocalContext.current
     val sensorManager = remember(context) {
         context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
@@ -116,8 +138,8 @@ private fun rememberStepsToday(): Int? {
     val sensor = remember(sensorManager) { sensorManager?.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) }
     var steps by remember { mutableStateOf<Int?>(null) }
 
-    DisposableEffect(sensorManager, sensor) {
-        if (sensorManager == null || sensor == null) return@DisposableEffect onDispose {}
+    DisposableEffect(sensorManager, sensor, active) {
+        if (sensorManager == null || sensor == null || !active) return@DisposableEffect onDispose {}
         val listener = object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent) {
                 val counter = event.values.firstOrNull() ?: return
@@ -131,7 +153,9 @@ private fun rememberStepsToday(): Int? {
 
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
         }
-        runCatching { sensorManager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL) }
+        runCatching {
+            sensorManager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL, STEPS_BATCH_LATENCY_US)
+        }
         onDispose { sensorManager.unregisterListener(listener) }
     }
     return steps
@@ -249,11 +273,16 @@ private fun StepsPermissionGate(granted: Boolean) {
  * putting on a back side.
  */
 @Composable
-fun StepsTileFace(size: TileSize, fallback: @Composable () -> Unit, modifier: Modifier = Modifier) {
+fun StepsTileFace(
+    size: TileSize,
+    fallback: @Composable () -> Unit,
+    active: Boolean = true,
+    modifier: Modifier = Modifier,
+) {
     val granted = rememberPermissionGranted(Manifest.permission.ACTIVITY_RECOGNITION)
     StepsPermissionGate(granted)
     if (!granted) return fallback()
-    val steps = rememberStepsToday() ?: return fallback()
+    val steps = rememberStepsToday(active) ?: return fallback()
 
     val narrow = size.narrowLive
     val short = size.shortLive
@@ -319,11 +348,15 @@ private fun StepsGoalBar(progress: Float) {
 
 /** The compact 1×1 face (ICONS home style / SMALL tile): just the step count. */
 @Composable
-fun StepsSmallFace(fallback: @Composable () -> Unit, modifier: Modifier = Modifier) {
+fun StepsSmallFace(
+    fallback: @Composable () -> Unit,
+    active: Boolean = true,
+    modifier: Modifier = Modifier,
+) {
     val granted = rememberPermissionGranted(Manifest.permission.ACTIVITY_RECOGNITION)
     StepsPermissionGate(granted)
     if (!granted) return fallback()
-    val steps = rememberStepsToday() ?: return fallback()
+    val steps = rememberStepsToday(active) ?: return fallback()
 
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(

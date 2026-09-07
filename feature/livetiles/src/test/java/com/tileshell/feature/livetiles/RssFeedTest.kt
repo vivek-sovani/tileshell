@@ -59,6 +59,17 @@ class RssFeedTest {
     }
 
     @Test
+    fun `every article records the feed url it was fetched from`() {
+        val articles = parseFeed(rss, "fallback", feedUrl = "https://thehindu.com/feed/")
+        assertTrue(articles.all { it.feedUrl == "https://thehindu.com/feed/" })
+    }
+
+    @Test
+    fun `feed url defaults to blank when the caller doesn't pass one`() {
+        assertEquals("", parseFeed(rss, "fallback").first().feedUrl)
+    }
+
+    @Test
     fun `parses atom entries with href link and fallback source`() {
         val articles = parseFeed(atom, "fallback")
         assertEquals(1, articles.size)

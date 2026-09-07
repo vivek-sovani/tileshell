@@ -1,5 +1,6 @@
 package com.tileshell.feature.start.feed
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
@@ -11,10 +12,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 
 // Small process-wide cache of decoded thumbnails so a slide back to the feed (or a
 // recompose) doesn't refetch. Bounded by count — thumbnails are small.
@@ -23,15 +27,21 @@ private val thumbnailCache = LruCache<String, Bitmap>(48)
 /**
  * Loads and decodes a remote article thumbnail [url] off the main thread, returning
  * null until it is ready (and on any failure, so the card degrades to no image).
- * Decoded bitmaps are cached process-wide by URL. No third-party image library —
- * a plain `HttpURLConnection` + `BitmapFactory`, downsampled to a sensible width.
+ * Decoded bitmaps are cached process-wide by URL (in memory) and the downloaded
+ * bytes are cached on disk ([diskCacheGet]/[diskCachePut]) — added after a real
+ * on-device battery diagnosis found the news feed's own refresh cadence to be a
+ * large contributor to TileShell's own radio time; thumbnails are re-fetched over
+ * the network only once, ever, per url, not once per cold process. No third-party
+ * image library — a plain `HttpURLConnection` + `BitmapFactory`, downsampled to a
+ * sensible width.
  */
 @Composable
 fun rememberRemoteImage(url: String?): ImageBitmap? {
+    val context = LocalContext.current
     var bitmap by remember(url) { mutableStateOf(url?.let { thumbnailCache.get(it) }) }
     LaunchedEffect(url) {
         if (url.isNullOrBlank() || bitmap != null) return@LaunchedEffect
-        val decoded = withContext(Dispatchers.IO) { fetchBitmap(url) }
+        val decoded = withContext(Dispatchers.IO) { fetchBitmap(context, url) }
         if (decoded != null) {
             thumbnailCache.put(url, decoded)
             bitmap = decoded
@@ -40,8 +50,10 @@ fun rememberRemoteImage(url: String?): ImageBitmap? {
     return bitmap?.asImageBitmap()
 }
 
-private fun fetchBitmap(rawUrl: String): Bitmap? = runCatching {
-    val bytes = readBytesFollowingRedirects(rawUrl) ?: return null
+private fun fetchBitmap(context: Context, rawUrl: String): Bitmap? = runCatching {
+    val bytes = diskCacheGet(context, rawUrl)
+        ?: readBytesFollowingRedirects(rawUrl)?.also { diskCachePut(context, rawUrl, it) }
+        ?: return null
     // Downsample to ~720px wide — feed cards are ≤ screen width.
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
@@ -90,4 +102,57 @@ private fun sampleSizeFor(srcWidth: Int, targetWidth: Int): Int {
     var sample = 1
     while (srcWidth / (sample * 2) >= targetWidth) sample *= 2
     return sample
+}
+
+// -- Bounded on-disk cache -----------------------------------------------------
+//
+// Lives under Context.cacheDir (not filesDir): this is purely a re-derivable
+// network cache, exactly the kind of content cacheDir exists for — the OS can
+// reclaim it under storage pressure with no data loss, unlike filesDir.
+
+private const val DISK_CACHE_SUBDIR = "feed_images"
+private const val DISK_CACHE_MAX_BYTES = 20L * 1024 * 1024
+
+private fun diskCacheDir(context: Context): File =
+    File(context.cacheDir, DISK_CACHE_SUBDIR).apply { mkdirs() }
+
+/** Filesystem-safe, fixed-length key for an arbitrary image URL. */
+private fun cacheKeyFor(url: String): String =
+    MessageDigest.getInstance("MD5").digest(url.toByteArray()).joinToString("") { "%02x".format(it) }
+
+private fun diskCacheGet(context: Context, url: String): ByteArray? {
+    val file = File(diskCacheDir(context), cacheKeyFor(url))
+    if (!file.isFile) return null
+    return runCatching {
+        // Touch on read so eviction below is genuine least-recently-*used*,
+        // not just least-recently-*downloaded*.
+        file.setLastModified(System.currentTimeMillis())
+        file.readBytes()
+    }.getOrNull()
+}
+
+private fun diskCachePut(context: Context, url: String, bytes: ByteArray) {
+    runCatching {
+        val dir = diskCacheDir(context)
+        File(dir, cacheKeyFor(url)).writeBytes(bytes)
+        trimDiskCache(dir)
+    }
+}
+
+/**
+ * Evicts oldest-touched files once the cache directory's total size exceeds
+ * [DISK_CACHE_MAX_BYTES]. Run inline after every write rather than on a
+ * schedule — at feed-thumbnail volume (a few dozen images a day, each well
+ * under 100 KB) an extra directory listing per write is negligible, and it
+ * keeps the cache self-bounding with no separate cleanup job to maintain.
+ */
+private fun trimDiskCache(dir: File) {
+    val files = dir.listFiles() ?: return
+    var total = files.sumOf { it.length() }
+    if (total <= DISK_CACHE_MAX_BYTES) return
+    files.sortedBy { it.lastModified() }.forEach { file ->
+        if (total <= DISK_CACHE_MAX_BYTES) return
+        total -= file.length()
+        file.delete()
+    }
 }
