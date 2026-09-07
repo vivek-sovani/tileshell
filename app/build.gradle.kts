@@ -434,6 +434,19 @@ android {
         //   only ever ran from onEnabled, and KEEP discarded the new spec); app shortcuts show
         //   their own icon instead of the parent app's; the RSS parser rejects DOCTYPEs; and
         //   tasks.listId is indexed (schema v11 -> v12).
+        //   RENDERING: StartScreen read the pager's per-frame progress value plainly in the
+        //   composable body (for restingAtStart), so every frame of every swipe invalidated the
+        //   whole StartScreen scope — to derive three booleans that only flip at a threshold;
+        //   every other read of it was already deferred into a graphicsLayer block or wrapped in
+        //   derivedStateOf. And TileNotificationListenerService recomputed the entire snapshot
+        //   synchronously on the main thread on every notification post AND removal with no
+        //   debouncing, decoding/rescaling avatars uncached — so a burst meant N recomputes and
+        //   N rounds of bitmap work on the UI thread, on the home screen; now coalesced to one
+        //   recompute per 200ms on a background dispatcher.
+        //   Also: the two standalone widget editors collected a Room Flow inside a
+        //   LaunchedEffect with no guard (an uncaught throw there kills the Activity, and both
+        //   run in a foreign widget host's process), and NotesWidgetActivity reset its stage by
+        //   writing state during composition when the open note was deleted elsewhere.
         versionCode = 400
         versionName = "4.0.0"
     }

@@ -182,12 +182,12 @@ TileShell 4.0.0
   launcher, not just TileShell
 • New: App List pins an app's sub-apps, shortcuts & widgets
   from its long-press menu, with real previews
-• Improved: far lighter on battery - widgets wake much less
-  often, only when their data can change
+• Improved: far lighter on battery, smoother swiping, no
+  hitches on notification bursts
 • Fixed: security, data-loss & crash fixes
 ```
 
-*(Character count 499, under Play's 500 limit.)*
+*(Character count 488, under Play's 500 limit.)*
 
 ### Full changelog since v3.6.0 (for reference — not the Play-facing blurb above)
 
@@ -236,6 +236,34 @@ across widgets, tiles and cards; and several in-app loops that kept running whil
 were gated. Crucially, `ensureScheduled` only ever ran from `onEnabled` and used `KEEP`, so
 **none of these changes could reach an already-placed widget** — providers now re-assert their
 schedule on app update with `UPDATE`.
+
+*Rendering* — two confirmed jank sources. `StartScreen` read the pager's
+per-frame `progress` value plainly in the composable body to derive
+`restingAtStart`, so **every frame of every swipe invalidated the entire
+StartScreen scope** — for three booleans that only flip when the pager crosses a
+threshold. Every other read of that value in the file was already deferred into
+a `graphicsLayer` block (draw-time, no recomposition) or wrapped in
+`derivedStateOf`; this one line was the exception, and it sat on the
+Start-to-app-list swipe, one of the two most-used gestures in a launcher.
+Separately, `TileNotificationListenerService` recomputed the whole snapshot
+**synchronously on the main thread** on every notification post *and* removal,
+with no debouncing — four passes over the live array, two of them decoding and
+rescaling avatars with no cache. A burst (a busy group chat, a mail sync) fires
+one callback per notification, so N notifications meant N full recomputes and N
+rounds of bitmap work on the UI thread, on the home screen. Now coalesced
+through a conflated flow with a 200 ms debounce, collected on a background
+dispatcher; connect still refreshes immediately, since there is no burst to
+coalesce and the snapshot is empty. Verified on-device that badges stayed live
+and accurate after the move off the main thread.
+
+*Also* — the two standalone widget editors (`TaskListWidgetActivity`,
+`NotesWidgetActivity`) collected a Room `Flow` inside a `LaunchedEffect` with no
+guard; an uncaught exception there takes the Activity down, and both are launched
+by a foreign widget host, often in a memory-constrained process — exactly where
+`CursorWindowAllocationException` appears. The database already self-heals
+corruption at *open* time, but not a failure mid-query. `NotesWidgetActivity`
+also reset its stage by assigning to state directly during composition when the
+open note was deleted elsewhere; that moved into an effect.
 
 *Also* — app shortcuts show their own icon rather than the parent app's; a shared app-icon
 cache (there was none, so every list scroll re-decoded); two per-pixel icon scans moved off the
