@@ -3,6 +3,55 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## "Set default launcher" prompt fired repeatedly even though TileShell was the sole default
+
+User-reported, "observed on many devices": the auto-prompt (`MainActivity`'s
+`DefaultLauncherPrompt`, `LaunchedEffect(Unit)` per fresh process) kept
+re-asking to set TileShell as default even when it plainly already was. Asked
+to debug it and remove the feature entirely if no real bug turned up — a real
+one did, so it's fixed instead of removed.
+
+**Two things had to line up for this to read as "frequent," and both check
+out**: (1) `DefaultLauncher.isDefault()` only ever fires once per fresh
+`MainActivity` process (`singleTask` launch mode means an ordinary Home
+press reuses the running task via `onNewIntent`, never a new `onCreate`) —
+but `MainActivity` also declares `android:stateNotNeeded="true"`, and as the
+device's actual Home app it sits backgrounded almost the entire time the
+user is in any other app, which is exactly the process shape Android is most
+willing to trim under memory pressure. A killed-and-recreated Home process
+re-runs the check from scratch. On the "many devices" reporting this, that
+recreation is apparently frequent — plausible on the OEM skins known for
+aggressive background-process policies (Samsung/Xiaomi/OnePlus among them).
+(2) Each of those fresh evaluations used to trust *only*
+`RoleManager.isRoleHeld(ROLE_HOME)` on API 29+. That's the precise, intended
+check on stock AOSP, but several OEM "default apps" screens manage the Home
+choice through their own preferred-activity bookkeeping without reliably
+keeping `RoleManager`'s role-holder state in sync with it — so the role can
+read "not held" on exactly the OEM builds in question, even while the
+device's own Home-activity resolution (`resolveActivity` against a HOME
+intent — the only check this function ever used pre-Q) already agrees
+TileShell is what actually opens on a Home press. One stale "not held" is
+then enough, combined with (1), to re-surface the prompt repeatedly over a
+day on the same device that's genuinely never switched away from TileShell.
+
+**Fix**: `isDefault()` now treats the role check and the resolved-activity
+check as corroborating rather than either/or — RoleManager is still asked
+first (nothing here removes a signal that the role is genuinely held), but a
+"not held" answer is cross-checked against the actual resolved HOME activity
+before concluding "not default." Either signal saying TileShell is enough.
+The asymmetry is deliberate: a false "still not default" causing a repeating,
+user-visible nag is the reported bug; the reverse mistake (treating a
+genuinely different launcher as default) isn't a realistic risk this
+introduces, since resolveActivity only ever agrees when TileShell really is
+what the OS currently hands a Home press to. No unit test — this is thin
+Android-framework glue (`RoleManager`/`PackageManager`) with no pure logic to
+extract and no Robolectric in this project (matches this file's pre-existing,
+already-untested state); verified instead via `adb shell cmd package
+resolve-activity` against the real device the bug was reported from, which
+already agreed TileShell is the resolved Home activity there. Build + full
+unit test suite green; installed on that device, launched with no crash in
+`adb logcat`.
+
 ## Battery diagnosis: news feed's own re-fetch cadence, not widgets, was the real cost
 
 User asked to diagnose TileShell's battery use, suspecting the widget work

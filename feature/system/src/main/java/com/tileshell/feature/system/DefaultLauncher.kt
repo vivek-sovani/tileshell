@@ -26,17 +26,50 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
  */
 object DefaultLauncher {
 
-    /** True when TileShell is the device's current default HOME app. */
+    /**
+     * True when TileShell is the device's current default HOME app.
+     *
+     * User-reported (across several OEM devices): the "set default launcher"
+     * prompt kept firing even though TileShell was already the sole, active
+     * default. Root cause once traced through both signals this function can
+     * consult: on Q+ this used to trust *only* [RoleManager.isRoleHeld] —
+     * correct on stock AOSP/Pixel, but several OEM skins manage their own
+     * "default apps" screen without reliably updating `RoleManager`'s
+     * bookkeeping to match, so the role can read "not held" even while the
+     * OS's own home-activity resolution (the same check this function always
+     * used pre-Q) already agrees TileShell is what actually opens on a Home
+     * press. A single stale "not held" then re-fires the prompt on every
+     * fresh process — which for the Home app itself, `stateNotNeeded="true"`,
+     * is genuinely frequent: the OS is free to kill and recreate a
+     * backgrounded launcher process far more often than a normal app,
+     * especially on the very OEMs with the aggressive background-process
+     * policies this was reported from.
+     *
+     * Fixed by treating the two signals as corroborating, not
+     * either/or: RoleManager is asked first (it's the precise, intended
+     * check when available and correct), but a "not held" answer is
+     * cross-checked against the actual resolved HOME activity before this
+     * returns false — either one saying "TileShell" is enough. The reverse
+     * mistake (treating a genuinely-different launcher as default because
+     * this now under-reports "not default") is not a realistic risk: nothing
+     * here ever *removes* a signal that TileShell holds the role, it only
+     * adds a second way to notice that it already does.
+     */
     fun isDefault(context: Context): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val roleManager = context.getSystemService(RoleManager::class.java)
-            if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_HOME)) {
-                return roleManager.isRoleHeld(RoleManager.ROLE_HOME)
+            if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_HOME) &&
+                roleManager.isRoleHeld(RoleManager.ROLE_HOME)
+            ) {
+                return true
             }
         }
-        // Pre-Q (or no role): resolve the preferred HOME activity. Not
-        // authoritative when several launchers exist and none is preferred,
-        // but the worst case is one redundant prompt.
+        // Either the role API says "not held" (possibly stale/wrong on some
+        // OEM skins — see doc comment above) or it's unavailable on this
+        // device/API level: resolve the preferred HOME activity as the
+        // second, corroborating signal. Not authoritative when several
+        // launchers exist and none is preferred, but the worst case there is
+        // one redundant prompt, not a repeating one.
         val probe = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
         val resolved = context.packageManager.resolveActivity(probe, 0)
         return resolved?.activityInfo?.packageName == context.packageName
