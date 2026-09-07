@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Same monoline-stroke convention as ic_widget_settings.xml — two opposing
+     3/4 arcs with a small bent-line arrowhead at each end, forming the usual
+     "circular refresh" glyph without a filled arrowhead (this icon set has
+     no filled shapes anywhere). Used as the manual "refresh now" tap target
+     — user-requested, alongside a live-state chained refresh, since the
+     gear icon only ever reopens colour/location setup, not a fetch. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M4.5 12a7.5 7.5 0 0 1 12.7 -5.3M19.5 12a7.5 7.5 0 0 1 -12.7 5.3"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M17.2 4.5v3.4h-3.4M6.8 19.5v-3.4h3.4"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

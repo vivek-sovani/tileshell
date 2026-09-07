@@ -3,6 +3,72 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Stock/sports widgets: faster refresh while live/open, a manual refresh button, faster while visible
+
+User-requested, three related asks in one thread: "when sports is live,
+refresh rate should be more … and refresh button should be provided on
+widget. same for stock widget", followed by "can we make more frequent when
+visible."
+
+**1. Faster while live/open, in the background.** Both widgets' periodic
+`WorkManager` job sits at its floor already (stock 15 min, sports 30 min —
+`WorkManager` won't schedule a periodic job tighter than 15 min regardless),
+so "more frequent" for a *background* widget (placed on some other launcher
+entirely, or on Start's own glance page while it's scrolled off-screen)
+can't come from shortening the periodic interval. Instead, each worker's
+`pushAll` now schedules its own short-delay **one-off follow-up** —
+`StockWidgetRefreshWorker`: 5 min while any tracked exchange is open;
+`SportsWidgetRefreshWorker`: 3 min while any followed match is live — and
+re-arms that same follow-up at the end of every run for as long as the
+condition holds, cancelling it the moment it doesn't (a closed market/
+finished match falls back to the plain periodic tick, which then further
+backs off via the pre-existing `isMarketOpenFor`/`shouldFetchSports` gates).
+
+**2. Manual refresh button.** New `ic_widget_refresh.xml` (a monoline
+circular-arrow glyph, matching every other hand-ported icon in this set) at
+`bottom|start` — the opposite corner from the existing settings gear, which
+only ever reopens colour/pick setup and was never wired to force a fetch.
+Wired the same way the existing torch toggle/task-checkbox widget taps are:
+a small `exported="false"` `BroadcastReceiver`
+(`StockWidgetActionReceiver`/`SportsWidgetActionReceiver`, alongside
+`TaskWidgetActionReceiver`/`FlashlightWidgetActionReceiver` in
+`WidgetActionReceivers.kt`) that the exported `AppWidgetProvider` can't
+safely handle inline itself — see that file's own doc comment on why an
+exported provider's receiver can't be trusted with anything that changes
+state. Calls each worker's existing `refreshNow()`, which already forces a
+fetch regardless of market/live-state gating — exactly a manual tap's own
+intent.
+
+**3. Faster still while the page is genuinely visible.** Neither of the
+above two can know whether anyone is actually looking at a specific placed
+widget — there's no OS API for that on an arbitrary home-screen placement.
+But the dominant real case, a widget hosted on TileShell's *own* glance page
+via `WidgetSection`, already carries a real, known visibility signal: the
+same `active: Boolean` the page's own widget-stack auto-rotation is already
+gated on. Added a `LaunchedEffect(active)` there that, only while the page
+is the one on screen, calls each worker's plain (non-forced) `pushAll`
+directly — bypassing `WorkManager` entirely, since this is a purely
+foreground, ephemeral loop with no reason to pay its scheduling
+latency/overhead — on a 60s cadence (matching the in-app Start tiles' own
+on-screen poll rate, not a new number). Deliberately *non*-forced: this
+layers a tighter check on top of the existing gates, it doesn't bypass
+them, so a widget tracking a closed market/finished match sitting on a
+visible glance page still doesn't hit the network needlessly.
+
+Verified on the physical device the feature was requested from: broadcasting
+each new `ACTION_REFRESH_*` directly (`adb shell am broadcast`, targeting
+each new receiver explicitly) completed with no crash and produced a real
+`WM-WorkerWrapper` success log for that worker; a screenshot of the glance
+page with both a stock and a sports widget already placed confirmed the new
+refresh icon renders cleanly in its own corner on both, with no layout
+overlap with the existing gear. Build + full unit test suite green; no new
+unit tests added — nothing pure was extracted here (the gating logic
+`pushAll` reuses, `isMarketOpenFor`/`shouldFetchSports`/`SPORTS_STATE_LIVE`,
+is pre-existing and already covered), the new code is `WorkManager`/
+`AppWidgetManager`/`BroadcastReceiver` glue with no Robolectric in this
+project, matching this file's own established convention for that class of
+change.
+
 ## "Set default launcher" prompt fired repeatedly even though TileShell was the sole default
 
 User-reported, "observed on many devices": the auto-prompt (`MainActivity`'s

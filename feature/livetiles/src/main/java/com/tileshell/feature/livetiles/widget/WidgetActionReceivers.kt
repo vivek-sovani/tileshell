@@ -108,3 +108,37 @@ class FlashlightWidgetActionReceiver : BroadcastReceiver() {
         const val ACTION_TOGGLE_FLASHLIGHT = "com.tileshell.feature.livetiles.widget.ACTION_TOGGLE_FLASHLIGHT"
     }
 }
+
+/**
+ * Manual "refresh now" tap target for the stock widget (user-requested,
+ * alongside a faster automatic cadence while the market's open — see
+ * [StockWidgetRefreshWorker]'s own doc comment). Same
+ * `exported="false"`-behind-a-private-receiver shape as
+ * [TaskWidgetActionReceiver]/[FlashlightWidgetActionReceiver] above — the
+ * provider itself has to stay exported, so its click intents are routed
+ * here instead of handled inline. [StockWidgetRefreshWorker.refreshNow]
+ * always forces a real fetch regardless of market hours, matching a manual
+ * refresh tap's own "I want current data right now" intent.
+ */
+class StockWidgetActionReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != ACTION_REFRESH_STOCK) return
+        runCatching { StockWidgetRefreshWorker.refreshNow(context) }
+    }
+
+    companion object {
+        const val ACTION_REFRESH_STOCK = "com.tileshell.feature.livetiles.widget.ACTION_REFRESH_STOCK"
+    }
+}
+
+/** See [StockWidgetActionReceiver] — the sports widget's own manual refresh tap. */
+class SportsWidgetActionReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != ACTION_REFRESH_SPORTS) return
+        runCatching { SportsWidgetRefreshWorker.refreshNow(context) }
+    }
+
+    companion object {
+        const val ACTION_REFRESH_SPORTS = "com.tileshell.feature.livetiles.widget.ACTION_REFRESH_SPORTS"
+    }
+}

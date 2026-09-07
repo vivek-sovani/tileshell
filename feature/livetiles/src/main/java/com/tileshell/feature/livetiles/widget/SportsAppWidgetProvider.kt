@@ -1,8 +1,10 @@
 package com.tileshell.feature.livetiles.widget
 
+import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 
 /**
@@ -48,6 +50,20 @@ class SportsAppWidgetProvider : AppWidgetProvider() {
             WidgetColorStore.clear(context, it)
             WidgetConfigStore.clear(context, it)
             WidgetSportsStateStore.clear(context, it)
+        }
+    }
+
+    companion object {
+        /** The widget's own manual "refresh now" tap target — see [SportsWidgetActionReceiver]. */
+        fun refreshPendingIntent(context: Context, appWidgetId: Int): PendingIntent {
+            val intent = Intent(context, SportsWidgetActionReceiver::class.java)
+                .setAction(SportsWidgetActionReceiver.ACTION_REFRESH_SPORTS)
+            return PendingIntent.getBroadcast(
+                context,
+                appWidgetId,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
         }
     }
 }

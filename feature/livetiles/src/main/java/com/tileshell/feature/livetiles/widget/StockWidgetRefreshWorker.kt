@@ -64,6 +64,18 @@ private val MEMBER_ROW_IDS_FULL = listOf(
  * *faster* cadence can't be honoured by a periodic widget job anyway — only
  * its *slower* outside-hours floor matters here, and that's already what 15
  * min flat gives.
+ *
+ * **Faster while the market's actually open** (user-requested): every run
+ * schedules its own short-delay follow-up ([scheduleOpenMarketChain]) whenever
+ * *any* placed widget's tracked exchange is open right now — a WorkManager
+ * one-off, not a shorter periodic job, since the periodic floor is fixed at
+ * 15 min regardless. The chain re-schedules itself each run for as long as
+ * something stays open, and stops the moment the last tracked exchange
+ * closes (a widget with nothing open just falls back to the plain 15-min
+ * periodic tick, which then makes no network request at all — see
+ * [pushAll]'s own doc comment). A manual "refresh now" tap
+ * ([StockWidgetActionReceiver]) is also on the widget directly, for whenever
+ * even the open-market chain's own cadence isn't fast enough for the moment.
  */
 class StockWidgetRefreshWorker(
     context: Context,
@@ -78,6 +90,10 @@ class StockWidgetRefreshWorker(
     companion object {
         private const val UNIQUE_PERIODIC = "tileshell_stock_widget_refresh"
         private const val UNIQUE_NOW = "tileshell_stock_widget_refresh_now"
+        private const val UNIQUE_LIVE_CHAIN = "tileshell_stock_widget_refresh_live_chain"
+
+        /** How soon an open exchange gets re-checked while it's open — see the class doc comment. */
+        private const val STOCK_OPEN_MARKET_CHAIN_DELAY_MS = 5L * 60 * 1000
 
         /**
          * Set on the one-off requests that must always fetch (placement,
@@ -101,7 +117,13 @@ class StockWidgetRefreshWorker(
         }
 
         fun cancel(context: Context) {
-            WorkManager.getInstance(context.applicationContext).cancelUniqueWork(UNIQUE_PERIODIC)
+            val wm = WorkManager.getInstance(context.applicationContext)
+            wm.cancelUniqueWork(UNIQUE_PERIODIC)
+            // The last widget was just removed (only call site — the
+            // provider's onDisabled) — a still-armed chain would otherwise
+            // keep firing every STOCK_OPEN_MARKET_CHAIN_DELAY_MS forever with
+            // nothing left to refresh.
+            wm.cancelUniqueWork(UNIQUE_LIVE_CHAIN)
         }
 
         fun refreshNow(context: Context) {
@@ -125,12 +147,15 @@ class StockWidgetRefreshWorker(
             val ids = manager.getAppWidgetIds(ComponentName(context, StockAppWidgetProvider::class.java))
             if (ids.isEmpty()) return
 
+            var anyOpen = false
             ids.forEach { id ->
                 val selection = WidgetConfigStore.stockSelectionEncoded(context, id)?.let { StockTile.decode(it) }
                 // Resolved from the picked symbol's own exchange suffix, so an
                 // NSE holding follows Mumbai hours and a US one New York.
                 val leadSymbol = selection?.let { primaryStockRef(it)?.symbol }
-                if (!force && leadSymbol != null && !isMarketOpenFor(leadSymbol)) return@forEach
+                val open = leadSymbol != null && isMarketOpenFor(leadSymbol)
+                if (open) anyOpen = true
+                if (!force && leadSymbol != null && !open) return@forEach
                 val minWidthDp = manager.getAppWidgetOptions(id)
                     .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 110)
                 val (accent, onAccent) = resolveWidgetAccent(context, id)
@@ -158,6 +183,30 @@ class StockWidgetRefreshWorker(
                 }
                 manager.updateAppWidget(id, views)
             }
+            scheduleOpenMarketChain(context, anyOpen)
+        }
+
+        /**
+         * Keeps a short-delay follow-up armed for as long as any placed
+         * widget's tracked exchange is open, and disarms it the moment none
+         * is — see the class doc comment. [anyOpen] comes from the same
+         * per-widget [isMarketOpenFor] check [pushAll] already made this run,
+         * so this costs nothing beyond one more WorkManager enqueue/cancel.
+         */
+        private fun scheduleOpenMarketChain(context: Context, anyOpen: Boolean) {
+            val wm = WorkManager.getInstance(context.applicationContext)
+            if (anyOpen) {
+                wm.enqueueUniqueWork(
+                    UNIQUE_LIVE_CHAIN,
+                    ExistingWorkPolicy.REPLACE,
+                    OneTimeWorkRequestBuilder<StockWidgetRefreshWorker>()
+                        .setInitialDelay(STOCK_OPEN_MARKET_CHAIN_DELAY_MS, TimeUnit.MILLISECONDS)
+                        .setConstraints(WidgetWork.networkConstraints())
+                        .build(),
+                )
+            } else {
+                wm.cancelUniqueWork(UNIQUE_LIVE_CHAIN)
+            }
         }
 
         private fun buildEmptyRemoteViews(context: Context, appWidgetId: Int, accent: Int, onAccent: Int, compact: Boolean): RemoteViews {
@@ -168,6 +217,7 @@ class StockWidgetRefreshWorker(
             // widget_bg's full-bleed gradient (and everything else) to it.
             views.setBoolean(R.id.widget_root, "setClipToOutline", true)
             views.setOnClickPendingIntent(R.id.widget_settings, reconfigurePendingIntent(context, appWidgetId))
+            views.setOnClickPendingIntent(R.id.widget_refresh, StockAppWidgetProvider.refreshPendingIntent(context, appWidgetId))
             views.setOnClickPendingIntent(R.id.widget_root, reconfigurePendingIntent(context, appWidgetId))
             setBaseColors(views, onAccent, compact)
             views.setTextColor(R.id.widget_hilo, onAccent)
@@ -195,6 +245,7 @@ class StockWidgetRefreshWorker(
             // widget_bg's full-bleed gradient (and everything else) to it.
             views.setBoolean(R.id.widget_root, "setClipToOutline", true)
             views.setOnClickPendingIntent(R.id.widget_settings, reconfigurePendingIntent(context, appWidgetId))
+            views.setOnClickPendingIntent(R.id.widget_refresh, StockAppWidgetProvider.refreshPendingIntent(context, appWidgetId))
             setBaseColors(views, onAccent, compact)
 
             val (symbol, displayName) = selection
@@ -255,6 +306,7 @@ class StockWidgetRefreshWorker(
             // widget_bg's full-bleed gradient (and everything else) to it.
             views.setBoolean(R.id.widget_root, "setClipToOutline", true)
             views.setOnClickPendingIntent(R.id.widget_settings, reconfigurePendingIntent(context, appWidgetId))
+            views.setOnClickPendingIntent(R.id.widget_refresh, StockAppWidgetProvider.refreshPendingIntent(context, appWidgetId))
             setBaseColors(views, onAccent, compact)
 
             views.setOnClickPendingIntent(R.id.widget_root, stockAppPendingIntent(context, appWidgetId, displayName))

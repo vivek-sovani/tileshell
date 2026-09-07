@@ -134,6 +134,14 @@
             android:exported="false" />
 
         <receiver
+            android:name=".widget.StockWidgetActionReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".widget.SportsWidgetActionReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".widget.FlashlightAppWidgetProvider"
             android:exported="true"
             android:label="@string/flashlight_widget_label">

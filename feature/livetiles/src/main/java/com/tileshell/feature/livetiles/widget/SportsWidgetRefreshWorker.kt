@@ -14,6 +14,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.tileshell.core.data.CRICKET_LEAGUE_SLUG
+import com.tileshell.core.data.SPORTS_STATE_LIVE
 import com.tileshell.core.data.SportsTile
 import com.tileshell.core.data.fetchCricketMatchDetail
 import com.tileshell.core.data.fetchMatchDetail
@@ -54,6 +55,20 @@ private val MEMBER_LINE_IDS = listOf(R.id.widget_line_1, R.id.widget_line_2, R.i
  * the in-app tile's 90s `LaunchedEffect` poll, so `refreshNow()` (called
  * right after the configure activity saves a pick) is what gives the first
  * paint its real data instead of waiting on the periodic tick.
+ *
+ * **Faster while actually live** (user-requested): 30 min is a long time to
+ * sit on a stale score once a followed team's match has kicked off. Every
+ * run schedules its own short-delay follow-up ([scheduleLiveChain]) whenever
+ * *any* placed widget's just-recorded state is [SPORTS_STATE_LIVE] — a
+ * WorkManager one-off, not a shorter periodic job, since the periodic floor
+ * is fixed at 15 min anyway; the chain re-schedules itself each run for as
+ * long as something stays live, and stops the moment nothing does (a
+ * finished match falls back to the plain 30-min periodic tick, which then
+ * further backs off to [com.tileshell.core.data.SPORTS_IDLE_REFRESH_MS] via
+ * [shouldFetchSports]). A manual "refresh now" tap
+ * ([SportsWidgetActionReceiver]) is also provided directly on the widget for
+ * whenever 30 min — or even the live chain's own cadence — isn't fast enough
+ * for the moment.
  */
 class SportsWidgetRefreshWorker(
     context: Context,
@@ -68,6 +83,10 @@ class SportsWidgetRefreshWorker(
     companion object {
         private const val UNIQUE_PERIODIC = "tileshell_sports_widget_refresh"
         private const val UNIQUE_NOW = "tileshell_sports_widget_refresh_now"
+        private const val UNIQUE_LIVE_CHAIN = "tileshell_sports_widget_refresh_live_chain"
+
+        /** How soon a followed match gets re-checked while it's live — see the class doc comment. */
+        private const val SPORTS_LIVE_CHAIN_DELAY_MS = 3L * 60 * 1000
 
         /**
          * Set on the one-off requests that must always fetch — a fresh pick,
@@ -91,7 +110,13 @@ class SportsWidgetRefreshWorker(
         }
 
         fun cancel(context: Context) {
-            WorkManager.getInstance(context.applicationContext).cancelUniqueWork(UNIQUE_PERIODIC)
+            val wm = WorkManager.getInstance(context.applicationContext)
+            wm.cancelUniqueWork(UNIQUE_PERIODIC)
+            // The last widget was just removed (only call site — the
+            // provider's onDisabled) — a still-armed live chain would
+            // otherwise keep firing every SPORTS_LIVE_CHAIN_DELAY_MS forever
+            // with nothing left to refresh.
+            wm.cancelUniqueWork(UNIQUE_LIVE_CHAIN)
         }
 
         fun refreshNow(context: Context) {
@@ -133,6 +158,32 @@ class SportsWidgetRefreshWorker(
                 val views = buildRemoteViews(context, id, selection, accent, onAccent, isCompactWidget(minWidthDp))
                 manager.updateAppWidget(id, views)
             }
+            scheduleLiveChain(context, ids)
+        }
+
+        /**
+         * Keeps a short-delay follow-up armed for as long as any placed widget
+         * is tracking a live match, and disarms it the moment none is — see
+         * the class doc comment. Reads each widget's just-recorded state
+         * ([WidgetSportsStateStore], written a few lines above during this
+         * same run), not a re-fetch, so this costs nothing beyond one more
+         * WorkManager enqueue/cancel.
+         */
+        private fun scheduleLiveChain(context: Context, ids: IntArray) {
+            val anyLive = ids.any { WidgetSportsStateStore.snapshot(context, it).state == SPORTS_STATE_LIVE }
+            val wm = WorkManager.getInstance(context.applicationContext)
+            if (anyLive) {
+                wm.enqueueUniqueWork(
+                    UNIQUE_LIVE_CHAIN,
+                    ExistingWorkPolicy.REPLACE,
+                    OneTimeWorkRequestBuilder<SportsWidgetRefreshWorker>()
+                        .setInitialDelay(SPORTS_LIVE_CHAIN_DELAY_MS, TimeUnit.MILLISECONDS)
+                        .setConstraints(WidgetWork.networkConstraints())
+                        .build(),
+                )
+            } else {
+                wm.cancelUniqueWork(UNIQUE_LIVE_CHAIN)
+            }
         }
 
         private suspend fun buildRemoteViews(
@@ -151,6 +202,7 @@ class SportsWidgetRefreshWorker(
             // widget_bg's full-bleed gradient (and everything else) to it.
             views.setBoolean(R.id.widget_root, "setClipToOutline", true)
             views.setOnClickPendingIntent(R.id.widget_settings, reconfigurePendingIntent(context, appWidgetId))
+            views.setOnClickPendingIntent(R.id.widget_refresh, SportsAppWidgetProvider.refreshPendingIntent(context, appWidgetId))
             setBaseColors(views, onAccent, compact)
             views.setImageViewResource(R.id.widget_icon, sportsIconRes(selection?.leagueSlug))
 

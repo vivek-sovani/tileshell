@@ -130,6 +130,8 @@ import com.tileshell.feature.livetiles.TasksTileFace
 import com.tileshell.feature.livetiles.WeatherSnapshot
 import com.tileshell.feature.livetiles.rememberAppIconBitmap
 import com.tileshell.feature.livetiles.rememberFlipState
+import com.tileshell.feature.livetiles.widget.SportsWidgetRefreshWorker
+import com.tileshell.feature.livetiles.widget.StockWidgetRefreshWorker
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -139,6 +141,15 @@ import kotlin.random.Random
 private const val WIDGET_HOST_ID = 0x54_53 // "TS"
 private const val WIDGET_MIN_H = 72
 private const val WIDGET_MAX_H = 720
+
+/**
+ * How often a placed stock/sports widget is re-checked while this page is
+ * actually visible — see [WidgetSection]'s own "faster while on screen"
+ * `LaunchedEffect`. Matches the in-app Start tiles' own on-screen cadence
+ * (`STOCK_REFRESH_MS`/`SPORTS_REFRESH_MS` in `:feature:livetiles`) rather
+ * than inventing a third number.
+ */
+private const val WIDGET_VISIBLE_POLL_MS = 60_000L
 
 /**
  * Starting heights for the three built-in glance cards the first time they're
@@ -539,6 +550,28 @@ fun WidgetSection(
     DisposableEffect(host) {
         runCatching { host.startListening() }
         onDispose { runCatching { host.stopListening() } }
+    }
+    // Faster refresh specifically while this page is actually the one on
+    // screen (user-requested) — the same STOCK_REFRESH_MS/SPORTS_REFRESH_MS
+    // cadence the in-app Start tiles themselves already poll at while
+    // visible, layered on top of (not replacing) each widget's own
+    // background cadence in StockWidgetRefreshWorker/SportsWidgetRefreshWorker
+    // for a widget on some other launcher entirely, or on Start's own glance
+    // page while it's scrolled off-screen. Calls each worker's plain,
+    // non-forced pushAll directly rather than going through WorkManager —
+    // this is a purely foreground, ephemeral loop (stops the instant `active`
+    // goes false), so there's no reason to pay WorkManager's own scheduling
+    // latency/overhead for it. Non-forced means it still respects each
+    // widget's own "is there actually anything live/open to check" gate, so
+    // this never turns into hammering a closed market or a finished match
+    // just because the page happens to be on screen.
+    LaunchedEffect(active) {
+        if (!active) return@LaunchedEffect
+        while (true) {
+            runCatching { StockWidgetRefreshWorker.pushAll(appContext) }
+            runCatching { SportsWidgetRefreshWorker.pushAll(appContext) }
+            delay(WIDGET_VISIBLE_POLL_MS)
+        }
     }
     val manager = remember { AppWidgetManager.getInstance(appContext) }
     val store = remember(context) { WidgetStore.create(context) }

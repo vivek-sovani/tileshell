@@ -126,4 +126,19 @@
         android:padding="2dp"
         android:src="@drawable/ic_widget_settings" />
 
+    <!-- Manual "refresh now" tap target (user-requested, alongside a
+         faster background cadence while live/open — see
+         StockWidgetRefreshWorker/SportsWidgetRefreshWorker's own doc
+         comments) — the gear only ever reopens colour/pick setup, never
+         forces a fetch. Opposite corner from the gear so the two 24dp
+         targets never overlap even on the narrowest (110dp) widget. -->
+    <ImageView
+        android:id="@+id/widget_refresh"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="bottom|start"
+        android:layout_margin="6dp"
+        android:padding="2dp"
+        android:src="@drawable/ic_widget_refresh" />
+
 </FrameLayout>
