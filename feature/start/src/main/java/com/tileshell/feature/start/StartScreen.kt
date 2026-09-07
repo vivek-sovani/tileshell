@@ -164,6 +164,7 @@ import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.SportsTile
 import com.tileshell.core.data.StepsPrefs
 import com.tileshell.core.data.StockTile
+import com.tileshell.core.data.WeatherTile
 import com.tileshell.core.data.hasNotesTile
 import com.tileshell.core.data.TileColors
 import com.tileshell.core.data.AppIconCache
@@ -253,6 +254,7 @@ import com.tileshell.feature.personalize.NotesSheet
 import com.tileshell.feature.personalize.RegionOption
 import com.tileshell.feature.personalize.StickyNoteEditorSheet
 import com.tileshell.feature.personalize.TaskListSheet
+import com.tileshell.feature.personalize.WeatherLocationSheet
 import com.tileshell.feature.personalize.WidgetListSheet
 import com.tileshell.feature.system.AppUpdateState
 import com.tileshell.feature.system.rememberAppUpdateState
@@ -340,6 +342,7 @@ fun StartScreen(
     val stockEditTileId by viewModel.stockEditTileId.collectAsStateWithLifecycle()
     val commodityEditTileId by viewModel.commodityEditTileId.collectAsStateWithLifecycle()
     val calendarSystemEditTileId by viewModel.calendarSystemEditTileId.collectAsStateWithLifecycle()
+    val weatherLocationTarget by viewModel.weatherLocationTarget.collectAsStateWithLifecycle()
     val permissionsOpen by viewModel.permissionsOpen.collectAsStateWithLifecycle()
     val newsRegionOpen by viewModel.newsRegionOpen.collectAsStateWithLifecycle()
     val edgeStripOpen by viewModel.edgeStripOpen.collectAsStateWithLifecycle()
@@ -1142,6 +1145,13 @@ fun StartScreen(
                                     // always (re)opens the picker, whether or not one's
                                     // already picked, so the choice can be changed later.
                                     viewModel.openCalendarSystemEditor(tile.id)
+                                } else if (tile.packageName.isBlank() && tile.iconKey == "weather") {
+                                    // Same "always reopens the picker" pattern as
+                                    // calendar systems — a weather tile is always
+                                    // configured from the moment it's added (see the
+                                    // add-widgets flow above), so tapping it is purely
+                                    // "change the location," not "finish setup."
+                                    viewModel.openWeatherLocationEditor(tile.id)
                                 } else {
                                     onTileClick(context, tile)
                                 }
@@ -1717,15 +1727,46 @@ fun StartScreen(
             accentId = settings.accentId,
             notesAlreadyPinned = tiles.hasNotesTile(),
             onAddWidget = { appId ->
-                viewModel.addLiveTile(appId)
-                // Land back on a normal, settled Start screen showing the new
-                // tile in place, instead of leaving edit mode's jiggle/edit-bar
-                // up — matches the existing "add" (app list) entry point,
-                // which already exits edit mode the moment it's used.
-                viewModel.exitEdit()
-                Toast.makeText(context, "added $appId tile", Toast.LENGTH_SHORT).show()
+                if (appId == "weather") {
+                    // Weather needs one more answer before there's a tile to add
+                    // at all (user-requested: "ask for current location or
+                    // select location") — the location sheet below creates the
+                    // tile itself once the user answers, so this closes the
+                    // catalog and waits rather than calling addLiveTile now.
+                    viewModel.closeAddWidgets()
+                    viewModel.openWeatherLocationForNewTile()
+                } else {
+                    viewModel.addLiveTile(appId)
+                    // Land back on a normal, settled Start screen showing the new
+                    // tile in place, instead of leaving edit mode's jiggle/edit-bar
+                    // up — matches the existing "add" (app list) entry point,
+                    // which already exits edit mode the moment it's used.
+                    viewModel.exitEdit()
+                    Toast.makeText(context, "added $appId tile", Toast.LENGTH_SHORT).show()
+                }
             },
             onDismiss = viewModel::closeAddWidgets,
+        )
+
+        // Weather tile's own location choice — new tile (from the sheet above)
+        // or reconfiguring an already-pinned one (tapping it, see the "weather"
+        // tap branch below) — see StartViewModel.weatherLocationTarget.
+        WeatherLocationSheet(
+            visible = weatherLocationTarget != null,
+            rightHalf = isLandscape,
+            dark = dark,
+            accentId = settings.accentId,
+            onUseCurrentLocation = {
+                viewModel.setWeatherLocationCurrent()
+                viewModel.exitEdit()
+                Toast.makeText(context, "weather set to current location", Toast.LENGTH_SHORT).show()
+            },
+            onPickPlace = { lat, lon, name ->
+                viewModel.setWeatherLocationPlace(lat, lon, name)
+                viewModel.exitEdit()
+                Toast.makeText(context, "weather set to $name", Toast.LENGTH_SHORT).show()
+            },
+            onDismiss = viewModel::closeWeatherLocationSheet,
         )
 
         // Tasks sheet (tapping a Tasks tile) — scoped to that tile's own list.
@@ -4835,7 +4876,14 @@ private fun AppTileContent(
         when (tile.iconKey) {
             "clock" -> { ClockSmallFace(active = liveActive, modifier = Modifier.fillMaxSize()); return }
             "calendar" -> { CalendarSmallFace(active = liveActive, modifier = Modifier.fillMaxSize()); return }
-            "weather" -> { WeatherSmallFace(fallback = staticGlyph, modifier = Modifier.fillMaxSize()); return }
+            "weather" -> {
+                WeatherSmallFace(
+                    location = WeatherTile.decode(tile.activityName),
+                    fallback = staticGlyph,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                return
+            }
             "battery" -> { BatterySmallFace(modifier = Modifier.fillMaxSize()); return }
             "flashlight" -> { FlashlightSmallFace(interactive = interactive, modifier = Modifier.fillMaxSize()); return }
             "countdown" -> {
@@ -4883,6 +4931,7 @@ private fun AppTileContent(
             WeatherTileFace(
                 size = tile.size,
                 flipped = flipped,
+                location = WeatherTile.decode(tile.activityName),
                 fallback = staticGlyph,
                 modifier = Modifier.fillMaxSize(),
             )

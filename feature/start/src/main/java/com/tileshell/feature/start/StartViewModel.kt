@@ -36,6 +36,7 @@ import com.tileshell.core.data.SportsTile
 import com.tileshell.core.data.StockTile
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.TileSize
+import com.tileshell.core.data.WeatherTile
 import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.core.data.settings.SettingsRepository
 import com.tileshell.core.data.settings.HomeStyle
@@ -48,6 +49,7 @@ import com.tileshell.feature.livetiles.FeedSource
 import com.tileshell.feature.livetiles.FeedStore
 import com.tileshell.feature.livetiles.PhotosStore
 import com.tileshell.feature.livetiles.WallpaperSlideshowStore
+import com.tileshell.feature.livetiles.WeatherRefreshWorker
 import com.tileshell.feature.livetiles.queryProfileName
 import com.tileshell.feature.start.feed.HostedWidget
 import com.tileshell.feature.start.feed.WidgetData
@@ -292,6 +294,18 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Id of the "calendar systems" tile currently open in its picker, or null when closed. */
     private val _calendarSystemEditTileId = MutableStateFlow<String?>(null)
     val calendarSystemEditTileId: StateFlow<String?> = _calendarSystemEditTileId.asStateFlow()
+
+    /**
+     * What the weather-location sheet is currently deciding: a brand new tile
+     * ([WeatherLocationTarget.NewTile], not yet inserted — created only once
+     * the user answers) or an existing tile being reconfigured
+     * ([WeatherLocationTarget.ExistingTile]). Null = sheet closed. Modelled as
+     * a sealed target rather than a bare tile id (the shape every other
+     * picker above uses) because "add a weather tile" itself now has to ask
+     * before there is any tile id to attach the sheet to.
+     */
+    private val _weatherLocationTarget = MutableStateFlow<WeatherLocationTarget?>(null)
+    val weatherLocationTarget: StateFlow<WeatherLocationTarget?> = _weatherLocationTarget.asStateFlow()
 
     /** True while the permissions sheet is open (personalize → permissions). */
     private val _permissionsOpen = MutableStateFlow(false)
@@ -714,6 +728,51 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) {
             repository.setTileText(id, CalendarSystemTile.encode(systemId))
         }
+    }
+
+    /**
+     * Opens the weather-location sheet for a brand new tile (Start's "add
+     * widgets" sheet's weather entry) — user-requested: "when weather tile
+     * and widget is added, ask for current location or select location."
+     * Nothing is inserted until [setWeatherLocationCurrent]/[setWeatherLocationPlace]
+     * answers; backing out via [closeWeatherLocationSheet] adds nothing, same
+     * as declining any other picker mid-add.
+     */
+    fun openWeatherLocationForNewTile() {
+        _weatherLocationTarget.value = WeatherLocationTarget.NewTile
+    }
+
+    /** Reopens the same sheet to change an already-pinned weather tile's location. */
+    fun openWeatherLocationEditor(id: String) {
+        _weatherLocationTarget.value = WeatherLocationTarget.ExistingTile(id)
+    }
+
+    fun closeWeatherLocationSheet() {
+        _weatherLocationTarget.value = null
+    }
+
+    /** "Use current location" answer — creates or overwrites, per the open [WeatherLocationTarget]. */
+    fun setWeatherLocationCurrent() {
+        applyWeatherLocation(WeatherTile.encode(WeatherTile.Location.Current))
+    }
+
+    /** "Search a place" answer, once one is tapped in the results list. */
+    fun setWeatherLocationPlace(lat: Double, lon: Double, name: String) {
+        applyWeatherLocation(WeatherTile.encode(WeatherTile.Location.Fixed(lat, lon, name)))
+    }
+
+    private fun applyWeatherLocation(encoded: String) {
+        val target = _weatherLocationTarget.value ?: return
+        _weatherLocationTarget.value = null
+        viewModelScope.launch(writeContext) {
+            when (target) {
+                WeatherLocationTarget.NewTile -> repository.addWeatherTile(encoded)
+                is WeatherLocationTarget.ExistingTile -> repository.setTileText(target.id, encoded)
+            }
+        }
+        // A newly placed (or just re-pointed) weather tile shouldn't wait out
+        // the ~30-min periodic refresh for its first real reading.
+        WeatherRefreshWorker.refreshNow(getApplication())
     }
 
     /** Open the permissions sheet (personalize → permissions). */
@@ -1927,4 +1986,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         /** See [setHomeStyle]'s doc comment: seeded once, only from the 0f default. */
         const val ICONS_MODE_DEFAULT_CORNER_RADIUS = 4f
     }
+}
+
+/** What the weather-location sheet is currently deciding — see [StartViewModel.weatherLocationTarget]. */
+sealed interface WeatherLocationTarget {
+    data object NewTile : WeatherLocationTarget
+    data class ExistingTile(val id: String) : WeatherLocationTarget
 }

@@ -3,6 +3,64 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Weather tile/widget location: ask, or pick a place — multiple instances each follow their own
+
+User-requested: "when weather tile and widget is added, ask for current
+location or select location and establish widget/tile based on user choice
+… hence multiple weather tile/widgets are allowed." Before this, weather was
+hardcoded to "follow the device's coarse location, or the manual-city
+DataStore fallback nobody has UI for" — every weather tile/widget on the
+device showed the exact same forecast, with no choice at add time.
+
+**Encoding.** New `WeatherTile` (`:core:data`, mirroring `CountdownTile`/
+`StockTile`'s "blank-package tile, `activityName` carries the config" trick):
+`Location.Current` or `Location.Fixed(lat, lon, name)`, `encode`/`decode`.
+Safe for weather specifically because `DefaultLayout.roleFor("weather")` has
+never resolved to a real app, so the column was always free. The home-screen
+widget stores the identical string per `appWidgetId` in `WidgetConfigStore`
+(same codec, same module boundary reasoning as stock/sports there) — one
+encoding, one cache key (`WeatherTile.key`), shared by both surfaces.
+
+**Multiple places, one cache.** `WeatherCacheData` gained `places: Map<String,
+WeatherSnapshot>` alongside the existing single `snapshot` (which now means
+specifically "the device's own location"). `WeatherRefreshWorker` gathers
+every distinct fixed place any tile or widget currently wants
+(`requestedFixedPlaces` — reads the live layout DB + every placed weather
+widget's stored config, deduped by `WeatherTile.key` so two tiles pointed at
+the same city share one fetch) and fetches each once per run, alongside the
+one device-location fetch it already did. Coordinates round to 2 decimals
+(~1km) for the cache key specifically so two picks of "the same city" from
+slightly different search results collapse to one entry.
+
+**Asking.** Mirrors the steps-permission fix directly above this entry: a
+`RemoteViews` tree can't host a dialog, so the ask happens in the one Activity
+each surface already has. Start's "add widgets" catalog intercepts the
+`weather` entry — instead of `addLiveTile` inserting a blank tile immediately,
+it opens `WeatherLocationSheet` (`:feature:personalize`, new) first, and only
+creates the tile (`LayoutRepository.addWeatherTile`) once the user answers
+("use current location" or a searched place — `fetchWeatherPlaceSearch`, a
+new `:core:data` Open-Meteo geocoding search alongside the existing single-
+result lookup `:feature:livetiles` already had for city-typed queries). The
+home-screen widget gets the identical choice from `WidgetConfigureActivity`'s
+own flow (`RequiredStep.WEATHER_LOCATION` → `WeatherLocationPickerScreen`,
+self-contained in that file since `:feature:livetiles` can't depend on
+`:feature:personalize`), gated on "no location stored yet" so it only ever
+shows for a genuinely new placement, never a reconfigure-for-colour.
+
+**Not breaking existing installs.** A pre-existing weather tile/widget (seeded
+before this feature, or from an untouched default layout) has no encoding at
+all — `WeatherTile.decode(null)` resolves to `Location.Current` everywhere a
+face reads it, so it keeps behaving exactly as it always did, with no "tap to
+configure" dead end ever shown for it. The widget side additionally backfills
+that decision into storage the first time it next updates
+(`WeatherAppWidgetProvider.onUpdate`, which fires on every app update for an
+already-placed widget) — so its own configure step, if reopened for a colour
+change, never re-asks either. Re-tapping an already-configured weather *tile*
+on Start does still reopen the location sheet (unlike stock/commodity's
+"open the real page, only the picker if unset" pattern) — a location, unlike
+a stock symbol, has no external page to open, and letting the choice be
+changed later was the explicit ask.
+
 ## Steps permission: a permanent way back in, and the widget asks for it too
 
 Three real defects around `ACTIVITY_RECOGNITION`, all reported together

@@ -4,6 +4,7 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.os.Bundle
+import com.tileshell.core.data.WeatherTile
 
 /**
  * Home-screen weather widget (S32 pilot) — a thin shell over
@@ -36,6 +37,19 @@ class WeatherAppWidgetProvider : AppWidgetProvider() {
         // ExistingPeriodicWorkPolicy.UPDATE in ensureScheduled, this is what
         // lets a changed cadence or constraint actually reach existing users.
         WeatherWidgetRefreshWorker.ensureScheduled(context)
+        // A widget placed before several-locations support existed has no
+        // stored location at all — back it in to "current" (its only possible
+        // behaviour until now) so it behaves exactly as it always did, and so
+        // WidgetConfigureActivity's own location step (gated on "no location
+        // stored yet") never re-asks a pre-existing widget just because it
+        // hasn't been reconfigured since. A genuinely brand new widget never
+        // reaches this: the OS runs its configure step (which writes a real
+        // location) before onUpdate is ever called for it.
+        appWidgetIds.forEach { id ->
+            if (WidgetConfigStore.weatherLocation(context, id) == null) {
+                WidgetConfigStore.setWeatherLocation(context, id, WeatherTile.encode(WeatherTile.Location.Current))
+            }
+        }
         com.tileshell.feature.livetiles.WeatherRefreshWorker.refreshNow(context)
         WeatherWidgetRefreshWorker.refreshNow(context)
     }
@@ -73,6 +87,6 @@ class WeatherAppWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
-        appWidgetIds.forEach { WidgetColorStore.clear(context, it) }
+        appWidgetIds.forEach { WidgetColorStore.clear(context, it); WidgetConfigStore.clear(context, it) }
     }
 }

@@ -491,6 +491,41 @@ class LayoutRepository(
     }
 
     /**
+     * Pin a brand new weather tile carrying its own [encodedLocation]
+     * ([WeatherTile.encode] — "current location" or a specific picked place),
+     * so several weather tiles can each follow a different place (user-
+     * requested). Shares [DefaultLayout]'s own "weather" template for size/
+     * colour/icon key — the same seeding [addDefaultTile] uses for every
+     * other liveOnly tile — but writes [encodedLocation] into the new row's
+     * `activityName` instead of the template's usual blank one, since the
+     * caller already resolved the user's choice before this is ever called
+     * (see `StartViewModel.applyWeatherLocation`).
+     */
+    suspend fun addWeatherTile(encodedLocation: String): Boolean {
+        val template = DefaultLayout.ALL_TILE_TEMPLATES
+            .firstOrNull { !it.isGroup && it.app == "weather" } ?: return false
+        val seeded = seeder.seed(listOf(template), resolver)
+            .filterIsInstance<SeededTile.App>()
+            .firstOrNull() ?: return false
+        dao.insertTiles(
+            listOf(
+                TileEntity(
+                    id = "live-weather-${System.currentTimeMillis()}",
+                    position = dao.maxPosition() + 1,
+                    size = seeded.size,
+                    colorId = seeded.colorId,
+                    type = TileEntity.TYPE_APP,
+                    packageName = seeded.component.packageName,
+                    activityName = encodedLocation,
+                    label = seeded.component.label,
+                    iconKey = seeded.iconKey,
+                ),
+            ),
+        )
+        return true
+    }
+
+    /**
      * Resolves a default-layout role id (e.g. `"settings"`) to its installed
      * package name, or null if nothing resolves on this device. Used to hide
      * the real Android Settings app from the App List once it's superseded by

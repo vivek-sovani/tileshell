@@ -1,6 +1,8 @@
 package com.tileshell.feature.livetiles
 
 import android.Manifest
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Geocoder
@@ -14,7 +16,14 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkerParameters
+import com.tileshell.core.data.LayoutRepository
+import com.tileshell.core.data.TileModel
+import com.tileshell.core.data.WeatherTile
+import com.tileshell.feature.livetiles.widget.WeatherAppWidgetProvider
+import com.tileshell.feature.livetiles.widget.WeatherWidgetRefreshWorker
+import com.tileshell.feature.livetiles.widget.WidgetConfigStore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -34,15 +43,20 @@ fun resolveWeatherQuery(
 }
 
 /**
- * Periodic background refresh for the weather tile (FR-2): resolves a query from
- * the granted coarse location (or the manual-city fallback), asks the
- * [WeatherProvider] for a snapshot, and writes it to [WeatherCache]. When no
- * query can be resolved (location denied and no city set) it succeeds without
- * touching the cache, so the tile stays static. Network failures retry.
+ * Periodic background refresh for every weather surface (FR-2): fetches a
+ * forecast for each distinct [WeatherTile.Location.Fixed] currently requested
+ * by a tile/widget ([requestedFixedPlaces]), plus one more for the device's own
+ * "current location" instances (the granted coarse location, or the
+ * manual-city fallback) — several tiles/widgets can each follow a different
+ * place at once (user-requested), sharing one cached snapshot and one fetch
+ * per distinct place. When nothing at all is resolvable (location denied, no
+ * city set, no fixed place picked) it succeeds without touching the cache, so
+ * every tile just stays static. A snapshot that fails to fetch retries;
+ * everything else that succeeded in the same run is still written.
  *
  * Forecasts come from the live, no-API-key [OpenMeteoWeatherProvider]; the place
- * label for a coarse fix is reverse-geocoded with Android's [Geocoder]. A failed
- * fetch retries and the tile keeps its last good snapshot (DECISIONS S21).
+ * label for a coarse fix is reverse-geocoded with Android's [Geocoder]. See
+ * DECISIONS S21 and "Weather tile location: ask, or pick a place".
  */
 class WeatherRefreshWorker(
     context: Context,
@@ -55,18 +69,46 @@ class WeatherRefreshWorker(
 
     override suspend fun doWork(): Result {
         val cache = WeatherCache.create(applicationContext)
+
+        // Every user-picked fixed place currently wanted by a tile or widget,
+        // recomputed from the live layout on every run rather than tracked
+        // incrementally — so a removed weather tile simply stops appearing
+        // here, with no separate bookkeeping to go stale.
+        val fixed = requestedFixedPlaces(applicationContext)
+        cache.retainPlaces(fixed.keys)
+
+        var anyFailed = false
+        fixed.forEach { (key, place) ->
+            val snapshot = runCatching {
+                provider.fetch(WeatherQuery.Coords(place.lat, place.lon))
+            }.getOrNull()
+            if (snapshot == null) {
+                anyFailed = true
+            } else {
+                // The picked place's own name wins over whatever the provider
+                // reverse-geocodes for those coordinates: the user chose that
+                // label from the search results, and a coarse reverse lookup
+                // can name a neighbouring locality instead.
+                cache.putPlaceSnapshot(key, snapshot.copy(place = place.name.ifBlank { snapshot.place }))
+            }
+        }
+
         val query = resolveWeatherQuery(
             location = lastCoarseLocation(applicationContext),
             manualCity = cache.read().manualCity,
-        ) ?: return Result.success()
+        )
+        if (query != null) {
+            val snapshot = runCatching { provider.fetch(query) }.getOrNull()
+            if (snapshot == null) anyFailed = true else cache.putSnapshot(snapshot)
+        }
 
-        val snapshot = runCatching { provider.fetch(query) }.getOrNull()
-            ?: return Result.retry()
-        cache.putSnapshot(snapshot)
         // Push any placed home-screen weather widgets right away instead of
         // making them wait for their own ~30-min cycle (S32).
-        com.tileshell.feature.livetiles.widget.WeatherWidgetRefreshWorker.refreshNow(applicationContext)
-        return Result.success()
+        WeatherWidgetRefreshWorker.refreshNow(applicationContext)
+        // Retry only if something was actually attempted and failed — a run
+        // with nothing resolvable at all (location denied, no city set, no
+        // fixed place picked) is a legitimate no-op, not a failure.
+        return if (anyFailed) Result.retry() else Result.success()
     }
 
     private fun lastCoarseLocation(context: Context): Pair<Double, Double>? {
@@ -162,4 +204,39 @@ class WeatherRefreshWorker(
                 )
         }
     }
+}
+
+/**
+ * Every distinct fixed place a weather surface currently wants a forecast for,
+ * keyed by [WeatherTile.key]: the Start grid's own weather tiles (top level and
+ * inside folders, read straight from the layout DB) plus every placed
+ * home-screen weather widget's stored choice. Instances set to "current
+ * location" — and ones never configured — are deliberately absent: those are
+ * served by the worker's own device-location path, which writes the single
+ * shared [WeatherCacheData.snapshot].
+ *
+ * Read from the authoritative stores on every refresh rather than kept as a
+ * registry, so removing a tile or widget needs no cleanup step of its own.
+ */
+suspend fun requestedFixedPlaces(context: Context): Map<String, WeatherTile.Location.Fixed> {
+    val fromTiles = runCatching {
+        LayoutRepository.create(context).tiles.first().flatMap { tile ->
+            when (tile) {
+                is TileModel.App -> listOf((tile.packageName.isBlank() && tile.iconKey == WeatherTile.ICON_KEY) to tile.activityName)
+                is TileModel.Folder -> tile.children.map {
+                    (it.packageName.isBlank() && it.iconKey == WeatherTile.ICON_KEY) to it.activityName
+                }
+            }
+        }
+    }.getOrDefault(emptyList())
+        .filter { (isWeather, _) -> isWeather }
+        .map { (_, activityName) -> activityName }
+
+    val fromWidgets = runCatching {
+        val manager = AppWidgetManager.getInstance(context)
+        manager.getAppWidgetIds(ComponentName(context, WeatherAppWidgetProvider::class.java))
+            .map { WidgetConfigStore.weatherLocation(context, it) }
+    }.getOrDefault(emptyList())
+
+    return WeatherTile.fixedPlaces(fromTiles + fromWidgets)
 }

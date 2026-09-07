@@ -29,34 +29,57 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.TileSize
+import com.tileshell.core.data.WeatherTile
 import com.tileshell.core.design.LocalTileFaceColor
 
 private val FaceText: Color
     @Composable get() = LocalTileFaceColor.current
 
 /**
+ * Resolves whichever this tile/widget instance is actually configured for —
+ * a stored `null` (never configured: a pre-multi-location install, or a
+ * genuinely corrupt encoding) transparently means "follow the device", the
+ * same behaviour this tile always had before several tiles could each follow
+ * a different place (user-requested). Callers never need their own
+ * null-handling branch — see [WeatherTileFace]/[WeatherSmallFace].
+ */
+private fun resolvedLocation(location: WeatherTile.Location?): WeatherTile.Location =
+    location ?: WeatherTile.Location.Current
+
+/** The cached snapshot for [location] — [WeatherCacheData.snapshot] for Current, [WeatherCacheData.places] for a Fixed place. */
+private fun WeatherCacheData.snapshotFor(location: WeatherTile.Location): WeatherSnapshot? = when (location) {
+    WeatherTile.Location.Current -> snapshot
+    is WeatherTile.Location.Fixed -> places[WeatherTile.key(location)]
+}
+
+/**
  * The live weather tile (FR-2). Schedules the background refresh, asks for coarse
- * location once (opt-in), and renders the cached [WeatherSnapshot]. When there is
- * no cached snapshot — location denied and no manual city, or the first fetch
- * hasn't landed — it shows [fallback] (the static glyph), so the tile degrades
- * gracefully. [flipped] turns between current conditions and today's range.
+ * location once (opt-in) when following the device (a fixed picked place needs no
+ * permission), and renders the cached [WeatherSnapshot] for [location] — several
+ * weather tiles can each follow a different place at once (user-requested), each
+ * reading its own slice of the shared [WeatherCache]. When there is no cached
+ * snapshot yet for this instance's location it shows [fallback] (the static
+ * glyph), so the tile degrades gracefully. [flipped] turns between current
+ * conditions and today's range.
  */
 @Composable
 fun WeatherTileFace(
     size: TileSize,
     flipped: Boolean,
+    location: WeatherTile.Location?,
     fallback: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val resolved = resolvedLocation(location)
     LaunchedEffect(Unit) { WeatherRefreshWorker.ensureScheduled(context) }
     val locationGranted = rememberPermissionGranted(Manifest.permission.ACCESS_COARSE_LOCATION)
-    LaunchedEffect(locationGranted) {
-        if (locationGranted) WeatherRefreshWorker.refreshNow(context)
+    LaunchedEffect(locationGranted, resolved) {
+        if (resolved is WeatherTile.Location.Current && locationGranted) WeatherRefreshWorker.refreshNow(context)
     }
 
     val cache = remember(context) { WeatherCache.create(context) }
-    val snapshot = cache.data.collectAsState(initial = WeatherCacheData()).value.snapshot
+    val snapshot = cache.data.collectAsState(initial = WeatherCacheData()).value.snapshotFor(resolved)
         ?: return fallback()
 
     FlipTile(
@@ -75,18 +98,20 @@ fun WeatherTileFace(
  */
 @Composable
 fun WeatherSmallFace(
+    location: WeatherTile.Location?,
     fallback: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val resolved = resolvedLocation(location)
     LaunchedEffect(Unit) { WeatherRefreshWorker.ensureScheduled(context) }
     val locationGranted = rememberPermissionGranted(Manifest.permission.ACCESS_COARSE_LOCATION)
-    LaunchedEffect(locationGranted) {
-        if (locationGranted) WeatherRefreshWorker.refreshNow(context)
+    LaunchedEffect(locationGranted, resolved) {
+        if (resolved is WeatherTile.Location.Current && locationGranted) WeatherRefreshWorker.refreshNow(context)
     }
 
     val cache = remember(context) { WeatherCache.create(context) }
-    val snapshot = cache.data.collectAsState(initial = WeatherCacheData()).value.snapshot
+    val snapshot = cache.data.collectAsState(initial = WeatherCacheData()).value.snapshotFor(resolved)
         ?: return fallback()
 
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

@@ -12,9 +12,11 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.tileshell.core.data.WeatherTile
 import com.tileshell.feature.livetiles.DailyForecast
 import com.tileshell.feature.livetiles.R
 import com.tileshell.feature.livetiles.WeatherCache
+import com.tileshell.feature.livetiles.WeatherCacheData
 import com.tileshell.feature.livetiles.WeatherSnapshot
 import com.tileshell.feature.livetiles.highLowLabel
 import com.tileshell.feature.livetiles.tempLabel
@@ -77,15 +79,27 @@ class WeatherWidgetRefreshWorker(
             )
         }
 
-        /** Renders + pushes every currently-placed weather widget instance. */
+        /**
+         * Renders + pushes every currently-placed weather widget instance —
+         * each reading its own stored [WeatherTile.Location]
+         * ([WidgetConfigStore.weatherLocation]), so several weather widgets
+         * can each show a different place (user-requested) from the one
+         * shared [WeatherCache] [WeatherRefreshWorker] populates. A widget
+         * with no stored location yet (mid-configure, or a brand new instance
+         * this method happens to see before that step completes) falls back
+         * to "current" rather than showing nothing.
+         */
         suspend fun pushAll(context: Context) {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, WeatherAppWidgetProvider::class.java))
             if (ids.isEmpty()) return
 
-            val snapshot = WeatherCache.create(context).read().snapshot
+            val cacheData = WeatherCache.create(context).read()
 
             ids.forEach { id ->
+                val location = WeatherTile.decode(WidgetConfigStore.weatherLocation(context, id))
+                    ?: WeatherTile.Location.Current
+                val snapshot = cacheData.snapshotFor(location)
                 val minWidthDp = manager.getAppWidgetOptions(id)
                     .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 110)
                 val (accent, onAccent) = resolveWidgetAccent(context, id)
@@ -99,6 +113,12 @@ class WeatherWidgetRefreshWorker(
                 )
                 manager.updateAppWidget(id, views)
             }
+        }
+
+        /** Same lookup [com.tileshell.feature.livetiles.WeatherTileFace] uses — Current reads the shared snapshot, a Fixed place reads its own cached entry. */
+        private fun WeatherCacheData.snapshotFor(location: WeatherTile.Location): WeatherSnapshot? = when (location) {
+            WeatherTile.Location.Current -> snapshot
+            is WeatherTile.Location.Fixed -> places[WeatherTile.key(location)]
         }
 
         /**

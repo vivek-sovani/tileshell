@@ -51,6 +51,7 @@ import androidx.core.graphics.drawable.toBitmap
 import com.tileshell.core.data.CommodityTile
 import com.tileshell.core.data.CountdownTile
 import com.tileshell.core.data.StockTile
+import com.tileshell.core.data.WeatherTile
 import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.shortcutIconDrawable
@@ -181,6 +182,7 @@ internal fun IconCellView(
         when (tile.iconKey) {
             "weather" -> LiveIconTile(accent, badgeCount, darkTheme) {
                 WeatherSmallFace(
+                    location = WeatherTile.decode(tile.activityName),
                     fallback = {
                         IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp, themedIcons = themedIcons, accent = accent)
                     },

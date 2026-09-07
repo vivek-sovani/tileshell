@@ -87,6 +87,9 @@ import com.tileshell.core.data.formatStockPrice
 import com.tileshell.core.data.sportsLeagueFor
 import com.tileshell.core.data.stockCategoryFor
 import com.tileshell.core.data.StepsPrefs
+import com.tileshell.core.data.WeatherPlaceResult
+import com.tileshell.core.data.WeatherTile
+import com.tileshell.core.data.fetchWeatherPlaceSearch
 import com.tileshell.core.design.TileAccents
 import com.tileshell.feature.livetiles.canShowSystemPermissionDialog
 import com.tileshell.feature.livetiles.openAppPermissionSettings
@@ -167,6 +170,21 @@ class WidgetConfigureActivity : ComponentActivity() {
             SportsAppWidgetProvider::class.java.name -> RequiredStep.SPORTS
             StickyNoteAppWidgetProvider::class.java.name -> RequiredStep.STICKY_NOTE_TEXT
             CountdownAppWidgetProvider::class.java.name -> RequiredStep.COUNTDOWN
+            // A RemoteViews tree can't host this ask either (same reason as
+            // the steps permission step below), so it's asked here — the one
+            // part of the widget's own flow that's a real Activity. Gated on
+            // "no location stored yet" rather than always shown: a widget
+            // placed before several-locations support existed gets backfilled
+            // to "current" the moment it next updates
+            // (WeatherAppWidgetProvider.onUpdate), so this only ever actually
+            // shows for a genuinely brand new placement — reconfiguring for a
+            // colour change never re-asks. See WeatherLocationPickerScreen.
+            WeatherAppWidgetProvider::class.java.name ->
+                if (WidgetConfigStore.weatherLocation(this, appWidgetId) == null) {
+                    RequiredStep.WEATHER_LOCATION
+                } else {
+                    RequiredStep.NONE
+                }
             // The only *permission* step: the steps widget can't show anything
             // at all without ACTIVITY_RECOGNITION, and a RemoteViews tree has
             // no way to ask for it (user-reported: adding the widget never
@@ -206,6 +224,7 @@ class WidgetConfigureActivity : ComponentActivity() {
                 onSportsPicked = { encoded -> WidgetConfigStore.setSportsSelectionEncoded(this, appWidgetId, encoded) },
                 onStickyNoteTextPicked = { text -> WidgetStickyNoteStore.setText(this, appWidgetId, text) },
                 onCountdownPicked = { targetIsoDate, label -> WidgetConfigStore.setCountdown(this, appWidgetId, targetIsoDate, label) },
+                onWeatherLocationPicked = { encoded -> WidgetConfigStore.setWeatherLocation(this, appWidgetId, encoded) },
                 onColorPicked = ::save,
             )
         }
@@ -220,7 +239,15 @@ class WidgetConfigureActivity : ComponentActivity() {
 
     private fun refreshOwningWidget() {
         when (AppWidgetManager.getInstance(this).getAppWidgetInfo(appWidgetId)?.provider?.className) {
-            WeatherAppWidgetProvider::class.java.name -> WeatherWidgetRefreshWorker.refreshNow(this)
+            // The location step just wrote a location this widget may never
+            // have had cached weather for yet (a freshly picked place, or the
+            // very first "current location" fix) — force the real fetch, not
+            // just a re-render of whatever's already in WeatherCache, so the
+            // widget doesn't sit on "—" until the next periodic run.
+            WeatherAppWidgetProvider::class.java.name -> {
+                com.tileshell.feature.livetiles.WeatherRefreshWorker.refreshNow(this)
+                WeatherWidgetRefreshWorker.refreshNow(this)
+            }
             BatteryAppWidgetProvider::class.java.name -> BatteryWidgetRefreshWorker.refreshNow(this)
             AlarmAppWidgetProvider::class.java.name -> AlarmWidgetRefreshWorker.refreshNow(this)
             MoonPhaseAppWidgetProvider::class.java.name -> MoonPhaseWidgetRefreshWorker.refreshNow(this)
@@ -238,7 +265,7 @@ class WidgetConfigureActivity : ComponentActivity() {
     }
 }
 
-private enum class RequiredStep { NONE, CALENDAR_SYSTEM, STOCK, COMMODITY, SPORTS, STICKY_NOTE_TEXT, COUNTDOWN, STEPS_PERMISSION }
+private enum class RequiredStep { NONE, CALENDAR_SYSTEM, STOCK, COMMODITY, SPORTS, STICKY_NOTE_TEXT, COUNTDOWN, STEPS_PERMISSION, WEATHER_LOCATION }
 private enum class ConfigureStep { FIRST, COLOR }
 
 @Composable
@@ -255,6 +282,7 @@ private fun ConfigureScreen(
     onSportsPicked: (encoded: String) -> Unit,
     onStickyNoteTextPicked: (String) -> Unit,
     onCountdownPicked: (targetIsoDate: String, label: String) -> Unit,
+    onWeatherLocationPicked: (encoded: String) -> Unit,
     onColorPicked: (String?) -> Unit,
 ) {
     var step by remember { mutableStateOf(if (requiredStep == RequiredStep.NONE) ConfigureStep.COLOR else ConfigureStep.FIRST) }
@@ -313,6 +341,12 @@ private fun ConfigureScreen(
                 )
                 RequiredStep.STEPS_PERMISSION -> StepsPermissionScreen(
                     onDone = { step = ConfigureStep.COLOR },
+                )
+                RequiredStep.WEATHER_LOCATION -> WeatherLocationPickerScreen(
+                    onPick = { encoded ->
+                        onWeatherLocationPicked(encoded)
+                        step = ConfigureStep.COLOR
+                    },
                 )
                 RequiredStep.NONE -> Unit
             }
@@ -1296,6 +1330,155 @@ private fun StepsPermissionScreen(onDone: () -> Unit) {
             horizontalArrangement = Arrangement.Center,
         ) {
             Text("not now", color = ConfigFgDim, fontSize = 15.sp)
+        }
+    }
+}
+
+/**
+ * The weather widget's own location step — same "current location, or search
+ * a place" choice as the in-app tile's [com.tileshell.feature.personalize
+ * .WeatherLocationSheet] (this Activity can't depend on `:feature:personalize`,
+ * so it's a self-contained sibling here using this file's own UI primitives),
+ * asked here because a `RemoteViews` tree has no way to ask for anything.
+ * "Use current location" requests `ACCESS_COARSE_LOCATION` inline — same
+ * dead-button concern as [StepsPermissionScreen] if it's permanently denied,
+ * so it degrades to "open settings" the same way. Search results come from
+ * [fetchWeatherPlaceSearch] (Open-Meteo geocoding, no key needed); tapping one
+ * finishes the step immediately with that place's coordinates, no permission
+ * involved. Either way [onPick] always fires with a real
+ * [WeatherTile.encode]d value — this step never leaves the widget
+ * unconfigured.
+ */
+@Composable
+private fun WeatherLocationPickerScreen(onPick: (encoded: String) -> Unit) {
+    val context = LocalContext.current
+    val locationRequest = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        // Granted or denied, "current location" is still the right answer —
+        // WeatherTileFace/the widget worker already degrade gracefully with
+        // that permission missing, exactly as they always have.
+        onPick(WeatherTile.encode(WeatherTile.Location.Current))
+    }
+    val blocked = remember {
+        !canShowSystemPermissionDialog(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            asked = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) !=
+                PackageManager.PERMISSION_GRANTED,
+        )
+    }
+    var query by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<WeatherPlaceResult>>(emptyList()) }
+    LaunchedEffect(query) {
+        val trimmed = query.trim()
+        if (trimmed.length < 2) {
+            results = emptyList()
+            return@LaunchedEffect
+        }
+        delay(250)
+        results = fetchWeatherPlaceSearch(trimmed)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0A0A0D))
+            .verticalScroll(rememberScrollState())
+            .padding(vertical = 20.dp),
+    ) {
+        Text(
+            text = "weather location",
+            color = ConfigFg,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Light,
+            modifier = Modifier.padding(horizontal = 20.dp),
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "follow this device's own location, or pick a fixed place — you can add another " +
+                "weather widget for a different place any time.",
+            color = ConfigFgDim,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(horizontal = 20.dp),
+        )
+        Spacer(Modifier.height(16.dp))
+        Box20 {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(ConfigAccent.copy(alpha = 0.16f))
+                    .clickable {
+                        if (blocked) {
+                            openAppPermissionSettings(context)
+                        } else {
+                            locationRequest.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                        }
+                    }
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+            ) {
+                Column {
+                    Text(
+                        text = if (blocked) "open settings to allow location" else "use current location",
+                        color = ConfigFg,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Text("follows this device wherever it goes", color = ConfigFgDim, fontSize = 12.sp)
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        HorizontalDivider(color = ConfigDivider, modifier = Modifier.padding(horizontal = 20.dp))
+        Spacer(Modifier.height(16.dp))
+        Box20 {
+            Text("or search a place", color = ConfigFg, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        }
+        Spacer(Modifier.height(8.dp))
+        Box20 {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(ConfigFg.copy(alpha = 0.06f))
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+            ) {
+                BasicTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    singleLine = true,
+                    textStyle = TextStyle(color = ConfigFg, fontSize = 15.sp),
+                    cursorBrush = SolidColor(ConfigAccent),
+                    modifier = Modifier.fillMaxWidth(),
+                    decorationBox = { inner ->
+                        if (query.isEmpty()) {
+                            Text("e.g. london, mumbai, tokyo", color = ConfigFgDim.copy(alpha = 0.6f), fontSize = 15.sp)
+                        }
+                        inner()
+                    },
+                )
+            }
+        }
+
+        val trimmed = query.trim()
+        if (trimmed.length >= 2) {
+            if (results.isEmpty()) {
+                Text("no matches yet", color = ConfigFgDim, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp))
+            }
+            results.forEach { result ->
+                Text(
+                    text = result.displayName,
+                    color = ConfigFg,
+                    fontSize = 15.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onPick(WeatherTile.encode(WeatherTile.Location.Fixed(result.lat, result.lon, result.displayName)))
+                        }
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                )
+            }
         }
     }
 }

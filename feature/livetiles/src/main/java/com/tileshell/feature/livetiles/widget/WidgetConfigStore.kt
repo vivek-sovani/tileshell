@@ -84,6 +84,21 @@ object WidgetConfigStore {
             .apply()
     }
 
+    /**
+     * A weather widget's picked location — [com.tileshell.core.data.WeatherTile]'s
+     * own `encode`/`decode` output verbatim (same "reuse the in-app tile's
+     * already-unit-tested codec" choice as stock/sports above), either "follow
+     * the device's location" or a specific geocoded place. Null means never
+     * configured — `WidgetConfigureActivity`'s permission-or-location step
+     * hasn't run for this instance yet.
+     */
+    fun weatherLocation(context: Context, appWidgetId: Int): String? =
+        prefs(context).getString(weatherKey(appWidgetId), null)
+
+    fun setWeatherLocation(context: Context, appWidgetId: Int, encoded: String) {
+        prefs(context).edit().putString(weatherKey(appWidgetId), encoded).apply()
+    }
+
     /** Called from each provider's `onDeleted` so a removed widget's config doesn't linger forever. */
     fun clear(context: Context, appWidgetId: Int) {
         prefs(context).edit()
@@ -94,6 +109,7 @@ object WidgetConfigStore {
             .remove(sportsKey(appWidgetId))
             .remove(countdownDateKey(appWidgetId))
             .remove(countdownLabelKey(appWidgetId))
+            .remove(weatherKey(appWidgetId))
             .apply()
     }
 
@@ -104,6 +120,7 @@ object WidgetConfigStore {
     private fun sportsKey(appWidgetId: Int) = "sports_selection_$appWidgetId"
     private fun countdownDateKey(appWidgetId: Int) = "countdown_date_$appWidgetId"
     private fun countdownLabelKey(appWidgetId: Int) = "countdown_label_$appWidgetId"
+    private fun weatherKey(appWidgetId: Int) = "weather_location_$appWidgetId"
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

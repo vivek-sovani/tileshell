@@ -11,8 +11,15 @@ import java.io.OutputStream
 
 /**
  * Persisted weather state (FR-2 weather tile): the last good [snapshot] the
- * worker fetched and the user's [manualCity] fallback. A null snapshot means
- * "no data yet" — the tile degrades to static until the worker writes one.
+ * worker fetched for the *device's* location, the user's [manualCity] fallback,
+ * and one snapshot per user-picked fixed place in [places]. A null snapshot
+ * means "no data yet" — the tile degrades to static until the worker writes one.
+ *
+ * [places] is keyed by [com.tileshell.core.data.WeatherTile.key], so several
+ * weather tiles/widgets pointed at the same city share one entry (and one
+ * network fetch) while each still reads only its own place. Instances that
+ * follow the device's location all read [snapshot] instead — that key
+ * (`WeatherTile.CURRENT_KEY`) never appears in [places].
  *
  * [manualCity] is kept here (not in LauncherSettings) so the weather feature is
  * self-contained; a settings entry UI to set it lands later (DECISIONS S21).
@@ -20,6 +27,7 @@ import java.io.OutputStream
 data class WeatherCacheData(
     val snapshot: WeatherSnapshot? = null,
     val manualCity: String? = null,
+    val places: Map<String, WeatherSnapshot> = emptyMap(),
 )
 
 /**
@@ -55,7 +63,34 @@ object WeatherCacheCodec {
                     .append(day.condition)
             }
         }
+        // One `loc=` line per user-picked fixed location, each self-contained
+        // (its own forecast days appended) so the whole set round-trips without
+        // needing per-place line ordering. `loc`, not `place` — `place=` is
+        // already the *device*-location snapshot's own label line above, and a
+        // duplicate key would be parsed as that instead. `~` separates fields and `;`/`|` the
+        // forecast days — none of which can appear in the values (place names
+        // and details are sanitized on the way in, conditions come from the
+        // fixed weatherCodeToCondition phrases).
+        data.places.forEach { (key, s) ->
+            append('\n').append("loc=").append(clean(key)).append('~')
+                .append(s.tempC).append('~')
+                .append(s.highC).append('~')
+                .append(s.lowC).append('~')
+                .append(s.fetchedAtMillis).append('~')
+                .append(clean(s.condition)).append('~')
+                .append(clean(s.place)).append('~')
+                .append(clean(s.detail)).append('~')
+                .append(
+                    s.forecast.joinToString(";") { day ->
+                        "${clean(day.dayLabel)}|${day.highC}|${day.lowC}|${clean(day.condition)}"
+                    },
+                )
+        }
     }
+
+    /** Strips this codec's own separators so a value can never split a line. */
+    private fun clean(value: String): String =
+        value.replace('~', ' ').replace(';', ' ').replace('|', ' ').replace('\n', ' ').replace('\r', ' ')
 
     fun decode(text: String): WeatherCacheData {
         var manualCity: String? = null
@@ -67,6 +102,7 @@ object WeatherCacheCodec {
         var detail = ""
         var condition: String? = null
         val forecastByIndex = sortedMapOf<Int, DailyForecast>()
+        val places = LinkedHashMap<String, WeatherSnapshot>()
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
             if (sep <= 0) return@forEach
@@ -81,6 +117,9 @@ object WeatherCacheCodec {
                 key == "place" -> place = value
                 key == "detail" -> detail = value
                 key == "condition" -> condition = value.ifEmpty { null }
+                key == "loc" -> decodePlaceLine(value)?.let { (placeKey, snapshot) ->
+                    places[placeKey] = snapshot
+                }
                 key.startsWith("forecast") -> {
                     val index = key.removePrefix("forecast").toIntOrNull() ?: return@forEach
                     val parts = value.split('|')
@@ -114,7 +153,37 @@ object WeatherCacheCodec {
         } else {
             null
         }
-        return WeatherCacheData(snapshot = snapshot, manualCity = manualCity)
+        return WeatherCacheData(snapshot = snapshot, manualCity = manualCity, places = places)
+    }
+
+    /** One `loc=` line → its cache key + snapshot; null when malformed. */
+    private fun decodePlaceLine(value: String): Pair<String, WeatherSnapshot>? {
+        val f = value.split('~')
+        if (f.size < 8) return null
+        val key = f[0].trim().ifEmpty { return null }
+        val temp = f[1].trim().toIntOrNull() ?: return null
+        val high = f[2].trim().toIntOrNull() ?: return null
+        val low = f[3].trim().toIntOrNull() ?: return null
+        val condition = f[5].ifEmpty { return null }
+        val forecast = f.getOrNull(8).orEmpty()
+            .split(';')
+            .mapNotNull { day ->
+                val parts = day.split('|')
+                if (parts.size != 4) return@mapNotNull null
+                val dHigh = parts[1].toIntOrNull() ?: return@mapNotNull null
+                val dLow = parts[2].toIntOrNull() ?: return@mapNotNull null
+                DailyForecast(dayLabel = parts[0], highC = dHigh, lowC = dLow, condition = parts[3])
+            }
+        return key to WeatherSnapshot(
+            tempC = temp,
+            condition = condition,
+            highC = high,
+            lowC = low,
+            detail = f[7],
+            place = f[6],
+            fetchedAtMillis = f[4].trim().toLongOrNull() ?: 0L,
+            forecast = forecast,
+        )
     }
 }
 
@@ -147,6 +216,24 @@ class WeatherCache(private val store: DataStore<WeatherCacheData>) {
 
     suspend fun setManualCity(city: String?) {
         store.updateData { it.copy(manualCity = city?.trim()?.ifEmpty { null }) }
+    }
+
+    /** Stores the forecast for one user-picked fixed place (see [WeatherCacheData.places]). */
+    suspend fun putPlaceSnapshot(key: String, snapshot: WeatherSnapshot) {
+        store.updateData { it.copy(places = it.places + (key to snapshot)) }
+    }
+
+    /**
+     * Drops cached places no longer wanted by any tile/widget — called by the
+     * refresh worker with the set it just recomputed from the live layout, so
+     * removing a weather tile stops its city being fetched and stops its
+     * snapshot sitting in the file forever.
+     */
+    suspend fun retainPlaces(keys: Set<String>) {
+        store.updateData { current ->
+            val kept = current.places.filterKeys { it in keys }
+            if (kept.size == current.places.size) current else current.copy(places = kept)
+        }
     }
 
     companion object {

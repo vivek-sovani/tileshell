@@ -103,6 +103,50 @@ class WeatherCacheCodecTest {
         )
         assertEquals(emptyList<DailyForecast>(), decoded.snapshot?.forecast)
     }
+
+    @Test
+    fun `one fixed place's snapshot round-trips alongside the device snapshot`() {
+        val data = WeatherCacheData(
+            snapshot = WeatherSnapshot(tempC = 23, condition = "clear", highC = 26, lowC = 17, place = "current"),
+            places = mapOf(
+                "18.52,73.86" to WeatherSnapshot(
+                    tempC = 30,
+                    condition = "hot",
+                    highC = 33,
+                    lowC = 24,
+                    detail = "chance of rain · 20%",
+                    place = "Pune",
+                    fetchedAtMillis = 1_700_000_000_000L,
+                    forecast = listOf(DailyForecast("today", 33, 24, "hot")),
+                ),
+            ),
+        )
+        assertEquals(data, WeatherCacheCodec.decode(WeatherCacheCodec.encode(data)))
+    }
+
+    @Test
+    fun `several fixed places all round-trip independently`() {
+        val data = WeatherCacheData(
+            places = mapOf(
+                "18.52,73.86" to WeatherSnapshot(tempC = 30, condition = "hot", highC = 33, lowC = 24, place = "Pune"),
+                "51.51,-0.13" to WeatherSnapshot(tempC = 12, condition = "rain", highC = 14, lowC = 9, place = "London"),
+            ),
+        )
+        val decoded = WeatherCacheCodec.decode(WeatherCacheCodec.encode(data))
+        assertEquals(data.places, decoded.places)
+    }
+
+    @Test
+    fun `an old cache file with no loc lines decodes to no fixed places`() {
+        val decoded = WeatherCacheCodec.decode("temp=23\nhigh=26\nlow=17\nplace=Pune\ncondition=clear")
+        assertEquals(emptyMap<String, WeatherSnapshot>(), decoded.places)
+    }
+
+    @Test
+    fun `a malformed loc line is skipped, not thrown`() {
+        val decoded = WeatherCacheCodec.decode("loc=incomplete~30")
+        assertEquals(emptyMap<String, WeatherSnapshot>(), decoded.places)
+    }
 }
 
 class OpenMeteoTest {
