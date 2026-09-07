@@ -1,11 +1,15 @@
 package com.tileshell.feature.livetiles.widget
 
+import android.Manifest
 import android.app.DatePickerDialog
 import android.appwidget.AppWidgetManager
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -51,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.tileshell.core.data.CALENDAR_SYSTEMS
 import com.tileshell.core.data.COMMODITY_CATEGORY_ORDER
 import com.tileshell.core.data.COMMODITY_ITEMS
@@ -81,7 +86,10 @@ import com.tileshell.core.data.formatStockChangePercent
 import com.tileshell.core.data.formatStockPrice
 import com.tileshell.core.data.sportsLeagueFor
 import com.tileshell.core.data.stockCategoryFor
+import com.tileshell.core.data.StepsPrefs
 import com.tileshell.core.design.TileAccents
+import com.tileshell.feature.livetiles.canShowSystemPermissionDialog
+import com.tileshell.feature.livetiles.openAppPermissionSettings
 import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -159,6 +167,23 @@ class WidgetConfigureActivity : ComponentActivity() {
             SportsAppWidgetProvider::class.java.name -> RequiredStep.SPORTS
             StickyNoteAppWidgetProvider::class.java.name -> RequiredStep.STICKY_NOTE_TEXT
             CountdownAppWidgetProvider::class.java.name -> RequiredStep.COUNTDOWN
+            // The only *permission* step: the steps widget can't show anything
+            // at all without ACTIVITY_RECOGNITION, and a RemoteViews tree has
+            // no way to ask for it (user-reported: adding the widget never
+            // asked, so it just sat on "--"). This Activity is the one part of
+            // the widget's own flow that can — it runs at add time, and again
+            // whenever the widget's gear (or, in that state, its whole body)
+            // is tapped. Skipped once granted, so a reconfigure for a colour
+            // change doesn't re-ask.
+            StepsAppWidgetProvider::class.java.name ->
+                if (
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.ACTIVITY_RECOGNITION) ==
+                    PackageManager.PERMISSION_GRANTED
+                ) {
+                    RequiredStep.NONE
+                } else {
+                    RequiredStep.STEPS_PERMISSION
+                }
             else -> RequiredStep.NONE
         }
         val existingStock = WidgetConfigStore.stockSelectionEncoded(this, appWidgetId)?.let { StockTile.decode(it) }
@@ -213,7 +238,7 @@ class WidgetConfigureActivity : ComponentActivity() {
     }
 }
 
-private enum class RequiredStep { NONE, CALENDAR_SYSTEM, STOCK, COMMODITY, SPORTS, STICKY_NOTE_TEXT, COUNTDOWN }
+private enum class RequiredStep { NONE, CALENDAR_SYSTEM, STOCK, COMMODITY, SPORTS, STICKY_NOTE_TEXT, COUNTDOWN, STEPS_PERMISSION }
 private enum class ConfigureStep { FIRST, COLOR }
 
 @Composable
@@ -285,6 +310,9 @@ private fun ConfigureScreen(
                         onCountdownPicked(targetIsoDate, label)
                         step = ConfigureStep.COLOR
                     },
+                )
+                RequiredStep.STEPS_PERMISSION -> StepsPermissionScreen(
+                    onDone = { step = ConfigureStep.COLOR },
                 )
                 RequiredStep.NONE -> Unit
             }
@@ -1182,6 +1210,92 @@ private fun QuoteBlock(quote: StockQuote?, loading: Boolean) {
                 fontWeight = FontWeight.Medium,
             )
             Text(if (quote.marketOpen) "market open" else "market closed", color = ConfigFgDim, fontSize = 12.sp)
+        }
+    }
+}
+
+/**
+ * The steps widget's permission step: the same rationale wording the in-app
+ * steps tile shows ([com.tileshell.feature.livetiles.StepsTileFace]'s gate),
+ * asked here because the widget itself can't. Always followed by the colour
+ * step whichever way it resolves — granting is not a precondition for
+ * finishing the widget's setup, it just decides whether the placed widget
+ * shows a count or "tap to allow".
+ *
+ * Routes to system Settings rather than `launch` when the permission is
+ * permanently denied ([canShowSystemPermissionDialog]) — `launch` is a silent
+ * no-op in that state, which reads as a dead button.
+ */
+@Composable
+private fun StepsPermissionScreen(onDone: () -> Unit) {
+    val context = LocalContext.current
+    val request = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        StepsPrefs.markPermissionAsked(context)
+        onDone()
+    }
+    val blocked = remember {
+        !canShowSystemPermissionDialog(
+            context,
+            Manifest.permission.ACTIVITY_RECOGNITION,
+            asked = StepsPrefs.permissionAsked(context),
+        )
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0A0A0D))
+            .verticalScroll(rememberScrollState())
+            .padding(20.dp),
+    ) {
+        Text(
+            text = "show today's steps?",
+            color = ConfigFg,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Light,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "this widget reads your phone's built-in step-counter sensor to show today's count. " +
+                "stays on your device — nothing is sent anywhere.",
+            color = ConfigFgDim,
+            fontSize = 13.sp,
+        )
+        if (blocked) {
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = "android won't ask again once \"physical activity\" has been denied — turn it on in " +
+                    "settings → permissions → physical activity.",
+                color = ConfigFgDim,
+                fontSize = 13.sp,
+            )
+        }
+        Spacer(Modifier.height(20.dp))
+        ConfirmButton(
+            text = if (blocked) "open settings" else "allow",
+            enabled = true,
+            onClick = {
+                StepsPrefs.markPermissionAsked(context)
+                if (blocked) {
+                    openAppPermissionSettings(context)
+                    onDone()
+                } else {
+                    request.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                }
+            },
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .clickable {
+                    StepsPrefs.markPermissionAsked(context)
+                    onDone()
+                }
+                .padding(vertical = 14.dp),
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Text("not now", color = ConfigFgDim, fontSize = 15.sp)
         }
     }
 }

@@ -162,6 +162,7 @@ import com.tileshell.core.data.ContactTile
 import com.tileshell.core.data.CountdownTile
 import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.SportsTile
+import com.tileshell.core.data.StepsPrefs
 import com.tileshell.core.data.StockTile
 import com.tileshell.core.data.hasNotesTile
 import com.tileshell.core.data.TileColors
@@ -226,6 +227,9 @@ import com.tileshell.feature.livetiles.regionDisplayName
 import com.tileshell.feature.livetiles.rememberBatteryOptimizationExempt
 import com.tileshell.feature.livetiles.rememberNotificationAccess
 import com.tileshell.feature.livetiles.rememberPermissionGranted
+import com.tileshell.feature.livetiles.canShowSystemPermissionDialog
+import com.tileshell.feature.livetiles.openAppPermissionSettings
+import com.tileshell.feature.livetiles.widget.StepsWidgetRefreshWorker
 import com.tileshell.feature.livetiles.WeatherRefreshWorker
 import com.tileshell.feature.personalize.AboutSheet
 import com.tileshell.feature.personalize.BackupRestoreSheet
@@ -360,6 +364,7 @@ fun StartScreen(
     val contactsGranted = rememberPermissionGranted(android.Manifest.permission.READ_CONTACTS)
     val calendarGranted = rememberPermissionGranted(android.Manifest.permission.READ_CALENDAR)
     val locationGranted = rememberPermissionGranted(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+    val activityGranted = rememberPermissionGranted(android.Manifest.permission.ACTIVITY_RECOGNITION)
     // The ViewModel's own init-time attempt to seed the feed greeting's name from
     // the device contact profile races the runtime permission dialog (it always
     // sees "denied" then, since the dialog hasn't resolved yet) — retry here
@@ -575,6 +580,30 @@ fun StartScreen(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
         if (granted) WeatherRefreshWorker.refreshNow(context)
+    }
+    // Physical activity (steps). Unlike the three above, this one is *not* in
+    // MainActivity's upfront batch — it's asked contextually the first time a
+    // steps face renders (see StepsTile.kt's gate), which is why it needs its
+    // own asked-flag bookkeeping here too: granting it from this row is the
+    // permanent way back in after that one-shot ask, and the placed steps
+    // widget is pushed straight away rather than waiting out its 15-min
+    // refresh interval.
+    val activityLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        StepsPrefs.markPermissionAsked(context)
+        if (granted) StepsWidgetRefreshWorker.refreshNow(context)
+    }
+    // A permanently denied runtime permission makes `launch` a silent no-op —
+    // the system dialog never appears — so a row wired straight to it reads as
+    // a dead button. Route to this app's own Settings entry instead in that
+    // state, the only place it can still be turned on.
+    fun requestPermissionOrOpenSettings(
+        permission: String,
+        asked: Boolean,
+        launch: () -> Unit,
+    ) {
+        if (canShowSystemPermissionDialog(context, permission, asked)) launch() else openAppPermissionSettings(context)
     }
 
     // SAF launchers for backup export/import (permission-free; supports Google Drive).
@@ -1803,14 +1832,32 @@ fun StartScreen(
             contactsGranted = contactsGranted,
             calendarGranted = calendarGranted,
             locationGranted = locationGranted,
+            activityGranted = activityGranted,
+            // asked = true for these three: MainActivity requests them
+            // upfront on every fresh process, so by the time Personalize is
+            // reachable they have certainly been asked at least once.
             onRequestContacts = {
-                contactsLauncher.launch(android.Manifest.permission.READ_CONTACTS)
+                requestPermissionOrOpenSettings(android.Manifest.permission.READ_CONTACTS, asked = true) {
+                    contactsLauncher.launch(android.Manifest.permission.READ_CONTACTS)
+                }
             },
             onRequestCalendar = {
-                calendarLauncher.launch(android.Manifest.permission.READ_CALENDAR)
+                requestPermissionOrOpenSettings(android.Manifest.permission.READ_CALENDAR, asked = true) {
+                    calendarLauncher.launch(android.Manifest.permission.READ_CALENDAR)
+                }
             },
             onRequestLocation = {
-                locationLauncher.launch(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                requestPermissionOrOpenSettings(android.Manifest.permission.ACCESS_COARSE_LOCATION, asked = true) {
+                    locationLauncher.launch(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                }
+            },
+            onRequestActivity = {
+                requestPermissionOrOpenSettings(
+                    android.Manifest.permission.ACTIVITY_RECOGNITION,
+                    asked = StepsPrefs.permissionAsked(context),
+                ) {
+                    activityLauncher.launch(android.Manifest.permission.ACTIVITY_RECOGNITION)
+                }
             },
         )
 

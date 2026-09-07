@@ -227,7 +227,7 @@ fun PersonalizeSheet(
     edgeStripEnabled: Boolean,
     onEdgeStrip: () -> Unit,
     onBackupRestore: () -> Unit,
-    /** Opens the contacts/calendar/location permissions sub-sheet. */
+    /** Opens the contacts/calendar/location/physical-activity permissions sub-sheet. */
     onPermissions: () -> Unit,
     /** Opens the news-region picker sub-sheet. */
     onNewsRegion: () -> Unit,
@@ -1176,7 +1176,7 @@ fun PersonalizeSheet(
                 }
             }
 
-            // ---- permissions (contacts/calendar/location — sub-sheet) ----
+            // ---- permissions (contacts/calendar/location/physical activity — sub-sheet) ----
             SettingGroup(label = "permissions", tokens.fgDim) {
                 Row(
                     modifier = Modifier
@@ -1186,7 +1186,7 @@ fun PersonalizeSheet(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "contacts, calendar & location", color = tokens.fg, fontSize = 14.sp)
+                        Text(text = "contacts, calendar, location & steps", color = tokens.fg, fontSize = 14.sp)
                         Text(
                             text = "manage what live tiles can access",
                             color = tokens.fgDim,

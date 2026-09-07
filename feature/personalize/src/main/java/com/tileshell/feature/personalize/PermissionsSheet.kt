@@ -38,12 +38,13 @@ import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.colorTokens
 
 /**
- * The "permissions" sub-sheet (personalize → contacts, calendar & location) —
- * the live-tile data-source permissions. "badges & live mail" moved out of
- * here into the "live tiles" group instead (it feeds live-tile content, not a
- * data-source permission in this sense), so this sheet is scoped to just
- * contacts/calendar/location, the same way [BackupRestoreSheet] and
- * [HiddenAppsSheet] already stand on their own.
+ * The "permissions" sub-sheet (personalize → contacts, calendar, location &
+ * physical activity) — the data-source permissions live tiles and the
+ * home-screen widgets read from. "badges & live mail" moved out of here into
+ * the "live tiles" group instead (it feeds live-tile content, not a
+ * data-source permission in this sense), so this sheet is scoped to those
+ * four, the same way [BackupRestoreSheet] and [HiddenAppsSheet] already stand
+ * on their own.
  */
 @Composable
 fun PermissionsSheet(
@@ -54,9 +55,11 @@ fun PermissionsSheet(
     contactsGranted: Boolean,
     calendarGranted: Boolean,
     locationGranted: Boolean,
+    activityGranted: Boolean,
     onRequestContacts: () -> Unit,
     onRequestCalendar: () -> Unit,
     onRequestLocation: () -> Unit,
+    onRequestActivity: () -> Unit,
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -142,6 +145,22 @@ fun PermissionsSheet(
                             accent = accent,
                             tokens = tokens,
                             onClick = onRequestLocation,
+                        )
+                        // Activity recognition is the one permission this app
+                        // asks for *contextually* (the first time a steps
+                        // face renders) rather than in the upfront batch — so
+                        // unlike the three above, a user who missed or
+                        // declined that one ask has no other route back to it.
+                        // This row is that route (user-reported: the steps
+                        // tile's own ask didn't take, and nothing showed the
+                        // count afterwards).
+                        PermissionRow(
+                            label = "physical activity",
+                            description = "steps tile · steps widget",
+                            granted = activityGranted,
+                            accent = accent,
+                            tokens = tokens,
+                            onClick = onRequestActivity,
                         )
                     }
                 }

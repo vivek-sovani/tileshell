@@ -3,6 +3,71 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Steps permission: a permanent way back in, and the widget asks for it too
+
+Three real defects around `ACTIVITY_RECOGNITION`, all reported together
+("count widget needs health data permission. same for health tile. for widget
+health permission not asked. and [start] tile it asked but was non responsive
+hence probably permission not given and now steps count not showing").
+
+**1. The home-screen/glance steps widget never asked at all.** A `RemoteViews`
+tree can't host a permission dialog, so the widget had no way to ask, and the
+old code's comment said so outright ("this pilot doesn't show the in-app
+permission-rationale dialog itself; that only happens once a Steps tile/card
+is actually opened in the app"). The consequence, though, is that a user who
+only ever added the *widget* got a permanent "--" and nothing anywhere told
+them why. Fixed by using the one part of the widget's own flow that *is* an
+Activity: `WidgetConfigureActivity` (already launched by the OS at add time,
+and re-launchable from the widget's gear via `reconfigurePendingIntent`) gained
+a `RequiredStep.STEPS_PERMISSION` first step for the steps provider, skipped
+once granted so a later colour change doesn't re-ask. Granting is not a
+precondition for finishing setup — "not now" still lands on the colour step
+and finishes normally.
+
+Paired with that, the placed widget now *says* what's wrong instead of showing
+a bare dash: a new pure `stepsWidgetState(granted, steps)` (unit-tested)
+separates the three outcomes the old `steps: Int?` conflated, and
+NEEDS_PERMISSION relabels the caption "tap to allow" and points the whole
+widget body at its configure activity. UNAVAILABLE (no step sensor on the
+device, or the one-shot sensor read timing out) deliberately stays a plain
+dash and keeps the no-body-tap rule — there's nothing the user could act on
+there. The narrow/compact layout has no room for a permanent caption, so its
+new `widget_label` is `visibility="gone"` by default and appears only for the
+needs-permission hint.
+
+**2. "It asked but was non responsive."** Confirmed on the user's own device:
+`steps_permission_asked = true` in `tileshell.prefs` with
+`ACTIVITY_RECOGNITION: granted=false`. A permanently denied runtime permission
+makes `ActivityResultLauncher.launch` a silent no-op — the system dialog never
+appears and the result is "denied" instantly — which is exactly a dead button
+from the user's side, and the gate's one-shot flag then made that state
+permanent. New `canShowSystemPermissionDialog(context, permission, asked)`
+(`TilePermission.kt`) detects it (`shouldShowRequestPermissionRationale`,
+plus the caller's own `asked` record, since that API is *also* false for a
+permission never requested yet), and `openAppPermissionSettings` is the
+answer: the steps gate now shows a second "steps permission is turned off ·
+open settings" dialog rather than doing nothing. Applied to the *existing*
+contacts/calendar/location rows in the permissions sheet too — same dead-button
+bug, same fix, and `asked = true` is sound for those three because
+`MainActivity` requests them upfront on every fresh process.
+
+**3. No manual route to it (user-requested: "this permission has to be part of
+permission section in personalisation. hence if i miss i can able to manually
+go and give permission").** Activity recognition is the one permission this app
+asks for *contextually* rather than in the upfront batch (deliberately — see
+`StepsTile.kt`'s gate doc comment and Play's review of unexplained asks), which
+is precisely why missing that single ask left no way back. `PermissionsSheet`
+gained a fourth row, "physical activity · steps tile · steps widget", with the
+same allow/allowed treatment as the other three; granting from there also
+pushes the placed steps widget immediately (`StepsWidgetRefreshWorker
+.refreshNow`) instead of leaving it stale for up to its 15-minute interval.
+
+Note on naming: the reported "health data permission" is `ACTIVITY_RECOGNITION`
+("physical activity" in system Settings), read straight off
+`Sensor.TYPE_STEP_COUNTER`. No Health Connect / health-platform integration is
+involved, and none was added — that would need a package in this app's
+manifest `<queries>` and its own Play declaration.
+
 ## Themed icons: parked
 
 Built, then immediately parked at the user's request after seeing it on

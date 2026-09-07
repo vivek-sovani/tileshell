@@ -9,6 +9,7 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.view.View
 import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
 import androidx.work.CoroutineWorker
@@ -21,8 +22,10 @@ import androidx.work.WorkerParameters
 import com.tileshell.core.data.StepsPrefs
 import com.tileshell.feature.livetiles.DEFAULT_STEPS_GOAL
 import com.tileshell.feature.livetiles.R
+import com.tileshell.feature.livetiles.StepsWidgetState
 import com.tileshell.feature.livetiles.resolveSteps
 import com.tileshell.feature.livetiles.stepsGoalProgress
+import com.tileshell.feature.livetiles.stepsWidgetState
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
@@ -37,11 +40,16 @@ import kotlin.coroutines.resume
  * registers the raw step-counter sensor, waits for exactly one reading (or
  * gives up after 5s if the sensor is slow to report), resolves it against
  * the same persisted [StepsPrefs.Baseline] the in-app tile reads/writes, and
- * unregisters immediately. Degrades to "steps unavailable" when
- * `ACTIVITY_RECOGNITION` isn't granted, there's no step sensor, or the
- * one-shot read times out — this pilot doesn't show the in-app permission-
- * rationale dialog itself; that only happens once a Steps tile/card is
- * actually opened in the app.
+ * unregisters immediately.
+ *
+ * A `RemoteViews` tree can't host a permission dialog, so when
+ * `ACTIVITY_RECOGNITION` isn't granted the widget instead labels itself "tap
+ * to allow" and points its whole body at [reconfigurePendingIntent] — its own
+ * configure activity, which does the asking (user-reported: adding the steps
+ * widget never asked for the permission at all, so it sat on "--" with no way
+ * to fix it from the home screen). No step sensor at all, or a timed-out
+ * one-shot read, has nothing the user could act on and stays a plain dash —
+ * see [stepsWidgetState].
  */
 class StepsWidgetRefreshWorker(
     context: Context,
@@ -97,22 +105,23 @@ class StepsWidgetRefreshWorker(
             val ids = manager.getAppWidgetIds(ComponentName(context, StepsAppWidgetProvider::class.java))
             if (ids.isEmpty()) return
 
-            val steps = stepsTodayOrNull(context)
+            val granted = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACTIVITY_RECOGNITION,
+            ) == PackageManager.PERMISSION_GRANTED
+            val steps = if (granted) stepsTodayOrNull(context) else null
+            val state = stepsWidgetState(granted, steps)
             ids.forEach { id ->
                 val minWidthDp = manager.getAppWidgetOptions(id)
                     .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 110)
                 val (accent, onAccent) = resolveWidgetAccent(context, id)
-                val views = buildRemoteViews(context, id, steps, accent, onAccent, isCompactWidget(minWidthDp))
+                val views = buildRemoteViews(context, id, steps, state, accent, onAccent, isCompactWidget(minWidthDp))
                 manager.updateAppWidget(id, views)
             }
         }
 
+        /** Caller checks the permission first (see [pushAll]) — null here means no sensor / no reading. */
         private suspend fun stepsTodayOrNull(context: Context): Int? {
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACTIVITY_RECOGNITION)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                return null
-            }
             val counter = withTimeoutOrNull(5_000L) { readStepCounterOnce(context) } ?: return null
             val baseline = StepsPrefs.readBaseline(context)
             val resolution = resolveSteps(counter, baseline, LocalDate.now().toEpochDay())
@@ -145,6 +154,7 @@ class StepsWidgetRefreshWorker(
             context: Context,
             appWidgetId: Int,
             steps: Int?,
+            state: StepsWidgetState,
             accent: Int,
             onAccent: Int,
             compact: Boolean,
@@ -157,17 +167,41 @@ class StepsWidgetRefreshWorker(
             // widget_bg's full-bleed gradient (and everything else) to it.
             views.setBoolean(R.id.widget_root, "setClipToOutline", true)
             views.setOnClickPendingIntent(R.id.widget_settings, reconfigurePendingIntent(context, appWidgetId))
-            // No body tap, unlike weather/alarm/battery/moon phase (see
-            // WidgetAppLaunch.kt): the step count reads a bare device sensor,
-            // not a specific app's data, and there's no OS-standard "steps
-            // app" intent the way AlarmClock.ACTION_SHOW_ALARMS or
-            // ACTION_POWER_USAGE_SUMMARY exist for the others. A real
-            // candidate (Health Connect) would need its package declared in
-            // this app's manifest <queries> first — deliberately not added
-            // without asking, since that's an app-wide manifest change.
+            // No body tap while the count is actually showing, unlike
+            // weather/alarm/battery/moon phase (see WidgetAppLaunch.kt): the
+            // step count reads a bare device sensor, not a specific app's
+            // data, and there's no OS-standard "steps app" intent the way
+            // AlarmClock.ACTION_SHOW_ALARMS or ACTION_POWER_USAGE_SUMMARY
+            // exist for the others. A real candidate (Health Connect) would
+            // need its package declared in this app's manifest <queries>
+            // first — deliberately not added without asking, since that's an
+            // app-wide manifest change. The one exception is the
+            // needs-permission state, where the body tap is the *only* route
+            // to the ask (the gear is a 24dp target in a corner, and nothing
+            // else on the widget explains why it reads "--").
+            if (state == StepsWidgetState.NEEDS_PERMISSION) {
+                views.setOnClickPendingIntent(R.id.widget_root, reconfigurePendingIntent(context, appWidgetId))
+            }
             views.setTextColor(R.id.widget_count, onAccent)
             views.setTextViewText(R.id.widget_count, steps?.toString() ?: "--")
             views.setInt(R.id.widget_icon, "setColorFilter", onAccent)
+
+            views.setTextColor(R.id.widget_label, onAccent)
+            if (compact) {
+                // The narrow layout's label is gone by default — it only ever
+                // carries the needs-permission hint (there's no room for a
+                // permanent caption next to a 26sp count).
+                views.setViewVisibility(
+                    R.id.widget_label,
+                    if (state == StepsWidgetState.NEEDS_PERMISSION) View.VISIBLE else View.GONE,
+                )
+                views.setTextViewText(R.id.widget_label, "tap to allow")
+            } else {
+                views.setTextViewText(
+                    R.id.widget_label,
+                    if (state == StepsWidgetState.NEEDS_PERMISSION) "tap to allow" else "steps",
+                )
+            }
 
             if (!compact) {
                 val progress = if (steps != null) {

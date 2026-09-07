@@ -34,6 +34,20 @@
             android:gravity="center"
             android:textColor="#FFFFFFFF" />
 
+        <!-- Only ever shown when ACTIVITY_RECOGNITION isn't granted (see
+             StepsWidgetRefreshWorker): the narrow layout has no room for a
+             permanent "steps" caption, but a bare dash with no explanation is
+             worse than a cramped one, so this appears just for that state. -->
+        <TextView
+            android:id="@+id/widget_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textSize="10sp"
+            android:gravity="center"
+            android:visibility="gone"
+            android:textColor="#FFFFFFFF" />
+
     </LinearLayout>
 
     <ImageView

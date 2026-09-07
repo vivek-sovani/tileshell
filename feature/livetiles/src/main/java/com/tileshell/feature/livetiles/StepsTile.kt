@@ -78,6 +78,25 @@ fun resolveSteps(currentCounter: Float, baseline: StepsPrefs.Baseline?, todayEpo
     }
 }
 
+/**
+ * What the home-screen steps widget can actually show for one refresh. A
+ * widget has no composable gate of its own — a `RemoteViews` tree can't host
+ * a permission dialog — so the three outcomes have to be distinguishable in
+ * the pushed views themselves: NEEDS_PERMISSION is the one that gets a
+ * "tap to allow" label and a body tap into the widget's own configure
+ * activity (which does the asking), while UNAVAILABLE (no step sensor on
+ * this device, or the one-shot sensor read timed out) has nothing the user
+ * could act on and so stays a plain dash.
+ */
+enum class StepsWidgetState { COUNT, NEEDS_PERMISSION, UNAVAILABLE }
+
+/** Pure — [steps] is null whenever the count couldn't be read for any reason. */
+fun stepsWidgetState(granted: Boolean, steps: Int?): StepsWidgetState = when {
+    !granted -> StepsWidgetState.NEEDS_PERMISSION
+    steps == null -> StepsWidgetState.UNAVAILABLE
+    else -> StepsWidgetState.COUNT
+}
+
 private val FaceText: Color
     @Composable get() = LocalTileFaceColor.current
 
@@ -118,10 +137,12 @@ private fun rememberStepsToday(): Int? {
     return steps
 }
 
+private enum class PermissionStage { NONE, RATIONALE, BLOCKED }
+
 /**
- * The one-shot ACTIVITY_RECOGNITION rationale + request, shown the first time
- * a steps face is actually composed with the permission not yet granted —
- * i.e. the moment a Steps tile/card exists on Start or the glance page,
+ * The contextual ACTIVITY_RECOGNITION rationale + request, shown the first
+ * time a steps face is actually composed with the permission not yet granted
+ * — i.e. the moment a Steps tile/card exists on Start or the glance page,
  * whichever the user added it from ([StepsTileFace]/[StepsSmallFace] are the
  * one shared render path for both surfaces, so gating here covers both).
  * Deliberately *not* bundled into `MainActivity`'s upfront permission batch
@@ -132,22 +153,43 @@ private fun rememberStepsToday(): Int? {
  * Play Console's mandatory Health-apps declaration regardless of *when* it's
  * requested, so this doesn't remove that step — it only fixes the in-app
  * side: an unexplained ask with no connection to what the user just did).
- * [StepsPrefs.markPermissionAsked] makes this genuinely one-shot: declining
- * ("not now") never nags again, the same as every other permission-rationale
- * dialog in this app.
+ * [StepsPrefs.markPermissionAsked] keeps it from nagging: declining ("not
+ * now") never re-asks here, the same as every other permission-rationale
+ * dialog in this app — personalize → permissions → "physical activity" is
+ * the permanent way back in afterwards.
+ *
+ * The [PermissionStage.BLOCKED] branch exists because a *permanently* denied
+ * runtime permission makes `launch` a silent no-op — the system dialog never
+ * appears and the result is "denied" instantly, so tapping "allow" looks like
+ * a dead button (user-reported: "it asked but was non responsive"). Detected
+ * via [canShowSystemPermissionDialog], and answered by pointing at the one
+ * place it can still be turned on ([openAppPermissionSettings]) instead of
+ * leaving the tile silently static.
  */
 @Composable
 private fun StepsPermissionGate(granted: Boolean) {
     if (granted) return
     val context = LocalContext.current
-    var showRationale by remember { mutableStateOf(!StepsPrefs.permissionAsked(context)) }
-    val requestPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        StepsPrefs.markPermissionAsked(context)
+    var stage by remember {
+        mutableStateOf(if (StepsPrefs.permissionAsked(context)) PermissionStage.NONE else PermissionStage.RATIONALE)
     }
-    if (showRationale) {
-        AlertDialog(
+    val requestPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+        StepsPrefs.markPermissionAsked(context)
+        stage = if (
+            !isGranted &&
+            !canShowSystemPermissionDialog(context, Manifest.permission.ACTIVITY_RECOGNITION, asked = true)
+        ) {
+            PermissionStage.BLOCKED
+        } else {
+            PermissionStage.NONE
+        }
+    }
+
+    when (stage) {
+        PermissionStage.NONE -> Unit
+        PermissionStage.RATIONALE -> AlertDialog(
             onDismissRequest = {
-                showRationale = false
+                stage = PermissionStage.NONE
                 StepsPrefs.markPermissionAsked(context)
             },
             title = { Text("show today's steps?") },
@@ -159,15 +201,39 @@ private fun StepsPermissionGate(granted: Boolean) {
             },
             confirmButton = {
                 TextButton(onClick = {
-                    showRationale = false
-                    requestPermission.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                    val asked = StepsPrefs.permissionAsked(context)
+                    if (canShowSystemPermissionDialog(context, Manifest.permission.ACTIVITY_RECOGNITION, asked)) {
+                        stage = PermissionStage.NONE
+                        requestPermission.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                    } else {
+                        stage = PermissionStage.BLOCKED
+                    }
                 }) { Text("allow") }
             },
             dismissButton = {
                 TextButton(onClick = {
-                    showRationale = false
+                    stage = PermissionStage.NONE
                     StepsPrefs.markPermissionAsked(context)
                 }) { Text("not now") }
+            },
+        )
+        PermissionStage.BLOCKED -> AlertDialog(
+            onDismissRequest = { stage = PermissionStage.NONE },
+            title = { Text("steps permission is turned off") },
+            text = {
+                Text(
+                    "android won't ask again once \"physical activity\" has been denied. turn it on in " +
+                        "settings → permissions → physical activity, and the count appears on its own.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    stage = PermissionStage.NONE
+                    openAppPermissionSettings(context)
+                }) { Text("open settings") }
+            },
+            dismissButton = {
+                TextButton(onClick = { stage = PermissionStage.NONE }) { Text("not now") }
             },
         )
     }

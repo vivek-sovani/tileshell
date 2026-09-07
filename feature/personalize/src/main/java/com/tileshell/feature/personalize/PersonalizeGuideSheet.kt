@@ -268,7 +268,7 @@ fun PersonalizeGuideSheet(
                     "tap the \"lock screen\" icon in the quick panel's header to lock the device",
                     "the first time, this opens android's accessibility settings so you can turn on tileshell's lock service once — it's a one-time manual step, the launcher can't enable it for you",
                     "turning it on preserves biometric unlock (android 9 and up); without it, locking falls back to a plain device-admin lock with no biometrics",
-                    "personalize · permissions also lists contacts (people tile, quick search), calendar (calendar tile), and location (weather tile) — tap any of them to grant",
+                    "personalize · permissions also lists contacts (people tile, quick search), calendar (calendar tile), location (weather tile), and physical activity (steps tile, steps widget) — tap any of them to grant",
                 ),
             )
 

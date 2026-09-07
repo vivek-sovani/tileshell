@@ -77,3 +77,31 @@ class StepsIconMappingTest {
         assertTrue(!LiveFace.STEPS.flips)
     }
 }
+
+class StepsWidgetStateTest {
+
+    @Test
+    fun `a real count shows the count`() {
+        assertEquals(StepsWidgetState.COUNT, stepsWidgetState(granted = true, steps = 4213))
+    }
+
+    @Test
+    fun `zero steps is still a count, not an unavailable read`() {
+        assertEquals(StepsWidgetState.COUNT, stepsWidgetState(granted = true, steps = 0))
+    }
+
+    @Test
+    fun `no permission is the actionable state — the widget offers the ask`() {
+        assertEquals(StepsWidgetState.NEEDS_PERMISSION, stepsWidgetState(granted = false, steps = null))
+    }
+
+    @Test
+    fun `no permission wins over a stale count — nothing readable should be shown`() {
+        assertEquals(StepsWidgetState.NEEDS_PERMISSION, stepsWidgetState(granted = false, steps = 900))
+    }
+
+    @Test
+    fun `granted but unreadable (no sensor, or a timed-out read) has nothing to act on`() {
+        assertEquals(StepsWidgetState.UNAVAILABLE, stepsWidgetState(granted = true, steps = null))
+    }
+}
