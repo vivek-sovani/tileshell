@@ -69,6 +69,28 @@ is pre-existing and already covered), the new code is `WorkManager`/
 project, matching this file's own established convention for that class of
 change.
 
+**Same-day follow-up: the weather widget gets the manual refresh button
+too** (user-requested — "can weather widget also have refresh button").
+Only item 2 above applies to weather; items 1 and 3 (faster while live/
+open, faster while visible) don't carry over as-is — weather has no
+"live/open" concept the way a market or a match does (its own `WorkManager`
+periodic tick is already a flat 30 min, always-on, not conditionally
+skipped the way stock/sports are), so there was nothing to chain faster and
+no request to add one. Same `ic_widget_refresh.xml`/`bottom|start`
+placement on both `widget_weather.xml`/`widget_weather_compact.xml`, and
+the same private-receiver shape (`WeatherWidgetActionReceiver`). One real
+difference from stock/sports: `WeatherWidgetRefreshWorker` never fetches
+anything itself — it only re-renders whatever the in-app
+`WeatherRefreshWorker` already cached — so a manual tap has to force *both*
+workers, not just the widget one, or it would just repaint the same stale
+snapshot. Same pairing `WidgetConfigureActivity.refreshOwningWidget` already
+uses after its own location/colour step saves. Verified the same way:
+`adb shell am broadcast` against the new receiver produced real
+`WM-WorkerWrapper` successes for *both* workers with no crash, and a
+screenshot of the glance page's two already-placed weather widgets (mid
+flip, showing their 7-day-outlook back face) confirmed the icon renders
+cleanly there too.
+
 ## "Set default launcher" prompt fired repeatedly even though TileShell was the sole default
 
 User-reported, "observed on many devices": the auto-prompt (`MainActivity`'s

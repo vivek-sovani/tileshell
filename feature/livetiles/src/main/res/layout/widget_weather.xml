@@ -221,4 +221,16 @@
         android:padding="2dp"
         android:src="@drawable/ic_widget_settings" />
 
+    <!-- Manual "refresh now" tap target — same shape as the stock/sports
+         widgets' own (user-requested there first, then here too): the gear
+         only ever reopens location/colour setup, never forces a fetch. -->
+    <ImageView
+        android:id="@+id/widget_refresh"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="bottom|start"
+        android:layout_margin="6dp"
+        android:padding="2dp"
+        android:src="@drawable/ic_widget_refresh" />
+
 </FrameLayout>

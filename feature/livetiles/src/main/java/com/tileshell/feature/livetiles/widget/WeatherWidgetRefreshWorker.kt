@@ -158,6 +158,7 @@ class WeatherWidgetRefreshWorker(
             views.setBoolean(R.id.widget_root, "setClipToOutline", true)
             views.setOnClickPendingIntent(R.id.widget_root, weatherAppPendingIntent(context, appWidgetId))
             views.setOnClickPendingIntent(R.id.widget_settings, reconfigurePendingIntent(context, appWidgetId))
+            views.setOnClickPendingIntent(R.id.widget_refresh, WeatherAppWidgetProvider.refreshPendingIntent(context, appWidgetId))
             views.setTextColor(R.id.widget_temp, onAccent)
             views.setTextColor(R.id.widget_condition, onAccent)
             views.setTextColor(R.id.widget_back_highlow, onAccent)

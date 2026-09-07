@@ -1,8 +1,10 @@
 package com.tileshell.feature.livetiles.widget
 
+import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 
 /**
@@ -97,5 +99,19 @@ class WeatherAppWidgetProvider : AppWidgetProvider() {
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         appWidgetIds.forEach { WidgetColorStore.clear(context, it); WidgetConfigStore.clear(context, it) }
+    }
+
+    companion object {
+        /** The widget's own manual "refresh now" tap target — see [WeatherWidgetActionReceiver]. */
+        fun refreshPendingIntent(context: Context, appWidgetId: Int): PendingIntent {
+            val intent = Intent(context, WeatherWidgetActionReceiver::class.java)
+                .setAction(WeatherWidgetActionReceiver.ACTION_REFRESH_WEATHER)
+            return PendingIntent.getBroadcast(
+                context,
+                appWidgetId,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+        }
     }
 }

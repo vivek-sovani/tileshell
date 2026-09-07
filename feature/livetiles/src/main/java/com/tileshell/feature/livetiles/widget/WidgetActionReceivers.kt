@@ -142,3 +142,25 @@ class SportsWidgetActionReceiver : BroadcastReceiver() {
         const val ACTION_REFRESH_SPORTS = "com.tileshell.feature.livetiles.widget.ACTION_REFRESH_SPORTS"
     }
 }
+
+/**
+ * See [StockWidgetActionReceiver] — the weather widget's own manual refresh
+ * tap. Weather is the one widget in this batch where a single `refreshNow`
+ * isn't enough on its own: [WeatherWidgetRefreshWorker] never fetches
+ * anything itself, it only re-renders whatever
+ * [com.tileshell.feature.livetiles.WeatherRefreshWorker] last cached — so a
+ * manual tap has to force *that* worker too, or it would just repaint the
+ * same stale snapshot. Same pairing [WidgetConfigureActivity.refreshOwningWidget]
+ * already uses after the location/colour step saves.
+ */
+class WeatherWidgetActionReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != ACTION_REFRESH_WEATHER) return
+        runCatching { com.tileshell.feature.livetiles.WeatherRefreshWorker.refreshNow(context) }
+        runCatching { WeatherWidgetRefreshWorker.refreshNow(context) }
+    }
+
+    companion object {
+        const val ACTION_REFRESH_WEATHER = "com.tileshell.feature.livetiles.widget.ACTION_REFRESH_WEATHER"
+    }
+}
