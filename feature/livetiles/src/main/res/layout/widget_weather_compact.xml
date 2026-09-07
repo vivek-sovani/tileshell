@@ -31,6 +31,25 @@
         android:gravity="center"
         android:padding="8dp">
 
+        <!-- Place label — several weather widgets can each follow a
+             different location now (user-requested), and this compact
+             layout is otherwise identical between them; without this a
+             half-width widget was indistinguishable from any other
+             (user-reported: "half size widget doesnt display location
+             name"). Kept to one line/ellipsized — there's no room to spare
+             at this width, and the full label is still on the widget's own
+             configure step / the in-app tile. -->
+        <TextView
+            android:id="@+id/widget_place"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="2dp"
+            android:textSize="10sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:textColor="#FFFFFFFF" />
+
         <!-- Real multi-element illustration pushed at runtime (see
              WidgetWeatherVisual.kt / WeatherWidgetRefreshWorker), same as
              widget_weather.xml's own widget_icon — no static src, matching

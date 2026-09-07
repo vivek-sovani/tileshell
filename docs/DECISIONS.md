@@ -44,22 +44,55 @@ result lookup `:feature:livetiles` already had for city-typed queries). The
 home-screen widget gets the identical choice from `WidgetConfigureActivity`'s
 own flow (`RequiredStep.WEATHER_LOCATION` → `WeatherLocationPickerScreen`,
 self-contained in that file since `:feature:livetiles` can't depend on
-`:feature:personalize`), gated on "no location stored yet" so it only ever
-shows for a genuinely new placement, never a reconfigure-for-colour.
+`:feature:personalize`), gated on "no location stored yet."
 
-**Not breaking existing installs.** A pre-existing weather tile/widget (seeded
-before this feature, or from an untouched default layout) has no encoding at
-all — `WeatherTile.decode(null)` resolves to `Location.Current` everywhere a
-face reads it, so it keeps behaving exactly as it always did, with no "tap to
-configure" dead end ever shown for it. The widget side additionally backfills
-that decision into storage the first time it next updates
-(`WeatherAppWidgetProvider.onUpdate`, which fires on every app update for an
-already-placed widget) — so its own configure step, if reopened for a colour
-change, never re-asks either. Re-tapping an already-configured weather *tile*
-on Start does still reopen the location sheet (unlike stock/commodity's
-"open the real page, only the picker if unset" pattern) — a location, unlike
-a stock symbol, has no external page to open, and letting the choice be
-changed later was the explicit ask.
+**A real race, found on-device, in the first cut of that gate.** The first
+attempt also had `WeatherAppWidgetProvider.onUpdate` backfill a missing
+location to `Current` — reasoning that `onUpdate` only ever fires for a
+widget placed *before* this feature existed, since a genuinely new one goes
+through its configure step (which writes a real location) before the OS ever
+calls `onUpdate` for it. On-device testing (adding a fresh weather widget
+from the glance page's own "+ add" picker) proved that reasoning wrong: this
+app's own bind path (`WidgetSlot.kt`'s `addProvider`, via
+`bindAppWidgetIdIfAllowed` — a same-app bind, not the standard OS pick flow)
+gets an immediate `onUpdate` push from the system that arrives *before* the
+follow-up `ACTION_APPWIDGET_CONFIGURE` intent it fires next ever launches —
+confirmed by pulling `tileshell_widget_config.xml` mid-repro and finding a
+freshly-bound id already holding `weather:current` the instant its configure
+Activity opened, which landed straight on the colour step, location step
+skipped entirely. Removed the backfill outright rather than chase the race:
+it wasn't even needed, since `WeatherWidgetRefreshWorker.pushAll` already
+treats a stored-`null` location as `Current` at render time, so a widget from
+before this feature keeps working with zero code in `onUpdate`. The one
+behavioural cost is deliberately accepted — manually reopening an *old*
+widget's own configure (its gear icon) now shows the location step once, the
+first time, instead of never; answering it either way (including "use
+current location") stores a real value and it never asks again for that
+instance.
+
+**The compact (half-width) widget had to start labelling itself.** Follow-up,
+user-reported once several locations were actually in use: "half size widget
+doesnt display location name." `widget_weather_compact.xml`'s front face had
+no place `TextView` at all — correct while every weather surface shared one
+location (nothing to disambiguate), ambiguous the moment two half-width
+widgets could each follow a different city and otherwise render identically.
+Added a small (10sp, single-line, ellipsized) `widget_place` to that layout's
+front face and dropped the `if (!compact)` guard around setting it, so both
+layouts now populate the same id. Its *back* face (the 7-day outlook) is
+deliberately still unlabelled — that matches the full-size layout's own back
+face, which has never labelled itself either, and there's no vertical room
+there at this width for a row that isn't a forecast day.
+
+**Not breaking existing installs, without any backfill.** A pre-existing
+weather tile (seeded before this feature, or from an untouched default
+layout) has no encoding at all — `WeatherTile.decode(null)` resolves to
+`Location.Current` everywhere a face reads it, so it keeps behaving exactly
+as it always did, with no "tap to configure" dead end ever shown for it.
+Re-tapping an already-configured weather *tile* on Start does still reopen
+the location sheet (unlike stock/commodity's "open the real page, only the
+picker if unset" pattern) — a location, unlike a stock symbol, has no
+external page to open, and letting the choice be changed later was the
+explicit ask.
 
 ## Steps permission: a permanent way back in, and the widget asks for it too
 

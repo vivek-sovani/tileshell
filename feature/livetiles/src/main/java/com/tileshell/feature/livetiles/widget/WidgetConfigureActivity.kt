@@ -174,11 +174,15 @@ class WidgetConfigureActivity : ComponentActivity() {
             // the steps permission step below), so it's asked here — the one
             // part of the widget's own flow that's a real Activity. Gated on
             // "no location stored yet" rather than always shown: a widget
-            // placed before several-locations support existed gets backfilled
-            // to "current" the moment it next updates
-            // (WeatherAppWidgetProvider.onUpdate), so this only ever actually
-            // shows for a genuinely brand new placement — reconfiguring for a
-            // colour change never re-asks. See WeatherLocationPickerScreen.
+            // that already has one (either it was already answered, or it
+            // predates several-locations support and defaults to "current" at
+            // render time regardless — see WeatherWidgetRefreshWorker) skips
+            // straight to the colour step; reopening an *old* widget's
+            // configure once, deliberately, still shows this exactly once —
+            // see WeatherAppWidgetProvider.onUpdate's doc comment for why a
+            // backfill-on-update was tried and reverted (it raced this
+            // Activity's own launch for a genuinely new widget and always
+            // won). See WeatherLocationPickerScreen.
             WeatherAppWidgetProvider::class.java.name ->
                 if (WidgetConfigStore.weatherLocation(this, appWidgetId) == null) {
                     RequiredStep.WEATHER_LOCATION

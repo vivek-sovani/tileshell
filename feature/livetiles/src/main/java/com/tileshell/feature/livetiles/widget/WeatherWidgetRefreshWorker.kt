@@ -161,8 +161,15 @@ class WeatherWidgetRefreshWorker(
             views.setTextColor(R.id.widget_temp, onAccent)
             views.setTextColor(R.id.widget_condition, onAccent)
             views.setTextColor(R.id.widget_back_highlow, onAccent)
+            // Both layouts carry a widget_place now — the compact one gained
+            // it because several weather widgets can each follow a different
+            // location (user-requested), and its front face used to be the
+            // one place that never showed which (user-reported: "half size
+            // widget doesnt display location name"); its back face (7-day
+            // outlook) still doesn't, unchanged, matching the full layout's
+            // own back face, which has never labelled itself either.
+            views.setTextColor(R.id.widget_place, onAccent)
             if (!compact) {
-                views.setTextColor(R.id.widget_place, onAccent)
                 views.setTextColor(R.id.widget_back_detail, onAccent)
                 views.setTextColor(R.id.widget_forecast_title, onAccent)
             }
@@ -171,9 +178,9 @@ class WeatherWidgetRefreshWorker(
                 views.setTextViewText(R.id.widget_temp, "—")
                 views.setTextViewText(R.id.widget_condition, "weather unavailable")
                 views.setTextViewText(R.id.widget_back_highlow, "")
+                views.setTextViewText(R.id.widget_place, "")
                 views.setImageViewBitmap(R.id.widget_icon, weatherConditionBitmap("clear", onAccent))
                 if (!compact) {
-                    views.setTextViewText(R.id.widget_place, "")
                     views.setTextViewText(R.id.widget_back_detail, "set a location in tileshell")
                 }
                 setForecastRows(views, onAccent, emptyList())
@@ -188,8 +195,8 @@ class WeatherWidgetRefreshWorker(
                     R.id.widget_back_highlow,
                     highLowLabel(snapshot.highC, snapshot.lowC),
                 )
+                views.setTextViewText(R.id.widget_place, snapshot.place.ifBlank { "weather" })
                 if (!compact) {
-                    views.setTextViewText(R.id.widget_place, snapshot.place.ifBlank { "weather" })
                     views.setTextViewText(R.id.widget_back_detail, snapshot.detail)
                 }
                 setForecastRows(views, onAccent, snapshot.forecast)

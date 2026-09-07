@@ -4,7 +4,6 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.os.Bundle
-import com.tileshell.core.data.WeatherTile
 
 /**
  * Home-screen weather widget (S32 pilot) — a thin shell over
@@ -37,19 +36,29 @@ class WeatherAppWidgetProvider : AppWidgetProvider() {
         // ExistingPeriodicWorkPolicy.UPDATE in ensureScheduled, this is what
         // lets a changed cadence or constraint actually reach existing users.
         WeatherWidgetRefreshWorker.ensureScheduled(context)
-        // A widget placed before several-locations support existed has no
-        // stored location at all — back it in to "current" (its only possible
-        // behaviour until now) so it behaves exactly as it always did, and so
-        // WidgetConfigureActivity's own location step (gated on "no location
-        // stored yet") never re-asks a pre-existing widget just because it
-        // hasn't been reconfigured since. A genuinely brand new widget never
-        // reaches this: the OS runs its configure step (which writes a real
-        // location) before onUpdate is ever called for it.
-        appWidgetIds.forEach { id ->
-            if (WidgetConfigStore.weatherLocation(context, id) == null) {
-                WidgetConfigStore.setWeatherLocation(context, id, WeatherTile.encode(WeatherTile.Location.Current))
-            }
-        }
+        // Deliberately no "backfill a missing location to current" step here
+        // — a first attempt tried that, reasoning onUpdate only fires for a
+        // widget that predates several-locations support (a genuinely new one
+        // would go through its configure step, which writes a real location,
+        // before the OS ever calls onUpdate for it). On-device testing proved
+        // that reasoning wrong: `WidgetSlot.kt`'s `addProvider` binds via
+        // `bindAppWidgetIdIfAllowed` — a same-app bind that the OS apparently
+        // treats as immediately active, pushing this exact onUpdate call
+        // *before* `afterBind`'s follow-up `ACTION_APPWIDGET_CONFIGURE` intent
+        // ever launches. A backfill here would race that intent and always
+        // win, silently pre-answering "current location" for every brand-new
+        // widget and skipping `WidgetConfigureActivity`'s location step
+        // outright — confirmed via `tileshell_widget_config.xml` showing a
+        // freshly-bound id already holding `weather:current` the instant its
+        // configure Activity opened, landing straight on the colour step.
+        // No backfill needed anyway: `WeatherWidgetRefreshWorker.pushAll`
+        // already treats a missing stored location as "current" at render
+        // time, so a widget from before this feature keeps behaving exactly
+        // as it always did with zero code here. The only cost of removing
+        // this is that manually reopening an old widget's configure (its gear
+        // icon) shows the location step once, the first time — a one-off,
+        // not a nag: answering either way stores a real location and it never
+        // asks again for that instance.
         com.tileshell.feature.livetiles.WeatherRefreshWorker.refreshNow(context)
         WeatherWidgetRefreshWorker.refreshNow(context)
     }
