@@ -4,7 +4,14 @@
      "circular refresh" glyph without a filled arrowhead (this icon set has
      no filled shapes anywhere). Used as the manual "refresh now" tap target
      — user-requested, alongside a live-state chained refresh, since the
-     gear icon only ever reopens colour/location setup, not a fetch. -->
+     gear icon only ever reopens colour/location setup, not a fetch.
+
+     A named, centre-pivoted <group> wrapper was tried here so a real
+     <animated-vector> could spin it on tap — reverted along with that whole
+     mechanism (see WidgetActionReceivers.kt's flashRefreshIcon doc comment):
+     the trigger it needed, RemoteViews.setBoolean(id, "setActivated", true),
+     is rejected at runtime by RemoteViews' own per-view-type method
+     allowlist, which silently blanked the widget instead of animating it. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"

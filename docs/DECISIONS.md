@@ -91,6 +91,79 @@ screenshot of the glance page's two already-placed weather widgets (mid
 flip, showing their 7-day-outlook back face) confirmed the icon renders
 cleanly there too.
 
+**Second same-day follow-up: repositioned (user-reported the original corner
+overwrote text), and a real animation was tried and reverted after it broke
+the widgets.**
+
+*Position.* `bottom|start` overlapped real content on several full-size
+layouts — anything sitting at the very top of padding, left-aligned, full-
+width and ellipsized (weather's own `widget_place`; the back faces'
+`widget_back_name`/`widget_back_team`) was fine, since the icon's own 24dp+
+6dp margin band is comfortably below where those start; but the corner
+itself, and full-width single-line labels *near* it on some layouts, read as
+covering text. Moved to `top|end` across all 8 layouts (weather/stock ×4/
+sports ×2), and added `layout_marginEnd="30dp"` (24dp icon + 6dp margin) to
+the handful of top-of-face labels that could now reach into that corner
+(`widget_place` in `widget_weather.xml`; `widget_back_name` in
+`widget_stock.xml`/`widget_stock_group.xml`; `widget_back_team` in
+`widget_sports.xml`) — the equivalent front-face labels didn't need it,
+since their own top row is a small left-aligned icon, not full-width text.
+
+*The animation.* First a static colour flash (`setColorFilter`), per the
+entry above — user-reported afterward: "there is no animation. only color
+change." Built a real one: `ic_widget_refresh.xml`'s two paths wrapped in a
+named, centre-pivoted `<group>`; a new `ic_widget_refresh_spin.xml`
+(`<animated-vector>`, 360° rotation of that group); a new
+`ic_widget_refresh_selector.xml` (`<animated-selector>` whose
+`normal → activated` transition plays the spin) as the icon's `android:src`;
+`flashRefreshIcon` triggering it via `RemoteViews.setBoolean(id,
+"setActivated", true)` — the one RemoteViews-legal way to flip a boolean
+View property remotely, with the actual motion left entirely to ordinary
+Drawable/View state machinery, not anything RemoteViews-specific.
+
+**This broke the widgets in production** — user-reported "widgets crashed."
+Root-caused via `adb logcat`: `RemoteViews$ActionException: view: android
+.widget.ImageView can't use method with RemoteViews: setActivated(boolean)`,
+thrown inside `AppWidgetHostView.applyRemoteViews` and caught *there* (so
+TileShell's own process never crashed — confirmed via `dumpsys window`/
+`ps`, the app stayed running throughout), but the widget's host view itself
+was left `null` — a blank widget, which is exactly what reads as "crashed"
+from the user's side. Real, useful lesson about RemoteViews confirmed
+directly against this codebase's own use: its reflection setters
+(`setBoolean`/`setInt`/etc.) are *not* generic — each is checked against an
+internal per-view-type method allowlist, and `setActivated` isn't on it,
+unlike `setColorFilter` (already used extensively elsewhere in this exact
+codebase, e.g. every `onAccent` icon tint) or `setOnClickPendingIntent`.
+
+Reverted the whole mechanism rather than guess at a different boolean
+setter (`setSelected`, `setEnabled`, ...) against the user's own already-
+placed, already-broken-once widgets and risk a second blank-widget
+incident: deleted `ic_widget_refresh_spin.xml`/`ic_widget_refresh_selector
+.xml`, un-wrapped the `<group>` back out of `ic_widget_refresh.xml`, all 8
+layouts back to plain `android:src="@drawable/ic_widget_refresh"`,
+`flashRefreshIcon` and all 5 build-site resets back to the confirmed-safe
+`setColorFilter` flash. A genuinely smooth animation would need a
+RemoteViews-*official* API instead of generic reflection to be safe here —
+e.g. `setViewLayoutWidth`/`Height` (API 31+, real first-class `RemoteViews`
+methods, not reflection-checked against an allowlist) could grow/shrink the
+icon as a "pulse" — not attempted this session, given the priority of
+restoring the user's widgets to a known-working state first.
+
+Verified the revert on the reporting device: rebuilt, reinstalled, force-
+stopped and relaunched (confirmed via `ps`/`dumpsys window` that this
+produced a genuinely fresh process, distinct from the one that had the bad
+code loaded), then re-broadcast all three `ACTION_REFRESH_*` actions —
+`adb logcat` filtered to that fresh process's own pid showed zero
+`ActionException`/inflation-error lines and real `WM-WorkerWrapper` success
+logs for every worker; two of three placed weather widget instances were
+confirmed rendering again (`v != null`) in that same log. One instance
+still showed a stale `v = null` — expected: `AppWidgetHost`'s own cached
+view reference for that specific id was left null by the *original* crash,
+before the fix was ever installed, and only clears once that widget's host
+view is actually recreated (its own Composable remounting, e.g. the user
+next opening the glance page) — not evidence of the fix being incomplete,
+but flagged to the user rather than asserted away.
+
 ## "Set default launcher" prompt fired repeatedly even though TileShell was the sole default
 
 User-reported, "observed on many devices": the auto-prompt (`MainActivity`'s
