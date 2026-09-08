@@ -3,6 +3,27 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Weather widget's refresh flash was invisible — a self-inflicted race, not a RemoteViews limit
+
+User-reported: after the previous entry's revert, stock/sports' refresh tap
+flash was visible again, but weather's still wasn't. Root cause was entirely
+this app's own code, not another RemoteViews restriction like the
+`setActivated` one that broke things: `WeatherWidgetActionReceiver` called
+*both* `WeatherRefreshWorker.refreshNow` (the one that actually fetches) and
+`WeatherWidgetRefreshWorker.refreshNow` (render-only, no network) directly.
+But `WeatherRefreshWorker.doWork` already ends by calling
+`WeatherWidgetRefreshWorker.refreshNow` itself once the fetch resolves (see
+`WeatherWork.kt`) — so the receiver's own extra call was both redundant and
+actively harmful: being network-free, it runs in a spare handful of
+milliseconds next to the real fetch's 1-3s+, repainting the icon back to
+normal (from the *same still-stale* cache, so pointless twice over) well
+before the flash `flashRefreshIcon` had just set could ever be seen. Stock
+and sports never had this race — each has exactly one worker that fetches
+*and* renders in the same `doWork`, so there's a genuine network round trip
+between the flash landing and the repaint that clears it. Fix: dropped the
+receiver's redundant direct call; the real fetch's own existing completion
+hook is enough. Build + full unit test suite green.
+
 ## Stock/sports widgets: faster refresh while live/open, a manual refresh button, faster while visible
 
 User-requested, three related asks in one thread: "when sports is live,

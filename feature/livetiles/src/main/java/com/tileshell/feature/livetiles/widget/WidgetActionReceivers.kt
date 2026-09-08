@@ -217,20 +217,31 @@ class SportsWidgetActionReceiver : BroadcastReceiver() {
 
 /**
  * See [StockWidgetActionReceiver] — the weather widget's own manual refresh
- * tap. Weather is the one widget in this batch where a single `refreshNow`
- * isn't enough on its own: [WeatherWidgetRefreshWorker] never fetches
- * anything itself, it only re-renders whatever
- * [com.tileshell.feature.livetiles.WeatherRefreshWorker] last cached — so a
- * manual tap has to force *that* worker too, or it would just repaint the
- * same stale snapshot. Same pairing [WidgetConfigureActivity.refreshOwningWidget]
- * already uses after the location/colour step saves.
+ * tap. Weather is the one widget in this batch where forcing
+ * [com.tileshell.feature.livetiles.WeatherRefreshWorker] (the one that
+ * actually fetches) is enough on its own: that worker's own `doWork` already
+ * ends by calling `WeatherWidgetRefreshWorker.refreshNow` itself once the
+ * fetch resolves (see its class doc comment) — [WeatherWidgetRefreshWorker]
+ * never fetches anything itself, it only re-renders whatever's cached.
+ *
+ * A first version called *both* `refreshNow`s directly from here, reasoning
+ * the widget-only one was needed to actually show data — user-reported
+ * afterward: "the refresh action press is visible … but not for weather."
+ * Root cause: `WeatherWidgetRefreshWorker.refreshNow` (no network, just a
+ * cache read + render) runs essentially instantly next to the real fetch
+ * `WeatherRefreshWorker.refreshNow` takes 1-3s+ for, so that extra call
+ * repainted the icon back to normal — using the *old*, still-stale cache,
+ * doubly pointless — within a spare handful of milliseconds of
+ * [flashRefreshIcon] setting it, well before it could ever be seen. Stock/
+ * sports don't have this race: each has exactly one worker that fetches
+ * *and* renders in the same `doWork`, so there's a genuine network round
+ * trip between the flash and the repaint that overwrites it.
  */
 class WeatherWidgetActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION_REFRESH_WEATHER) return
         flashRefreshIcon(context, WeatherAppWidgetProvider::class.java, R.layout.widget_weather)
         runCatching { com.tileshell.feature.livetiles.WeatherRefreshWorker.refreshNow(context) }
-        runCatching { WeatherWidgetRefreshWorker.refreshNow(context) }
     }
 
     companion object {
