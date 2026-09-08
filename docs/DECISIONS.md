@@ -6168,3 +6168,26 @@ one function. Tiles now sit flush against the screen edges on Start (and the fol
 only the inter-tile gap (still 3/393 proportional, or the user's own "tile spacing" override)
 separating them from each other. A deliberate deviation from the prototype/spec's `side 9` reference
 constant — noted here per this project's convention for such choices.
+
+## Pager drag (feed/Start/app-list swipe) smoothness fix
+
+Direct same-day follow-up: user-reported "left scroll is not very smooth" (the Start↔feed swipe;
+same `pagerModifier` drives Start↔app-list too). Root cause: `pagerModifier`'s per-pointer-move
+handler in `StartScreen.kt` called `scope.launch { progress.snapTo(target) }` — a **fresh coroutine
+launch on every touch-move event** (up to ~120/s during a fast drag), each independently scheduled
+on the composition's coroutine scope. The extra allocation + dispatch overhead per touch sample is
+what read as the drag lagging/stuttering behind the finger, especially compositing over the feed
+page's heavier content (blurred wallpaper, live widgets). `Animatable.snapTo` can't be called
+directly from the gesture loop (`AwaitPointerEventScope` is a restricted-suspension scope — a first
+attempt at a direct-call fix didn't compile for exactly that reason) — fixed instead with one
+conflated `Channel<Float>` + one background consumer coroutine **per gesture** (created lazily, only
+once the drag is recognised as horizontal), so a fast drag produces at most one coroutine launch
+total instead of one per touch sample; `Channel.trySend` (non-suspending) is what the restricted
+scope calls directly. The final settle-target calculation (`pagerCommitTarget`) now reads a
+synchronously-tracked `lastTarget` local instead of `progress.value`, since the background consumer
+applies updates asynchronously and `progress.value` could still be one step stale at release time —
+a latent correctness edge case in the original code too, fixed as a side effect. Build + full unit
+test suite green; installed on both the physical device and the emulator, launched with no crash in
+`adb logcat`. The actual drag *feel* — the whole point of this fix — still needs the user's own
+on-device confirmation; ADB-synthesized swipes in this codebase's own history are not reliable
+stand-ins for real per-frame touch-sampling smoothness.

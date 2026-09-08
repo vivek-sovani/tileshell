@@ -292,6 +292,7 @@ import com.tileshell.core.design.tiltOnPress
 import com.tileshell.core.design.wallpaperWindow
 import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -975,6 +976,20 @@ fun StartScreen(
                     val base = progress.value
                     var horizontal = false
                     var decided = false
+                    var lastTarget = base
+                    // Animatable.snapTo can't be called directly here —
+                    // AwaitPointerEventScope is a restricted-suspension scope, so
+                    // only its own member functions may suspend. The previous fix
+                    // (dropping scope.launch) didn't compile for exactly that
+                    // reason. Instead: one conflated channel + one background
+                    // consumer coroutine *per gesture* (created lazily, only once
+                    // the drag is recognised as horizontal), rather than the
+                    // original scope.launch { progress.snapTo(target) } fired once
+                    // per pointer-move event (up to ~120/s) — that per-event
+                    // coroutine launch overhead is what read as the pager lagging/
+                    // stuttering behind the finger. trySend is non-suspending, so
+                    // it's fine to call from this restricted scope.
+                    var updates: Channel<Float>? = null
                     while (true) {
                         val event = awaitPointerEvent(PointerEventPass.Initial)
                         val change = event.changes.firstOrNull { it.id == down.id } ?: break
@@ -984,19 +999,27 @@ fun StartScreen(
                             if (abs(dx) > slop && abs(dx) > abs(dy) * 1.2f) {
                                 decided = true
                                 horizontal = true
+                                val channel = Channel<Float>(Channel.CONFLATED)
+                                updates = channel
+                                scope.launch { for (t in channel) progress.snapTo(t) }
                             } else if (abs(dy) > slop) {
                                 decided = true // vertical → leave it to the grid scroll
                             }
                         }
                         if (horizontal) {
                             change.consume()
-                            val target = (base - dx / pageWidthPx).coerceIn(lower, 1f)
-                            scope.launch { progress.snapTo(target) }
+                            lastTarget = (base - dx / pageWidthPx).coerceIn(lower, 1f)
+                            updates?.trySend(lastTarget)
                         }
                         if (!change.pressed) break
                     }
+                    updates?.close()
                     if (horizontal) {
-                        settleTo(pagerCommitTarget(base, progress.value).coerceAtLeast(lower))
+                        // Uses the synchronously-tracked lastTarget, not
+                        // progress.value — the background consumer above applies
+                        // updates asynchronously, so progress.value could still
+                        // be a stale, earlier position at this exact instant.
+                        settleTo(pagerCommitTarget(base, lastTarget).coerceAtLeast(lower))
                     }
                 }
             }
