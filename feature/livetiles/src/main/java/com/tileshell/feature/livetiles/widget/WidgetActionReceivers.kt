@@ -14,6 +14,7 @@ import com.tileshell.core.data.TaskRepository
 import com.tileshell.feature.livetiles.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** The colour a widget's refresh icon flashes to the instant a tap is received — see [flashRefreshIcon]. */
@@ -22,6 +23,23 @@ private const val WIDGET_REFRESH_FLASH_COLOR = 0xFFFFC107.toInt()
 /** The icon's own normal size (matches every `widget_refresh` ImageView's `layout_width`/`height` in every layout XML) and its brief tap-pulse size, in dp. */
 private const val WIDGET_REFRESH_NORMAL_DP = 24f
 private const val WIDGET_REFRESH_PULSE_DP = 30f
+
+/**
+ * How long [flashRefreshIcon]'s tint + pulse is *guaranteed* to stay up,
+ * regardless of how fast the real refresh this same tap triggers completes
+ * — user-reported: "visible on weather and sports, but not on stock,"
+ * confirmed as "showing but very fast disappearing." Root cause: stock's
+ * own fetch (unlike weather/sports) goes through `QuoteCache`
+ * (`:core:data`) — a 45s memo shared with the in-app tile, the glance card,
+ * and every other placed widget tracking the same symbol. A tap arriving
+ * while a recent fetch for that symbol is still cache-fresh resolves (and
+ * so triggers the real content push that resets the flash) in single-digit
+ * milliseconds — long before a human eye can register a flash that was
+ * just set. Weather/sports have no comparable shared cache, so their own
+ * real fetch (1-3s+) naturally left enough time for the flash to be seen
+ * before anything reset it. See [scheduleFlashReset].
+ */
+private const val WIDGET_REFRESH_FLASH_MIN_VISIBLE_MS = 600L
 
 /**
  * Resets the refresh icon back to its normal 24dp size, undoing
@@ -92,14 +110,17 @@ fun resetRefreshIconSize(views: RemoteViews) {
  * already-inflated tree, and `R.id.widget_refresh` is the same id, at the
  * same normal 24dp size, in every variant of a given widget kind.
  *
- * No explicit "revert to normal" step here: the real refresh this same tap
- * triggers repaints the icon back to its plain tint *and* its normal size
- * as an ordinary part of its own next content push (see e.g.
+ * No revert step of its own: the real refresh this same tap triggers
+ * repaints the icon back to its plain tint *and* its normal size as an
+ * ordinary part of its own next content push (see e.g.
  * `StockWidgetRefreshWorker`'s matching doc comment for why that reset has
- * to be explicit there), once the fetch it kicked off completes. Below API
- * 31 this whole function is a silent no-op — the real refresh completing
- * promptly is still the feedback there, just without the instant pre-tap
- * pulse.
+ * to be explicit there), once the fetch it kicked off completes — *when*
+ * that happens is out of this function's control, which is exactly why
+ * [scheduleFlashReset] exists alongside it (see that function's own doc
+ * comment for why relying solely on the real content push wasn't enough).
+ * Below API 31 this whole function is a silent no-op — the real refresh
+ * completing promptly is still the feedback there, just without the
+ * instant pre-tap pulse.
  */
 private fun flashRefreshIcon(context: Context, providerClass: Class<out AppWidgetProvider>, layoutRes: Int) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
@@ -112,6 +133,47 @@ private fun flashRefreshIcon(context: Context, providerClass: Class<out AppWidge
         flash.setViewLayoutWidth(R.id.widget_refresh, WIDGET_REFRESH_PULSE_DP, TypedValue.COMPLEX_UNIT_DIP)
         flash.setViewLayoutHeight(R.id.widget_refresh, WIDGET_REFRESH_PULSE_DP, TypedValue.COMPLEX_UNIT_DIP)
         ids.forEach { id -> manager.partiallyUpdateAppWidget(id, flash) }
+    }
+}
+
+/**
+ * Guarantees [flashRefreshIcon]'s tint + pulse stays visible for at least
+ * [WIDGET_REFRESH_FLASH_MIN_VISIBLE_MS] — see that constant's own doc
+ * comment for the "why" (stock's shared `QuoteCache` making the real
+ * refresh sometimes resolve, and reset the flash, in single-digit
+ * milliseconds). Suspends [WIDGET_REFRESH_FLASH_MIN_VISIBLE_MS] then resets
+ * every placed widget's icon back to its own correct tint (each widget's
+ * real [resolveWidgetAccent], not a fixed colour — the same value its real
+ * content push would use) and normal size.
+ *
+ * This reset is deliberately unconditional — it always fires after the
+ * delay, whether or not the real content push already got there first.
+ * Landing *after* the real push (the common case once a fetch is slow
+ * enough to leave the flash visible on its own, e.g. weather/sports) is a
+ * harmless no-op repeat of what that push already set; landing *before*
+ * it (the fast-cache case this exists for) is what actually shows the icon
+ * settling back to normal instead of sitting pulsed/tinted indefinitely
+ * until whenever the fetch eventually finishes.
+ *
+ * Callers run this from `goAsync()` (see e.g. [StockWidgetActionReceiver]),
+ * the same pattern [TaskWidgetActionReceiver] already uses for its own
+ * async work — a plain coroutine launched from `onReceive` with no lifetime
+ * extension risks the OS tearing down the receiver (and this suspended
+ * function with it) before the delay elapses.
+ */
+private suspend fun scheduleFlashReset(context: Context, providerClass: Class<out AppWidgetProvider>, layoutRes: Int) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+    delay(WIDGET_REFRESH_FLASH_MIN_VISIBLE_MS)
+    runCatching {
+        val manager = AppWidgetManager.getInstance(context)
+        val ids = manager.getAppWidgetIds(ComponentName(context, providerClass))
+        ids.forEach { id ->
+            val (_, onAccent) = resolveWidgetAccent(context, id)
+            val reset = RemoteViews(context.packageName, layoutRes)
+            reset.setInt(R.id.widget_refresh, "setColorFilter", onAccent)
+            resetRefreshIconSize(reset)
+            manager.partiallyUpdateAppWidget(id, reset)
+        }
     }
 }
 
@@ -230,6 +292,17 @@ class StockWidgetActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION_REFRESH_STOCK) return
         flashRefreshIcon(context, StockAppWidgetProvider::class.java, R.layout.widget_stock)
+        // See scheduleFlashReset's own doc comment: stock's shared QuoteCache
+        // can make the real refresh below resolve — and reset the flash —
+        // in single-digit milliseconds, too fast to ever be seen without this.
+        val pending = goAsync()
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                scheduleFlashReset(context, StockAppWidgetProvider::class.java, R.layout.widget_stock)
+            } finally {
+                pending.finish()
+            }
+        }
         runCatching { StockWidgetRefreshWorker.refreshNow(context) }
     }
 
@@ -243,6 +316,17 @@ class SportsWidgetActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION_REFRESH_SPORTS) return
         flashRefreshIcon(context, SportsAppWidgetProvider::class.java, R.layout.widget_sports)
+        // See scheduleFlashReset's own doc comment — same guaranteed-minimum-
+        // visible-duration reasoning as StockWidgetActionReceiver, in case a
+        // future cache/fast-path makes this fetch resolve unusually fast too.
+        val pending = goAsync()
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                scheduleFlashReset(context, SportsAppWidgetProvider::class.java, R.layout.widget_sports)
+            } finally {
+                pending.finish()
+            }
+        }
         runCatching { SportsWidgetRefreshWorker.refreshNow(context) }
     }
 
@@ -277,6 +361,18 @@ class WeatherWidgetActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION_REFRESH_WEATHER) return
         flashRefreshIcon(context, WeatherAppWidgetProvider::class.java, R.layout.widget_weather)
+        // See scheduleFlashReset's own doc comment — same guaranteed-minimum-
+        // visible-duration reasoning as StockWidgetActionReceiver; weather's
+        // own fetch already left enough of a gap on its own, but this is a
+        // harmless no-op repeat in that case, not a risk.
+        val pending = goAsync()
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                scheduleFlashReset(context, WeatherAppWidgetProvider::class.java, R.layout.widget_weather)
+            } finally {
+                pending.finish()
+            }
+        }
         runCatching { com.tileshell.feature.livetiles.WeatherRefreshWorker.refreshNow(context) }
     }
 

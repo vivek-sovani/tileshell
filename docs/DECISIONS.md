@@ -3,6 +3,39 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Refresh tap feedback: the pulse needed a guaranteed minimum visible duration
+
+Same-day follow-up, user-confirmed the size pulse worked for weather and
+sports but not stock, then more precisely: "showing but very fast
+disappearing." Root cause traced to `QuoteCache` (`:core:data`) — a 45s
+memo *stock's own fetch* goes through, shared with the in-app tile, the
+glance card, and every other placed widget tracking the same symbol
+(deliberately, to collapse duplicate requests across those callers).
+Weather/sports have no comparable shared cache, so their own real fetch
+(1-3s+) naturally left the flash visible for a while; a stock refresh tap
+arriving while a recent fetch for that symbol is still cache-fresh resolves
+— and so triggers the real content push that resets the flash — in
+single-digit milliseconds, before the tint/pulse [`flashRefreshIcon`] had
+just set could ever be seen.
+
+Fixed with a guaranteed minimum visible duration, independent of how fast
+the real fetch turns out to be: a new `scheduleFlashReset` (still gated
+API 31+, same reasoning as the pulse itself) suspends 600ms then resets the
+icon back to its own correct per-widget tint (`resolveWidgetAccent`, the
+same value a real content push would use) and normal size — run from each
+receiver via `goAsync()` (matching `TaskWidgetActionReceiver`'s own existing
+async-work pattern in the same file, since a plain unshielded coroutine
+risks the OS tearing the receiver down before the delay elapses). Landing
+*after* the real content push (weather/sports' normal case) is a harmless
+no-op repeat of what that push already set; landing *before* it (stock's
+fast-cache case) is what now actually shows the icon settling back to
+normal instead of sitting flashed until whenever the fetch eventually
+finishes. Verified on the reporting device: rebuilt, reinstalled, re-
+triggered the same stock refresh action three times in quick succession
+(the exact fast-cache-hit shape) — zero crashes, zero
+`ActionException`/inflation errors, every worker run completing
+successfully.
+
 ## Refresh tap feedback gets a real size pulse, via the RemoteViews-official API this time
 
 Direct follow-up to the reverted spin animation above — user asked to
