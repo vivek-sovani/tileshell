@@ -163,13 +163,17 @@ standalone Android `AppWidgetProvider`s installable from any launcher's own widg
 not just TileShell's; plus a round of App List improvements (pin an app's other sub-apps/
 shortcuts/widgets directly from its long-press menu) and assorted widget/UX fixes.*
 
-***Re-cut at the same `versionCode` (400).** 400 was built but never uploaded to Play, so
-nothing is burned and this replaces the earlier artifacts in place rather than becoming a
-4.0.1 — the same call made for the v3.2.0 re-cut. The re-cut exists because an audit pass
-over battery, speed, correctness and security found two **exported-receiver
-vulnerabilities** in this release's own new widgets, three silent data-loss bugs, a
-launcher-killing crash path, and a large amount of avoidable background work. **The
-previously built 4.0.0 APK/AAB must not be uploaded** — they contain the vulnerabilities.*
+***Re-cut at the same `versionCode` (400), twice.** 400 was built but never uploaded to
+Play, so nothing is burned and each re-cut replaces the earlier artifacts in place rather
+than becoming a point release — the same call made for the v3.2.0 re-cut. The first re-cut
+exists because an audit pass over battery, speed, correctness and security found two
+**exported-receiver vulnerabilities** in this release's own new widgets, three silent
+data-loss bugs, a launcher-killing crash path, and a large amount of avoidable background
+work. The second re-cut folds in a further round of fixes found after that audit: per-widget
+Steps and multi-instance weather-location permissions, an OEM default-launcher-prompt bug,
+and a refresh-feedback (flash/pulse) pass on the stock/sports/weather widgets — see "Also
+folded into this same versionCode" below. **Only the latest built 4.0.0 APK/AAB should ever
+be uploaded** — earlier ones contain the fixed vulnerabilities/bugs.*
 
 *"What's new" — newest release first. Keep under Play's 500-character limit.*
 
@@ -180,14 +184,13 @@ TileShell 4.0.0
   alarm, moon, steps, calendars, flashlight, stock, commodities,
   sports, tasks, notes, sticky note & countdown - usable on any
   launcher, not just TileShell
-• New: App List pins an app's sub-apps, shortcuts & widgets
-  from its long-press menu, with real previews
-• Improved: far lighter on battery, smoother swiping, no
-  hitches on notification bursts
-• Fixed: security, data-loss & crash fixes
+• New: multi-location weather; refresh buttons on stock/sports/
+  weather widgets; App List pins sub-apps, shortcuts & widgets
+• Improved: far lighter on battery, smoother swiping
+• Fixed: security, data-loss, crash & permission fixes
 ```
 
-*(Character count 488, under Play's 500 limit.)*
+*(Character count 474, under Play's 500 limit.)*
 
 ### Full changelog since v3.6.0 (for reference — not the Play-facing blurb above)
 
@@ -271,6 +274,46 @@ main thread; the RSS/Atom parser rejects DOCTYPEs (arbitrary user-supplied feed 
 with entity expansion enabled); turning the feed off now actually stops its background refresh,
 which previously had no `cancel()` at all and ran for the life of the install; slider drags no
 longer rewrite the whole settings blob per frame; and `tasks.listId` is indexed (schema v11 → v12).
+
+### Also folded into this same versionCode 400 — a second re-cut, after the audit pass above
+
+*Permissions* — the Steps widget (and the Steps live tile) never actually requested
+`ACTIVITY_RECOGNITION` from the home screen: the widget silently showed nothing, and the tile's
+tap target looked unresponsive because it had already been asked once, denied, and had no way
+back in. Both now show an in-app rationale before the system prompt, and fall back to an "open
+permission settings" link if the permission was permanently denied; this permission is also now
+listed in Personalize's permissions section, so it can always be revisited by hand.
+
+*Weather, per-instance location* — every weather tile/widget used to share one device-location
+query, so only one could ever be meaningfully pinned. Adding a weather tile or widget now asks
+"use current location" or "pick a place" per instance, and each is fetched/cached independently
+(`WeatherTile.Location`, keyed snapshots in `WeatherCache`) — multiple, independently-located
+weather tiles/widgets are supported at once. Two bugs surfaced while building this: a race where
+a brand-new widget's own `onUpdate` could silently pre-answer "current location" ahead of the
+real configure step (fixed by removing that backfill — a null-location fallback already covers
+pre-existing widgets), and the half/compact weather widget layout had no place-name label at all.
+
+*Default-launcher prompt* — "set default launcher" was firing repeatedly on some OEM builds even
+though TileShell already was the default. `RoleManager.isRoleHeld` can go stale on certain
+skins even when the OS's own Home resolution already agrees TileShell is default; `isDefault()`
+now treats `RoleManager` and `resolveActivity()` as corroborating signals (either being true is
+enough) instead of trusting `RoleManager` alone.
+
+*Widget refresh feedback* — stock, sports, and weather widgets now refresh faster while their
+content is genuinely live (market open / match in progress) or while the glance page is on
+screen, and each gained its own manual refresh button. Tapping it flashes and pulses the icon so
+the tap is felt even before new data lands; a stock refresh that landed on a still-warm 45-second
+quote cache could resolve in single-digit milliseconds and reset the flash before it was ever
+visible, fixed with a guaranteed 600ms-minimum-visible reset decoupled from how fast the real
+fetch completes. An earlier attempt at a spin animation used a RemoteViews reflection setter
+(`setActivated`) that isn't on that view's allowed-method list and blanked the widgets outright
+on-device; reverted in the same pass for the safe `setColorFilter` +
+`setViewLayoutWidth`/`Height` (API 31+, first-class RemoteViews methods, not reflection-checked)
+pulse used today.
+
+*Also* — a real jank/battery diagnosis pass tightened the feed's re-fetch cadence, added a
+shared thumbnail cache, and gated the step-sensor listener so it isn't running when nothing can
+see it.
 
 
 - **14 real, installable-anywhere home-screen widgets** — replaces the old glance-page-only

@@ -447,6 +447,42 @@ android {
         //   LaunchedEffect with no guard (an uncaught throw there kills the Activity, and both
         //   run in a foreign widget host's process), and NotesWidgetActivity reset its stage by
         //   writing state during composition when the open note was deleted elsewhere.
+        //   --- re-cut again at the same versionCode 400 (still never uploaded): folds in a
+        //   further round of permission/location/launcher/widget-feedback fixes: ---
+        //   PERMISSIONS: the Steps widget (and the Steps live tile) never actually asked for
+        //   ACTIVITY_RECOGNITION from the home screen — the widget silently showed nothing, the
+        //   tile's tap target was unresponsive because it had already been asked once and denied
+        //   with no way back in. Both now show an in-app rationale, then the system prompt, then
+        //   (if permanently denied) a "open permission settings" fallback; this permission is
+        //   also now surfaced in Personalize's permissions section, so a missed/declined ask can
+        //   always be revisited by hand instead of only from the widget/tile itself.
+        //   WEATHER LOCATION: weather tiles/widgets previously all shared one device-location
+        //   query, so only one could ever be pinned meaningfully. Adding a weather tile or widget
+        //   now asks "use current location" or "pick a place" per instance — multiple
+        //   independently-located weather tiles/widgets are supported, each fetched and cached
+        //   separately (WeatherTile.Location, keyed snapshots in WeatherCache). Two bugs found
+        //   fixing this: a race where the widget's own onUpdate could silently pre-answer "use
+        //   current location" ahead of the real configure step for a brand-new widget instance
+        //   (fixed by removing the backfill — a null-location fallback already handles old
+        //   widgets); and the half/compact weather widget layout had no place-name label at all.
+        //   DEFAULT LAUNCHER PROMPT: "set default launcher" was firing repeatedly on some OEM
+        //   builds even though TileShell already was the default — RoleManager.isRoleHeld can go
+        //   stale on certain skins even when the OS's own Home resolution agrees TileShell is
+        //   default. isDefault() now treats RoleManager and resolveActivity() as corroborating
+        //   checks (either being true is enough) instead of trusting RoleManager exclusively.
+        //   WIDGET REFRESH: stock/sports/weather widgets refresh faster while their content is
+        //   actually live (market open / match live) or while the glance page is on-screen, and
+        //   each now has its own manual refresh button. Tapping it flashes + pulses the icon so
+        //   the tap registers even before new data arrives; a stock refresh landing on a still-
+        //   warm 45s quote cache could resolve in single-digit milliseconds and reset the flash
+        //   before it was ever visible — fixed with a guaranteed 600ms-minimum-visible reset,
+        //   decoupled from how fast the real fetch actually completes. An earlier attempt at a
+        //   spin animation used a RemoteViews reflection setter (setActivated) that isn't on that
+        //   view's allowed-method list and blanked the widgets outright; reverted in the same
+        //   pass in favor of the safe setColorFilter + setViewLayoutWidth/Height (API 31+,
+        //   first-class RemoteViews methods, not reflection-checked) pulse used today.
+        //   ALSO: real jank/battery diagnosis pass — feed re-fetch cadence, a shared thumbnail
+        //   cache, and step-sensor listener gating, so these don't run when nothing is looking.
         versionCode = 400
         versionName = "4.0.0"
     }
