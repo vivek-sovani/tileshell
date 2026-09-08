@@ -326,6 +326,9 @@ fun AboutSheet(
                     "drag its edge handle to resize width or height independently, or drag the corner to resize both at once",
                     "tap \"done\" where \"edit\" was to finish",
                     "tileshell's own widgets: stock market, commodities & currencies, sports scores, extra calendar systems (including hindu panchang), countdown, sticky note, notes, tasks, battery, alarm, moon phase, flashlight, and steps — real, standalone widgets, placeable on any launcher, not just here",
+                    "adding a weather widget asks for current location or a picked place — each weather widget you add can track its own location, independently of any other",
+                    "stock, sports, and weather widgets have their own refresh button, with a quick flash and pulse so you can see the tap registered",
+                    "stock and sports widgets refresh faster on their own while the market's open or a match is live",
                 ),
             )
 
@@ -337,6 +340,7 @@ fun AboutSheet(
                     "clock — live time, weekday, and date; flips to alarm",
                     "weather — real forecasts via open-meteo, no account needed",
                     "weather as a small tile shows the current temperature",
+                    "adding a weather tile asks for current location or a picked place — pin more than one, each tracking somewhere different",
                     "calendar — today's date always visible; flips to upcoming events",
                     "music — now-playing, album art, and transport controls",
                     "people — rotating mosaic of your contacts' photos",

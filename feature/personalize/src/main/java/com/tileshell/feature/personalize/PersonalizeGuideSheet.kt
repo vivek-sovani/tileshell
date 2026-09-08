@@ -210,6 +210,7 @@ fun PersonalizeGuideSheet(
                 items = listOf(
                     "long-press any tile to enter edit mode",
                     "while editing, tap \"add live tiles\" in the bottom bar for a catalog of special content tiles — weather, calendar, clock, battery, alarm, moon phase, tasks, notes, sticky note, flashlight, countdown, steps, sports, stock market, commodities, and calendar systems — each pins to the end of start",
+                    "adding a weather tile asks for current location or a picked place — pin more than one, each tracking somewhere different",
                     "drag one tile onto another, centre to centre, to merge them into a folder — merging two large tiles forms a widget stack directly",
                     "any folder with 2 or more children can become a widget stack too — tap its colour dot and use the \"show as stack\" toggle at the bottom of the colour picker; \"show as folder\" reverts it just as easily",
                     "works at any size wider than one column — medium, wide, large, wide small, banner, and the other roomier drag-resize sizes; only single-column presets (tall, column) are too thin and excluded",
@@ -249,6 +250,8 @@ fun PersonalizeGuideSheet(
                     "narrow widgets automatically pair up side by side — drag a widget's edge past the midpoint to switch it between side-by-side and full width",
                     "pin any real android widget from the picker — tileshell's own 14 (stock market, commodities & currencies, sports scores, extra calendar systems including hindu panchang, countdown, sticky note, notes, tasks, battery, alarm, moon phase, flashlight, and steps) sit at the top, ahead of every other app",
                     "search the picker by app name or widget name to jump straight to one",
+                    "adding a weather widget asks for current location or a picked place — each one you add can track its own location",
+                    "stock, sports, and weather widgets have their own refresh button — tap it for a quick flash and pulse confirming the tap, and stock/sports refresh faster on their own while the market's open or a match is live",
                     "weather, agenda, and now-playing share this same system too — tap \"edit\" next to \"widgets\" to turn on move/resize handles for every card at once, hosted widgets included",
                     "drag a card's move handle (top) to reorder it, its edge handle to resize width or height, or its corner to resize both at once",
                     "pick any number of news regions — india plus ~20 other countries, defaulting to your device's own",
