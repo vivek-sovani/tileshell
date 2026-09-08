@@ -14,10 +14,11 @@ import androidx.compose.ui.unit.IntSize
 
 /**
  * Renders [tiles] with the [GridPacker] dense layout. Geometry comes from the
- * shared [GridGeometry] (cell unit, gaps and side padding derived
- * proportionally from the available width against the 393 px prototype
- * reference: unit 90 / gap 3 / side 9 / top 10), so the 4-column grid fills the
- * screen at any size while preserving the prototype's spacing ratios.
+ * shared [GridGeometry] (cell unit and gaps derived proportionally from the
+ * available width against the 393 px prototype reference: unit 90 / gap 3 /
+ * top 10, side margin removed — see [GridGeometry]), so the 4-column grid
+ * fills the screen edge-to-edge at any size while preserving the prototype's
+ * spacing ratios.
  *
  * Each tile is placed at the grid origin and handed its target [IntOffset] slot
  * and [IntSize]; the caller positions it (via `Modifier.offset`), which lets the

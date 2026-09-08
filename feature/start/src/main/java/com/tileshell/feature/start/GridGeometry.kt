@@ -10,8 +10,11 @@ import kotlin.math.roundToInt
 /**
  * Pixel geometry of the dense 4-column grid, derived proportionally from the
  * available width against the 393 px prototype reference (unit 90 / gap 3 /
- * side 9 / top 10). Shared by [DenseTileGrid] (tile placement) and the
- * edit-mode drag hit-testing so both agree on exactly where each tile sits.
+ * top 10). Shared by [DenseTileGrid] (tile placement) and the edit-mode drag
+ * hit-testing so both agree on exactly where each tile sits.
+ *
+ * [side] is 0 (true edge-to-edge) — a deliberate deviation from the
+ * prototype's own 9/393 side margin; see DECISIONS.md.
  */
 class GridGeometry private constructor(
     val side: Float,
@@ -60,7 +63,10 @@ class GridGeometry private constructor(
             columns: Int = GridPacker.COLUMNS,
             gapPx: Float? = null,
         ): GridGeometry {
-            val side = totalWidthPx * (9f / 393f)
+            // Deliberate deviation from the prototype's 9/393 side margin
+            // (launcher.js's --side: 9px on a 393px reference) — user-requested
+            // true edge-to-edge tiles; see DECISIONS.md.
+            val side = 0f
             val gap = gapPx ?: (totalWidthPx * (3f / 393f))
             val topPad = totalWidthPx * (10f / 393f)
             val unit = (totalWidthPx - 2 * side - (columns - 1) * gap) / columns

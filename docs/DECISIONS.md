@@ -6147,3 +6147,24 @@ writes after the transactional Room restore; the notified section of `topApps` i
 per-activity; trimmed history snapshots leak their screenshot JPEGs; and `pinApp` does a
 read-modify-write outside `StartViewModel`'s serialized `writeContext`, so two concurrent pins can
 land on the same `position`.
+
+## Start grid: side margin removed — tiles now go edge-to-edge (user-requested)
+
+User reported "tiles dont occupy full horizontal screen size." Investigation (emulator screenshot +
+pixel-level measurement on a physical Samsung SM-S938B, connected via wireless adb) found the grid
+was actually rendering correctly per spec: `GridGeometry.of` (`feature/start/.../GridGeometry.kt`)
+computes a proportional side margin of `totalWidthPx * (9/393)` (~33px on a 1440px-wide screen,
+confirmed symmetric via pixel scan) — a direct, deliberate port of the prototype's own
+`--side: 9px` (`design/.../launcher.js:290`, applied via `padding: 10px var(--side) 0` in
+`styles.css:134`), i.e. real Windows Phone's own Start-screen outer grid margin. Not a bug — but
+once the rationale was explained, the user asked to remove it since it wasn't functionally load-
+bearing for them (no gesture/hit-testing logic depends on a nonzero side; `GridGeometry`'s formula
+is self-balancing for any `side` value including 0).
+
+`GridGeometry.of`'s `side` is now hardcoded to `0f` (unit/gap/top-padding stay proportional to the
+393px reference as before) — a one-line, single-source-of-truth change since every consumer
+(`DenseTileGrid`, the folder overlay's inline-expand grid, resize/hit-testing geometry) shares this
+one function. Tiles now sit flush against the screen edges on Start (and the folder overlay), with
+only the inter-tile gap (still 3/393 proportional, or the user's own "tile spacing" override)
+separating them from each other. A deliberate deviation from the prototype/spec's `side 9` reference
+constant — noted here per this project's convention for such choices.
