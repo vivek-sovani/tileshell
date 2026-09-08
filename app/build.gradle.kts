@@ -483,6 +483,23 @@ android {
         //   first-class RemoteViews methods, not reflection-checked) pulse used today.
         //   ALSO: real jank/battery diagnosis pass — feed re-fetch cadence, a shared thumbnail
         //   cache, and step-sensor listener gating, so these don't run when nothing is looking.
+        //   --- re-cut a third time at the same versionCode 400 (still never uploaded): two
+        //   Start-screen fixes from direct user reports: ---
+        //   EDGE-TO-EDGE TILES: user-reported "tiles dont occupy full horizontal screen size".
+        //   Pixel-level verification on both an emulator and a physical device found the grid
+        //   margin was actually rendering correctly and symmetrically (the visual asymmetry was
+        //   an illusion from a dark wallpaper photo blending into the near-black background on
+        //   one side); the margin itself was a 1:1 port of the prototype's own --side: 9px
+        //   reference constant, real WP's own Start-screen outer margin, not load-bearing for any
+        //   gesture/hit-testing logic. Removed at the user's request: GridGeometry.of's side is
+        //   now 0, so Start (and the folder overlay, sharing the same geometry) sits flush to the
+        //   screen edges.
+        //   PAGER SMOOTHNESS: user-reported the Start<->feed swipe "not very smooth". The drag
+        //   handler launched a fresh coroutine on every touch-move sample (up to ~120/s during a
+        //   fast drag) to apply each position update; replaced with one conflated channel + one
+        //   consumer coroutine per gesture instead of per sample. Also fixed a latent stale-read
+        //   at settle time: the release-time "which page to commit to" calculation now reads a
+        //   synchronously-tracked value instead of the (now asynchronously-applied) animated one.
         versionCode = 400
         versionName = "4.0.0"
     }

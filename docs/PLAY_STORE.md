@@ -163,17 +163,21 @@ standalone Android `AppWidgetProvider`s installable from any launcher's own widg
 not just TileShell's; plus a round of App List improvements (pin an app's other sub-apps/
 shortcuts/widgets directly from its long-press menu) and assorted widget/UX fixes.*
 
-***Re-cut at the same `versionCode` (400), twice.** 400 was built but never uploaded to
-Play, so nothing is burned and each re-cut replaces the earlier artifacts in place rather
+***Re-cut at the same `versionCode` (400), three times.** 400 was built but never uploaded
+to Play, so nothing is burned and each re-cut replaces the earlier artifacts in place rather
 than becoming a point release — the same call made for the v3.2.0 re-cut. The first re-cut
 exists because an audit pass over battery, speed, correctness and security found two
 **exported-receiver vulnerabilities** in this release's own new widgets, three silent
 data-loss bugs, a launcher-killing crash path, and a large amount of avoidable background
 work. The second re-cut folds in a further round of fixes found after that audit: per-widget
 Steps and multi-instance weather-location permissions, an OEM default-launcher-prompt bug,
-and a refresh-feedback (flash/pulse) pass on the stock/sports/weather widgets — see "Also
-folded into this same versionCode" below. **Only the latest built 4.0.0 APK/AAB should ever
-be uploaded** — earlier ones contain the fixed vulnerabilities/bugs.*
+and a refresh-feedback (flash/pulse) pass on the stock/sports/weather widgets. The third
+re-cut folds in two Start-screen fixes found from direct user reports: tiles now sit flush
+against the screen edges (the prototype's own small `9/393` side margin is removed — see
+"Also folded into this same versionCode" below), and the Start↔feed↔app-list swipe no longer
+launches a coroutine on every touch-move sample, fixing a real stutter during a fast drag.
+**Only the latest built 4.0.0 APK/AAB should ever be uploaded** — earlier ones contain the
+fixed vulnerabilities/bugs.*
 
 *"What's new" — newest release first. Keep under Play's 500-character limit.*
 
@@ -186,11 +190,12 @@ TileShell 4.0.0
   launcher, not just TileShell
 • New: multi-location weather; refresh buttons on stock/sports/
   weather widgets; App List pins sub-apps, shortcuts & widgets
-• Improved: far lighter on battery, smoother swiping
+• Improved: far lighter on battery, edge-to-edge tiles, smoother
+  swiping
 • Fixed: security, data-loss, crash & permission fixes
 ```
 
-*(Character count 474, under Play's 500 limit.)*
+*(Character count 496, under Play's 500 limit.)*
 
 ### Full changelog since v3.6.0 (for reference — not the Play-facing blurb above)
 
@@ -314,6 +319,32 @@ pulse used today.
 *Also* — a real jank/battery diagnosis pass tightened the feed's re-fetch cadence, added a
 shared thumbnail cache, and gated the step-sensor listener so it isn't running when nothing can
 see it.
+
+### Also folded into this same versionCode 400 — a third re-cut, from direct user reports
+
+*Start grid: tiles go edge-to-edge* — a user report ("tiles dont occupy full horizontal screen
+size") led to pixel-level verification (screenshots + measurement) on both an emulator and a
+physical device confirming the grid's side margin was rendering correctly and symmetrically —
+the visual asymmetry that prompted the report was an optical illusion from a dark wallpaper
+photo blending into the near-black theme background on one side only. The margin itself,
+though, turned out to be a direct 1:1 port of the HTML prototype's own `--side: 9px` (on a
+393px reference screen) — real Windows Phone's small outer Start-screen margin, not something
+any gesture or hit-testing logic depends on. Once that was explained, the side margin was
+removed at the user's request: `GridGeometry.of`'s `side` is now `0`, so tiles on Start (and the
+folder overlay, which shares the same geometry function) sit flush against the screen edges,
+with only the inter-tile gap remaining.
+
+*Pager drag smoothness* — direct follow-up report: "left scroll is not very smooth" (the
+Start↔feed swipe; the same code drives Start↔app-list too). The drag handler launched a brand-
+new coroutine on **every touch-move sample** (up to ~120/second during a fast drag) to apply
+each position update — the resulting per-event allocation/scheduling overhead is what read as
+the drag lagging or stuttering behind the finger, especially compositing over the feed page's
+heavier content. Fixed with one conflated update channel and a single consumer coroutine **per
+gesture** instead of per touch sample, so a whole drag now costs one coroutine launch rather
+than dozens. Also fixed a latent correctness edge case found while making this change: the
+drag-release "which page to settle on" decision read the animated value directly, which could
+still be one step stale at that exact instant since the position is now applied asynchronously
+— it now reads a synchronously-tracked value instead.
 
 
 - **14 real, installable-anywhere home-screen widgets** — replaces the old glance-page-only
