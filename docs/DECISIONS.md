@@ -3,6 +3,39 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Refresh tap feedback gets a real size pulse, via the RemoteViews-official API this time
+
+Direct follow-up to the reverted spin animation above — user asked to
+explore other options, then picked the size-pulse one offered. Same visible
+goal (something more than a static colour swap), reached this time through
+an API that was never the problem: `RemoteViews.setViewLayoutWidth`/
+`setViewLayoutHeight` (API 31+) are *dedicated, first-class* `RemoteViews`
+methods, added specifically for this in Android 12's "flexible widget
+layouts" — not the generic `setInt`/`setBoolean(id, "methodName", …)`
+reflection path whose internal per-view-type allowlist rejected
+`setActivated` and broke the widgets last time. Corroborated against
+Android's own docs before touching the user's real widgets again, given
+what the last attempt cost.
+
+`flashRefreshIcon` (`WidgetActionReceivers.kt`) now sets both the existing
+colour tint *and* grows the icon 24dp → 30dp in the same partial update; a
+new shared `resetRefreshIconSize`, called alongside the existing colour-
+filter reset in all 5 real-content-push build sites (weather/stock ×3/
+sports), shrinks it back. That reset needed its own explicit API-31 gate —
+unlike the colour-filter reset it sits beside, calling a method the
+*platform's own* `RemoteViews` class doesn't define below API 31 (this app
+doesn't bundle that class, the device's OS does) would fail to resolve at
+all on an older device, not just be silently ignored, so this one can never
+run un-gated the way the colour reset safely does.
+
+Not yet verified on-device — the user's physical device wasn't connected
+this session; build + full unit test suite are green, and the specific
+`ActionException` class of failure from the previous attempt is verified
+inapplicable (a real, non-reflection API, corroborated against Android's
+own "flexible widget layouts" documentation), but this still needs a real
+on-device check before being called confirmed, given the session's own
+recent history with this exact icon.
+
 ## Weather widget's refresh flash was invisible — a self-inflicted race, not a RemoteViews limit
 
 User-reported: after the previous entry's revert, stock/sports' refresh tap

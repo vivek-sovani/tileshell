@@ -203,9 +203,10 @@ class SportsWidgetRefreshWorker(
             views.setBoolean(R.id.widget_root, "setClipToOutline", true)
             views.setOnClickPendingIntent(R.id.widget_settings, reconfigurePendingIntent(context, appWidgetId))
             views.setOnClickPendingIntent(R.id.widget_refresh, SportsAppWidgetProvider.refreshPendingIntent(context, appWidgetId))
-            // Undoes flashRefreshIcon (WidgetActionReceivers.kt) — see StockWidgetRefreshWorker's
-            // own identical comment for why a real content push must explicitly reset this.
+            // Undoes flashRefreshIcon's tint + size pulse — see StockWidgetRefreshWorker's
+            // own identical comment for why a real content push must explicitly reset these.
             views.setInt(R.id.widget_refresh, "setColorFilter", onAccent)
+            resetRefreshIconSize(views)
             setBaseColors(views, onAccent, compact)
             views.setImageViewResource(R.id.widget_icon, sportsIconRes(selection?.leagueSlug))
 

@@ -159,9 +159,10 @@ class WeatherWidgetRefreshWorker(
             views.setOnClickPendingIntent(R.id.widget_root, weatherAppPendingIntent(context, appWidgetId))
             views.setOnClickPendingIntent(R.id.widget_settings, reconfigurePendingIntent(context, appWidgetId))
             views.setOnClickPendingIntent(R.id.widget_refresh, WeatherAppWidgetProvider.refreshPendingIntent(context, appWidgetId))
-            // Undoes flashRefreshIcon (WidgetActionReceivers.kt) — see StockWidgetRefreshWorker's
-            // own identical comment for why a real content push must explicitly reset this.
+            // Undoes flashRefreshIcon's tint + size pulse — see StockWidgetRefreshWorker's
+            // own identical comment for why a real content push must explicitly reset these.
             views.setInt(R.id.widget_refresh, "setColorFilter", onAccent)
+            resetRefreshIconSize(views)
             views.setTextColor(R.id.widget_temp, onAccent)
             views.setTextColor(R.id.widget_condition, onAccent)
             views.setTextColor(R.id.widget_back_highlow, onAccent)

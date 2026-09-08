@@ -218,11 +218,12 @@ class StockWidgetRefreshWorker(
             views.setBoolean(R.id.widget_root, "setClipToOutline", true)
             views.setOnClickPendingIntent(R.id.widget_settings, reconfigurePendingIntent(context, appWidgetId))
             views.setOnClickPendingIntent(R.id.widget_refresh, StockAppWidgetProvider.refreshPendingIntent(context, appWidgetId))
-            // Undoes flashRefreshIcon (WidgetActionReceivers.kt): a real content push like
-            // this one runs on the SAME already-inflated view (RemoteViews.reapply, not a
-            // fresh inflate), so a colour filter set by an earlier partial update otherwise
-            // persists forever unless something explicitly overwrites it here.
+            // Undoes flashRefreshIcon's tint + size pulse (WidgetActionReceivers.kt): a real
+            // content push like this one runs on the SAME already-inflated view
+            // (RemoteViews.reapply, not a fresh inflate), so either one set by an earlier
+            // partial update otherwise persists forever unless explicitly overwritten here.
             views.setInt(R.id.widget_refresh, "setColorFilter", onAccent)
+            resetRefreshIconSize(views)
             views.setOnClickPendingIntent(R.id.widget_root, reconfigurePendingIntent(context, appWidgetId))
             setBaseColors(views, onAccent, compact)
             views.setTextColor(R.id.widget_hilo, onAccent)
@@ -251,11 +252,12 @@ class StockWidgetRefreshWorker(
             views.setBoolean(R.id.widget_root, "setClipToOutline", true)
             views.setOnClickPendingIntent(R.id.widget_settings, reconfigurePendingIntent(context, appWidgetId))
             views.setOnClickPendingIntent(R.id.widget_refresh, StockAppWidgetProvider.refreshPendingIntent(context, appWidgetId))
-            // Undoes flashRefreshIcon (WidgetActionReceivers.kt): a real content push like
-            // this one runs on the SAME already-inflated view (RemoteViews.reapply, not a
-            // fresh inflate), so a colour filter set by an earlier partial update otherwise
-            // persists forever unless something explicitly overwrites it here.
+            // Undoes flashRefreshIcon's tint + size pulse (WidgetActionReceivers.kt): a real
+            // content push like this one runs on the SAME already-inflated view
+            // (RemoteViews.reapply, not a fresh inflate), so either one set by an earlier
+            // partial update otherwise persists forever unless explicitly overwritten here.
             views.setInt(R.id.widget_refresh, "setColorFilter", onAccent)
+            resetRefreshIconSize(views)
             setBaseColors(views, onAccent, compact)
 
             val (symbol, displayName) = selection
@@ -317,11 +319,12 @@ class StockWidgetRefreshWorker(
             views.setBoolean(R.id.widget_root, "setClipToOutline", true)
             views.setOnClickPendingIntent(R.id.widget_settings, reconfigurePendingIntent(context, appWidgetId))
             views.setOnClickPendingIntent(R.id.widget_refresh, StockAppWidgetProvider.refreshPendingIntent(context, appWidgetId))
-            // Undoes flashRefreshIcon (WidgetActionReceivers.kt): a real content push like
-            // this one runs on the SAME already-inflated view (RemoteViews.reapply, not a
-            // fresh inflate), so a colour filter set by an earlier partial update otherwise
-            // persists forever unless something explicitly overwrites it here.
+            // Undoes flashRefreshIcon's tint + size pulse (WidgetActionReceivers.kt): a real
+            // content push like this one runs on the SAME already-inflated view
+            // (RemoteViews.reapply, not a fresh inflate), so either one set by an earlier
+            // partial update otherwise persists forever unless explicitly overwritten here.
             views.setInt(R.id.widget_refresh, "setColorFilter", onAccent)
+            resetRefreshIconSize(views)
             setBaseColors(views, onAccent, compact)
 
             views.setOnClickPendingIntent(R.id.widget_root, stockAppPendingIntent(context, appWidgetId, displayName))

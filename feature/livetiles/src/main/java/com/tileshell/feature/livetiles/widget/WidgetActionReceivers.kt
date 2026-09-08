@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.hardware.camera2.CameraManager
 import android.os.Build
+import android.util.TypedValue
 import android.widget.RemoteViews
 import com.tileshell.core.data.TaskRepository
 import com.tileshell.feature.livetiles.R
@@ -18,31 +19,62 @@ import kotlinx.coroutines.launch
 /** The colour a widget's refresh icon flashes to the instant a tap is received — see [flashRefreshIcon]. */
 private const val WIDGET_REFRESH_FLASH_COLOR = 0xFFFFC107.toInt()
 
+/** The icon's own normal size (matches every `widget_refresh` ImageView's `layout_width`/`height` in every layout XML) and its brief tap-pulse size, in dp. */
+private const val WIDGET_REFRESH_NORMAL_DP = 24f
+private const val WIDGET_REFRESH_PULSE_DP = 30f
+
 /**
- * Brief "got it" flash on a widget's own refresh icon, shown the instant a
- * manual refresh tap is received (user-reported: "user cant understand
+ * Resets the refresh icon back to its normal 24dp size, undoing
+ * [flashRefreshIcon]'s own tap-pulse. Called from every real content-push
+ * build function (weather/stock/sports) alongside their existing
+ * `setColorFilter` reset — see e.g. `StockWidgetRefreshWorker`'s doc comment
+ * on why that reset has to be explicit (a real content push runs on the
+ * SAME already-inflated view via `RemoteViews.reapply`, not a fresh
+ * inflate, so a size set by an earlier partial update otherwise persists
+ * forever). API-gated the same way [flashRefreshIcon] is: unlike the
+ * `setColorFilter` reset it sits beside, `RemoteViews.setViewLayoutWidth`/
+ * `Height` are real methods added to the platform in API 31 — calling them
+ * on an older device's own system `RemoteViews` class (not something this
+ * app bundles) would fail to resolve at all, not just be ignored, so this
+ * must never run un-gated the way the colour-filter reset safely can.
+ */
+fun resetRefreshIconSize(views: RemoteViews) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+    views.setViewLayoutWidth(R.id.widget_refresh, WIDGET_REFRESH_NORMAL_DP, TypedValue.COMPLEX_UNIT_DIP)
+    views.setViewLayoutHeight(R.id.widget_refresh, WIDGET_REFRESH_NORMAL_DP, TypedValue.COMPLEX_UNIT_DIP)
+}
+
+/**
+ * Brief "got it" feedback on a widget's own refresh icon, shown the instant
+ * a manual refresh tap is received (user-reported: "user cant understand
  * whether refresh is tapped or not") — a manual tap triggers a real network
  * fetch that can easily take a second or more, so without this nothing
  * visibly changes until that finishes, reading as a dead button in the
- * meantime.
+ * meantime. Two effects together: a colour tint (unchanged from the first
+ * version) plus a brief size pulse (24dp → 30dp) — user-requested after the
+ * colour alone "wasn't read as an animation."
  *
- * **A real spin animation was tried first and reverted** — user-reported,
- * twice: first this plain colour swap alone wasn't read as feedback, so an
+ * **A real spin animation was tried first and reverted.** User-reported,
+ * twice: first the plain colour swap alone wasn't read as feedback, so an
  * `<animated-selector>`/`<animated-vector>` (a real 360° rotation, triggered
  * by `RemoteViews.setBoolean(id, "setActivated", true)`) replaced it. That
  * broke the widget outright ("widgets crashed"/went blank) — confirmed via
  * `adb logcat`: `RemoteViews$ActionException: view: android.widget.ImageView
  * can't use method with RemoteViews: setActivated(boolean)`. RemoteViews'
- * reflection setters (`setBoolean`/`setInt`/etc.) are *not* generic — each
- * checks the target method against an internal per-view-type allowlist, and
- * `setActivated` isn't on it (unlike `setColorFilter`, already used
- * extensively elsewhere in this codebase, e.g. every `onAccent` icon tint).
- * Reverted rather than guess at another boolean setter (`setSelected`,
- * `setEnabled`, ...) against the same real, already-placed widgets and risk
- * a second blank-widget incident — this colour flash is the confirmed-safe
- * baseline; a genuine smooth animation would need a RemoteViews-official API
- * (e.g. `setViewLayoutWidth`/`Height`, API 31+) rather than generic
- * reflection, and hasn't been attempted again this session.
+ * *generic* reflection setters (`setBoolean`/`setInt`/etc., called with an
+ * arbitrary method-name string) are checked against an internal per-view-
+ * type allowlist, and `setActivated` isn't on it — `setColorFilter` is
+ * (already used extensively elsewhere in this codebase, e.g. every
+ * `onAccent` icon tint), which is why that half kept working.
+ *
+ * The size pulse deliberately avoids that whole risk class: [RemoteViews
+ * .setViewLayoutWidth]/[RemoteViews.setViewLayoutHeight] (API 31+) are
+ * *dedicated, first-class* `RemoteViews` methods — not the generic
+ * `setInt`/`setBoolean("someMethodName", …)` reflection path the allowlist
+ * gates, so there is no equivalent "is this specific call permitted"
+ * rejection to hit. They were added to the platform specifically so a
+ * partial update like this one could resize a view without needing to
+ * rebuild/reinflate anything.
  *
  * Uses [AppWidgetManager.partiallyUpdateAppWidget] (API 31+ only) rather
  * than a normal [AppWidgetManager.updateAppWidget] — the latter *replaces*
@@ -51,21 +83,23 @@ private const val WIDGET_REFRESH_FLASH_COLOR = 0xFFFFC107.toInt()
  * (no accent gradient, no cached text) since this receiver has no cheap way
  * to also rebuild the widget's real content (weather/stock/sports each
  * fetch that from the network inside their own worker, not here). A partial
- * update instead replays only the one recorded action — tint this view —
- * against whatever is already live on screen, leaving everything else
- * untouched. [layoutRes] only needs to be *a* valid layout for this
+ * update instead replays only the recorded actions — tint and resize this
+ * one view — against whatever is already live on screen, leaving everything
+ * else untouched. [layoutRes] only needs to be *a* valid layout for this
  * provider, not necessarily the exact variant currently hosted (stock alone
  * has four - single/group × compact/full) — a partial update's own
  * `RemoteViews` is never inflated, only replayed by view id against the
- * already-inflated tree, and `R.id.widget_refresh` is the same id in every
- * variant of a given widget kind.
+ * already-inflated tree, and `R.id.widget_refresh` is the same id, at the
+ * same normal 24dp size, in every variant of a given widget kind.
  *
- * No explicit "revert to normal" step: the real refresh this same tap
- * triggers repaints the icon back to its plain white tint as an ordinary
- * part of its own next content push, once the fetch it kicked off
- * completes. Below API 31 this is a silent no-op — the real refresh
- * completing promptly is still the feedback there, just without the
- * instant pre-flash.
+ * No explicit "revert to normal" step here: the real refresh this same tap
+ * triggers repaints the icon back to its plain tint *and* its normal size
+ * as an ordinary part of its own next content push (see e.g.
+ * `StockWidgetRefreshWorker`'s matching doc comment for why that reset has
+ * to be explicit there), once the fetch it kicked off completes. Below API
+ * 31 this whole function is a silent no-op — the real refresh completing
+ * promptly is still the feedback there, just without the instant pre-tap
+ * pulse.
  */
 private fun flashRefreshIcon(context: Context, providerClass: Class<out AppWidgetProvider>, layoutRes: Int) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
@@ -75,6 +109,8 @@ private fun flashRefreshIcon(context: Context, providerClass: Class<out AppWidge
         if (ids.isEmpty()) return
         val flash = RemoteViews(context.packageName, layoutRes)
         flash.setInt(R.id.widget_refresh, "setColorFilter", WIDGET_REFRESH_FLASH_COLOR)
+        flash.setViewLayoutWidth(R.id.widget_refresh, WIDGET_REFRESH_PULSE_DP, TypedValue.COMPLEX_UNIT_DIP)
+        flash.setViewLayoutHeight(R.id.widget_refresh, WIDGET_REFRESH_PULSE_DP, TypedValue.COMPLEX_UNIT_DIP)
         ids.forEach { id -> manager.partiallyUpdateAppWidget(id, flash) }
     }
 }
