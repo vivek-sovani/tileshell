@@ -6191,3 +6191,40 @@ test suite green; installed on both the physical device and the emulator, launch
 `adb logcat`. The actual drag *feel* — the whole point of this fix — still needs the user's own
 on-device confirmation; ADB-synthesized swipes in this codebase's own history are not reliable
 stand-ins for real per-frame touch-sampling smoothness.
+
+## Real crash root-caused via on-device battery/exit-info diagnostics: PixelCopy crashing the whole Home process, several times a day
+
+User-reported battery drain "more than regular" on 4.0.0 (after already reporting it on 3.6.0) plus
+"launcher/start screen takes little longer to load when I press power on." Diagnosed directly against
+the physical device's own OS-level accounting rather than guessing from code: `dumpsys batterystats
+com.tileshell` showed `Proc com.tileshell: ... 4 starts, 4 crashes` in one ~8h window, and — the
+concrete, decisive step — `dumpsys activity exit-info com.tileshell` listed a long run of `reason=4
+(APP CRASH(EXCEPTION))` exits, several per day across four separate days. `adb logcat -b crash -d`
+(the OS's own persistent crash-log ring buffer, which survives across the app's own process deaths)
+then gave the actual stack traces: **all 13 of the app's crashes over that whole span** were the
+identical `java.lang.IllegalArgumentException: Window doesn't have a backing surface!` thrown by
+`android.view.PixelCopy.request(...)` inside `captureSnapshotJpeg` (`StartScreen.kt:6392`), called
+from the auto-backup screenshot-cache effect on `ON_PAUSE` (`StartScreen.kt:675`, see the "Post-S27
+— auto-backup screenshot cache" entry above — that feature's own doc comment assumed the window
+"is still attached/visible" at `ON_PAUSE` time, which this data proves isn't reliably true: the
+window's Surface can already be torn down by the time the coroutine actually runs, e.g. racing the
+display genuinely powering off). The call was entirely unguarded — no `runCatching`, so the
+exception was uncaught on the main thread and took down the whole Home process. This directly
+explains both symptoms without needing to guess further: a crashed launcher process means the *next*
+screen wake is a full cold start (Room reopen, WorkManager rescheduling, notification-listener
+reconnect, wallpaper/feed re-init) instead of a cheap warm resume — measurably slower, exactly
+matching "takes longer to load" — and repeated full cold-boots several times a day is real,
+avoidable extra CPU/IO work extra to whatever baseline the launcher's live tiles/widgets already
+cost, on top of `batterystats` separately showing the process pinned in `Fg Service` process-
+importance state for ~95% of the whole on-battery window (a `NotificationListenerService`
+side-effect, not itself a bug, but relevant background context: it means a crash-restart cycle here
+doesn't get to hide behind any real Doze-throttling in between). Fixed by wrapping just the
+`PixelCopy.request(...)` call in `runCatching`, returning null (the function's existing "capture
+skipped" contract, which both call sites already handle) instead of letting the exception escape —
+a minimal, surgical fix, not a rewrite of the capture flow. Verified by reinstalling and reproducing
+the likely trigger directly (five rapid screen-off/screen-on cycles via `adb shell input keyevent
+KEYCODE_POWER`) with no new crash in the crash-log buffer, process pid unchanged throughout. Real
+confirmation that this eliminates the crash for good needs a few more days of the user's own normal
+use, but every single historical crash on this device matches this one exact code path with 100%
+consistency, so this is a high-confidence root cause, not a partial mitigation. Build + full unit
+test suite green.

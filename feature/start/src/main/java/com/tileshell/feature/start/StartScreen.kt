@@ -6389,11 +6389,21 @@ internal suspend fun captureSnapshotJpeg(
         decorView.width, decorView.height, android.graphics.Bitmap.Config.ARGB_8888,
     )
     val deferred = kotlinx.coroutines.CompletableDeferred<Boolean>()
-    android.view.PixelCopy.request(
-        activity.window, full,
-        { result -> deferred.complete(result == android.view.PixelCopy.SUCCESS) },
-        android.os.Handler(android.os.Looper.getMainLooper()),
-    )
+    // PixelCopy.request can throw synchronously — IllegalArgumentException("Window
+    // doesn't have a backing surface!") — when the window's Surface has already
+    // been torn down by the time this runs, e.g. a screen-off ON_PAUSE capture
+    // racing the display actually powering off. This was previously uncaught,
+    // crashing the entire Home process (confirmed via repeated real-device crash
+    // traces landing here, several times a day); every call site already treats a
+    // null return as "capture skipped," so failing safe here costs nothing.
+    val requested = runCatching {
+        android.view.PixelCopy.request(
+            activity.window, full,
+            { result -> deferred.complete(result == android.view.PixelCopy.SUCCESS) },
+            android.os.Handler(android.os.Looper.getMainLooper()),
+        )
+    }.isSuccess
+    if (!requested) return null
     if (!deferred.await()) return null
     return withContext(Dispatchers.IO) {
         runCatching {
