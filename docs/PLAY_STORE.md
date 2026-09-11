@@ -156,6 +156,53 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
+## Release notes (v4.0.1)
+
+*A genuine point release, not another same-`versionCode` re-cut of 4.0.0 — 4.0.0 (code 400)
+accumulated three re-cuts, all still never uploaded to Play (see that section below), so this
+closes it out with a real new `versionCode` (401). **The feature set and full changelog are
+identical to v4.0.0** — same 14 real widgets, same App List sub-app/shortcut/widget pinning, same
+security/data-loss/crash/permission audit fixes, same edge-to-edge tiles and pager-smoothness fixes
+— see "Release notes (v4.0.0)" directly below for that complete list. This section only covers what's
+new on top of it, all four found from real user reports on the live v3.6.0 Play release:*
+
+- **Crash fix**: every one of 13 real-device crashes found across 4 days (via `dumpsys batterystats`,
+  `dumpsys activity exit-info`, and the OS's own crash-log buffer) was the identical
+  `IllegalArgumentException("Window doesn't have a backing surface!")` from the `PixelCopy` call in
+  the auto-backup screenshot capture (fired on `ON_PAUSE`, e.g. screen-off) — uncaught, killing the
+  whole Home process outright. This explains both a battery-drain report (repeated full cold-restarts
+  instead of cheap warm resumes) and a "Start screen takes longer to load" report (the next wake has
+  to cold-start). Fixed by failing safe instead of crashing — every call site already treats a
+  skipped capture as normal.
+- **Accessibility prompt: stopped one real false-nag source**: the in-app check for "is accessibility
+  already enabled" relied on an in-process flag that any process restart (including the crash above)
+  could reset to null even with the real system-level grant untouched, incorrectly re-showing the
+  "please enable" disclosure. Now checks the real system state instead, the same way notification-
+  listener access already does.
+- **Accessibility prompt: added a one-tap recovery**: the most likely real explanation for the
+  prompt still recurring on some devices is an OEM's own background-service management (well
+  documented on Samsung) silently revoking the grant over time — something no app can prevent via
+  API. The disclosure dialog now includes an "open battery settings" button that deep-links straight
+  to the manufacturer's own protected-apps screen (Samsung/Xiaomi/Huawei/Oppo/Vivo/OnePlus), so
+  re-enabling it after that happens is one tap instead of hunting through Settings.
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 4.0.1
+
+• New: 14 real Android widgets - weather, battery, alarm, moon,
+  steps, calendars, flashlight, stocks, sports, tasks, notes &
+  more - usable on any launcher, not just TileShell
+• New: multi-location weather; refresh buttons on stock/sports/
+  weather widgets; App List pins sub-apps, shortcuts & widgets
+• Improved: battery use, edge-to-edge tiles, smoother swiping,
+  fewer accessibility prompts
+• Fixed: a launcher crash, security & data-loss issues
+```
+
+*(Character count 470, under Play's 500 limit.)*
+
 ## Release notes (v4.0.0)
 
 *Major version bump — the old in-app-only "glance gadgets" are gone, replaced by 14 real,

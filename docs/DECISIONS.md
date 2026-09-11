@@ -6271,3 +6271,25 @@ app's own code:
    user's decision on scope.
 
 Build + full unit test suite green; installed on both the physical device and the emulator.
+
+**Same-session follow-up — OEM battery-settings guidance built.** User asked to go ahead and build
+item 3's parked follow-up. New `feature/system/OemBatterySettings.kt`: a pure `oemBatteryTarget
+(manufacturer: String): OemBatteryTarget?` lookup (unit-tested, `OemBatterySettingsTest.kt`) mapping
+`Build.MANUFACTURER` to the community-documented battery-management screen for Samsung, Xiaomi,
+Huawei, Oppo, Vivo, and OnePlus (the same component names the dontkillmyapp.com-style app catalogues
+use — unofficial, no public API, can drift across OEM software versions), and `openOemBatterySettings
+(context)`, which tries that screen and always falls back to this app's own App Info screen (never
+unresolvable) when the specific intent fails or the manufacturer isn't one of the known ones.
+`AccessibilityDisclosureDialog` (`MainActivity.kt`) gained an explanatory paragraph + "open battery
+settings" button wired to it, shown every time the disclosure appears — the actual, most likely fix
+for real Play users' repeated prompts, even though the app itself can't detect *why* an OEM revoked
+the grant, only offer the one-tap way to re-exempt it. Verified via the same physical-device
+diagnostic session: the `enabled_accessibility_services`/`ACCESS_RESTRICTED_SETTINGS` check that
+found the sideload-specific cause also confirmed `com.samsung.android.lool` (Samsung's own Device
+Care) is the real target this device's own button would open. Build + full unit test suite green
+(new `OemBatterySettingsTest`, 3 cases). Installed and launched crash-free on both the physical
+device and the emulator; the dialog's own visual appearance (the new paragraph/button rendering
+correctly) wasn't reachable via ADB-synthesized gestures this session — reaching it needs either the
+Quick Panel's two-finger swipe-up or the edge-strip recents button, both real-finger-only per this
+project's own established ADB gesture-automation limitation — so this is verified by code review +
+unit tests + a clean crash-free launch, not an on-device screenshot of the dialog itself.

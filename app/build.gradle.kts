@@ -500,8 +500,40 @@ android {
         //   consumer coroutine per gesture instead of per sample. Also fixed a latent stale-read
         //   at settle time: the release-time "which page to commit to" calculation now reads a
         //   synchronously-tracked value instead of the (now asynchronously-applied) animated one.
-        versionCode = 400
-        versionName = "4.0.0"
+        // v4.0.1 (code 401) — a real point release, not another same-versionCode re-cut: 4.0.0
+        //   (400) accumulated three re-cuts, all still never uploaded to Play, so this closes that
+        //   out with a genuine new versionCode carrying the *same* overall changelog as 4.0.0 (every
+        //   item above, under "v4.0.0 (code 400)") plus four more fixes found the same session,
+        //   from real user reports on the live 3.6.0 Play release:
+        //   CRASH: every one of 13 real-device crashes across 4 days (found via `dumpsys
+        //   batterystats`'s "4 starts, 4 crashes" + `dumpsys activity exit-info` + the OS's own
+        //   persistent crash-log buffer, `adb logcat -b crash`) was the identical
+        //   IllegalArgumentException("Window doesn't have a backing surface!") from
+        //   `PixelCopy.request(...)` in the ON_PAUSE auto-backup screenshot capture
+        //   (`captureSnapshotJpeg`), uncaught on the main thread and killing the whole Home process.
+        //   Explains both a battery-drain report (repeated full cold-restarts instead of warm
+        //   resumes) and a "Start screen takes longer to load" report (the next wake cold-starts).
+        //   Fixed by wrapping just the `PixelCopy.request` call in `runCatching`, returning null —
+        //   the function's existing "capture skipped" contract every call site already handles.
+        //   ACCESSIBILITY NAGGING: `LockAccessibilityService.isConnected()` was a bare in-process
+        //   static flag, reset to null by any process restart (including the crash above, or an OEM
+        //   background-process kill) even when the real system-level grant was untouched — the
+        //   screen-lock/recents/notifications gates trusted it alone and could re-show the
+        //   Play-required "please enable accessibility" disclosure on an already-granted setup.
+        //   Fixed with `isEnabledInSettings()`, checking the real system state the same way
+        //   notification-listener access already does, falling back to a "still connecting" toast
+        //   instead of a false nag when genuinely already enabled but not yet rebound.
+        //   OEM BATTERY-SETTINGS GUIDANCE: for the more likely real cause of Play users' repeated
+        //   accessibility prompts — OEM-level background-service management (well-documented on
+        //   Samsung) silently revoking the grant over time, independent of any update, which this
+        //   app has no API to prevent — the disclosure dialog now also offers a one-tap "open
+        //   battery settings" button (`openOemBatterySettings`) that deep-links to the
+        //   manufacturer's own protected-apps screen (Samsung/Xiaomi/Huawei/Oppo/Vivo/OnePlus),
+        //   always falling back to this app's own App Info screen when unresolvable.
+        //   EDGE-TO-EDGE TILES + PAGER SMOOTHNESS: see the "re-cut a third time" notes on 4.0.0
+        //   above — both fixes are unchanged, just carried forward under the new versionCode.
+        versionCode = 401
+        versionName = "4.0.1"
     }
 
     if (keystoreFile.exists()) {

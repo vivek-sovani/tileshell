@@ -53,6 +53,7 @@ import com.tileshell.feature.start.StartScreen
 import com.tileshell.feature.start.StartViewModel
 import com.tileshell.feature.system.DefaultLauncher
 import com.tileshell.feature.system.InAppReview
+import com.tileshell.feature.system.openOemBatterySettings
 import kotlin.random.Random
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -264,6 +265,14 @@ private fun AccessibilityDisclosureDialog(onConfirm: () -> Unit, onDismiss: () -
                     "Tap \"Go to Settings\" to enable the TileShell Accessibility Service, " +
                     "then return here.",
                 )
+                Text(
+                    "\nSeeing this again after already enabling it once? Some phone makers " +
+                    "(Samsung especially) include a battery-management feature that can quietly " +
+                    "turn accessibility services back off over time — separate from Android's " +
+                    "own battery optimization, which TileShell is already exempted from. Tap " +
+                    "below to also check your device's own battery settings for TileShell.",
+                )
+                TextButton(onClick = { openOemBatterySettings(context) }) { Text("open battery settings") }
             }
         },
         confirmButton = {
