@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.inputmethod.InputMethodManager
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -99,22 +100,38 @@ class MainActivity : ComponentActivity() {
                 viewModel = startViewModel,
                 onRecents = {
                     if (!LockAccessibilityService.showRecents()) {
-                        showRecentsDisclosure = true
+                        if (LockAccessibilityService.isEnabledInSettings(ctx)) {
+                            Toast.makeText(ctx, "still connecting — try again in a moment", Toast.LENGTH_SHORT).show()
+                        } else {
+                            showRecentsDisclosure = true
+                        }
                     }
                 },
                 onLockScreen = {
                     // If the accessibility service is already connected, lock immediately.
                     // Otherwise show the prominent disclosure required by Google Play before
-                    // sending the user to Accessibility Settings.
+                    // sending the user to Accessibility Settings — but only when it's
+                    // genuinely not enabled yet. isConnected() alone went stale after any
+                    // process restart (a crash, or an OEM background-process kill) even
+                    // with the service still enabled, re-showing this disclosure on an
+                    // already-granted setup — user-reported as "accessibility setting
+                    // asked frequently". isEnabledInSettings() checks the real system
+                    // state instead, the same way notification-listener access already does.
                     if (LockAccessibilityService.isConnected()) {
                         lockScreen(ctx)
+                    } else if (LockAccessibilityService.isEnabledInSettings(ctx)) {
+                        Toast.makeText(ctx, "still connecting — try again in a moment", Toast.LENGTH_SHORT).show()
                     } else {
                         showLockDisclosure = true
                     }
                 },
                 onOpenNotifications = {
                     if (!LockAccessibilityService.expandNotifications()) {
-                        showNotificationsDisclosure = true
+                        if (LockAccessibilityService.isEnabledInSettings(ctx)) {
+                            Toast.makeText(ctx, "still connecting — try again in a moment", Toast.LENGTH_SHORT).show()
+                        } else {
+                            showNotificationsDisclosure = true
+                        }
                     }
                 },
             )

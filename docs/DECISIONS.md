@@ -6228,3 +6228,46 @@ confirmation that this eliminates the crash for good needs a few more days of th
 use, but every single historical crash on this device matches this one exact code path with 100%
 consistency, so this is a high-confidence root cause, not a partial mitigation. Build + full unit
 test suite green.
+
+## Accessibility "please enable" disclosure could false-nag: isConnected() staleness fixed; real root cause for Play users still OS/OEM-level
+
+User-reported (from real Play Store 3.6.0 users, not sideloaded testers — confirmed via
+`AskUserQuestion`): the "please enable accessibility" prompt (screen lock / recents / notifications
+gestures) shows up too often. Two distinct things were found, only one of them fixable in this
+app's own code:
+
+1. **A real bug, fixed**: `LockAccessibilityService.isConnected()` was a bare in-process static flag
+   (`instance != null`, set only in `onServiceConnected`/cleared in `onUnbind`) — the same "stale
+   process-local flag" bug class already fixed once in this project for the default-launcher check
+   (`RoleManager.isRoleHeld` going stale). Any process restart (a crash — see the PixelCopy entry
+   above — or an OEM background-process kill) resets this flag to null even when the user's real,
+   system-level Accessibility grant is untouched, and `MainActivity`'s three gates
+   (`onLockScreen`/`onRecents`/`onOpenNotifications`) trusted that flag alone, unconditionally
+   re-showing the Play-required disclosure dialog in that state — a false nag. Fixed with a new
+   `LockAccessibilityService.isEnabledInSettings(context)`, checking the real system state via
+   `AccessibilityManager.getEnabledAccessibilityServiceList(...)` — the same established pattern
+   `NotificationAccess.isEnabled()` already uses for notification-listener access, rather than an
+   in-process flag. The three gates now only show the disclosure when genuinely not enabled; when
+   enabled-but-not-yet-rebound-in-this-process, they show a brief "still connecting — try again in a
+   moment" toast instead (the service rebinds on its own almost immediately once already granted).
+2. **Verified, then ruled out as the explanation for real users**: while investigating on the
+   physical test device, direct verification (`adb shell settings get secure
+   enabled_accessibility_services` + `cmd appops get com.tileshell` showing
+   `ACCESS_RESTRICTED_SETTINGS: default`) confirmed Android's Restricted Settings protection (13+,
+   for apps installed outside the Play Store) was actively blocking the toggle on that sideloaded
+   debug build — every `adb install -r` resets it, requiring the "allow restricted settings" unlock
+   step again. This fully explains repeated prompts *on sideloaded test builds*, but **does not
+   apply to Play Store installs** (Play is an exempt/trusted installer), so it isn't the explanation
+   for the real 3.6.0 users' reports.
+3. **Most likely real cause for Play users, not fixable from app code alone**: OEM-level background/
+   accessibility-service management (well-documented specifically on Samsung) silently revoking a
+   third-party Accessibility Service grant over time, independent of any app update — circumstantially
+   supported by `com.samsung.android.lool` (Samsung's own Device Care / RAM management) being
+   actively running in this same device's crash logs. Existing Doze/battery-optimization-exemption
+   (already granted, confirmed via `dumpsys deviceidle whitelist`) does not necessarily protect
+   against this — it's a separate, OEM-proprietary mechanism. No public API exists to prevent an OEM
+   from doing this; the only lever is user-facing guidance (e.g. a deep link to Samsung's own
+   "protected apps"/battery-unrestricted screen), not yet built — parked as a follow-up, pending the
+   user's decision on scope.
+
+Build + full unit test suite green; installed on both the physical device and the emulator.
