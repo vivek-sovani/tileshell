@@ -54,6 +54,7 @@ import com.tileshell.feature.livetiles.queryProfileName
 import com.tileshell.feature.start.feed.HostedWidget
 import com.tileshell.feature.start.feed.WidgetData
 import com.tileshell.feature.start.feed.WidgetStore
+import com.tileshell.feature.start.feed.isRestorableWidgetId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -1812,8 +1813,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
                     backup.feedRegions,
                 )
                 val widgetManager = AppWidgetManager.getInstance(application)
-                val liveWidgets = backup.widgets.filter {
-                    runCatching { widgetManager.getAppWidgetInfo(it.widgetId) != null }.getOrDefault(false)
+                val liveWidgets = backup.widgets.filter { w ->
+                    isRestorableWidgetId(w.widgetId) { id ->
+                        runCatching { widgetManager.getAppWidgetInfo(id) != null }.getOrDefault(false)
+                    }
                 }
                 WidgetStore.create(application).replaceAll(
                     WidgetData(liveWidgets.map { HostedWidget(it.widgetId, it.heightDp, it.widthDp) }),

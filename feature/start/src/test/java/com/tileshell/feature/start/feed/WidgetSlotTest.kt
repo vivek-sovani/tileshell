@@ -537,6 +537,24 @@ class WidgetSlotTest {
         assertEquals(null, result.single().stackId)
     }
 
+    // ---- isRestorableWidgetId (backup restore liveness filter) ----
+
+    @Test
+    fun `isRestorableWidgetId keeps every builtin sentinel even when isBound says no`() {
+        // A real AppWidgetManager never recognises these synthetic ids -- isBound
+        // would always report false for them, which is exactly the bug: they must
+        // survive a restore regardless of what isBound says.
+        assertTrue(isRestorableWidgetId(BUILTIN_WEATHER_WIDGET_ID) { false })
+        assertTrue(isRestorableWidgetId(BUILTIN_AGENDA_WIDGET_ID) { false })
+        assertTrue(isRestorableWidgetId(BUILTIN_NOWPLAYING_WIDGET_ID) { false })
+    }
+
+    @Test
+    fun `isRestorableWidgetId defers to isBound for a real widget id`() {
+        assertTrue(isRestorableWidgetId(7) { true })
+        assertFalse(isRestorableWidgetId(7) { false })
+    }
+
     // ---- negative sentinel ids need no special-casing in packing/reordering ---
 
     @Test

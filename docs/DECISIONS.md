@@ -6293,3 +6293,30 @@ correctly) wasn't reachable via ADB-synthesized gestures this session — reachi
 Quick Panel's two-finger swipe-up or the edge-strip recents button, both real-finger-only per this
 project's own established ADB gesture-automation limitation — so this is verified by code review +
 unit tests + a clean crash-free launch, not an on-device screenshot of the dialog itself.
+
+## Real bug found via direct DB/file inspection: backup restore always strips the built-in weather/calendar glance cards
+
+User-reported after restoring a backup on the debug build: "the default calendar and weather widget
+not seen." Root-caused by pulling the actual on-device state rather than guessing: the real SQLite
+`tiles` table (pulled via `run-as com.tileshell cat .../tileshell.db`) showed the Start-screen tiles
+were all present and correct, ruling out the tile/backup-JSON layer entirely — the missing "widgets"
+were the glance/feed page's built-in Weather and Agenda(calendar) cards, a separate domain
+(`WidgetStore`'s `feed_widget.pb`, pulled and read directly: confirmed it held only real positive
+widget ids, none of the three builtin sentinels). `StartViewModel.importBackup`'s widget-liveness
+filter called `AppWidgetManager.getAppWidgetInfo(it.widgetId) != null` on every backed-up widget
+entry to decide whether it should survive the restore — but `BUILTIN_WEATHER_WIDGET_ID`/
+`BUILTIN_AGENDA_WIDGET_ID`/`BUILTIN_NOWPLAYING_WIDGET_ID` (`-1`/`-2`/`-3`, `WidgetStore.kt`) are
+synthetic sentinels representing the app's own built-in cards, never real `AppWidgetManager`-issued
+ids — `getAppWidgetInfo(-1)` always returns null, so this filter silently stripped the built-in
+cards on **every single restore**, not just after a reinstall (though a reinstall additionally
+invalidates every *real* hosted widget's id too, compounding it — confirmed separately in this same
+session's earlier debugging). Fixed by extracting the liveness decision into a pure, unit-tested
+`isRestorableWidgetId(widgetId, isBound)` (`WidgetStore.kt`, mirroring this file's own established
+`stripStaleNegativeIds` pattern): a builtin sentinel always survives regardless of what `isBound`
+says; anything else defers to it. A pre-existing safety net (`WidgetStore.seedBuiltinsIfAbsent`,
+already run once per feed-page composition for exactly this kind of gap) meant the user's
+already-broken on-device state self-healed the moment the fix was installed and the feed page was
+reopened — verified directly: `feed_widget.pb` held only real ids before, `-1,0,0,true` / `-2,0,0,true`
+/ `-3,0,0,false` reappeared at the front of the file after, and a screenshot confirmed both cards
+rendering with live data (weather forecast, "nothing on your calendar today"). Build + full unit
+test suite green (new `isRestorableWidgetId` cases in `WidgetSlotTest.kt`).

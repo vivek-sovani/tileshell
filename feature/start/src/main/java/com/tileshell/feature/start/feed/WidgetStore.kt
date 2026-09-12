@@ -75,6 +75,21 @@ internal fun seedMissingBuiltinWidgets(current: List<HostedWidget>): List<Hosted
  * (a former custom-card pair minus its now-removed partner) is un-stacked,
  * same as [WidgetStore.remove]'s own dissolution rule.
  */
+/**
+ * Whether a backed-up widget entry should survive a restore. A built-in
+ * sentinel id (see [BUILTIN_WEATHER_WIDGET_ID]'s doc) always does — it is
+ * never a real `AppWidgetManager`-issued id, so a "is this widget still
+ * bound" check must skip it entirely rather than treat "not found" as "no
+ * longer exists" (that exact confusion silently stripped the built-in
+ * weather/agenda cards on every backup restore, user-reported as "restored
+ * backup... default calendar and weather widget not seen"). Anything else
+ * defers to [isBound] — a real hosted widget whose id no longer resolves
+ * (e.g. the app was reinstalled, invalidating every previously bound id)
+ * genuinely shouldn't survive.
+ */
+internal fun isRestorableWidgetId(widgetId: Int, isBound: (Int) -> Boolean): Boolean =
+    widgetId in BUILTIN_WIDGET_IDS || isBound(widgetId)
+
 internal fun stripStaleNegativeIds(current: List<HostedWidget>): List<HostedWidget> {
     val kept = current.filter { it.widgetId >= 0 || it.widgetId in BUILTIN_WIDGET_IDS }
     if (kept.size == current.size) return current
