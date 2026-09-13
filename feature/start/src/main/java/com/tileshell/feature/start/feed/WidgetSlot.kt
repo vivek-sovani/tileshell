@@ -710,7 +710,20 @@ fun WidgetSection(
     // survive that, so a reorder used to silently drop back out of edit mode.
     // State keyed by id in this stable parent survives regardless of which row
     // the widget ends up packed into.
-    LaunchedEffect(Unit) { store.seedBuiltinsIfAbsent() }
+    LaunchedEffect(Unit) {
+        store.seedBuiltinsIfAbsent()
+        // Release host bindings nothing renders any more — see
+        // orphanedHostWidgetIds for why they otherwise survive forever (and keep
+        // their provider's periodic refresh worker armed). Runs once per page
+        // mount, before any add flow can allocate an id, so an in-flight
+        // allocation can't be caught mid-bind.
+        runCatching {
+            val rendered = store.read().widgets
+            orphanedHostWidgetIds(host.appWidgetIds.toList(), rendered).forEach { id ->
+                runCatching { host.deleteAppWidgetId(id) }
+            }
+        }
+    }
 
     val widgetBounds = remember { mutableStateMapOf<Int, Rect>() }
     var draggingId by remember { mutableStateOf<Int?>(null) }

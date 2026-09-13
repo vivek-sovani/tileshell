@@ -76,6 +76,34 @@ internal fun seedMissingBuiltinWidgets(current: List<HostedWidget>): List<Hosted
  * same as [WidgetStore.remove]'s own dissolution rule.
  */
 /**
+ * Host-allocated widget ids that nothing in [current] renders any more, and whose
+ * `AppWidgetHost` binding should therefore be released.
+ *
+ * An id stays bound until [android.appwidget.AppWidgetHost.deleteAppWidgetId] is
+ * called for it — dropping it from this store alone is not enough. The glance
+ * page's own remove path does delete it, but [WidgetStore.replaceAll] does not
+ * (it cannot: the host lives in the UI layer, not here), and a backup restore
+ * goes through exactly that path. A restore whose file lists a different set of
+ * widgets therefore left every previously-bound id allocated forever: absent from
+ * this store so never rendered, yet still a live instance to `AppWidgetManager` —
+ * which keeps broadcasting `APPWIDGET_UPDATE` to its provider, and so keeps
+ * `ensureScheduled()` re-arming that provider's periodic refresh worker. Found on
+ * a real device after a restore: four TileShell widgets (calendar system, steps,
+ * weather, battery) invisible on the glance page but still funding ~240 wakeups a
+ * day between them, plus two third-party widgets orphaned the same way.
+ *
+ * Negative sentinel ids (the built-in cards) are never host-allocated, so they
+ * cannot appear in [hostIds] and need no special case here.
+ *
+ * Pure so the set arithmetic is unit-testable; the caller supplies
+ * `host.appWidgetIds` and performs the deletions.
+ */
+internal fun orphanedHostWidgetIds(hostIds: List<Int>, current: List<HostedWidget>): List<Int> {
+    val rendered = current.mapTo(HashSet()) { it.widgetId }
+    return hostIds.filterNot { it in rendered }
+}
+
+/**
  * Whether a backed-up widget entry should survive a restore. A built-in
  * sentinel id (see [BUILTIN_WEATHER_WIDGET_ID]'s doc) always does — it is
  * never a real `AppWidgetManager`-issued id, so a "is this widget still

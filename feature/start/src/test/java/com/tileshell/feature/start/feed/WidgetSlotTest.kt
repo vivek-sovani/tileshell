@@ -537,6 +537,33 @@ class WidgetSlotTest {
         assertEquals(null, result.single().stackId)
     }
 
+    // ---- orphanedHostWidgetIds (release bindings nothing renders) ----
+
+    @Test
+    fun `a bound id absent from the store is orphaned`() {
+        // The real case: a backup restore replaced the store's list, leaving the
+        // previously-bound ids allocated but unrendered.
+        val rendered = listOf(full(4681), full(4682))
+        assertEquals(
+            listOf(4659, 4660),
+            orphanedHostWidgetIds(listOf(4659, 4660, 4681, 4682), rendered),
+        )
+    }
+
+    @Test
+    fun `nothing is orphaned when the store renders every bound id`() {
+        val rendered = listOf(full(7), full(8))
+        assertTrue(orphanedHostWidgetIds(listOf(7, 8), rendered).isEmpty())
+    }
+
+    @Test
+    fun `builtin sentinels in the store never make a bound id look rendered`() {
+        // Sentinels are not host-allocated, so they can't appear in hostIds --
+        // their presence in the store must not suppress a real orphan either.
+        val rendered = listOf(HostedWidget(BUILTIN_WEATHER_WIDGET_ID, 0), full(4681))
+        assertEquals(listOf(4659), orphanedHostWidgetIds(listOf(4659, 4681), rendered))
+    }
+
     // ---- isRestorableWidgetId (backup restore liveness filter) ----
 
     @Test

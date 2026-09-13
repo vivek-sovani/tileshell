@@ -6401,3 +6401,41 @@ Verified: build and full unit test suite green (new `WidgetWorkTest`); installed
 device, all 7 periodic workers re-register cleanly and the app launches crash-free. A forced run of
 the periodic jobs with the screen off produced no worker activity. The end-to-end proof is the next
 overnight battery/data window, not something reproducible in a single session.
+
+## Orphaned AppWidgetHost bindings: invisible widgets that kept their refresh workers armed
+
+User-reported, and it corrects the "no orphaned widget workers" conclusion recorded above: asked to
+look again because none of the four widgets attributed to battery use were actually visible on the
+glance page. Cross-referencing `dumpsys appwidget` (what is *bound*) against
+`files/datastore/feed_widget.pb` (what the glance page *renders*) showed eleven ids bound to
+TileShell's own host but only five in the store. The six extras — TileShell's own calendar-system,
+steps, weather and battery widgets, plus two third-party ones — were **bound but unrendered**.
+
+That earlier conclusion was right that every scheduled worker was backed by a real bound instance,
+and wrong about what that implied: the *instances themselves* were orphaned. An id stays bound until
+`AppWidgetHost.deleteAppWidgetId` is called for it, and while bound it is a live instance to
+`AppWidgetManager`, which keeps broadcasting `APPWIDGET_UPDATE` to its provider, whose `onUpdate`
+calls `ensureScheduled()` — so four invisible widgets were re-arming Battery (15m), Steps (15m),
+Weather (30m) and calendar-system (daily) indefinitely, ~240 wakeups a day for something the user
+could not see or reach.
+
+Root cause: the glance page's own remove path does delete the host id (`WidgetSlot.kt`), but
+`WidgetStore.replaceAll` does not and structurally cannot — the host lives in the UI layer, not in a
+DataStore wrapper. `StartViewModel.importBackup` restores widgets through exactly that call, so a
+restore whose file listed a different set silently stranded every previously-bound id. This is the
+second distinct bug found in that same `importBackup` widget path (see the built-in sentinel filter
+entry above).
+
+Fixed with a reconciliation pass rather than by patching the one call site, so any future path that
+drops ids is covered too: new pure, unit-tested `orphanedHostWidgetIds(hostIds, current)`
+(`WidgetStore.kt`) diffs the host's allocated ids against what the store renders, and the glance
+page's existing startup housekeeping (`LaunchedEffect(Unit)`, alongside `seedBuiltinsIfAbsent`)
+deletes the difference. It runs once per page mount, before any add flow can allocate an id, so an
+in-flight allocation cannot be caught mid-bind. Negative sentinel ids are never host-allocated and so
+never appear in `hostIds`.
+
+Verified end-to-end on the device: bound instances went 11 → 5, exactly matching the store; the OS
+emitted four `APPWIDGET_DELETED`/`APPWIDGET_DISABLED` pairs, one per provider; and their `onDisabled`
+→ `cancel()` left the WorkSpec rows for all four widget workers **CANCELLED**. Periodic workers went
+from 7 to 3 — feed (screen-gated), the in-app weather tile, and the 6-hourly layout auto-backup —
+each of which corresponds to something the user actually has.
