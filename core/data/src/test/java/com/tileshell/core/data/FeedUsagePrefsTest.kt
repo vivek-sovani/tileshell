@@ -58,4 +58,44 @@ class FeedUsagePrefsTest {
         assertFalse(shouldSkipIdleFeedRefresh(now, lastOpenedAtMillis = now - hour, idleAfterMillis = 2 * hour))
         assertTrue(shouldSkipIdleFeedRefresh(now, lastOpenedAtMillis = now - 2 * hour, idleAfterMillis = 2 * hour))
     }
+
+    // ---- shouldSkipPeriodicFeedRefresh (screen-off gate on top of the idle window) ----
+
+    @Test
+    fun `a screen-off tick skips even when the page was just opened`() {
+        // The case that motivated this: glance at the feed, lock the phone, and
+        // the idle window alone would still fund 30-minute downloads all night.
+        val now = 10 * hour
+        assertTrue(
+            shouldSkipPeriodicFeedRefresh(
+                nowMillis = now,
+                lastOpenedAtMillis = now - 60_000L,
+                screenInteractive = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `a screen-on tick still refreshes when the page was opened recently`() {
+        val now = 10 * hour
+        assertFalse(
+            shouldSkipPeriodicFeedRefresh(
+                nowMillis = now,
+                lastOpenedAtMillis = now - hour,
+                screenInteractive = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `screen on does not override a page left unopened past the idle window`() {
+        val now = 10 * hour
+        assertTrue(
+            shouldSkipPeriodicFeedRefresh(
+                nowMillis = now,
+                lastOpenedAtMillis = now - FEED_IDLE_AFTER_MS - hour,
+                screenInteractive = true,
+            ),
+        )
+    }
 }

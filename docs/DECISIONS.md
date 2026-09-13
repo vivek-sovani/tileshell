@@ -6320,3 +6320,54 @@ reopened — verified directly: `feed_widget.pb` held only real ids before, `-1,
 / `-3,0,0,false` reappeared at the front of the file after, and a screenshot confirmed both cards
 rendering with live data (weather forecast, "nothing on your calendar today"). Build + full unit
 test suite green (new `isRestorableWidgetId` cases in `WidgetSlotTest.kt`).
+
+## Overnight battery/data diagnosis: the news feed is the real consumer; no orphaned widget workers
+
+User-reported that TileShell was using "much mobile data and CPU" overnight and showing 2+ hours of
+active usage, and separately asked whether widgets they don't use are still costing battery.
+Measured against a real 18h53m on-battery window (`dumpsys batterystats com.tileshell`) rather than
+inferred:
+
+**Mobile data is not the problem.** 530 KB received over mobile in 19 hours. What *is* high is
+**WiFi: 19.70 MB received** — the largest of any app on that device (next highest 8.28 MB).
+
+**The news feed is the cause, and conditional GET does not mitigate it.** Fetching this install's
+own 10 enabled feeds live measured **777 KB for one refresh cycle** (Gadgets 360 186 KB, Google News
+167 KB, NDTV Movies 129 KB, ESPNcricinfo 89 KB, the rest 26–47 KB), i.e. **35.5 MB/day** at the
+30-minute cadence. The `ETag`/`Last-Modified` revalidation added by the earlier audit was verified
+against the real servers using the validators actually stored in this device's `news_feed.pb`, and
+it almost never produces a 304: Google News sends `cache-control: no-store` with neither validator
+(so it can *never* revalidate), and TOI/The Hindu/NDTV replay their stored validator and still
+answer `200` with a full body — because a news feed genuinely has new items 30 minutes later.
+Revalidation only pays off for a source that is quiet between ticks, which a news feed is not. The
+6-hour idle window then multiplies it: one evening glance at the feed funds 12 more cycles
+(**8.8 MB**) through the night.
+
+Fixed by adding a screen term to the periodic gate — new pure, unit-tested
+`shouldSkipPeriodicFeedRefresh(now, lastOpened, screenInteractive)` (`FeedUsagePrefs.kt`), consulted
+by `FeedRefreshWorker` via `PowerManager.isInteractive`. Screen-off is the signal rather than
+Doze/idle because it needs no permission, flips instantly, and matches the real question — is there
+a person who could be about to open this page. Every one-off path still passes `KEY_FORCE` and
+bypasses the gate entirely, so opening the feed fetches immediately exactly as before; only the
+unattended background cadence is cut.
+
+**No orphaned widget workers — an explicitly checked and disproven hypothesis.** The suspicion was
+that `onUpdate` scheduling without an `appWidgetIds.isEmpty()` guard would leave periodic workers
+running for widgets that were never placed. Querying WorkManager's own database directly
+(`no_backup/androidx.work.workdb`, `WorkSpec` joined to `WorkName`) showed exactly **7 enqueued
+periodic workers, every one of them justified**: feed (30m), in-app weather tile (30m), layout
+auto-backup (6h), and one each for the **4 widget instances that genuinely exist** — Battery (15m),
+Steps (15m), Weather (30m), Calendar system (daily), confirmed against `dumpsys appwidget`. A
+`FlashlightWidgetRefreshWorker` run seen in a cold-start log was a *one-off* fired by the torch
+toggle (`SystemToggles.kt`), not a leaked schedule — that provider has no periodic worker at all.
+
+Worth recording for the user rather than the code: those 4 widgets live inside **TileShell's own
+glance page** (`hostId 21587`), not another launcher's home screen, and account for ~240 local
+wakeups/day between them. They are all local-only — `BatteryWidgetRefreshWorker` and
+`StepsWidgetRefreshWorker` make zero network calls, and `WeatherWidgetRefreshWorker` deliberately
+reads the shared `WeatherCache` that `WeatherRefreshWorker` populates rather than fetching again, so
+weather is not double-fetched.
+
+Also clarified: the "2+ hours of active usage" a battery UI reports is `Foreground for: 6h49m` —
+the process state any app gets while it is the Home app and the device is awake. Actual user-facing
+time was `Top for: 30m` and total CPU was 13.5 minutes across the whole 19 hours.

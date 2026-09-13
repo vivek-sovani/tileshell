@@ -243,7 +243,7 @@ fun FeedPage(
     // Records when the page was actually looked at (not merely composed — the
     // pager can keep an adjacent page mounted off-screen), so the periodic
     // refresh can stop fetching for a feed nobody's opened in hours. See
-    // FeedUsagePrefs/shouldSkipIdleFeedRefresh.
+    // FeedUsagePrefs/shouldSkipPeriodicFeedRefresh.
     LaunchedEffect(active) { if (active) FeedUsagePrefs.markOpened(context) }
 
     // Today's agenda (reuse the calendar query); empty until READ_CALENDAR is granted.

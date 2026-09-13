@@ -59,3 +59,39 @@ fun shouldSkipIdleFeedRefresh(
     if (lastOpenedAtMillis > nowMillis) return false
     return nowMillis - lastOpenedAtMillis >= idleAfterMillis
 }
+
+/**
+ * The full gate for a *periodic* feed tick: skip unless the screen is actually on
+ * **and** the page has been opened recently ([shouldSkipIdleFeedRefresh]).
+ *
+ * The screen term exists because the idle window alone still let a single evening
+ * glance at the feed fund six more hours of downloads through the night. Measured
+ * live against this install's own 10 enabled feeds: one refresh cycle is 777 KB
+ * (Gadgets 360 186 KB, Google News 167 KB, NDTV Movies 129 KB, ESPNcricinfo 89 KB,
+ * the rest 26–47 KB each), so the 30-minute cadence costs 35.5 MB/day while the
+ * window is open, and 8.8 MB of that lands between "looked at the feed at 11pm"
+ * and "woke up" — news nobody can read while asleep.
+ *
+ * Conditional GET does not rescue this in practice, which is why the cadence
+ * itself had to change: Google News serves `cache-control: no-store` with neither
+ * `ETag` nor `Last-Modified`, so it can never answer 304 at all; and the feeds
+ * that *do* supply validators (TOI, The Hindu, NDTV) were verified to still answer
+ * `200` with a full body when replayed with their stored validator, because a news
+ * feed genuinely has new items 30 minutes later. Revalidation only wins for a
+ * source that is quiet between ticks, which a news feed is not.
+ *
+ * Screen-off is deliberately the signal rather than "device idle"/Doze: it needs
+ * no permission, flips instantly, and matches the actual question — is there a
+ * person who could be about to open this page. Nothing here delays a refresh the
+ * user asked for: every one-off path (placement, the manual "refresh" action, and
+ * the open-while-stale refresh) passes force and bypasses this entirely, so
+ * opening the feed still fetches immediately, screen-off gate or not.
+ */
+fun shouldSkipPeriodicFeedRefresh(
+    nowMillis: Long,
+    lastOpenedAtMillis: Long,
+    screenInteractive: Boolean,
+    idleAfterMillis: Long = FEED_IDLE_AFTER_MS,
+): Boolean =
+    !screenInteractive ||
+        shouldSkipIdleFeedRefresh(nowMillis, lastOpenedAtMillis, idleAfterMillis)

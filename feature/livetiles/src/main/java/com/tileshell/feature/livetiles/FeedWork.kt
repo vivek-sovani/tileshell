@@ -22,8 +22,9 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.flow.first
 import androidx.work.workDataOf
+import android.os.PowerManager
 import com.tileshell.core.data.FeedUsagePrefs
-import com.tileshell.core.data.shouldSkipIdleFeedRefresh
+import com.tileshell.core.data.shouldSkipPeriodicFeedRefresh
 import com.tileshell.core.data.settings.SettingsRepository
 
 /** Maximum number of articles kept in the cache after a merge. */
@@ -83,8 +84,16 @@ fun mergeFeedArticles(
  *    (matched by [FeedArticle.feedUrl]) instead of re-downloading its body.
  *  - **Idle skip.** A *periodic* tick does nothing at all once the feed page has
  *    gone [com.tileshell.core.data.FEED_IDLE_AFTER_MS] unopened (see
- *    [shouldSkipIdleFeedRefresh]). Every one-off path passes [KEY_FORCE] and is
+ *    [shouldSkipPeriodicFeedRefresh]). Every one-off path passes [KEY_FORCE] and is
  *    never skipped, so opening the page still refreshes it immediately.
+ *  - **Screen-off skip.** A follow-up diagnosis found the two measures above were
+ *    still leaving 19.7 MB received in 19h — the largest of any app on that device
+ *    — because the idle window alone funds six hours of 30-minute downloads after a
+ *    single evening glance, and because conditional GET turns out to almost never
+ *    produce a 304 for a news feed (verified live: Google News sends no validator
+ *    at all and `no-store`; TOI/Hindu/NDTV replay their stored validator and still
+ *    answer 200 with a full body, since the feed really has changed). A periodic
+ *    tick now also requires the screen to be on — see [shouldSkipPeriodicFeedRefresh].
  */
 class FeedRefreshWorker(
     context: Context,
@@ -99,14 +108,17 @@ class FeedRefreshWorker(
             return Result.success()
         }
         val forced = inputData.getBoolean(KEY_FORCE, false)
-        // A periodic tick for a page nobody has opened in hours does nothing —
-        // no requests, no store write, so the cache it would have replaced stays
-        // exactly as it is until the page is next opened (which forces a refresh
-        // of its own). See shouldSkipIdleFeedRefresh.
+        // A periodic tick while the screen is off, or for a page nobody has opened
+        // in hours, does nothing — no requests, no store write, so the cache it
+        // would have replaced stays exactly as it is until the page is next opened
+        // (which forces a refresh of its own). See shouldSkipPeriodicFeedRefresh
+        // for the measured cost that motivates the screen-off half of this.
         if (!forced &&
-            shouldSkipIdleFeedRefresh(
+            shouldSkipPeriodicFeedRefresh(
                 nowMillis = System.currentTimeMillis(),
                 lastOpenedAtMillis = FeedUsagePrefs.lastOpenedAtMillis(applicationContext),
+                screenInteractive = applicationContext.getSystemService(PowerManager::class.java)
+                    ?.isInteractive ?: true,
             )
         ) {
             return Result.success()
