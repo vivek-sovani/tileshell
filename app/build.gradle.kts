@@ -564,6 +564,14 @@ android {
         //   (steps/battery/weather/stock/commodity/sports). Deliberately NOT applied to the
         //   midnight-aligned daily workers (calendar system, moon phase, countdown), whose one
         //   daily run is scheduled for just after midnight, exactly when the screen is off.
+        //   --- re-cut at the same versionCode 402 (never uploaded, so nothing is burned):
+        //   WeatherRefreshWorker was the one network worker that escaped the screen-off gate.
+        //   Found by checking the per-state power breakdown after the fixes landed, not by
+        //   re-reading the diff: mobile-radio power was still mostly attributed to screen-off
+        //   time. Its data cost is small (a few KB of JSON per fetch) but it woke every 30
+        //   minutes around the clock, so it is now gated like the widget pollers, with a
+        //   KEY_FORCE marker added so placement, a location change and the manual refresh
+        //   still bypass it.
         versionCode = 402
         versionName = "4.0.2"
     }

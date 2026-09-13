@@ -16,10 +16,12 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.WeatherTile
 import com.tileshell.feature.livetiles.widget.WeatherAppWidgetProvider
+import com.tileshell.feature.livetiles.widget.WidgetWork
 import com.tileshell.feature.livetiles.widget.WeatherWidgetRefreshWorker
 import com.tileshell.feature.livetiles.widget.WidgetConfigStore
 import kotlinx.coroutines.Dispatchers
@@ -68,6 +70,14 @@ class WeatherRefreshWorker(
     )
 
     override suspend fun doWork(): Result {
+        // A periodic tick while the screen is off refreshes a forecast nobody can
+        // see; the next tick after the screen comes back on picks it up, and every
+        // one-off path (placement, a location change, the manual refresh) carries
+        // KEY_FORCE and is never skipped. Same reasoning and helper as the widget
+        // pollers -- see WidgetWork.shouldSkipWidgetRefresh.
+        if (WidgetWork.skipWhileScreenOff(applicationContext, inputData.getBoolean(KEY_FORCE, false))) {
+            return Result.success()
+        }
         val cache = WeatherCache.create(applicationContext)
 
         // Every user-picked fixed place currently wanted by a tile or widget,
@@ -148,6 +158,7 @@ class WeatherRefreshWorker(
                 }.getOrNull()
             }
 
+        private const val KEY_FORCE = "force"
         private const val UNIQUE_PERIODIC = "tileshell_weather_refresh"
         private const val UNIQUE_NOW = "tileshell_weather_refresh_now"
 
@@ -174,7 +185,9 @@ class WeatherRefreshWorker(
             wm.enqueueUniqueWork(
                 UNIQUE_NOW,
                 ExistingWorkPolicy.KEEP,
-                OneTimeWorkRequestBuilder<WeatherRefreshWorker>().build(),
+                OneTimeWorkRequestBuilder<WeatherRefreshWorker>()
+                    .setInputData(workDataOf(KEY_FORCE to true))
+                    .build(),
             )
         }
 
@@ -200,7 +213,9 @@ class WeatherRefreshWorker(
                 .enqueueUniqueWork(
                     UNIQUE_NOW,
                     ExistingWorkPolicy.REPLACE,
-                    OneTimeWorkRequestBuilder<WeatherRefreshWorker>().build(),
+                    OneTimeWorkRequestBuilder<WeatherRefreshWorker>()
+                        .setInputData(workDataOf(KEY_FORCE to true))
+                        .build(),
                 )
         }
     }

@@ -6524,3 +6524,30 @@ sources, deliberately, because the obvious two had gaps:
 So the PixelCopy fix has now held across ~37 hours of real use spanning two days and an overnight,
 with zero recorded crashes — the first genuinely independent confirmation of it, since the earlier
 check could only show "no new crashes in the few minutes since installing".
+
+## Post-fix check: no crashes or ANRs, and the one network worker that escaped the screen-off gate
+
+Asked to check the day's performance plus any crashes/ANRs after the battery work landed.
+
+**Crashes/ANRs: none.** `dumpsys dropbox` — the source that survives both `logcat -c` and reinstalls,
+unlike the two that had gaps here — still holds exactly 7 `data_app_crash` entries for
+`com.tileshell`, all dated 2026-09-11, and none since. No ANR entries for it at all; the only
+crash-type record on 09-12 (`system_app_anr`) belongs to `com.android.systemui`.
+
+**Data: no longer the worst offender, but today's absolute numbers are not usable as evidence.**
+TileShell has dropped from #1 data consumer on the device (19.7 MB, more than double the next app) to
+**5th** (14.23 MB mobile), behind Instagram 38.6, Facebook 33.5, WhatsApp 29.0 and one other. That
+ranking is meaningful; the raw totals are not, because the 6h28m window is dominated by this
+session's own testing — roughly eight installs, ten cold starts, and repeated glance-page opens, each
+of which is *by design* a full 777 KB fetch once the cache is over 30 minutes old. Judging the fixes
+needs a clean window with no testing in it.
+
+**One real gap found, and not by re-reading the diff.** The per-state power breakdown showed
+mobile-radio power still mostly attributed to *screen-off* time, which the gates were supposed to
+prevent. Tracing which workers do network showed `WeatherRefreshWorker` (`WeatherWork.kt`) — the
+in-app weather tile's own worker, distinct from the already-gated `WeatherWidgetRefreshWorker` — had
+no screen gate at all and fetched every 30 minutes regardless. Its *data* cost is small (a few KB of
+JSON), so it does not explain the byte totals, but it woke 48 times a day around the clock. Now gated
+via the same `WidgetWork.skipWhileScreenOff` helper, with a `KEY_FORCE` marker added so placement, a
+location change and the manual refresh still bypass it. Artifacts re-cut at the same versionCode 402,
+which was never uploaded.
