@@ -6551,3 +6551,33 @@ JSON), so it does not explain the byte totals, but it woke 48 times a day around
 via the same `WidgetWork.skipWhileScreenOff` helper, with a `KEY_FORCE` marker added so placement, a
 location change and the manual refresh still bypass it. Artifacts re-cut at the same versionCode 402,
 which was never uploaded.
+
+## Clean battery measurement window opened (baseline for the next check)
+
+Battery stats reset on the physical device to get a window uncontaminated by this session's testing —
+the previous day's totals were unusable for judging the fixes, since repeated installs, cold starts
+and glance-page opens each legitimately trigger a full feed fetch by design.
+
+Build under test: 4.0.2 **debug** (chosen over release so the user's layout/settings survive — the two
+are signed differently, so swapping would wipe app data). Debug is marginally heavier than the R8
+release build, so any result is a mild over-estimate, which is the safe direction for a battery check.
+
+Baseline at reset — periodic workers enqueued, down from 7 before this session's work:
+ - `FeedRefreshWorker` 30m — screen-gated *and* demand-driven (refresh-on-open when >30 min stale)
+ - `WeatherRefreshWorker` 30m — screen-gated as of this session
+ - `LayoutAutoBackupWorker` 6h — local only
+ - `CalendarSystemWidgetRefreshWorker` daily — legitimate: exactly one TileShell widget instance is
+   bound (id 4697, Calendar System) and it *is* present in `feed_widget.pb`, so it is genuinely
+   rendered rather than another orphan. Deliberately not screen-gated (midnight-aligned).
+
+What to compare on the next check, against the 18h53m window recorded above (19.7 MB Wi-Fi + 0.53 MB
+mobile, 13.5 min CPU, 53 job runs, TileShell the device's #1 data consumer):
+ - `dumpsys batterystats com.tileshell` — Wi-Fi/mobile bytes, `Total cpu time`, job run count, and the
+   screen-on vs screen-off split of `mobile_radio`/`wifi` power (the screen-off share is the direct
+   test of the gates).
+ - `dumpsys dropbox` for any new `data_app_crash`/ANR entries — the only crash source here that
+   survives `logcat -c` and reinstalls.
+ - Per-app data ranking, to see where TileShell sits relative to other apps rather than in isolation.
+
+**The device must stay unplugged** for `Time on battery` to accumulate; a window recorded while
+charging measures nothing.
