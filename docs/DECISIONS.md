@@ -6475,6 +6475,20 @@ guard, so an NTP/timezone correction can't trigger a fetch on every open.
 
 Net effect across the three feed changes: the feed now fetches when someone is about to read it and
 what they'd read is stale, instead of every 30 minutes around the clock plus unconditionally on every
-launch. Build and full unit test suite green (5 new cases). **On-device confirmation of the
-open-while-stale path is still pending** — the physical device was disconnected before that check
-could run; the logic itself is unit-tested and the wiring is a single call site.
+launch. Build and full unit test suite green (5 new cases).
+
+Verified on the physical device by reading `shared_prefs/tileshell.prefs.xml` directly, since the two
+timestamps make each branch observable without instrumenting anything:
+ - **Stale (never fetched) → fetches.** `feed_last_refreshed_at` went from absent to 08:38:08 on the
+   first open.
+ - **Fresh → does not refetch, but the effect still runs.** Swiping away to Start and back left
+   `feed_last_refreshed_at` at 08:38:08 while `feed_last_opened_at` advanced 08:39:04 → 08:41:00.
+   The advancing open time is what proves the effect fired at all, so the unchanged refresh time is a
+   real decision not to fetch rather than the effect silently never running — the two together are
+   what make this a genuine A/B.
+ - **Cold start with a fresh cache → does not fetch**, confirming the removed unconditional
+   `ensureScheduled` one-off: force-stop + relaunch left `feed_last_refreshed_at` untouched.
+
+Not directly observed: the ">30 minutes old → refetch" case, which would need a 30-minute wait. It is
+the same branch as the first-open case (both are `shouldRefreshFeedOnOpen` returning true) and the
+boundary itself is unit-tested.
