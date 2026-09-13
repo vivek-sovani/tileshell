@@ -6371,3 +6371,33 @@ weather is not double-fetched.
 Also clarified: the "2+ hours of active usage" a battery UI reports is `Foreground for: 6h49m` —
 the process state any app gets while it is the Home app and the device is awake. Actual user-facing
 time was `Top for: 30m` and total CPU was 13.5 minutes across the whole 19 hours.
+
+## Screen-off gate extended from the feed to the frequent widget refresh workers
+
+Follow-up to the overnight diagnosis above, at the user's request. The same argument that justified
+gating the news feed applies to the widget pollers: re-rendering a widget nobody can currently see is
+pure waste. Measured on the real device, the three frequent pollers that were actually scheduled —
+Battery (15m), Steps (15m) and Weather (30m) — account for ~240 wakeups a day between them, the
+large majority overnight, for widgets living on TileShell's own glance page.
+
+New pure, unit-tested `WidgetWork.shouldSkipWidgetRefresh(force, screenInteractive)` plus a
+`skipWhileScreenOff(context, force)` wrapper reading `PowerManager.isInteractive`. Applied to the six
+frequent pollers: Steps, Battery, Weather, Stock, Commodity, Sports. The last three already carried a
+`KEY_FORCE` marker distinguishing an explicitly-requested one-off from the periodic tick; Steps,
+Battery and Weather gained the same marker so their `refreshNow()` one-offs stay unskippable.
+
+**Deliberately not gated**, and this is the load-bearing detail: the midnight-aligned daily workers
+(calendar system, moon phase, countdown) schedule their single daily run for just after midnight —
+precisely when the screen is off. Gating those on the screen would skip the one tick that matters and
+leave the displayed date stale for a further 24 hours. The alarm widget (6h, plus a
+`NEXT_ALARM_CLOCK_CHANGED` receiver) is left alone too as already negligible.
+
+The cost of the gate is bounded at one interval of staleness after the screen comes back on, which is
+acceptable because these refreshes are cosmetic by design (`WidgetWork`'s own premise) and because the
+moments that genuinely matter are already event-driven rather than polled — the battery widget has
+manifest receivers for plug/unplug and battery low/okay, so the poll only ever covered gradual % drift.
+
+Verified: build and full unit test suite green (new `WidgetWorkTest`); installed on the physical
+device, all 7 periodic workers re-register cleanly and the app launches crash-free. A forced run of
+the periodic jobs with the screen off produced no worker activity. The end-to-end proof is the next
+overnight battery/data window, not something reproducible in a single session.

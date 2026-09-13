@@ -40,7 +40,10 @@ class CommodityWidgetRefreshWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        pushAll(applicationContext, force = inputData.getBoolean(KEY_FORCE, false))
+        val force = inputData.getBoolean(KEY_FORCE, false)
+        // Nothing to see while the screen is off — see WidgetWork.shouldSkipWidgetRefresh.
+        if (WidgetWork.skipWhileScreenOff(applicationContext, force)) return Result.success()
+        pushAll(applicationContext, force = force)
         return Result.success()
     }
 

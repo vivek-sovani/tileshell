@@ -1,5 +1,7 @@
 package com.tileshell.feature.livetiles.widget
 
+import android.content.Context
+import android.os.PowerManager
 import androidx.work.Constraints
 import androidx.work.NetworkType
 import java.time.LocalDate
@@ -77,4 +79,41 @@ object WidgetWork {
             .toEpochMilli()
         return (nextMidnight - now + TimeUnit.MINUTES.toMillis(1)).coerceAtLeast(0L)
     }
+
+    /**
+     * Whether a periodic widget tick should do nothing because the screen is off.
+     * Pure, so the precedence is unit-testable; [skipWhileScreenOff] reads the
+     * live screen state for it.
+     *
+     * Re-rendering a widget nobody can currently see is pure waste, and it adds
+     * up: measured on a real device, the 15-minute Battery and Steps widgets plus
+     * the 30-minute Weather widget account for ~240 wakeups a day between them,
+     * the large majority of those overnight. The cost of skipping is bounded at
+     * one interval of staleness after the screen comes back on, which is
+     * acceptable precisely because [WidgetWork]'s whole premise is that these
+     * refreshes are cosmetic — and because the moments that genuinely matter are
+     * already event-driven rather than polled (the battery widget has manifest
+     * receivers for plug/unplug and low/okay; the alarm widget listens for
+     * `NEXT_ALARM_CLOCK_CHANGED`).
+     *
+     * [force] is the existing "this was explicitly asked for" marker the
+     * stock/sports/commodity workers already carry on their one-off requests —
+     * a user-triggered refresh, a config change or a provider event must never
+     * be skipped, only the unattended periodic cadence.
+     *
+     * Deliberately *not* applied to the midnight-aligned daily workers (calendar
+     * system, moon phase, countdown): their single daily run is scheduled for
+     * just after midnight, precisely when the screen is off, so gating them on
+     * the screen would skip the one tick that matters and leave the date stale
+     * for a further 24 hours.
+     */
+    fun shouldSkipWidgetRefresh(force: Boolean, screenInteractive: Boolean): Boolean =
+        !force && !screenInteractive
+
+    /** [shouldSkipWidgetRefresh] against the device's live screen state. */
+    fun skipWhileScreenOff(context: Context, force: Boolean): Boolean =
+        shouldSkipWidgetRefresh(
+            force = force,
+            screenInteractive = context.getSystemService(PowerManager::class.java)?.isInteractive ?: true,
+        )
 }

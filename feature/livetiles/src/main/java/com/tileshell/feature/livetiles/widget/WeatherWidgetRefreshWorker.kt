@@ -12,6 +12,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.tileshell.core.data.WeatherTile
 import com.tileshell.feature.livetiles.DailyForecast
 import com.tileshell.feature.livetiles.R
@@ -40,11 +41,18 @@ class WeatherWidgetRefreshWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
+        // A one-off from refreshNow() carries KEY_FORCE and is never skipped;
+        // only the unattended periodic cadence is gated. See
+        // WidgetWork.shouldSkipWidgetRefresh.
+        if (WidgetWork.skipWhileScreenOff(applicationContext, inputData.getBoolean(KEY_FORCE, false))) {
+            return Result.success()
+        }
         pushAll(applicationContext)
         return Result.success()
     }
 
     companion object {
+        private const val KEY_FORCE = "force"
         private const val UNIQUE_PERIODIC = "tileshell_weather_widget_refresh"
         private const val UNIQUE_NOW = "tileshell_weather_widget_refresh_now"
 
@@ -75,7 +83,9 @@ class WeatherWidgetRefreshWorker(
             WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
                 UNIQUE_NOW,
                 ExistingWorkPolicy.REPLACE,
-                OneTimeWorkRequestBuilder<WeatherWidgetRefreshWorker>().build(),
+                OneTimeWorkRequestBuilder<WeatherWidgetRefreshWorker>()
+                    .setInputData(workDataOf(KEY_FORCE to true))
+                    .build(),
             )
         }
 
