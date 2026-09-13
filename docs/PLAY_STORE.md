@@ -156,6 +156,53 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
+## Release notes (v4.0.2)
+
+*Same user-facing release notes as v4.0.1 and v4.0.0 below — none of those ever reached Play, so the
+feature set a Play user would be seeing for the first time is unchanged. This release adds a
+battery/data and correctness pass on top, all of it driven by measurement on a real device rather
+than code review. See "What's new since v4.0.1" below for that detail; **only the latest built 4.0.x
+APK/AAB should ever be uploaded**.*
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 4.0.2
+
+• New: 14 real Android widgets - weather, battery, alarm, moon,
+  steps, calendars, flashlight, stocks, sports, tasks, notes &
+  more - usable on any launcher, not just TileShell
+• New: multi-location weather; refresh buttons on stock/sports/
+  weather widgets; App List pins sub-apps, shortcuts & widgets
+• Improved: battery use, edge-to-edge tiles, smoother swiping,
+  fewer accessibility prompts
+• Fixed: a launcher crash, security, data-loss & permission fixes
+```
+
+*(Character count 481, under Play's 500 limit.)*
+
+### What's new since v4.0.1 (for reference — not the Play-facing blurb above)
+
+- **Backup restore no longer deletes the built-in weather and calendar cards.** Restoring a backup
+  checked every saved widget against `AppWidgetManager` to decide whether it still existed — but the
+  three built-in glance cards use synthetic placeholder IDs that Android will never recognise, so
+  they failed that check on *every* restore and were silently dropped.
+- **Invisible widgets that were still costing battery.** Restoring a backup left previously-placed
+  widgets bound to the system but no longer shown anywhere: unreachable on the glance page, yet still
+  live enough for Android to keep waking their refresh jobs. On the test device this was four
+  unreachable TileShell widgets driving roughly 240 wakeups a day. TileShell now reconciles what the
+  system has bound against what it actually shows, and releases the rest — which took background jobs
+  from 7 down to 3 on that device.
+- **Much less background data from the news feed.** Measured at 19.7 MB received in 19 hours, the
+  most of any app on that device: one refresh cycle across 10 subscribed feeds is 777 KB, and the
+  30-minute cadence ran around the clock. The feed now refreshes when you open it and what you'd read
+  is stale (over 30 minutes old), instead of on a timer while you sleep. Opening it always fetches
+  immediately, as before.
+- **Fewer background wakeups from widgets.** The frequent widget refreshes (steps, battery, weather,
+  stock, commodities, sports) no longer tick while the screen is off. The once-a-day widgets
+  (calendar systems, moon phase, countdown) are deliberately untouched, since their single daily
+  update is scheduled for just after midnight.
+
 ## Release notes (v4.0.1)
 
 *A genuine point release, not another same-`versionCode` re-cut of 4.0.0 — 4.0.0 (code 400)

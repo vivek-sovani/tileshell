@@ -6492,3 +6492,35 @@ timestamps make each branch observable without instrumenting anything:
 Not directly observed: the ">30 minutes old → refetch" case, which would need a 30-minute wait. It is
 the same branch as the first-open case (both are `shouldRefreshFeedOnOpen` returning true) and the
 boundary itself is unit-tested.
+
+## v4.0.2 cut, and a crash-log check that confirms the PixelCopy fix held
+
+Release cut at `versionCode` 402 / `versionName` 4.0.2, carrying the **same user-facing release notes
+as 4.0.1 and 4.0.0** — none of those ever reached Play, so the feature set a Play user would see for
+the first time is unchanged; 4.0.2 adds the battery/data and correctness pass on top (backup restore
+no longer dropping the built-in glance cards, orphaned `AppWidgetHost` bindings released, and the
+feed/widget refresh cadence moved from timer-driven to demand-driven). Unlike 4.0.0's three same-code
+re-cuts, this is a real new versionCode, as 4.0.1 was.
+
+Signed APK + AAB built and verified: `versionCode='402' versionName='4.0.2'`, signing certificate
+SHA-256 identical to 4.0.1's (and so to every prior release), content confirmed changed by checksum
+rather than assumed, `jarsigner -verify` clean on the bundle, and the release APK installed and
+launched crash-free under R8 on the emulator.
+
+**Crash-log check since the PixelCopy fix.** Asked to check crashes since the previous day. Three
+sources, deliberately, because the obvious two had gaps:
+ - `adb logcat -b crash` was **useless here and said so**: the buffer was empty, because this
+   session's own `logcat -c` calls had wiped it. Absence of entries there was not evidence of
+   absence of crashes.
+ - `dumpsys activity exit-info` retained only 6 records, none of them crashes, but the repeated
+   reinstalls had consumed its history back to 07:41 the same morning — so it could not answer for
+   "yesterday" either.
+ - **`dumpsys dropbox`** is the one that could: it persists crash records independently of logcat
+   buffers and app reinstalls. It holds exactly **7 `data_app_crash` entries for `com.tileshell`, all
+   dated 2026-09-11** (09:05 through 19:08) — the PixelCopy crashes — and **none on 09-12 or 09-13**.
+   The fix was installed 09-11 at ~19:42, after the last of them. The one crash-type entry on 09-12
+   (`system_app_anr`, 22:49) belongs to `com.android.systemui`, not TileShell.
+
+So the PixelCopy fix has now held across ~37 hours of real use spanning two days and an overnight,
+with zero recorded crashes — the first genuinely independent confirmation of it, since the earlier
+check could only show "no new crashes in the few minutes since installing".

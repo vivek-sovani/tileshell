@@ -532,8 +532,40 @@ android {
         //   always falling back to this app's own App Info screen when unresolvable.
         //   EDGE-TO-EDGE TILES + PAGER SMOOTHNESS: see the "re-cut a third time" notes on 4.0.0
         //   above — both fixes are unchanged, just carried forward under the new versionCode.
-        versionCode = 401
-        versionName = "4.0.1"
+        // v4.0.2 (code 402) — same user-facing release notes as 4.0.1/4.0.0 (none of which
+        //   ever reached Play, so the feature set a Play user would be seeing for the first
+        //   time is unchanged); this is a battery/data and correctness pass on top, all of it
+        //   driven by real on-device measurement rather than code review:
+        //   BACKUP: restoring a backup always stripped the built-in weather and calendar
+        //   glance cards. importBackup filtered every backed-up widget through
+        //   AppWidgetManager.getAppWidgetInfo(), but the three built-in cards are synthetic
+        //   negative sentinel ids (-1/-2/-3) that no AppWidgetManager will ever recognise, so
+        //   they failed the liveness check on every single restore. Extracted the decision
+        //   into a unit-tested isRestorableWidgetId().
+        //   ORPHANED WIDGET BINDINGS: WidgetStore.replaceAll (the path importBackup uses)
+        //   overwrites the rendered list without releasing AppWidgetHost bindings, and cannot
+        //   — the host lives in the UI layer. A restore therefore stranded every previously
+        //   bound id: invisible on the glance page, yet still a live instance to the OS, which
+        //   kept broadcasting APPWIDGET_UPDATE and so kept re-arming each provider's periodic
+        //   refresh worker. Found on a real device: 11 ids bound, only 5 rendered; four
+        //   unreachable TileShell widgets were funding ~240 wakeups/day. New unit-tested
+        //   orphanedHostWidgetIds() reconciles the host against the store at glance-page
+        //   startup; on-device this took bound instances 11 -> 5 and periodic workers 7 -> 3.
+        //   FEED DATA: measured 19.7 MB received over 19h — the largest of any app on that
+        //   device. One refresh cycle across the 10 enabled feeds is 777 KB (35.5 MB/day at
+        //   the 30-minute cadence), and the conditional-GET revalidation added earlier almost
+        //   never yields a 304 in practice: Google News sends no validator at all plus
+        //   no-store, and TOI/Hindu/NDTV answer 200 with a full body because a news feed
+        //   really has changed 30 minutes later. So the cadence itself changed — a periodic
+        //   tick now also requires the screen to be on, and the feed refreshes on open when
+        //   its cache is over 30 minutes old (it previously never refreshed on a repeat visit,
+        //   while re-downloading everything unconditionally on every cold start).
+        //   WIDGET WAKEUPS: the same screen-off gate applied to the frequent widget pollers
+        //   (steps/battery/weather/stock/commodity/sports). Deliberately NOT applied to the
+        //   midnight-aligned daily workers (calendar system, moon phase, countdown), whose one
+        //   daily run is scheduled for just after midnight, exactly when the screen is off.
+        versionCode = 402
+        versionName = "4.0.2"
     }
 
     if (keystoreFile.exists()) {
