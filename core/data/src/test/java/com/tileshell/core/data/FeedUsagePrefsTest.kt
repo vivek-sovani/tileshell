@@ -59,6 +59,43 @@ class FeedUsagePrefsTest {
         assertTrue(shouldSkipIdleFeedRefresh(now, lastOpenedAtMillis = now - 2 * hour, idleAfterMillis = 2 * hour))
     }
 
+    // ---- shouldRefreshFeedOnOpen (fetch on open when the cache is stale) ----
+
+    @Test
+    fun `opening with a cache older than the window refetches`() {
+        val now = 10 * hour
+        assertTrue(shouldRefreshFeedOnOpen(nowMillis = now, lastRefreshedAtMillis = now - hour))
+    }
+
+    @Test
+    fun `opening again right after a refresh does not refetch`() {
+        // Flicking back and forth to the page must not re-download every feed.
+        val now = 10 * hour
+        assertFalse(shouldRefreshFeedOnOpen(nowMillis = now, lastRefreshedAtMillis = now - 60_000L))
+    }
+
+    @Test
+    fun `a never-fetched install refetches on first open`() {
+        assertTrue(shouldRefreshFeedOnOpen(nowMillis = 10 * hour, lastRefreshedAtMillis = 0L))
+    }
+
+    @Test
+    fun `exactly at the staleness boundary refetches`() {
+        val now = 10 * hour
+        assertTrue(
+            shouldRefreshFeedOnOpen(now, lastRefreshedAtMillis = now - FEED_STALE_AFTER_MS),
+        )
+        assertFalse(
+            shouldRefreshFeedOnOpen(now, lastRefreshedAtMillis = now - FEED_STALE_AFTER_MS + 1),
+        )
+    }
+
+    @Test
+    fun `a clock that jumped backwards reads as fresh, not stale`() {
+        val now = 10 * hour
+        assertFalse(shouldRefreshFeedOnOpen(nowMillis = now, lastRefreshedAtMillis = now + hour))
+    }
+
     // ---- shouldSkipPeriodicFeedRefresh (screen-off gate on top of the idle window) ----
 
     @Test

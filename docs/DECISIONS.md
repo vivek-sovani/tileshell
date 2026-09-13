@@ -6439,3 +6439,42 @@ emitted four `APPWIDGET_DELETED`/`APPWIDGET_DISABLED` pairs, one per provider; a
 → `cancel()` left the WorkSpec rows for all four widget workers **CANCELLED**. Periodic workers went
 from 7 to 3 — feed (screen-gated), the in-app weather tile, and the 6-hourly layout auto-backup —
 each of which corresponds to something the user actually has.
+
+## Feed refresh moved from timer-driven to demand-driven: fetch on open when stale
+
+User asked, after the screen-off gate landed, whether opening the glance page refreshes the news
+feed — and if not, to refresh once when the cache is older than 30 minutes. It did not, and the
+question exposed a real gap the gate had just widened.
+
+What actually happened on open: `FeedPage` calls `FeedRefreshWorker.ensureScheduled` from a
+`LaunchedEffect(Unit)`, which fired an unconditional forced one-off alongside the periodic schedule.
+`LaunchedEffect(Unit)` runs once per *composition* — once per app launch, not once per visit, since
+the pager keeps adjacent pages mounted. So the feed refreshed once at launch regardless of how fresh
+the cache already was (777 KB measured), and then never again on any subsequent swipe back to the
+page. With the periodic tick now gated on the screen being on, the cache could legitimately be hours
+old by the next visit with nothing to refetch it.
+
+Both halves were wrong in opposite directions, so the fix replaces the launch-time fetch with a
+staleness check on actual visibility:
+
+- New pure, unit-tested `shouldRefreshFeedOnOpen(now, lastRefreshedAt, staleAfterMillis)` with
+  `FEED_STALE_AFTER_MS` = 30 min, plus `FeedUsagePrefs.markRefreshed`/`lastRefreshedAtMillis`
+  recording when a refresh *actually fetched* — written at the end of `doWork`, after the store
+  write, so the early-return skip paths never count as a refresh and a genuinely stale cache still
+  reads as stale.
+- `FeedPage`'s `LaunchedEffect(active)` — which already existed to record `markOpened`, and which
+  fires on real visibility rather than composition — now checks staleness first and calls
+  `FeedRefreshWorker.refreshNow` when the cache is older than the window. Repeatedly flicking to the
+  page costs nothing; returning after 30+ minutes fetches.
+- `ensureScheduled` no longer enqueues its one-off at all, so a cold start with a fresh cache stops
+  re-downloading every subscribed feed. The first-ever open is still covered: a never-fetched install
+  has `lastRefreshedAtMillis` 0, which reads as stale.
+
+A backwards clock jump reads as fresh rather than stale, mirroring `shouldSkipIdleFeedRefresh`'s own
+guard, so an NTP/timezone correction can't trigger a fetch on every open.
+
+Net effect across the three feed changes: the feed now fetches when someone is about to read it and
+what they'd read is stale, instead of every 30 minutes around the clock plus unconditionally on every
+launch. Build and full unit test suite green (5 new cases). **On-device confirmation of the
+open-while-stale path is still pending** — the physical device was disconnected before that check
+could run; the logic itself is unit-tested and the wiring is a single call site.

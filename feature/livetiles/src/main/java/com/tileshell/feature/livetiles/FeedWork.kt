@@ -175,6 +175,9 @@ class FeedRefreshWorker(
                 outcome?.validator?.let { source.url to it }
             }.toMap(),
         )
+        // Only after a run that actually fetched — the skip paths above return
+        // early, so opening the page still sees a genuinely stale cache as stale.
+        FeedUsagePrefs.markRefreshed(applicationContext)
         return Result.success()
     }
 
@@ -218,11 +221,12 @@ class FeedRefreshWorker(
                     .setConstraints(periodicConstraints)
                     .build(),
             )
-            wm.enqueueUniqueWork(
-                UNIQUE_NOW,
-                ExistingWorkPolicy.KEEP,
-                forcedOneOff(),
-            )
+            // Deliberately no one-off fetch here any more. This runs from the
+            // feed page's LaunchedEffect(Unit), i.e. once per app launch, and it
+            // used to re-download every subscribed feed (777 KB measured) however
+            // fresh the cache already was. Fetching on open is now decided by
+            // staleness instead — see shouldRefreshFeedOnOpen, which also covers
+            // the first-ever open, when nothing has been fetched yet.
         }
 
         /**

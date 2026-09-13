@@ -17,6 +17,7 @@ import android.content.Context
 object FeedUsagePrefs {
     private const val PREFS = "tileshell.prefs"
     private const val KEY_FEED_LAST_OPENED = "feed_last_opened_at"
+    private const val KEY_FEED_LAST_REFRESHED = "feed_last_refreshed_at"
 
     /** Called when the feed page actually becomes the visible page, not merely composed. */
     fun markOpened(context: Context, nowMillis: Long = System.currentTimeMillis()) {
@@ -26,6 +27,15 @@ object FeedUsagePrefs {
     /** 0 when the feed page has never been opened on this install. */
     fun lastOpenedAtMillis(context: Context): Long =
         prefs(context).getLong(KEY_FEED_LAST_OPENED, 0L)
+
+    /** Called by the worker once a refresh has actually fetched, not when it skipped. */
+    fun markRefreshed(context: Context, nowMillis: Long = System.currentTimeMillis()) {
+        prefs(context).edit().putLong(KEY_FEED_LAST_REFRESHED, nowMillis).apply()
+    }
+
+    /** 0 when the feed has never been fetched on this install. */
+    fun lastRefreshedAtMillis(context: Context): Long =
+        prefs(context).getLong(KEY_FEED_LAST_REFRESHED, 0L)
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -95,3 +105,37 @@ fun shouldSkipPeriodicFeedRefresh(
 ): Boolean =
     !screenInteractive ||
         shouldSkipIdleFeedRefresh(nowMillis, lastOpenedAtMillis, idleAfterMillis)
+
+/** How stale the cached feed may be before opening the glance page refetches it. */
+const val FEED_STALE_AFTER_MS: Long = 30 * 60 * 1000L
+
+/**
+ * Whether opening the glance page should fetch, because the cache is older than
+ * [staleAfterMillis]. Pure, so the precedence is unit-testable.
+ *
+ * This is what makes the background cadence safe to cut. With the periodic tick
+ * now gated on the screen being on ([shouldSkipPeriodicFeedRefresh]), the cache
+ * can legitimately be hours old by the time the page is next opened, and nothing
+ * used to refetch on open: `ensureScheduled`'s one-off runs from a
+ * `LaunchedEffect(Unit)`, i.e. once per composition — once per app launch, not
+ * once per visit — so swiping back to the page showed whatever was last cached.
+ *
+ * Pairing the two moves the feed from timer-driven to demand-driven: fetch when
+ * someone is actually about to read it and what they'd read is stale, rather than
+ * every 30 minutes around the clock. It also replaces the unconditional fetch
+ * `ensureScheduled` used to fire on every cold start, which re-downloaded every
+ * subscribed feed (measured at 777 KB) however fresh the cache already was.
+ *
+ * A never-fetched install ([lastRefreshedAtMillis] 0) reads as stale, so the
+ * first open populates the cache. A clock that has jumped backwards reads as
+ * fresh rather than stale, mirroring [shouldSkipIdleFeedRefresh]'s own guard, so
+ * a backwards correction can't trigger a fetch on every single open.
+ */
+fun shouldRefreshFeedOnOpen(
+    nowMillis: Long,
+    lastRefreshedAtMillis: Long,
+    staleAfterMillis: Long = FEED_STALE_AFTER_MS,
+): Boolean {
+    if (lastRefreshedAtMillis > nowMillis) return false
+    return nowMillis - lastRefreshedAtMillis >= staleAfterMillis
+}

@@ -91,6 +91,7 @@ import com.tileshell.feature.start.dominantIconColor
 import com.tileshell.feature.start.rememberChosenWallpaperIsLight
 import com.tileshell.feature.start.rememberWallpaperBitmap
 import com.tileshell.core.data.FeedUsagePrefs
+import com.tileshell.core.data.shouldRefreshFeedOnOpen
 import com.tileshell.feature.livetiles.CalendarFace
 import com.tileshell.feature.livetiles.FeedArticle
 import com.tileshell.feature.livetiles.FeedData
@@ -244,7 +245,19 @@ fun FeedPage(
     // pager can keep an adjacent page mounted off-screen), so the periodic
     // refresh can stop fetching for a feed nobody's opened in hours. See
     // FeedUsagePrefs/shouldSkipPeriodicFeedRefresh.
-    LaunchedEffect(active) { if (active) FeedUsagePrefs.markOpened(context) }
+    // Fires every time the page actually becomes visible, not once per composition,
+    // so swiping back to it after a while refetches rather than showing whatever was
+    // last cached. Gated on staleness so repeatedly flicking to the page doesn't
+    // re-download every subscribed feed each time — see shouldRefreshFeedOnOpen.
+    LaunchedEffect(active) {
+        if (!active) return@LaunchedEffect
+        val stale = shouldRefreshFeedOnOpen(
+            nowMillis = System.currentTimeMillis(),
+            lastRefreshedAtMillis = FeedUsagePrefs.lastRefreshedAtMillis(context),
+        )
+        FeedUsagePrefs.markOpened(context)
+        if (stale) FeedRefreshWorker.refreshNow(context)
+    }
 
     // Today's agenda (reuse the calendar query); empty until READ_CALENDAR is granted.
     val calGranted = rememberPermissionGranted(Manifest.permission.READ_CALENDAR)
