@@ -15,10 +15,15 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -52,6 +57,63 @@ private fun WeatherCacheData.snapshotFor(location: WeatherTile.Location): Weathe
     is WeatherTile.Location.Fixed -> places[WeatherTile.key(location)]
 }
 
+/** How stale the cached forecast may be before waking the device refetches it. */
+const val WEATHER_STALE_AFTER_MS: Long = 30 * 60 * 1000L
+
+/**
+ * Whether coming back to the launcher should refetch the forecast. Pure, so the
+ * precedence is unit-testable.
+ *
+ * This is the companion to [WeatherRefreshWorker]'s screen-off gate, and exists
+ * because that gate alone left a real hole: with the periodic tick suppressed
+ * overnight, the next tick after the screen comes back on can be up to a full
+ * interval away, so the tile kept showing whatever it had cached before the
+ * screen went off. Measured on a real device: the cache was last written at
+ * 22:24 and was still being displayed at 06:09 the next morning — a 7h45m-old
+ * temperature — with no refresh due for up to another 30 minutes.
+ *
+ * A never-fetched cache ([fetchedAtMillis] 0) always refetches. A clock that
+ * jumped backwards reads as fresh rather than stale, mirroring the feed's own
+ * guard, so an NTP/timezone correction can't refetch on every single resume.
+ */
+fun shouldRefreshWeatherOnWake(
+    nowMillis: Long,
+    fetchedAtMillis: Long,
+    staleAfterMillis: Long = WEATHER_STALE_AFTER_MS,
+): Boolean {
+    if (fetchedAtMillis <= 0L) return true
+    if (fetchedAtMillis > nowMillis) return false
+    return nowMillis - fetchedAtMillis >= staleAfterMillis
+}
+
+/**
+ * Refetches on `ON_RESUME` when what's cached is stale — i.e. when the user comes
+ * back to the launcher, which is the moment they can actually see the tile. Uses
+ * the shared cache's own `fetchedAtMillis`, so no extra bookkeeping is needed.
+ *
+ * [rememberUpdatedState] matters here: the observer is registered once, but the
+ * cached timestamp changes underneath it, and a plain capture would keep testing
+ * the value from first composition forever — the same stale-closure trap this
+ * codebase hit before with drag handles.
+ */
+@Composable
+private fun WeatherWakeRefresh(fetchedAtMillis: Long) {
+    val context = LocalContext.current
+    val owner = LocalLifecycleOwner.current
+    val latest by rememberUpdatedState(fetchedAtMillis)
+    DisposableEffect(owner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME &&
+                shouldRefreshWeatherOnWake(System.currentTimeMillis(), latest)
+            ) {
+                WeatherRefreshWorker.refreshNow(context)
+            }
+        }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
+    }
+}
+
 /**
  * The live weather tile (FR-2). Schedules the background refresh, asks for coarse
  * location once (opt-in) when following the device (a fixed picked place needs no
@@ -80,7 +142,10 @@ fun WeatherTileFace(
 
     val cache = remember(context) { WeatherCache.create(context) }
     val snapshot = cache.data.collectAsState(initial = WeatherCacheData()).value.snapshotFor(resolved)
-        ?: return fallback()
+    // Before the fallback return: with nothing cached yet, fetchedAt 0 reads as
+    // stale, so a resume is exactly when an empty tile should try to fill itself.
+    WeatherWakeRefresh(snapshot?.fetchedAtMillis ?: 0L)
+    if (snapshot == null) return fallback()
 
     FlipTile(
         flipped = flipped,
@@ -112,7 +177,10 @@ fun WeatherSmallFace(
 
     val cache = remember(context) { WeatherCache.create(context) }
     val snapshot = cache.data.collectAsState(initial = WeatherCacheData()).value.snapshotFor(resolved)
-        ?: return fallback()
+    // Before the fallback return: with nothing cached yet, fetchedAt 0 reads as
+    // stale, so a resume is exactly when an empty tile should try to fill itself.
+    WeatherWakeRefresh(snapshot?.fetchedAtMillis ?: 0L)
+    if (snapshot == null) return fallback()
 
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(

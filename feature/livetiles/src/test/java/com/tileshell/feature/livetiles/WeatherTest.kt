@@ -2,7 +2,9 @@ package com.tileshell.feature.livetiles
 
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WeatherFormatTest {
@@ -273,5 +275,42 @@ class OpenMeteoTest {
         )
         val snap = provider.fetch(WeatherQuery.Coords(18.5, 73.8))!!
         assertEquals("current location", snap.place)
+    }
+}
+
+/** The wake-time refresh gate that complements the worker's screen-off gate. */
+class WeatherWakeRefreshTest {
+
+    private val hour = 60 * 60 * 1000L
+
+    @Test
+    fun `waking to a stale cache refetches`() {
+        // The measured case: cache written 22:24, still shown at 06:09 next day.
+        val now = 10 * hour
+        assertTrue(shouldRefreshWeatherOnWake(nowMillis = now, fetchedAtMillis = now - 8 * hour))
+    }
+
+    @Test
+    fun `waking to a fresh cache does not refetch`() {
+        val now = 10 * hour
+        assertFalse(shouldRefreshWeatherOnWake(nowMillis = now, fetchedAtMillis = now - 60_000L))
+    }
+
+    @Test
+    fun `an empty cache always refetches`() {
+        assertTrue(shouldRefreshWeatherOnWake(nowMillis = 10 * hour, fetchedAtMillis = 0L))
+    }
+
+    @Test
+    fun `exactly at the staleness boundary refetches`() {
+        val now = 10 * hour
+        assertTrue(shouldRefreshWeatherOnWake(now, fetchedAtMillis = now - WEATHER_STALE_AFTER_MS))
+        assertFalse(shouldRefreshWeatherOnWake(now, fetchedAtMillis = now - WEATHER_STALE_AFTER_MS + 1))
+    }
+
+    @Test
+    fun `a clock that jumped backwards reads as fresh, not stale`() {
+        val now = 10 * hour
+        assertFalse(shouldRefreshWeatherOnWake(nowMillis = now, fetchedAtMillis = now + hour))
     }
 }

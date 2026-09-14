@@ -6581,3 +6581,51 @@ mobile, 13.5 min CPU, 53 job runs, TileShell the device's #1 data consumer):
 
 **The device must stay unplugged** for `Time on battery` to accumulate; a window recorded while
 charging measures nothing.
+
+## Weather refresh on wake — closing the hole the screen-off gate opened
+
+The screen-off gate on `WeatherRefreshWorker` was correct but incomplete, and the overnight
+measurement caught it: with the periodic tick suppressed while the screen is off, the *next* tick
+after wake can be up to a full interval away, so the tile keeps showing whatever it cached before the
+screen went off. Measured on the device: `weather_cache.pb` last written 22:24, still being displayed
+at 06:09 the next morning — a 7h45m-old temperature, with no refresh due for up to another 30
+minutes. A gate without a wake-up path is just staleness.
+
+Fixed with the same demand-driven shape as the feed: new pure, unit-tested
+`shouldRefreshWeatherOnWake(now, fetchedAt, staleAfter)` (`WEATHER_STALE_AFTER_MS` = 30 min, matching
+the periodic interval) plus a `WeatherWakeRefresh` effect that observes `ON_RESUME` and calls
+`WeatherRefreshWorker.refreshNow` when the cache is stale. No new bookkeeping was needed — the cache
+already records `fetchedAtMillis` per snapshot. It is invoked *before* the faces' `fallback` return,
+so a tile with nothing cached at all (`fetchedAt` 0, which reads as stale) also fills itself on
+resume rather than staying a static glyph. `rememberUpdatedState` guards the observer against the
+stale-closure trap this codebase has hit before with drag handles: the observer registers once while
+the timestamp keeps changing underneath it.
+
+Verified on the device in both directions, which matters because the first test was inconclusive on
+its own — a periodic tick had already refreshed the cache a minute earlier, so "no refetch" proved
+nothing:
+ - **Fresh cache (1 min old) → no refetch.** A screen off/on cycle left the file untouched.
+ - **Stale cache (8 h old) → refetches.** The cache is plain text, so `fetchedAt` was rewritten via
+   `run-as` to 8 hours in the past and the app force-stopped so DataStore re-read from disk; on the
+   next resume it refetched within ~12 seconds (`fetchedAt` 1789318001000 → 1789346804415 ≈ now).
+
+## Overnight verdict: TileShell accounts for 1.8% of the drain
+
+The user reported ~50% → <20% overnight and asked whether TileShell is behaving. It is not the cause.
+`dumpsys batterystats` for the clean 10h38m window: **computed drain 1999 mAh** of the 5000 mAh
+battery (~40%, consistent with what the user saw), of which **TileShell is 36.1 mAh — 1.8%**, 6th on
+the device behind `UID 1000` (the system itself) at 204 mAh, `UID 0` at 96, WhatsApp at 59.8 and two
+others. Device-wide CPU was 666 mAh over 3h5m of CPU time in a 10h38m window; TileShell's share of
+that was 4m46s, about 2.6%. The drain is device-wide, not this app.
+
+The gates themselves are confirmed working, by the strongest evidence available: the two files a
+fetch rewrites were untouched across the entire 9h42m of screen-off (`news_feed.pb` last written
+06:00, exactly when the page was opened; `weather_cache.pb` 22:24 the previous evening). Job timing
+corroborates it — 42 wakeups totalling 17.9s, 0.43 s/run versus 0.76 s/run before, i.e. workers
+waking, hitting the gate and returning in milliseconds rather than fetching. Per hour against the
+pre-fix baseline: CPU −37%, power −38%, and TileShell fell from the device's #1 data consumer to #7.
+
+Data per hour did rise (1.07 → 2.31 MB/h), and it is not the background: `cache/feed_images` is 20 MB
+and was last written at 06:00, i.e. news article thumbnails pulled while the page was actually open.
+That is foreground, user-driven, and by design — the remaining lever there is image handling, not
+polling.
