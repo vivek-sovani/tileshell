@@ -515,11 +515,36 @@ private fun halfContentWidthDp(info: AppWidgetProviderInfo, widthDp: Int, densit
  * Quick Panel's identically-shaped toggle) drives every card's resize/move handles
  * at once — there's no more per-card "edit" tap-in.
  */
+/**
+ * Text colour for a glance card's own content: the card's usual accent-
+ * derived contrast colour, or (when "widget cards" is active) the feed
+ * page's own text colour — the card no longer has an opaque accent fill of
+ * its own to read contrast against, since it now shows the page background
+ * translucently through [Glass.raisedCardFill] instead.
+ */
+private fun glanceOnAccent(borderless: Boolean, feedFg: Color, accent: Color): Color =
+    if (borderless) feedFg else Glass.faceTextColor(useDarkText = isLightBackground(accent))
+
+/** Dimmed companion to [glanceOnAccent] — the feed's own dim text colour when borderless, else the usual 78%-alpha convention. */
+private fun glanceOnAccentDim(borderless: Boolean, feedFgDim: Color, onAccent: Color): Color =
+    if (borderless) feedFgDim else onAccent.copy(alpha = 0.78f)
+
 @Composable
 fun WidgetSection(
     accent: Color,
     tokens: ColorTokens,
     labelColor: Color = tokens.fgDim,
+    // "widget cards" (Start's tile style) carried onto weather/agenda/
+    // now-playing — see FeedPage's own doc comment on this param. cardFg/
+    // cardFgDim are the feed page's own text colours (already brightness-
+    // matched to whatever's actually behind the page), substituted for each
+    // card's usual accent-derived text colour once the card no longer has an
+    // accent fill of its own to read contrast against.
+    borderless: Boolean = false,
+    transparency: Float = 0f,
+    dark: Boolean = true,
+    cardFg: Color = Color.White,
+    cardFgDim: Color = Color.White.copy(alpha = 0.62f),
     weatherSnapshot: WeatherSnapshot?,
     onWeatherClick: () -> Unit,
     agenda: CalendarFace,
@@ -941,12 +966,20 @@ fun WidgetSection(
             when (card) {
                 is WidgetCard.Solo -> when (card.widget.widgetId) {
                     BUILTIN_WEATHER_WIDGET_ID -> builtinCardView(card.widget, BUILTIN_WEATHER_DEFAULT_HEIGHT_DP, modifier) {
-                        WeatherCard(snapshot = weatherSnapshot, accent = accent, onClick = onWeatherClick)
+                        WeatherCard(
+                            snapshot = weatherSnapshot, accent = accent, onClick = onWeatherClick,
+                            borderless = borderless, transparency = transparency, dark = dark,
+                            onAccent = glanceOnAccent(borderless, cardFg, accent),
+                            onAccentDim = glanceOnAccentDim(borderless, cardFgDim, glanceOnAccent(borderless, cardFg, accent)),
+                        )
                     }
                     BUILTIN_AGENDA_WIDGET_ID -> builtinCardView(card.widget, BUILTIN_AGENDA_DEFAULT_HEIGHT_DP, modifier) {
                         AgendaCard(
                             agenda = agenda, granted = calendarGranted, accent = accent,
                             onAddSchedule = onAddSchedule, onClick = onAgendaClick,
+                            borderless = borderless, transparency = transparency, dark = dark,
+                            onAccent = glanceOnAccent(borderless, cardFg, accent),
+                            onAccentDim = glanceOnAccentDim(borderless, cardFgDim, glanceOnAccent(borderless, cardFg, accent)),
                         )
                     }
                     // renderedWidgets already drops this sentinel whenever nowPlaying is
@@ -955,6 +988,9 @@ fun WidgetSection(
                         NowPlayingCard(
                             nowPlaying = nowPlaying!!, packageName = nowPlayingPackage,
                             art = nowPlayingArt, accent = accent, onClick = onNowPlayingClick,
+                            borderless = borderless, transparency = transparency, dark = dark,
+                            onAccent = glanceOnAccent(borderless, cardFg, accent),
+                            onAccentDim = glanceOnAccentDim(borderless, cardFgDim, glanceOnAccent(borderless, cardFg, accent)),
                         )
                     }
                     else -> widgetView(card.widget, modifier)

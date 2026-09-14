@@ -164,7 +164,23 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   same trick already used for the stock-wallpaper swatch grid), each cell
   getting roughly double the room. Build + tests green; visually confirmed
   on the emulator, installed and launched on the physical device with no
-  crash.
+  crash. **Same-session follow-up**: "if widget card is selected can the same
+  effect be carried on glance and quick settings" — scoped to glance only
+  after confirming (Quick Panel's accent fill means "this toggle is on";
+  erasing that with no replacement wasn't worth the consistency). `AccentCard`/
+  `WeatherCard`/`AgendaCard`/`NowPlayingCard` gained `borderless`/
+  `transparency`/`dark` params (default off — unaffected by default) that
+  switch the fill to the exact same `Glass.raisedCardFill` Start's own
+  widget-card tiles use, with a matching text-colour fix (each card's
+  `onAccent`/`onAccentDim` now default to the old accent-derived formula but
+  can be overridden — the three call sites in `WidgetSlot.kt` override them
+  to the feed page's own already-brightness-matched `feedFg`/`feedFgDim`
+  whenever borderless is on, via two new pure helpers). Verified on the
+  emulator by comparing "none" (flat opaque accent regardless of wallpaper)
+  against "widget cards" (the same two cards visibly shift shade as the
+  wallpaper disc passes behind them — genuinely translucent, not just a
+  similarly-toned opaque fill). Build + full unit test suite green; installed
+  and launched on both the emulator and the physical device with no crash.
 <!-- Update this block at the end of every session -->
 - **`main` — glance widgets: real stack-collapse bug fix, header-text contrast
   fix (with a same-session inverted-logic correction), Panchang/Tasks visual

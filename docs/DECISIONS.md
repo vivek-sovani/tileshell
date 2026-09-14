@@ -253,6 +253,52 @@ one extra row of height. `SegCell` itself is unchanged; only the container
 around it (a bordered `Column` of two `Row`s with a `HorizontalDivider`
 between them, instead of one bordered `Row` of four) changed.
 
+## Widget cards carried onto the glance page's own cards
+
+User: "if widget card is selected can the same effect be carried on glance
+and quick settings." Both surfaces already had an established, meaningful
+use for opaque accent colour — the glance page's weather/agenda/now-playing
+cards are the WP "live-tile colour block" look, and Quick Panel uses accent
+fill specifically to mean "this toggle is on." Applying the same neutral
+translucent fill to both indiscriminately would have erased that on/off
+signal on Quick Panel with no replacement (a checkmark or filled/outline icon
+would need to take over that job, its own separate design pass). Asked before
+touching either: scoped to **glance only** — Quick Panel is unchanged, and
+"carrying the effect" turned out to mean exactly the three cards `AccentCard`
+already serves (weather/agenda/now-playing); real hosted third-party widgets
+render their own content and were never in scope, and the "custom gadget
+cards" CLAUDE.md's status log still described (`CustomCardKind`) had already
+been removed from the codebase in a session the log wasn't updated for — so
+there was nothing else to include.
+
+`AccentCard`, `WeatherCard`, `AgendaCard`, and `NowPlayingCard` each gained
+`borderless`/`transparency`/`dark` parameters (defaulting to off, so every
+other caller — there are none besides these three today — is unaffected):
+when `borderless` is true, `AccentCard`'s fill switches from the tile's own
+accent (flat or gradient, per the existing "gradient fill" setting) to
+`Glass.raisedCardFill(dark, transparency)` — the exact function Start's own
+widget-card tiles use, so the two surfaces are pixel-for-pixel the same
+material, not just a similar-looking approximation.
+
+Text contrast needed its own fix once the card stopped being opaque-accent:
+the existing `onAccent = Glass.faceTextColor(useDarkText = isLightBackground
+(accent))` reads the CARD's own fill for contrast, which is exactly wrong
+once that fill is a translucent neutral wash rather than a saturated colour
+— under it, the right contrast reference is whatever's actually visible
+through the card, i.e. the page's own background. `WeatherCard`/`AgendaCard`/
+`NowPlayingCard` now take `onAccent`/`onAccentDim` as parameters with their
+old formula as the *default* (unaffected callers see no change at all), and
+`WidgetSlot.kt`'s three call sites override them to the feed page's own
+`feedFg`/`feedFgDim` — already computed once per page from the actual
+rendered background's brightness — via two small pure helpers,
+`glanceOnAccent`/`glanceOnAccentDim`, whenever `borderless` is on.
+
+Verified two ways on the emulator: the "before" state (tile style "none")
+shows both cards as flat opaque accent blue regardless of what wallpaper
+sits behind them; switching to "widget cards" makes the exact same two cards
+visibly shift shade with the wallpaper disc passing behind them — the wash
+is genuinely translucent, not merely a similarly-toned opaque fill.
+
 ## The disc wallpapers are a row of three, and the picker grid is really a grid
 
 User: "create a row of such wallpapers (3) with varying color combinations. so

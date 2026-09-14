@@ -1320,6 +1320,8 @@ fun StartScreen(
                 },
                 active = active,
                 accentId = settings.accentId,
+                borderlessTiles = settings.borderlessTiles,
+                transparency = settings.transparency,
                 pinWidgetRequest = pendingFeedWidget,
                 onPinWidgetRequestConsumed = { pendingFeedWidget = null },
             )

@@ -158,6 +158,11 @@ fun FeedPage(
     onRefresh: () -> Unit,
     active: Boolean,
     accentId: String = "",
+    // "widget cards" tile style (Start) carried onto the glance page's own
+    // weather/agenda/now-playing cards — user-requested, see DECISIONS.md
+    // "Widget cards carried onto the glance page's own cards".
+    borderlessTiles: Boolean = false,
+    transparency: Float = 0.55f,
     modifier: Modifier = Modifier,
     pinWidgetRequest: android.appwidget.AppWidgetProviderInfo? = null,
     onPinWidgetRequestConsumed: () -> Unit = {},
@@ -337,6 +342,11 @@ fun FeedPage(
                 accent = feedAccent,
                 tokens = tokens,
                 labelColor = feedFgDim,
+                borderless = borderlessTiles,
+                transparency = transparency,
+                dark = dark,
+                cardFg = feedFg,
+                cardFgDim = feedFgDim,
                 weatherSnapshot = snapshot,
                 onWeatherClick = { onWeatherDetails(("weather " + (snapshot?.place ?: "")).trim()) },
                 agenda = agenda,
@@ -736,6 +746,18 @@ private fun GCard(
 @Composable
 internal fun AccentCard(
     accent: Color,
+    /**
+     * When Start's tile style is "widget cards" (`LauncherSettings
+     * .borderlessTiles`), this card drops its opaque accent fill for the same
+     * neutral translucent card fill Start's own borderless tiles use
+     * (`Glass.raisedCardFill`) — user-requested, so the glance page's weather/
+     * agenda/now-playing cards read as one consistent style with Start rather
+     * than staying solidly accent-tinted underneath it. [transparency]/[dark]
+     * are only read when this is true.
+     */
+    borderless: Boolean = false,
+    transparency: Float = 0f,
+    dark: Boolean = true,
     onClick: (() -> Unit)? = null,
     /** Lets a caller stretch the card to fill a taller container (e.g. a
      *  resized built-in glance card, see `WidgetSlot.kt`'s `BuiltinCardView`) —
@@ -749,11 +771,15 @@ internal fun AccentCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            // Follows the personalize "gradient fill" setting, same as Start tiles
-            // and Quick Panel tiles, so all three surfaces read as one style.
             .then(
-                if (LocalTileGradient.current) Modifier.background(tileGradientBrush(accent))
-                else Modifier.background(accent)
+                when {
+                    borderless -> Modifier.background(Glass.raisedCardFill(dark, transparency))
+                    // Follows the personalize "gradient fill" setting, same as
+                    // Start tiles and Quick Panel tiles, so all three surfaces
+                    // read as one style.
+                    LocalTileGradient.current -> Modifier.background(tileGradientBrush(accent))
+                    else -> Modifier.background(accent)
+                }
             ),
         contentAlignment = Alignment.Center,
     ) { content() }
@@ -769,12 +795,21 @@ internal fun WeatherCard(
     snapshot: com.tileshell.feature.livetiles.WeatherSnapshot?,
     accent: Color,
     onClick: () -> Unit,
+    borderless: Boolean = false,
+    transparency: Float = 0f,
+    dark: Boolean = true,
+    // Card text adapts to this card's own accent fill by default (not the page
+    // background — a wallpaper-derived accent can be light even when the page
+    // itself is dark); a borderless caller overrides both to the feed page's
+    // own text colour instead, since the card no longer has an accent fill of
+    // its own to read contrast against.
+    onAccent: Color = Glass.faceTextColor(useDarkText = isLightBackground(accent)),
+    onAccentDim: Color = onAccent.copy(alpha = 0.78f),
 ) {
-    // Card text adapts to this card's own accent fill (not the page background —
-    // a wallpaper-derived accent can be light even when the page itself is dark).
-    val onAccent = Glass.faceTextColor(useDarkText = isLightBackground(accent))
-    val onAccentDim = onAccent.copy(alpha = 0.78f)
-    AccentCard(accent, onClick = onClick, modifier = Modifier.fillMaxHeight()) {
+    AccentCard(
+        accent, borderless = borderless, transparency = transparency, dark = dark,
+        onClick = onClick, modifier = Modifier.fillMaxHeight(),
+    ) {
         Column(modifier = Modifier.padding(14.dp)) {
             if (snapshot == null) {
                 Text("weather unavailable", color = onAccent, fontSize = 14.sp)
@@ -862,10 +897,16 @@ internal fun AgendaCard(
     accent: Color,
     onAddSchedule: () -> Unit,
     onClick: () -> Unit,
+    borderless: Boolean = false,
+    transparency: Float = 0f,
+    dark: Boolean = true,
+    onAccent: Color = Glass.faceTextColor(useDarkText = isLightBackground(accent)),
+    onAccentDim: Color = onAccent.copy(alpha = 0.78f),
 ) {
-    val onAccent = Glass.faceTextColor(useDarkText = isLightBackground(accent))
-    val onAccentDim = onAccent.copy(alpha = 0.78f)
-    AccentCard(accent, onClick = onClick, modifier = Modifier.fillMaxHeight()) {
+    AccentCard(
+        accent, borderless = borderless, transparency = transparency, dark = dark,
+        onClick = onClick, modifier = Modifier.fillMaxHeight(),
+    ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -924,10 +965,16 @@ internal fun NowPlayingCard(
     art: android.graphics.Bitmap?,
     accent: Color,
     onClick: (() -> Unit)? = null,
+    borderless: Boolean = false,
+    transparency: Float = 0f,
+    dark: Boolean = true,
+    onAccent: Color = Glass.faceTextColor(useDarkText = isLightBackground(accent)),
+    onAccentDim: Color = onAccent.copy(alpha = 0.78f),
 ) {
-    val onAccent = Glass.faceTextColor(useDarkText = isLightBackground(accent))
-    val onAccentDim = onAccent.copy(alpha = 0.78f)
-    AccentCard(accent, onClick = onClick, modifier = Modifier.fillMaxHeight()) {
+    AccentCard(
+        accent, borderless = borderless, transparency = transparency, dark = dark,
+        onClick = onClick, modifier = Modifier.fillMaxHeight(),
+    ) {
         Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier

@@ -367,6 +367,7 @@ fun AboutSheet(
                     "the device's real settings app is one tap away, right at the top of personalize",
                     "glass (transparent) tiles with adjustable transparency",
                     "widget cards — every tile becomes its own rounded, translucent card floating over the wallpaper, like a home-screen gadget",
+                    "widget cards carries onto the feed page too — weather, today, and now-playing match the same translucent card style",
                     "tile outline toggle — keep a glass / show-through tile's fill but drop its edge line",
                     "adjustable tile spacing — drag a slider to pack or spread tiles",
                     "6 built-in gradient wallpapers + custom photo",
