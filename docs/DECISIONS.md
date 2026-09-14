@@ -6629,3 +6629,16 @@ Data per hour did rise (1.07 → 2.31 MB/h), and it is not the background: `cach
 and was last written at 06:00, i.e. news article thumbnails pulled while the page was actually open.
 That is foreground, user-driven, and by design — the remaining lever there is image handling, not
 polling.
+
+## v4.0.2 re-cut with the weather-on-wake fix
+
+Artifacts rebuilt at the **same versionCode 402** — it has still never been uploaded, so nothing is
+burned and a re-cut is the right call rather than a point bump, the same convention 4.0.0 used three
+times. Only the "What's new since v4.0.1" section gained a line; the Play-facing blurb is unchanged.
+
+Verified rather than assumed: `versionCode='402' versionName='4.0.2'`, signing certificate SHA-256
+identical to 4.0.1's and every prior release, `jarsigner -verify` reports "jar verified" on the
+bundle, and the APK checksum differs from the previous 4.0.2 cut — confirming the weather fix is
+actually in the artifact rather than a no-op rebuild. Installed the release APK on the emulator: it
+launches with zero `FATAL` entries and registers 9 WorkManager jobs, which also confirms the worker
+classes survived R8 minification.

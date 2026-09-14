@@ -198,6 +198,10 @@ TileShell 4.0.2
   30-minute cadence ran around the clock. The feed now refreshes when you open it and what you'd read
   is stale (over 30 minutes old), instead of on a timer while you sleep. Opening it always fetches
   immediately, as before.
+- **Weather stays current after you unlock.** A side-effect of the change above was that the weather
+  tile could show pre-sleep data for a while after waking the phone — measured at nearly eight hours
+  stale one morning. It now refreshes the moment you come back to the launcher if what's cached has
+  gone stale, so you see current conditions immediately.
 - **Fewer background wakeups from widgets.** The frequent widget refreshes (steps, battery, weather,
   stock, commodities, sports) no longer tick while the screen is off. The once-a-day widgets
   (calendar systems, moon phase, countdown) are deliberately untouched, since their single daily

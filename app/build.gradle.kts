@@ -572,6 +572,13 @@ android {
         //   minutes around the clock, so it is now gated like the widget pollers, with a
         //   KEY_FORCE marker added so placement, a location change and the manual refresh
         //   still bypass it.
+        //   --- re-cut again at the same versionCode 402 (still never uploaded): weather now
+        //   refreshes on wake. The screen-off gate above was correct but incomplete — with the
+        //   periodic tick suppressed overnight, the next one after wake can be a full interval
+        //   away, so the tile kept showing pre-sleep data. Caught by the overnight measurement,
+        //   not by review: weather_cache.pb was last written 22:24 and still being displayed at
+        //   06:09 the next morning. Same demand-driven shape as the feed's refresh-on-open, using
+        //   the cache's existing fetchedAtMillis; verified on-device in both directions.
         versionCode = 402
         versionName = "4.0.2"
     }
