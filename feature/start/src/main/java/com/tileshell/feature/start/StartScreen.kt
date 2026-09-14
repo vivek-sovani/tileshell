@@ -100,27 +100,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.RoundRect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -1066,6 +1059,10 @@ fun StartScreen(
                     // wider spacing never fragments the show-through wallpaper.
                     tileGapPx = if (tiledWallpaper) {
                         null
+                    } else if (settings.borderlessTiles) {
+                        with(density) {
+                            maxOf(settings.tileGap, BORDERLESS_MIN_TILE_GAP_DP).dp.toPx()
+                        }
                     } else {
                         with(density) { settings.tileGap.dp.toPx() }
                     },
@@ -2067,16 +2064,18 @@ fun StartScreen(
 private const val FOLDER_CHILD_ID_PREFIX = "folderchild:"
 
 /**
- * Elevation shadow for a "borderless" tile — how far past the tile's own edge
- * the shadow reaches, how far it is offset downward (light from above), and
- * how many concentric steps approximate the blur. Six is enough that the
- * banding is invisible at this size while staying cheap; the gap between
- * tiles is only a few dp by default, so a much larger spread would just be
- * painted over by the neighbouring tile anyway.
+ * Geometry a "borderless" tile enforces regardless of Personalize's own
+ * corner-radius/tile-spacing sliders — the point of this style is to look
+ * like a real Android home-screen widget card, which needs generously
+ * rounded corners and enough gap for its own drop shadow to fall clear of
+ * the next tile; the sliders' own defaults (square corners, a 3dp gap) would
+ * make the card fill unreadable as a "card" and would make neighbouring
+ * shadows touch. Each is a floor, not a fixed value — a user who has already
+ * set a *larger* radius or gap keeps it.
  */
-private const val BORDERLESS_SHADOW_SPREAD_DP = 6f
-private const val BORDERLESS_SHADOW_DROP_DP = 2f
-private const val BORDERLESS_SHADOW_STEPS = 6
+private const val BORDERLESS_MIN_CORNER_RADIUS_DP = 20f
+private const val BORDERLESS_MIN_TILE_GAP_DP = 12f
+private const val BORDERLESS_SHADOW_ELEVATION_DP = 6f
 
 private fun folderChildTileId(folderId: String, rowId: Long): String =
     "$FOLDER_CHILD_ID_PREFIX$folderId:$rowId"
@@ -3490,7 +3489,13 @@ internal fun TileView(
     // exact same ViewModel calls through these custom actions instead).
     val a11yLabel = tileAccessibilityLabel(tile, badgeCount, editMode, selected)
 
-    val tileCornerRadius = LocalTileCornerRadius.current
+    // A borderless tile enforces its own minimum corner radius — see
+    // BORDERLESS_MIN_CORNER_RADIUS_DP's doc comment.
+    val tileCornerRadius = if (borderless) {
+        maxOf(LocalTileCornerRadius.current, BORDERLESS_MIN_CORNER_RADIUS_DP)
+    } else {
+        LocalTileCornerRadius.current
+    }
     val useTileGradient = LocalTileGradient.current
     // Glass fill tinted by this tile's own resolved accent (see Glass.kt) —
     // computed here, not passed in, so every tile (including each stack member
@@ -3535,47 +3540,22 @@ internal fun TileView(
             }
             // The press-tilt effect (S7) is replaced by the jiggle while editing.
             .then(if (editMode || readOnly) Modifier else Modifier.tiltOnPress())
-            // A borderless tile's elevation shadow. Drawn here, *before* the
-            // clip below, because it has to paint outside the tile's own
-            // bounds — and drawn by hand rather than with Modifier.shadow /
-            // graphicsLayer.shadowElevation, because the platform shadow is
-            // painted under the whole layer including its interior: harmless
-            // for an opaque accent tile (the drag-lift shadow above does
-            // exactly that), but a borderless tile's fill is 9% alpha, so the
-            // shadow would show straight through and turn the tile into a dark
-            // slab — the opposite of raised. Clipping the tile's own rounded
-            // rect out with ClipOp.Difference leaves only the ring outside it;
-            // the concentric steps with fractional alpha approximate a blur.
+            // A borderless tile's own drop shadow — a real widget-card
+            // shadow, not the hand-drawn ring an earlier pass used. Safe as
+            // a platform Modifier.shadow now that borderless also enforces
+            // a wider minimum tile gap (BORDERLESS_MIN_TILE_GAP_DP): the
+            // blur falls clear of the next tile instead of meeting its
+            // shadow in the gap, which is what drew a continuous border
+            // line the last time this was tried at the default 3dp gap.
+            // clip = false: the shadow is meant to extend past this
+            // composable's own bounds, into the gap.
             .then(
                 if (borderless) {
-                    Modifier.drawBehind {
-                        val corner = tileCornerRadius.dp.toPx()
-                        val spread = BORDERLESS_SHADOW_SPREAD_DP.dp.toPx()
-                        val drop = BORDERLESS_SHADOW_DROP_DP.dp.toPx()
-                        val shadow = Glass.raisedShadow(darkTheme)
-                        val body = Path().apply {
-                            addRoundRect(
-                                RoundRect(
-                                    rect = Rect(Offset.Zero, size),
-                                    cornerRadius = CornerRadius(corner),
-                                ),
-                            )
-                        }
-                        clipPath(body, ClipOp.Difference) {
-                            repeat(BORDERLESS_SHADOW_STEPS) { i ->
-                                val grow = spread * (BORDERLESS_SHADOW_STEPS - i) /
-                                    BORDERLESS_SHADOW_STEPS
-                                drawRoundRect(
-                                    color = shadow.copy(
-                                        alpha = shadow.alpha / BORDERLESS_SHADOW_STEPS,
-                                    ),
-                                    topLeft = Offset(-grow, -grow + drop),
-                                    size = Size(size.width + 2 * grow, size.height + 2 * grow),
-                                    cornerRadius = CornerRadius(corner + grow),
-                                )
-                            }
-                        }
-                    }
+                    Modifier.shadow(
+                        elevation = BORDERLESS_SHADOW_ELEVATION_DP.dp,
+                        shape = RoundedCornerShape(tileCornerRadius.dp),
+                        clip = false,
+                    )
                 } else {
                     Modifier
                 },
@@ -3613,13 +3593,11 @@ internal fun TileView(
                         origin = wallpaperOrigin,
                         dark = darkTheme,
                     )
-                    // Borderless still paints no *tile colour* — just a
-                    // barely-there lift of whatever the wallpaper already
-                    // shows here, which together with the shadow above is
-                    // what makes it read as a raised pane rather than a
-                    // hole in the grid (user-requested; a truly empty tile
-                    // left no way to tell where one ended).
-                    borderless -> Modifier.background(Glass.raisedFill(darkTheme))
+                    // Borderless paints no *tile colour* — a genuine
+                    // widget-style translucent card instead (Glass
+                    // .raisedCardFill), with the drop shadow above providing
+                    // the actual sense of elevation this time.
+                    borderless -> Modifier.background(Glass.raisedCardFill(darkTheme))
                     else -> if (glassFill != null) {
                         Modifier.background(glassFill)
                     } else if (useTileGradient) {

@@ -51,7 +51,7 @@ Three consequences worth recording:
 already treats `glass`/`transparency`/wallpaper — a background style is a
 deliberate choice, not an over-personalization to recover from.
 
-## Borderless tiles are raised, not empty
+## Borderless tiles are raised, not empty (and then the shadow was removed again)
 
 User, after living with the first version: "borderless should have raised tile
 surface to clear show distinction with outer surfcace." A tile that paints
@@ -61,41 +61,123 @@ were mocked up (shadow only / a faint raised pane + shadow / a bevelled edge);
 the user picked the raised pane, always on for the borderless style rather
 than behind another toggle.
 
-So borderless now paints exactly two things, neither of them a tile colour:
-`Glass.raisedFill` — a barely-there white wash over whatever the wallpaper
-already shows — and an elevation shadow. It stays accent-blind on purpose,
-unlike `Glass.fill`: the point is a raised pane *of the wallpaper*, not a
-tinted square, which is what still distinguishes it from glass at high
-transparency.
+**First shipped as a flat white wash plus a hand-drawn elevation shadow** — see
+below for why the shadow had to be hand-drawn rather than `Modifier.shadow`.
+The user then reported "there is a difference [from behind tiles]. but
+borderless view tile borders are visible. can it be just raised tiles" — a
+real regression, not a preference call: at the default 3dp tile gap, two
+neighbouring tiles' shadow rings meet in that gap and draw a continuous dark
+line around every tile, which is exactly the bordered-grid look this style
+exists to remove.
 
-Two things worth recording:
+**Fixed by dropping the shadow entirely and using a top-to-bottom gradient
+instead of a flat wash** (`Glass.raisedGradient`) — brighter at the top,
+falling off toward the bottom, mimicking an overhead-lit surface. That alone
+now carries the sense of elevation: the *inside* of each tile reads as raised
+because of the light gradient across its own face, with nothing painted in
+the gap between tiles at all. This is a strictly better solution to the
+original ask, not a compromise — it gives the tile-distinguishing effect
+without needing anything drawn outside the tile's own bounds, which is what
+caused the border regression in the first place. `BORDERLESS_SHADOW_SPREAD_DP`/
+`_DROP_DP`/`_STEPS` and the whole hand-drawn `drawBehind`/`clipPath`/
+`ClipOp.Difference` block in `StartScreen.kt`'s `TileView` were deleted along
+with `Glass.raisedFill`; `Glass.raisedGradient` replaces it as the one thing
+borderless paints.
 
-**The shadow is hand-drawn, not `Modifier.shadow`.** The platform shadow
-(`graphicsLayer.shadowElevation`, which this file already uses for the
-drag-lift) is painted under the *whole* layer, interior included. That is
-harmless under an opaque accent tile but ruinous under a 9%-alpha fill — the
-shadow shows straight through and the tile becomes a dark slab, the exact
-opposite of raised. Instead a `drawBehind` placed *before* the tile's clip
-paints concentric rounded rects at fractional alpha with the tile's own
-rounded rect removed via `ClipOp.Difference`, so only the ring outside the
-tile is darkened. Six steps is enough that the banding is invisible at this
-size, and the spread is deliberately small: the default tile gap is 3dp, so a
-larger shadow would simply be painted over by the neighbouring tile.
+Two things worth recording from the (now superseded) shadow approach, kept
+here because they explain a code shape a future reader might otherwise wonder
+about (the `graphicsLayer.shadowElevation` drag-lift shadow is still used
+elsewhere in the same file, so "why isn't borderless using that" is a fair
+question):
 
-**`raisedFill` is white in both themes.** Most light/dark pairs in `Glass.kt`
-invert, and the first pass followed that habit — black at 7% for light theme.
-That is wrong for this one: a raised surface catches more light than the
-ground it sits on, so darkening it reads as *recessed*. Only the amount
-differs (9% dark, 30% light), because the same wash that clearly lifts a
-near-black backdrop is invisible against a light one.
+**The platform shadow paints under the whole layer, interior included** — fine
+for the opaque drag-lift tile, but under a translucent fill the shadow shows
+straight through and darkens the tile itself, the opposite of raised. That is
+why a hand-drawn ring (`clipPath` with `ClipOp.Difference` cutting the tile's
+own rounded rect out of a concentric-steps shadow) was used instead of
+`Modifier.shadow` — and it is also *why dropping the shadow rather than fixing
+its geometry was the right call*: even a correctly-clipped ring still paints
+something in the tile gap, and any paint there at all reintroduces the border
+look once tiles are packed close together.
 
-Known caveat, unchanged in kind but slightly worsened in degree: in light
-theme over a bundled gradient, face text stays white (the gradients stay
-mid-toned even lifted, so `chosenWallpaperIsLight` is false) and the raised
-pane makes that ground a little lighter still. The text-colour decision looks
-at the wallpaper, not at the tile's own lifted surface. Same pre-existing
+**`raisedGradient`'s alpha is white in both themes**, unlike most light/dark
+pairs in `Glass.kt` — a raised surface catches more light than the ground it
+sits on, so darkening it for light theme would read as recessed. Only the
+strength differs (top/bottom alpha 0.13/0.03 dark, 0.38/0.14 light), since the
+same wash that clearly lifts a near-black backdrop needs to be much stronger
+to register against a light one.
+
+Known caveat, carried over unchanged: in light theme over a bundled gradient,
+face text stays white (the gradients stay mid-toned even lifted, so
+`chosenWallpaperIsLight` is false) and the raised gradient makes that ground a
+little lighter still at the top of the tile. The text-colour decision looks at
+the wallpaper, not at the tile's own lifted surface — same pre-existing
 caveat glass has; fixing it properly means compositing the fill into the
 brightness test for every style, not just this one.
+
+## Borderless became a real widget-card look, not a lifted wash
+
+Direct follow-up, and a genuine pivot rather than a tuning pass: the user
+said plainly "there is no difference visually for borderless and behind
+tiles" about the gradient-lift version, then, once shown mockups of three
+actual home-screen-widget looks, "actually i wanted effect like when gadget
+is placed on launcher screen. i am still not satisfied with the output." The
+top-lit gradient (previous entry) was a *lighting* effect on an otherwise
+invisible tile — too subtle to read as a distinct object next to "behind
+tiles," which paints a real, saturated wallpaper window. What "a gadget
+placed on the launcher" actually means, and what every prior pass had been
+missing, is a real Android home-screen widget: its own rounded, opaque-ish
+translucent card, clearly separated from its neighbours by *both* a visible
+gap and a real drop shadow — not a lighting cue painted onto an otherwise
+borderless surface.
+
+Confirmed with two direct questions before touching code again, since this
+was the third design iteration on the same feature and a fourth wrong guess
+wasn't worth risking: (1) the card look needs bigger rounded corners and a
+wider gap than Personalize's own "corner radius"/"tile spacing" sliders
+default to (0dp / 3dp) — user chose **borderless enforces its own minimum for
+both, as a floor**, leaving a user who's already set something larger
+untouched, and leaving the sliders' effect on the other three styles
+unchanged; (2) the card's own tint — user chose **neutral white/black,
+flipping by theme** (a light gray-ish card in light theme, a dark one in dark
+theme, like a real widget surface), not tinted by the tile's own accent
+(which would have made it read as "glass at a different opacity" rather than
+a distinct style).
+
+Three changes together make the card read as an actual object:
+
+**A drop shadow is safe again, and this time via the real platform
+primitive.** The very first "raised" attempt used a hand-drawn shadow *ring*
+specifically to dodge `Modifier.shadow`'s own risk of showing through a
+near-transparent fill — but at the default 3dp tile gap, that ring still met
+its neighbour's ring in the gap and drew a continuous border, which is what
+got walked back to the gradient-only version in the entry above. This time
+the tile gap itself has a forced floor (`BORDERLESS_MIN_TILE_GAP_DP = 12f`),
+so a plain `Modifier.shadow(elevation, shape, clip = false)` — the same
+primitive any Material card would use — has room to fall off before it
+reaches the next tile. No hand-rolled clipping trick needed this time; the
+geometry does the work instead.
+
+**The corner radius gets its own floor too**
+(`BORDERLESS_MIN_CORNER_RADIUS_DP = 20f`, `maxOf`'d against whatever
+Personalize's own slider is set to) — square corners read as "a tile with
+some shading," not "a card." Both floors live at the two places that already
+computed these values (`TileView`'s own `tileCornerRadius` local, and the
+`tileGapPx` passed into `StartPage` from `StartScreen`), so folder children
+and stack members — which render through the exact same `TileView`/grid-gap
+mechanism, per the codebase's existing "no parallel rendering path"
+convention — pick up both floors for free.
+
+**`Glass.raisedCardFill` replaces `raisedGradient`/`raisedFill` outright** —
+a flat, considerably more opaque neutral fill (not the earlier 9–14% wash),
+and importantly it now flips by theme (light gray-ish in light theme, dark
+in dark theme) rather than staying white in both, which was deliberately
+right for a barely-there *lift of the wallpaper's own colour* but wrong for
+an opaque card that needs its own theme-appropriate surface identity, the way
+a real widget's background does. `BORDERLESS_SHADOW_SPREAD_DP`/`_DROP_DP`/
+`_STEPS` and the whole hand-drawn ring plumbing from the previous entry (`Path`
+/ `RoundRect`/ `ClipOp.Difference`/ `clipPath`) are gone along with it —
+nothing in the current code draws a shadow by hand any more.
 
 ## The disc wallpapers are a row of three, and the picker grid is really a grid
 
