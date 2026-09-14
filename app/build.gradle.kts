@@ -607,6 +607,34 @@ android {
             if (keystoreFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }
+            // The canonical setting for packaging native debug symbols into the
+            // AAB. Kept because the bundle genuinely does contain .so files, so a
+            // release build should ask for their symbols — but be aware it is
+            // currently INERT, and Play Console's "contains native code, and you've
+            // not uploaded debug symbols" warning will persist regardless.
+            //
+            // Why: this app has no NDK code of its own. The only native libraries
+            // are prebuilt AndroidX dependencies — libandroidx.graphics.path (pulled
+            // in transitively by Compose) and libdatastore_shared_counter — and both
+            // ship already stripped (`file` reports "stripped"; llvm-readelf finds no
+            // .symtab and no .debug_* sections). There is nothing for AGP to extract,
+            // so no debugsymbols entry appears under BUNDLE-METADATA. Only upstream
+            // AndroidX holds the unstripped originals, so the warning is not
+            // actionable from here; it is advisory and affects only the readability
+            // of native stack traces inside those two libraries.
+            //
+            // Kotlin/Java deobfuscation is unaffected and already working: R8's
+            // mapping file ships in the same bundle
+            // (BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map), so
+            // ordinary crashes and ANRs symbolicate correctly in Play vitals.
+            //
+            // Left in place so that if native code is ever added here, or a future
+            // AndroidX release ships unstripped libraries, symbols are collected
+            // automatically. SYMBOL_TABLE rather than FULL: FULL only adds DWARF
+            // debug info, which these stripped libraries do not carry anyway.
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
         }
     }
     // The baseline-profile plugin auto-creates the `benchmarkRelease` (the

@@ -6642,3 +6642,33 @@ bundle, and the APK checksum differs from the previous 4.0.2 cut — confirming 
 actually in the artifact rather than a no-op rebuild. Installed the release APK on the emulator: it
 launches with zero `FATAL` entries and registers 9 WorkManager jobs, which also confirms the worker
 classes survived R8 minification.
+
+## Play Console's "no debug symbols" warning is not actionable here
+
+Uploading 4.0.2 produced: *"This App Bundle contains native code, and you've not uploaded debug
+symbols."* Investigated rather than reflexively applying the standard fix, and the standard fix turns
+out to be a no-op.
+
+The bundle does contain native code, but none of it is ours — this app has no NDK build. The only
+`.so` files are two prebuilt AndroidX dependencies, 4–11 KB each per ABI:
+`libandroidx.graphics.path.so` (pulled in transitively by Compose) and
+`libdatastore_shared_counter.so`.
+
+Applied the recommended `ndk { debugSymbolLevel = "SYMBOL_TABLE" }` to the release build type and
+rebuilt — and **no** `BUNDLE-METADATA/com.android.tools.build.debugsymbols` entry appeared. The
+reason: both libraries ship already stripped. `file` reports "stripped" for each, and
+`llvm-readelf --section-headers` finds no `.symtab` and no `.debug_*` sections. There is nothing for
+AGP to extract. Only upstream AndroidX holds the unstripped originals, so this warning cannot be
+cleared from this repository; it is advisory, and its only real effect is that a native stack trace
+occurring *inside* those two libraries would be unsymbolicated.
+
+What actually matters for crash triage is unaffected and was verified present: R8's mapping file
+ships in the same bundle (`BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map`,
+~61 MB), so ordinary Kotlin/Java crashes and ANRs deobfuscate correctly in Play vitals.
+
+The setting was kept rather than reverted — the bundle does contain native libraries, so a release
+build asking for their symbols is correct, and it will start producing them automatically if native
+code is ever added here or a future AndroidX release ships unstripped libraries. Its comment states
+plainly that it is currently inert, so nobody later mistakes it for a working fix. **No re-upload is
+needed for this warning**, and since 402 has now been uploaded, a later change would need a new
+versionCode anyway.
