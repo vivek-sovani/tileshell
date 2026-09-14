@@ -157,7 +157,14 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   transparency slider visibly changes it, and Personalize's tile-style
   section shows "widget cards" with corner-radius/tile-spacing/gradient-fill
   hidden and only "tile transparency"/"blur wallpaper" shown. Installed and
-  re-launched on both the emulator and the physical device with no crash.
+  re-launched on both the emulator and the physical device with no crash. **Same-session follow-up**:
+  "tile style menu is too crowded now in horizontal space" — two of the four
+  cells are now two words ("behind tiles", "widget cards"), squeezed badly at
+  quarter-width in one row. Wrapped into a 2×2 grid (`labels.chunked(2)`, the
+  same trick already used for the stock-wallpaper swatch grid), each cell
+  getting roughly double the room. Build + tests green; visually confirmed
+  on the emulator, installed and launched on the physical device with no
+  crash.
 <!-- Update this block at the end of every session -->
 - **`main` — glance widgets: real stack-collapse bug fix, header-text contrast
   fix (with a same-session inverted-logic correction), Panchang/Tasks visual

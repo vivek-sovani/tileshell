@@ -238,6 +238,21 @@ settings key are unchanged, so no migration and no risk to an existing
 install's saved choice — only the three visible strings (the picker's own
 cell label, the personalize guide, the about sheet) changed.
 
+## Tile style selector: 2×2 grid instead of one 4-wide row
+
+Direct follow-up, user: "tile style menu is too crowded now in horizontal
+space." The row had been 3 cells (none/transparent/behind tiles) since it
+was written; this session added a 4th, and — unlike the 5-cell wallpaper-
+type row above it, whose labels are all short single words — two of these
+four are now two words ("behind tiles", "widget cards"), which squeezed
+badly at quarter-width. Rather than shrink the font or truncate the text,
+the row wraps into two rows of two (`labels.chunked(2)`, mirroring the same
+trick already used for the stock-wallpaper swatch grid a few sections
+above), each cell getting roughly double the horizontal room at the cost of
+one extra row of height. `SegCell` itself is unchanged; only the container
+around it (a bordered `Column` of two `Row`s with a `HorizontalDivider`
+between them, instead of one bordered `Row` of four) changed.
+
 ## The disc wallpapers are a row of three, and the picker grid is really a grid
 
 User: "create a row of such wallpapers (3) with varying color combinations. so

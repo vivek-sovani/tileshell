@@ -692,7 +692,14 @@ fun PersonalizeSheet(
                     }
                 }
 
-                Row(
+                // 2×2 rather than one 4-wide row: two of these four labels
+                // are now two words ("behind tiles", "widget cards"), which
+                // squeezed badly at quarter-width in a single row (user-
+                // reported "too crowded in horizontal space"). Each cell gets
+                // roughly double the room this way, at the cost of one extra
+                // row of height — the same trade the wallpaper swatch grid
+                // above already makes.
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .border(1.dp, tokens.tileLine),
@@ -703,9 +710,19 @@ fun PersonalizeSheet(
                         TileBackgroundStyle.BEHIND_TILES to "behind tiles",
                         TileBackgroundStyle.BORDERLESS to "widget cards",
                     )
-                    labels.forEach { (style, label) ->
-                        SegCell(label, selected = style == currentBackground, accent = accent, fg = tokens.fg) {
-                            selectBackground(style)
+                    labels.chunked(2).forEachIndexed { index, row ->
+                        if (index > 0) HorizontalDivider(color = tokens.tileLine)
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            row.forEach { (style, label) ->
+                                SegCell(
+                                    label,
+                                    selected = style == currentBackground,
+                                    accent = accent,
+                                    fg = tokens.fg,
+                                ) {
+                                    selectBackground(style)
+                                }
+                            }
                         }
                     }
                 }
