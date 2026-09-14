@@ -81,7 +81,19 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   antialiasing feather. The duplicated colour-stop array in
   `wallpaperBackground`/`wallpaperWindow` was factored into one shared
   `layerStops` at the same time, so a wallpaper can't render differently
-  behind the screen than windowed into a tile. Build + full unit test suite green (new
+  behind the screen than windowed into a tile. **Then extended to a row of
+  three** on request ("create a row of such wallpapers (3) with varying color
+  combinations. so that symmetry can be maintained") — `Ember` (orange+wine)
+  and `Reef` (teal+moss) join `Nebula` (blue+plum) with *identical geometry*,
+  only the colours differing, so they read as one family. The symmetry half of
+  that request was a real layout bug: `PersonalizeSheet`'s stock swatch grid
+  was a hardcoded `take(3)`/`drop(3)` — "three, then everything else" — so
+  adding a 7th wallpaper had produced a second row of four narrower cells.
+  Now `chunked(3)` with weighted-spacer padding for a short final row, and
+  `Wallpapers.all` is 9 (three rows of three, discs last). Same change
+  surfaced a **latent overflow in `EdgeStripSheet`**: a plain `Row` of fixed
+  44dp swatches that already exceeded the sheet width at 7 gradients and
+  silently clipped — now a `FlowRow`. Build + full unit test suite green (new
   `SettingsCodecTest` cases: round-trip, bad-value fallback, and an older save
   file with no `tileOutline` key still defaulting the hairline on); installed
   on both the physical device (over the existing install — no signature

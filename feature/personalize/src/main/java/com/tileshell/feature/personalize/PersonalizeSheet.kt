@@ -123,6 +123,9 @@ private fun currentWallpaperType(
  * The three mutually-exclusive tile-background styles, selected the same way as
  * [WallpaperType] above — a segmented row, picking one applies it immediately.
  */
+/** Swatches per row in the stock-wallpaper picker grid. */
+private const val WALLPAPER_GRID_COLUMNS = 3
+
 private enum class TileBackgroundStyle { NONE, TRANSPARENT, BEHIND_TILES, BORDERLESS }
 
 /** Which [TileBackgroundStyle] is active, derived from the same three mutually exclusive flags. */
@@ -635,29 +638,31 @@ fun PersonalizeSheet(
                         }
                     }
                     WallpaperType.STOCK -> {
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Wallpapers.all.take(3).forEach { wp ->
-                                WallpaperCell(
-                                    wallpaper = wp,
-                                    selected = wp.id == wallpaperId,
-                                    ring = tokens.fg,
-                                    modifier = Modifier.weight(1f),
-                                    onClick = { onWallpaperChange(wp.id) },
-                                )
+                        // Fixed 3 per row. This used to be a hardcoded
+                        // take(3)/drop(3) pair, which silently meant "3, then
+                        // everything else" — adding a 7th wallpaper made the
+                        // second row four narrower cells than the first. Rows
+                        // are chunked instead, and a short final row is padded
+                        // with weighted spacers, so every swatch is the same
+                        // size whatever the list length.
+                        Wallpapers.all.chunked(WALLPAPER_GRID_COLUMNS)
+                            .forEachIndexed { index, row ->
+                                if (index > 0) Spacer(Modifier.height(10.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    row.forEach { wp ->
+                                        WallpaperCell(
+                                            wallpaper = wp,
+                                            selected = wp.id == wallpaperId,
+                                            ring = tokens.fg,
+                                            modifier = Modifier.weight(1f),
+                                            onClick = { onWallpaperChange(wp.id) },
+                                        )
+                                    }
+                                    repeat(WALLPAPER_GRID_COLUMNS - row.size) {
+                                        Spacer(Modifier.weight(1f))
+                                    }
+                                }
                             }
-                        }
-                        Spacer(Modifier.height(10.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Wallpapers.all.drop(3).forEach { wp ->
-                                WallpaperCell(
-                                    wallpaper = wp,
-                                    selected = wp.id == wallpaperId,
-                                    ring = tokens.fg,
-                                    modifier = Modifier.weight(1f),
-                                    onClick = { onWallpaperChange(wp.id) },
-                                )
-                            }
-                        }
                     }
                 }
 

@@ -118,8 +118,36 @@ object Wallpapers {
         ),
     )
 
-    /** The 6 prototype wallpapers in prototype order, plus [Nebula]. */
-    val all: List<WallpaperGradient> = listOf(Aurora, Dusk, Ocean, Forest, Rose, Mono, Nebula)
+    /**
+     * [Nebula]'s warm counterpart. Same geometry to the pixel — only the two
+     * disc colours differ, which is what makes the three read as one family
+     * rather than three unrelated wallpapers.
+     */
+    val Ember = WallpaperGradient(
+        id = "ember", label = "ember", base = Color(0xFF0A0A0D),
+        layers = listOf(
+            WallpaperLayer(Color(0xFFC25A14), 0.16f, 0.09f, 0.62f, 1f, core = 0.97f),
+            WallpaperLayer(Color(0xFF8C2F4A), 0.86f, 0.91f, 0.66f, 1f, core = 0.97f),
+        ),
+    )
+
+    /** The cool-green third of the disc family — see [Ember]. */
+    val Reef = WallpaperGradient(
+        id = "reef", label = "reef", base = Color(0xFF0A0A0D),
+        layers = listOf(
+            WallpaperLayer(Color(0xFF128C7A), 0.16f, 0.09f, 0.62f, 1f, core = 0.97f),
+            WallpaperLayer(Color(0xFF5C8A1C), 0.86f, 0.91f, 0.66f, 1f, core = 0.97f),
+        ),
+    )
+
+    /**
+     * The 6 prototype wallpapers in prototype order, then the three hard-edged
+     * disc wallpapers as their own trailing row. Kept at a multiple of three so
+     * the picker's 3-per-row grid has no short final row — see
+     * `PersonalizeSheet`'s stock swatch grid.
+     */
+    val all: List<WallpaperGradient> =
+        listOf(Aurora, Dusk, Ocean, Forest, Rose, Mono, Nebula, Ember, Reef)
 
     val byId: Map<String, WallpaperGradient> = all.associateBy { it.id }
 

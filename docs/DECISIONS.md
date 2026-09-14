@@ -51,6 +51,33 @@ Three consequences worth recording:
 already treats `glass`/`transparency`/wallpaper — a background style is a
 deliberate choice, not an over-personalization to recover from.
 
+## The disc wallpapers are a row of three, and the picker grid is really a grid
+
+User: "create a row of such wallpapers (3) with varying color combinations. so
+that symmetry can be maintained." Two separate things, both needed:
+
+**Ember and Reef** join Nebula — identical geometry to the pixel (same centres,
+radii and `core`), only the two disc colours differ: blue+plum, orange+wine,
+teal+moss. Keeping the geometry fixed is what makes them read as one family
+rather than three unrelated wallpapers, and it is the literal "varying colour
+combinations" asked for.
+
+**The picker grid was never a grid.** `PersonalizeSheet`'s stock swatches were
+a hardcoded `take(3)` then `drop(3)` — i.e. "three, then everything else" —
+which was fine at 6 but made Nebula's arrival render a second row of *four*
+cells, each narrower than the first row's three. That asymmetry is what
+prompted the request. Rows are now `chunked(3)`, and a short final row is
+padded with weighted spacers so every swatch keeps the same size whatever the
+list length; `Wallpapers.all` is documented as wanting to stay a multiple of
+three. Nine entries now, three rows of three, the discs forming the last row.
+
+**`EdgeStripSheet`'s swatch row had a latent overflow** surfaced by the same
+change: a plain `Row` of fixed 44dp swatches, one per gradient plus "none".
+At 7 gradients that was already 408dp of content in a sheet narrower than
+that, silently clipping the last swatches; at 9 it would have been 504dp.
+Converted to a `FlowRow` so it wraps. Unlike the stock grid these are
+fixed-size, not weighted, so wrapping is the right fix rather than chunking.
+
 ## Bundled wallpaper: "nebula" — and hard-edged discs in the layer model
 
 Added while the borderless style was being mocked up — the user saw the

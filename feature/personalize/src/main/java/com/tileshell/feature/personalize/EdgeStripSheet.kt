@@ -13,6 +13,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -58,8 +60,9 @@ import kotlinx.coroutines.withContext
 /**
  * Edge-strip settings sub-sheet (personalize → edge strip): enable/disable toggle,
  * position picker (bottom / left), app multi-picker from the installed app list,
- * and a background selector (none or one of the 6 bundled gradients).
+ * and a background selector (none or one of the bundled gradients).
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun EdgeStripSheet(
     visible: Boolean,
@@ -186,7 +189,15 @@ fun EdgeStripSheet(
                                     fontSize = 13.sp,
                                     modifier = Modifier.padding(bottom = 10.dp),
                                 )
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                // Fixed-size swatches, one per bundled gradient
+                                // plus "none" — a plain Row already overflowed
+                                // the sheet's width before the disc wallpapers
+                                // were added, and silently clipped the last
+                                // ones. FlowRow wraps instead.
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
                                     // "none" swatch
                                     val noneSelected = backgroundId == Wallpapers.NONE_ID
                                     Box(
