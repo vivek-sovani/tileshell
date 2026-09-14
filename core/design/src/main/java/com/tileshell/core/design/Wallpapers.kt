@@ -14,6 +14,13 @@ import androidx.compose.ui.graphics.lerp
  * @property cx,cy centre as a fraction of the box (0..1)
  * @property radiusPct gradient radius as a fraction of box width (CSS first %, e.g. 1.2 = 120%)
  * @property fade fraction of the radius at which the colour reaches transparent
+ * @property core fraction of [fade] out to which the colour holds at full alpha
+ *   before it starts falling off. `0` (the default, and what every ported
+ *   prototype gradient uses) is the original soft glow — alpha decays from the
+ *   very centre. A value close to `1` instead paints a flat disc with a crisp
+ *   edge, which is how [Wallpapers.Nebula]'s two circles are drawn; the
+ *   remaining `fade - core` sliver is the antialiasing feather, so it must
+ *   stay non-zero or the edge aliases.
  */
 data class WallpaperLayer(
     val color: Color,
@@ -21,6 +28,7 @@ data class WallpaperLayer(
     val cy: Float,
     val radiusPct: Float,
     val fade: Float,
+    val core: Float = 0f,
 )
 
 /**
@@ -93,16 +101,20 @@ object Wallpapers {
 
     /**
      * Not from the prototype — added after the "borderless tiles" design pass,
-     * where this near-black backdrop with one cool-blue and one plum glow read
-     * best behind unfilled tiles. Sits on the same near-black base as the dark
-     * theme's own `bg`, so a borderless/glass tile's content stays high-contrast
-     * wherever a glow hasn't reached.
+     * where this near-black backdrop read best behind unfilled tiles. Unlike
+     * every gradient above it, its two layers are **flat discs with crisp
+     * edges** (see [WallpaperLayer.core]), not soft glows: that hard-edged
+     * geometry is the whole look, and rendering it as a glow reads as a
+     * different wallpaper entirely. Each disc is centred just off its own
+     * corner so only an arc of it is on screen. Sits on the same near-black
+     * base as the dark theme's own `bg`, so a borderless/glass tile's content
+     * stays high-contrast wherever neither disc reaches.
      */
     val Nebula = WallpaperGradient(
         id = "nebula", label = "nebula", base = Color(0xFF0A0A0D),
         layers = listOf(
-            WallpaperLayer(Color(0xFF1D5AA8), 0.12f, 0.08f, 1.1f, 0.60f),
-            WallpaperLayer(Color(0xFF7A3A6A), 0.88f, 0.95f, 1.2f, 0.60f),
+            WallpaperLayer(Color(0xFF1D5AA8), 0.16f, 0.09f, 0.62f, 1f, core = 0.97f),
+            WallpaperLayer(Color(0xFF7A3A6A), 0.86f, 0.91f, 0.66f, 1f, core = 0.97f),
         ),
     )
 
@@ -136,6 +148,36 @@ private fun themedLayer(color: Color, dark: Boolean): Color =
     if (dark) color else lerp(color, Color.White, 0.12f)
 
 /**
+ * The radial colour stops for one [layer], already resolved to [color] for the
+ * active theme. Shared by [wallpaperBackground] and [wallpaperWindow] so a
+ * gradient looks identical whether it is painted behind the whole screen or
+ * windowed into a single tile.
+ */
+private fun layerStops(layer: WallpaperLayer, color: Color): Array<Pair<Float, Color>> {
+    val fade = layer.fade.coerceIn(0.01f, 1f)
+    val core = layer.core.coerceIn(0f, 0.99f)
+    return if (core <= 0f) {
+        // A third, partially-faded stop midway through the falloff smooths the
+        // transition to transparent — a plain 2-stop gradient bands visibly
+        // across the large, mostly-flat areas these radial glows fall off into.
+        arrayOf(
+            0f to color,
+            fade * 0.55f to color.copy(alpha = color.alpha * 0.35f),
+            fade to Color.Transparent,
+        )
+    } else {
+        // Flat disc: full alpha all the way out to the core, then a short
+        // feather to transparent. No mid-stop — there is no long falloff to
+        // band across, and one would visibly soften the edge.
+        arrayOf(
+            0f to color,
+            fade * core to color,
+            fade to Color.Transparent,
+        )
+    }
+}
+
+/**
  * Paints [wallpaper] as the background of the modified node: the base colour
  * first, then each radial layer composited over it (matching the CSS layer
  * order, top gradient last). [dark] selects the theme-appropriate palette
@@ -146,18 +188,9 @@ fun Modifier.wallpaperBackground(wallpaper: WallpaperGradient, dark: Boolean = t
     wallpaper.layers.forEach { layer ->
         val color = themedLayer(layer.color, dark)
         val radius = (layer.radiusPct * size.width).coerceAtLeast(0.01f)
-        val fade = layer.fade.coerceIn(0.01f, 1f)
         drawRect(
             brush = Brush.radialGradient(
-                // A third, partially-faded stop midway through the falloff
-                // smooths the transition to transparent — a plain 2-stop
-                // gradient bands visibly across the large, mostly-flat areas
-                // these radial glows fall off into.
-                colorStops = arrayOf(
-                    0f to color,
-                    fade * 0.55f to color.copy(alpha = color.alpha * 0.35f),
-                    fade to Color.Transparent,
-                ),
+                colorStops = layerStops(layer, color),
                 center = Offset(layer.cx * size.width, layer.cy * size.height),
                 radius = radius,
             ),
@@ -186,14 +219,9 @@ fun Modifier.wallpaperWindow(
     wallpaper.layers.forEach { layer ->
         val color = themedLayer(layer.color, dark)
         val radius = (layer.radiusPct * fullWidth).coerceAtLeast(0.01f)
-        val fade = layer.fade.coerceIn(0.01f, 1f)
         drawRect(
             brush = Brush.radialGradient(
-                colorStops = arrayOf(
-                    0f to color,
-                    fade * 0.55f to color.copy(alpha = color.alpha * 0.35f),
-                    fade to Color.Transparent,
-                ),
+                colorStops = layerStops(layer, color),
                 // Screen-space centre shifted into this tile's local space, so the
                 // gradient is continuous across tiles and fixed to the screen.
                 center = Offset(

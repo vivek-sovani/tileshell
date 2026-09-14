@@ -64,11 +64,24 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   active style so it survives a style switch. (3) **"nebula" wallpaper** —
   the user liked the mockup's backdrop ("this wallpaper you have shown is nice.
   create this full wallpaper") so it's now a real bundled `WallpaperGradient`
-  (base `#0A0A0D`, blue glow top-left, plum bottom-right), the first one not
-  ported from the HTML prototype — `Wallpapers.all` is 7 entries now. Being a
-  normal gradient it inherits light-theme `themedBase` lifting, the
-  banding-smoothing mid-stop, "behind tiles" windowing and wallpaper-accent
-  extraction with no new code. Build + full unit test suite green (new
+  (base `#0A0A0D`, a blue disc off the top-left corner and a plum one off the
+  bottom-right), the first one not ported from the HTML prototype —
+  `Wallpapers.all` is 7 entries now. Being a normal gradient it inherits
+  light-theme `themedBase` lifting, "behind tiles" windowing and
+  wallpaper-accent extraction with no new code. **A first pass got this wrong**
+  — it shipped as two soft radial glows, and the user corrected it ("the visual
+  design you showed has some design having circles"): the mockup's shapes are
+  flat discs with *crisp edges*, which `WallpaperLayer` couldn't express at all
+  (every layer's alpha decays from the centre — right for the six soft mesh
+  gradients ported from the prototype, a different wallpaper entirely here,
+  since the hard geometry is the whole look). Added
+  `WallpaperLayer.core` — the fraction of `fade` out to which the colour holds
+  full alpha before falling off; `0` is the default and leaves every existing
+  gradient byte-for-byte unchanged, `0.97` gives a flat disc with a 3%
+  antialiasing feather. The duplicated colour-stop array in
+  `wallpaperBackground`/`wallpaperWindow` was factored into one shared
+  `layerStops` at the same time, so a wallpaper can't render differently
+  behind the screen than windowed into a tile. Build + full unit test suite green (new
   `SettingsCodecTest` cases: round-trip, bad-value fallback, and an older save
   file with no `tileOutline` key still defaulting the hairline on); installed
   on both the physical device (over the existing install — no signature

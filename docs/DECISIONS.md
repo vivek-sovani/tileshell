@@ -51,20 +51,38 @@ Three consequences worth recording:
 already treats `glass`/`transparency`/wallpaper — a background style is a
 deliberate choice, not an over-personalization to recover from.
 
-## Bundled wallpaper: "nebula"
+## Bundled wallpaper: "nebula" — and hard-edged discs in the layer model
 
 Added while the borderless style was being mocked up — the user saw the
-near-black backdrop with one cool-blue and one plum glow used in the mockup
-and asked for it as a real wallpaper. Ported into `Wallpapers.kt` as a normal
-`WallpaperGradient` (base `#0A0A0D`, a blue layer top-left and a plum layer
-bottom-right) rather than a bitmap, so it inherits the existing light-theme
-`themedBase` lift, the banding-smoothing mid-stop, "wallpaper behind tiles"
+near-black backdrop with a blue shape in one corner and a plum one in the
+other and asked for it as a real wallpaper. Ported into `Wallpapers.kt` as a
+normal `WallpaperGradient` (base `#0A0A0D`) rather than a bitmap, so it
+inherits the existing light-theme `themedBase` lift, "wallpaper behind tiles"
 windowing and the wallpaper-derived accent extraction with no new code. Its
 base is the same near-black as the dark theme's own `bg`, which is what makes
-it work behind borderless tiles: wherever a glow has not reached, tile content
+it work behind borderless tiles: wherever neither shape reaches, tile content
 still sits on a high-contrast ground. It is the first bundled wallpaper not
 ported from the HTML prototype, so `Wallpapers.all` is now 7 entries, no
 longer "the 6 in prototype order."
+
+**A first pass shipped it as two soft radial glows and that was wrong** — the
+user came back with "the visual design you showed has some design having
+circles." The mockup's shapes were flat discs with crisp edges, and
+`WallpaperLayer` could not express that at all: every layer is a radial
+gradient whose alpha decays from the centre outward, which is right for the
+six ported prototype gradients (all soft mesh glows) and produces a visibly
+*different* wallpaper here — the geometry is the whole look.
+
+Fixed by adding `WallpaperLayer.core`, the fraction of `fade` out to which the
+colour holds at full alpha before falling off. `0` (the default, and what every
+ported gradient uses) is the original behaviour, byte-for-byte; `0.97` paints a
+flat disc whose remaining 3% is just the antialiasing feather. The stop array
+also moved into one shared `layerStops`, since `wallpaperBackground` and
+`wallpaperWindow` had duplicated it and a divergence there would make a
+wallpaper look different behind the screen than windowed into a tile. The
+banding-smoothing mid-stop is deliberately skipped for a disc: there is no long
+falloff to band across, and the extra stop visibly softens the edge that is the
+entire point.
 
 ## Refresh tap feedback: the pulse needed a guaranteed minimum visible duration
 
