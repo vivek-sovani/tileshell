@@ -50,4 +50,31 @@ object Glass {
      */
     fun faceTextColor(useDarkText: Boolean): Color =
         if (useDarkText) Color(red = 20f / 255f, green = 20f / 255f, blue = 26f / 255f) else Color.White
+
+    /**
+     * Fill for a "borderless" tile — the one thing it *does* paint. Deliberately
+     * far fainter than [fill]: it is not a tile colour, it is a barely-there lift
+     * of whatever the wallpaper already shows there, so the tile reads as a raised
+     * pane of the same material rather than a coloured square. Accent-blind for
+     * that reason (unlike [fill], which tints by the tile's own colour) — a
+     * borderless tile is meant to disappear into the wallpaper except for its
+     * elevation.
+     *
+     * White in *both* themes, unlike most of this file's light/dark pairs: a
+     * raised surface catches more light than the ground it sits on, so
+     * darkening it would read as recessed, not raised. Only the amount
+     * differs — the same 9% that clearly lifts a near-black backdrop is
+     * invisible against a light one, which needs a good deal more to register.
+     */
+    fun raisedFill(dark: Boolean): Color =
+        if (dark) Color.White.copy(alpha = 0.09f) else Color.White.copy(alpha = 0.30f)
+
+    /**
+     * The shadow colour under a borderless tile. Near-black in both themes —
+     * a shadow is an absence of light, so it does not invert with the theme the
+     * way [raisedFill] does; only its strength differs, since the same shadow
+     * over a light background reads much heavier.
+     */
+    fun raisedShadow(dark: Boolean): Color =
+        if (dark) Color.Black.copy(alpha = 0.55f) else Color.Black.copy(alpha = 0.28f)
 }

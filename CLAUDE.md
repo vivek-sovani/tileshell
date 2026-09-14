@@ -93,7 +93,28 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   `Wallpapers.all` is 9 (three rows of three, discs last). Same change
   surfaced a **latent overflow in `EdgeStripSheet`**: a plain `Row` of fixed
   44dp swatches that already exceeded the sheet width at 7 gradients and
-  silently clipped — now a `FlowRow`. Build + full unit test suite green (new
+  silently clipped — now a `FlowRow`.
+  **(4) Borderless tiles are raised, not empty** — user follow-up after using
+  it ("borderless should have raised tile surface to clear show distinction
+  with outer surfcace"): a tile painting literally nothing left no way to see
+  where one ended, so the grid read as loose floating icons. Three renderings
+  were mocked up and the user picked "raised pane, always on". Borderless now
+  paints `Glass.raisedFill` (a barely-there *white* wash over whatever the
+  wallpaper shows — accent-blind on purpose, which is what still separates it
+  from glass) plus an elevation shadow. **The shadow is hand-drawn, not
+  `Modifier.shadow`**: the platform shadow paints under the whole layer
+  including its interior, which is fine for the opaque drag-lift tile already
+  using it but turns a 9%-alpha tile into a dark slab — so a `drawBehind`
+  *before* the tile's clip paints concentric rounded rects at fractional alpha
+  with the tile's own rect removed via `ClipOp.Difference`, leaving only the
+  outer ring. Spread is deliberately small (default tile gap is 3dp, so a
+  bigger shadow is just painted over by the neighbour). **`raisedFill` is
+  white in both themes** — a first pass inverted it to black for light theme
+  out of habit from the rest of `Glass.kt`, which reads as *recessed*; only
+  the amount differs (9% dark, 30% light). Known caveat: in light theme over
+  a bundled gradient the face text stays white and the raised pane lightens
+  that ground slightly — the text-colour test looks at the wallpaper, not the
+  tile's own lifted surface (the same caveat glass already has). Build + full unit test suite green (new
   `SettingsCodecTest` cases: round-trip, bad-value fallback, and an older save
   file with no `tileOutline` key still defaulting the hairline on); installed
   on both the physical device (over the existing install — no signature

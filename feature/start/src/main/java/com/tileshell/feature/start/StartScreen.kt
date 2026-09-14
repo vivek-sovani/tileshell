@@ -2,28 +2,22 @@
 
 package com.tileshell.feature.start
 
+import android.app.SearchManager
 import android.content.ComponentName
 import android.content.Context
-import android.content.res.Configuration
-import android.provider.Settings
-import android.app.SearchManager
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.provider.AlarmClock
 import android.provider.CalendarContract
+import android.provider.Settings
 import android.widget.Toast
-import java.net.URLEncoder
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -35,8 +29,13 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -47,6 +46,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -55,6 +55,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -62,39 +63,34 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.rotate
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.TextButton
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.Image
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -103,26 +99,37 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -148,12 +155,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tileshell.core.data.AppCategories
+import com.tileshell.core.data.AppIconCache
 import com.tileshell.core.data.AppLauncher
 import com.tileshell.core.data.CachedScreenshotPrefs
 import com.tileshell.core.data.CalendarSystemTile
@@ -164,101 +173,11 @@ import com.tileshell.core.data.FolderChild
 import com.tileshell.core.data.SportsTile
 import com.tileshell.core.data.StepsPrefs
 import com.tileshell.core.data.StockTile
+import com.tileshell.core.data.TileColors
+import com.tileshell.core.data.TileModel
+import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.WeatherTile
 import com.tileshell.core.data.hasNotesTile
-import com.tileshell.core.data.TileColors
-import com.tileshell.core.data.AppIconCache
-import com.tileshell.core.data.TileModel
-import com.tileshell.core.data.shortcutIconDrawable
-import com.tileshell.core.data.TileSize
-import com.tileshell.feature.applist.AppListScreen
-import com.tileshell.feature.livetiles.AlarmTileFace
-import com.tileshell.feature.livetiles.BatterySmallFace
-import com.tileshell.feature.livetiles.BatteryTileFace
-import com.tileshell.feature.livetiles.CalendarSmallFace
-import com.tileshell.feature.livetiles.CalendarSystemSmallFace
-import com.tileshell.feature.livetiles.CalendarSystemTileFace
-import com.tileshell.feature.livetiles.CalendarTileFace
-import com.tileshell.feature.livetiles.ClockSmallFace
-import com.tileshell.feature.livetiles.ClockTileFace
-import com.tileshell.feature.livetiles.CountdownSmallFace
-import com.tileshell.feature.livetiles.CountdownTileFace
-import com.tileshell.feature.livetiles.FlashlightSmallFace
-import com.tileshell.feature.livetiles.FlashlightTileFace
-import com.tileshell.feature.livetiles.SportsLinks
-import com.tileshell.feature.livetiles.SportsTileFace
-import com.tileshell.feature.livetiles.StepsSmallFace
-import com.tileshell.feature.livetiles.StepsTileFace
-import com.tileshell.feature.livetiles.StockSmallFace
-import com.tileshell.feature.livetiles.StockTileFace
-import com.tileshell.feature.livetiles.CommoditySmallFace
-import com.tileshell.feature.livetiles.CommodityTileFace
-import com.tileshell.feature.livetiles.MoonPhaseTileFace
-import com.tileshell.feature.livetiles.NotesTileFace
-import com.tileshell.feature.livetiles.StickyNoteTileFace
-import com.tileshell.feature.livetiles.TasksTileFace
-import com.tileshell.feature.livetiles.ConversationTileFace
-import com.tileshell.feature.livetiles.LiveFace
-import com.tileshell.feature.livetiles.MediaSessionsEffect
-import com.tileshell.feature.livetiles.MusicTileFace
-import com.tileshell.feature.livetiles.NotificationAccess
-import com.tileshell.feature.livetiles.NotificationCenter
-import com.tileshell.feature.start.feed.FeedPage
-import com.tileshell.feature.start.feed.googleSearchUrl
-import com.tileshell.feature.start.feed.pagerCommitTarget
-import com.tileshell.feature.start.feed.rememberFeedPalette
-import com.tileshell.feature.livetiles.NotificationSnapshot
-import com.tileshell.feature.livetiles.NotificationTileFace
-import com.tileshell.feature.livetiles.PeopleTileFace
-import com.tileshell.feature.livetiles.PhotosData
-import com.tileshell.feature.livetiles.PhotosStore
-import com.tileshell.feature.livetiles.PhotosTileFace
-import com.tileshell.feature.livetiles.contactLookupUri
-import com.tileshell.feature.livetiles.rememberContactPhotoUri
-import com.tileshell.feature.livetiles.rememberTileBitmap
-import com.tileshell.feature.livetiles.WeatherSmallFace
-import com.tileshell.feature.livetiles.WeatherTileFace
-import com.tileshell.feature.livetiles.rememberFlipState
-import com.tileshell.feature.livetiles.rememberLiveTilesActive
-import com.tileshell.feature.livetiles.INDIA_COUNTRY_CODE
-import com.tileshell.feature.livetiles.INTERNATIONAL_REGION_CODE
-import com.tileshell.feature.livetiles.OemBatteryGuard
-import com.tileshell.feature.livetiles.SELECTABLE_COUNTRIES
-import com.tileshell.feature.livetiles.regionDisplayName
-import com.tileshell.feature.livetiles.rememberBatteryOptimizationExempt
-import com.tileshell.feature.livetiles.rememberNotificationAccess
-import com.tileshell.feature.livetiles.rememberPermissionGranted
-import com.tileshell.feature.livetiles.canShowSystemPermissionDialog
-import com.tileshell.feature.livetiles.openAppPermissionSettings
-import com.tileshell.feature.livetiles.widget.StepsWidgetRefreshWorker
-import com.tileshell.feature.livetiles.WeatherRefreshWorker
-import com.tileshell.feature.personalize.AboutSheet
-import com.tileshell.feature.personalize.BackupRestoreSheet
-import com.tileshell.feature.personalize.LayoutHistorySheet
-import com.tileshell.feature.livetiles.LayoutAutoBackupWorker
-import com.tileshell.feature.personalize.CategoryFolderSheet
-import com.tileshell.feature.personalize.CountdownEditorSheet
-import com.tileshell.feature.personalize.SportsPickerSheet
-import com.tileshell.feature.personalize.StockPickerSheet
-import com.tileshell.feature.personalize.CommodityPickerSheet
-import com.tileshell.feature.personalize.CalendarSystemPickerSheet
-import com.tileshell.feature.personalize.FeedSourceItem
-import com.tileshell.feature.personalize.EdgeStripSheet
-import com.tileshell.feature.personalize.HiddenAppsSheet
-import com.tileshell.feature.personalize.NewsRegionSheet
-import com.tileshell.feature.personalize.PermissionsSheet
-import com.tileshell.feature.personalize.PersonalizeGuidePrefs
-import com.tileshell.feature.personalize.PersonalizeGuideSheet
-import com.tileshell.feature.personalize.PersonalizeSheet
-import com.tileshell.feature.personalize.NotesSheet
-import com.tileshell.feature.personalize.RegionOption
-import com.tileshell.feature.personalize.StickyNoteEditorSheet
-import com.tileshell.feature.personalize.TaskListSheet
-import com.tileshell.feature.personalize.WeatherLocationSheet
-import com.tileshell.feature.personalize.WidgetListSheet
-import com.tileshell.feature.system.AppUpdateState
-import com.tileshell.feature.system.rememberAppUpdateState
-import com.tileshell.feature.system.rememberDefaultLauncherState
 import com.tileshell.core.data.settings.FontStyle
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
@@ -267,6 +186,7 @@ import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.data.settings.isAnchored
+import com.tileshell.core.data.shortcutIconDrawable
 import com.tileshell.core.design.CornerArcGlyph
 import com.tileshell.core.design.DarkColorTokens
 import com.tileshell.core.design.Glass
@@ -281,15 +201,106 @@ import com.tileshell.core.design.NunitoFamily
 import com.tileshell.core.design.OutfitFamily
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
+import com.tileshell.core.design.WallpaperGradient
 import com.tileshell.core.design.Wallpapers
 import com.tileshell.core.design.Wallpapers.NONE_ID
-import com.tileshell.core.design.WallpaperGradient
 import com.tileshell.core.design.colorTokens
 import com.tileshell.core.design.isLightBackground
 import com.tileshell.core.design.themedBase
 import com.tileshell.core.design.tileGradientBrush
 import com.tileshell.core.design.tiltOnPress
 import com.tileshell.core.design.wallpaperWindow
+import com.tileshell.feature.applist.AppListScreen
+import com.tileshell.feature.livetiles.AlarmTileFace
+import com.tileshell.feature.livetiles.BatterySmallFace
+import com.tileshell.feature.livetiles.BatteryTileFace
+import com.tileshell.feature.livetiles.CalendarSmallFace
+import com.tileshell.feature.livetiles.CalendarSystemSmallFace
+import com.tileshell.feature.livetiles.CalendarSystemTileFace
+import com.tileshell.feature.livetiles.CalendarTileFace
+import com.tileshell.feature.livetiles.ClockSmallFace
+import com.tileshell.feature.livetiles.ClockTileFace
+import com.tileshell.feature.livetiles.CommoditySmallFace
+import com.tileshell.feature.livetiles.CommodityTileFace
+import com.tileshell.feature.livetiles.ConversationTileFace
+import com.tileshell.feature.livetiles.CountdownSmallFace
+import com.tileshell.feature.livetiles.CountdownTileFace
+import com.tileshell.feature.livetiles.FlashlightSmallFace
+import com.tileshell.feature.livetiles.FlashlightTileFace
+import com.tileshell.feature.livetiles.INDIA_COUNTRY_CODE
+import com.tileshell.feature.livetiles.INTERNATIONAL_REGION_CODE
+import com.tileshell.feature.livetiles.LayoutAutoBackupWorker
+import com.tileshell.feature.livetiles.LiveFace
+import com.tileshell.feature.livetiles.MediaSessionsEffect
+import com.tileshell.feature.livetiles.MoonPhaseTileFace
+import com.tileshell.feature.livetiles.MusicTileFace
+import com.tileshell.feature.livetiles.NotesTileFace
+import com.tileshell.feature.livetiles.NotificationAccess
+import com.tileshell.feature.livetiles.NotificationCenter
+import com.tileshell.feature.livetiles.NotificationSnapshot
+import com.tileshell.feature.livetiles.NotificationTileFace
+import com.tileshell.feature.livetiles.OemBatteryGuard
+import com.tileshell.feature.livetiles.PeopleTileFace
+import com.tileshell.feature.livetiles.PhotosData
+import com.tileshell.feature.livetiles.PhotosStore
+import com.tileshell.feature.livetiles.PhotosTileFace
+import com.tileshell.feature.livetiles.SELECTABLE_COUNTRIES
+import com.tileshell.feature.livetiles.SportsLinks
+import com.tileshell.feature.livetiles.SportsTileFace
+import com.tileshell.feature.livetiles.StepsSmallFace
+import com.tileshell.feature.livetiles.StepsTileFace
+import com.tileshell.feature.livetiles.StickyNoteTileFace
+import com.tileshell.feature.livetiles.StockSmallFace
+import com.tileshell.feature.livetiles.StockTileFace
+import com.tileshell.feature.livetiles.TasksTileFace
+import com.tileshell.feature.livetiles.WeatherRefreshWorker
+import com.tileshell.feature.livetiles.WeatherSmallFace
+import com.tileshell.feature.livetiles.WeatherTileFace
+import com.tileshell.feature.livetiles.canShowSystemPermissionDialog
+import com.tileshell.feature.livetiles.contactLookupUri
+import com.tileshell.feature.livetiles.openAppPermissionSettings
+import com.tileshell.feature.livetiles.regionDisplayName
+import com.tileshell.feature.livetiles.rememberBatteryOptimizationExempt
+import com.tileshell.feature.livetiles.rememberContactPhotoUri
+import com.tileshell.feature.livetiles.rememberFlipState
+import com.tileshell.feature.livetiles.rememberLiveTilesActive
+import com.tileshell.feature.livetiles.rememberNotificationAccess
+import com.tileshell.feature.livetiles.rememberPermissionGranted
+import com.tileshell.feature.livetiles.rememberTileBitmap
+import com.tileshell.feature.livetiles.widget.StepsWidgetRefreshWorker
+import com.tileshell.feature.personalize.AboutSheet
+import com.tileshell.feature.personalize.BackupRestoreSheet
+import com.tileshell.feature.personalize.CalendarSystemPickerSheet
+import com.tileshell.feature.personalize.CategoryFolderSheet
+import com.tileshell.feature.personalize.CommodityPickerSheet
+import com.tileshell.feature.personalize.CountdownEditorSheet
+import com.tileshell.feature.personalize.EdgeStripSheet
+import com.tileshell.feature.personalize.FeedSourceItem
+import com.tileshell.feature.personalize.HiddenAppsSheet
+import com.tileshell.feature.personalize.LayoutHistorySheet
+import com.tileshell.feature.personalize.NewsRegionSheet
+import com.tileshell.feature.personalize.NotesSheet
+import com.tileshell.feature.personalize.PermissionsSheet
+import com.tileshell.feature.personalize.PersonalizeGuidePrefs
+import com.tileshell.feature.personalize.PersonalizeGuideSheet
+import com.tileshell.feature.personalize.PersonalizeSheet
+import com.tileshell.feature.personalize.RegionOption
+import com.tileshell.feature.personalize.SportsPickerSheet
+import com.tileshell.feature.personalize.StickyNoteEditorSheet
+import com.tileshell.feature.personalize.StockPickerSheet
+import com.tileshell.feature.personalize.TaskListSheet
+import com.tileshell.feature.personalize.WeatherLocationSheet
+import com.tileshell.feature.personalize.WidgetListSheet
+import com.tileshell.feature.start.feed.FeedPage
+import com.tileshell.feature.start.feed.googleSearchUrl
+import com.tileshell.feature.start.feed.pagerCommitTarget
+import com.tileshell.feature.start.feed.rememberFeedPalette
+import com.tileshell.feature.system.AppUpdateState
+import com.tileshell.feature.system.rememberAppUpdateState
+import com.tileshell.feature.system.rememberDefaultLauncherState
+import java.net.URLEncoder
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -297,9 +308,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import androidx.core.graphics.drawable.toBitmap
-import kotlin.math.abs
-import kotlin.math.roundToInt
 
 /** Hairline between show-through tiles so each reads as a distinct window. */
 private val TiledTileBorder = Color(0x66000000)
@@ -2058,6 +2066,18 @@ fun StartScreen(
  */
 private const val FOLDER_CHILD_ID_PREFIX = "folderchild:"
 
+/**
+ * Elevation shadow for a "borderless" tile — how far past the tile's own edge
+ * the shadow reaches, how far it is offset downward (light from above), and
+ * how many concentric steps approximate the blur. Six is enough that the
+ * banding is invisible at this size while staying cheap; the gap between
+ * tiles is only a few dp by default, so a much larger spread would just be
+ * painted over by the neighbouring tile anyway.
+ */
+private const val BORDERLESS_SHADOW_SPREAD_DP = 6f
+private const val BORDERLESS_SHADOW_DROP_DP = 2f
+private const val BORDERLESS_SHADOW_STEPS = 6
+
 private fun folderChildTileId(folderId: String, rowId: Long): String =
     "$FOLDER_CHILD_ID_PREFIX$folderId:$rowId"
 
@@ -3515,6 +3535,51 @@ internal fun TileView(
             }
             // The press-tilt effect (S7) is replaced by the jiggle while editing.
             .then(if (editMode || readOnly) Modifier else Modifier.tiltOnPress())
+            // A borderless tile's elevation shadow. Drawn here, *before* the
+            // clip below, because it has to paint outside the tile's own
+            // bounds — and drawn by hand rather than with Modifier.shadow /
+            // graphicsLayer.shadowElevation, because the platform shadow is
+            // painted under the whole layer including its interior: harmless
+            // for an opaque accent tile (the drag-lift shadow above does
+            // exactly that), but a borderless tile's fill is 9% alpha, so the
+            // shadow would show straight through and turn the tile into a dark
+            // slab — the opposite of raised. Clipping the tile's own rounded
+            // rect out with ClipOp.Difference leaves only the ring outside it;
+            // the concentric steps with fractional alpha approximate a blur.
+            .then(
+                if (borderless) {
+                    Modifier.drawBehind {
+                        val corner = tileCornerRadius.dp.toPx()
+                        val spread = BORDERLESS_SHADOW_SPREAD_DP.dp.toPx()
+                        val drop = BORDERLESS_SHADOW_DROP_DP.dp.toPx()
+                        val shadow = Glass.raisedShadow(darkTheme)
+                        val body = Path().apply {
+                            addRoundRect(
+                                RoundRect(
+                                    rect = Rect(Offset.Zero, size),
+                                    cornerRadius = CornerRadius(corner),
+                                ),
+                            )
+                        }
+                        clipPath(body, ClipOp.Difference) {
+                            repeat(BORDERLESS_SHADOW_STEPS) { i ->
+                                val grow = spread * (BORDERLESS_SHADOW_STEPS - i) /
+                                    BORDERLESS_SHADOW_STEPS
+                                drawRoundRect(
+                                    color = shadow.copy(
+                                        alpha = shadow.alpha / BORDERLESS_SHADOW_STEPS,
+                                    ),
+                                    topLeft = Offset(-grow, -grow + drop),
+                                    size = Size(size.width + 2 * grow, size.height + 2 * grow),
+                                    cornerRadius = CornerRadius(corner + grow),
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Modifier
+                },
+            )
             // Rounded corners (personalisation setting 0–20 dp) — clipped
             // unconditionally (0dp is just a plain rectangular clip) so a
             // live face with a lot of text (e.g. a long sticky/notes preview)
@@ -3548,7 +3613,13 @@ internal fun TileView(
                         origin = wallpaperOrigin,
                         dark = darkTheme,
                     )
-                    borderless -> Modifier
+                    // Borderless still paints no *tile colour* — just a
+                    // barely-there lift of whatever the wallpaper already
+                    // shows here, which together with the shadow above is
+                    // what makes it read as a raised pane rather than a
+                    // hole in the grid (user-requested; a truly empty tile
+                    // left no way to tell where one ended).
+                    borderless -> Modifier.background(Glass.raisedFill(darkTheme))
                     else -> if (glassFill != null) {
                         Modifier.background(glassFill)
                     } else if (useTileGradient) {

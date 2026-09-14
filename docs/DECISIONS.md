@@ -51,6 +51,52 @@ Three consequences worth recording:
 already treats `glass`/`transparency`/wallpaper — a background style is a
 deliberate choice, not an over-personalization to recover from.
 
+## Borderless tiles are raised, not empty
+
+User, after living with the first version: "borderless should have raised tile
+surface to clear show distinction with outer surfcace." A tile that paints
+literally nothing leaves no way to see where one ends and the next begins —
+the grid reads as loose floating icons rather than tiles. Three renderings
+were mocked up (shadow only / a faint raised pane + shadow / a bevelled edge);
+the user picked the raised pane, always on for the borderless style rather
+than behind another toggle.
+
+So borderless now paints exactly two things, neither of them a tile colour:
+`Glass.raisedFill` — a barely-there white wash over whatever the wallpaper
+already shows — and an elevation shadow. It stays accent-blind on purpose,
+unlike `Glass.fill`: the point is a raised pane *of the wallpaper*, not a
+tinted square, which is what still distinguishes it from glass at high
+transparency.
+
+Two things worth recording:
+
+**The shadow is hand-drawn, not `Modifier.shadow`.** The platform shadow
+(`graphicsLayer.shadowElevation`, which this file already uses for the
+drag-lift) is painted under the *whole* layer, interior included. That is
+harmless under an opaque accent tile but ruinous under a 9%-alpha fill — the
+shadow shows straight through and the tile becomes a dark slab, the exact
+opposite of raised. Instead a `drawBehind` placed *before* the tile's clip
+paints concentric rounded rects at fractional alpha with the tile's own
+rounded rect removed via `ClipOp.Difference`, so only the ring outside the
+tile is darkened. Six steps is enough that the banding is invisible at this
+size, and the spread is deliberately small: the default tile gap is 3dp, so a
+larger shadow would simply be painted over by the neighbouring tile.
+
+**`raisedFill` is white in both themes.** Most light/dark pairs in `Glass.kt`
+invert, and the first pass followed that habit — black at 7% for light theme.
+That is wrong for this one: a raised surface catches more light than the
+ground it sits on, so darkening it reads as *recessed*. Only the amount
+differs (9% dark, 30% light), because the same wash that clearly lifts a
+near-black backdrop is invisible against a light one.
+
+Known caveat, unchanged in kind but slightly worsened in degree: in light
+theme over a bundled gradient, face text stays white (the gradients stay
+mid-toned even lifted, so `chosenWallpaperIsLight` is false) and the raised
+pane makes that ground a little lighter still. The text-colour decision looks
+at the wallpaper, not at the tile's own lifted surface. Same pre-existing
+caveat glass has; fixing it properly means compositing the fill into the
+brightness test for every style, not just this one.
+
 ## The disc wallpapers are a row of three, and the picker grid is really a grid
 
 User: "create a row of such wallpapers (3) with varying color combinations. so

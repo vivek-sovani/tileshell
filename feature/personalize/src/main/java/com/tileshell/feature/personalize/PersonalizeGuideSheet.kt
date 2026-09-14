@@ -180,7 +180,7 @@ fun PersonalizeGuideSheet(
                 items = listOf(
                     "personalize · tile background: none, transparent (glass), behind tiles, or borderless",
                     "with transparent chosen, drag \"tile transparency\" to control how see-through tiles are",
-                    "borderless draws no fill and no outline at all — only each tile's icon, label and live content over the wallpaper",
+                    "borderless draws no tile colour and no outline — each tile is a faintly raised pane of the wallpaper itself, lifted by its own shadow",
                     "\"tile outline\" (transparent & behind tiles only) drops the thin edge line around each tile, so neighbours read as one continuous surface",
                     "tile style · corner radius slider rounds every tile's corners",
                     "tile style · tile spacing slider sets the gap between tiles — drag it up to spread them out, down to pack them tighter",
