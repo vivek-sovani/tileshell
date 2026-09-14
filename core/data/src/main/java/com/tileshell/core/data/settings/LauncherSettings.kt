@@ -177,6 +177,25 @@ data class LauncherSettings(
     val customWallpaperUri: String? = null,
     val bingWallpaper: Boolean = false,
     val tiledWallpaper: Boolean = false,
+    /**
+     * "Borderless" tile style: the tile paints no fill and no outline at all —
+     * only its glyph/label/live-face content renders, directly over the
+     * wallpaper. Mutually exclusive with [glass] and [tiledWallpaper] (all
+     * three decide what a tile's own surface paints), so enabling one clears
+     * the others — see `SettingsRepository.setBorderlessTiles`. Distinct from
+     * [glass] at transparency 1.0, which still draws the hairline and still
+     * tints by the tile's accent.
+     */
+    val borderlessTiles: Boolean = false,
+    /**
+     * Whether a tile draws its 1dp hairline outline. Only [glass] and
+     * [tiledWallpaper] draw one at all (a solid accent tile and a
+     * [borderlessTiles] tile never do), so this only has a visible effect in
+     * those two styles; turning it off keeps the fill and drops just the edge
+     * line, so adjacent tiles read as one continuous surface. Default on —
+     * the original behaviour.
+     */
+    val tileOutline: Boolean = true,
     val feedEnabled: Boolean = true,
     val wallpaperAlignX: Float = 0.5f,
     val wallpaperAlignY: Float = 0.5f,
@@ -289,6 +308,8 @@ object SettingsCodec {
         append("customWallpaper=").append(settings.customWallpaperUri.orEmpty()).append('\n')
         append("bingWallpaper=").append(settings.bingWallpaper).append('\n')
         append("tiledWallpaper=").append(settings.tiledWallpaper).append('\n')
+        append("borderlessTiles=").append(settings.borderlessTiles).append('\n')
+        append("tileOutline=").append(settings.tileOutline).append('\n')
         append("feedEnabled=").append(settings.feedEnabled).append('\n')
         append("wallAlignX=").append(settings.wallpaperAlignX).append('\n')
         append("wallAlignY=").append(settings.wallpaperAlignY).append('\n')
@@ -338,6 +359,8 @@ object SettingsCodec {
         var customWallpaperUri = d.customWallpaperUri
         var bingWallpaper = d.bingWallpaper
         var tiledWallpaper = d.tiledWallpaper
+        var borderlessTiles = d.borderlessTiles
+        var tileOutline = d.tileOutline
         var feedEnabled = d.feedEnabled
         var wallpaperAlignX = d.wallpaperAlignX
         var wallpaperAlignY = d.wallpaperAlignY
@@ -389,6 +412,8 @@ object SettingsCodec {
                 "customWallpaper" -> customWallpaperUri = value.ifEmpty { null }
                 "bingWallpaper" -> bingWallpaper = value.toBooleanStrictOrNull() ?: bingWallpaper
                 "tiledWallpaper" -> tiledWallpaper = value.toBooleanStrictOrNull() ?: tiledWallpaper
+                "borderlessTiles" -> borderlessTiles = value.toBooleanStrictOrNull() ?: borderlessTiles
+                "tileOutline" -> tileOutline = value.toBooleanStrictOrNull() ?: tileOutline
                 "feedEnabled" -> feedEnabled = value.toBooleanStrictOrNull() ?: feedEnabled
                 "wallAlignX" -> value.toFloatOrNull()?.let { wallpaperAlignX = it.coerceIn(0f, 1f) }
                 "wallAlignY" -> value.toFloatOrNull()?.let { wallpaperAlignY = it.coerceIn(0f, 1f) }
@@ -455,6 +480,8 @@ object SettingsCodec {
             customWallpaperUri = customWallpaperUri,
             bingWallpaper = bingWallpaper,
             tiledWallpaper = tiledWallpaper,
+            borderlessTiles = borderlessTiles,
+            tileOutline = tileOutline,
             feedEnabled = feedEnabled,
             wallpaperAlignX = wallpaperAlignX,
             wallpaperAlignY = wallpaperAlignY,

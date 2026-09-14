@@ -37,6 +37,47 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — tiles without borders: a "borderless" tile style, a "tile outline"
+  toggle, and a new bundled "nebula" wallpaper.** User asked "can there be
+  another option for tiles without borders" — ambiguous between two features,
+  so both were mocked up visually (at the user's request: "show visually both
+  option") before any code, and the user picked **both**. (1) **Borderless** is
+  a 4th mutually exclusive tile background style (`LauncherSettings
+  .borderlessTiles`) in Personalize → tile style, alongside none / transparent
+  / behind tiles: the tile paints no fill *and* no outline, so only its glyph,
+  label and live-face content render straight over the wallpaper. Not the same
+  as glass at transparency 1.0 (which still draws the hairline and still tints
+  by the tile's accent). Mutually exclusive with `glass`/`tiledWallpaper` at
+  the repository layer, the same way those two already were with each other.
+  Face-text contrast came free: every live face reads `LocalTileFaceColor`,
+  which Start already resolves as `Glass.faceTextColor((glass || tiledWallpaper)
+  && chosenWallpaperIsLight)`, so a borderless tile only needed `||
+  settings.borderlessTiles` added to that one condition. **A folder's mini-grid
+  cells and a stack's members needed their own borderless branch** — both paint
+  per-child plates independently of the outer tile's background, so without it
+  a "borderless" folder would still show a grid of tinted squares floating over
+  the wallpaper (`tiledWallpaper` already had that branch in the folder path
+  for the same reason). (2) **"tile outline"** (`LauncherSettings.tileOutline`,
+  default on) drops just the 1dp hairline while keeping the fill — surfaced
+  only for transparent and behind-tiles (the only two styles that draw one;
+  it would be inert for solid/borderless) but stored independently of the
+  active style so it survives a style switch. (3) **"nebula" wallpaper** —
+  the user liked the mockup's backdrop ("this wallpaper you have shown is nice.
+  create this full wallpaper") so it's now a real bundled `WallpaperGradient`
+  (base `#0A0A0D`, blue glow top-left, plum bottom-right), the first one not
+  ported from the HTML prototype — `Wallpapers.all` is 7 entries now. Being a
+  normal gradient it inherits light-theme `themedBase` lifting, the
+  banding-smoothing mid-stop, "behind tiles" windowing and wallpaper-accent
+  extraction with no new code. Build + full unit test suite green (new
+  `SettingsCodecTest` cases: round-trip, bad-value fallback, and an older save
+  file with no `tileOutline` key still defaulting the hairline on); installed
+  on both the physical device (over the existing install — no signature
+  mismatch, no data loss) and the emulator, launched with no crash in `adb
+  logcat`. Visually confirmed on the emulator: all four tile-style cells
+  render, "tile outline" appears only for transparent/behind-tiles, toggling
+  it off visibly removes the edge line while the fill stays, borderless
+  renders icons/labels/clock face with no tile surface at all, and nebula
+  shows its blue and plum glows in both light and dark theme.
 <!-- Update this block at the end of every session -->
 - **`main` — glance widgets: real stack-collapse bug fix, header-text contrast
   fix (with a same-session inverted-logic correction), Panchang/Tasks visual

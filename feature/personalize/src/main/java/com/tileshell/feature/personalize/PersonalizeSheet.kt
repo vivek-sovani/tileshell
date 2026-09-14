@@ -123,12 +123,17 @@ private fun currentWallpaperType(
  * The three mutually-exclusive tile-background styles, selected the same way as
  * [WallpaperType] above — a segmented row, picking one applies it immediately.
  */
-private enum class TileBackgroundStyle { NONE, TRANSPARENT, BEHIND_TILES }
+private enum class TileBackgroundStyle { NONE, TRANSPARENT, BEHIND_TILES, BORDERLESS }
 
-/** Which [TileBackgroundStyle] is active, derived from the same flags [glass]/[tiledWallpaper]. */
-private fun currentTileBackgroundStyle(glass: Boolean, tiledWallpaper: Boolean): TileBackgroundStyle = when {
+/** Which [TileBackgroundStyle] is active, derived from the same three mutually exclusive flags. */
+private fun currentTileBackgroundStyle(
+    glass: Boolean,
+    tiledWallpaper: Boolean,
+    borderlessTiles: Boolean,
+): TileBackgroundStyle = when {
     tiledWallpaper -> TileBackgroundStyle.BEHIND_TILES
     glass -> TileBackgroundStyle.TRANSPARENT
+    borderlessTiles -> TileBackgroundStyle.BORDERLESS
     else -> TileBackgroundStyle.NONE
 }
 
@@ -155,6 +160,10 @@ fun PersonalizeSheet(
     onClearWallpaperSlideshowPhotos: () -> Unit,
     tiledWallpaper: Boolean,
     onTiledWallpaperChange: (Boolean) -> Unit,
+    borderlessTiles: Boolean,
+    onBorderlessTilesChange: (Boolean) -> Unit,
+    tileOutline: Boolean,
+    onTileOutlineChange: (Boolean) -> Unit,
     feedEnabled: Boolean,
     onFeedEnabledChange: (Boolean) -> Unit,
     feedNoBackground: Boolean,
@@ -657,7 +666,8 @@ fun PersonalizeSheet(
             // ---- tile style (merged: background style + transparency/blur +
             // shape/spacing + gradient fill + reset) ----
             SettingGroup(label = "tile style", tokens.fgDim) {
-                val currentBackground = currentTileBackgroundStyle(glass, tiledWallpaper)
+                val currentBackground =
+                    currentTileBackgroundStyle(glass, tiledWallpaper, borderlessTiles)
 
                 // Same pattern as the wallpaper type selector above: picking an option
                 // applies it immediately (the two are already mutually exclusive at the
@@ -669,9 +679,11 @@ fun PersonalizeSheet(
                         TileBackgroundStyle.NONE -> {
                             onGlassChange(false)
                             onTiledWallpaperChange(false)
+                            onBorderlessTilesChange(false)
                         }
                         TileBackgroundStyle.TRANSPARENT -> onGlassChange(true)
                         TileBackgroundStyle.BEHIND_TILES -> onTiledWallpaperChange(true)
+                        TileBackgroundStyle.BORDERLESS -> onBorderlessTilesChange(true)
                     }
                 }
 
@@ -684,12 +696,26 @@ fun PersonalizeSheet(
                         TileBackgroundStyle.NONE to "none",
                         TileBackgroundStyle.TRANSPARENT to "transparent",
                         TileBackgroundStyle.BEHIND_TILES to "behind tiles",
+                        TileBackgroundStyle.BORDERLESS to "borderless",
                     )
                     labels.forEach { (style, label) ->
                         SegCell(label, selected = style == currentBackground, accent = accent, fg = tokens.fg) {
                             selectBackground(style)
                         }
                     }
+                }
+
+                // The hairline only exists in the two styles that paint a tile
+                // surface the wallpaper shows through — a solid accent tile and a
+                // borderless one never draw one, so the toggle would be inert
+                // there. Off keeps the fill and drops just the edge line, so
+                // adjacent tiles read as one continuous surface (most noticeable
+                // in "behind tiles" at a small tile gap).
+                if (currentBackground == TileBackgroundStyle.TRANSPARENT ||
+                    currentBackground == TileBackgroundStyle.BEHIND_TILES
+                ) {
+                    Spacer(Modifier.height(14.dp))
+                    ToggleRow("tile outline", on = tileOutline, accent = accent, tokens, onTileOutlineChange)
                 }
 
                 // Tile transparency only makes sense for "transparent" (nothing to tint

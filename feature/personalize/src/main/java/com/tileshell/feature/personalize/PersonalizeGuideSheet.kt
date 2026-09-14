@@ -178,8 +178,10 @@ fun PersonalizeGuideSheet(
                 tokens = tokens,
                 visual = { TileLookVisual(accent, tokens) },
                 items = listOf(
-                    "personalize · tile background: none, transparent (glass), or behind tiles",
+                    "personalize · tile background: none, transparent (glass), behind tiles, or borderless",
                     "with transparent chosen, drag \"tile transparency\" to control how see-through tiles are",
+                    "borderless draws no fill and no outline at all — only each tile's icon, label and live content over the wallpaper",
+                    "\"tile outline\" (transparent & behind tiles only) drops the thin edge line around each tile, so neighbours read as one continuous surface",
                     "tile style · corner radius slider rounds every tile's corners",
                     "tile style · tile spacing slider sets the gap between tiles — drag it up to spread them out, down to pack them tighter",
                     "typography switches every tile's text between system, outfit, and nunito",

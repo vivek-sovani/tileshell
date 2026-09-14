@@ -3,6 +3,69 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Tiles without borders: a "borderless" tile style plus a "tile outline" toggle
+
+User asked whether there could be "another option for tiles without borders."
+The phrase had two plausible readings that would have produced different
+features, so both were mocked up and shown before any code was written, and
+the user picked **both**:
+
+- **Borderless** is a fourth mutually exclusive tile background style
+  (`LauncherSettings.borderlessTiles`), alongside the existing none /
+  transparent / behind tiles. The tile paints no fill *and* no outline — only
+  its glyph, label and live-face content render, directly over the wallpaper.
+  It is deliberately not "glass at transparency 1.0": glass still draws the
+  hairline and still tints by the tile's own accent, so it never fully
+  disappears. Mutually exclusive with `glass`/`tiledWallpaper` for the reason
+  those two already are with each other — all three decide what a tile's own
+  surface paints, so leaving two on would leave one silently doing nothing.
+- **Tile outline** (`LauncherSettings.tileOutline`, default on) drops just the
+  1dp hairline while keeping the fill. It is surfaced only for the two styles
+  that draw a hairline at all — a solid accent tile and a borderless tile have
+  none, so the toggle would be inert there — but it is stored independently of
+  the active style, so it is remembered across a style switch.
+
+Three consequences worth recording:
+
+1. **Face text contrast came for free.** Every live face reads
+   `LocalTileFaceColor`, which Start already resolves as
+   `Glass.faceTextColor((glass || tiledWallpaper) && chosenWallpaperIsLight)` —
+   i.e. "flip to dark text when the *wallpaper* shows through and is light."
+   A borderless tile shows the wallpaper through exactly the way glass does, so
+   the fix was adding `|| borderlessTiles` to that one condition rather than
+   any new colour plumbing.
+2. **A folder's mini-grid and a stack's members must go unfilled too.** Both
+   render their own per-child plates (`FolderTileContent`'s `cellFill`,
+   `StackTileContent`'s member fill) independently of the outer tile's
+   background. Without their own borderless branch a "borderless" folder would
+   still paint a grid of tinted squares floating over the wallpaper — exactly
+   the tile surface this style removes. `tiledWallpaper` already had that
+   branch in the folder path for the same reason.
+3. **"Tile spacing" becomes invisible in borderless.** There is no tile edge
+   left to space apart, so the slider still moves the grid but shows nothing.
+   Left surfaced anyway rather than conditionally hidden: the value is shared
+   with every other style and hiding it would make switching styles look like
+   the setting had been lost.
+
+`resetTileStyle` deliberately leaves both new fields alone, matching how it
+already treats `glass`/`transparency`/wallpaper — a background style is a
+deliberate choice, not an over-personalization to recover from.
+
+## Bundled wallpaper: "nebula"
+
+Added while the borderless style was being mocked up — the user saw the
+near-black backdrop with one cool-blue and one plum glow used in the mockup
+and asked for it as a real wallpaper. Ported into `Wallpapers.kt` as a normal
+`WallpaperGradient` (base `#0A0A0D`, a blue layer top-left and a plum layer
+bottom-right) rather than a bitmap, so it inherits the existing light-theme
+`themedBase` lift, the banding-smoothing mid-stop, "wallpaper behind tiles"
+windowing and the wallpaper-derived accent extraction with no new code. Its
+base is the same near-black as the dark theme's own `bg`, which is what makes
+it work behind borderless tiles: wherever a glow has not reached, tile content
+still sits on a high-contrast ground. It is the first bundled wallpaper not
+ported from the HTML prototype, so `Wallpapers.all` is now 7 entries, no
+longer "the 6 in prototype order."
+
 ## Refresh tap feedback: the pulse needed a guaranteed minimum visible duration
 
 Same-day follow-up, user-confirmed the size pulse worked for weather and

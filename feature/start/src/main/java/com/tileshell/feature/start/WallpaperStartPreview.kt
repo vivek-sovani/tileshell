@@ -163,6 +163,8 @@ fun WallpaperStartPreview(
                         transparency = settings.transparency,
                         glassLine = glassLine,
                         tiledWallpaper = settings.tiledWallpaper,
+                        borderless = settings.borderlessTiles,
+                        tileOutline = settings.tileOutline,
                         wallpaper = wallpaper,
                         wallpaperPhoto = wallpaperImage,
                         wallpaperAlignX = alignX,

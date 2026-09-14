@@ -59,8 +59,39 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
      */
     suspend fun setGlass(glass: Boolean) {
         store.updateData {
-            if (glass) it.copy(glass = true, tiledWallpaper = false) else it.copy(glass = false)
+            if (glass) {
+                it.copy(glass = true, tiledWallpaper = false, borderlessTiles = false)
+            } else {
+                it.copy(glass = false)
+            }
         }
+    }
+
+    /**
+     * Toggle "borderless" tile mode (no fill, no outline — only the tile's own
+     * content over the wallpaper). Mutually exclusive with [glass] and
+     * [tiledWallpaper] for the same reason those two are with each other: all
+     * three decide what a tile's surface paints, so leaving two on would leave
+     * one silently doing nothing.
+     */
+    suspend fun setBorderlessTiles(on: Boolean) {
+        store.updateData {
+            if (on) {
+                it.copy(borderlessTiles = true, glass = false, tiledWallpaper = false)
+            } else {
+                it.copy(borderlessTiles = false)
+            }
+        }
+    }
+
+    /**
+     * Toggle the 1dp hairline outline drawn around a glass / "behind tiles"
+     * tile. Independent of which background style is active (a solid or
+     * borderless tile never draws one either way), so it is remembered across
+     * a style switch.
+     */
+    suspend fun setTileOutline(on: Boolean) {
+        store.updateData { it.copy(tileOutline = on) }
     }
 
     /** Set the tile-transparency slider value; clamped to 0..1. */
@@ -195,7 +226,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
      */
     suspend fun setTiledWallpaper(on: Boolean) {
         store.updateData {
-            if (on) it.copy(tiledWallpaper = true, glass = false) else it.copy(tiledWallpaper = false)
+            if (on) {
+                it.copy(tiledWallpaper = true, glass = false, borderlessTiles = false)
+            } else {
+                it.copy(tiledWallpaper = false)
+            }
         }
     }
 

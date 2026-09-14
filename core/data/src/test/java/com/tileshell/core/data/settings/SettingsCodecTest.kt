@@ -27,8 +27,31 @@ class SettingsCodecTest {
             columns = 6,
             tilePackMode = TilePackMode.STICKY,
             themedIcons = true,
+            borderlessTiles = true,
+            tileOutline = false,
         )
         assertEquals(settings, SettingsCodec.decode(SettingsCodec.encode(settings)))
+    }
+
+    @Test
+    fun `borderlessTiles decodes and bad value keeps default`() {
+        assertEquals(true, SettingsCodec.decode("borderlessTiles=true").borderlessTiles)
+        assertEquals(
+            LauncherSettings().borderlessTiles,
+            SettingsCodec.decode("borderlessTiles=sort of").borderlessTiles,
+        )
+    }
+
+    @Test
+    fun `tileOutline defaults on, decodes off, and a bad value keeps the default`() {
+        assertEquals(true, LauncherSettings().tileOutline)
+        // An older save file predates the key entirely — the hairline must stay on.
+        assertEquals(true, SettingsCodec.decode("glass=true").tileOutline)
+        assertEquals(false, SettingsCodec.decode("tileOutline=false").tileOutline)
+        assertEquals(
+            LauncherSettings().tileOutline,
+            SettingsCodec.decode("tileOutline=hairline").tileOutline,
+        )
     }
 
     @Test

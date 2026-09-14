@@ -916,7 +916,9 @@ fun StartScreen(
         LocalTileGradient provides (settings.tileFill == TileFill.GRADIENT),
         LocalTileFont provides tileFont,
         LocalTextStyle provides baseTextStyle.copy(fontFamily = tileFont),
-        LocalTileFaceColor provides Glass.faceTextColor((settings.glass || tiledWallpaper) && chosenWallpaperIsLight),
+        LocalTileFaceColor provides Glass.faceTextColor(
+            (settings.glass || tiledWallpaper || settings.borderlessTiles) && chosenWallpaperIsLight,
+        ),
     ) {
     BoxWithConstraints(
         modifier = modifier.fillMaxSize()
@@ -1063,6 +1065,8 @@ fun StartScreen(
                     transparency = settings.transparency,
                     glassLine = tokens.glassLine,
                     tiledWallpaper = tiledWallpaper,
+                    borderless = settings.borderlessTiles,
+                    tileOutline = settings.tileOutline,
                     wallpaper = wallpaper,
                     wallpaperPhoto = tiledPhoto,
                     screenBackgroundIsLight = screenBackgroundIsLight,
@@ -1498,6 +1502,10 @@ fun StartScreen(
             },
             tiledWallpaper = settings.tiledWallpaper,
             onTiledWallpaperChange = viewModel::setTiledWallpaper,
+            borderlessTiles = settings.borderlessTiles,
+            onBorderlessTilesChange = viewModel::setBorderlessTiles,
+            tileOutline = settings.tileOutline,
+            onTileOutlineChange = viewModel::setTileOutline,
             feedEnabled = settings.feedEnabled,
             onFeedEnabledChange = viewModel::setFeedEnabled,
             feedNoBackground = settings.feedNoBackground,
@@ -2136,6 +2144,14 @@ private fun StartPage(
     transparency: Float,
     glassLine: Color,
     tiledWallpaper: Boolean,
+    // "borderless" tile style: paint neither a fill nor an outline, so only the
+    // tile's own content shows over the wallpaper. Mutually exclusive with
+    // [glass]/[tiledWallpaper] at the data layer, so it only ever wins the fill
+    // `when` below when both of those are already false.
+    borderless: Boolean = false,
+    // Whether a glass / "behind tiles" tile draws its 1dp hairline. A solid or
+    // borderless tile has none to begin with, so this is inert for those two.
+    tileOutline: Boolean = true,
     wallpaper: com.tileshell.core.design.WallpaperGradient,
     wallpaperPhoto: ImageBitmap?,
     screenBackgroundIsLight: Boolean,
@@ -2877,6 +2893,8 @@ private fun StartPage(
                             transparency = transparency,
                             glassLine = glassLine,
                             tiledWallpaper = tiledWallpaper,
+                            borderless = borderless,
+                            tileOutline = tileOutline,
                             wallpaper = wallpaper,
                             wallpaperPhoto = wallpaperPhoto,
                             wallpaperAlignX = wallpaperAlignX,
@@ -3382,6 +3400,14 @@ internal fun TileView(
     transparency: Float,
     glassLine: Color,
     tiledWallpaper: Boolean,
+    // "borderless" tile style: paint neither a fill nor an outline, so only the
+    // tile's own content shows over the wallpaper. Mutually exclusive with
+    // [glass]/[tiledWallpaper] at the data layer, so it only ever wins the fill
+    // `when` below when both of those are already false.
+    borderless: Boolean = false,
+    // Whether a glass / "behind tiles" tile draws its 1dp hairline. A solid or
+    // borderless tile has none to begin with, so this is inert for those two.
+    tileOutline: Boolean = true,
     wallpaper: com.tileshell.core.design.WallpaperGradient,
     wallpaperPhoto: ImageBitmap?,
     wallpaperAlignX: Float,
@@ -3522,6 +3548,7 @@ internal fun TileView(
                         origin = wallpaperOrigin,
                         dark = darkTheme,
                     )
+                    borderless -> Modifier
                     else -> if (glassFill != null) {
                         Modifier.background(glassFill)
                     } else if (useTileGradient) {
@@ -3533,6 +3560,10 @@ internal fun TileView(
             )
             .then(
                 when {
+                    // "tile outline" off (Personalize) drops the hairline while
+                    // keeping the fill, so adjacent tiles read as one continuous
+                    // surface instead of a grid of outlined windows.
+                    !tileOutline -> Modifier
                     tiledWallpaper -> Modifier.border(
                         1.dp, TiledTileBorder,
                         RoundedCornerShape(tileCornerRadius.dp),
@@ -3646,6 +3677,7 @@ internal fun TileView(
                         glass = glass,
                         transparency = transparency,
                         tiledWallpaper = tiledWallpaper,
+                        borderless = borderless,
                         darkTheme = darkTheme,
                         wallpaper = wallpaper,
                         wallpaperPhoto = wallpaperPhoto,
@@ -3670,6 +3702,7 @@ internal fun TileView(
                         transparency = transparency,
                         darkTheme = darkTheme,
                         tiledWallpaper = tiledWallpaper,
+                        borderless = borderless,
                         notifications = notifications,
                         homeStyle = homeStyle,
                         iconShape = iconShape,
@@ -5598,6 +5631,7 @@ private fun FolderTileContent(
     transparency: Float,
     darkTheme: Boolean,
     tiledWallpaper: Boolean,
+    borderless: Boolean = false,
     notifications: NotificationSnapshot,
     homeStyle: HomeStyle = HomeStyle.TILES,
     iconShape: IconShape = IconShape.ORIGINAL,
@@ -5673,6 +5707,11 @@ private fun FolderTileContent(
                             // stays for TILES mode, which is unaffected.
                             homeStyle == HomeStyle.ICONS -> Modifier
                             tiledWallpaper -> Modifier
+                            // Borderless: the folder tile itself paints nothing, so
+                            // its mini-grid cells must not paint plates either — a
+                            // grid of tinted squares floating over the wallpaper is
+                            // exactly the "tile surface" this style removes.
+                            borderless -> Modifier
                             glass -> Modifier.background(Glass.fill(darkTheme, transparency, cellBg))
                             else -> Modifier.background(cellBg)
                         }
@@ -5786,6 +5825,7 @@ private fun StackTileContent(
     glass: Boolean,
     transparency: Float,
     tiledWallpaper: Boolean,
+    borderless: Boolean = false,
     darkTheme: Boolean,
     wallpaper: com.tileshell.core.design.WallpaperGradient,
     wallpaperPhoto: ImageBitmap?,
@@ -6014,6 +6054,7 @@ private fun StackTileContent(
                                     origin = wallpaperOrigin,
                                     dark = darkTheme,
                                 )
+                                borderless -> Modifier
                                 memberGlassFill != null -> Modifier.background(memberGlassFill)
                                 useTileGradient -> Modifier.background(tileGradientBrush(memberAccent))
                                 else -> Modifier.background(memberAccent)

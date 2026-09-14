@@ -959,6 +959,16 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setTiledWallpaper(on) }
     }
 
+    /** Switch tiles to the "borderless" style (no fill, no outline). */
+    fun setBorderlessTiles(on: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setBorderlessTiles(on) }
+    }
+
+    /** Show/hide the 1dp hairline around glass / "behind tiles" tiles. */
+    fun setTileOutline(on: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setTileOutline(on) }
+    }
+
     /**
      * Toggle the left "feed" page (the 3rd pager page reached by swiping right).
      *

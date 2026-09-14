@@ -91,8 +91,23 @@ object Wallpapers {
         ),
     )
 
-    /** The 6 bundled wallpapers in prototype order. */
-    val all: List<WallpaperGradient> = listOf(Aurora, Dusk, Ocean, Forest, Rose, Mono)
+    /**
+     * Not from the prototype — added after the "borderless tiles" design pass,
+     * where this near-black backdrop with one cool-blue and one plum glow read
+     * best behind unfilled tiles. Sits on the same near-black base as the dark
+     * theme's own `bg`, so a borderless/glass tile's content stays high-contrast
+     * wherever a glow hasn't reached.
+     */
+    val Nebula = WallpaperGradient(
+        id = "nebula", label = "nebula", base = Color(0xFF0A0A0D),
+        layers = listOf(
+            WallpaperLayer(Color(0xFF1D5AA8), 0.12f, 0.08f, 1.1f, 0.60f),
+            WallpaperLayer(Color(0xFF7A3A6A), 0.88f, 0.95f, 1.2f, 0.60f),
+        ),
+    )
+
+    /** The 6 prototype wallpapers in prototype order, plus [Nebula]. */
+    val all: List<WallpaperGradient> = listOf(Aurora, Dusk, Ocean, Forest, Rose, Mono, Nebula)
 
     val byId: Map<String, WallpaperGradient> = all.associateBy { it.id }
 
