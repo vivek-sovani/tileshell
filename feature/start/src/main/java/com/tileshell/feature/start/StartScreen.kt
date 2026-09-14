@@ -1060,9 +1060,10 @@ fun StartScreen(
                     tileGapPx = if (tiledWallpaper) {
                         null
                     } else if (settings.borderlessTiles) {
-                        with(density) {
-                            maxOf(settings.tileGap, BORDERLESS_MIN_TILE_GAP_DP).dp.toPx()
-                        }
+                        // Fixed, not Personalize's own "tile spacing" slider
+                        // (which is hidden for this style) — see
+                        // BORDERLESS_TILE_GAP_DP's doc comment.
+                        with(density) { BORDERLESS_TILE_GAP_DP.dp.toPx() }
                     } else {
                         with(density) { settings.tileGap.dp.toPx() }
                     },
@@ -2064,18 +2065,18 @@ fun StartScreen(
 private const val FOLDER_CHILD_ID_PREFIX = "folderchild:"
 
 /**
- * Geometry a "borderless" tile enforces regardless of Personalize's own
- * corner-radius/tile-spacing sliders — the point of this style is to look
- * like a real Android home-screen widget card, which needs generously
- * rounded corners and enough gap for its own drop shadow to fall clear of
- * the next tile; the sliders' own defaults (square corners, a 3dp gap) would
- * make the card fill unreadable as a "card" and would make neighbouring
- * shadows touch. Each is a floor, not a fixed value — a user who has already
- * set a *larger* radius or gap keeps it.
+ * Fixed geometry for a "borderless" tile — deliberately not derived from
+ * Personalize's own corner-radius/tile-spacing sliders (an earlier pass had
+ * these as a floor over the sliders via `maxOf`; dropped in favour of a fixed
+ * value once it was clear the sliders then did nothing below that floor,
+ * which is confusing to have a visible, adjustable control for — Personalize
+ * hides both rows entirely while this style is active). The point of this
+ * style is to look like a real Android home-screen widget card: generously
+ * rounded corners and a wide gap between tiles, neither of which the other
+ * three styles' own defaults (square corners, a 3dp gap) provide.
  */
-private const val BORDERLESS_MIN_CORNER_RADIUS_DP = 20f
-private const val BORDERLESS_MIN_TILE_GAP_DP = 12f
-private const val BORDERLESS_SHADOW_ELEVATION_DP = 6f
+private const val BORDERLESS_CORNER_RADIUS_DP = 20f
+private const val BORDERLESS_TILE_GAP_DP = 12f
 
 private fun folderChildTileId(folderId: String, rowId: Long): String =
     "$FOLDER_CHILD_ID_PREFIX$folderId:$rowId"
@@ -3489,13 +3490,11 @@ internal fun TileView(
     // exact same ViewModel calls through these custom actions instead).
     val a11yLabel = tileAccessibilityLabel(tile, badgeCount, editMode, selected)
 
-    // A borderless tile enforces its own minimum corner radius — see
-    // BORDERLESS_MIN_CORNER_RADIUS_DP's doc comment.
-    val tileCornerRadius = if (borderless) {
-        maxOf(LocalTileCornerRadius.current, BORDERLESS_MIN_CORNER_RADIUS_DP)
-    } else {
-        LocalTileCornerRadius.current
-    }
+    // A borderless tile always uses its own fixed corner radius, not
+    // Personalize's "corner radius" slider — see BORDERLESS_CORNER_RADIUS_DP's
+    // doc comment. Personalize hides that row entirely for this style, since
+    // it would otherwise have no visible effect.
+    val tileCornerRadius = if (borderless) BORDERLESS_CORNER_RADIUS_DP else LocalTileCornerRadius.current
     val useTileGradient = LocalTileGradient.current
     // Glass fill tinted by this tile's own resolved accent (see Glass.kt) —
     // computed here, not passed in, so every tile (including each stack member
@@ -3540,26 +3539,13 @@ internal fun TileView(
             }
             // The press-tilt effect (S7) is replaced by the jiggle while editing.
             .then(if (editMode || readOnly) Modifier else Modifier.tiltOnPress())
-            // A borderless tile's own drop shadow — a real widget-card
-            // shadow, not the hand-drawn ring an earlier pass used. Safe as
-            // a platform Modifier.shadow now that borderless also enforces
-            // a wider minimum tile gap (BORDERLESS_MIN_TILE_GAP_DP): the
-            // blur falls clear of the next tile instead of meeting its
-            // shadow in the gap, which is what drew a continuous border
-            // line the last time this was tried at the default 3dp gap.
-            // clip = false: the shadow is meant to extend past this
-            // composable's own bounds, into the gap.
-            .then(
-                if (borderless) {
-                    Modifier.shadow(
-                        elevation = BORDERLESS_SHADOW_ELEVATION_DP.dp,
-                        shape = RoundedCornerShape(tileCornerRadius.dp),
-                        clip = false,
-                    )
-                } else {
-                    Modifier
-                },
-            )
+            // No drop shadow here — tried and removed (see DECISIONS.md
+            // "Widget-card tiles: the drop shadow was removed a second
+            // time"). Modifier.shadow rendered as a hard second rounded
+            // rectangle rather than a soft blur on the emulator's software
+            // renderer, reading as a border of its own — the exact thing
+            // this whole style exists to avoid. The card fill + forced gap
+            // + rounded corners already read as "raised" without it.
             // Rounded corners (personalisation setting 0–20 dp) — clipped
             // unconditionally (0dp is just a plain rectangular clip) so a
             // live face with a lot of text (e.g. a long sticky/notes preview)
@@ -3597,7 +3583,7 @@ internal fun TileView(
                     // widget-style translucent card instead (Glass
                     // .raisedCardFill), with the drop shadow above providing
                     // the actual sense of elevation this time.
-                    borderless -> Modifier.background(Glass.raisedCardFill(darkTheme))
+                    borderless -> Modifier.background(Glass.raisedCardFill(darkTheme, transparency))
                     else -> if (glassFill != null) {
                         Modifier.background(glassFill)
                     } else if (useTileGradient) {

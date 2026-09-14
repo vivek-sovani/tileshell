@@ -94,8 +94,8 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   surfaced a **latent overflow in `EdgeStripSheet`**: a plain `Row` of fixed
   44dp swatches that already exceeded the sheet width at 7 gradients and
   silently clipped — now a `FlowRow`.
-  **(4) Borderless went through three real design iterations before landing
-  on an actual widget-card look.** User follow-up after using the first
+  **(4) Borderless went through four real design iterations, plus a rename,
+  before landing on the shipped widget-card look.** User follow-up after using the first
   version ("borderless should have raised tile surface to clear show
   distinction with outer surfcace"): a tile painting literally nothing left
   no way to see where one ended, so the grid read as loose floating icons.
@@ -121,20 +121,43 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   the forced wider gap gives the blur room to fall off before it reaches the
   next tile, so no hand-rolled shadow geometry was needed at all. Folder
   children and stack members pick up both floors for free, since they render
-  through the same `TileView`/grid-gap mechanism as top-level tiles. Build + full unit test suite green (new
-  `SettingsCodecTest` cases: round-trip, bad-value fallback, and an older save
-  file with no `tileOutline` key still defaulting the hairline on); installed
-  on both the physical device (over the existing install — no signature
-  mismatch, no data loss) and the emulator, launched with no crash in `adb
-  logcat`. Visually confirmed on the emulator: all four tile-style cells
-  render, "tile outline" appears only for transparent/behind-tiles, toggling
-  it off visibly removes the edge line while the fill stays, and nebula
-  shows its blue and plum glows in both light and dark theme. Borderless
-  itself re-confirmed after round 3: rounded translucent cards with visible
-  gaps and real drop shadows in both light and dark theme, clearly distinct
-  from "behind tiles" (a flat wallpaper window with no card, no shadow, no
-  extra gap) — installed and re-launched on both the emulator and the
-  physical device with no crash after each round.
+  through the same `TileView`/grid-gap mechanism as top-level tiles. Build + full unit test suite green throughout;
+  installed on both the physical device (over the existing install — no
+  signature mismatch, no data loss) and the emulator, launched with no crash
+  in `adb logcat` after every round. **Round 4, same session, three more
+  direct follow-ups**: (a) "looks very dark. allow to adjust transparency
+  levels or suggest a method" — root cause wasn't missing adjustability, it
+  was round 3's dark neutral card tint compositing to something just as dark
+  as the near-black wallpaper beneath it; reverted to a white overlay in both
+  themes (Material's dark-theme elevation convention: an elevated surface
+  gets *lighter*, not darker) and wired it to the existing "tile
+  transparency" slider — the same one glass already uses — instead of adding
+  a new setting, since both are "how much the tile's translucent surface
+  shows through," just a different base colour. (b) "there is a big border
+  for inside square in each tile. is such design necessary?" — a zoomed
+  screenshot showed `Modifier.shadow` rendering as a hard second rounded
+  rectangle rather than a soft blur (likely a software-renderer artifact);
+  given this is the *second* shadow implementation on this style to produce
+  an unwanted border, the shadow was removed outright rather than tuned a
+  third time — the card fill + forced gap + rounded corners already read as
+  "raised" without it. (c) "if tile spacing and corner has no relevance in
+  borderless dont display those settings" — they had *zero* effect, not
+  reduced effect (`maxOf(slider, floor)` silently clamped anything below the
+  floor), so `BORDERLESS_CORNER_RADIUS_DP`/`_TILE_GAP_DP` are now fixed
+  constants decoupled from Personalize's sliders entirely, and Personalize
+  hides the corner-radius/tile-spacing/gradient-fill rows outright for this
+  style (gradient fill was already dead code here — `useTileGradient` was
+  never read in the `borderless` branch). Also renamed the user-facing label
+  from "borderless" to **widget cards** per the user's own request — a
+  display-string-only change (Kotlin symbol names, the persisted settings
+  key, and `TileBackgroundStyle.BORDERLESS` are unchanged, so no migration).
+  Visually confirmed on the emulator after round 4: the inner-border artifact
+  is gone (zoomed screenshot shows one clean rounded card, no second
+  rectangle), the dark-theme card reads noticeably lighter and the
+  transparency slider visibly changes it, and Personalize's tile-style
+  section shows "widget cards" with corner-radius/tile-spacing/gradient-fill
+  hidden and only "tile transparency"/"blur wallpaper" shown. Installed and
+  re-launched on both the emulator and the physical device with no crash.
 <!-- Update this block at the end of every session -->
 - **`main` — glance widgets: real stack-collapse bug fix, header-text contrast
   fix (with a same-session inverted-logic correction), Panchang/Tasks visual

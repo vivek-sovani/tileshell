@@ -178,9 +178,9 @@ fun PersonalizeGuideSheet(
                 tokens = tokens,
                 visual = { TileLookVisual(accent, tokens) },
                 items = listOf(
-                    "personalize · tile background: none, transparent (glass), behind tiles, or borderless",
+                    "personalize · tile background: none, transparent (glass), behind tiles, or widget cards",
                     "with transparent chosen, drag \"tile transparency\" to control how see-through tiles are",
-                    "borderless draws no tile colour and no outline — instead each tile becomes its own rounded, translucent widget card with a real drop shadow, floating over the wallpaper like a home-screen gadget",
+                    "widget cards turns every tile into its own rounded, translucent card floating over the wallpaper, like a home-screen gadget — a fixed corner radius and gap replace the corner-radius/spacing sliders, which have no effect here",
                     "\"tile outline\" (transparent & behind tiles only) drops the thin edge line around each tile, so neighbours read as one continuous surface",
                     "tile style · corner radius slider rounds every tile's corners",
                     "tile style · tile spacing slider sets the gap between tiles — drag it up to spread them out, down to pack them tighter",

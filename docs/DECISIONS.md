@@ -179,6 +179,65 @@ a real widget's background does. `BORDERLESS_SHADOW_SPREAD_DP`/`_DROP_DP`/
 / `RoundRect`/ `ClipOp.Difference`/ `clipPath`) are gone along with it —
 nothing in the current code draws a shadow by hand any more.
 
+## Widget cards: dropped the shadow a second time, decoupled from Personalize's sliders, renamed
+
+Two more direct follow-ups on the same feature, right after the previous
+entry shipped.
+
+**"looks very dark. allow to adjust transparency levels or suggest a
+method."** The problem wasn't really "no adjustability" — it was that the
+card's own colour was wrong. The previous entry's `raisedCardFill` flipped to
+a dark neutral tint for dark theme, reasoning that "a real widget's card
+matches the theme." In practice, layering a dark tint over an already
+near-black wallpaper composites to something just as dark — the card never
+actually lifted off its background. Material's own dark-theme convention is
+the opposite of that intuition: an *elevated* dark-theme surface gets
+*lighter* than its background, not darker. Reverted to a white overlay in
+both themes (the same direction round 1/2 already used, just far more opaque
+this time: 12–30% alpha depending on the transparency slider, dark theme;
+34–78%, light theme) — and wired it to the existing "tile transparency"
+slider (the same one glass uses), rather than adding a new setting: both
+styles are "how much the tile's own translucent surface shows through," just
+applied to a different base colour, so one control for both was the natural
+fit. Personalize now shows that slider under widget cards too.
+
+**"there is a big border for inside square in each tile. is such design
+necessary?"** A zoomed screenshot resolved this precisely: the platform
+`Modifier.shadow` was rendering as a hard, crisply-edged second rounded
+rectangle around the actual card, not a soft blur — almost certainly an
+artifact of the emulator's software renderer rather than how it would look
+on real hardware, but the fix doesn't depend on knowing which: given this is
+now the *second* time a shadow implementation on this style has produced an
+unwanted border effect (the first was the hand-drawn ring meeting its
+neighbour in the gap), the shadow is removed outright rather than tuned
+again. The card fill + forced gap + rounded corners already read as
+"raised" without it, and removing it deletes a whole recurring category of
+bug rather than chasing a third shadow bug.
+
+**"if tile spacing and corner has no relevance in borderless dont display
+those settings."** They didn't just have *reduced* relevance — they had
+*none*, since the previous entry's `maxOf(slider, floor)` meant a slider
+value below the floor was silently clamped with no visible effect, which is
+exactly the kind of "control that does nothing" a user notices and rightly
+objects to. Decoupled entirely: `BORDERLESS_CORNER_RADIUS_DP` /
+`BORDERLESS_TILE_GAP_DP` are now fixed constants, not a floor over
+Personalize's sliders, and Personalize hides the corner-radius, tile-spacing,
+*and* gradient-fill rows outright while widget cards is the active style (the
+last of the three was already dead code for this style before this session —
+`useTileGradient` was never read in the `borderless` fill branch — just
+never surfaced as a visible bug until the other two were fixed the same way).
+
+**"suggest better name for borderless."** Renamed the user-facing label from
+"borderless" to **widget cards** — the style stopped being accurately
+described by "no border" once it grew rounded corners and its own card fill;
+"widget cards" names what it actually now does, and echoes the user's own
+"gadget placed on launcher screen" framing from the entry above. Deliberately
+a display-string-only rename: the Kotlin symbol names (`borderlessTiles`,
+`TileBackgroundStyle.BORDERLESS`, `setBorderlessTiles`) and the persisted
+settings key are unchanged, so no migration and no risk to an existing
+install's saved choice — only the three visible strings (the picker's own
+cell label, the personalize guide, the about sheet) changed.
+
 ## The disc wallpapers are a row of three, and the picker grid is really a grid
 
 User: "create a row of such wallpapers (3) with varying color combinations. so

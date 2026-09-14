@@ -56,18 +56,29 @@ object Glass {
      * Card fill for a "borderless" tile — the one thing it paints besides its
      * own drop shadow. Meant to read as a genuine widget-style card (like an
      * Android home-screen gadget's own translucent surface), not a coloured
-     * tile: accent-blind on purpose, and fairly opaque rather than a barely-
-     * there wash, so the card itself is clearly visible against any wallpaper
-     * — a first, much fainter pass (9–14% alpha, no true card colour) read as
-     * "not quite there" rather than a distinct raised surface.
+     * tile: accent-blind on purpose.
      *
-     * Flips by theme like a real widget surface would — a light card in light
-     * theme, a dark one in dark theme — rather than staying white in both
-     * (which was the right call for the earlier, much-fainter "lift" version,
-     * where it was blending into whatever colour was already there; a proper
-     * opaque card instead needs its own theme-appropriate identity).
+     * White in *both* themes — a first pass here flipped to a dark neutral
+     * tint for dark theme (reasoning: "a real widget's card matches the
+     * theme"), which was wrong in practice: layering a dark tint over an
+     * already near-black wallpaper composites to something just as dark, so
+     * the card never actually lifted off its background — user-reported
+     * "looks very dark." Material's own dark-theme convention is the opposite
+     * of that intuition: an *elevated* dark-theme surface gets lighter than
+     * its background, not darker, which is what a white overlay (at a modest
+     * alpha) actually achieves.
+     *
+     * [transparency] is the same 0..1 "tile transparency" slider glass
+     * already uses (Personalize surfaces it for borderless too, alongside
+     * transparent) — 0 = the most opaque, clearly-a-card end; 1 = the
+     * faintest the card can go while still reading as a raised surface (never
+     * all the way to invisible, since a truly-zero-alpha "card" isn't a card
+     * any more — that's what [Glass.fill]'s own 0.05 floor is for, at a
+     * lower target since glass tints don't need a real shadow's help).
      */
-    fun raisedCardFill(dark: Boolean): Color =
-        if (dark) Color(red = 30f / 255f, green = 30f / 255f, blue = 34f / 255f, alpha = 0.62f)
-        else Color.White.copy(alpha = 0.68f)
+    fun raisedCardFill(dark: Boolean, transparency: Float): Color {
+        val t = transparency.coerceIn(0f, 1f)
+        val (max, min) = if (dark) 0.30f to 0.12f else 0.78f to 0.34f
+        return Color.White.copy(alpha = max - t * (max - min))
+    }
 }

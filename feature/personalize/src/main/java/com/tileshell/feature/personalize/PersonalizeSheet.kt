@@ -701,7 +701,7 @@ fun PersonalizeSheet(
                         TileBackgroundStyle.NONE to "none",
                         TileBackgroundStyle.TRANSPARENT to "transparent",
                         TileBackgroundStyle.BEHIND_TILES to "behind tiles",
-                        TileBackgroundStyle.BORDERLESS to "borderless",
+                        TileBackgroundStyle.BORDERLESS to "widget cards",
                     )
                     labels.forEach { (style, label) ->
                         SegCell(label, selected = style == currentBackground, accent = accent, fg = tokens.fg) {
@@ -723,14 +723,22 @@ fun PersonalizeSheet(
                     ToggleRow("tile outline", on = tileOutline, accent = accent, tokens, onTileOutlineChange)
                 }
 
-                // Tile transparency only makes sense for "transparent" (nothing to tint
-                // otherwise). Blur applies to both "none" and "transparent" — both render
-                // through the same non-tiled WallpaperBackground — but not "behind tiles":
-                // that mode has no single composable to blur (each tile draws its own
-                // window onto the wallpaper), and blurring every tile's window
-                // individually is prohibitively expensive (one RenderEffect layer per
-                // visible tile — tried it, caused an ANR).
-                if (currentBackground == TileBackgroundStyle.TRANSPARENT) {
+                // Tile transparency controls the see-through amount for either
+                // style that paints a translucent surface: "transparent" (the
+                // accent-tinted glass fill) and "borderless" (its neutral
+                // widget-card fill) — the same slider, since both are "how
+                // much of the tile's own surface alpha shows through," just
+                // applied to a different base colour per style. Blur applies
+                // to "none"/"transparent"/"borderless" — all three render
+                // through the same non-tiled WallpaperBackground — but not
+                // "behind tiles": that mode has no single composable to blur
+                // (each tile draws its own window onto the wallpaper), and
+                // blurring every tile's window individually is prohibitively
+                // expensive (one RenderEffect layer per visible tile — tried
+                // it, caused an ANR).
+                if (currentBackground == TileBackgroundStyle.TRANSPARENT ||
+                    currentBackground == TileBackgroundStyle.BORDERLESS
+                ) {
                     // Local draft so the thumb (and the % readout) track the
                     // finger at frame rate. The persisted value is debounced
                     // (StartViewModel's pendingSettingWrites) to avoid rewriting
@@ -762,81 +770,45 @@ fun PersonalizeSheet(
                     ToggleRow("blur wallpaper", on = blur, accent = accent, tokens, onBlurChange)
                 }
 
-                Spacer(Modifier.height(18.dp))
-                HorizontalDivider(color = tokens.tileLine)
-                Spacer(Modifier.height(18.dp))
+                // Corner radius, tile spacing, and gradient fill all
+                // have zero visible effect on a borderless tile — it
+                // uses its own fixed corner radius/gap (see
+                // BORDERLESS_CORNER_RADIUS_DP/_TILE_GAP_DP in
+                // StartScreen.kt) and never reads useTileGradient. Hiding
+                // all three while this style is active avoids showing
+                // controls that visibly do nothing.
+                if (currentBackground != TileBackgroundStyle.BORDERLESS) {
+                    Spacer(Modifier.height(18.dp))
+                    HorizontalDivider(color = tokens.tileLine)
+                    Spacer(Modifier.height(18.dp))
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("corner radius", color = tokens.fgDim, fontSize = 13.sp)
-                    Text("${cornerRadius.roundToInt()}", color = tokens.fgDim, fontSize = 13.sp)
-                }
-                Spacer(Modifier.height(4.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(22.dp)
-                            .background(accent),
-                    )
-                    // Local draft so the thumb tracks the finger at frame rate.
-                    // The persisted value is debounced (StartViewModel's
-                    // pendingSettingWrites) to avoid rewriting the whole settings
-                    // blob on every frame of the drag, so binding the Slider
-                    // straight to the persisted value would leave it visibly
-                    // stuck mid-gesture. Re-keyed on the persisted value so an
-                    // external change (reset tile style) still moves the thumb;
-                    // no write lands mid-drag, so this can't fight the gesture.
-                    var cornerDraft by remember(cornerRadius) { mutableFloatStateOf(cornerRadius) }
-                    Slider(
-                        value = cornerDraft,
-                        onValueChange = { cornerDraft = it; onCornerRadiusChange(it) },
-                        valueRange = 0f..20f,
-                        colors = SliderDefaults.colors(
-                            thumbColor = accent,
-                            activeTrackColor = accent,
-                            inactiveTrackColor = tokens.tileLine,
-                        ),
-                        modifier = Modifier.weight(1f),
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(22.dp)
-                            .clip(RoundedCornerShape(7.dp))
-                            .background(accent),
-                    )
-                }
-                // Tile spacing — hidden when wallpaper-behind-tiles is on so wider
-                // gaps never fragment the show-through wallpaper.
-                if (!tiledWallpaper) {
-                    Spacer(Modifier.height(14.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("tile spacing", color = tokens.fgDim, fontSize = 13.sp)
-                        Text("${tileGap.roundToInt()}", color = tokens.fgDim, fontSize = 13.sp)
+                        Text("corner radius", color = tokens.fgDim, fontSize = 13.sp)
+                        Text("${cornerRadius.roundToInt()}", color = tokens.fgDim, fontSize = 13.sp)
                     }
                     Spacer(Modifier.height(4.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
-                            Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
-                            Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
-                        }
-                    // Local draft so the thumb tracks the finger at frame rate.
-                    // The persisted value is debounced (StartViewModel's
-                    // pendingSettingWrites) to avoid rewriting the whole settings
-                    // blob on every frame of the drag, so binding the Slider
-                    // straight to the persisted value would leave it visibly
-                    // stuck mid-gesture. Re-keyed on the persisted value so an
-                    // external change (reset tile style) still moves the thumb;
-                    // no write lands mid-drag, so this can't fight the gesture.
-                        var gapDraft by remember(tileGap) { mutableFloatStateOf(tileGap) }
+                        Box(
+                            modifier = Modifier
+                                .size(22.dp)
+                                .background(accent),
+                        )
+                        // Local draft so the thumb tracks the finger at frame rate.
+                        // The persisted value is debounced (StartViewModel's
+                        // pendingSettingWrites) to avoid rewriting the whole settings
+                        // blob on every frame of the drag, so binding the Slider
+                        // straight to the persisted value would leave it visibly
+                        // stuck mid-gesture. Re-keyed on the persisted value so an
+                        // external change (reset tile style) still moves the thumb;
+                        // no write lands mid-drag, so this can't fight the gesture.
+                        var cornerDraft by remember(cornerRadius) { mutableFloatStateOf(cornerRadius) }
                         Slider(
-                            value = gapDraft,
-                            onValueChange = { gapDraft = it; onTileGapChange(it) },
-                            valueRange = 0f..16f,
+                            value = cornerDraft,
+                            onValueChange = { cornerDraft = it; onCornerRadiusChange(it) },
+                            valueRange = 0f..20f,
                             colors = SliderDefaults.colors(
                                 thumbColor = accent,
                                 activeTrackColor = accent,
@@ -844,22 +816,67 @@ fun PersonalizeSheet(
                             ),
                             modifier = Modifier.weight(1f),
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
-                            Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
+                        Box(
+                            modifier = Modifier
+                                .size(22.dp)
+                                .clip(RoundedCornerShape(7.dp))
+                                .background(accent),
+                        )
+                    }
+                    // Tile spacing — hidden when wallpaper-behind-tiles is on so wider
+                    // gaps never fragment the show-through wallpaper.
+                    if (!tiledWallpaper) {
+                        Spacer(Modifier.height(14.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("tile spacing", color = tokens.fgDim, fontSize = 13.sp)
+                            Text("${tileGap.roundToInt()}", color = tokens.fgDim, fontSize = 13.sp)
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                                Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
+                                Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
+                            }
+                        // Local draft so the thumb tracks the finger at frame rate.
+                        // The persisted value is debounced (StartViewModel's
+                        // pendingSettingWrites) to avoid rewriting the whole settings
+                        // blob on every frame of the drag, so binding the Slider
+                        // straight to the persisted value would leave it visibly
+                        // stuck mid-gesture. Re-keyed on the persisted value so an
+                        // external change (reset tile style) still moves the thumb;
+                        // no write lands mid-drag, so this can't fight the gesture.
+                            var gapDraft by remember(tileGap) { mutableFloatStateOf(tileGap) }
+                            Slider(
+                                value = gapDraft,
+                                onValueChange = { gapDraft = it; onTileGapChange(it) },
+                                valueRange = 0f..16f,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = accent,
+                                    activeTrackColor = accent,
+                                    inactiveTrackColor = tokens.tileLine,
+                                ),
+                                modifier = Modifier.weight(1f),
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
+                                Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
+                            }
                         }
                     }
+
+                    Spacer(Modifier.height(14.dp))
+                    ToggleRow(
+                        "gradient fill",
+                        on = tileFill == TileFill.GRADIENT,
+                        accent = accent,
+                        tokens,
+                        onChange = { on -> onTileFillChange(if (on) TileFill.GRADIENT else TileFill.FLAT) },
+                    )
+
                 }
-
-                Spacer(Modifier.height(14.dp))
-                ToggleRow(
-                    "gradient fill",
-                    on = tileFill == TileFill.GRADIENT,
-                    accent = accent,
-                    tokens,
-                    onChange = { on -> onTileFillChange(if (on) TileFill.GRADIENT else TileFill.FLAT) },
-                )
-
                 Spacer(Modifier.height(18.dp))
                 HorizontalDivider(color = tokens.tileLine)
                 Spacer(Modifier.height(18.dp))
