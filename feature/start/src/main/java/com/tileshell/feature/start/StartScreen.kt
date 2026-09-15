@@ -3270,18 +3270,19 @@ private fun StartPage(
                         blocks = blocks,
                         textColor = sectionNavTextColor,
                         onJumpTo = { sectionId ->
-                            // Tapping a pill opens (expands) that section if
-                            // it's currently collapsed, in addition to
-                            // scrolling to it — a collapsed section otherwise
-                            // just scrolls to its bare header with nothing to
-                            // see (user-requested: "pill click should open
-                            // the section"). A section's own topOffsetPx is
-                            // unaffected by its own collapsed state (only
-                            // later blocks shift), so it's still correct to
-                            // read here even though the toggle's effect
+                            // A pill is a real open/close toggle for its
+                            // section (user-requested), not just an "open if
+                            // collapsed" — tapping an already-open section's
+                            // pill collapses it again, same as tapping its
+                            // own header chevron would. No-op for the
+                            // "unsectioned" pill (sectionId null; it has no
+                            // collapsed state). Always scrolls there too,
+                            // whichever way it ends up. A section's own
+                            // topOffsetPx is unaffected by its own collapsed
+                            // state (only later blocks shift), so reading it
+                            // here is correct even though the toggle's effect
                             // hasn't recomposed yet.
-                            val target = blocks.firstOrNull { it.sectionId == sectionId }
-                            if (target?.collapsed == true) sectionId?.let(onToggleSectionCollapsed)
+                            sectionId?.let(onToggleSectionCollapsed)
                             val render = blockRenders.firstOrNull { it.block.sectionId == sectionId }
                                 ?: return@SectionPillBar
                             sectionNavScope.launch { scrollState.animateScrollTo(render.topOffsetPx.roundToInt()) }
