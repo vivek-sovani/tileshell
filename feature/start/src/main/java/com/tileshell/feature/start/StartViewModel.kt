@@ -1222,15 +1222,37 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      * which an explicit off-then-on toggle happened to trigger as a side
      * effect, masking the gap in the fresh-install case.
      */
+    /**
+     * Seeds every currently-unslotted tile's `gridSlot` from its present
+     * pack position — but scoped to its own block (a real section, or the
+     * unsectioned group), the same grouping the Start screen itself renders
+     * per block. Packing the *whole* flat tile list as one grid (the
+     * original, pre-sections implementation) computed each tile's *global*
+     * row — fine before sections existed, since the whole list really was
+     * one grid, but once sections split rendering into several independent
+     * local grids, a tile's global row (e.g. 19, being the 19th tile
+     * overall) got written back as its `gridSlot` and then reinterpreted as
+     * an anchor *within its own much smaller section* — reserving a large
+     * empty gap above it to honor a row number that never meant anything in
+     * that local context (user-reported: "it created a big space"; this is
+     * also why a plain `adb`-level fix to the persisted data alone kept
+     * reverting on every relaunch — this function re-seeds from scratch any
+     * time it finds an unslotted tile in sticky/anchored mode).
+     */
     private suspend fun seedStickySlots(columns: Int) {
         val current = repository.tiles.first()
         val unslotted = current.filter { it.gridSlot == null }.mapTo(HashSet()) { it.id }
         if (unslotted.isEmpty()) return
-        val specs = current.map { TileSpec(it.id, it.size) }
-        val slotOf: (String) -> Int? = { id -> current.firstOrNull { it.id == id }?.gridSlot }
-        val placements = GridPacker.packSticky(specs, slotOf, columns)
-        placements.filter { it.id in unslotted }.forEach { p ->
-            repository.setTileGridSlot(p.id, GridPacker.encodeSlot(p.col, p.row))
+        val byId = current.associateBy { it.id }
+        val validSectionIds = repository.sections.first().mapTo(HashSet()) { it.id }
+        val groups = current.groupBy { it.sectionId?.takeIf { id -> id in validSectionIds } }
+        groups.values.forEach { group ->
+            val specs = group.map { TileSpec(it.id, it.size) }
+            val slotOf: (String) -> Int? = { id -> byId[id]?.gridSlot }
+            val placements = GridPacker.packSticky(specs, slotOf, columns)
+            placements.filter { it.id in unslotted }.forEach { p ->
+                repository.setTileGridSlot(p.id, GridPacker.encodeSlot(p.col, p.row))
+            }
         }
     }
 

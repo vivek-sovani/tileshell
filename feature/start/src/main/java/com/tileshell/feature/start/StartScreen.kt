@@ -4890,6 +4890,17 @@ private fun Modifier.editDragGesture(
         return postProcess?.invoke(base) ?: base
     }
 
+    // Sticky-mode drop bound (real-bug fix): a drop can anchor no further
+    // down than immediately after this block's own current last row —
+    // never further, however far past this block's own (often much smaller
+    // than the screen, once sections split one grid into several) rendered
+    // area the finger travels. Without this, dragging past a small
+    // section's tiny content computed an enormous row straight from the raw
+    // pointer position, anchoring the tile dozens of rows down and leaving
+    // a large empty gap above it (user-reported: "it created a big space").
+    fun stickyDropRowBound(exclude: String): Int =
+        othersPacked(exclude).maxOfOrNull { it.row + it.rows } ?: 0
+
     // Same as [othersPacked], but in sticky mode packed from each tile's real
     // persisted `gridSlot` only — never the live [slotOf] (which reads the
     // in-progress push-down preview). Merge-target hit-testing must use this:
@@ -5206,7 +5217,8 @@ private fun Modifier.editDragGesture(
                                 if (slotOf != null) {
                                     val childSize = byId[startId]?.size ?: TileSize.SMALL
                                     val w = childSize.cols.coerceAtMost(columns)
-                                    val cell = geom.cellAt(pos - grab, columns, w)
+                                    val rawCell = geom.cellAt(pos - grab, columns, w)
+                                    val cell = IntOffset(rawCell.x, rawCell.y.coerceAtMost(stickyDropRowBound(startId)))
                                     pulledOutSlot = GridPacker.encodeSlot(cell.x, cell.y)
                                     pulledOutTargetId = null
                                     if (freeMode) {
@@ -5289,7 +5301,8 @@ private fun Modifier.editDragGesture(
                         // so nothing needs recomputing on every move here.
                         val tileSize = byId[startId]?.size ?: TileSize.SMALL
                         val w = tileSize.cols.coerceAtMost(columns)
-                        val cell = geom.cellAt(pos - grab, columns, w)
+                        val rawCell = geom.cellAt(pos - grab, columns, w)
+                        val cell = IntOffset(rawCell.x, rawCell.y.coerceAtMost(stickyDropRowBound(startId)))
                         pendingSlot = GridPacker.encodeSlot(cell.x, cell.y)
                         if (freeMode) {
                             onStickyPreview(emptyMap())
