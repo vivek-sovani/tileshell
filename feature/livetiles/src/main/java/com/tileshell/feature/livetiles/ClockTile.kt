@@ -382,10 +382,13 @@ private fun ClockBack(face: ClockFace, size: TileSize) {
     // tile instead of relying on clockFaceScale's floor, which doesn't shrink
     // far enough at 5/6 columns.
     val short = size.shortLive
-    // LARGE/XLARGE have plenty of room — show the weekday above the date too,
-    // matching ClockFront's fuller date, instead of the bare day/month/year
-    // that's the right amount of detail for a small/medium tile.
-    val big = size == TileSize.LARGE || size == TileSize.XLARGE
+    // Every size roomy enough for the two-line, End-aligned layout below
+    // (MEDIUM and up — anything that isn't itself squeezed into the narrow/
+    // short single-row-or-column layout) shows the weekday above the date
+    // too, matching ClockFront's fuller date, instead of the bare
+    // day/month/year that's the right amount of detail for a truly cramped
+    // tile.
+    val big = !narrow && !short
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val scale = clockFaceScale(maxHeight)
         val bigSize = if (short) 16.sp else (if (narrow) 20f else 30f).sp * scale
