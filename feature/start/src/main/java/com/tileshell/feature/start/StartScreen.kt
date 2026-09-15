@@ -17,6 +17,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
@@ -2298,6 +2299,10 @@ private fun StartPage(
     val density = LocalDensity.current
     // For the section jump-pill bar's tap-to-scroll (see SectionPillBar below).
     val sectionNavScope = rememberCoroutineScope()
+    // The pill bar itself is hidden by default — revealed by its own toggle
+    // handle at the bottom of the screen, per user request, rather than
+    // always taking up bottom screen space.
+    var sectionNavOpen by remember { mutableStateOf(false) }
 
     // Working order driving the grid. Mirrors the persisted order except during
     // a drag, when reorder mutates it live (the drop persists the result).
@@ -3243,23 +3248,67 @@ private fun StartPage(
         // topOffsetPx assumes no "+ add section" affordance is showing).
         // Only shown once there's more than one block to jump between — the
         // same >= 2 gate the App List's "pin to section" picker already uses.
+        // The row itself is hidden by default, revealed by its own small
+        // toggle handle (user-requested), rather than always occupying
+        // bottom screen space.
         if (!editMode && blocks.size >= 2) {
-            SectionPillBar(
-                blocks = blocks,
-                textColor = Glass.faceTextColor(screenBackgroundIsLight),
-                onJumpTo = { sectionId ->
-                    val render = blockRenders.firstOrNull { it.block.sectionId == sectionId } ?: return@SectionPillBar
-                    sectionNavScope.launch { scrollState.animateScrollTo(render.topOffsetPx.roundToInt()) }
-                },
-                // Clears the edge strip's own handle/recents affordance when
-                // it's showing (same reserved space `iconsBottomOffset` below
-                // lifts the chevron/gear icons above) — user-reported the
-                // pill bar was otherwise sitting right on top of it.
+            val sectionNavTextColor = Glass.faceTextColor(screenBackgroundIsLight)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
+                    // Clears the edge strip's own handle/recents affordance
+                    // when it's showing (same reserved space
+                    // `iconsBottomOffset` below lifts the chevron/gear icons
+                    // above) — user-reported the pill bar was otherwise
+                    // sitting right on top of it.
                     .padding(bottom = if (edgeStripVisible) STRIP_THICK + 8.dp else 10.dp),
-            )
+            ) {
+                AnimatedVisibility(visible = sectionNavOpen) {
+                    SectionPillBar(
+                        blocks = blocks,
+                        textColor = sectionNavTextColor,
+                        onJumpTo = { sectionId ->
+                            // Tapping a pill opens (expands) that section if
+                            // it's currently collapsed, in addition to
+                            // scrolling to it — a collapsed section otherwise
+                            // just scrolls to its bare header with nothing to
+                            // see (user-requested: "pill click should open
+                            // the section"). A section's own topOffsetPx is
+                            // unaffected by its own collapsed state (only
+                            // later blocks shift), so it's still correct to
+                            // read here even though the toggle's effect
+                            // hasn't recomposed yet.
+                            val target = blocks.firstOrNull { it.sectionId == sectionId }
+                            if (target?.collapsed == true) sectionId?.let(onToggleSectionCollapsed)
+                            val render = blockRenders.firstOrNull { it.block.sectionId == sectionId }
+                                ?: return@SectionPillBar
+                            sectionNavScope.launch { scrollState.animateScrollTo(render.topOffsetPx.roundToInt()) }
+                        },
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(sectionNavTextColor.copy(alpha = 0.14f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { sectionNavOpen = !sectionNavOpen },
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = TileIcons["chevron"],
+                        contentDescription = if (sectionNavOpen) "hide sections" else "show sections",
+                        tint = sectionNavTextColor.copy(alpha = 0.72f),
+                        modifier = Modifier.size(16.dp).rotate(if (sectionNavOpen) 90f else -90f),
+                    )
+                }
+            }
         }
 
         // Bottom edit bar (prototype .edit-bar): slides up while editing.
