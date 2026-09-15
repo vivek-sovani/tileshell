@@ -68,7 +68,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -2660,22 +2659,24 @@ private fun StartPage(
             }
             blockRenders.forEach { render ->
             val block = render.block
-            // A real section gets a tinted, bordered panel wrapping its
-            // header + tiles, so it reads as its own boxed region (user-
-            // requested "show visually various ways sections can be shown");
-            // the trailing unsectioned block never does, staying exactly as
-            // it rendered before this. This Column adds no padding/spacing of
-            // its own around its children (a bare wrapper, not a card inset),
-            // so it changes nothing about blockRenders' own topOffsetPx/
-            // gridTopOffsetPx bookkeeping or any drag/hit-test math below —
-            // purely a paint change.
-            val sectionPanelShape = RoundedCornerShape(14.dp)
+            // A real section gets a tinted panel wrapping its header + tiles,
+            // so it reads as its own boxed region (user-requested "show
+            // visually various ways sections can be shown"); the trailing
+            // unsectioned block never does, staying exactly as it rendered
+            // before this. No border/stroke is drawn — a hard line sitting
+            // flush against a tile's own edge (tiles already touch the
+            // screen's own left/right edges) is what read as "crowded"/"bad
+            // design" (user-reported), so the tint alone marks the region.
+            // This Column adds no padding/spacing of its own around its
+            // children (a bare wrapper, not a card inset), so it changes
+            // nothing about blockRenders' own topOffsetPx/gridTopOffsetPx
+            // bookkeeping or any drag/hit-test math below — purely a paint
+            // change.
             val sectionPanelModifier = if (block.sectionId != null) {
                 Modifier
                     .fillMaxWidth()
-                    .clip(sectionPanelShape)
+                    .clip(RoundedCornerShape(14.dp))
                     .background(Glass.sectionPanelFill(darkTheme, wallpaperAccent ?: accent))
-                    .border(1.dp, Glass.sectionPanelBorder(darkTheme, wallpaperAccent ?: accent), sectionPanelShape)
             } else {
                 Modifier.fillMaxWidth()
             }
@@ -3250,7 +3251,14 @@ private fun StartPage(
                     val render = blockRenders.firstOrNull { it.block.sectionId == sectionId } ?: return@SectionPillBar
                     sectionNavScope.launch { scrollState.animateScrollTo(render.topOffsetPx.roundToInt()) }
                 },
-                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 10.dp),
+                // Clears the edge strip's own handle/recents affordance when
+                // it's showing (same reserved space `iconsBottomOffset` below
+                // lifts the chevron/gear icons above) — user-reported the
+                // pill bar was otherwise sitting right on top of it.
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = if (edgeStripVisible) STRIP_THICK + 8.dp else 10.dp),
             )
         }
 
@@ -4177,6 +4185,13 @@ private fun FolderExpandedPlaceholder(
  * (null for "unsectioned") — this composable has no scroll/tab logic of its
  * own, so the same pill row can back either the current scroll-jump mode or
  * a future tabbed mode, per the plan to keep both as a Personalize choice.
+ *
+ * Wraps onto more than one line instead of scrolling horizontally
+ * (user-reported: a horizontally-scrolling row here fought with Start's own
+ * left/right pager swipe for the same gesture, since both are horizontal
+ * drags starting in roughly the same screen region) — with a small handful
+ * of sections this reads as one line exactly like before; only a genuinely
+ * long list wraps.
  */
 @Composable
 private fun SectionPillBar(
@@ -4185,11 +4200,10 @@ private fun SectionPillBar(
     onJumpTo: (String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 12.dp),
+    androidx.compose.foundation.layout.FlowRow(
+        modifier = modifier.padding(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         blocks.forEach { block ->
             Box(
