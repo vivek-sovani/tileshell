@@ -3,6 +3,55 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Sections' "big gap" bug: why the same symptom kept reappearing across three fixes
+
+User reports across several rounds all described the same visible symptom —
+resizing/moving a tile inside a small section, or just relaunching the app,
+left a large empty gap under a section header (once even surviving a direct
+adb-level data repair, which reverted on the very next launch). Each round
+found a *real* bug, but not the *only* one, because the same design flaw —
+"a sticky-mode helper computes push-down/collapse/seeding against the
+entire flat tile list" — existed independently in three separate places that
+all predate the sections feature and never needed to know about it before:
+
+1. `StartViewModel.seedStickySlots` — re-anchors any tile with no `gridSlot`
+   yet, on every app launch. Packed the whole tile list as one grid and
+   wrote back each tile's *global* row.
+2. `editDragGesture`'s live sticky-drop cell computation — uncapped, so
+   once a drag gesture is scoped to one small section's own tiny Box (see
+   the sections rendering entry below), a finger travelling past that box's
+   small rendered area (trivial once the box is only 1-2 rows tall) computed
+   an arbitrarily large row straight from the raw pointer position.
+3. `stickySlotsForPlacement`/`collapseEmptyRowsAfterRemoval` — the actual
+   placement engine behind resize, drag-drop, and unpin. Same flaw, and the
+   most consequential: a *persisted* write, not a live preview, so the
+   damage from an ordinary resize survived a relaunch and even survived
+   collapsing the section (collapsing just stops rendering the tiles; it
+   never touches their stored `gridSlot`).
+
+Each was found only by reproducing the report, decoding the actual
+persisted `gridSlot` value (`row = slot / 1000`, per `GridPacker`'s
+`SLOT_ROW_STRIDE`), and recognizing the row number as "this tile's position
+among *all* pinned tiles" rather than anything meaningful within its own
+2-4-tile section. Fixed with one shared scoping helper
+(`StartViewModel.tilesInBlock(sectionId, excludeId)`, mirroring
+`blocksFor`'s own section/unsectioned grouping) threaded through every one
+of these call sites, rather than three independent patches — the same
+underlying invariant ("a block's own placement math only ever sees its own
+block's tiles") needed to hold everywhere sticky-mode touches a `gridSlot`,
+not just in whichever function happened to be caught first.
+
+A related, separately-diagnosed bug in the same testing round: merging a
+tile into a folder that already belonged to a section reset the folder to
+unsectioned. `LayoutRepository.mergeTiles`/`mergeFolderChildIntoTile` rebuild
+the target's whole `TileEntity` to convert/grow it into a folder;
+`insertTiles`'s replace-on-conflict overwrites every column, so omitting
+`sectionId = target.sectionId` from the new row silently discarded it. Not
+the same root cause as the gap bug (a full-row overwrite forgetting one
+field, not a wrong-scope computation), but found and fixed in the same pass
+since it produced a similarly surprising "my section membership silently
+changed" experience.
+
 ## Start screen "sections" — named/collapsible groups, not multi-page desktops
 
 User asked for a "desktop 1 / desktop 2" concept on Start. Real WP/WM10 Start

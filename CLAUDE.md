@@ -37,6 +37,53 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`start-sections` branch (not merged) — six on-device-reported bug fixes
+  after the sessions 2-5 combined pass below, the most important being the
+  real root cause of a recurring "big empty gap under a section" report.**
+  In order: (1) creating a section created two with the same name —
+  `SectionNameEditor` committed from three independent triggers (IME Done,
+  focus-loss, the new checkmark) with no guard against firing twice for one
+  tap; added a single-fire guard and dropped the focus-loss auto-commit
+  entirely. (2)/(3)/(6) three rounds chasing the same symptom
+  ("adjusting a tile inside a section creates a gap that survives collapsing
+  the section") before finding the real cause: sticky-mode's placement
+  engine (`StartViewModel.stickySlotsForPlacement`/
+  `collapseEmptyRowsAfterRemoval`, shared by resize/drag-drop/unpin) computed
+  collisions against the *entire* flat tile list, so moving or resizing one
+  tile inside a small section could anchor it (or a neighbor) at a row
+  number that only made sense globally — e.g. row 19, its position among
+  ~20 pinned tiles overall — reserving a huge empty gap once rendered inside
+  its own 2-4-tile section. Same root issue independently in three places
+  that all needed the fix: `StartViewModel.seedStickySlots` (runs on every
+  launch, re-anchors any never-slotted tile), the live sticky-drop cell
+  computation in `editDragGesture` (uncapped once a per-block drag can
+  travel far past its own small block's tiny rendered area), and — the
+  deepest one — `stickySlotsForPlacement`/`collapseEmptyRowsAfterRemoval`
+  themselves. Fixed with one shared `tilesInBlock(sectionId, excludeId)`
+  scoping helper threaded through all of them, mirroring `blocksFor`'s own
+  section/unsectioned grouping — a change to one section's tiles can no
+  longer touch a tile in a different section or the unsectioned group.
+  Also merging a tile into a folder that already belonged to a section reset
+  it to unsectioned — `LayoutRepository.mergeTiles`/`mergeFolderChildIntoTile`
+  rebuild the target's `TileEntity` without carrying over `sectionId`, and
+  `insertTiles`'s replace-on-conflict silently wiped it; both now preserve
+  `target.sectionId`. Per direct user requests along the way: section names
+  are now bold/18sp/full-opacity (were the same small muted style as the
+  chevron/reorder controls), a collapsed section shows a summed notification
+  badge on its header (mirrors a folder's own aggregate badge, since
+  collapsing hides the individual tiles carrying those counts), and the
+  "+ add section" affordance moved from small text at the bottom of the grid
+  to a prominent circular "+" button at the top (edit mode only). Every fix
+  build + full-unit-test-suite verified; the placement-engine and merge
+  fixes additionally verified against the physical device's own real,
+  previously-corrupted data (hand-repaired via a pulled/patched/pushed
+  database — including replaying the WAL, since a raw file swap doesn't
+  invalidate Room's already-open in-memory Flow state, confirmed the hard
+  way when an initial fix appeared to revert on every relaunch) — confirmed
+  the "social" section's tiles now re-seed at row 0 instead of row 19+, and
+  screenshot-verified live on the phone. See DECISIONS.md for the specific
+  reasoning trail on the "why did the same bug keep reappearing" debugging
+  arc.
 - **`start-sections` branch (not merged) — Start screen "sections" feature,
   sessions 2-5 combined: per-section rendering/gestures, section management
   UI, "move to section" picker.** Direct continuation of session 1 below,
