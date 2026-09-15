@@ -58,7 +58,8 @@ internal val MONTHS = listOf(
  * reminder/alarm. Empty [alarm] means none is set (back omits the line).
  * [alarmDate] is the reminder/alarm's *own* date (e.g. "25 july 2026" for an
  * alarm two days out) — distinct from [fullDate] (today's date) since the two
- * differ whenever the next alarm isn't today.
+ * differ whenever the next alarm isn't today. [alarmWeekday] is that same
+ * alarm date's weekday (empty when [alarmDate] is empty).
  */
 data class ClockFace(
     val hm: String,
@@ -67,6 +68,7 @@ data class ClockFace(
     val alarm: String = "",
     val reminderTitle: String = "",
     val alarmDate: String = "",
+    val alarmWeekday: String = "",
 )
 
 private fun formatFullDate(dayOfMonth: Int, month0: Int, year: Int): String =
@@ -163,6 +165,7 @@ fun clockFace(
     alarm: String = "",
     reminderTitle: String = "",
     alarmDate: String = "",
+    alarmWeekday: String = "",
 ): ClockFace {
     val hour12 = (hour24 % 12).let { if (it == 0) 12 else it }
     val suffix = if (hour24 < 12) "am" else "pm"
@@ -173,6 +176,7 @@ fun clockFace(
         alarm = alarm,
         reminderTitle = reminderTitle,
         alarmDate = alarmDate,
+        alarmWeekday = alarmWeekday,
     )
 }
 
@@ -180,14 +184,11 @@ private fun currentClockFace(context: Context): ClockFace {
     val c = Calendar.getInstance()
     val am = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
     val info = am?.nextAlarmClock
-    val alarmDate = info?.let {
-        val alarmCal = Calendar.getInstance().apply { timeInMillis = it.triggerTime }
-        formatFullDate(
-            alarmCal.get(Calendar.DAY_OF_MONTH),
-            alarmCal.get(Calendar.MONTH),
-            alarmCal.get(Calendar.YEAR),
-        )
+    val alarmCal = info?.let { Calendar.getInstance().apply { timeInMillis = it.triggerTime } }
+    val alarmDate = alarmCal?.let {
+        formatFullDate(it.get(Calendar.DAY_OF_MONTH), it.get(Calendar.MONTH), it.get(Calendar.YEAR))
     }.orEmpty()
+    val alarmWeekday = alarmCal?.let { WEEKDAYS[it.get(Calendar.DAY_OF_WEEK) - 1] }.orEmpty()
     return clockFace(
         hour24 = c.get(Calendar.HOUR_OF_DAY),
         minute = c.get(Calendar.MINUTE),
@@ -198,6 +199,7 @@ private fun currentClockFace(context: Context): ClockFace {
         alarm = nextAlarmString(context),
         reminderTitle = info?.let { reminderTitleFor(context, it.triggerTime) }.orEmpty(),
         alarmDate = alarmDate,
+        alarmWeekday = alarmWeekday,
     )
 }
 
@@ -432,7 +434,16 @@ private fun ClockBack(face: ClockFace, size: TileSize) {
                 Text(
                     // The reminder/alarm's own date, not necessarily today's — e.g. an
                     // alarm set for the 25th while today is the 23rd shows "25 ...".
-                    text = face.alarmDate.ifEmpty { face.fullDate },
+                    // Paired with its own weekday (falling back to today's when the
+                    // alarm date itself is empty, alongside fullDate) at roomy sizes
+                    // so this caption reads as a full date too, not just day/month/
+                    // year — narrow/short tiles keep the bare date, same as before.
+                    text = if (big) {
+                        "${face.alarmWeekday.ifEmpty { face.weekday }}, " +
+                            face.alarmDate.ifEmpty { face.fullDate }
+                    } else {
+                        face.alarmDate.ifEmpty { face.fullDate }
+                    },
                     color = FaceText.copy(alpha = 0.65f),
                     fontSize = smallSize,
                     maxLines = if (narrow) 2 else 1,
