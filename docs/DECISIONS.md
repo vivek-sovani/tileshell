@@ -3,6 +3,43 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## FREE-mode drag-drop redirects to the nearest free cell instead of displacing the existing tile
+
+User-reported: "in free mode, when i push tile downwards and tile exists
+there the existing tile show inward movement... if there is enough space
+there should not be any existing tile movement. unless there is space
+creation requirement."
+
+FREE mode's documented premise (`LauncherSettings.kt`'s `TilePackMode` doc
+comment) is that "nothing moves unless the user moves it." Its drag-drop
+write path (`GridPacker.swapPlacement`, now `freePlacement`) technically
+honored that for *most* of the grid, but not for the one tile actually
+occupying the drop target: it always swapped the dropped tile with that
+single occupant, moving it to the dragged tile's old cell — visible motion
+the user correctly identified as inconsistent with "nothing moves unless the
+user moves it," since it happened even when the grid had free cells
+elsewhere that could have absorbed the drop without touching anyone.
+
+Fixed by redirecting the dropped tile to the **nearest free cell** of its own
+footprint (Manhattan distance to the drop point, ties broken toward the
+lowest row then lowest column, matching the tie-break convention
+`stickyPlacement`'s own `freeColumnNear` already uses) instead of swapping.
+A free cell is provably always found: a row past every other anchored tile's
+bottom edge is free across every column by construction (nothing else
+extends that far), so the search is bounded there and never comes up empty —
+which means the old "no free cell" fallback (swap the single occupant, or
+push-down via `stickyPlacement` for a multi-occupant/mismatched-footprint
+drop) is genuinely unreachable now and was deleted along with it, rather than
+kept as dead defensive code. The one case this changes for the user: a drop
+that used to swap two tiles now instead leaves the occupant exactly where it
+was and settles the dragged tile at whatever open cell is closest to where
+it was released — which can be a different cell than the occupant's old one,
+since "nearest free" and "the dragged tile's own previous cell" aren't always
+the same place. That is the intended trade-off per the user's own framing:
+existing tiles should only ever move when the user moves them directly, and
+"space creation" (this codebase's other two modes' push-down behaviour) is
+reserved for the case FREE mode can never actually hit.
+
 ## Tiles without borders: a "borderless" tile style plus a "tile outline" toggle
 
 User asked whether there could be "another option for tiles without borders."

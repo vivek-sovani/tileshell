@@ -44,8 +44,9 @@ enum class IconShape { CIRCLE, SQUIRCLE, ROUNDED, SQUARE, ORIGINAL }
  * user drags something into it, except a *fully* empty row (no tile touching any
  * column), which always collapses. [FREE] is stickier still: nothing moves unless
  * the user moves it — no push-down on drop, and even a fully empty row stays open.
- * Dropping onto an occupied cell swaps the two tiles instead of displacing anything
- * (see `GridPacker.swapPlacement`). [STICKY] and [FREE] are both "anchored" modes
+ * Dropping onto an occupied cell never displaces the tile(s) already there — the
+ * dropped tile is redirected to the nearest free cell instead (see
+ * `GridPacker.freePlacement`). [STICKY] and [FREE] are both "anchored" modes
  * for placement purposes (see `GridPacker.packSticky`'s `slotOf`); only [FREE]
  * skips the full-empty-row collapse and the push-down-on-drop/resize behaviour.
  * A new tile always appends after the current bottom row in every mode (never

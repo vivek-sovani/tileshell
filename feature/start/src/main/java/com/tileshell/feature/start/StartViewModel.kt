@@ -1272,24 +1272,21 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Anchor a tile at a grid cell after a sticky-mode drag-drop (FR-3.2 WP
-     * variant). Dropping onto a cell that's already occupied pushes the
+     * Anchor a tile at a grid cell after a drag-drop (FR-3.2 WP variant). In
+     * STICKY mode, dropping onto a cell that's already occupied pushes the
      * occupant(s) straight down to make room — the same push-down +
      * empty-row-collapse [stickySlotsForPlacement] already does for a resize
-     * — rather than rejecting the drop or leaving two tiles overlapping.
-     * Real auto-arrange (a full dense repack) never runs: only the tiles the
-     * dropped footprint actually displaces move, cascading the minimum
-     * amount needed.
+     * — rather than rejecting the drop or leaving two tiles overlapping. In
+     * FREE mode, an occupied target never displaces the tile(s) already
+     * there — [GridPacker.freePlacement] redirects the dropped tile to the
+     * nearest free cell instead, so existing tiles only ever move when the
+     * user moves them directly.
      */
     fun setTileGridSlot(id: String, slot: Int?) {
         if (slot == null) return
         val model = tiles.value.firstOrNull { it.id == id } ?: return
         val targetCol = GridPacker.decodeSlotCol(slot)
         val targetRow = GridPacker.decodeSlotRow(slot)
-        // FREE mode swaps with whatever occupies the drop cell instead of
-        // pushing it down — nothing else on the grid moves. STICKY (and DENSE,
-        // which never reaches this anchored write path) keep the existing
-        // push-down behaviour.
         val finalSlots = if (settings.value.tilePackMode == TilePackMode.FREE) {
             val columns = settings.value.columns
             val anchored = tiles.value.mapNotNull { t ->
@@ -1297,9 +1294,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
                 val s = t.gridSlot ?: return@mapNotNull null
                 TilePlacement(t.id, t.size, GridPacker.decodeSlotCol(s), GridPacker.decodeSlotRow(s))
             }
-            val fromCol = model.gridSlot?.let { GridPacker.decodeSlotCol(it) }
-            val fromRow = model.gridSlot?.let { GridPacker.decodeSlotRow(it) }
-            GridPacker.swapPlacement(anchored, id, fromCol, fromRow, model.size, targetCol, targetRow, columns)
+            GridPacker.freePlacement(anchored, id, model.size, targetCol, targetRow, columns)
         } else {
             stickySlotsForPlacement(movedId = id, size = model.size, targetCol = targetCol, targetRow = targetRow)
         }

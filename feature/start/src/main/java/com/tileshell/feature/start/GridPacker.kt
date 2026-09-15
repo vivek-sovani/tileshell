@@ -320,35 +320,56 @@ object GridPacker {
         a.col < b.col + b.w && b.col < a.col + a.w && a.row < b.row + b.h && b.row < a.row + a.h
 
     /**
-     * FREE-mode drop (`TilePackMode.FREE`): [movedId] (sized [size], currently
-     * anchored at [movedFromCol]/[movedFromRow] — its cell *before* this drag)
-     * is released at absolute cell ([targetCol], [targetRow]). FREE's whole
-     * premise is that nothing moves unless the user moves it, so:
-     * - an empty target just relocates [movedId] there, nothing else changes;
-     * - a target occupied by exactly one other anchored tile **swaps** the
-     *   two — [movedId] lands exactly where it was dropped and the occupant
-     *   takes [movedId]'s *old* cell ([movedFromCol]/[movedFromRow]) — as long
-     *   as that swap doesn't overlap anything else (columns are independently
-     *   clamped per tile, since a wide tile and a 1×1 don't share a width).
-     *   [movedFromCol]/[movedFromRow] is what makes this a genuine swap rather
-     *   than both tiles colliding on the same cell: without knowing where
-     *   [movedId] came from, there is nowhere else to put the occupant;
-     * - anything else (more than one occupant, no known origin cell for
-     *   [movedId], or a swap that doesn't cleanly fit — typically because the
-     *   two tiles are different sizes) falls back to [stickyPlacement], the
-     *   already-proven push-down solver. This fallback is the one place a
-     *   FREE-mode drop can displace a tile the user didn't touch or close a
-     *   row it vacates; it exists only for the case a plain anchor swap can't
-     *   resolve, not the common path.
-     * [anchored] is every other anchored tile's current cell, never including
-     * [movedId] itself — the same convention [stickyPlacement] uses. Pure —
-     * returns only the `gridSlot` writes needed, keyed by tile id.
+     * Nearest free cell for a [w]x[h] footprint, closest to ([targetCol],
+     * [targetRow]) (Manhattan distance, ties broken toward the lowest row
+     * then lowest column). Every [otherBoxes] entry ends by
+     * `otherBoxes.maxOf { it.row + it.h }`, so that row is guaranteed free
+     * across every column — a match always exists within this search bound.
      */
-    fun swapPlacement(
+    private fun nearestFreeCell(
+        otherBoxes: List<SwapBox>,
+        w: Int,
+        h: Int,
+        targetCol: Int,
+        targetRow: Int,
+        columns: Int,
+    ): Pair<Int, Int> {
+        val guaranteedFreeRow = otherBoxes.maxOfOrNull { it.row + it.h } ?: 0
+        var bestCol = 0
+        var bestRow = guaranteedFreeRow
+        var bestDist = Int.MAX_VALUE
+        for (row in 0..guaranteedFreeRow) {
+            for (col in 0..(columns - w)) {
+                val trial = SwapBox("", col, row, w, h)
+                if (otherBoxes.any { swapBoxesOverlap(it, trial) }) continue
+                val dist = kotlin.math.abs(row - targetRow) + kotlin.math.abs(col - targetCol)
+                if (dist < bestDist) {
+                    bestDist = dist
+                    bestRow = row
+                    bestCol = col
+                }
+            }
+        }
+        return bestCol to bestRow
+    }
+
+    /**
+     * FREE-mode drop (`TilePackMode.FREE`): [movedId] (sized [size]) is
+     * released at absolute cell ([targetCol], [targetRow]). FREE's whole
+     * premise is that nothing moves unless the user moves it, so an occupied
+     * target never displaces the tile(s) already there — [movedId] is instead
+     * redirected to the nearest free cell of its own footprint
+     * ([nearestFreeCell]). Existing tiles only ever need to move to make room
+     * during a resize (still handled by [stickyPlacement] via the caller),
+     * never from a plain drag-drop like this one, since a row past every
+     * other tile's bottom edge is always free across every column. [anchored]
+     * is every other anchored tile's current cell, never including [movedId]
+     * itself. Pure — returns only the `gridSlot` write(s) needed, keyed by
+     * tile id (always just [movedId] itself).
+     */
+    fun freePlacement(
         anchored: List<TilePlacement>,
         movedId: String,
-        movedFromCol: Int?,
-        movedFromRow: Int?,
         size: TileSize,
         targetCol: Int,
         targetRow: Int,
@@ -359,33 +380,14 @@ object GridPacker {
         val effectiveCol = targetCol.coerceIn(0, (columns - w).coerceAtLeast(0))
         val movedBox = SwapBox(movedId, effectiveCol, targetRow, w, h)
 
-        val others = anchored.filter { it.id != movedId }
-        val otherBoxes = others.map { SwapBox(it.id, it.col, it.row, it.cols.coerceAtMost(columns), it.rows) }
-        val occupants = otherBoxes.filter { swapBoxesOverlap(it, movedBox) }
+        val otherBoxes = anchored.filter { it.id != movedId }
+            .map { SwapBox(it.id, it.col, it.row, it.cols.coerceAtMost(columns), it.rows) }
 
-        if (occupants.isEmpty()) {
+        if (otherBoxes.none { swapBoxesOverlap(it, movedBox) }) {
             return mapOf(movedId to encodeSlot(effectiveCol, targetRow))
         }
 
-        if (occupants.size == 1 && movedFromCol != null && movedFromRow != null) {
-            val occ = occupants.first()
-            val occColClamped = movedFromCol.coerceIn(0, (columns - occ.w).coerceAtLeast(0))
-            val occNew = SwapBox(occ.id, occColClamped, movedFromRow, occ.w, occ.h)
-
-            val fitsInGrid = movedBox.col >= 0 && movedBox.col + movedBox.w <= columns &&
-                occNew.col >= 0 && occNew.col + occNew.w <= columns
-            val everyoneElse = otherBoxes.filter { it.id != occ.id }
-            val overlapsElsewhere = everyoneElse.any { swapBoxesOverlap(it, occNew) }
-            val swapOverlapsItself = swapBoxesOverlap(movedBox, occNew)
-
-            if (fitsInGrid && !overlapsElsewhere && !swapOverlapsItself) {
-                return mapOf(
-                    movedId to encodeSlot(movedBox.col, movedBox.row),
-                    occ.id to encodeSlot(occNew.col, occNew.row),
-                )
-            }
-        }
-
-        return stickyPlacement(others, movedId, size, targetCol, targetRow, columns)
+        val (freeCol, freeRow) = nearestFreeCell(otherBoxes, w, h, targetCol, targetRow, columns)
+        return mapOf(movedId to encodeSlot(freeCol, freeRow))
     }
 }

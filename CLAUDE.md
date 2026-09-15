@@ -37,6 +37,37 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — FREE-mode drag-drop no longer displaces the existing tile when
+  room exists elsewhere.** User-reported: "in free mode, when i push tile
+  downwards and tile exists there the existing tile show inward movement...
+  if there is enough space there should not be any existing tile movement.
+  unless there is space creation requirement." FREE mode's whole premise is
+  that nothing moves unless the user moves it, but its drag-drop-onto-an-
+  occupied-cell path (`GridPacker.swapPlacement`) always **swapped** the
+  dropped tile with whatever single tile occupied the target cell — moving
+  that occupant to the dragged tile's old cell, visible as exactly the
+  "inward movement" reported, even when plenty of free cells sat elsewhere
+  on the grid. Replaced with `GridPacker.freePlacement`: an occupied target
+  no longer displaces anyone — the dropped tile is redirected to the
+  **nearest free cell** of its own footprint instead (Manhattan distance to
+  the drop point, ties broken toward the lowest row then lowest column for
+  determinism). Since a row past every other tile's bottom edge is always
+  free across every column (nothing else extends that far), a free cell is
+  provably always found without needing a genuine "no space anywhere" push-
+  down fallback — the old single-occupant swap and the sticky-solver
+  fallback for mismatched/multi-occupant drops are both gone as dead code
+  now that this holds unconditionally; existing tiles genuinely never move
+  from a FREE-mode drag-drop. `StartViewModel.setTileGridSlot`'s FREE branch
+  simplified to match (no longer needs the dragged tile's own prior cell).
+  `TilePackMode`'s doc comment (`LauncherSettings.kt`) updated to describe
+  redirect-to-nearest-free-cell instead of swap. See DECISIONS "FREE-mode
+  drag-drop redirects to the nearest free cell instead of displacing the
+  existing tile." Build + full unit test suite green (`GridPackerTest`'s
+  swap-placement cases rewritten for the new behaviour — no other tile ever
+  appears in the returned write set); installed on both the physical device
+  and the emulator, launched with no crash in `adb logcat`. The actual drag
+  gesture still needs the user's own hands-on confirmation, per this
+  codebase's own established ADB-synthetic-drag limitation.
 - **`main` — tiles without borders: a "borderless" tile style, a "tile outline"
   toggle, and a new bundled "nebula" wallpaper.** User asked "can there be
   another option for tiles without borders" — ambiguous between two features,

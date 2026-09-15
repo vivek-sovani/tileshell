@@ -529,82 +529,59 @@ class GridPackerTest {
     }
 
 
-    // ---- swapPlacement (FREE mode) --------------------------------------
+    // ---- freePlacement (FREE mode) ----------------------------------------
 
     @Test
     fun `dropping onto an empty cell just relocates the tile`() {
         val anchored = listOf(TilePlacement("a", TileSize.SMALL, 0, 0))
-        val moved = GridPacker.swapPlacement(
-            anchored, "moving", movedFromCol = 3, movedFromRow = 3, TileSize.SMALL, targetCol = 3, targetRow = 2,
-        )
+        val moved = GridPacker.freePlacement(anchored, "moving", TileSize.SMALL, targetCol = 3, targetRow = 2)
         assertEquals(setOf("moving"), moved.keys)
         assertEquals(GridPacker.encodeSlot(3, 2), moved.getValue("moving"))
     }
 
     @Test
-    fun `dropping onto an occupied equal-size cell swaps the two tiles`() {
-        // "moving" starts at (0,0) and is dropped onto "target" at (2,0);
-        // afterwards "moving" must be at (2,0) and "target" at (0,0) — a
-        // genuine trade, not both landing on the same cell.
+    fun `dropping onto an occupied cell never moves the occupant when space exists elsewhere`() {
+        // "target" sits at (2,0). Dropping "moving" right on top of it must
+        // leave "target" exactly where it was — FREE mode never displaces a
+        // tile the user didn't touch as long as room exists somewhere else.
         val anchored = listOf(
             TilePlacement("target", TileSize.SMALL, 2, 0),
             TilePlacement("far", TileSize.SMALL, 3, 3),
         )
-        val moved = GridPacker.swapPlacement(
-            anchored, "moving", movedFromCol = 0, movedFromRow = 0, TileSize.SMALL, targetCol = 2, targetRow = 0,
-        )
-        assertEquals(setOf("moving", "target"), moved.keys)
-        assertEquals(GridPacker.encodeSlot(2, 0), moved.getValue("moving"))
-        assertEquals(GridPacker.encodeSlot(0, 0), moved.getValue("target"))
+        val moved = GridPacker.freePlacement(anchored, "moving", TileSize.SMALL, targetCol = 2, targetRow = 0)
+        assertEquals(setOf("moving"), moved.keys)
+        assertFalse("the occupant must never move", moved.containsKey("target"))
+        assertFalse("an unrelated tile must never move", moved.containsKey("far"))
     }
 
     @Test
-    fun `swap leaves every other tile untouched`() {
+    fun `redirected drop lands on the nearest free cell to the drop point`() {
+        // Row 0 has a gap at column 2; dropping onto column 1 (occupied)
+        // should redirect to that nearby same-row gap rather than jumping
+        // down to a whole new row below everything.
         val anchored = listOf(
+            TilePlacement("a", TileSize.SMALL, 0, 0),
             TilePlacement("target", TileSize.SMALL, 1, 0),
-            TilePlacement("far1", TileSize.SMALL, 3, 0),
-            TilePlacement("far2", TileSize.MEDIUM, 0, 2),
+            TilePlacement("c", TileSize.SMALL, 3, 0),
         )
-        val moved = GridPacker.swapPlacement(
-            anchored, "moving", movedFromCol = 3, movedFromRow = 2, TileSize.SMALL, targetCol = 1, targetRow = 0,
-        )
-        assertEquals(setOf("moving", "target"), moved.keys)
-        assertFalse(moved.containsKey("far1"))
-        assertFalse(moved.containsKey("far2"))
+        val moved = GridPacker.freePlacement(anchored, "moving", TileSize.SMALL, targetCol = 1, targetRow = 0)
+        assertEquals(setOf("moving"), moved.keys)
+        assertEquals(GridPacker.encodeSlot(2, 0), moved.getValue("moving"))
     }
 
     @Test
-    fun `swap with no known origin cell falls back rather than colliding`() {
-        // A tile that was never anchored (movedFromCol/Row unknown, e.g. it
-        // just entered FREE mode) has nowhere to send the occupant, so this
-        // must fall back to the push-down solver instead of guessing.
-        val anchored = listOf(TilePlacement("target", TileSize.SMALL, 1, 0))
-        val moved = GridPacker.swapPlacement(
-            anchored, "moving", movedFromCol = null, movedFromRow = null, TileSize.SMALL, targetCol = 1, targetRow = 0,
-        )
-        assertTrue("both tiles must still resolve to some non-overlapping cell", moved.containsKey("moving"))
-    }
-
-    @Test
-    fun `swapping mismatched footprints that would overlap falls back to the push-down solver`() {
-        // "target" is a 3x3 LARGE tile at (0,0) [cols 0-2, rows 0-2]. "moving"
-        // (currently at the empty cell (3,0)) is dropped at (1,1), inside
-        // target's footprint. A plain swap would put target at moving's old
-        // (3,0) [cols 3-5, rows 0-2] — but "blocker" at (3,1) sits squarely
-        // inside that new footprint, forcing a real collision a plain swap
-        // can't resolve on its own.
+    fun `a drop never moves any other tile, however crowded the target`() {
+        // "target" is a 3x3 LARGE tile at (0,0). "moving" is dropped inside
+        // its footprint; "blocker" sits further down. Nothing but "moving"
+        // may end up in the result map, and its resolved cell must not
+        // overlap either existing tile.
         val anchored = listOf(
             TilePlacement("target", TileSize.LARGE, 0, 0),
             TilePlacement("blocker", TileSize.SMALL, 3, 1),
         )
-        val moved = GridPacker.swapPlacement(
-            anchored, "moving", movedFromCol = 3, movedFromRow = 0, TileSize.SMALL, targetCol = 1, targetRow = 1,
-        )
-        // Whatever the fallback solver decided, nothing may overlap.
-        val final = anchored.filter { it.id != "moving" }.map { p ->
-            val slot = moved[p.id]
-            if (slot != null) p.copy(col = GridPacker.decodeSlotCol(slot), row = GridPacker.decodeSlotRow(slot)) else p
-        } + TilePlacement(
+        val moved = GridPacker.freePlacement(anchored, "moving", TileSize.SMALL, targetCol = 1, targetRow = 1)
+        assertEquals(setOf("moving"), moved.keys)
+        val final = anchored + TilePlacement(
             "moving", TileSize.SMALL,
             GridPacker.decodeSlotCol(moved.getValue("moving")), GridPacker.decodeSlotRow(moved.getValue("moving")),
         )
@@ -620,33 +597,25 @@ class GridPackerTest {
     }
 
     @Test
-    fun `swap onto more than one occupant falls back without overlap`() {
-        // A WIDE (4x2) tile dropped where two SMALL tiles sit is ambiguous for
-        // a plain swap, so it must fall back to the push-down solver rather
-        // than pick one occupant arbitrarily.
+    fun `dropping a wide tile onto two occupants displaces neither`() {
         val anchored = listOf(
             TilePlacement("s1", TileSize.SMALL, 0, 0),
             TilePlacement("s2", TileSize.SMALL, 1, 0),
         )
-        val moved = GridPacker.swapPlacement(
-            anchored, "moving", movedFromCol = 0, movedFromRow = 3, TileSize.WIDE, targetCol = 0, targetRow = 0,
-        )
-        assertTrue("wide tile must have a resolved slot", moved.containsKey("moving"))
+        val moved = GridPacker.freePlacement(anchored, "moving", TileSize.WIDE, targetCol = 0, targetRow = 0)
+        assertEquals(setOf("moving"), moved.keys)
     }
 
     @Test
-    fun `swap never collapses a blank row the user deliberately left open`() {
-        // Row 1 is empty on purpose (FREE mode's whole point). Swapping two
-        // tiles in row 0 must not touch row 1, and the blank row must not be
-        // collapsed away by the plain (non-fallback) swap path.
+    fun `free placement never collapses a blank row the user deliberately left open`() {
+        // Row 1 is empty on purpose (FREE mode's whole point). Redirecting a
+        // drop that lands on row 0 must not touch row 1's tile.
         val anchored = listOf(
             TilePlacement("target", TileSize.SMALL, 1, 0),
             TilePlacement("keep-away", TileSize.SMALL, 0, 2),
         )
-        val moved = GridPacker.swapPlacement(
-            anchored, "moving", movedFromCol = 3, movedFromRow = 0, TileSize.SMALL, targetCol = 1, targetRow = 0,
-        )
-        assertEquals(setOf("moving", "target"), moved.keys)
-        assertFalse("a plain equal-size swap must never touch an unrelated tile", moved.containsKey("keep-away"))
+        val moved = GridPacker.freePlacement(anchored, "moving", TileSize.SMALL, targetCol = 1, targetRow = 0)
+        assertEquals(setOf("moving"), moved.keys)
+        assertFalse("an unrelated tile must never move", moved.containsKey("keep-away"))
     }
 }
