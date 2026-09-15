@@ -513,8 +513,19 @@ interface LayoutDao {
     @Query("UPDATE sections SET sortOrder = :sortOrder WHERE id = :id")
     suspend fun updateSectionOrder(id: String, sortOrder: Int)
 
-    /** Assign (or clear, with null) a tile's section — the "move to section" picker. */
-    @Query("UPDATE tiles SET sectionId = :sectionId WHERE id = :id")
+    /**
+     * Assign (or clear, with null) a tile's section — the "move to section"
+     * picker. Also clears `gridSlot`: it's an anchored row/column that only
+     * means something within whichever block (section, or the unsectioned
+     * group) currently packs the tile — carrying an old slot into a new
+     * block reinterprets it as a position in that block's own, unrelated
+     * local grid, which in sticky/free arrangement mode can anchor the tile
+     * many rows down and leave a large empty gap above it in the new section
+     * (user-reported: "created a big space"). Clearing it returns the tile
+     * to "never anchored," so it floats to the first free cell in its new
+     * block instead.
+     */
+    @Query("UPDATE tiles SET sectionId = :sectionId, gridSlot = NULL WHERE id = :id")
     suspend fun updateTileSection(id: String, sectionId: String?)
 
     @Query("UPDATE tiles SET sectionId = NULL WHERE sectionId = :sectionId")

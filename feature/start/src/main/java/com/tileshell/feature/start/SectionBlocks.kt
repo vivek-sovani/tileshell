@@ -18,7 +18,7 @@ data class TileBlock(
 )
 
 /** A section header's fixed height (dp) — reserved space, not measured. */
-const val SECTION_HEADER_HEIGHT_DP = 36f
+const val SECTION_HEADER_HEIGHT_DP = 42f
 
 /** Vertical gap (dp) between one block's content and the next. */
 const val SECTION_BLOCK_GAP_DP = 8f

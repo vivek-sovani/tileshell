@@ -2609,10 +2609,15 @@ private fun StartPage(
                 var addingSectionAtTop by remember { mutableStateOf(false) }
                 if (addingSectionAtTop) {
                     Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp)) {
-                        FolderNameEditor(initial = "") { newLabel ->
-                            addingSectionAtTop = false
-                            if (newLabel.isNotBlank()) onCreateSection(newLabel)
-                        }
+                        SectionNameEditor(
+                            initial = "",
+                            textColor = Glass.faceTextColor(screenBackgroundIsLight),
+                            onCommit = { newLabel ->
+                                addingSectionAtTop = false
+                                if (newLabel.isNotBlank()) onCreateSection(newLabel)
+                            },
+                            onCancel = { addingSectionAtTop = false },
+                        )
                     }
                 } else {
                     Row(
@@ -2653,11 +2658,25 @@ private fun StartPage(
             blockRenders.forEach { render ->
             val block = render.block
             if (block.sectionId != null) {
+                // Summed across every tile in the section — a folder's own
+                // count is already the sum of its children (see the
+                // tileContent badgeCount just below), so this doesn't
+                // double-count a folder's members separately.
+                val sectionBadgeCount = block.ids.sumOf { id ->
+                    when (val m = byId[id]) {
+                        is TileModel.App -> notifications.badgeFor(m.packageName)
+                        is TileModel.Folder -> m.children.map { it.packageName }.distinct()
+                            .sumOf { notifications.badgeFor(it) }
+                        null -> 0
+                    }
+                }
                 SectionHeader(
                     label = block.label ?: "",
                     collapsed = block.collapsed,
                     editMode = editMode,
                     textColor = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.85f),
+                    badgeCount = sectionBadgeCount,
+                    darkTheme = darkTheme,
                     onToggleCollapsed = { onToggleSectionCollapsed(block.sectionId) },
                     onMoveUp = { onMoveSection(block.sectionId, -1) },
                     onMoveDown = { onMoveSection(block.sectionId, 1) },
@@ -4118,6 +4137,16 @@ private fun SectionHeader(
     collapsed: Boolean,
     editMode: Boolean,
     textColor: Color,
+    // Summed notification badge across every tile currently in this section
+    // (an app tile's own count, or a folder's already-aggregated sum) — a
+    // collapsed section hides its tiles (and so their individual badges)
+    // entirely, so this is the only way pending notifications underneath it
+    // stay visible (user-requested: "notifications under the section tiles
+    // should be shown as count even if section is closed"). Shown whenever
+    // it's positive, collapsed or not, for the same reason a folder's own
+    // aggregate badge doesn't wait for anything either.
+    badgeCount: Int,
+    darkTheme: Boolean,
     onToggleCollapsed: () -> Unit,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
@@ -4146,26 +4175,49 @@ private fun SectionHeader(
         )
         Box(modifier = Modifier.weight(1f)) {
             if (renaming) {
-                FolderNameEditor(initial = label) { newLabel ->
-                    renaming = false
-                    if (newLabel.isNotBlank() && newLabel != label) onRename(newLabel)
-                }
-            } else {
-                Text(
-                    text = label.lowercase(),
-                    color = textColor,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = if (editMode) {
-                        Modifier.clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { renaming = true },
-                        )
-                    } else {
-                        Modifier
+                SectionNameEditor(
+                    initial = label,
+                    textColor = textColor,
+                    onCommit = { newLabel ->
+                        renaming = false
+                        if (newLabel.isNotBlank() && newLabel != label) onRename(newLabel)
                     },
+                    onCancel = { renaming = false },
                 )
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = label.lowercase(),
+                        // Full opacity + bold + noticeably larger than the
+                        // chevron/reorder/remove controls (which keep the
+                        // passed, more muted textColor) — the section's own
+                        // name is the one thing in this row that should read
+                        // as a real heading, not another small icon
+                        // (user-requested: "can section names be made more
+                        // prominent").
+                        color = textColor.copy(alpha = 1f),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = if (editMode) {
+                            Modifier.clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { renaming = true },
+                            )
+                        } else {
+                            Modifier
+                        },
+                    )
+                    if (badgeCount > 0) {
+                        NotificationBadge(
+                            count = badgeCount,
+                            dark = darkTheme,
+                            small = true,
+                            cornerInset = false,
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
+                }
             }
         }
         if (editMode && !renaming) {
@@ -4205,6 +4257,85 @@ private fun SectionHeader(
             )
         }
     }
+}
+
+/**
+ * Section name entry (both "+ add section" and the header's tap-to-rename):
+ * a text field with an explicit "✓" confirm and "✕" cancel, rather than
+ * relying only on the keyboard's own Done action or losing focus to commit —
+ * on a real device, dismissing the keyboard (e.g. the system back button)
+ * only hides the IME, it does not reliably move Compose focus away from the
+ * field, so a focus-loss-only commit could leave a typed name stuck with no
+ * way to confirm it (confirmed: the field showed the typed text, but no
+ * section was ever actually written to the database).
+ *
+ * [finished] guards against a real double-commit bug: tapping "✓" both fires
+ * its own `onClick` *and* moves focus away from the text field, and losing
+ * focus was *also* wired to commit — so a single tap on "✓" fired `onCommit`
+ * twice, creating two sections with the same name (user-reported). Once
+ * either `commit()` or `cancel()` runs, every other trigger this composable
+ * still has pending (a focus-change callback that hasn't fired yet, a second
+ * tap) becomes a no-op.
+ */
+@Composable
+private fun SectionNameEditor(
+    initial: String,
+    textColor: Color,
+    onCommit: (String) -> Unit,
+    onCancel: () -> Unit,
+) {
+    var draft by remember {
+        mutableStateOf(TextFieldValue(initial, selection = TextRange(initial.length)))
+    }
+    var finished by remember { mutableStateOf(false) }
+    val focus = remember { FocusRequester() }
+    fun commit() {
+        if (finished) return
+        finished = true
+        onCommit(draft.text)
+    }
+    fun cancel() {
+        if (finished) return
+        finished = true
+        onCancel()
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        BasicTextField(
+            value = draft,
+            onValueChange = { draft = it },
+            singleLine = true,
+            textStyle = TextStyle(color = textColor, fontSize = 13.sp),
+            cursorBrush = SolidColor(textColor),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { commit() }),
+            modifier = Modifier
+                .weight(1f)
+                .focusRequester(focus),
+        )
+        Text(
+            text = "✓",
+            color = textColor,
+            fontSize = 16.sp,
+            modifier = Modifier
+                .padding(horizontal = 8.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = ::commit,
+                ),
+        )
+        Text(
+            text = "✕",
+            color = textColor,
+            fontSize = 14.sp,
+            modifier = Modifier.clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = ::cancel,
+            ),
+        )
+    }
+    LaunchedEffect(Unit) { focus.requestFocus() }
 }
 
 /** Inline rename field for [FolderExpandedPlaceholder] — small-tile-sized
