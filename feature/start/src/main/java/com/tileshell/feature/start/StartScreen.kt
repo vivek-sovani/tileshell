@@ -3309,20 +3309,30 @@ private fun StartPage(
         if (!editMode && blocks.size >= 2) {
             val sectionNavTextColor = Glass.faceTextColor(screenBackgroundIsLight)
             // User-configurable placement (Personalize's "section pills"),
-            // for easier one-handed thumb reach: hugs whichever corner is
-            // chosen, or stays centered.
+            // for easier one-handed thumb reach: the pill row itself hugs
+            // whichever corner is chosen, or stays centered — but the toggle
+            // handle that shows/hides it always stays centered regardless
+            // (user-requested), so it's in the same predictable spot no
+            // matter which side the pills are set to.
             val sectionNavBoxAlignment = when (sectionPillAlignment) {
                 SectionPillAlignment.START -> Alignment.BottomStart
                 SectionPillAlignment.CENTER -> Alignment.BottomCenter
                 SectionPillAlignment.END -> Alignment.BottomEnd
             }
-            val sectionNavColumnAlignment = when (sectionPillAlignment) {
-                SectionPillAlignment.START -> Alignment.Start
-                SectionPillAlignment.CENTER -> Alignment.CenterHorizontally
-                SectionPillAlignment.END -> Alignment.End
-            }
-            Column(
-                horizontalAlignment = sectionNavColumnAlignment,
+            // Clears the edge strip's own handle/recents affordance when
+            // it's showing (same reserved space `iconsBottomOffset` below
+            // lifts the chevron/gear icons above) — user-reported the pill
+            // bar was otherwise sitting right on top of it.
+            val sectionNavBottomOffset = if (edgeStripVisible) STRIP_THICK + 8.dp else 10.dp
+            val sectionNavHandleSize = 36.dp
+            // Tabbed mode has no scroll-jump fallback — the pill row is the
+            // *only* way to switch which section is showing, so it always
+            // stays open there (user-requested), regardless of the toggle's
+            // own state; the toggle handle itself is hidden in that mode
+            // since there'd be nothing left for it to do.
+            val sectionPillsForcedOpen = sectionDisplayMode == SectionDisplayMode.TABBED
+            AnimatedVisibility(
+                visible = sectionPillsForcedOpen || sectionNavOpen,
                 modifier = Modifier
                     .align(sectionNavBoxAlignment)
                     .navigationBarsPadding()
@@ -3330,73 +3340,72 @@ private fun StartPage(
                         start = if (sectionPillAlignment == SectionPillAlignment.START) 14.dp else 0.dp,
                         end = if (sectionPillAlignment == SectionPillAlignment.END) 14.dp else 0.dp,
                     )
-                    // Clears the edge strip's own handle/recents affordance
-                    // when it's showing (same reserved space
-                    // `iconsBottomOffset` below lifts the chevron/gear icons
-                    // above) — user-reported the pill bar was otherwise
-                    // sitting right on top of it.
-                    .padding(bottom = if (edgeStripVisible) STRIP_THICK + 8.dp else 10.dp),
+                    // Sits just above the always-centered toggle handle
+                    // below, regardless of its own horizontal placement.
+                    .padding(bottom = sectionNavBottomOffset + sectionNavHandleSize + 8.dp),
             ) {
-                AnimatedVisibility(visible = sectionNavOpen) {
-                    SectionPillBar(
-                        blocks = blocks,
-                        textColor = sectionNavTextColor,
-                        highlightSelection = sectionDisplayMode == SectionDisplayMode.TABBED,
-                        selectedSectionId = activeTabSectionId,
-                        accent = wallpaperAccent ?: accent,
-                        onJumpTo = { sectionId ->
-                            if (sectionDisplayMode == SectionDisplayMode.TABBED) {
-                                // Tabbed mode: a pill just switches which
-                                // block fills the screen — no collapse
-                                // concept (forcedOpen already bypasses it)
-                                // and no scrolling (the active block always
-                                // starts at the top of the content).
-                                selectedSectionTab = sectionId
-                            } else {
-                                // Scroll mode: a pill is a real open/close
-                                // toggle for its section (user-requested),
-                                // not just an "open if collapsed" — tapping
-                                // an already-open section's pill collapses it
-                                // again, same as tapping its own header
-                                // chevron would. No-op for the "unsectioned"
-                                // pill (sectionId null; it has no collapsed
-                                // state). Always scrolls there too, whichever
-                                // way it ends up. A section's own topOffsetPx
-                                // is unaffected by its own collapsed state
-                                // (only later blocks shift), so reading it
-                                // here is correct even though the toggle's
-                                // effect hasn't recomposed yet.
-                                sectionId?.let(onToggleSectionCollapsed)
-                                val render = blockRenders.firstOrNull { it.block.sectionId == sectionId }
-                                    ?: return@SectionPillBar
-                                sectionNavScope.launch {
-                                    scrollState.animateScrollTo(render.topOffsetPx.roundToInt())
-                                }
+                SectionPillBar(
+                    blocks = blocks,
+                    textColor = sectionNavTextColor,
+                    highlightSelection = sectionDisplayMode == SectionDisplayMode.TABBED,
+                    selectedSectionId = activeTabSectionId,
+                    accent = wallpaperAccent ?: accent,
+                    onJumpTo = { sectionId ->
+                        if (sectionDisplayMode == SectionDisplayMode.TABBED) {
+                            // Tabbed mode: a pill just switches which
+                            // block fills the screen — no collapse
+                            // concept (forcedOpen already bypasses it)
+                            // and no scrolling (the active block always
+                            // starts at the top of the content).
+                            selectedSectionTab = sectionId
+                        } else {
+                            // Scroll mode: a pill is a real open/close
+                            // toggle for its section (user-requested),
+                            // not just an "open if collapsed" — tapping
+                            // an already-open section's pill collapses it
+                            // again, same as tapping its own header
+                            // chevron would. No-op for the "unsectioned"
+                            // pill (sectionId null; it has no collapsed
+                            // state). Always scrolls there too, whichever
+                            // way it ends up. A section's own topOffsetPx
+                            // is unaffected by its own collapsed state
+                            // (only later blocks shift), so reading it
+                            // here is correct even though the toggle's
+                            // effect hasn't recomposed yet.
+                            sectionId?.let(onToggleSectionCollapsed)
+                            val render = blockRenders.firstOrNull { it.block.sectionId == sectionId }
+                                ?: return@SectionPillBar
+                            sectionNavScope.launch {
+                                scrollState.animateScrollTo(render.topOffsetPx.roundToInt())
                             }
-                        },
-                        modifier = Modifier.padding(bottom = 8.dp),
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(sectionNavTextColor.copy(alpha = 0.14f))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { sectionNavOpen = !sectionNavOpen },
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = TileIcons["chevron"],
-                        contentDescription = if (sectionNavOpen) "hide sections" else "show sections",
-                        tint = sectionNavTextColor.copy(alpha = 0.72f),
-                        modifier = Modifier.size(16.dp).rotate(if (sectionNavOpen) 90f else -90f),
-                    )
-                }
+                        }
+                    },
+                )
             }
+            if (!sectionPillsForcedOpen) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = sectionNavBottomOffset)
+                    .size(sectionNavHandleSize)
+                    .clip(CircleShape)
+                    .background(sectionNavTextColor.copy(alpha = 0.14f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { sectionNavOpen = !sectionNavOpen },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = TileIcons["chevron"],
+                    contentDescription = if (sectionNavOpen) "hide sections" else "show sections",
+                    tint = sectionNavTextColor.copy(alpha = 0.72f),
+                    modifier = Modifier.size(16.dp).rotate(if (sectionNavOpen) 90f else -90f),
+                )
+            }
+            } // end if (!sectionPillsForcedOpen)
         }
 
         // Bottom edit bar (prototype .edit-bar): slides up while editing.
