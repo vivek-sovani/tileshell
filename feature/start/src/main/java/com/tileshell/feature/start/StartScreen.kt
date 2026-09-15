@@ -2490,6 +2490,24 @@ private fun StartPage(
     // Cheap (a handful of tiles), left unmemoized like [displaySpecs].
     val blocks = blocksFor(order, byId, sections)
 
+    // A block's own aggregate pending-notification count — a folder's own
+    // count is already the sum of its children, so this doesn't double-count
+    // a folder's members separately. Shared by the section header (its own
+    // badge, visible whenever collapsed hides the individual tiles carrying
+    // it) and the jump-pill bar (every pill, so a notification hiding in a
+    // *different* tab/section is never invisible — user-requested).
+    fun blockBadgeCount(sectionId: String?): Int {
+        val block = blocks.firstOrNull { it.sectionId == sectionId } ?: return 0
+        return block.ids.sumOf { id ->
+            when (val m = byId[id]) {
+                is TileModel.App -> notifications.badgeFor(m.packageName)
+                is TileModel.Folder -> m.children.map { it.packageName }.distinct()
+                    .sumOf { notifications.badgeFor(it) }
+                null -> 0
+            }
+        }
+    }
+
     // TABBED mode shows exactly one block full-screen at a time; resolved
     // fresh every recomposition (never trusts a stale [selectedSectionTab]
     // pointing at a section that no longer exists — falls back to the first
@@ -2766,25 +2784,13 @@ private fun StartPage(
             }
             Column(modifier = sectionPanelModifier) {
             if (block.sectionId != null) {
-                // Summed across every tile in the section — a folder's own
-                // count is already the sum of its children (see the
-                // tileContent badgeCount just below), so this doesn't
-                // double-count a folder's members separately.
-                val sectionBadgeCount = block.ids.sumOf { id ->
-                    when (val m = byId[id]) {
-                        is TileModel.App -> notifications.badgeFor(m.packageName)
-                        is TileModel.Folder -> m.children.map { it.packageName }.distinct()
-                            .sumOf { notifications.badgeFor(it) }
-                        null -> 0
-                    }
-                }
                 SectionHeader(
                     label = block.label ?: "",
                     collapsed = block.collapsed,
                     editMode = editMode,
                     textColor = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.85f),
                     accent = wallpaperAccent ?: accent,
-                    badgeCount = sectionBadgeCount,
+                    badgeCount = blockBadgeCount(block.sectionId),
                     darkTheme = darkTheme,
                     onToggleCollapsed = { onToggleSectionCollapsed(block.sectionId) },
                     onMoveUp = { onMoveSection(block.sectionId, -1) },
@@ -3391,6 +3397,8 @@ private fun StartPage(
                     highlightSelection = sectionDisplayMode == SectionDisplayMode.TABBED,
                     selectedSectionId = activeTabSectionId,
                     accent = wallpaperAccent ?: accent,
+                    darkTheme = darkTheme,
+                    badgeCountFor = ::blockBadgeCount,
                     onJumpTo = { sectionId ->
                         if (sectionDisplayMode == SectionDisplayMode.TABBED) {
                             // Tabbed mode: a pill just switches which
@@ -4391,6 +4399,13 @@ private fun SectionPillBar(
     highlightSelection: Boolean = false,
     selectedSectionId: String? = null,
     accent: Color = textColor,
+    darkTheme: Boolean = true,
+    // A block's own aggregate pending-notification count (same sum a
+    // collapsed section's own header already shows) — user-requested: in
+    // tabbed mode there's no way to see a notification hiding under an app
+    // in a *different* tab, so every pill (not just the active one) carries
+    // this regardless of display mode.
+    badgeCountFor: (String?) -> Int = { 0 },
 ) {
     androidx.compose.foundation.layout.FlowRow(
         modifier = modifier.padding(horizontal = 12.dp),
@@ -4399,7 +4414,9 @@ private fun SectionPillBar(
     ) {
         blocks.forEach { block ->
             val selected = highlightSelection && block.sectionId == selectedSectionId
-            Box(
+            val badgeCount = badgeCountFor(block.sectionId)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .clip(RoundedCornerShape(16.dp))
                     .background(if (selected) accent.copy(alpha = 0.85f) else textColor.copy(alpha = 0.12f))
@@ -4417,6 +4434,15 @@ private fun SectionPillBar(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                 )
+                if (badgeCount > 0) {
+                    NotificationBadge(
+                        count = badgeCount,
+                        dark = darkTheme,
+                        small = true,
+                        cornerInset = false,
+                        modifier = Modifier.padding(start = 6.dp),
+                    )
+                }
             }
         }
     }
