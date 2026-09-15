@@ -124,6 +124,14 @@ class LayoutRepository(
     suspend fun setTileSection(tileId: String, sectionId: String?) =
         dao.updateTileSection(tileId, sectionId)
 
+    /**
+     * Dissolve every section into the single unsectioned area — the
+     * user-confirmed result of turning Personalize's "enable sections"
+     * toggle off while real sections exist. See
+     * [LayoutDao.mergeAllSectionsIntoUnsectioned] for the exact ordering.
+     */
+    suspend fun mergeAllSectionsIntoUnsectioned() = dao.mergeAllSectionsIntoUnsectioned()
+
     /** Rename a folder (FR-4). Blank names are ignored by the caller. */
     suspend fun renameFolder(id: String, name: String) = dao.updateFolderName(id, name)
 

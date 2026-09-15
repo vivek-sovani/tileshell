@@ -1211,6 +1211,20 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) { settingsRepository.setSectionsEnabled(enabled) }
     }
 
+    /**
+     * The user-confirmed "turn sections off while sections exist" action
+     * (Personalize's own confirmation dialog, shown only when there's
+     * actually something to merge): dissolves every section into "main" and
+     * turns the feature off in the same write, so there's never a moment
+     * where the setting is off but old sections/pills are still visible.
+     */
+    fun disableSectionsAndMerge() {
+        viewModelScope.launch(writeContext) {
+            repository.mergeAllSectionsIntoUnsectioned()
+            settingsRepository.setSectionsEnabled(false)
+        }
+    }
+
     /** Switch how Start's sections are browsed — one continuous scroll, or tabbed one-at-a-time. */
     fun setSectionDisplayMode(mode: SectionDisplayMode) {
         viewModelScope.launch(writeContext) { settingsRepository.setSectionDisplayMode(mode) }

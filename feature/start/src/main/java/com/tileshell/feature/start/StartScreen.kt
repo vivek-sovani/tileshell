@@ -1612,6 +1612,8 @@ fun StartScreen(
             onTilePackModeChange = viewModel::setTilePackMode,
             sectionsEnabled = settings.sectionsEnabled,
             onSectionsEnabledChange = viewModel::setSectionsEnabled,
+            hasSections = sections.isNotEmpty(),
+            onDisableSectionsConfirmed = viewModel::disableSectionsAndMerge,
             sectionDisplayMode = settings.sectionDisplayMode,
             onSectionDisplayModeChange = viewModel::setSectionDisplayMode,
             sectionPillAlignment = settings.sectionPillAlignment,
@@ -3330,8 +3332,13 @@ private fun StartPage(
         // same >= 2 gate the App List's "pin to section" picker already uses.
         // The row itself is hidden by default, revealed by its own small
         // toggle handle (user-requested), rather than always occupying
-        // bottom screen space.
-        if (!editMode && blocks.size >= 2) {
+        // bottom screen space. Also hidden outright while the "sections"
+        // feature itself is off in Personalize (user-requested: "section
+        // selection should also be off if section is off") — an install
+        // that has real sections from before the feature was made opt-in
+        // still renders/uses them normally, it just loses this nav aid
+        // until "enable sections" is switched back on.
+        if (!editMode && sectionsEnabled && blocks.size >= 2) {
             val sectionNavTextColor = Glass.faceTextColor(screenBackgroundIsLight)
             // User-configurable placement (Personalize's "section pills"),
             // for easier one-handed thumb reach: the pill row itself hugs

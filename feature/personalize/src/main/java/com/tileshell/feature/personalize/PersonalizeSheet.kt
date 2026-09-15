@@ -211,6 +211,12 @@ fun PersonalizeSheet(
     onTilePackModeChange: (TilePackMode) -> Unit,
     sectionsEnabled: Boolean,
     onSectionsEnabledChange: (Boolean) -> Unit,
+    /** Whether any real section currently exists — gates the "turn sections
+     *  off" confirmation dialog (nothing to warn about/merge otherwise). */
+    hasSections: Boolean,
+    /** User confirmed "turn sections off" while sections exist: merges
+     *  every section into "main" and disables the feature together. */
+    onDisableSectionsConfirmed: () -> Unit,
     sectionDisplayMode: SectionDisplayMode,
     onSectionDisplayModeChange: (SectionDisplayMode) -> Unit,
     sectionPillAlignment: SectionPillAlignment,
@@ -282,6 +288,7 @@ fun PersonalizeSheet(
     }
     var showResetTileStyleConfirm by remember { mutableStateOf(false) }
     var showLiveTilesPermissionPrompt by remember { mutableStateOf(false) }
+    var showDisableSectionsConfirm by remember { mutableStateOf(false) }
 
     // Android back / back-gesture closes the sheet. When a sub-sheet (about,
     // folders, bing history) is open on top, its own handler — registered later —
@@ -325,6 +332,28 @@ fun PersonalizeSheet(
             },
             dismissButton = {
                 TextButton(onClick = { showLiveTilesPermissionPrompt = false }) { Text("not now") }
+            },
+        )
+    }
+
+    if (showDisableSectionsConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDisableSectionsConfirm = false },
+            title = { Text("turn off sections?") },
+            text = {
+                Text(
+                    "all your sections will be merged into main — their apps and folders stay " +
+                        "exactly as they are, just ungrouped, in the same overall order.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDisableSectionsConfirm = false
+                    onDisableSectionsConfirmed()
+                }) { Text("turn off") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDisableSectionsConfirm = false }) { Text("cancel") }
             },
         )
     }
@@ -1080,7 +1109,21 @@ fun PersonalizeSheet(
             // + display mode (scroll all vs. tabbed one-at-a-time) + pill placement ----
             SettingGroup(label = "sections", tokens.fgDim) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ToggleRow("enable sections", on = sectionsEnabled, accent = accent, tokens, onSectionsEnabledChange)
+                    ToggleRow(
+                        "enable sections",
+                        on = sectionsEnabled,
+                        accent = accent,
+                        tokens,
+                    ) { turningOn ->
+                        // Turning off while real sections exist needs a
+                        // confirmation first (user-requested) — nothing to
+                        // warn about/merge if there are none yet.
+                        if (!turningOn && hasSections) {
+                            showDisableSectionsConfirm = true
+                        } else {
+                            onSectionsEnabledChange(turningOn)
+                        }
+                    }
                     Text(
                         "group Start tiles into named, collapsible sections — turning this off just " +
                             "hides the \"+ add section\" button; any sections you've already made keep working",

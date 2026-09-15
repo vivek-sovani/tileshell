@@ -555,4 +555,34 @@ interface LayoutDao {
         clearTileSection(id)
         deleteSectionById(id)
     }
+
+    /**
+     * Dissolves every section at once, into the single unsectioned ("main")
+     * area — the user-confirmed "turn sections off" action (Personalize's
+     * "enable sections" toggle). Every section's own tiles land together, in
+     * section order, ahead of whatever was already unsectioned (mirrors
+     * [com.tileshell.feature.start.blocksFor]'s own "sections first, then
+     * unsectioned" grouping — same relative order the user was already
+     * seeing on screen, just flattened into one block instead of several).
+     * `gridSlot` is cleared for every tile that changes section, same as
+     * [updateTileSection] does one at a time, to avoid the "big empty gap"
+     * bug this arc chased down repeatedly (an old anchor reinterpreted
+     * inside a differently-shaped block). A tile whose `sectionId` already
+     * pointed at a section that no longer exists is treated as unsectioned,
+     * matching `blocksFor`'s own defensive fallback.
+     */
+    @Transaction
+    suspend fun mergeAllSectionsIntoUnsectioned() {
+        val orderedSections = sectionsOnce()
+        val validSectionIds = orderedSections.mapTo(HashSet()) { it.id }
+        val allTiles = tilesOnce().map { it.tile }
+        val bySection = allTiles.groupBy { it.sectionId?.takeIf { id -> id in validSectionIds } }
+        val newOrder = orderedSections.flatMap { section -> bySection[section.id].orEmpty() } +
+            bySection[null].orEmpty()
+        newOrder.forEachIndexed { index, tile ->
+            updateTilePosition(tile.id, index)
+            if (tile.sectionId != null) updateTileSection(tile.id, null)
+        }
+        orderedSections.forEach { deleteSectionById(it.id) }
+    }
 }
