@@ -2520,12 +2520,18 @@ private fun StartPage(
     val blockGapPx = with(density) { SECTION_BLOCK_GAP_DP.dp.toPx() }
     val blockRenders = remember(
         blocks, columns, slotOf, stickyPreview, expandTransform, folderChildOrder.toList(), resizeGeom,
-        activeTabSectionId,
+        activeTabSectionId, sectionsEnabled,
     ) {
         var offset = 0f
         blocks.map { block ->
             val topOffsetPx = offset
-            val gridTopOffsetPx = topOffsetPx + if (block.sectionId != null) headerHeightPx else 0f
+            // The unsectioned ("main") block gets its own label header too,
+            // but only once the "sections" feature is actually on
+            // (user-requested) — reserves the same header height a real
+            // section's own header does, so downstream absolute-position
+            // math (autoscroll, tabbed-mode scroll-jump) stays correct.
+            val showsHeader = block.sectionId != null || sectionsEnabled
+            val gridTopOffsetPx = topOffsetPx + if (showsHeader) headerHeightPx else 0f
             val specs = block.ids.mapNotNull { id -> byId[id]?.let { TileSpec(id, it.size) } }
             // TABBED mode's active tab always renders its tiles regardless of
             // its own persisted collapsed flag — selecting a tab IS the "open
@@ -2787,6 +2793,15 @@ private fun StartPage(
                     onDelete = { onDeleteSection(block.sectionId) },
                     collapsible = !(sectionDisplayMode == SectionDisplayMode.TABBED && block.sectionId == activeTabSectionId),
                 )
+            } else if (sectionsEnabled) {
+                // The unsectioned block reads as "main" once sections are
+                // actually on (user-requested) — a plain label, not the full
+                // interactive SectionHeader: there's no real Section row
+                // behind it to rename/reorder/delete, and it can never
+                // collapse (TileBlock always sets that false for this
+                // block), so none of those controls would mean anything
+                // here.
+                UnsectionedHeader(textColor = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.85f))
             }
             // Real bug, user-reported ("contents of tab not visible", for a
             // collapsed section that becomes the active tab): blockRenders'
@@ -4404,6 +4419,45 @@ private fun SectionPillBar(
                 )
             }
         }
+    }
+}
+
+/**
+ * The unsectioned block's own plain label header — shown only once the
+ * "sections" feature is on (user-requested: "the unsectioned tab should be
+ * grouped as main"), so it reads as a peer of the real sections around it
+ * instead of an unlabeled leftover area. Deliberately not the full
+ * interactive [SectionHeader]: there's no real `Section` row behind "main"
+ * to rename/reorder/delete, and [TileBlock.collapsed] is always false for
+ * this block, so a collapse chevron would be a dead control here. Matches
+ * [SectionHeader]'s own label styling/divider exactly, just without any of
+ * its edit-mode controls.
+ */
+@Composable
+private fun UnsectionedHeader(textColor: Color) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(SECTION_HEADER_HEIGHT_DP.dp)
+                .padding(horizontal = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = UNSECTIONED_LABEL.lowercase(),
+                color = textColor.copy(alpha = 1f),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.2.sp,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp)
+                .height(1.dp)
+                .background(textColor.copy(alpha = 0.12f)),
+        )
     }
 }
 
