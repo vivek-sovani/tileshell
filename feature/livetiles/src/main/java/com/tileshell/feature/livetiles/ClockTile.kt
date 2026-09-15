@@ -65,6 +65,8 @@ data class ClockFace(
     val hm: String,
     val weekday: String,
     val fullDate: String,
+    val dayOfMonth: Int = 1,
+    val month: String = "",
     val alarm: String = "",
     val reminderTitle: String = "",
     val alarmDate: String = "",
@@ -173,6 +175,8 @@ fun clockFace(
         hm = "$hour12:${minute.toString().padStart(2, '0')} $suffix",
         weekday = WEEKDAYS[dayOfWeek - 1],
         fullDate = formatFullDate(dayOfMonth, month0, year),
+        dayOfMonth = dayOfMonth,
+        month = MONTHS[month0],
         alarm = alarm,
         reminderTitle = reminderTitle,
         alarmDate = alarmDate,
@@ -400,7 +404,9 @@ private fun ClockBack(face: ClockFace, size: TileSize) {
                 if (short) 4.dp else (if (narrow) 4f else 11f).dp * scale,
             ),
             verticalArrangement = if (narrow) Arrangement.SpaceEvenly else Arrangement.Center,
-            horizontalAlignment = if (narrow) Alignment.CenterHorizontally else Alignment.End,
+            // Left-aligned at "big" sizes (was End) so the day-of-month hero
+            // below reads naturally, left-to-right, like a real date widget.
+            horizontalAlignment = if (narrow) Alignment.CenterHorizontally else Alignment.Start,
         ) {
             if (face.alarm.isNotEmpty()) {
                 // Alarm/reminder gets the hero slot — user set it, they want to see it.
@@ -414,8 +420,8 @@ private fun ClockBack(face: ClockFace, size: TileSize) {
                     text = face.reminderTitle.ifEmpty { "alarm / bedtime" },
                     color = FaceText.copy(alpha = 0.65f),
                     fontSize = smallSize,
-                    maxLines = if (narrow) 2 else 1,
-                    overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
+                    maxLines = if (short) 1 else 2,
+                    overflow = if (short) TextOverflow.Clip else TextOverflow.Ellipsis,
                     textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
                 )
                 if (!narrow && !short) Spacer(Modifier.height(2.dp * scale))
@@ -446,24 +452,50 @@ private fun ClockBack(face: ClockFace, size: TileSize) {
                     },
                     color = FaceText.copy(alpha = 0.65f),
                     fontSize = smallSize,
-                    maxLines = if (narrow) 2 else 1,
-                    overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
+                    // Never hard-clip mid-word: a combined "weekday, day month
+                    // year" string routinely doesn't fit one line even on a
+                    // roomy tile, so let it wrap instead of silently truncating.
+                    maxLines = if (short) 1 else 2,
+                    overflow = if (short) TextOverflow.Clip else TextOverflow.Ellipsis,
                     textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
                 )
+            } else if (big) {
+                // No alarm set, roomy tile: "15 september 2026" at bigSize never
+                // reliably fits — even wrapped across 2 lines — on a MEDIUM
+                // (2x2) tile's width (was hard-clipped to just "15" as a single
+                // line, then truncated to "15 septemb…" once wrapping was added).
+                // Rebuilt to the exact same weekday/day/month "date tile" shape
+                // as CalendarDateColumn (CalendarTile.kt) — same fixed font
+                // sizes, same left-aligned layout — dropping the year, since the
+                // day number is what needs to be unambiguously legible here, not
+                // a full machine-readable date.
+                val bigDay = size == TileSize.LARGE || size == TileSize.XLARGE
+                Text(
+                    text = face.weekday,
+                    color = FaceText,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip,
+                )
+                Text(
+                    text = face.dayOfMonth.toString(),
+                    color = FaceText,
+                    fontSize = if (bigDay) 60.sp else 44.sp,
+                    lineHeight = if (bigDay) 60.sp else 44.sp,
+                    fontWeight = FontWeight.ExtraLight,
+                    letterSpacing = (-2).sp,
+                    maxLines = 1,
+                )
+                Text(
+                    text = face.month,
+                    color = FaceText.copy(alpha = 0.82f),
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             } else {
-                // No alarm set — date fills the back face. At LARGE/XLARGE, add
-                // the weekday above it so "full date" actually reads as one —
-                // small/medium stay exactly as they were.
-                if (big) {
-                    Text(
-                        text = face.weekday,
-                        color = FaceText.copy(alpha = 0.82f),
-                        fontSize = smallSize,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Spacer(Modifier.height(4.dp * scale))
-                }
+                // Narrow/short tiles: unchanged, bare date at the smaller
+                // narrow/short font — there's no room for the split layout above.
                 Text(
                     text = face.fullDate,
                     color = FaceText,
@@ -471,8 +503,8 @@ private fun ClockBack(face: ClockFace, size: TileSize) {
                     lineHeight = bigSize,
                     fontWeight = FontWeight.Light,
                     letterSpacing = (-1).sp,
-                    maxLines = if (narrow) 2 else 1,
-                    overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
+                    maxLines = if (short) 1 else 2,
+                    overflow = if (short) TextOverflow.Clip else TextOverflow.Ellipsis,
                     textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
                 )
             }
