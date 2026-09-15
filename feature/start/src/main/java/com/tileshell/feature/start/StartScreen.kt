@@ -4542,38 +4542,33 @@ private fun SectionHeader(
             .padding(horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(26.dp)
-                .clip(CircleShape)
-                .background(accent.copy(alpha = 0.85f))
-                .then(
-                    if (collapsible) {
-                        Modifier.clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onToggleCollapsed,
-                        )
-                    } else {
-                        Modifier
-                    },
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = TileIcons["chevron"],
-                contentDescription = if (!collapsible) {
-                    null
-                } else if (effectivelyCollapsed) {
-                    "expand section"
-                } else {
-                    "collapse section"
-                },
-                tint = Color.White,
-                modifier = Modifier.size(14.dp).rotate(if (effectivelyCollapsed) 0f else 90f),
-            )
+        // Omitted entirely (not just disabled) while not collapsible — in
+        // TABBED mode the active tab's content can't be closed at all, so a
+        // chevron here would just be visual clutter with nothing to show or
+        // toggle (user-requested: "downarrow on tab heading should be
+        // removed").
+        if (collapsible) {
+            Box(
+                modifier = Modifier
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(accent.copy(alpha = 0.85f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onToggleCollapsed,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = TileIcons["chevron"],
+                    contentDescription = if (effectivelyCollapsed) "expand section" else "collapse section",
+                    tint = Color.White,
+                    modifier = Modifier.size(14.dp).rotate(if (effectivelyCollapsed) 0f else 90f),
+                )
+            }
+            Spacer(Modifier.width(10.dp))
         }
-        Spacer(Modifier.width(10.dp))
         Box(modifier = Modifier.weight(1f)) {
             if (renaming) {
                 SectionNameEditor(
