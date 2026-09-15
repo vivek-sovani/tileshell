@@ -333,6 +333,88 @@ location/flashlight/allow access/dnd/auto) show a tinted icon+label on the
 same translucent card inactive tiles (airplane/rotation lock) use, with no
 tile reading as "still filled."
 
+## Widget-card icon tint darkened for light theme
+
+Direct follow-up: "accent color needs to be little darker on light background."
+Quick Panel's option-A tinted glyph (previous entry) used the plain accent
+colour directly with no theme adjustment — fine in dark theme, where a
+saturated accent has plenty of contrast against the dark card, but a thin
+glyph in that same colour reads washed-out against `raisedCardFill`'s pale,
+near-white card in light theme. New `Glass.accentOnCard(dark, accent)`
+blends a flat 18% toward black in light theme only (left untouched in dark
+theme); `QuickPanelTile`'s active-glyph branch calls it instead of using
+`accent` directly. A flat blend rather than a per-colour luminance
+calculation — "a little darker" is what was asked for, not "as dark as it
+can go," and any of the 14 accent swatches only needs a modest nudge, not a
+colour-dependent formula.
+
+## Widget cards carried onto Quick Panel's sliders (option B: frosted track)
+
+Same-session follow-up: "also suggest slide bar matching style." The
+notification/volume sliders were still a hard, fully opaque accent-filled
+bar directly on the panel background — visually unrelated to the translucent
+cards above them. Two renderings were mocked up (each slider wrapped in its
+own pill card vs. just frosting the existing bare track) — the first attempt
+at this mockup used alpha differences too subtle to read at a glance,
+user-reported ("visually all 3 look same. recheck"); redone with much more
+exaggerated, unambiguous differences (a visibly thicker capsule, a clearly
+bordered pill) on one shared backdrop instead of three separate background
+blobs, so the comparison was actually legible. User picked **option B** — no
+new pill container, just a frosted track.
+
+Implementation deliberately avoids hand-computing the fraction-width overlay
+that would be needed to draw a fully custom track: the real `Slider`
+composable is kept completely as-is for gesture handling and (crucially) its
+own accurate internal thumb/track positioning, so there is no risk of a
+custom overlay drifting out of sync with where the thumb actually is. Two
+things layer on top of that unchanged `Slider`, both purely additive:
+
+1. A **purely decorative capsule glow** (`QUICK_PANEL_SLIDER_CAPSULE_HEIGHT_DP`
+   = 14dp, several times Material3's own ~4dp default track height — this is
+   what reads as "thicker/frosted") drawn *behind* the Slider, at a fixed
+   `Glass.raisedCardFill(dark, 1f)` — the faintest end of that scale, since
+   this is meant to be a soft glow, not the primary "how see-through" control
+   (unlike the tiles, this doesn't read the personalize transparency slider).
+   It carries no value-dependent width; it is just a constant-width backdrop.
+2. The **Slider's own colours go translucent**: `inactiveTrackColor` becomes
+   fully transparent (so only the capsule glow shows through the unfilled
+   portion) and `activeTrackColor` becomes `accent.copy(alpha =
+   QUICK_PANEL_SLIDER_ACTIVE_ALPHA)` (0.55) instead of a solid accent — the
+   filled portion reads as tinted glass over the glow rather than a solid
+   painted bar. The thumb stays solid `accent` (unchanged) since a genuinely
+   translucent thumb would be hard to spot against the equally-translucent
+   fill right next to it.
+
+Because the Slider's real track is what actually draws the value-proportional
+fill (just recoloured, not repositioned), the frosted look is pixel-accurate
+to the real value with none of the alignment risk a hand-drawn overlay would
+have carried. Verified in both themes on the emulator: a visibly thicker,
+translucent capsule sits behind each slider, with an accent-tinted (not
+solid) fill portion — clearly distinct from the old hard opaque bar and
+consistent with the same translucent-card material used elsewhere.
+
+## Widget-card fill: one alpha range for both themes, not a stronger one for light
+
+Direct follow-up: "in light mode when widget look is on tiles on the start
+screen transperency level not comparable to dark mode. dark mode has right
+levels. also the light mode tiles are too white." `raisedCardFill` gave
+light theme a much stronger alpha range than dark (0.34–0.78 vs. 0.12–0.30 —
+nearly 3x), on the theory from an earlier entry that "the same wash that
+lifts a near-black backdrop needs to be much stronger to register against a
+light one." Backwards in practice: that much white blows out to a stark
+white square rather than a subtle lift, and — since the two themes no longer
+shared the same numbers — the "transparency" slider felt like it meant
+something different depending on theme, which is exactly what "not
+comparable" describes. Collapsed to one range for both themes (dark's own
+0.12–0.30, since the user confirmed "dark mode has right levels"): fixes
+both complaints at once — literally comparable now, since it's the same
+number, and light theme is no longer overexposed. Same story as the very
+first "raisedFill" pass a few entries above (guessing a theme needs *more*
+of something rather than trusting that the number which already looked
+right in one theme is close enough for the other) — worth remembering
+before reaching for an asymmetric formula next time this class of thing
+comes up.
+
 ## The disc wallpapers are a row of three, and the picker grid is really a grid
 
 User: "create a row of such wallpapers (3) with varying color combinations. so

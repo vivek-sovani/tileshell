@@ -183,6 +183,7 @@ fun PersonalizeGuideSheet(
                     "widget cards turns every tile into its own rounded, translucent card floating over the wallpaper, like a home-screen gadget — a fixed corner radius and gap replace the corner-radius/spacing sliders, which have no effect here",
                     "widget cards also carries onto the feed page — weather, today, and now-playing become the same translucent cards there",
                     "and onto quick panel — every toggle shares the same translucent card; an active one shows in accent colour on its icon and label instead of a filled tile",
+                    "quick panel's brightness/volume sliders match too — a frosted translucent track instead of a solid bar",
                     "\"tile outline\" (transparent & behind tiles only) drops the thin edge line around each tile, so neighbours read as one continuous surface",
                     "tile style · corner radius slider rounds every tile's corners",
                     "tile style · tile spacing slider sets the gap between tiles — drag it up to spread them out, down to pack them tighter",

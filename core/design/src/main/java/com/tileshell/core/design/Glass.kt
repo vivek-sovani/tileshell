@@ -68,6 +68,18 @@ object Glass {
      * its background, not darker, which is what a white overlay (at a modest
      * alpha) actually achieves.
      *
+     * **Same alpha range in both themes** — a second pass gave light theme a
+     * much stronger range (0.34–0.78 vs. dark's 0.12–0.30) on the theory that
+     * "the same wash that lifts a near-black backdrop needs to be much
+     * stronger to register against a light one." Wrong in practice too, in
+     * the opposite direction from the dark-theme mistake above: user-reported
+     * "light mode tiles too white" and "transparency level not comparable to
+     * dark mode. dark mode has right levels" — nearly 3x the alpha reads as a
+     * stark white square rather than a subtle lift, and the two themes no
+     * longer felt like the same slider. One range for both themes fixes both
+     * complaints at once: comparable by construction (it's the same number),
+     * and light theme is no longer overexposed.
+     *
      * [transparency] is the same 0..1 "tile transparency" slider glass
      * already uses (Personalize surfaces it for borderless too, alongside
      * transparent) — 0 = the most opaque, clearly-a-card end; 1 = the
@@ -78,7 +90,23 @@ object Glass {
      */
     fun raisedCardFill(dark: Boolean, transparency: Float): Color {
         val t = transparency.coerceIn(0f, 1f)
-        val (max, min) = if (dark) 0.30f to 0.12f else 0.78f to 0.34f
+        val (max, min) = 0.30f to 0.12f
         return Color.White.copy(alpha = max - t * (max - min))
     }
+
+    /**
+     * [accent] tinted for use directly as an icon/label colour on a widget
+     * card (Quick Panel's own "on" glyph under `borderlessTiles` — see
+     * DECISIONS.md "Widget cards carried onto Quick Panel"), user-reported as
+     * needing to read "a little darker" against a light-theme card: the
+     * accent's own saturated brightness, fine against a saturated accent
+     * *fill*, reads washed-out as a thin glyph sitting on the pale, near-white
+     * card [raisedCardFill] paints in light theme. Left untouched in dark
+     * theme, where the same accent already has enough contrast against the
+     * darker card. A flat 18% blend toward black rather than a per-colour
+     * luminance calculation — simple, and "a little darker" is what was
+     * asked for, not "as dark as it can go."
+     */
+    fun accentOnCard(dark: Boolean, accent: Color): Color =
+        if (dark) accent else lerp(accent, Color.Black, 0.18f)
 }

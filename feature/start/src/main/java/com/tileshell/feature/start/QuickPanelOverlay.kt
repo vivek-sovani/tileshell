@@ -124,6 +124,19 @@ import kotlinx.coroutines.withContext
 private const val QUICK_PANEL_COLUMNS = 4
 
 /**
+ * "Widget cards" slider styling (option B: frosted track, no new pill
+ * container — see DECISIONS.md "Widget cards carried onto Quick Panel's
+ * sliders"). [QUICK_PANEL_SLIDER_CAPSULE_HEIGHT_DP] is the purely decorative
+ * capsule glow drawn behind the real Slider — thicker than Material3's own
+ * ~4dp track, which is what reads as "frosted" rather than a thin hard line.
+ * [QUICK_PANEL_SLIDER_ACTIVE_ALPHA] is the active track's own alpha over that
+ * glow, so the filled portion still looks like tinted glass rather than a
+ * solid accent bar.
+ */
+private const val QUICK_PANEL_SLIDER_CAPSULE_HEIGHT_DP = 14
+private const val QUICK_PANEL_SLIDER_ACTIVE_ALPHA = 0.55f
+
+/**
  * Quick panel: a two-finger swipe-up on Start opens this. The gesture itself is
  * unchanged (still swipe-**up**, so it can never collide with quick search's
  * two-finger swipe-**down**), but the panel now docks to and slides down from
@@ -463,6 +476,8 @@ fun QuickPanelOverlay(
                 fg = panelFg,
                 fgDim = panelFgDim,
                 accent = accent,
+                borderless = borderlessTiles,
+                dark = dark,
                 writeSettingsGranted = writeSettingsGranted,
                 brightness = brightness,
                 setBrightness = setBrightness,
@@ -756,6 +771,11 @@ private fun QuickPanelSliders(
     fg: Color,
     fgDim: Color,
     accent: Color,
+    // "widget cards" carried onto these sliders too — user-requested ("also
+    // suggest slide bar matching style"), see DECISIONS.md "Widget cards
+    // carried onto Quick Panel's sliders (option B: frosted track)".
+    borderless: Boolean = false,
+    dark: Boolean = true,
     writeSettingsGranted: Boolean,
     brightness: Float,
     setBrightness: (Float) -> Unit,
@@ -778,6 +798,8 @@ private fun QuickPanelSliders(
                 fg = fg,
                 fgDim = fgDim,
                 accent = accent,
+                borderless = borderless,
+                dark = dark,
             )
         }
         val ringFraction = rememberSliderFraction(ringVolume)
@@ -800,6 +822,8 @@ private fun QuickPanelSliders(
             fg = fg,
             fgDim = fgDim,
             accent = accent,
+            borderless = borderless,
+            dark = dark,
         )
         val mediaFraction = rememberSliderFraction(mediaVolume)
         var mediaPreMute by remember { mutableStateOf(mediaFraction.value.takeIf { it > 0f } ?: 0.5f) }
@@ -821,6 +845,8 @@ private fun QuickPanelSliders(
             fg = fg,
             fgDim = fgDim,
             accent = accent,
+            borderless = borderless,
+            dark = dark,
         )
     }
 }
@@ -841,6 +867,16 @@ private fun QuickPanelSliderRow(
     fgDim: Color,
     accent: Color,
     onIconClick: (() -> Unit)? = null,
+    // "widget cards" carried onto this slider (option B: a frosted track,
+    // no new pill container around the row — see DECISIONS.md). The real
+    // interactive Slider is left exactly as-is (same composable, same
+    // gesture handling, same accurate internal thumb/track positioning) so
+    // there is zero risk of it drifting out of sync with a hand-drawn
+    // fraction-width overlay; only its own colours go translucent, and a
+    // purely decorative capsule glow sits underneath to read as "thicker/
+    // frosted" without touching the Slider's real track geometry at all.
+    borderless: Boolean = false,
+    dark: Boolean = true,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().height(40.dp),
@@ -861,17 +897,40 @@ private fun QuickPanelSliderRow(
                 }
             },
         )
-        Slider(
-            value = value,
-            onValueChange = onValueChange,
-            onValueChangeFinished = { haptics.performHapticFeedback(HapticFeedbackType.GestureEnd) },
-            modifier = Modifier.weight(1f),
-            colors = SliderDefaults.colors(
-                thumbColor = accent,
-                activeTrackColor = accent,
-                inactiveTrackColor = tokens.tileLine,
-            ),
-        )
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+            if (borderless) {
+                // Decorative-only capsule glow: fixed, not value-dependent —
+                // the real fill/position comes from the Slider drawn on top,
+                // which already positions itself correctly without any help
+                // from this backdrop.
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(QUICK_PANEL_SLIDER_CAPSULE_HEIGHT_DP.dp)
+                        .clip(RoundedCornerShape(QUICK_PANEL_SLIDER_CAPSULE_HEIGHT_DP.dp / 2))
+                        .background(Glass.raisedCardFill(dark, 1f)),
+                )
+            }
+            Slider(
+                value = value,
+                onValueChange = onValueChange,
+                onValueChangeFinished = { haptics.performHapticFeedback(HapticFeedbackType.GestureEnd) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = if (borderless) {
+                    SliderDefaults.colors(
+                        thumbColor = accent,
+                        activeTrackColor = accent.copy(alpha = QUICK_PANEL_SLIDER_ACTIVE_ALPHA),
+                        inactiveTrackColor = Color.Transparent,
+                    )
+                } else {
+                    SliderDefaults.colors(
+                        thumbColor = accent,
+                        activeTrackColor = accent,
+                        inactiveTrackColor = tokens.tileLine,
+                    )
+                },
+            )
+        }
         Text(
             text = "${(value * 100).roundToInt()}%",
             color = fgDim,
@@ -1131,7 +1190,7 @@ private fun QuickPanelTile(
     // borderless there's no accent fill to adapt to any more, so an active
     // tile's icon/label reads in the accent colour directly instead.
     val fg = when {
-        borderless && tile.active -> accent
+        borderless && tile.active -> Glass.accentOnCard(dark, accent)
         borderless -> panelFgDim
         tile.active -> Glass.faceTextColor(useDarkText = isLightBackground(accent))
         else -> tokens.fgDim

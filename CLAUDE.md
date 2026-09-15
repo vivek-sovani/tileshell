@@ -194,6 +194,41 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   share the identical card fill, distinguished only by glyph colour. Build +
   full unit test suite green; installed and launched on both the emulator
   and the physical device with no crash.
+  **Two same-session follow-ups**: (1) "accent color needs to be little
+  darker on light background" — the tinted glyph used plain `accent` with no
+  theme adjustment, washed-out against `raisedCardFill`'s pale light-theme
+  card. New `Glass.accentOnCard(dark, accent)` blends 18% toward black in
+  light theme only (dark theme untouched); applied to `QuickPanelTile`'s
+  active-glyph branch. (2) "also suggest slide bar matching style" — the
+  notification/volume sliders were still a hard opaque bar. Mocked up two
+  options; the first mockup's alpha differences were too subtle to read
+  ("visually all 3 look same. recheck") — redone with exaggerated, unambiguous
+  differences on one shared backdrop. User picked **option B: frosted track**,
+  no new pill container. The real `Slider` composable is left completely
+  unchanged for gesture handling and accurate internal positioning — no
+  hand-computed overlay, so no risk of drifting out of sync with the real
+  thumb. A purely decorative capsule glow (`QUICK_PANEL_SLIDER_CAPSULE_HEIGHT_DP`
+  = 14dp, several times Material3's own ~4dp track) sits behind it at a fixed
+  `Glass.raisedCardFill(dark, 1f)`, and the Slider's own `inactiveTrackColor`
+  goes fully transparent while `activeTrackColor` becomes `accent` at 55%
+  alpha instead of solid — the fill reads as tinted glass over the glow
+  rather than a painted bar. Verified in both themes on the emulator: darker,
+  legible glyphs in light theme; a visibly thicker, translucent slider
+  capsule with an accent-tinted (not solid) fill. Build + full unit test
+  suite green; installed and launched on both the emulator and the physical
+  device with no crash. **Third same-session follow-up**: "in light mode
+  when widget look is on tiles on the start screen transperency level not
+  comparable to dark mode. dark mode has right levels. also the light mode
+  tiles are too white" — `raisedCardFill` had given light theme a much
+  stronger alpha range (0.34–0.78) than dark (0.12–0.30), on a since-disproven
+  theory that light theme needed more white to register; collapsed to one
+  shared range (dark's own numbers) for both themes, since a single formula
+  is comparable by construction and dark theme was already confirmed
+  correct. Visually confirmed on the emulator: light-theme Start tiles now
+  read as muted gray cards with the wallpaper showing through at a strength
+  comparable to dark theme, not a stark white square. Build + full unit test
+  suite green; installed and launched on both the emulator and the physical
+  device with no crash.
 <!-- Update this block at the end of every session -->
 - **`main` — glance widgets: real stack-collapse bug fix, header-text contrast
   fix (with a same-session inverted-logic correction), Panchang/Tasks visual
