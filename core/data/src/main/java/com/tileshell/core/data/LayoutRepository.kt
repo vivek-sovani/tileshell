@@ -310,8 +310,10 @@ class LayoutRepository(
      * (e.g. Amazon's Fresh/Now/Pay activity-aliases).
      * Apps that match a default role (phone, mail, calendar, etc.) get their
      * designed WP icon key; all others default to null and show the real app icon.
+     * [sectionId] pins straight into that section (the App List's "pin to
+     * section" picker) instead of the default unsectioned landing spot.
      */
-    suspend fun pinApp(app: AppEntry, defaultSize: TileSize = TileSize.MEDIUM): PinResult {
+    suspend fun pinApp(app: AppEntry, defaultSize: TileSize = TileSize.MEDIUM, sectionId: String? = null): PinResult {
         if (dao.appActivityTileCount(app.packageName, app.activityName) > 0) return PinResult.ALREADY_ON_START
         dao.insertTiles(
             listOf(
@@ -325,6 +327,7 @@ class LayoutRepository(
                     activityName = app.activityName,
                     label = app.label,
                     iconKey = roleIconKeyMap[app.packageName],
+                    sectionId = sectionId,
                 ),
             ),
         )

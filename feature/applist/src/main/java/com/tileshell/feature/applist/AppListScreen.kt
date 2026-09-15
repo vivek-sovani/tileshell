@@ -78,6 +78,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.AppLauncher
 import com.tileshell.core.data.PinResult
+import com.tileshell.core.data.Section
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.design.Glass
@@ -123,6 +124,7 @@ fun AppListScreen(
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val siblingsByPackage by viewModel.siblingsByPackage.collectAsStateWithLifecycle()
     val pinnedActivityKeys by viewModel.pinnedActivityKeys.collectAsStateWithLifecycle()
+    val sections by viewModel.sections.collectAsStateWithLifecycle()
     val accent = LocalAccent.current // global accent (FR-7, S17)
     val context = LocalContext.current
 
@@ -210,6 +212,8 @@ fun AppListScreen(
                                 loadShortcuts = viewModel::shortcutsFor,
                                 loadWidgets = viewModel::widgetsFor,
                                 onPinWidget = onAddWidget,
+                                sections = sections,
+                                onPinToSection = { sectionId -> viewModel.pin(app, sectionId) },
                             )
                         }
                     }
@@ -248,6 +252,8 @@ fun AppListScreen(
                             loadShortcuts = viewModel::shortcutsFor,
                             loadWidgets = viewModel::widgetsFor,
                             onPinWidget = onAddWidget,
+                            sections = if (app.packageName.isBlank()) emptyList() else sections,
+                            onPinToSection = { sectionId -> viewModel.pin(app, sectionId) },
                         )
                     }
                 }
@@ -343,6 +349,8 @@ private fun AppRow(
     loadShortcuts: suspend (String) -> List<AppEntry> = { emptyList() },
     loadWidgets: suspend (String) -> List<android.appwidget.AppWidgetProviderInfo> = { emptyList() },
     onPinWidget: (android.appwidget.AppWidgetProviderInfo) -> Unit = {},
+    sections: List<Section> = emptyList(),
+    onPinToSection: (String?) -> Unit = {},
 ) {
     // Long-press opens a WP-style context menu: pin the app to Start, hide it
     // from the list, or uninstall it (the system uninstall dialog). A quick tap
@@ -353,6 +361,7 @@ private fun AppRow(
     var menuOpen by remember { mutableStateOf(false) }
     var siblingsMenuOpen by remember { mutableStateOf(false) }
     var widgetsMenuOpen by remember { mutableStateOf(false) }
+    var sectionsMenuOpen by remember { mutableStateOf(false) }
     // App shortcuts (e.g. a camera app's "selfie"/"video" quick actions) and
     // home-screen widgets are both real system calls per package, so unlike
     // [siblings] (already loaded for free from the in-memory catalogue) they're
@@ -467,6 +476,15 @@ private fun AppRow(
                 text = { Text("pin to start") },
                 onClick = { menuOpen = false; onPin() },
             )
+            // Only offered once 2+ sections exist — with none or one, the plain
+            // "pin to start" above already lands the app exactly where a picker
+            // would (unsectioned), so this stays out of the way otherwise.
+            if (sections.size >= 2) {
+                DropdownMenuItem(
+                    text = { Text("pin to section") },
+                    onClick = { menuOpen = false; sectionsMenuOpen = true },
+                )
+            }
             if (hasSiblings) {
                 DropdownMenuItem(
                     text = { Text("more from this app") },
@@ -519,6 +537,21 @@ private fun AppRow(
                         null
                     },
                     onClick = { siblingsMenuOpen = false; onPinSibling(sibling) },
+                )
+            }
+        }
+
+        // "pin to section": every section currently defined, plus "unsectioned"
+        // — only reachable once 2+ sections exist (the menu item above it).
+        DropdownMenu(expanded = sectionsMenuOpen, onDismissRequest = { sectionsMenuOpen = false }) {
+            DropdownMenuItem(
+                text = { Text("unsectioned") },
+                onClick = { sectionsMenuOpen = false; onPinToSection(null) },
+            )
+            sections.sortedBy { it.order }.forEach { section ->
+                DropdownMenuItem(
+                    text = { Text(section.label.lowercase()) },
+                    onClick = { sectionsMenuOpen = false; onPinToSection(section.id) },
                 )
             }
         }

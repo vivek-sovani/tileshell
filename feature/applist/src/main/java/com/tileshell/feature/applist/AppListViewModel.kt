@@ -9,6 +9,7 @@ import com.tileshell.core.data.HiddenApps
 import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.PinResult
 import com.tileshell.core.data.RecentApps
+import com.tileshell.core.data.Section
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.hasPersonalizeTile
@@ -64,6 +65,13 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = LauncherSettings(),
+    )
+
+    /** For the App List's "pin to section" picker — mirrors `StartViewModel.sections`. */
+    val sections: StateFlow<List<Section>> = layout.sections.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList(),
     )
 
     private val apps: StateFlow<List<AppEntry>> = repository.apps.map { it + PERSONALIZE_APP_ENTRY }.stateIn(
@@ -209,16 +217,18 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
      * Pin [app] to Start, then emit the outcome for the UI to toast on. In the
      * ICONS home style a freshly pinned app lands at SMALL (renders as a
      * plain shaped icon) rather than the WP-style MEDIUM default — the user
-     * can still grow it into a live tile via resize.
+     * can still grow it into a live tile via resize. [sectionId], when given
+     * (the App List's "pin to section" picker, shown only once 2+ sections
+     * exist), pins straight into that section instead of unsectioned.
      */
-    fun pin(app: AppEntry) {
+    fun pin(app: AppEntry, sectionId: String? = null) {
         viewModelScope.launch {
             val defaultSize = if (settingsRepository.settings.first().homeStyle == HomeStyle.ICONS) {
                 TileSize.SMALL
             } else {
                 TileSize.MEDIUM
             }
-            val result = layout.pinApp(app, defaultSize)
+            val result = layout.pinApp(app, defaultSize, sectionId)
             _pinned.emit(PinOutcome(result, app.label))
         }
     }
