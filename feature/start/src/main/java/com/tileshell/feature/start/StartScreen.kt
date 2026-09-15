@@ -2675,6 +2675,7 @@ private fun StartPage(
                     collapsed = block.collapsed,
                     editMode = editMode,
                     textColor = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.85f),
+                    accent = wallpaperAccent ?: accent,
                     badgeCount = sectionBadgeCount,
                     darkTheme = darkTheme,
                     onToggleCollapsed = { onToggleSectionCollapsed(block.sectionId) },
@@ -4126,10 +4127,15 @@ private fun FolderExpandedPlaceholder(
 }
 
 /**
- * A Start-screen section's header row: a collapse chevron (tap toggles, in
- * or out of edit mode), the label (tap-to-rename via [FolderNameEditor],
- * edit mode only), and — edit mode only — ↑/↓ reorder and a remove ("✕",
- * ungroups the section's tiles rather than deleting them) action.
+ * A Start-screen section's header row: an accent-tinted circular chevron
+ * button (tap toggles collapse, in or out of edit mode; rotates 0°→90° as it
+ * expands, matching the app-list chevron's own visual language), the label
+ * (tap-to-rename via [SectionNameEditor], edit mode only), and — edit mode
+ * only — ↑/↓ reorder and a remove ("close", ungroups the section's tiles
+ * rather than deleting them) action, each a small ghost icon button rather
+ * than a bare glyph (user-requested: "can [this] be more better design
+ * wise"). A thin low-opacity divider under the row separates it from the
+ * tiles/next header below without a heavy box.
  */
 @Composable
 private fun SectionHeader(
@@ -4137,6 +4143,7 @@ private fun SectionHeader(
     collapsed: Boolean,
     editMode: Boolean,
     textColor: Color,
+    accent: Color,
     // Summed notification badge across every tile currently in this section
     // (an app tile's own count, or a folder's already-aggregated sum) — a
     // collapsed section hides its tiles (and so their individual badges)
@@ -4154,6 +4161,7 @@ private fun SectionHeader(
     onDelete: () -> Unit,
 ) {
     var renaming by remember(label) { mutableStateOf(false) }
+    Column(modifier = Modifier.fillMaxWidth()) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -4161,18 +4169,26 @@ private fun SectionHeader(
             .padding(horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = if (collapsed) "▸" else "▾",
-            color = textColor,
-            fontSize = 13.sp,
+        Box(
             modifier = Modifier
+                .size(26.dp)
+                .clip(CircleShape)
+                .background(accent.copy(alpha = 0.85f))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = onToggleCollapsed,
-                )
-                .padding(end = 8.dp),
-        )
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = TileIcons["chevron"],
+                contentDescription = if (collapsed) "expand section" else "collapse section",
+                tint = Color.White,
+                modifier = Modifier.size(14.dp).rotate(if (collapsed) 0f else 90f),
+            )
+        }
+        Spacer(Modifier.width(10.dp))
         Box(modifier = Modifier.weight(1f)) {
             if (renaming) {
                 SectionNameEditor(
@@ -4189,15 +4205,16 @@ private fun SectionHeader(
                     Text(
                         text = label.lowercase(),
                         // Full opacity + bold + noticeably larger than the
-                        // chevron/reorder/remove controls (which keep the
-                        // passed, more muted textColor) — the section's own
-                        // name is the one thing in this row that should read
-                        // as a real heading, not another small icon
-                        // (user-requested: "can section names be made more
+                        // reorder/remove controls (which keep the passed,
+                        // more muted textColor) — the section's own name is
+                        // the one thing in this row that should read as a
+                        // real heading, not another small icon (user-
+                        // requested: "can section names be made more
                         // prominent").
                         color = textColor.copy(alpha = 1f),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.2.sp,
                         modifier = if (editMode) {
                             Modifier.clickable(
                                 interactionSource = remember { MutableInteractionSource() },
@@ -4221,41 +4238,69 @@ private fun SectionHeader(
             }
         }
         if (editMode && !renaming) {
-            Text(
-                text = "↑",
-                color = textColor,
-                fontSize = 15.sp,
-                modifier = Modifier
-                    .padding(horizontal = 6.dp)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onMoveUp,
-                    ),
+            SectionHeaderIconButton(
+                iconKey = "chevron",
+                rotationDegrees = -90f,
+                tint = textColor,
+                contentDescription = "move section up",
+                onClick = onMoveUp,
             )
-            Text(
-                text = "↓",
-                color = textColor,
-                fontSize = 15.sp,
-                modifier = Modifier
-                    .padding(end = 6.dp)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onMoveDown,
-                    ),
+            SectionHeaderIconButton(
+                iconKey = "chevron",
+                rotationDegrees = 90f,
+                tint = textColor,
+                contentDescription = "move section down",
+                onClick = onMoveDown,
             )
-            Text(
-                text = "✕",
-                color = textColor,
-                fontSize = 14.sp,
-                modifier = Modifier.clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onDelete,
-                ),
+            SectionHeaderIconButton(
+                iconKey = "close",
+                rotationDegrees = 0f,
+                tint = textColor,
+                contentDescription = "remove section",
+                onClick = onDelete,
             )
         }
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 6.dp)
+            .height(1.dp)
+            .background(textColor.copy(alpha = 0.12f)),
+    )
+    }
+}
+
+/** A small ghost-circle icon button for a [SectionHeader]'s edit-mode
+ *  reorder/remove actions — reuses the [TileIcons] chevron glyph rotated for
+ *  up/down, and "close" for remove, rather than bare text glyphs. */
+@Composable
+private fun SectionHeaderIconButton(
+    iconKey: String,
+    rotationDegrees: Float,
+    tint: Color,
+    contentDescription: String,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .padding(horizontal = 3.dp)
+            .size(26.dp)
+            .clip(CircleShape)
+            .background(tint.copy(alpha = 0.12f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = TileIcons[iconKey],
+            contentDescription = contentDescription,
+            tint = tint,
+            modifier = Modifier.size(13.dp).rotate(rotationDegrees),
+        )
     }
 }
 
