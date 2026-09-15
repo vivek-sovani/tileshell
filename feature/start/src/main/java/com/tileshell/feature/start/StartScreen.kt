@@ -2602,6 +2602,54 @@ private fun StartPage(
                 )
                 .navigationBarsPadding(),
         ) {
+            // "+ add section" (edit mode only): a prominent affordance at the
+            // very top of the grid — moved here from a small text row at the
+            // bottom per user feedback ("add it at top by big + sign").
+            if (editMode) {
+                var addingSectionAtTop by remember { mutableStateOf(false) }
+                if (addingSectionAtTop) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp)) {
+                        FolderNameEditor(initial = "") { newLabel ->
+                            addingSectionAtTop = false
+                            if (newLabel.isNotBlank()) onCreateSection(newLabel)
+                        }
+                    }
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 6.dp, vertical = 10.dp)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { addingSectionAtTop = true },
+                            ),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.16f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = "+",
+                                color = Glass.faceTextColor(screenBackgroundIsLight),
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = "add section",
+                            color = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.85f),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                }
+            }
             blockRenders.forEach { render ->
             val block = render.block
             if (block.sectionId != null) {
@@ -3090,34 +3138,6 @@ private fun StartPage(
             } // end key(block.sectionId)
             } // end if (!block.collapsed)
             } // end blockRenders.forEach
-            // "+ add section" (edit mode only): appended after every block,
-            // matching the existing pattern for adding new things at the
-            // bottom of the grid.
-            if (editMode) {
-                var addingSection by remember { mutableStateOf(false) }
-                if (addingSection) {
-                    Box(modifier = Modifier.fillMaxWidth().height(SECTION_HEADER_HEIGHT_DP.dp).padding(horizontal = 6.dp)) {
-                        FolderNameEditor(initial = "") { newLabel ->
-                            addingSection = false
-                            if (newLabel.isNotBlank()) onCreateSection(newLabel)
-                        }
-                    }
-                } else {
-                    Text(
-                        text = "+ add section",
-                        color = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.7f),
-                        fontSize = 13.sp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 6.dp, vertical = 8.dp)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = { addingSection = true },
-                            ),
-                    )
-                }
-            }
             // FR-1 bottom breathing room (prototype home-scroll padding-bottom:74px;
             // grows to clear the edit bar while editing, like .home-scroll padding).
             Spacer(Modifier.height(if (editMode) 130.dp else 74.dp))
