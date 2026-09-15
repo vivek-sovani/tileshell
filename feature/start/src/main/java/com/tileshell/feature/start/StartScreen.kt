@@ -2767,6 +2767,7 @@ private fun StartPage(
                     onMoveDown = { onMoveSection(block.sectionId, 1) },
                     onRename = { newLabel -> onRenameSection(block.sectionId, newLabel) },
                     onDelete = { onDeleteSection(block.sectionId) },
+                    collapsible = !(sectionDisplayMode == SectionDisplayMode.TABBED && block.sectionId == activeTabSectionId),
                 )
             }
             if (!block.collapsed) {
@@ -4416,8 +4417,20 @@ private fun SectionHeader(
     onMoveDown: () -> Unit,
     onRename: (String) -> Unit,
     onDelete: () -> Unit,
+    // False while this section is the active tab in TABBED mode: its
+    // content is always shown there regardless of the persisted [collapsed]
+    // flag (user-requested: "app contents of tab should be open by default
+    // and can not be closed"), so the collapse chevron is a dead — and
+    // actively misleading — control in that state; it's rendered as a plain,
+    // non-interactive "open" indicator instead of a toggle.
+    collapsible: Boolean = true,
 ) {
     var renaming by remember(label) { mutableStateOf(false) }
+    // Reflects reality: forced open (not collapsible) always reads as open,
+    // whatever the persisted flag says — that flag still matters once this
+    // section stops being the active tab (or the display mode switches back
+    // to scroll), just not while it's being force-shown here.
+    val effectivelyCollapsed = collapsible && collapsed
     Column(modifier = Modifier.fillMaxWidth()) {
     Row(
         modifier = Modifier
@@ -4431,18 +4444,30 @@ private fun SectionHeader(
                 .size(26.dp)
                 .clip(CircleShape)
                 .background(accent.copy(alpha = 0.85f))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onToggleCollapsed,
+                .then(
+                    if (collapsible) {
+                        Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onToggleCollapsed,
+                        )
+                    } else {
+                        Modifier
+                    },
                 ),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = TileIcons["chevron"],
-                contentDescription = if (collapsed) "expand section" else "collapse section",
+                contentDescription = if (!collapsible) {
+                    null
+                } else if (effectivelyCollapsed) {
+                    "expand section"
+                } else {
+                    "collapse section"
+                },
                 tint = Color.White,
-                modifier = Modifier.size(14.dp).rotate(if (collapsed) 0f else 90f),
+                modifier = Modifier.size(14.dp).rotate(if (effectivelyCollapsed) 0f else 90f),
             )
         }
         Spacer(Modifier.width(10.dp))
