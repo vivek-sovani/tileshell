@@ -68,6 +68,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -2296,6 +2297,8 @@ private fun StartPage(
     // signs so the grid shimmers like WP edit mode.
     val jigglePhase = rememberJigglePhase(editMode)
     val density = LocalDensity.current
+    // For the section jump-pill bar's tap-to-scroll (see SectionPillBar below).
+    val sectionNavScope = rememberCoroutineScope()
 
     // Working order driving the grid. Mirrors the persisted order except during
     // a drag, when reorder mutates it live (the drop persists the result).
@@ -2657,6 +2660,26 @@ private fun StartPage(
             }
             blockRenders.forEach { render ->
             val block = render.block
+            // A real section gets a tinted, bordered panel wrapping its
+            // header + tiles, so it reads as its own boxed region (user-
+            // requested "show visually various ways sections can be shown");
+            // the trailing unsectioned block never does, staying exactly as
+            // it rendered before this. This Column adds no padding/spacing of
+            // its own around its children (a bare wrapper, not a card inset),
+            // so it changes nothing about blockRenders' own topOffsetPx/
+            // gridTopOffsetPx bookkeeping or any drag/hit-test math below —
+            // purely a paint change.
+            val sectionPanelShape = RoundedCornerShape(14.dp)
+            val sectionPanelModifier = if (block.sectionId != null) {
+                Modifier
+                    .fillMaxWidth()
+                    .clip(sectionPanelShape)
+                    .background(Glass.sectionPanelFill(darkTheme, wallpaperAccent ?: accent))
+                    .border(1.dp, Glass.sectionPanelBorder(darkTheme, wallpaperAccent ?: accent), sectionPanelShape)
+            } else {
+                Modifier.fillMaxWidth()
+            }
+            Column(modifier = sectionPanelModifier) {
             if (block.sectionId != null) {
                 // Summed across every tile in the section — a folder's own
                 // count is already the sum of its children (see the
@@ -3157,6 +3180,7 @@ private fun StartPage(
             }
             } // end key(block.sectionId)
             } // end if (!block.collapsed)
+            } // end Column(sectionPanelModifier)
             } // end blockRenders.forEach
             // FR-1 bottom breathing room (prototype home-scroll padding-bottom:74px;
             // grows to clear the edit bar while editing, like .home-scroll padding).
@@ -3209,6 +3233,25 @@ private fun StartPage(
                     )
                 }
             }
+        }
+
+        // Section jump-pill bar: one pill per block (real sections + a
+        // trailing "unsectioned"), anchored at the bottom of the screen in
+        // both this and the future tabbed-sections mode (kept out of edit
+        // mode — EditBar already owns BottomCenter there, and blockRenders'
+        // topOffsetPx assumes no "+ add section" affordance is showing).
+        // Only shown once there's more than one block to jump between — the
+        // same >= 2 gate the App List's "pin to section" picker already uses.
+        if (!editMode && blocks.size >= 2) {
+            SectionPillBar(
+                blocks = blocks,
+                textColor = Glass.faceTextColor(screenBackgroundIsLight),
+                onJumpTo = { sectionId ->
+                    val render = blockRenders.firstOrNull { it.block.sectionId == sectionId } ?: return@SectionPillBar
+                    sectionNavScope.launch { scrollState.animateScrollTo(render.topOffsetPx.roundToInt()) }
+                },
+                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 10.dp),
+            )
         }
 
         // Bottom edit bar (prototype .edit-bar): slides up while editing.
@@ -4122,6 +4165,52 @@ private fun FolderExpandedPlaceholder(
                     indication = null,
                 ) { renaming = true },
             )
+        }
+    }
+}
+
+/**
+ * A row of pills anchored at the bottom of Start, one per [TileBlock] — a
+ * real section's own [TileBlock.label], plus a trailing "unsectioned" pill
+ * for the catch-all block ([blocksFor] always appends exactly one of those).
+ * Tapping a pill calls [onJumpTo] with that block's [TileBlock.sectionId]
+ * (null for "unsectioned") — this composable has no scroll/tab logic of its
+ * own, so the same pill row can back either the current scroll-jump mode or
+ * a future tabbed mode, per the plan to keep both as a Personalize choice.
+ */
+@Composable
+private fun SectionPillBar(
+    blocks: List<TileBlock>,
+    textColor: Color,
+    onJumpTo: (String?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        blocks.forEach { block ->
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(textColor.copy(alpha = 0.12f))
+                    .border(1.dp, textColor.copy(alpha = 0.24f), RoundedCornerShape(16.dp))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { onJumpTo(block.sectionId) },
+                    )
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+            ) {
+                Text(
+                    text = (block.label ?: "unsectioned").lowercase(),
+                    color = textColor,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
         }
     }
 }

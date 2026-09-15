@@ -109,4 +109,21 @@ object Glass {
      */
     fun accentOnCard(dark: Boolean, accent: Color): Color =
         if (dark) accent else lerp(accent, Color.Black, 0.18f)
+
+    /**
+     * Fill for a section's tinted panel background (Start "sections"): a
+     * visibly boxed, [accent]-tinted region behind a section's header + tiles,
+     * distinguishing it from the plain unsectioned area. A first mockup used a
+     * faint ~14% alpha, which composites to almost no visible shift over a
+     * near-black background (`accent.copy(alpha = 0.14f)` over `#0a0a0d` nets
+     * roughly `rgb(15,25,43)` vs. the background's own `rgb(10,10,13)`) — the
+     * user correctly couldn't tell it apart from an untinted section. This is
+     * the stronger value verified (via real colour math, then visually) to
+     * read clearly in both themes.
+     */
+    fun sectionPanelFill(dark: Boolean, accent: Color): Color = accent.copy(alpha = if (dark) 0.30f else 0.16f)
+
+    /** Border for the same panel (see [sectionPanelFill]) — stronger alpha so the
+     *  panel's edge itself is legible, not just its fill. */
+    fun sectionPanelBorder(dark: Boolean, accent: Color): Color = accent.copy(alpha = if (dark) 0.55f else 0.4f)
 }
