@@ -2770,7 +2770,15 @@ private fun StartPage(
                     collapsible = !(sectionDisplayMode == SectionDisplayMode.TABBED && block.sectionId == activeTabSectionId),
                 )
             }
-            if (!block.collapsed) {
+            // Real bug, user-reported ("contents of tab not visible", for a
+            // collapsed section that becomes the active tab): blockRenders'
+            // own placements already bypass a collapsed flag via forcedOpen,
+            // but this second, independent gate — whether the grid/gesture
+            // machinery is composed at all — didn't know about that and kept
+            // skipping it outright for any section persisted as collapsed,
+            // even while it's being force-shown as the active tab.
+            val forcedOpenForRender = sectionDisplayMode == SectionDisplayMode.TABBED && block.sectionId == activeTabSectionId
+            if (!block.collapsed || forcedOpenForRender) {
             key(block.sectionId ?: "__unsectioned__") {
             val blockIds = block.ids
             val blockIdSet = blockIds.toHashSet()
