@@ -73,6 +73,8 @@ import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
+import com.tileshell.core.data.settings.SectionDisplayMode
+import com.tileshell.core.data.settings.SectionPillAlignment
 import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
@@ -207,6 +209,10 @@ fun PersonalizeSheet(
     onColumnsChange: (Int) -> Unit,
     tilePackMode: TilePackMode,
     onTilePackModeChange: (TilePackMode) -> Unit,
+    sectionDisplayMode: SectionDisplayMode,
+    onSectionDisplayModeChange: (SectionDisplayMode) -> Unit,
+    sectionPillAlignment: SectionPillAlignment,
+    onSectionPillAlignmentChange: (SectionPillAlignment) -> Unit,
     homeStyle: HomeStyle,
     onHomeStyleChange: (HomeStyle) -> Unit,
     iconShape: IconShape,
@@ -1065,6 +1071,78 @@ fun PersonalizeSheet(
                         color = tokens.fgDim,
                         fontSize = 12.sp,
                     )
+                }
+            }
+
+            // ---- sections: display mode (scroll all vs. tabbed one-at-a-time) + pill placement ----
+            SettingGroup(label = "sections", tokens.fgDim) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "how a section's tiles are browsed",
+                        color = tokens.fgDim,
+                        fontSize = 13.sp,
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, tokens.tileLine),
+                    ) {
+                        SegCell(
+                            "scroll",
+                            selected = sectionDisplayMode == SectionDisplayMode.SCROLL,
+                            accent = accent,
+                            fg = tokens.fg,
+                        ) { onSectionDisplayModeChange(SectionDisplayMode.SCROLL) }
+                        SegCell(
+                            "tabbed",
+                            selected = sectionDisplayMode == SectionDisplayMode.TABBED,
+                            accent = accent,
+                            fg = tokens.fg,
+                        ) { onSectionDisplayModeChange(SectionDisplayMode.TABBED) }
+                    }
+                    if (sectionDisplayMode == SectionDisplayMode.TABBED) {
+                        Text(
+                            "only one section fills the screen at a time — tap a pill to switch",
+                            color = tokens.fgDim,
+                            fontSize = 12.sp,
+                        )
+                    } else {
+                        Text(
+                            "every section stays in one continuous scroll — tap a pill to jump to it",
+                            color = tokens.fgDim,
+                            fontSize = 12.sp,
+                        )
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "section pills placement",
+                        color = tokens.fgDim,
+                        fontSize = 13.sp,
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, tokens.tileLine),
+                    ) {
+                        SegCell(
+                            "left",
+                            selected = sectionPillAlignment == SectionPillAlignment.START,
+                            accent = accent,
+                            fg = tokens.fg,
+                        ) { onSectionPillAlignmentChange(SectionPillAlignment.START) }
+                        SegCell(
+                            "center",
+                            selected = sectionPillAlignment == SectionPillAlignment.CENTER,
+                            accent = accent,
+                            fg = tokens.fg,
+                        ) { onSectionPillAlignmentChange(SectionPillAlignment.CENTER) }
+                        SegCell(
+                            "right",
+                            selected = sectionPillAlignment == SectionPillAlignment.END,
+                            accent = accent,
+                            fg = tokens.fg,
+                        ) { onSectionPillAlignmentChange(SectionPillAlignment.END) }
+                    }
                 }
             }
 

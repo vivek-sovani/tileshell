@@ -1,6 +1,16 @@
 package com.tileshell.core.data
 
 /**
+ * Display label for the trailing catch-all group of tiles that belong to no
+ * real [Section] (`sectionId == null`) — shown wherever the group needs a
+ * name alongside real sections' own labels (Start's section pill bar, the
+ * per-tile "move to section" picker, the App List's "pin to section"
+ * picker). Originally "unsectioned"; renamed per user request to read less
+ * like an error/leftover state and more like a normal home area.
+ */
+const val UNSECTIONED_LABEL = "main"
+
+/**
  * A named, collapsible group of top-level Start tiles ("work", "games", ...),
  * in [order]. Purely organizational: a [TileModel]'s own `sectionId` records
  * membership, so deleting a section ([LayoutRepository.deleteSection])

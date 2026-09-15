@@ -356,6 +356,16 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(themedIcons = enabled) }
     }
 
+    /** Switch how Start's sections are browsed — one continuous scroll, or tabbed one-at-a-time. */
+    suspend fun setSectionDisplayMode(mode: SectionDisplayMode) {
+        store.updateData { it.copy(sectionDisplayMode = mode) }
+    }
+
+    /** Where the section jump-pill bar sits (left/center/right), for thumb reach. */
+    suspend fun setSectionPillAlignment(alignment: SectionPillAlignment) {
+        store.updateData { it.copy(sectionPillAlignment = alignment) }
+    }
+
     /** Replace all settings with a restored backup value atomically. */
     suspend fun restoreSettings(settings: LauncherSettings) {
         store.updateData { settings }

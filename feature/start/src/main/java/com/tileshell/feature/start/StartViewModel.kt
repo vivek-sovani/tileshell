@@ -42,6 +42,8 @@ import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.core.data.settings.SettingsRepository
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
+import com.tileshell.core.data.settings.SectionDisplayMode
+import com.tileshell.core.data.settings.SectionPillAlignment
 import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.data.settings.isAnchored
 import com.tileshell.feature.livetiles.DEFAULT_FEED_SOURCES
@@ -1202,6 +1204,16 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Set the icon mask ICONS home style applies (unused in TILES). */
     fun setIconShape(shape: IconShape) {
         viewModelScope.launch(writeContext) { settingsRepository.setIconShape(shape) }
+    }
+
+    /** Switch how Start's sections are browsed — one continuous scroll, or tabbed one-at-a-time. */
+    fun setSectionDisplayMode(mode: SectionDisplayMode) {
+        viewModelScope.launch(writeContext) { settingsRepository.setSectionDisplayMode(mode) }
+    }
+
+    /** Where the section jump-pill bar sits (left/center/right), for thumb reach. */
+    fun setSectionPillAlignment(alignment: SectionPillAlignment) {
+        viewModelScope.launch(writeContext) { settingsRepository.setSectionPillAlignment(alignment) }
     }
 
     /** Use each app's themed/monochrome icon in the app list and on live-tile corner badges. */

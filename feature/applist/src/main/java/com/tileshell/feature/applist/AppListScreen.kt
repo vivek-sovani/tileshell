@@ -79,6 +79,7 @@ import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.AppLauncher
 import com.tileshell.core.data.PinResult
 import com.tileshell.core.data.Section
+import com.tileshell.core.data.UNSECTIONED_LABEL
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.design.Glass
@@ -541,11 +542,12 @@ private fun AppRow(
             }
         }
 
-        // "pin to section": every section currently defined, plus "unsectioned"
-        // — only reachable once 2+ sections exist (the menu item above it).
+        // "pin to section": every section currently defined, plus the
+        // catch-all group's own label — only reachable once 2+ sections
+        // exist (the menu item above it).
         DropdownMenu(expanded = sectionsMenuOpen, onDismissRequest = { sectionsMenuOpen = false }) {
             DropdownMenuItem(
-                text = { Text("unsectioned") },
+                text = { Text(UNSECTIONED_LABEL) },
                 onClick = { sectionsMenuOpen = false; onPinToSection(null) },
             )
             sections.sortedBy { it.order }.forEach { section ->
