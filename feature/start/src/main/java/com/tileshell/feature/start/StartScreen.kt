@@ -2310,10 +2310,17 @@ private fun StartPage(
     val density = LocalDensity.current
     // For the section jump-pill bar's tap-to-scroll (see SectionPillBar below).
     val sectionNavScope = rememberCoroutineScope()
-    // The pill bar itself is hidden by default — revealed by its own toggle
-    // handle at the bottom of the screen, per user request, rather than
-    // always taking up bottom screen space.
+    // The pill bar itself is hidden by default in scroll mode — revealed by
+    // its own toggle handle at the bottom of the screen, per user request,
+    // rather than always taking up bottom screen space. Tabbed mode instead
+    // defaults to showing every pill (user-requested), since it's the only
+    // way to switch sections there — the toggle handle still works to hide
+    // it afterward if wanted, this just resets it open every time the
+    // display mode switches to tabbed.
     var sectionNavOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(sectionDisplayMode) {
+        if (sectionDisplayMode == SectionDisplayMode.TABBED) sectionNavOpen = true
+    }
     // In TABBED mode, which block is currently shown full-screen. `""` is a
     // dedicated "nothing picked yet" sentinel distinct from `null` (which is
     // itself a real, meaningful choice here — the "unsectioned" block's own
@@ -3334,14 +3341,8 @@ private fun StartPage(
             // bar was otherwise sitting right on top of it.
             val sectionNavBottomOffset = if (edgeStripVisible) STRIP_THICK + 8.dp else 10.dp
             val sectionNavHandleSize = 36.dp
-            // Tabbed mode has no scroll-jump fallback — the pill row is the
-            // *only* way to switch which section is showing, so it always
-            // stays open there (user-requested), regardless of the toggle's
-            // own state; the toggle handle itself is hidden in that mode
-            // since there'd be nothing left for it to do.
-            val sectionPillsForcedOpen = sectionDisplayMode == SectionDisplayMode.TABBED
             AnimatedVisibility(
-                visible = sectionPillsForcedOpen || sectionNavOpen,
+                visible = sectionNavOpen,
                 modifier = Modifier
                     .align(sectionNavBoxAlignment)
                     .navigationBarsPadding()
@@ -3391,7 +3392,6 @@ private fun StartPage(
                     },
                 )
             }
-            if (!sectionPillsForcedOpen) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -3414,7 +3414,6 @@ private fun StartPage(
                     modifier = Modifier.size(16.dp).rotate(if (sectionNavOpen) 90f else -90f),
                 )
             }
-            } // end if (!sectionPillsForcedOpen)
         }
 
         // Bottom edit bar (prototype .edit-bar): slides up while editing.

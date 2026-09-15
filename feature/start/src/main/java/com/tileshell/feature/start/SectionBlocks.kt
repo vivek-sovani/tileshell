@@ -5,12 +5,14 @@ import com.tileshell.core.data.TileModel
 
 /**
  * One rendered group of top-level tiles: either a real, named [Section]
- * ([sectionId] non-null) or the leading catch-all group for tiles with no
- * section ([sectionId] null, [label] null, never [collapsed]) — shown first
- * (user-requested: "main"/unsectioned tiles are the default area, sections
- * are the organizational add-on, so they come after it, not before). [ids]
- * is the subset of the working `order` list that belongs here, in their
- * existing relative order.
+ * ([sectionId] non-null) or the trailing catch-all group for tiles with no
+ * section ([sectionId] null, [label] null, never [collapsed]) — shown last,
+ * after every real section (user-requested, reverting an earlier "main
+ * first" change once seen in practice: sections read as the organized,
+ * front-and-center content, with "main"/unsectioned as the leftover area
+ * beneath them, matching how it originally rendered). [ids] is the subset
+ * of the working `order` list that belongs here, in their existing relative
+ * order.
  */
 data class TileBlock(
     val sectionId: String?,
@@ -41,13 +43,13 @@ data class BlockRender(
 )
 
 /**
- * Groups [order] into [TileBlock]s: one leading unsectioned block (the
- * "main" area — everything with no section, or whose `sectionId` refers to a
- * section that no longer exists — defensive; the repository's own delete
- * path ungroups tiles before removing a section, so this should never
- * actually happen), followed by every real [sections] entry (sorted by its
- * own [Section.order]) as its own block holding just the ids whose
- * [TileModel.sectionId] matches it.
+ * Groups [order] into [TileBlock]s: every real [sections] entry (sorted by
+ * its own [Section.order]) becomes its own block holding just the ids whose
+ * [TileModel.sectionId] matches it, followed by exactly one trailing
+ * unsectioned block for everything else — including any tile whose
+ * `sectionId` refers to a section that no longer exists (defensive; the
+ * repository's own delete path ungroups tiles before removing a section, so
+ * this should never actually happen).
  *
  * Pure and order-preserving: filtering (not sorting) means a block's ids
  * keep their exact relative order from [order]; nothing here requires
@@ -56,11 +58,11 @@ data class BlockRender(
 fun blocksFor(order: List<String>, byId: Map<String, TileModel>, sections: List<Section>): List<TileBlock> {
     val validSectionIds = sections.mapTo(HashSet()) { it.id }
     val bySection = order.groupBy { id -> byId[id]?.sectionId?.takeIf { it in validSectionIds } }
-    val unsectioned = TileBlock(sectionId = null, label = null, collapsed = false, ids = bySection[null].orEmpty())
     val sectionBlocks = sections.sortedBy { it.order }.map { section ->
         TileBlock(section.id, section.label, section.collapsed, bySection[section.id].orEmpty())
     }
-    return listOf(unsectioned) + sectionBlocks
+    val unsectioned = TileBlock(sectionId = null, label = null, collapsed = false, ids = bySection[null].orEmpty())
+    return sectionBlocks + unsectioned
 }
 
 /**
