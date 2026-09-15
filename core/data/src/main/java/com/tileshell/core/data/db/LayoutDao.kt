@@ -307,8 +307,11 @@ interface LayoutDao {
         newTileColorId: String,
     ) {
         val removed = folderChildrenOnce(folderId).firstOrNull { it.rowId == rowId }
+        val folderSectionId = sectionIdOf(folderId)
         deleteFolderChildByRowId(rowId)
-        // Re-pin the pulled-out app as a top-level Start tile (parallels pinApp).
+        // Re-pin the pulled-out app as a top-level Start tile (parallels pinApp) —
+        // in the folder's own section, so pulling a child out doesn't strand it
+        // in the unsectioned group (user-reported: "moved to unsectioned area").
         if (removed != null) {
             insertTiles(
                 listOf(
@@ -323,6 +326,7 @@ interface LayoutDao {
                         label = removed.label,
                         iconKey = removed.iconKey,
                         accentOverride = removed.accentOverride,
+                        sectionId = folderSectionId,
                     ),
                 ),
             )
@@ -386,6 +390,7 @@ interface LayoutDao {
         reorderedIds: List<String>? = null,
     ) {
         val removed = folderChildrenOnce(folderId).firstOrNull { it.rowId == rowId }
+        val folderSectionId = sectionIdOf(folderId)
         deleteFolderChildByRowId(rowId)
         if (removed != null) {
             insertTiles(
@@ -402,6 +407,7 @@ interface LayoutDao {
                         label = removed.label,
                         iconKey = removed.iconKey,
                         accentOverride = removed.accentOverride,
+                        sectionId = folderSectionId,
                     ),
                 ),
             )
@@ -527,6 +533,10 @@ interface LayoutDao {
      */
     @Query("UPDATE tiles SET sectionId = :sectionId, gridSlot = NULL WHERE id = :id")
     suspend fun updateTileSection(id: String, sectionId: String?)
+
+    /** The section a given tile (e.g. a folder) currently belongs to, or null if unsectioned. */
+    @Query("SELECT sectionId FROM tiles WHERE id = :id")
+    suspend fun sectionIdOf(id: String): String?
 
     @Query("UPDATE tiles SET sectionId = NULL WHERE sectionId = :sectionId")
     suspend fun clearTileSection(sectionId: String)
