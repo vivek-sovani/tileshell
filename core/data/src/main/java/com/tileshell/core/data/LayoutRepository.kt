@@ -198,6 +198,13 @@ class LayoutRepository(
             type = TileEntity.TYPE_FOLDER,
             folderId = result.folderId,
             gridSlot = target.gridSlot,
+            // Carry over the target's section — dragging an app into a
+            // folder that already belongs to a section must not silently
+            // un-section the folder (user-reported: merging into "social"
+            // moved the folder to the unsectioned area). insertTiles REPLACEs
+            // the whole row on conflict, so leaving this out resets it to
+            // null (unsectioned) every time.
+            sectionId = target.sectionId,
         )
         val folder = FolderEntity(id = result.folderId, name = result.name, showAsStack = result.isStack)
         val children = result.children.mapIndexed { index, c ->
@@ -240,6 +247,11 @@ class LayoutRepository(
             // takes the target's spot; the dragged tile's cell (deleted below)
             // becomes a gap, not something to backfill.
             gridSlot = target.gridSlot,
+            // And the target's section — merging must not silently un-section
+            // the resulting folder (user-reported: merging an app into a
+            // folder already in "social" moved it to the unsectioned area;
+            // insertTiles REPLACEs the whole row, so omitting this resets it).
+            sectionId = target.sectionId,
         )
         val folder = FolderEntity(id = result.folderId, name = result.name, showAsStack = result.isStack)
         val children = result.children.mapIndexed { index, child ->
