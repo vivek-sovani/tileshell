@@ -382,6 +382,10 @@ private fun ClockBack(face: ClockFace, size: TileSize) {
     // tile instead of relying on clockFaceScale's floor, which doesn't shrink
     // far enough at 5/6 columns.
     val short = size.shortLive
+    // LARGE/XLARGE have plenty of room — show the weekday above the date too,
+    // matching ClockFront's fuller date, instead of the bare day/month/year
+    // that's the right amount of detail for a small/medium tile.
+    val big = size == TileSize.LARGE || size == TileSize.XLARGE
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val scale = clockFaceScale(maxHeight)
         val bigSize = if (short) 16.sp else (if (narrow) 20f else 30f).sp * scale
@@ -433,7 +437,19 @@ private fun ClockBack(face: ClockFace, size: TileSize) {
                     textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
                 )
             } else {
-                // No alarm set — date fills the back face as before.
+                // No alarm set — date fills the back face. At LARGE/XLARGE, add
+                // the weekday above it so "full date" actually reads as one —
+                // small/medium stay exactly as they were.
+                if (big) {
+                    Text(
+                        text = face.weekday,
+                        color = FaceText.copy(alpha = 0.82f),
+                        fontSize = smallSize,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(4.dp * scale))
+                }
                 Text(
                     text = face.fullDate,
                     color = FaceText,
