@@ -37,6 +37,37 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`start-sections` branch (not merged) — Start screen "sections" feature,
+  session 1 of ~6: schema, migration, repository CRUD.** User asked to
+  implement a "desktop 1 / desktop 2" concept on Start; researched effort for
+  a literal Android-style multi-page implementation vs. named/collapsible
+  sections within the existing single scroll, showed both visually, and
+  landed on **sections** (cheaper, no fidelity deviation from WP's one-
+  continuous-scroll Start) — full rationale and mechanics in DECISIONS.md
+  "Start screen 'sections' — named/collapsible groups, not multi-page
+  desktops." Built on a dedicated `start-sections` branch so the whole
+  feature can be dropped cleanly if it doesn't land well. This session (1 of
+  a ~6-session plan): new `SectionEntity` (id/label/sortOrder/collapsed,
+  `core/data/db/LayoutEntities.kt`), `TileEntity.sectionId: String? = null`,
+  `MIGRATION_12_13` (schema v12→v13 — a fresh `sections` table + the nullable
+  column, nothing to backfill, so an existing install's every tile decodes to
+  unsectioned and Start renders identically until a section is created),
+  `LayoutDao`/`LayoutRepository` CRUD (`createSection`/`renameSection`/
+  `setSectionCollapsed`/`deleteSection` — ungroups member tiles rather than
+  deleting them/`moveSection`/`setTileSection`), and a new `Section` domain
+  model + `sectionId` on `TileModel.App`/`Folder`. The section-header ↑/↓
+  reorder control's swap logic is a pure, unit-tested function
+  (`swapSectionOrder`, `SectionTest.kt`, 6 cases) rather than embedded in the
+  DAO transaction, per this project's "pure logic gets a JUnit test" rule —
+  matches the project's established practice of not building Room-instrumented
+  test infrastructure (no `room-testing`/Robolectric dependency exists; DB
+  correctness is verified by build + manual on-device testing, same as every
+  prior schema migration in this log). Build + full unit test suite green;
+  Room's exported `13.json` schema confirmed generated. **Not yet touched**:
+  Start's rendering (still a single flat tile column — sections aren't visible
+  yet), `editDragGesture`, or `StartViewModel`'s write paths — those are
+  sessions 2–3 of the plan. No on-device verification yet since there's
+  nothing user-visible to check at this stage.
 - **`main` — FREE-mode drag-drop follow-up: the *live* push-down preview
   during the drag was still using STICKY's push-down solver, so the visible
   bug wasn't actually fixed by the previous entry.** User re-reported after

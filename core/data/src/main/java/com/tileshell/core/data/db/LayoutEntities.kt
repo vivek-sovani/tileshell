@@ -44,12 +44,34 @@ data class TileEntity(
     // in schema v8; defaults true (icon) for every row, including ones that
     // existed before this column did.
     val displayAsIcon: Boolean = true,
+    // Named-section membership (Start screen "sections" feature): the owning
+    // SectionEntity's id, or null to render in the default unsectioned area
+    // at the bottom of the screen — the same place every tile renders today.
+    // Added in schema v13; every existing row decodes to null, so an
+    // upgrading install's layout is visually unchanged until the user
+    // explicitly creates a section.
+    val sectionId: String? = null,
 ) {
     companion object {
         const val TYPE_APP = "app"
         const val TYPE_FOLDER = "folder"
     }
 }
+
+/**
+ * A named, collapsible group of top-level Start tiles ("work", "games", ...),
+ * in [sortOrder]. Purely organizational — a [TileEntity] carries its own
+ * `sectionId`, so deleting a section (`LayoutDao.deleteSection`) ungroups its
+ * member tiles back to unsectioned rather than deleting them. Added in
+ * schema v13.
+ */
+@Entity(tableName = "sections")
+data class SectionEntity(
+    @PrimaryKey val id: String,
+    val label: String,
+    val sortOrder: Int,
+    val collapsed: Boolean = false,
+)
 
 /** Folder metadata (name); children live in [FolderChildEntity]. */
 @Entity(tableName = "folders")

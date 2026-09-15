@@ -54,6 +54,14 @@ sealed interface TileModel {
      */
     val gridSlot: Int?
 
+    /**
+     * Named-section membership (Start screen "sections" feature) — the owning
+     * [Section.id], or null to render in the default unsectioned area. Set via
+     * the tile's "move to section" corner-control picker; never set at pin
+     * time (a freshly pinned app always lands unsectioned).
+     */
+    val sectionId: String?
+
     data class App(
         override val id: String,
         override val position: Int,
@@ -79,6 +87,7 @@ sealed interface TileModel {
          * a live tile regardless of this flag's value.
          */
         val displayAsIcon: Boolean = true,
+        override val sectionId: String? = null,
     ) : TileModel
 
     data class Folder(
@@ -91,6 +100,7 @@ sealed interface TileModel {
         /** Per-tile accent override (FR-7); null = follow the global accent. */
         val accentOverride: String? = null,
         override val gridSlot: Int? = null,
+        override val sectionId: String? = null,
         /**
          * Explicit "show as stack" choice (the folder-overlay toggle), persisted
          * on [com.tileshell.core.data.db.FolderEntity] independent of [children]'s

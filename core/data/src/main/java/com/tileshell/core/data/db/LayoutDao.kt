@@ -486,4 +486,52 @@ interface LayoutDao {
 
     @Query("SELECT * FROM app_cache ORDER BY label COLLATE NOCASE")
     fun observeCachedApps(): Flow<List<AppCacheEntity>>
+
+    // ---- sections ---------------------------------------------------------
+
+    @Query("SELECT * FROM sections ORDER BY sortOrder")
+    fun observeSections(): Flow<List<SectionEntity>>
+
+    /** One-shot snapshot, ordered — used to compute a ↑/↓ reorder swap. */
+    @Query("SELECT * FROM sections ORDER BY sortOrder")
+    suspend fun sectionsOnce(): List<SectionEntity>
+
+    @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM sections")
+    suspend fun maxSectionOrder(): Int
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSection(section: SectionEntity)
+
+    /** Rename a section's label. */
+    @Query("UPDATE sections SET label = :label WHERE id = :id")
+    suspend fun updateSectionLabel(id: String, label: String)
+
+    /** Toggle a section's collapsed/expanded state. */
+    @Query("UPDATE sections SET collapsed = :collapsed WHERE id = :id")
+    suspend fun updateSectionCollapsed(id: String, collapsed: Boolean)
+
+    @Query("UPDATE sections SET sortOrder = :sortOrder WHERE id = :id")
+    suspend fun updateSectionOrder(id: String, sortOrder: Int)
+
+    /** Assign (or clear, with null) a tile's section — the "move to section" picker. */
+    @Query("UPDATE tiles SET sectionId = :sectionId WHERE id = :id")
+    suspend fun updateTileSection(id: String, sectionId: String?)
+
+    @Query("UPDATE tiles SET sectionId = NULL WHERE sectionId = :sectionId")
+    suspend fun clearTileSection(sectionId: String)
+
+    @Query("DELETE FROM sections WHERE id = :id")
+    suspend fun deleteSectionById(id: String)
+
+    /**
+     * Delete a section, ungrouping its member tiles back to unsectioned rather
+     * than deleting them — the "remove section" action never touches tile
+     * data, the same organizational-only contract a dissolving folder has for
+     * its own children.
+     */
+    @Transaction
+    suspend fun deleteSection(id: String) {
+        clearTileSection(id)
+        deleteSectionById(id)
+    }
 }

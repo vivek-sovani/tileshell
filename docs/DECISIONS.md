@@ -3,6 +3,54 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Start screen "sections" — named/collapsible groups, not multi-page desktops
+
+User asked for a "desktop 1 / desktop 2" concept on Start. Real WP/WM10 Start
+is one continuous vertical scroll, never paged desktops — a literal Android-
+style multi-page implementation would be a deliberate fidelity deviation, and
+(confirmed via codebase research before building) the costlier build: it
+requires nesting a second horizontal-swipe recognizer inside the screen
+region the existing Start↔App List↔Feed pager already owns
+(`pagerModifier` in `StartScreen.kt`), genuinely new gesture-disambiguation
+work with no existing analog in the codebase.
+
+Built named, collapsible **sections** within the existing single vertical
+scroll instead ("work", "games", "travel", ...) — reuses
+`GridPacker.expandFolderInline`'s row-shift/collapse math (generalized from
+"a folder's children" to "a section's tiles") and the tile corner-control's
+existing inline-picker-sheet pattern (today: the colour picker), extended
+with one more action, "move to section ▸".
+
+Mechanics decided with the user, all favoring the cheaper of two options at
+each fork:
+- A section is a lightweight entity (`SectionEntity`: id/label/order/
+  collapsed) — not a tile. A tile's own `sectionId` (null = unsectioned)
+  records membership; deleting a section ungroups its tiles rather than
+  deleting them (same organizational-only contract a dissolving folder
+  already has for its own children).
+- Existing installs render identically post-migration (v12→v13): every
+  current tile decodes to `sectionId = null`, so Start looks exactly as it
+  does today until the user creates a section.
+- Pinning from the App List is unchanged — always lands unsectioned,
+  appended at the bottom, zero added friction to the pin gesture.
+- Moving a tile **within** a section: ordinary drag (existing
+  `editDragGesture`, section-scoped).
+- Moving a tile **across** sections and reordering **whole sections**: both
+  use a tap-based picker/buttons (a "move to section ▸" corner-control
+  action; ↑/↓ buttons on the section header) rather than long-distance
+  drag — avoids building drag-to-autoscroll (dragging near a screen edge to
+  scroll a tall page during a drag), which nothing in this codebase does
+  today and which true cross-section/cross-page dragging would require.
+  Deferred as a possible later follow-up, not bundled into the initial build.
+- Section creation/rename/delete/reorder happens inline on Start in edit
+  mode, never through the Personalize sheet — Personalize stays global-
+  settings-only, matching how folders already work. No new
+  `LauncherSettings` field.
+
+Built on a dedicated `start-sections` branch (not `main`), so the whole
+feature can be dropped/reverted cleanly if it doesn't land well — same
+convention as the `android-home-style`/`feed-glance-redesign` branches.
+
 ## FREE-mode drag-drop redirects to the nearest free cell instead of displacing the existing tile
 
 User-reported: "in free mode, when i push tile downwards and tile exists

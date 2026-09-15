@@ -4,6 +4,7 @@ import android.content.Context
 import com.tileshell.core.data.db.FolderChildEntity
 import com.tileshell.core.data.db.FolderEntity
 import com.tileshell.core.data.db.LayoutDao
+import com.tileshell.core.data.db.SectionEntity
 import com.tileshell.core.data.db.TileEntity
 import com.tileshell.core.data.db.TileShellDatabase
 import com.tileshell.core.data.db.TileWithFolder
@@ -29,6 +30,10 @@ class LayoutRepository(
     /** Live, ordered Start tiles. */
     val tiles: Flow<List<TileModel>> =
         dao.observeTiles().map { rows -> rows.map(::toModel) }
+
+    /** Live, ordered Start-screen sections ("work", "games", ...). */
+    val sections: Flow<List<Section>> =
+        dao.observeSections().map { rows -> rows.map(::toSectionModel) }
 
     /** Remove all tiles/folder memberships for an uninstalled package (FR-5). */
     suspend fun removeApp(packageName: String) = dao.removeApp(packageName)
@@ -75,6 +80,49 @@ class LayoutRepository(
 
     /** Unpin a top-level tile, removing it (and any folder meta) (FR-3.5). */
     suspend fun removeTile(id: String) = dao.removeTile(id)
+
+    // ---- Start-screen sections --------------------------------------------
+
+    /** Create a new, empty section labeled [label], appended after the last one. */
+    suspend fun createSection(label: String): String {
+        val id = "section-${System.currentTimeMillis()}"
+        dao.insertSection(SectionEntity(id = id, label = label, sortOrder = dao.maxSectionOrder() + 1))
+        return id
+    }
+
+    /** Rename a section. Blank names are ignored by the caller. */
+    suspend fun renameSection(id: String, label: String) = dao.updateSectionLabel(id, label)
+
+    /** Toggle a section's collapsed/expanded state. */
+    suspend fun setSectionCollapsed(id: String, collapsed: Boolean) =
+        dao.updateSectionCollapsed(id, collapsed)
+
+    /**
+     * Remove a section, ungrouping its member tiles back to the default
+     * unsectioned area — tiles are never deleted along with their section.
+     */
+    suspend fun deleteSection(id: String) = dao.deleteSection(id)
+
+    /**
+     * Move a section up/down relative to its neighbors (the section header's
+     * ↑/↓ control). Computed via the pure, unit-tested [swapSectionOrder] so
+     * only the (at most two) sections whose order actually changed are
+     * written back.
+     */
+    suspend fun moveSection(id: String, direction: Int) {
+        val current = dao.sectionsOnce().map(::toSectionModel)
+        val reordered = swapSectionOrder(current, id, direction)
+        val before = current.associateBy { it.id }
+        reordered.forEach { section ->
+            if (before[section.id]?.order != section.order) {
+                dao.updateSectionOrder(section.id, section.order)
+            }
+        }
+    }
+
+    /** Assign (or clear, with null) a tile's section — the "move to section" picker. */
+    suspend fun setTileSection(tileId: String, sectionId: String?) =
+        dao.updateTileSection(tileId, sectionId)
 
     /** Rename a folder (FR-4). Blank names are ignored by the caller. */
     suspend fun renameFolder(id: String, name: String) = dao.updateFolderName(id, name)
@@ -651,6 +699,7 @@ class LayoutRepository(
                 accentOverride = t.accentOverride,
                 gridSlot = t.gridSlot,
                 showAsStack = showAsStack,
+                sectionId = t.sectionId,
             )
         } else {
             TileModel.App(
@@ -665,9 +714,13 @@ class LayoutRepository(
                 accentOverride = t.accentOverride,
                 gridSlot = t.gridSlot,
                 displayAsIcon = t.displayAsIcon,
+                sectionId = t.sectionId,
             )
         }
     }
+
+    private fun toSectionModel(row: SectionEntity): Section =
+        Section(id = row.id, label = row.label, order = row.sortOrder, collapsed = row.collapsed)
 
     companion object {
         /** Build a repository backed by the on-device database and PackageManager. */

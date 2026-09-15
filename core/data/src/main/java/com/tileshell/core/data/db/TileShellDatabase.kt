@@ -17,8 +17,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AppCacheEntity::class,
         TaskEntity::class,
         NoteEntity::class,
+        SectionEntity::class,
     ],
-    version = 12,
+    version = 13,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -206,12 +207,37 @@ abstract class TileShellDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v12→v13: add named/collapsible Start-screen sections ("work",
+         * "games", ...). A fresh `sections` table (nothing to backfill — no
+         * section existed before this) plus a nullable `sectionId` column on
+         * `tiles`, defaulting to null = unsectioned, so every existing tile
+         * keeps rendering in the same default unsectioned area it always
+         * has — an upgrading install's layout is visually unchanged until the
+         * user explicitly creates a section.
+         */
+        private val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `sections` (
+                        `id` TEXT PRIMARY KEY NOT NULL,
+                        `label` TEXT NOT NULL,
+                        `sortOrder` INTEGER NOT NULL,
+                        `collapsed` INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("ALTER TABLE tiles ADD COLUMN sectionId TEXT")
+            }
+        }
+
         /** Versioned migrations, added as the schema evolves. */
         val MIGRATIONS: Array<Migration> =
             arrayOf(
                 MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
                 MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
-                MIGRATION_11_12,
+                MIGRATION_11_12, MIGRATION_12_13,
             )
 
         @Volatile
