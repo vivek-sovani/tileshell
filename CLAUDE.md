@@ -38,6 +38,67 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 - **`start-sections` branch (not merged) — Start screen "sections" feature,
+  sessions 2-5 combined: per-section rendering/gestures, section management
+  UI, "move to section" picker.** Direct continuation of session 1 below,
+  done as one combined pass rather than four separate sessions — reading the
+  real code revealed `StartPage`'s single tile grid, its `editDragGesture`,
+  and its two empty-space gestures (`folderCollapseOnEmptyTap`/
+  `emptySpaceEnterEdit`) are tightly coupled around one shared coordinate
+  space, so a "render-only" first pass would have left drag/tap genuinely
+  broken until a following session finished the gesture half — see
+  DECISIONS.md for the full reasoning trail (including two rounds of
+  re-scoping with the user before writing any of this). Landed on: every
+  block (a real section, or one implicit trailing "unsectioned" block with
+  no header) gets its own independent `DenseTileGrid` + `editDragGesture`
+  instance, fed only that block's own tile ids — cross-block drag becomes
+  impossible *by construction* (each instance's `placementsNow`/
+  `othersPacked` only ever sees its own ids), which is exactly the "drag
+  stays within a section" rule decided with the user, for free, with no
+  extra clamping code. New `SectionBlocks.kt`: pure `blocksFor` (groups the
+  working order into blocks, unit-tested), `spliceBlockOrder` (rewrites just
+  one block's own ids within the shared order list, keeping every other id's
+  position untouched — the actual mechanism that makes cross-block reorder
+  impossible; unit-tested), and `BlockRender` (each block's own packed
+  placements + its cumulative pixel offset within the scrolling page).
+  `editDragGesture` gained one new parameter, `blockTopOffsetPx` (defaults to
+  0 — byte-identical behaviour for the existing single-grid case), added to
+  its auto-scroll edge-detection formula so a block below the first still
+  auto-scrolls correctly near the viewport edge. `folderCollapseOnEmptyTap`/
+  `emptySpaceEnterEdit` were simplified to take a precomputed, already
+  block-offset flat list of every visible tile's absolute rect instead of
+  re-deriving one flat pack internally — a plain single pack across every
+  block's tiles would have put a later block's tiles at the wrong on-screen
+  row the moment a header/gap was involved. New `SectionHeader` composable:
+  collapse chevron (works in or out of edit mode), tap-to-rename (reuses the
+  existing `FolderNameEditor`, edit mode only), ↑/↓ reorder and a "✕" remove
+  button (ungroups the section's tiles, never deletes them) — both edit-mode
+  only, per the earlier design decision to keep section reordering/removal
+  off drag-and-drop entirely (no autoscroll-while-dragging-a-header
+  mechanism needed). A "+ add section" row appends after every block in edit
+  mode. "Move to section" landed in the *existing* tile corner-control
+  colour-picker sheet (`TileColorPicker`) as a new chip row below the
+  existing stack/icon toggles, rather than a new corner-tap zone (there
+  wasn't room for a 4th one) — reuses the sheet's own dismiss/state handling.
+  Build + full unit test suite green throughout. **On-device**: installed on
+  the emulator, launched with zero crashes across a full cold JIT warm-up of
+  the freshly-recompiled `StartPage`/`TileView` (confirmed via `adb logcat`,
+  no `FATAL`/`AndroidRuntime` entries); the existing (zero-sections) default
+  layout renders pixel-identical to before the change (screenshot-verified);
+  a plain tap still correctly launches an app (phone tile → Calling Card),
+  confirming the touch pipeline as a whole — including the two rewritten
+  empty-space gestures — still works for the ordinary case. **Not verified
+  this session**: long-press-to-edit, drag-to-reorder within/across a
+  section, and the new section-header/"+ add section"/"move to section" UI
+  interactions — every attempt to synthesize a long-press via `adb shell
+  input swipe <same x y> <duration>` either fell short of the 600ms
+  threshold or read as a plain tap through to the underlying app (once
+  launching Phone's Calling Card settings), consistent with this project's
+  own long-documented conclusion that ADB can't reliably synthesize
+  long-press/drag for this codebase. These need the user's own hands-on
+  pass before this branch is considered done; nothing about the failed ADB
+  attempts indicates a real bug (the unrelated, unmodified `tileGesture`
+  tap-to-launch path is what actually fired).
+- **`start-sections` branch (not merged) — Start screen "sections" feature,
   session 1 of ~6: schema, migration, repository CRUD.** User asked to
   implement a "desktop 1 / desktop 2" concept on Start; researched effort for
   a literal Android-style multi-page implementation vs. named/collapsible

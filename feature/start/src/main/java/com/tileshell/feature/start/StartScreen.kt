@@ -86,6 +86,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -107,6 +108,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -167,6 +169,7 @@ import com.tileshell.core.data.SportsTile
 import com.tileshell.core.data.StepsPrefs
 import com.tileshell.core.data.StockTile
 import com.tileshell.core.data.TileColors
+import com.tileshell.core.data.Section
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.WeatherTile
@@ -358,6 +361,7 @@ fun StartScreen(
     val hiddenPackages by viewModel.hiddenPackages.collectAsStateWithLifecycle()
     val isAppList by viewModel.isAppList.collectAsStateWithLifecycle()
     val apps by viewModel.apps.collectAsStateWithLifecycle()
+    val sections by viewModel.sections.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val feedSources by viewModel.feedSources.collectAsStateWithLifecycle()
     val feedRegions by viewModel.feedRegions.collectAsStateWithLifecycle()
@@ -1258,6 +1262,13 @@ fun StartScreen(
                     onUnpin = viewModel::unpin,
                     onSetTileColor = viewModel::setTileColor,
                     onSetTileDisplayAsIcon = viewModel::setTileDisplayAsIcon,
+                    sections = sections,
+                    onCreateSection = viewModel::createSection,
+                    onRenameSection = viewModel::renameSection,
+                    onToggleSectionCollapsed = viewModel::toggleSectionCollapsed,
+                    onDeleteSection = viewModel::deleteSection,
+                    onMoveSection = viewModel::moveSection,
+                    onAssignTileSection = viewModel::setTileSection,
                     onAdd = {
                         viewModel.exitEdit()
                         settleTo(1f)
@@ -2262,6 +2273,19 @@ private fun StartPage(
     onUnpin: (String) -> Unit,
     onSetTileColor: (id: String, colorId: String?) -> Unit,
     onSetTileDisplayAsIcon: (id: String, displayAsIcon: Boolean) -> Unit = { _, _ -> },
+    // Start-screen "sections": named, collapsible groups of top-level tiles.
+    // A tile moves between sections only via [onAssignTileSection] (the
+    // "move to section" corner-control picker) — drag-to-reorder always
+    // stays within one block (real section, or the trailing unsectioned
+    // group), never across one, by construction (see the per-block render
+    // loop below).
+    sections: List<Section> = emptyList(),
+    onCreateSection: (String) -> Unit = {},
+    onRenameSection: (id: String, label: String) -> Unit = { _, _ -> },
+    onToggleSectionCollapsed: (String) -> Unit = {},
+    onDeleteSection: (String) -> Unit = {},
+    onMoveSection: (id: String, direction: Int) -> Unit = { _, _ -> },
+    onAssignTileSection: (tileId: String, sectionId: String?) -> Unit = { _, _ -> },
     onAdd: () -> Unit,
     onPersonalize: () -> Unit,
     onAddWidgets: () -> Unit = {},
@@ -2418,6 +2442,65 @@ private fun StartPage(
     val slotOf: ((String) -> Int?)? = remember(byId, sticky) {
         if (sticky) { id: String -> stickyPreview[id] ?: byId[id]?.gridSlot } else null
     }
+
+    // Start-screen "sections": groups the real top-level ids in [order] into
+    // blocks — one per real [sections] entry (in their own order), plus a
+    // trailing catch-all for unsectioned tiles — each rendered as its own
+    // independently-packed DenseTileGrid + editDragGesture instance below,
+    // so a drag can never reorder a tile past one in a different block.
+    // Cheap (a handful of tiles), left unmemoized like [displaySpecs].
+    val blocks = blocksFor(order, byId, sections)
+
+    // For every block: its own tile specs, its own packed placements (the
+    // same pack/packSticky + [expandTransform] pipeline DenseTileGrid runs
+    // internally — redone here too, once, purely to learn how tall the
+    // block is), and where its own grid starts within the scrolling content
+    // (the running sum of every earlier block's own header + grid height +
+    // inter-block gap — zero for the very first block, matching today's
+    // single-grid behaviour exactly whenever there are no sections at all).
+    // Both the two empty-space gestures below (which need one flat,
+    // correctly-offset rect list spanning every block) and each block's own
+    // `editDragGesture` (its `blockTopOffsetPx`, for its own auto-scroll edge
+    // check) read from this. Memoized like DenseTileGrid's own internal
+    // pack: this can redo real work (expandFolderInline) for whichever block
+    // holds the currently-expanded folder, which was previously slow enough
+    // mid-drag to starve the touch-handling coroutine when left unmemoized
+    // (see the comment on [expandedFolder] above).
+    val headerHeightPx = with(density) { SECTION_HEADER_HEIGHT_DP.dp.toPx() }
+    val blockGapPx = with(density) { SECTION_BLOCK_GAP_DP.dp.toPx() }
+    val blockRenders = remember(
+        blocks, columns, slotOf, stickyPreview, expandTransform, folderChildOrder.toList(), resizeGeom,
+    ) {
+        var offset = 0f
+        blocks.map { block ->
+            val topOffsetPx = offset
+            val gridTopOffsetPx = topOffsetPx + if (block.sectionId != null) headerHeightPx else 0f
+            val specs = block.ids.mapNotNull { id -> byId[id]?.let { TileSpec(id, it.size) } }
+            val placements = if (!block.collapsed) {
+                val base = slotOf?.let { GridPacker.packSticky(specs, it, columns) } ?: GridPacker.pack(specs, columns)
+                expandTransform?.invoke(base) ?: base
+            } else {
+                emptyList()
+            }
+            val gridHeightPx = resizeGeom.totalHeight(GridPacker.rowCount(placements))
+            offset = gridTopOffsetPx + gridHeightPx + blockGapPx
+            BlockRender(block, specs, placements, topOffsetPx, gridTopOffsetPx)
+        }
+    }
+    // One flat list of every visible tile's absolute (block-offset) rect, for
+    // the two empty-space gestures — a plain pack per block would put a
+    // later block's tiles at the wrong on-screen row the moment headers/gaps
+    // are involved, so each block's own local rects are shifted down by its
+    // own [BlockRender.gridTopOffsetPx] first.
+    val absoluteTileRects = remember(blockRenders) {
+        blockRenders.flatMap { render ->
+            render.placements.map { p ->
+                val r = resizeGeom.rect(p)
+                p.id to Rect(r.left, r.top + render.gridTopOffsetPx, r.right, r.bottom + render.gridTopOffsetPx)
+            }
+        }
+    }
+
     // Resolves a synthetic child id back to its folder id + real FolderChild,
     // for routing unpin/resize/colour to the folder-child ViewModel calls
     // instead of the top-level ones. Null for a real top-level tile id.
@@ -2486,12 +2569,7 @@ private fun StartPage(
             // to launch a folder child or an outside tile instead.
             .folderCollapseOnEmptyTap(
                 active = !editMode && expandedFolderId != null,
-                widthPx = widthPx,
-                columns = columns,
-                gapPx = tileGapPx,
-                tiles = displaySpecs,
-                slotOf = slotOf,
-                postProcess = expandTransform,
+                absoluteTileRects = absoluteTileRects,
                 onExit = onCollapseFolder,
             )
             // Long-press on empty grid space also enters edit mode (with
@@ -2500,12 +2578,7 @@ private fun StartPage(
             // collapse gesture above's territory instead).
             .emptySpaceEnterEdit(
                 active = !editMode && expandedFolderId == null,
-                widthPx = widthPx,
-                columns = columns,
-                gapPx = tileGapPx,
-                tiles = displaySpecs,
-                slotOf = slotOf,
-                postProcess = expandTransform,
+                absoluteTileRects = absoluteTileRects,
                 contentTopPx = if (hideStatusBar) 0f else statusBarTopPx,
                 scrollOffsetPx = { scrollState.value.toFloat() },
                 onEnterEdit = { onEnterEdit(null) },
@@ -2529,12 +2602,39 @@ private fun StartPage(
                 )
                 .navigationBarsPadding(),
         ) {
+            blockRenders.forEach { render ->
+            val block = render.block
+            if (block.sectionId != null) {
+                SectionHeader(
+                    label = block.label ?: "",
+                    collapsed = block.collapsed,
+                    editMode = editMode,
+                    textColor = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.85f),
+                    onToggleCollapsed = { onToggleSectionCollapsed(block.sectionId) },
+                    onMoveUp = { onMoveSection(block.sectionId, -1) },
+                    onMoveDown = { onMoveSection(block.sectionId, 1) },
+                    onRename = { newLabel -> onRenameSection(block.sectionId, newLabel) },
+                    onDelete = { onDeleteSection(block.sectionId) },
+                )
+            }
+            if (!block.collapsed) {
+            key(block.sectionId ?: "__unsectioned__") {
+            val blockIds = block.ids
+            val blockIdSet = blockIds.toHashSet()
+            fun moveWithinBlockToEnd(dragId: String) {
+                if (blockIds.lastOrNull() != dragId && dragId in blockIdSet) {
+                    val within = (blockIds - dragId) + dragId
+                    val spliced = spliceBlockOrder(order.toList(), blockIdSet, within)
+                    order.clear()
+                    order.addAll(spliced)
+                }
+            }
             val editDrag = Modifier.editDragGesture(
                 editMode = editMode,
                 widthPx = widthPx,
                 columns = columns,
                 gapPx = tileGapPx,
-                order = order,
+                order = blockIds,
                 byId = augmentedById,
                 draggingId = { draggingId },
                 selectedId = { selectedTileId },
@@ -2576,23 +2676,24 @@ private fun StartPage(
                 onLift = { id, offset -> draggingId = id; dragOffset.value = offset },
                 onDrag = { offset -> dragOffset.value = offset },
                 onReorderTo = { dragId, targetId ->
-                    val next = reorderTiles(order.toList(), dragId, targetId)
-                    if (next != order.toList()) {
+                    // Scoped to this block's own ids only (both dragId and
+                    // targetId always are, since [editDragGesture]'s own
+                    // hit-testing here only ever sees the ids we passed it as
+                    // `order` above) — a drag can never reorder past a tile
+                    // in a different section/the unsectioned group.
+                    val within = reorderTiles(blockIds, dragId, targetId)
+                    if (within != blockIds) {
+                        val spliced = spliceBlockOrder(order.toList(), blockIdSet, within)
                         order.clear()
-                        order.addAll(next)
+                        order.addAll(spliced)
                     }
                 },
-                onMoveToEnd = { dragId ->
-                    if (order.lastOrNull() != dragId && order.remove(dragId)) {
-                        order.add(dragId)
-                    }
-                },
+                onMoveToEnd = { dragId -> moveWithinBlockToEnd(dragId) },
                 onMergeMode = { dragId ->
-                    // Park the dragged tile at the end so the other tiles settle
-                    // into their natural slots beneath the floating tile.
-                    if (order.lastOrNull() != dragId && order.remove(dragId)) {
-                        order.add(dragId)
-                    }
+                    // Park the dragged tile at the end of its own block so the
+                    // other tiles in it settle into their natural slots
+                    // beneath the floating tile.
+                    moveWithinBlockToEnd(dragId)
                 },
                 onMergeTarget = { id -> mergeTargetId = id },
                 onAutoScroll = { dir -> autoScroll = dir },
@@ -2617,6 +2718,7 @@ private fun StartPage(
                 viewportHeightPx = viewportHeightPx,
                 scrollOffsetPx = { scrollState.value.toFloat() },
                 edgeZonePx = with(density) { 64.dp.toPx() },
+                blockTopOffsetPx = render.gridTopOffsetPx,
                 slotOf = slotOf,
                 freeMode = freeMode,
                 onStickyDrop = { id, slot -> if (slot != null) onSetTileSlot(id, slot) },
@@ -2678,7 +2780,7 @@ private fun StartPage(
             )
 
             DenseTileGrid(
-                tiles = displaySpecs,
+                tiles = render.specs,
                 columns = columns,
                 gapPx = tileGapPx,
                 slotOf = slotOf,
@@ -2745,8 +2847,8 @@ private fun StartPage(
                     // list-backed order — meaningless once a sticky-mode tile sits
                     // at its own anchored cell instead of a sequence position, so
                     // they're hidden there (drag-drop to any free cell replaces them).
-                    val canMoveBack = !sticky && order.indexOf(model.id) > 0
-                    val canMoveForward = !sticky && order.indexOf(model.id) in 0 until order.size - 1
+                    val canMoveBack = !sticky && blockIds.indexOf(model.id) > 0
+                    val canMoveForward = !sticky && blockIds.indexOf(model.id) in 0 until blockIds.size - 1
                     val onTapAction = { if (!editMode) onTile(model) }
                     val onLongPressAction = { if (!editMode) onEnterEdit(model.id) }
                     val onSelectAction = { onSelectTile(model.id) }
@@ -2760,14 +2862,15 @@ private fun StartPage(
                         }
                     }
                     val onMoveAction = { dir: Int ->
-                        val i = order.indexOf(model.id)
+                        val i = blockIds.indexOf(model.id)
                         val j = i + dir
-                        if (i >= 0 && j in order.indices) {
-                            val next = reorderTiles(order.toList(), model.id, order[j])
-                            if (next != order.toList()) {
+                        if (i >= 0 && j in blockIds.indices) {
+                            val within = reorderTiles(blockIds, model.id, blockIds[j])
+                            if (within != blockIds) {
+                                val spliced = spliceBlockOrder(order.toList(), blockIdSet, within)
                                 order.clear()
-                                order.addAll(next)
-                                onReorder(next)
+                                order.addAll(spliced)
+                                onReorder(spliced)
                             }
                         }
                     }
@@ -2984,6 +3087,37 @@ private fun StartPage(
                     }
                 }
             }
+            } // end key(block.sectionId)
+            } // end if (!block.collapsed)
+            } // end blockRenders.forEach
+            // "+ add section" (edit mode only): appended after every block,
+            // matching the existing pattern for adding new things at the
+            // bottom of the grid.
+            if (editMode) {
+                var addingSection by remember { mutableStateOf(false) }
+                if (addingSection) {
+                    Box(modifier = Modifier.fillMaxWidth().height(SECTION_HEADER_HEIGHT_DP.dp).padding(horizontal = 6.dp)) {
+                        FolderNameEditor(initial = "") { newLabel ->
+                            addingSection = false
+                            if (newLabel.isNotBlank()) onCreateSection(newLabel)
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "+ add section",
+                        color = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.7f),
+                        fontSize = 13.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 6.dp, vertical = 8.dp)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { addingSection = true },
+                            ),
+                    )
+                }
+            }
             // FR-1 bottom breathing room (prototype home-scroll padding-bottom:74px;
             // grows to clear the edit bar while editing, like .home-scroll padding).
             Spacer(Modifier.height(if (editMode) 130.dp else 74.dp))
@@ -3092,6 +3226,15 @@ private fun StartPage(
             } else {
                 null
             }
+            // "move to section": top-level tiles only (a folder child has no
+            // section of its own — it moves with its folder), and only once
+            // at least one real section exists to offer.
+            val sectionOptions = if (childRef == null && sections.isNotEmpty()) {
+                listOf<Pair<String?, String>>(null to "unsectioned") +
+                    sections.sortedBy { it.order }.map { it.id to it.label }
+            } else {
+                null
+            }
             TileColorPicker(
                 current = current,
                 suggestedNearestId = suggestion?.nearestId,
@@ -3126,6 +3269,12 @@ private fun StartPage(
                         app?.displayAsIcon == true &&
                         app.packageName.isNotBlank()
                 ),
+                sectionOptions = sectionOptions,
+                currentSectionId = model?.sectionId,
+                onAssignSection = { sectionId ->
+                    onAssignTileSection(pickId, sectionId)
+                    colorPickerFor = null
+                },
                 onPick = { colorId ->
                     if (childRef != null) {
                         onSetFolderChildColor(childRef.first, childRef.second.rowId, colorId)
@@ -3175,6 +3324,13 @@ private fun BoxScope.TileColorPicker(
     // ICONS-mode app currently "showing as tile" all still use their accent
     // for a real fill colour, so they keep the full picker.
     showColorOptions: Boolean = true,
+    // Start-screen "sections": the ordered list of (sectionId, label) choices
+    // to offer — always includes a leading (null, "unsectioned") entry — or
+    // null to hide this row entirely (a folder child, which has no section
+    // of its own). Non-null only when at least one real section exists.
+    sectionOptions: List<Pair<String?, String>>? = null,
+    currentSectionId: String? = null,
+    onAssignSection: (String?) -> Unit = {},
     onPick: (String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -3320,6 +3476,36 @@ private fun BoxScope.TileColorPicker(
                 )
                 Spacer(Modifier.width(12.dp))
                 Text(iconToggleLabel, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+        if (sectionOptions != null) {
+            if (showColorOptions || stackToggleLabel != null || iconToggleLabel != null) {
+                Spacer(Modifier.height(16.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.15f)))
+            }
+            Spacer(Modifier.height(16.dp))
+            Text("move to section", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
+            Spacer(Modifier.height(10.dp))
+            androidx.compose.foundation.layout.FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                sectionOptions.forEach { (sectionId, label) ->
+                    val selected = sectionId == currentSectionId
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .border(
+                                1.dp,
+                                if (selected) Color.White else Color.White.copy(alpha = 0.3f),
+                                RoundedCornerShape(16.dp),
+                            )
+                            .clickable { onAssignSection(sectionId) }
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                    ) {
+                        Text(label.lowercase(), color = Color.White, fontSize = 13.sp)
+                    }
+                }
             }
         }
     }
@@ -3900,6 +4086,107 @@ private fun FolderExpandedPlaceholder(
     }
 }
 
+/**
+ * A Start-screen section's header row: a collapse chevron (tap toggles, in
+ * or out of edit mode), the label (tap-to-rename via [FolderNameEditor],
+ * edit mode only), and — edit mode only — ↑/↓ reorder and a remove ("✕",
+ * ungroups the section's tiles rather than deleting them) action.
+ */
+@Composable
+private fun SectionHeader(
+    label: String,
+    collapsed: Boolean,
+    editMode: Boolean,
+    textColor: Color,
+    onToggleCollapsed: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onRename: (String) -> Unit,
+    onDelete: () -> Unit,
+) {
+    var renaming by remember(label) { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(SECTION_HEADER_HEIGHT_DP.dp)
+            .padding(horizontal = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = if (collapsed) "▸" else "▾",
+            color = textColor,
+            fontSize = 13.sp,
+            modifier = Modifier
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onToggleCollapsed,
+                )
+                .padding(end = 8.dp),
+        )
+        Box(modifier = Modifier.weight(1f)) {
+            if (renaming) {
+                FolderNameEditor(initial = label) { newLabel ->
+                    renaming = false
+                    if (newLabel.isNotBlank() && newLabel != label) onRename(newLabel)
+                }
+            } else {
+                Text(
+                    text = label.lowercase(),
+                    color = textColor,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = if (editMode) {
+                        Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { renaming = true },
+                        )
+                    } else {
+                        Modifier
+                    },
+                )
+            }
+        }
+        if (editMode && !renaming) {
+            Text(
+                text = "↑",
+                color = textColor,
+                fontSize = 15.sp,
+                modifier = Modifier
+                    .padding(horizontal = 6.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onMoveUp,
+                    ),
+            )
+            Text(
+                text = "↓",
+                color = textColor,
+                fontSize = 15.sp,
+                modifier = Modifier
+                    .padding(end = 6.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onMoveDown,
+                    ),
+            )
+            Text(
+                text = "✕",
+                color = textColor,
+                fontSize = 14.sp,
+                modifier = Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDelete,
+                ),
+            )
+        }
+    }
+}
+
 /** Inline rename field for [FolderExpandedPlaceholder] — small-tile-sized
  *  variant of the old overlay's title editor (same commit-on-done behaviour). */
 @Composable
@@ -4202,16 +4489,16 @@ private fun Modifier.emptySpaceExit(active: Boolean, onExit: () -> Unit): Modifi
  */
 private fun Modifier.folderCollapseOnEmptyTap(
     active: Boolean,
-    widthPx: Float,
-    columns: Int,
-    gapPx: Float?,
-    tiles: List<TileSpec>,
-    slotOf: ((String) -> Int?)?,
-    postProcess: ((List<TilePlacement>) -> List<TilePlacement>)?,
+    // Start-screen "sections": every currently-rendered tile's absolute
+    // content-space rect (already offset per its own block — see
+    // [StartPage]'s `absoluteTileRects`), rather than re-deriving one flat
+    // pack here — a plain pack over every block's tiles as if they were one
+    // grid would put tiles below the first block at the wrong row once
+    // section headers/gaps are involved.
+    absoluteTileRects: List<Pair<String, Rect>>,
     onExit: () -> Unit,
-): Modifier = pointerInput(active, widthPx, columns, gapPx, tiles, slotOf, postProcess) {
+): Modifier = pointerInput(active, absoluteTileRects) {
     if (!active) return@pointerInput
-    val geom = GridGeometry.of(widthPx, columns, gapPx)
     val slop = 7.dp.toPx()
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
@@ -4223,10 +4510,7 @@ private fun Modifier.folderCollapseOnEmptyTap(
             if ((change.position - down.position).getDistance() > slop) moved = true
             if (!change.pressed) {
                 if (!moved) {
-                    val base = slotOf?.let { GridPacker.packSticky(tiles, it, columns) }
-                        ?: GridPacker.pack(tiles, columns)
-                    val placements = postProcess?.invoke(base) ?: base
-                    if (tileAt(placements, geom, down.position) == null) onExit()
+                    if (absoluteTileRects.none { it.second.contains(down.position) }) onExit()
                 }
                 break
             }
@@ -4258,26 +4542,18 @@ private fun Modifier.folderCollapseOnEmptyTap(
  */
 private fun Modifier.emptySpaceEnterEdit(
     active: Boolean,
-    widthPx: Float,
-    columns: Int,
-    gapPx: Float?,
-    tiles: List<TileSpec>,
-    slotOf: ((String) -> Int?)?,
-    postProcess: ((List<TilePlacement>) -> List<TilePlacement>)?,
+    // Same precomputed, already block-offset rects as [folderCollapseOnEmptyTap].
+    absoluteTileRects: List<Pair<String, Rect>>,
     contentTopPx: Float,
     scrollOffsetPx: () -> Float,
     onEnterEdit: () -> Unit,
-): Modifier = pointerInput(active, widthPx, columns, gapPx, tiles, slotOf, postProcess) {
+): Modifier = pointerInput(active, absoluteTileRects) {
     if (!active) return@pointerInput
-    val geom = GridGeometry.of(widthPx, columns, gapPx)
     val slop = 7.dp.toPx()
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
         val contentPos = down.position.copy(y = down.position.y - contentTopPx + scrollOffsetPx())
-        val base = slotOf?.let { GridPacker.packSticky(tiles, it, columns) }
-            ?: GridPacker.pack(tiles, columns)
-        val placements = postProcess?.invoke(base) ?: base
-        if (tileAt(placements, geom, contentPos) != null) return@awaitEachGesture
+        if (absoluteTileRects.any { it.second.contains(contentPos) }) return@awaitEachGesture
         val outcome = withTimeoutOrNull(600L) {
             while (true) {
                 val event = awaitPointerEvent()
@@ -4375,6 +4651,14 @@ private fun Modifier.editDragGesture(
     viewportHeightPx: Float,
     scrollOffsetPx: () -> Float,
     edgeZonePx: Float,
+    // Start-screen "sections": how far down the scrollable content this
+    // particular block's own grid starts (the sum of every earlier block's
+    // header + grid height) — zero for the first block, matching today's
+    // single-grid behaviour exactly whenever there are no sections at all.
+    // [pos] below is local to *this* block's own Box, so the auto-scroll
+    // edge check needs this to translate it back into real page-content
+    // space before comparing against the viewport bounds.
+    blockTopOffsetPx: Float = 0f,
     allowMerge: Boolean = true,
     // Windows-phone-style sticky (gap-preserving) arrangement: non-null switches
     // placement + drop mechanics (see below); null (the default) is the original
@@ -4894,7 +5178,7 @@ private fun Modifier.editDragGesture(
                 }
 
                 // Auto-scroll near the viewport edges.
-                val fingerViewportY = (contentTopPx + pos.y) - scrollOffsetPx()
+                val fingerViewportY = (contentTopPx + blockTopOffsetPx + pos.y) - scrollOffsetPx()
                 onAutoScroll(
                     when {
                         fingerViewportY < edgeZonePx -> -1

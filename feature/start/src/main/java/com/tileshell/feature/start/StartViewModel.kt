@@ -29,6 +29,7 @@ import com.tileshell.core.data.LayoutHistoryRepository
 import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.LayoutSnapshot
 import com.tileshell.core.data.PinResult
+import com.tileshell.core.data.Section
 import com.tileshell.core.data.SettingsAppMigration
 import com.tileshell.core.data.CalendarSystemTile
 import com.tileshell.core.data.CommodityTile
@@ -94,6 +95,13 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val writeContext = Dispatchers.IO.limitedParallelism(1)
 
     val tiles: StateFlow<List<TileModel>> = repository.tiles.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList(),
+    )
+
+    /** Named, collapsible Start-screen tile groups ("work", "games", ...). */
+    val sections: StateFlow<List<Section>> = repository.sections.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList(),
@@ -1742,6 +1750,43 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) {
             repository.mergeTiles(dragId, targetId, survivingOrder)
         }
+    }
+
+    // ---- Start-screen sections -------------------------------------------
+
+    /** Create a new, empty section labeled [label], appended after the last one. */
+    fun createSection(label: String) {
+        val trimmed = label.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch(writeContext) { repository.createSection(trimmed) }
+    }
+
+    /** Rename a section. Blank names are ignored. */
+    fun renameSection(id: String, label: String) {
+        val trimmed = label.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch(writeContext) { repository.renameSection(id, trimmed) }
+    }
+
+    /** Toggle a section's collapsed/expanded state (its header chevron). */
+    fun toggleSectionCollapsed(id: String) {
+        val current = sections.value.firstOrNull { it.id == id }?.collapsed ?: return
+        viewModelScope.launch(writeContext) { repository.setSectionCollapsed(id, !current) }
+    }
+
+    /** Remove a section, ungrouping its member tiles back to unsectioned. */
+    fun deleteSection(id: String) {
+        viewModelScope.launch(writeContext) { repository.deleteSection(id) }
+    }
+
+    /** Move a section up (-1) or down (+1) relative to its neighbors. */
+    fun moveSection(id: String, direction: Int) {
+        viewModelScope.launch(writeContext) { repository.moveSection(id, direction) }
+    }
+
+    /** Assign (or clear, with null) a tile's section — the "move to section" picker. */
+    fun setTileSection(tileId: String, sectionId: String?) {
+        viewModelScope.launch(writeContext) { repository.setTileSection(tileId, sectionId) }
     }
 
     // One-shot toast messages emitted after an export/import completes (or fails).
