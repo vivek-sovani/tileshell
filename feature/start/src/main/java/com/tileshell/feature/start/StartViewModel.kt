@@ -1319,14 +1319,16 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         val targetRow = GridPacker.decodeSlotRow(slot)
         val finalSlots = if (settings.value.tilePackMode == TilePackMode.FREE) {
             val columns = settings.value.columns
-            val anchored = tiles.value.mapNotNull { t ->
-                if (t.id == id) return@mapNotNull null
+            val anchored = tilesInBlock(model.sectionId, excludeId = id).mapNotNull { t ->
                 val s = t.gridSlot ?: return@mapNotNull null
                 TilePlacement(t.id, t.size, GridPacker.decodeSlotCol(s), GridPacker.decodeSlotRow(s))
             }
             GridPacker.freePlacement(anchored, id, model.size, targetCol, targetRow, columns)
         } else {
-            stickySlotsForPlacement(movedId = id, size = model.size, targetCol = targetCol, targetRow = targetRow)
+            stickySlotsForPlacement(
+                movedId = id, size = model.size, targetCol = targetCol, targetRow = targetRow,
+                sectionId = model.sectionId,
+            )
         }
         viewModelScope.launch(writeContext) {
             finalSlots.forEach { (tid, s) -> repository.setTileGridSlot(tid, s) }
@@ -1434,18 +1436,27 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         val newTileId = "pin-${child.packageName}-${System.currentTimeMillis()}"
         val targetCol = GridPacker.decodeSlotCol(slot)
         val targetRow = GridPacker.decodeSlotRow(slot)
+        // Scoped to the folder's own section/block — the drag happened
+        // within that block's own expanded-inline rendering (see
+        // tilesInBlock's doc comment), so collisions must only ever be
+        // checked against tiles the child could actually be visually
+        // colliding with there, never the whole flat tile list.
+        val blockSectionId = tiles.value.firstOrNull { it.id == folderId }?.sectionId
         // FREE mode redirects to the nearest free cell instead of pushing an
         // occupant out of the way, same as an ordinary top-level drag-drop
         // (see setTileGridSlot).
         val finalSlots = if (settings.value.tilePackMode == TilePackMode.FREE) {
             val columns = settings.value.columns
-            val anchored = tiles.value.mapNotNull { t ->
+            val anchored = tilesInBlock(blockSectionId, excludeId = null).mapNotNull { t ->
                 val s = t.gridSlot ?: return@mapNotNull null
                 TilePlacement(t.id, t.size, GridPacker.decodeSlotCol(s), GridPacker.decodeSlotRow(s))
             }
             GridPacker.freePlacement(anchored, newTileId, child.size, targetCol, targetRow, columns)
         } else {
-            stickySlotsForPlacement(movedId = newTileId, size = child.size, targetCol = targetCol, targetRow = targetRow)
+            stickySlotsForPlacement(
+                movedId = newTileId, size = child.size, targetCol = targetCol, targetRow = targetRow,
+                sectionId = blockSectionId,
+            )
         }
         viewModelScope.launch(writeContext) {
             repository.placeFolderChildAtTopLevel(folderId, child, newTileId, gridSlot = finalSlots[newTileId])
@@ -1699,7 +1710,32 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             size = nextSize,
             targetCol = GridPacker.decodeSlotCol(ownSlot),
             targetRow = GridPacker.decodeSlotRow(ownSlot),
+            sectionId = model.sectionId,
         )
+    }
+
+    /**
+     * Every other tile sharing [sectionId] (null = the unsectioned group) —
+     * the correct scope for any sticky-mode collision/push-down/collapse
+     * computation. A tile referencing a section that no longer exists is
+     * treated as unsectioned, matching [blocksFor]'s own fallback.
+     *
+     * Without this, [stickySlotsForPlacement]/[collapseEmptyRowsAfterRemoval]
+     * computed collisions against the *entire* flat tile list — so resizing
+     * or dragging one app within a small section could push down (or
+     * collapse rows against) a completely unrelated tile elsewhere in the
+     * grid, anchoring it at a row that only made sense globally and creating
+     * a large gap once rendered inside its own much smaller section block
+     * (user-reported: "adjusting app in section creates gap ... remains even
+     * after closing section" — the bad `gridSlot` is a real persisted write,
+     * not a rendering artifact, so collapsing the section doesn't undo it).
+     */
+    private fun tilesInBlock(sectionId: String?, excludeId: String?): List<TileModel> {
+        val validSectionIds = sections.value.mapTo(HashSet()) { it.id }
+        val normalized = sectionId?.takeIf { it in validSectionIds }
+        return tiles.value.filter {
+            it.id != excludeId && it.sectionId?.takeIf { s -> s in validSectionIds } == normalized
+        }
     }
 
     /**
@@ -1718,10 +1754,18 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      * StartScreen's drag gesture calls to render a live preview before the
      * drop actually commits.
      */
-    private fun stickySlotsForPlacement(movedId: String, size: TileSize, targetCol: Int, targetRow: Int): Map<String, Int> {
+    private fun stickySlotsForPlacement(
+        movedId: String,
+        size: TileSize,
+        targetCol: Int,
+        targetRow: Int,
+        // Which block (section, or null = unsectioned) [movedId] belongs to
+        // — collisions/push-down are only ever computed against other tiles
+        // in this same block (see [tilesInBlock]'s doc comment).
+        sectionId: String?,
+    ): Map<String, Int> {
         val columns = settings.value.columns
-        val anchored = tiles.value.mapNotNull { t ->
-            if (t.id == movedId) return@mapNotNull null
+        val anchored = tilesInBlock(sectionId, excludeId = movedId).mapNotNull { t ->
             val slot = t.gridSlot ?: return@mapNotNull null
             TilePlacement(t.id, t.size, GridPacker.decodeSlotCol(slot), GridPacker.decodeSlotRow(slot))
         }
@@ -1755,8 +1799,12 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      */
     private fun collapseEmptyRowsAfterRemoval(removedId: String): Map<String, Int> {
         if (settings.value.tilePackMode != TilePackMode.STICKY) return emptyMap()
-        val projected = tiles.value.mapNotNull { t ->
-            if (t.id == removedId) return@mapNotNull null
+        // Scoped to the removed tile's own block: a fully-empty row only
+        // ever collapses within that same section/unsectioned group (see
+        // tilesInBlock's doc comment) — otherwise removing one tile could
+        // shift rows of a completely unrelated section.
+        val removedSection = tiles.value.firstOrNull { it.id == removedId }?.sectionId
+        val projected = tilesInBlock(removedSection, excludeId = removedId).mapNotNull { t ->
             val slot = t.gridSlot ?: return@mapNotNull null
             TilePlacement(t.id, t.size, GridPacker.decodeSlotCol(slot), GridPacker.decodeSlotRow(slot))
         }
