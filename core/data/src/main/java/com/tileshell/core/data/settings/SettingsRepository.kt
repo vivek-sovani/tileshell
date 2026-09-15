@@ -356,6 +356,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(themedIcons = enabled) }
     }
 
+    /** Master on/off switch for the "sections" feature — see [LauncherSettings.sectionsEnabled]. */
+    suspend fun setSectionsEnabled(enabled: Boolean) {
+        store.updateData { it.copy(sectionsEnabled = enabled) }
+    }
+
     /** Switch how Start's sections are browsed — one continuous scroll, or tabbed one-at-a-time. */
     suspend fun setSectionDisplayMode(mode: SectionDisplayMode) {
         store.updateData { it.copy(sectionDisplayMode = mode) }

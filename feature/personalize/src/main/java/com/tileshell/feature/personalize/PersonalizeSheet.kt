@@ -209,6 +209,8 @@ fun PersonalizeSheet(
     onColumnsChange: (Int) -> Unit,
     tilePackMode: TilePackMode,
     onTilePackModeChange: (TilePackMode) -> Unit,
+    sectionsEnabled: Boolean,
+    onSectionsEnabledChange: (Boolean) -> Unit,
     sectionDisplayMode: SectionDisplayMode,
     onSectionDisplayModeChange: (SectionDisplayMode) -> Unit,
     sectionPillAlignment: SectionPillAlignment,
@@ -1074,74 +1076,85 @@ fun PersonalizeSheet(
                 }
             }
 
-            // ---- sections: display mode (scroll all vs. tabbed one-at-a-time) + pill placement ----
+            // ---- sections: master on/off (exclusive, opt-in feature, user-requested)
+            // + display mode (scroll all vs. tabbed one-at-a-time) + pill placement ----
             SettingGroup(label = "sections", tokens.fgDim) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ToggleRow("enable sections", on = sectionsEnabled, accent = accent, tokens, onSectionsEnabledChange)
                     Text(
-                        "how a section's tiles are browsed",
+                        "group Start tiles into named, collapsible sections — turning this off just " +
+                            "hides the \"+ add section\" button; any sections you've already made keep working",
                         color = tokens.fgDim,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                     )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(1.dp, tokens.tileLine),
-                    ) {
-                        SegCell(
-                            "scroll",
-                            selected = sectionDisplayMode == SectionDisplayMode.SCROLL,
-                            accent = accent,
-                            fg = tokens.fg,
-                        ) { onSectionDisplayModeChange(SectionDisplayMode.SCROLL) }
-                        SegCell(
-                            "tabbed",
-                            selected = sectionDisplayMode == SectionDisplayMode.TABBED,
-                            accent = accent,
-                            fg = tokens.fg,
-                        ) { onSectionDisplayModeChange(SectionDisplayMode.TABBED) }
-                    }
-                    if (sectionDisplayMode == SectionDisplayMode.TABBED) {
+                    if (sectionsEnabled) {
+                        Spacer(Modifier.height(6.dp))
                         Text(
-                            "only one section fills the screen at a time — tap a pill to switch",
+                            "how a section's tiles are browsed",
                             color = tokens.fgDim,
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                         )
-                    } else {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(1.dp, tokens.tileLine),
+                        ) {
+                            SegCell(
+                                "scroll",
+                                selected = sectionDisplayMode == SectionDisplayMode.SCROLL,
+                                accent = accent,
+                                fg = tokens.fg,
+                            ) { onSectionDisplayModeChange(SectionDisplayMode.SCROLL) }
+                            SegCell(
+                                "tabbed",
+                                selected = sectionDisplayMode == SectionDisplayMode.TABBED,
+                                accent = accent,
+                                fg = tokens.fg,
+                            ) { onSectionDisplayModeChange(SectionDisplayMode.TABBED) }
+                        }
+                        if (sectionDisplayMode == SectionDisplayMode.TABBED) {
+                            Text(
+                                "only one section fills the screen at a time — tap a pill to switch",
+                                color = tokens.fgDim,
+                                fontSize = 12.sp,
+                            )
+                        } else {
+                            Text(
+                                "every section stays in one continuous scroll — tap a pill to jump to it",
+                                color = tokens.fgDim,
+                                fontSize = 12.sp,
+                            )
+                        }
+                        Spacer(Modifier.height(6.dp))
                         Text(
-                            "every section stays in one continuous scroll — tap a pill to jump to it",
+                            "section pills placement",
                             color = tokens.fgDim,
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                         )
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "section pills placement",
-                        color = tokens.fgDim,
-                        fontSize = 13.sp,
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(1.dp, tokens.tileLine),
-                    ) {
-                        SegCell(
-                            "left",
-                            selected = sectionPillAlignment == SectionPillAlignment.START,
-                            accent = accent,
-                            fg = tokens.fg,
-                        ) { onSectionPillAlignmentChange(SectionPillAlignment.START) }
-                        SegCell(
-                            "center",
-                            selected = sectionPillAlignment == SectionPillAlignment.CENTER,
-                            accent = accent,
-                            fg = tokens.fg,
-                        ) { onSectionPillAlignmentChange(SectionPillAlignment.CENTER) }
-                        SegCell(
-                            "right",
-                            selected = sectionPillAlignment == SectionPillAlignment.END,
-                            accent = accent,
-                            fg = tokens.fg,
-                        ) { onSectionPillAlignmentChange(SectionPillAlignment.END) }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(1.dp, tokens.tileLine),
+                        ) {
+                            SegCell(
+                                "left",
+                                selected = sectionPillAlignment == SectionPillAlignment.START,
+                                accent = accent,
+                                fg = tokens.fg,
+                            ) { onSectionPillAlignmentChange(SectionPillAlignment.START) }
+                            SegCell(
+                                "center",
+                                selected = sectionPillAlignment == SectionPillAlignment.CENTER,
+                                accent = accent,
+                                fg = tokens.fg,
+                            ) { onSectionPillAlignmentChange(SectionPillAlignment.CENTER) }
+                            SegCell(
+                                "right",
+                                selected = sectionPillAlignment == SectionPillAlignment.END,
+                                accent = accent,
+                                fg = tokens.fg,
+                            ) { onSectionPillAlignmentChange(SectionPillAlignment.END) }
+                        }
                     }
                 }
             }

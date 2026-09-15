@@ -1273,6 +1273,7 @@ fun StartScreen(
                     onDeleteSection = viewModel::deleteSection,
                     onMoveSection = viewModel::moveSection,
                     onAssignTileSection = viewModel::setTileSection,
+                    sectionsEnabled = settings.sectionsEnabled,
                     sectionDisplayMode = settings.sectionDisplayMode,
                     sectionPillAlignment = settings.sectionPillAlignment,
                     onAdd = {
@@ -1609,6 +1610,8 @@ fun StartScreen(
             onColumnsChange = viewModel::setColumns,
             tilePackMode = settings.tilePackMode,
             onTilePackModeChange = viewModel::setTilePackMode,
+            sectionsEnabled = settings.sectionsEnabled,
+            onSectionsEnabledChange = viewModel::setSectionsEnabled,
             sectionDisplayMode = settings.sectionDisplayMode,
             onSectionDisplayModeChange = viewModel::setSectionDisplayMode,
             sectionPillAlignment = settings.sectionPillAlignment,
@@ -2296,6 +2299,7 @@ private fun StartPage(
     onDeleteSection: (String) -> Unit = {},
     onMoveSection: (id: String, direction: Int) -> Unit = { _, _ -> },
     onAssignTileSection: (tileId: String, sectionId: String?) -> Unit = { _, _ -> },
+    sectionsEnabled: Boolean = false,
     sectionDisplayMode: SectionDisplayMode = SectionDisplayMode.SCROLL,
     sectionPillAlignment: SectionPillAlignment = SectionPillAlignment.START,
     onAdd: () -> Unit,
@@ -2672,7 +2676,12 @@ private fun StartPage(
             // "+ add section" (edit mode only): a prominent affordance at the
             // very top of the grid — moved here from a small text row at the
             // bottom per user feedback ("add it at top by big + sign").
-            if (editMode) {
+            // Hidden entirely while the "sections" feature is off in
+            // Personalize (user-requested: sections are an exclusive, opt-in
+            // feature turned on only there) — an install that already has
+            // real sections keeps rendering/using them regardless, this just
+            // stops new ones from being created while off.
+            if (editMode && sectionsEnabled) {
                 var addingSectionAtTop by remember { mutableStateOf(false) }
                 if (addingSectionAtTop) {
                     Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp)) {

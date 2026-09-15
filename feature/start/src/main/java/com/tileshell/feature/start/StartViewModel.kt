@@ -1206,6 +1206,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) { settingsRepository.setIconShape(shape) }
     }
 
+    /** Master on/off switch for the "sections" feature — see [LauncherSettings.sectionsEnabled]. */
+    fun setSectionsEnabled(enabled: Boolean) {
+        viewModelScope.launch(writeContext) { settingsRepository.setSectionsEnabled(enabled) }
+    }
+
     /** Switch how Start's sections are browsed — one continuous scroll, or tabbed one-at-a-time. */
     fun setSectionDisplayMode(mode: SectionDisplayMode) {
         viewModelScope.launch(writeContext) { settingsRepository.setSectionDisplayMode(mode) }

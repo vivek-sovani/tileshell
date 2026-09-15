@@ -296,6 +296,17 @@ data class LauncherSettings(
     val commodityRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
     /** How often sports tiles re-poll — see [LiveRefreshRate]. */
     val sportsRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
+    /**
+     * Master on/off switch for Start's "sections" feature (user-requested:
+     * treated as an exclusive, opt-in feature turned on only through
+     * Personalize). Off by default, matching every other opt-in Start
+     * addition in this file (bing wallpaper, edge strip, themed icons, ...).
+     * Gates only the "+ add section" creation entry point — an install that
+     * already has real sections (e.g. from before this flag existed, or
+     * after it's turned back off) keeps rendering/using them normally; this
+     * just stops *new* ones from being created while off.
+     */
+    val sectionsEnabled: Boolean = false,
     /** How Start's sections are browsed — see [SectionDisplayMode]. */
     val sectionDisplayMode: SectionDisplayMode = SectionDisplayMode.SCROLL,
     /** Where the section jump-pill bar sits — see [SectionPillAlignment]. */
@@ -370,6 +381,7 @@ object SettingsCodec {
         append("stockRefreshRate=").append(settings.stockRefreshRate.name).append('\n')
         append("commodityRefreshRate=").append(settings.commodityRefreshRate.name).append('\n')
         append("sportsRefreshRate=").append(settings.sportsRefreshRate.name).append('\n')
+        append("sectionsEnabled=").append(settings.sectionsEnabled).append('\n')
         append("sectionDisplayMode=").append(settings.sectionDisplayMode.name).append('\n')
         append("sectionPillAlignment=").append(settings.sectionPillAlignment.name)
     }
@@ -423,6 +435,7 @@ object SettingsCodec {
         var stockRefreshRate = d.stockRefreshRate
         var commodityRefreshRate = d.commodityRefreshRate
         var sportsRefreshRate = d.sportsRefreshRate
+        var sectionsEnabled = d.sectionsEnabled
         var sectionDisplayMode = d.sectionDisplayMode
         var sectionPillAlignment = d.sectionPillAlignment
         text.lineSequence().forEach { line ->
@@ -496,6 +509,7 @@ object SettingsCodec {
                     LiveRefreshRate.entries.find { it.name == value }?.let { commodityRefreshRate = it }
                 "sportsRefreshRate" ->
                     LiveRefreshRate.entries.find { it.name == value }?.let { sportsRefreshRate = it }
+                "sectionsEnabled" -> sectionsEnabled = value.toBooleanStrictOrNull() ?: sectionsEnabled
                 "sectionDisplayMode" ->
                     SectionDisplayMode.entries.find { it.name == value }?.let { sectionDisplayMode = it }
                 "sectionPillAlignment" ->
@@ -550,6 +564,7 @@ object SettingsCodec {
             stockRefreshRate = stockRefreshRate,
             commodityRefreshRate = commodityRefreshRate,
             sportsRefreshRate = sportsRefreshRate,
+            sectionsEnabled = sectionsEnabled,
             sectionDisplayMode = sectionDisplayMode,
             sectionPillAlignment = sectionPillAlignment,
         )
