@@ -1697,6 +1697,8 @@ fun StartScreen(
             tileSizes = settings.quickPanelTileSizes,
             onTileOrderChange = viewModel::setQuickPanelTileOrder,
             onTileSizesChange = viewModel::setQuickPanelTileSizes,
+            borderlessTiles = settings.borderlessTiles,
+            transparency = settings.transparency,
             rightHalf = isLandscape,
         )
 

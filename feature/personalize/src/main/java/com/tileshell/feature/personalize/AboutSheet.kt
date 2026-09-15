@@ -368,6 +368,7 @@ fun AboutSheet(
                     "glass (transparent) tiles with adjustable transparency",
                     "widget cards — every tile becomes its own rounded, translucent card floating over the wallpaper, like a home-screen gadget",
                     "widget cards carries onto the feed page too — weather, today, and now-playing match the same translucent card style",
+                    "and onto quick panel — an active toggle shows in accent colour on its icon and label, since every tile now shares the same translucent card",
                     "tile outline toggle — keep a glass / show-through tile's fill but drop its edge line",
                     "adjustable tile spacing — drag a slider to pack or spread tiles",
                     "6 built-in gradient wallpapers + custom photo",

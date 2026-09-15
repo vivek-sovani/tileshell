@@ -181,6 +181,19 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   wallpaper disc passes behind them — genuinely translucent, not just a
   similarly-toned opaque fill). Build + full unit test suite green; installed
   and launched on both the emulator and the physical device with no crash.
+  **Same-session follow-up**: "show visual if i ask to do it for quick panel
+  also" — mocked up two renderings (tinted icon glyph vs. a checkmark badge)
+  since Quick Panel's accent fill isn't decorative like the glance cards'
+  was; it's the only current signal that a toggle is on. User picked the
+  tinted-glyph option. Every `QuickPanelTile` now shares one neutral
+  translucent card (`Glass.raisedCardFill`) regardless of on/off state under
+  "widget cards"; the on/off signal moves from the tile's background to its
+  icon/label colour (accent when active, the panel's own `panelFgDim` — the
+  same brightness-matched value already used elsewhere on the panel — when
+  not). Verified in both themes on the emulator: active and inactive tiles
+  share the identical card fill, distinguished only by glyph colour. Build +
+  full unit test suite green; installed and launched on both the emulator
+  and the physical device with no crash.
 <!-- Update this block at the end of every session -->
 - **`main` — glance widgets: real stack-collapse bug fix, header-text contrast
   fix (with a same-session inverted-logic correction), Panchang/Tasks visual

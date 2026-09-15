@@ -171,6 +171,18 @@ fun QuickPanelOverlay(
     tileSizes: List<String> = emptyList(),
     onTileOrderChange: (List<String>) -> Unit = {},
     onTileSizesChange: (List<String>) -> Unit = {},
+    /**
+     * "Widget cards" (Start's tile style) carried onto Quick Panel — user-
+     * requested, see DECISIONS.md "Widget cards carried onto Quick Panel
+     * (option A: tinted icon glyph)". Every tile (on or off) switches to the
+     * same neutral translucent card Start/glance use; since that fill can no
+     * longer distinguish an active toggle from an inactive one the way a
+     * solid accent fill could, an active tile's icon glyph itself picks up
+     * the accent colour instead — the on/off signal moves from the tile's
+     * background to its glyph.
+     */
+    borderlessTiles: Boolean = false,
+    transparency: Float = 0.55f,
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -409,6 +421,11 @@ fun QuickPanelOverlay(
                                     tile,
                                     tokens = tokens,
                                     accent = accent,
+                                    borderless = borderlessTiles,
+                                    transparency = transparency,
+                                    dark = dark,
+                                    panelFg = panelFg,
+                                    panelFgDim = panelFgDim,
                                     editMode = quickPanelEditMode,
                                     isDragging = draggingTileId == tile.id,
                                     isDragTarget = quickPanelEditMode && dragTargetId == tile.id && draggingTileId != tile.id,
@@ -1048,13 +1065,27 @@ internal fun nextThemeChoice(current: ThemeChoice): ThemeChoice = when (current)
  * A small square Start-tile-style control: monoline icon top-center, short
  * state label bottom-center — accent fill for an "on" binary toggle, a
  * neutral dark tile otherwise (value tiles like brightness/settings are
- * always neutral, since they're not on/off states).
+ * always neutral, since they're not on/off states). Under "widget cards"
+ * ([borderless]), every tile shares one neutral translucent card instead,
+ * and the on/off signal moves to the icon/label colour — see the doc
+ * comment on [borderless] below.
  */
 @Composable
 private fun QuickPanelTile(
     tile: QuickPanelTileSpec,
     tokens: ColorTokens,
     accent: Color,
+    // "widget cards" carried onto Quick Panel — see QuickPanelOverlay's own
+    // doc comment on its borderlessTiles param. panelFg/panelFgDim are the
+    // panel's own already-brightness-matched text colours (same idea as the
+    // glance page's feedFg/feedFgDim), substituted for the off-state's usual
+    // tokens.fgDim now that the tile surface is a neutral translucent card
+    // rather than the panel's own opaque chrome.
+    borderless: Boolean = false,
+    transparency: Float = 0f,
+    dark: Boolean = true,
+    panelFg: Color = Color.White,
+    panelFgDim: Color = Color.White.copy(alpha = 0.62f),
     editMode: Boolean,
     isDragging: Boolean,
     isDragTarget: Boolean,
@@ -1083,14 +1114,34 @@ private fun QuickPanelTile(
     onWidthDragEnd: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val bg = if (tile.active) accent else tokens.chip
+    // Borderless: every tile (on or off) is the same neutral translucent
+    // card — the on/off signal that used to live in the tile's own
+    // background moves to its icon/label colour instead (accent when on,
+    // the panel's own dim text colour when off), since a translucent card
+    // can no longer read as "filled" vs. "not filled" the way a solid
+    // accent fill could.
+    val bg = when {
+        borderless -> Glass.raisedCardFill(dark, transparency)
+        tile.active -> accent
+        else -> tokens.chip
+    }
     // An active tile's text must adapt to its own accent fill (not just the
     // panel's overall background lightness, which panelFg tracks) — a
-    // wallpaper-derived accent can be light even on a dark panel.
-    val fg = if (tile.active) Glass.faceTextColor(useDarkText = isLightBackground(accent)) else tokens.fgDim
+    // wallpaper-derived accent can be light even on a dark panel. Under
+    // borderless there's no accent fill to adapt to any more, so an active
+    // tile's icon/label reads in the accent colour directly instead.
+    val fg = when {
+        borderless && tile.active -> accent
+        borderless -> panelFgDim
+        tile.active -> Glass.faceTextColor(useDarkText = isLightBackground(accent))
+        else -> tokens.fgDim
+    }
     // Edit-mode handles always need to read against this tile's own fill,
-    // regardless of on/off state — reuse the same contrast rule as fg.
-    val handleColor = Glass.faceTextColor(useDarkText = isLightBackground(bg))
+    // regardless of on/off state — reuse the same contrast rule as fg. Under
+    // borderless every tile shares the one neutral card fill, so the panel's
+    // own already-computed contrast colour applies uniformly instead of
+    // re-deriving it per tile.
+    val handleColor = if (borderless) panelFg else Glass.faceTextColor(useDarkText = isLightBackground(bg))
     val haptics = LocalHapticFeedback.current
     val resizing = resizeScaleX != 1f
     Box(
@@ -1110,8 +1161,11 @@ private fun QuickPanelTile(
             // as Start tiles (TileView); the inactive/off chip fill stays flat —
             // there's no accent to gradient there.
             .then(
-                if (tile.active && LocalTileGradient.current) Modifier.background(tileGradientBrush(accent))
-                else Modifier.background(bg)
+                if (!borderless && tile.active && LocalTileGradient.current) {
+                    Modifier.background(tileGradientBrush(accent))
+                } else {
+                    Modifier.background(bg)
+                }
             )
             .then(
                 if (isDragTarget) Modifier.border(2.dp, accent, RoundedCornerShape(10.dp))

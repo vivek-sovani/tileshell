@@ -299,6 +299,40 @@ sits behind them; switching to "widget cards" makes the exact same two cards
 visibly shift shade with the wallpaper disc passing behind them — the wash
 is genuinely translucent, not merely a similarly-toned opaque fill.
 
+## Widget cards carried onto Quick Panel (option A: tinted icon glyph)
+
+Direct follow-up: "show visual if i ask to do it for quick panel also." Two
+renderings were mocked up first — a tinted icon glyph vs. a small checkmark
+badge — since Quick Panel's accent fill wasn't just decorative here (unlike
+the glance page's weather/agenda/now-playing cards, which had no on/off
+state to preserve): it is the *only* thing that currently tells you a toggle
+is active. The user picked **option A**.
+
+Every `QuickPanelTile` — on or off — now renders the same neutral
+translucent card (`Glass.raisedCardFill(dark, transparency)`, the identical
+function Start/glance already use) whenever `borderlessTiles` is on. The
+on/off signal that used to live in the tile's *background* moves to its
+*icon and label colour* instead: an active tile's glyph and text render in
+the plain accent colour directly (there's no longer an accent fill to
+contrast against, so no `Glass.faceTextColor` derivation is needed there);
+an inactive tile falls back to the panel's own already-computed dim text
+colour (`panelFgDim` — the same brightness-matched value `QuickPanelHeader`
+already uses, mirroring the glance page's `feedFg`/`feedFgDim` pattern)
+rather than the fixed `tokens.fgDim` it used before, since the tile's
+surface is no longer the panel's own opaque chrome. Edit-mode's drag-handle
+colour follows the same substitution (`panelFg` instead of a per-tile
+contrast derivation), since every tile now shares one surface rather than
+each needing its own.
+
+The "gradient fill" personalize setting (a diagonal shade across a solid
+accent fill) is skipped entirely under borderless — there's no accent fill
+left to shade.
+
+Verified on the emulator in both themes: active tiles (wifi/bluetooth/
+location/flashlight/allow access/dnd/auto) show a tinted icon+label on the
+same translucent card inactive tiles (airplane/rotation lock) use, with no
+tile reading as "still filled."
+
 ## The disc wallpapers are a row of three, and the picker grid is really a grid
 
 User: "create a row of such wallpapers (3) with varying color combinations. so
