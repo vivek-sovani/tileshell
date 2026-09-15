@@ -37,6 +37,43 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — FREE-mode drag-drop follow-up: the *live* push-down preview
+  during the drag was still using STICKY's push-down solver, so the visible
+  bug wasn't actually fixed by the previous entry.** User re-reported after
+  installing: "it is not happening. check on physical device. dragging down
+  the bottom tile is not happening." Root cause: `GridPacker.freePlacement`
+  (previous entry) is only ever consulted at *release*, inside
+  `StartViewModel.setTileGridSlot`'s FREE branch — but `editDragGesture`'s
+  live drag preview (`onStickyPreview`, which feeds `stickyPreview` and
+  drives every non-dragged tile's on-screen position while a drag is in
+  progress) was wired purely off `slotOf != null`, which is true for *both*
+  STICKY and FREE (`TilePackMode.isAnchored` covers both) — so it
+  unconditionally called `GridPacker.stickyPlacement` (the push-down solver)
+  regardless of which mode was active. The user's finger genuinely did see
+  the old occupant get pushed down and slide back afterwards, since the
+  *visual* feedback during the drag was never touched — only the eventually-
+  persisted result was. Fixed by threading a new `freeMode: Boolean` param
+  through `StartPage`/`editDragGesture` (`settings.tilePackMode ==
+  TilePackMode.FREE`, alongside the existing `sticky =
+  tilePackMode.isAnchored` which can't tell the two modes apart on its own):
+  both places `editDragGesture` computed a live push-down preview
+  (the ordinary top-level drag, and a folder child dragged out onto the
+  top-level grid) now call `onStickyPreview(emptyMap())` in FREE mode instead
+  of `GridPacker.stickyPlacement` — no other tile's on-screen position ever
+  changes during a FREE-mode drag, matching what actually gets persisted at
+  release. Also found and fixed the same gap in the **write path** for the
+  folder-child-pulled-out-onto-the-grid case specifically:
+  `StartViewModel.pullFolderChildToSlot` had never been given a FREE branch
+  at all (unlike `setTileGridSlot`) — it always called `stickySlotsForPlacement`,
+  so pulling a folder child out onto the grid in FREE mode would have
+  genuinely pushed an occupant down even after the preview fix, a real
+  discrepancy between preview and result if left alone. Given the same
+  `GridPacker.freePlacement` branch `setTileGridSlot` already uses. Build +
+  full unit test suite green; installed on both the physical device and the
+  emulator, launched with no crash in `adb logcat`. The actual drag gesture
+  itself still needs the user's own hands-on confirmation on the physical
+  device — this codebase's ADB-synthesized drags aren't reliable enough to
+  self-verify a live-preview visual fix like this one.
 - **`main` — FREE-mode drag-drop no longer displaces the existing tile when
   room exists elsewhere.** User-reported: "in free mode, when i push tile
   downwards and tile exists there the existing tile show inward movement...

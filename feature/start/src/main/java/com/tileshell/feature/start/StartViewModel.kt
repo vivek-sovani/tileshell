@@ -1402,12 +1402,21 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun pullFolderChildToSlot(folderId: String, child: FolderChild, slot: Int) {
         val newTileId = "pin-${child.packageName}-${System.currentTimeMillis()}"
-        val finalSlots = stickySlotsForPlacement(
-            movedId = newTileId,
-            size = child.size,
-            targetCol = GridPacker.decodeSlotCol(slot),
-            targetRow = GridPacker.decodeSlotRow(slot),
-        )
+        val targetCol = GridPacker.decodeSlotCol(slot)
+        val targetRow = GridPacker.decodeSlotRow(slot)
+        // FREE mode redirects to the nearest free cell instead of pushing an
+        // occupant out of the way, same as an ordinary top-level drag-drop
+        // (see setTileGridSlot).
+        val finalSlots = if (settings.value.tilePackMode == TilePackMode.FREE) {
+            val columns = settings.value.columns
+            val anchored = tiles.value.mapNotNull { t ->
+                val s = t.gridSlot ?: return@mapNotNull null
+                TilePlacement(t.id, t.size, GridPacker.decodeSlotCol(s), GridPacker.decodeSlotRow(s))
+            }
+            GridPacker.freePlacement(anchored, newTileId, child.size, targetCol, targetRow, columns)
+        } else {
+            stickySlotsForPlacement(movedId = newTileId, size = child.size, targetCol = targetCol, targetRow = targetRow)
+        }
         viewModelScope.launch(writeContext) {
             repository.placeFolderChildAtTopLevel(folderId, child, newTileId, gridSlot = finalSlots[newTileId])
             finalSlots.filterKeys { it != newTileId }.forEach { (id, s) -> repository.setTileGridSlot(id, s) }

@@ -1087,6 +1087,7 @@ fun StartScreen(
                     hideStatusBar = settings.hideStatusBar,
                     columns = settings.columns,
                     sticky = settings.tilePackMode.isAnchored,
+                    freeMode = settings.tilePackMode == TilePackMode.FREE,
                     homeStyle = settings.homeStyle,
                     iconShape = settings.iconShape,
                     // themedIcons intentionally not threaded here — parked (see
@@ -2201,6 +2202,11 @@ private fun StartPage(
     hideStatusBar: Boolean = false,
     columns: Int,
     sticky: Boolean,
+    // TilePackMode.FREE specifically (a subset of [sticky], which is also true
+    // for STICKY) — [editDragGesture]'s live drag preview needs to tell the two
+    // apart, since only STICKY pushes other tiles out of the way while
+    // dragging; FREE never previews any other tile moving.
+    freeMode: Boolean = false,
     // Which cell renderer a SMALL (1×1) tile uses — the icons-mode arc. 2×2+
     // always renders via TileView regardless, so this only ever changes
     // behaviour for SMALL app tiles (including inline-expanded folder
@@ -2612,6 +2618,7 @@ private fun StartPage(
                 scrollOffsetPx = { scrollState.value.toFloat() },
                 edgeZonePx = with(density) { 64.dp.toPx() },
                 slotOf = slotOf,
+                freeMode = freeMode,
                 onStickyDrop = { id, slot -> if (slot != null) onSetTileSlot(id, slot) },
                 onStickyPreview = { stickyPreview = it },
                 onReorderFolderChildTo = { dragId, targetId ->
@@ -4373,6 +4380,13 @@ private fun Modifier.editDragGesture(
     // placement + drop mechanics (see below); null (the default) is the original
     // dense-repack behaviour, unchanged for every existing caller.
     slotOf: ((String) -> Int?)? = null,
+    // TilePackMode.FREE specifically (only meaningful when [slotOf] is
+    // non-null — STICKY and FREE are both "anchored" modes for placement, but
+    // only STICKY previews other tiles pushing out of the way while
+    // dragging). FREE's own live preview never displaces anyone; the dropped
+    // tile's *actual* redirect-to-nearest-free-cell resolution happens once,
+    // at release, in the ViewModel write path (GridPacker.freePlacement).
+    freeMode: Boolean = false,
     onStickyDrop: (dragId: String, slot: Int?) -> Unit = { _, _ -> },
     // Live push-down preview while a sticky-mode drag is in progress — called
     // with every tile that would be displaced (plus the dragged tile's own
@@ -4760,14 +4774,18 @@ private fun Modifier.editDragGesture(
                                     val cell = geom.cellAt(pos - grab, columns, w)
                                     pulledOutSlot = GridPacker.encodeSlot(cell.x, cell.y)
                                     pulledOutTargetId = null
-                                    val anchored = order.mapNotNull { id ->
-                                        val t = byId[id] ?: return@mapNotNull null
-                                        val slot = t.gridSlot ?: return@mapNotNull null
-                                        TilePlacement(id, t.size, GridPacker.decodeSlotCol(slot), GridPacker.decodeSlotRow(slot))
+                                    if (freeMode) {
+                                        onStickyPreview(emptyMap())
+                                    } else {
+                                        val anchored = order.mapNotNull { id ->
+                                            val t = byId[id] ?: return@mapNotNull null
+                                            val slot = t.gridSlot ?: return@mapNotNull null
+                                            TilePlacement(id, t.size, GridPacker.decodeSlotCol(slot), GridPacker.decodeSlotRow(slot))
+                                        }
+                                        onStickyPreview(
+                                            GridPacker.stickyPlacement(anchored, startId, childSize, cell.x, cell.y, columns),
+                                        )
                                     }
-                                    onStickyPreview(
-                                        GridPacker.stickyPlacement(anchored, startId, childSize, cell.x, cell.y, columns),
-                                    )
                                 } else {
                                     // Dense mode: live-splice the child into the
                                     // real top-level `order` at the hovered
@@ -4830,19 +4848,27 @@ private fun Modifier.editDragGesture(
                         // move (not just at drop) so the displaced tile(s)
                         // visibly slide out of the way while the finger is
                         // still down — matching dense mode's live reflow hint.
+                        // FREE mode never displaces anyone (not even in preview) —
+                        // the dragged tile's own redirect-to-nearest-free-cell
+                        // resolution happens once, at release, in the write path,
+                        // so nothing needs recomputing on every move here.
                         val tileSize = byId[startId]?.size ?: TileSize.SMALL
                         val w = tileSize.cols.coerceAtMost(columns)
                         val cell = geom.cellAt(pos - grab, columns, w)
                         pendingSlot = GridPacker.encodeSlot(cell.x, cell.y)
-                        val anchored = order.mapNotNull { id ->
-                            if (id == startId) return@mapNotNull null
-                            val t = byId[id] ?: return@mapNotNull null
-                            val slot = t.gridSlot ?: return@mapNotNull null
-                            TilePlacement(id, t.size, GridPacker.decodeSlotCol(slot), GridPacker.decodeSlotRow(slot))
+                        if (freeMode) {
+                            onStickyPreview(emptyMap())
+                        } else {
+                            val anchored = order.mapNotNull { id ->
+                                if (id == startId) return@mapNotNull null
+                                val t = byId[id] ?: return@mapNotNull null
+                                val slot = t.gridSlot ?: return@mapNotNull null
+                                TilePlacement(id, t.size, GridPacker.decodeSlotCol(slot), GridPacker.decodeSlotRow(slot))
+                            }
+                            onStickyPreview(
+                                GridPacker.stickyPlacement(anchored, startId, tileSize, cell.x, cell.y, columns),
+                            )
                         }
-                        onStickyPreview(
-                            GridPacker.stickyPlacement(anchored, startId, tileSize, cell.x, cell.y, columns),
-                        )
                     } else {
                         val placements = placementsNow()
                         val target = placements.firstOrNull {
