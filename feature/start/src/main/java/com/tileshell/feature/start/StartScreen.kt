@@ -163,6 +163,7 @@ import com.tileshell.core.data.AppIconCache
 import com.tileshell.core.data.AppLauncher
 import com.tileshell.core.data.CachedScreenshotPrefs
 import com.tileshell.core.data.CalendarSystemTile
+import com.tileshell.core.data.calendarSystemFor
 import com.tileshell.core.data.CommodityTile
 import com.tileshell.core.data.ContactTile
 import com.tileshell.core.data.CountdownTile
@@ -1190,17 +1191,49 @@ fun StartScreen(
                                         viewModel.openCommodityEditor(tile.id)
                                     }
                                 } else if (tile.packageName.isBlank() && tile.iconKey == "calsys") {
-                                    // No external page for a calendar system — tapping
-                                    // always (re)opens the picker, whether or not one's
-                                    // already picked, so the choice can be changed later.
-                                    viewModel.openCalendarSystemEditor(tile.id)
+                                    // Same "open the real page, or the picker if
+                                    // nothing's picked yet" pattern as stock/
+                                    // commodity/sports above (user-requested: this
+                                    // tile used to always reopen the picker even
+                                    // once a system was already chosen) — a web
+                                    // search for that system's calendar, matching
+                                    // the home-screen widget's own tap behaviour
+                                    // (see calendarSystemAppPendingIntent).
+                                    val systemId = CalendarSystemTile.decode(tile.activityName)
+                                    val displayName = systemId?.let { calendarSystemFor(it)?.displayName }
+                                    if (displayName != null) {
+                                        runCatching {
+                                            val url = "https://www.google.com/search?q=" +
+                                                Uri.encode("$displayName calendar today")
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                        }
+                                    } else {
+                                        viewModel.openCalendarSystemEditor(tile.id)
+                                    }
                                 } else if (tile.packageName.isBlank() && tile.iconKey == "weather") {
-                                    // Same "always reopens the picker" pattern as
-                                    // calendar systems — a weather tile is always
-                                    // configured from the moment it's added (see the
-                                    // add-widgets flow above), so tapping it is purely
-                                    // "change the location," not "finish setup."
-                                    viewModel.openWeatherLocationEditor(tile.id)
+                                    // Same "open the real page" pattern as calendar
+                                    // systems/stock/commodity/sports above (user-
+                                    // requested: this tile used to always reopen
+                                    // the location editor instead) — a weather
+                                    // web search, matching the home-screen
+                                    // widget's own tap behaviour (see
+                                    // weatherAppPendingIntent).
+                                    val query = when (val location = WeatherTile.decode(tile.activityName)) {
+                                        is WeatherTile.Location.Fixed -> "weather in ${location.name}".trim()
+                                        // A blank/un-encoded activityName (a tile
+                                        // seeded before the location-picker flow
+                                        // existed) still means "follow the
+                                        // device's location" via the same
+                                        // fallback resolveWeatherQuery already
+                                        // uses — not "still needs setup" — so
+                                        // there's no case left where tapping
+                                        // should reopen the picker instead.
+                                        WeatherTile.Location.Current, null -> "weather"
+                                    }
+                                    runCatching {
+                                        val url = "https://www.google.com/search?q=" + Uri.encode(query)
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                    }
                                 } else {
                                     onTileClick(context, tile)
                                 }
@@ -2114,6 +2147,9 @@ private const val FOLDER_CHILD_ID_PREFIX = "folderchild:"
 private const val BORDERLESS_CORNER_RADIUS_DP = 20f
 private const val BORDERLESS_TILE_GAP_DP = 12f
 
+/** Fraction of the available travel a reachability pull settles at once held. */
+private const val REACHABILITY_HELD_FRACTION = 0.7f
+
 private fun folderChildTileId(folderId: String, rowId: Long): String =
     "$FOLDER_CHILD_ID_PREFIX$folderId:$rowId"
 
@@ -2598,6 +2634,45 @@ private fun StartPage(
         }
     }
 
+    // "Reachability": dragging down from empty space on this tab slides its
+    // own already-rendered tiles down toward the thumb — a pure paint
+    // transform (graphicsLayer on the active block's own Column below), not
+    // a reflow or a persisted change. Ephemeral + local, like
+    // [sectionDropdownExpanded]. [reachabilityOffsetPx] is the plain,
+    // synchronously-updated value the gesture (running inside a restricted
+    // `awaitPointerEventScope`, which can't call arbitrary suspend
+    // functions like `Animatable.snapTo`) sets directly on every drag tick;
+    // [reachabilityAnim] only drives the one-shot settle/collapse
+    // animation, off the restricted scope entirely (see [settleReachability]).
+    var reachabilityOffsetPx by remember { mutableStateOf(0f) }
+    var reachabilityHeld by remember { mutableStateOf(false) }
+    val reachabilityAnim = remember { Animatable(0f) }
+    val reachabilityScope = rememberCoroutineScope()
+    val reachabilityActive = !editMode && expandedFolderId == null && sectionsEnabled && blocks.size >= 2
+    fun settleReachability(target: Float) {
+        reachabilityScope.launch {
+            reachabilityAnim.snapTo(reachabilityOffsetPx)
+            reachabilityAnim.animateTo(target, tween(220)) { reachabilityOffsetPx = value }
+        }
+    }
+    LaunchedEffect(activeTabSectionId, editMode) {
+        reachabilityHeld = false
+        reachabilityAnim.stop()
+        reachabilityOffsetPx = 0f
+    }
+    // How far the tiles may travel: exactly the real empty space below the
+    // active tab's own rendered content, capped at a sane max — this both
+    // keeps a tile from ever being dragged past the bottom of the screen and
+    // makes the gesture a natural no-op on an already-full tab, with no
+    // extra feature-gating needed for that case.
+    val maxReachabilityOffsetPx = remember(visibleBlockRenders, viewportHeightPx) {
+        val active = visibleBlockRenders.firstOrNull()
+        val contentBottomPx = active?.let {
+            it.gridTopOffsetPx + resizeGeom.totalHeight(GridPacker.rowCount(it.placements))
+        } ?: 0f
+        (viewportHeightPx - contentBottomPx).coerceIn(0f, with(density) { 260.dp.toPx() })
+    }
+
     // Resolves a synthetic child id back to its folder id + real FolderChild,
     // for routing unpin/resize/colour to the folder-child ViewModel calls
     // instead of the top-level ones. Null for a real top-level tile id.
@@ -2679,6 +2754,19 @@ private fun StartPage(
                 contentTopPx = if (hideStatusBar) 0f else statusBarTopPx,
                 scrollOffsetPx = { scrollState.value.toFloat() },
                 onEnterEdit = { onEnterEdit(null) },
+                reachabilityActive = reachabilityActive,
+                reachabilityHeld = reachabilityHeld,
+                reachabilityOffsetPx = reachabilityOffsetPx,
+                maxReachabilityOffsetPx = maxReachabilityOffsetPx,
+                onReachabilityDrag = { px -> reachabilityOffsetPx = px },
+                onReachabilitySettle = { hold ->
+                    reachabilityHeld = hold
+                    settleReachability(if (hold) maxReachabilityOffsetPx * REACHABILITY_HELD_FRACTION else 0f)
+                },
+                onReachabilityCollapse = {
+                    reachabilityHeld = false
+                    settleReachability(0f)
+                },
             ),
     ) {
         Column(
@@ -2768,7 +2856,17 @@ private fun StartPage(
             // this one apart from — no tinted panel wrapper needed here (an
             // earlier continuous-scroll display mode used one; dropped along
             // with that mode).
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // Reachability shift (see [reachabilityOffset] above) —
+                    // a paint-only translation, so this block's own layout
+                    // size/position in the outer scrolling Column is
+                    // unaffected; only where it's drawn (and, since Compose
+                    // hit-testing accounts for graphicsLayer, where its
+                    // tiles' own taps land) moves.
+                    .graphicsLayer { translationY = reachabilityOffsetPx },
+            ) {
             if (block.sectionId != null) {
                 SectionHeader(
                     label = block.label ?: "",
@@ -3035,7 +3133,18 @@ private fun StartPage(
                     // they're hidden there (drag-drop to any free cell replaces them).
                     val canMoveBack = !sticky && blockIds.indexOf(model.id) > 0
                     val canMoveForward = !sticky && blockIds.indexOf(model.id) in 0 until blockIds.size - 1
-                    val onTapAction = { if (!editMode) onTile(model) }
+                    val onTapAction = {
+                        if (!editMode) {
+                            // Tapping any tile while reachability is holding
+                            // performs the tap normally *and* springs the
+                            // shift back — the tap itself is what dismisses it.
+                            if (reachabilityHeld) {
+                                reachabilityHeld = false
+                                settleReachability(0f)
+                            }
+                            onTile(model)
+                        }
+                    }
                     val onLongPressAction = { if (!editMode) onEnterEdit(model.id) }
                     val onSelectAction = { onSelectTile(model.id) }
                     val onUnpinAction = {
@@ -5145,28 +5254,109 @@ private fun Modifier.emptySpaceEnterEdit(
     contentTopPx: Float,
     scrollOffsetPx: () -> Float,
     onEnterEdit: () -> Unit,
-): Modifier = pointerInput(active, absoluteTileRects) {
+    // "Reachability" (see [StartPage]'s `reachabilityOffset`): a downward
+    // drag from empty space, on the same touch this function already owns,
+    // slides the active tab's own tiles down toward the thumb. Kept as one
+    // recognizer rather than a second sibling pointerInput — two independent
+    // `awaitFirstDown`s on the same region would race each other for the
+    // same raw stream with no consumption to arbitrate between them. All
+    // default to inert values, so with the gate off this function's
+    // behaviour is unchanged from before reachability existed.
+    reachabilityActive: Boolean = false,
+    reachabilityHeld: Boolean = false,
+    reachabilityOffsetPx: Float = 0f,
+    maxReachabilityOffsetPx: Float = 0f,
+    // Plain (non-suspend) callbacks: `awaitPointerEventScope` is a
+    // restricted suspension scope that can't call arbitrary suspend
+    // functions (e.g. `Animatable.animateTo`) directly — the call site
+    // does any animating itself, off this restricted scope.
+    onReachabilityDrag: ((Float) -> Unit)? = null,
+    // true = settle held at the target offset; false = snap back to 0.
+    onReachabilitySettle: ((Boolean) -> Unit)? = null,
+    // A plain tap on empty space while already held.
+    onReachabilityCollapse: (() -> Unit)? = null,
+): Modifier = pointerInput(active, absoluteTileRects, reachabilityActive, reachabilityHeld) {
     if (!active) return@pointerInput
     val slop = 7.dp.toPx()
+    val commitPx = 40.dp.toPx()
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
-        val contentPos = down.position.copy(y = down.position.y - contentTopPx + scrollOffsetPx())
-        if (absoluteTileRects.any { it.second.contains(contentPos) }) return@awaitEachGesture
-        val outcome = withTimeoutOrNull(600L) {
+        val contentPos = down.position.copy(
+            y = down.position.y - contentTopPx + scrollOffsetPx() - reachabilityOffsetPx,
+        )
+        val onTile = absoluteTileRects.any { it.second.contains(contentPos) }
+
+        if (reachabilityHeld) {
+            // Only a plain tap on empty space (not a tile — its own
+            // [tileGesture] already handles that, including its own
+            // spring-back) collapses the shift; anything else is left
+            // alone rather than fought over.
+            if (onTile) return@awaitEachGesture
+            var moved = false
+            while (true) {
+                val event = awaitPointerEvent()
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                if (change.isConsumed) return@awaitEachGesture
+                if ((change.position - down.position).getDistance() > slop) moved = true
+                if (!change.pressed) {
+                    if (!moved) onReachabilityCollapse?.invoke()
+                    break
+                }
+            }
+            return@awaitEachGesture
+        }
+
+        if (onTile) return@awaitEachGesture
+
+        // Phase 1: race "held still 600ms" -> enter edit, against "moved
+        // past slop" -> fall through to phase 2 instead of doing nothing.
+        val movedPastSlop = withTimeoutOrNull(600L) {
             while (true) {
                 val event = awaitPointerEvent()
                 val change = event.changes.firstOrNull { it.id == down.id }
                 if (change != null && change.isConsumed) return@withTimeoutOrNull false
-                if (change == null || !change.pressed) return@withTimeoutOrNull true
+                if (change == null || !change.pressed) return@withTimeoutOrNull false
                 if ((change.position - down.position).getDistance() > slop) {
-                    return@withTimeoutOrNull false
+                    return@withTimeoutOrNull true
                 }
             }
             @Suppress("UNREACHABLE_CODE") false
         }
-        if (outcome == null) {
-            onEnterEdit()
-            waitForUpOrCancellation()
+        when (movedPastSlop) {
+            null -> {
+                onEnterEdit()
+                waitForUpOrCancellation()
+                return@awaitEachGesture
+            }
+            false -> return@awaitEachGesture // released early, or consumed elsewhere
+            true -> Unit // fall through to phase 2
+        }
+
+        // Phase 2: the drag broke slop before the long-press could fire. If
+        // it's cleanly downward and reachability is active, give it
+        // unbounded time (no 600ms cap — a slow swipe is still a swipe) to
+        // live-track as a reachability pull instead of being treated as an
+        // ordinary/irrelevant drag.
+        if (!reachabilityActive || onReachabilityDrag == null) return@awaitEachGesture
+        while (true) {
+            val event = awaitPointerEvent()
+            val change = event.changes.firstOrNull { it.id == down.id }
+            if (change == null || change.isConsumed) {
+                onReachabilitySettle?.invoke(false)
+                return@awaitEachGesture
+            }
+            val delta = change.position - down.position
+            val downwardTrending = delta.y > 0f && delta.y > kotlin.math.abs(delta.x) * 1.2f
+            if (!downwardTrending) {
+                onReachabilitySettle?.invoke(false)
+                return@awaitEachGesture
+            }
+            val clamped = delta.y.coerceIn(0f, maxReachabilityOffsetPx)
+            onReachabilityDrag.invoke(clamped)
+            if (!change.pressed) {
+                onReachabilitySettle?.invoke(clamped > commitPx)
+                return@awaitEachGesture
+            }
         }
     }
 }
