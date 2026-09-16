@@ -377,7 +377,7 @@ private fun PanchangFace(
                     // ayana word itself renders in Devanagari even here
                     // (user-requested) — a clock time and the sun glyphs
                     // above need no script of their own.
-                    val detailFontSize = if (narrow) 10.sp else if (big) 12.sp else 11.sp
+                    val detailFontSize = if (narrow) 11.sp else if (big) 13.sp else 12.sp
                     val detailIconSize = if (narrow) 11.dp else if (big) 13.dp else 12.dp
                     if (sunTimes != null) {
                         Row(
@@ -420,7 +420,7 @@ private fun PanchangFace(
                     Text(
                         text = PanchangDevanagari.ayana(panchang.ayana),
                         color = FaceText.copy(alpha = 0.6f),
-                        fontSize = if (narrow) 9.sp else if (big) 12.sp else 11.sp,
+                        fontSize = if (narrow) 10.sp else if (big) 13.sp else 12.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
