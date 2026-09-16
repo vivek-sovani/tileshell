@@ -120,6 +120,10 @@
                 android:ellipsize="end"
                 android:textColor="#FFFFFFFF" />
 
+            <!-- Back face: no tithi text, no day-name line — sunrise/sunset
+                 + ayana instead, one below another (user-requested), all in
+                 Devanagari. widget_back_paksha/widget_back_nakshatra are no
+                 longer used on this face (set GONE at runtime). -->
             <TextView
                 android:id="@+id/widget_back_paksha"
                 android:layout_width="match_parent"
@@ -137,6 +141,36 @@
                 android:layout_marginTop="3dp"
                 android:textSize="13sp"
                 android:maxLines="2"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+
+            <TextView
+                android:id="@+id/widget_back_sunrise"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:textSize="13sp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+
+            <TextView
+                android:id="@+id/widget_back_sunset"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:textSize="13sp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+
+            <TextView
+                android:id="@+id/widget_back_ayana"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:textSize="12sp"
+                android:maxLines="1"
                 android:ellipsize="end"
                 android:textColor="#FFFFFFFF" />
 

@@ -246,6 +246,27 @@ internal fun formatClockTime12(epochMillis: Long): String {
     return "$hour12:${minute.toString().padStart(2, '0')} $suffix"
 }
 
+private val DEVANAGARI_DIGITS = charArrayOf('०', '१', '२', '३', '४', '५', '६', '७', '८', '९')
+
+/** Maps each ASCII digit in [s] to its Devanagari numeral; anything else passes through. */
+private fun toDevanagariDigits(s: String): String = s.map { c ->
+    if (c in '0'..'9') DEVANAGARI_DIGITS[c - '0'] else c
+}.joinToString("")
+
+/**
+ * "६:२३ पूर्वाह्न"-style 12-hour clock in Devanagari numerals + the
+ * traditional Sanskrit forenoon/afternoon words — for the Panchang back
+ * face, which is Devanagari-only (user-requested).
+ */
+internal fun formatClockTime12Devanagari(epochMillis: Long): String {
+    val cal = java.util.Calendar.getInstance().apply { timeInMillis = epochMillis }
+    val hour24 = cal.get(java.util.Calendar.HOUR_OF_DAY)
+    val minute = cal.get(java.util.Calendar.MINUTE)
+    val hour12 = (hour24 % 12).let { if (it == 0) 12 else it }
+    val suffix = if (hour24 < 12) "पूर्वाह्न" else "अपराह्न"
+    return "${toDevanagariDigits(hour12.toString())}:${toDevanagariDigits(minute.toString().padStart(2, '0'))} $suffix"
+}
+
 /**
  * The Hindu Panchang face — a typographic hierarchy (mirrors [ClockFront]'s
  * big-time/weekday/date grouping) instead of one flat block of text, per
@@ -370,7 +391,7 @@ private fun PanchangFace(
                                 modifier = Modifier.size(detailIconSize),
                             )
                             Text(
-                                text = formatClockTime12(sunTimes.sunriseMillis),
+                                text = formatClockTime12Devanagari(sunTimes.sunriseMillis),
                                 color = FaceText.copy(alpha = 0.75f),
                                 fontSize = detailFontSize,
                                 maxLines = 1,
@@ -388,7 +409,7 @@ private fun PanchangFace(
                                 modifier = Modifier.size(detailIconSize),
                             )
                             Text(
-                                text = formatClockTime12(sunTimes.sunsetMillis),
+                                text = formatClockTime12Devanagari(sunTimes.sunsetMillis),
                                 color = FaceText.copy(alpha = 0.75f),
                                 fontSize = detailFontSize,
                                 maxLines = 1,
