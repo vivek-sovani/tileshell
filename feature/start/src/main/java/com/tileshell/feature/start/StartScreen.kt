@@ -53,6 +53,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -1620,6 +1621,7 @@ fun StartScreen(
             onTransparencyChange = viewModel::setTransparency,
             onBlurChange = viewModel::setBlur,
             onWallpaperChange = { id -> pendingWallpaperPick = PendingWallpaperPick.Gradient(id) },
+            onSelectStockWallpaperType = { viewModel.setWallpaper(Wallpapers.all.first().id) },
             onPickCustomWallpaper = {
                 wallpaperPicker.launch(
                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
@@ -2150,6 +2152,11 @@ fun StartScreen(
                 onDismissRequest = { pendingWallpaperPick = null },
                 title = null,
                 text = {
+                    // All 4 actions live here, in one tightly-packed Column —
+                    // Material3's own title/button-row slots each carry a lot
+                    // of default padding meant for a title + prose + a couple
+                    // of side-by-side buttons, which read as oversized for a
+                    // plain list of 4 equal choices.
                     Column {
                         listOf(
                             "home screen" to WallpaperSyncTarget.HOME,
@@ -2158,15 +2165,18 @@ fun StartScreen(
                         ).forEach { (label, target) ->
                             TextButton(
                                 onClick = { applyTo(target) },
+                                contentPadding = PaddingValues(vertical = 10.dp, horizontal = 8.dp),
                                 modifier = Modifier.fillMaxWidth(),
-                            ) { Text(label) }
+                            ) { Text(label, modifier = Modifier.fillMaxWidth()) }
                         }
+                        TextButton(
+                            onClick = { pendingWallpaperPick = null },
+                            contentPadding = PaddingValues(vertical = 10.dp, horizontal = 8.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("cancel", modifier = Modifier.fillMaxWidth()) }
                     }
                 },
                 confirmButton = {},
-                dismissButton = {
-                    TextButton(onClick = { pendingWallpaperPick = null }) { Text("cancel") }
-                },
             )
         }
     }

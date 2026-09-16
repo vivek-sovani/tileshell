@@ -185,6 +185,11 @@ fun PersonalizeSheet(
     onTransparencyChange: (Float) -> Unit,
     onBlurChange: (Boolean) -> Unit,
     onWallpaperChange: (id: String) -> Unit,
+    // Switching to the "stock" type tab defaults to the first gradient just
+    // so the section isn't blank — a plain apply, never the "which real
+    // screen(s) should this go to" chooser [onWallpaperChange] triggers,
+    // since the user hasn't deliberately picked a specific wallpaper yet.
+    onSelectStockWallpaperType: () -> Unit,
     onPickCustomWallpaper: () -> Unit,
     onClearWallpaper: () -> Unit,
     onResetTileStyle: () -> Unit,
@@ -583,7 +588,7 @@ fun PersonalizeSheet(
                         WallpaperType.PHOTO -> onPickCustomWallpaper()
                         WallpaperType.SLIDESHOW -> onWallpaperSlideshowChange(true)
                         WallpaperType.BING -> onBingWallpaperChange(true)
-                        WallpaperType.STOCK -> onWallpaperChange(Wallpapers.all.first().id)
+                        WallpaperType.STOCK -> onSelectStockWallpaperType()
                     }
                 }
 
