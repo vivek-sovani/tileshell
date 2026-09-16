@@ -73,7 +73,6 @@ import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
-import com.tileshell.core.data.settings.SectionDisplayMode
 import com.tileshell.core.data.settings.SectionPillAlignment
 import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.design.SheetStage
@@ -217,8 +216,6 @@ fun PersonalizeSheet(
     /** User confirmed "turn sections off" while sections exist: merges
      *  every section into "main" and disables the feature together. */
     onDisableSectionsConfirmed: () -> Unit,
-    sectionDisplayMode: SectionDisplayMode,
-    onSectionDisplayModeChange: (SectionDisplayMode) -> Unit,
     sectionPillAlignment: SectionPillAlignment,
     onSectionPillAlignmentChange: (SectionPillAlignment) -> Unit,
     homeStyle: HomeStyle,
@@ -1106,7 +1103,7 @@ fun PersonalizeSheet(
             }
 
             // ---- sections: master on/off (exclusive, opt-in feature, user-requested)
-            // + display mode (scroll all vs. tabbed one-at-a-time) + pill placement ----
+            // + dropdown placement (sections always fill the screen one at a time) ----
             SettingGroup(label = "sections", tokens.fgDim) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     ToggleRow(
@@ -1133,44 +1130,13 @@ fun PersonalizeSheet(
                     if (sectionsEnabled) {
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            "how a section's tiles are browsed",
+                            "only one section fills the screen at a time — tap the section menu at the bottom to switch",
                             color = tokens.fgDim,
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                         )
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(1.dp, tokens.tileLine),
-                        ) {
-                            SegCell(
-                                "scroll",
-                                selected = sectionDisplayMode == SectionDisplayMode.SCROLL,
-                                accent = accent,
-                                fg = tokens.fg,
-                            ) { onSectionDisplayModeChange(SectionDisplayMode.SCROLL) }
-                            SegCell(
-                                "tabbed",
-                                selected = sectionDisplayMode == SectionDisplayMode.TABBED,
-                                accent = accent,
-                                fg = tokens.fg,
-                            ) { onSectionDisplayModeChange(SectionDisplayMode.TABBED) }
-                        }
-                        if (sectionDisplayMode == SectionDisplayMode.TABBED) {
-                            Text(
-                                "only one section fills the screen at a time — tap a pill to switch",
-                                color = tokens.fgDim,
-                                fontSize = 12.sp,
-                            )
-                        } else {
-                            Text(
-                                "every section stays in one continuous scroll — tap a pill to jump to it",
-                                color = tokens.fgDim,
-                                fontSize = 12.sp,
-                            )
-                        }
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            "section pills placement",
+                            "section menu placement",
                             color = tokens.fgDim,
                             fontSize = 13.sp,
                         )

@@ -361,12 +361,7 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(sectionsEnabled = enabled) }
     }
 
-    /** Switch how Start's sections are browsed — one continuous scroll, or tabbed one-at-a-time. */
-    suspend fun setSectionDisplayMode(mode: SectionDisplayMode) {
-        store.updateData { it.copy(sectionDisplayMode = mode) }
-    }
-
-    /** Where the section jump-pill bar sits (left/center/right), for thumb reach. */
+    /** Where the section dropdown sits (left/center/right), for thumb reach. */
     suspend fun setSectionPillAlignment(alignment: SectionPillAlignment) {
         store.updateData { it.copy(sectionPillAlignment = alignment) }
     }

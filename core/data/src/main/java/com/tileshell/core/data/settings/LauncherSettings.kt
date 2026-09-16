@@ -69,22 +69,13 @@ val TilePackMode.isAnchored: Boolean get() = this != TilePackMode.DENSE
 enum class TileColorSource { GLOBAL_ACCENT, APP_ICON, WALLPAPER_ACCENT }
 
 /**
- * How Start's sections are browsed (Personalize's "section display"):
- * [SCROLL] (default) keeps every section in the one continuous vertical
- * scroll, exactly as originally shipped — the section jump-pill bar just
- * animates the scroll to a tapped section. [TABBED] shows only one
- * section's tiles at a time, filling the screen; the same pill bar instead
- * switches which one is shown. Both reuse the identical per-block
- * `DenseTileGrid`/`editDragGesture` scoping either way — this only changes
- * which blocks `StartScreen` composes and how a pill tap behaves.
- */
-enum class SectionDisplayMode { SCROLL, TABBED }
-
-/**
- * Horizontal placement of the section jump-pill bar/toggle handle at the
- * bottom of Start (user-requested, for easier one-handed thumb reach):
- * [START] hugs the bottom-left corner, [CENTER] (the original placement)
- * stays centered, [END] hugs the bottom-right corner.
+ * Horizontal placement of the section dropdown at the bottom of Start
+ * (user-requested, for easier one-handed thumb reach): [START] hugs the
+ * bottom-left corner, [CENTER] (the original placement) stays centered,
+ * [END] hugs the bottom-right corner. Sections always fill the screen one
+ * at a time ("tabbed" browsing) — a separate continuous-scroll display mode
+ * existed earlier in this feature's history and was dropped once the section
+ * dropdown gave every mode the same "jump to any section" nav for free.
  */
 enum class SectionPillAlignment { START, CENTER, END }
 
@@ -307,9 +298,7 @@ data class LauncherSettings(
      * just stops *new* ones from being created while off.
      */
     val sectionsEnabled: Boolean = false,
-    /** How Start's sections are browsed — see [SectionDisplayMode]. */
-    val sectionDisplayMode: SectionDisplayMode = SectionDisplayMode.SCROLL,
-    /** Where the section jump-pill bar sits — see [SectionPillAlignment]. */
+    /** Where the section dropdown sits — see [SectionPillAlignment]. */
     val sectionPillAlignment: SectionPillAlignment = SectionPillAlignment.START,
 ) {
     companion object {
@@ -382,7 +371,6 @@ object SettingsCodec {
         append("commodityRefreshRate=").append(settings.commodityRefreshRate.name).append('\n')
         append("sportsRefreshRate=").append(settings.sportsRefreshRate.name).append('\n')
         append("sectionsEnabled=").append(settings.sectionsEnabled).append('\n')
-        append("sectionDisplayMode=").append(settings.sectionDisplayMode.name).append('\n')
         append("sectionPillAlignment=").append(settings.sectionPillAlignment.name)
     }
 
@@ -436,7 +424,6 @@ object SettingsCodec {
         var commodityRefreshRate = d.commodityRefreshRate
         var sportsRefreshRate = d.sportsRefreshRate
         var sectionsEnabled = d.sectionsEnabled
-        var sectionDisplayMode = d.sectionDisplayMode
         var sectionPillAlignment = d.sectionPillAlignment
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
@@ -510,8 +497,6 @@ object SettingsCodec {
                 "sportsRefreshRate" ->
                     LiveRefreshRate.entries.find { it.name == value }?.let { sportsRefreshRate = it }
                 "sectionsEnabled" -> sectionsEnabled = value.toBooleanStrictOrNull() ?: sectionsEnabled
-                "sectionDisplayMode" ->
-                    SectionDisplayMode.entries.find { it.name == value }?.let { sectionDisplayMode = it }
                 "sectionPillAlignment" ->
                     SectionPillAlignment.entries.find { it.name == value }?.let { sectionPillAlignment = it }
             }
@@ -565,7 +550,6 @@ object SettingsCodec {
             commodityRefreshRate = commodityRefreshRate,
             sportsRefreshRate = sportsRefreshRate,
             sectionsEnabled = sectionsEnabled,
-            sectionDisplayMode = sectionDisplayMode,
             sectionPillAlignment = sectionPillAlignment,
         )
     }

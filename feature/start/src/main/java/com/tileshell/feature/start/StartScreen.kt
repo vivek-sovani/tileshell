@@ -69,6 +69,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -180,7 +181,6 @@ import com.tileshell.core.data.settings.FontStyle
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.data.settings.LiveRefreshRate
-import com.tileshell.core.data.settings.SectionDisplayMode
 import com.tileshell.core.data.settings.SectionPillAlignment
 import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
@@ -1274,7 +1274,6 @@ fun StartScreen(
                     onMoveSection = viewModel::moveSection,
                     onAssignTileSection = viewModel::setTileSection,
                     sectionsEnabled = settings.sectionsEnabled,
-                    sectionDisplayMode = settings.sectionDisplayMode,
                     sectionPillAlignment = settings.sectionPillAlignment,
                     onAdd = {
                         viewModel.exitEdit()
@@ -1614,8 +1613,6 @@ fun StartScreen(
             onSectionsEnabledChange = viewModel::setSectionsEnabled,
             hasSections = sections.isNotEmpty(),
             onDisableSectionsConfirmed = viewModel::disableSectionsAndMerge,
-            sectionDisplayMode = settings.sectionDisplayMode,
-            onSectionDisplayModeChange = viewModel::setSectionDisplayMode,
             sectionPillAlignment = settings.sectionPillAlignment,
             onSectionPillAlignmentChange = viewModel::setSectionPillAlignment,
             homeStyle = settings.homeStyle,
@@ -2302,7 +2299,6 @@ private fun StartPage(
     onMoveSection: (id: String, direction: Int) -> Unit = { _, _ -> },
     onAssignTileSection: (tileId: String, sectionId: String?) -> Unit = { _, _ -> },
     sectionsEnabled: Boolean = false,
-    sectionDisplayMode: SectionDisplayMode = SectionDisplayMode.SCROLL,
     sectionPillAlignment: SectionPillAlignment = SectionPillAlignment.START,
     onAdd: () -> Unit,
     onPersonalize: () -> Unit,
@@ -2314,26 +2310,20 @@ private fun StartPage(
     // signs so the grid shimmers like WP edit mode.
     val jigglePhase = rememberJigglePhase(editMode)
     val density = LocalDensity.current
-    // For the section jump-pill bar's tap-to-scroll (see SectionPillBar below).
-    val sectionNavScope = rememberCoroutineScope()
-    // The pill bar itself is hidden by default in scroll mode — revealed by
-    // its own toggle handle at the bottom of the screen, per user request,
-    // rather than always taking up bottom screen space. Tabbed mode instead
-    // defaults to showing every pill (user-requested), since it's the only
-    // way to switch sections there — the toggle handle still works to hide
-    // it afterward if wanted, this just resets it open every time the
-    // display mode switches to tabbed.
-    var sectionNavOpen by remember { mutableStateOf(false) }
-    LaunchedEffect(sectionDisplayMode) {
-        if (sectionDisplayMode == SectionDisplayMode.TABBED) sectionNavOpen = true
-    }
-    // In TABBED mode, which block is currently shown full-screen. `""` is a
-    // dedicated "nothing picked yet" sentinel distinct from `null` (which is
-    // itself a real, meaningful choice here — the "unsectioned" block's own
+    // The section nav is a compact single collapsed pill (current section +
+    // its badge + a chevron) rather than every pill shown at once — tapping
+    // it expands a list of every section to jump/switch to. Whether that
+    // list is currently expanded.
+    var sectionDropdownExpanded by remember { mutableStateOf(false) }
+    // Sections render one block full-screen at a time ("tabbed" — the only
+    // display mode now; a separate continuous-scroll mode existed earlier in
+    // this feature's history and was dropped in favor of this dropdown-based
+    // nav). This is which block is currently shown. `""` is a dedicated
+    // "nothing picked yet" sentinel distinct from `null` (which is itself a
+    // real, meaningful choice here — the "unsectioned"/"main" block's own
     // id) — resolved to an actual block below, so a deleted/renamed section
     // never leaves this pointing at nothing. Ephemeral (not persisted):
-    // switching sectionDisplayMode or restarting the app starts back at the
-    // first block.
+    // restarting the app starts back at the first block.
     var selectedSectionTab by remember { mutableStateOf<String?>("") }
 
     // Working order driving the grid. Mirrors the persisted order except during
@@ -2508,12 +2498,11 @@ private fun StartPage(
         }
     }
 
-    // TABBED mode shows exactly one block full-screen at a time; resolved
-    // fresh every recomposition (never trusts a stale [selectedSectionTab]
-    // pointing at a section that no longer exists — falls back to the first
-    // block instead, e.g. right after that section is deleted).
+    // Exactly one block fills the screen at a time; resolved fresh every
+    // recomposition (never trusts a stale [selectedSectionTab] pointing at a
+    // section that no longer exists — falls back to the first block instead,
+    // e.g. right after that section is deleted).
     val activeTabSectionId: String? = when {
-        sectionDisplayMode != SectionDisplayMode.TABBED -> null
         selectedSectionTab == "" -> blocks.firstOrNull()?.sectionId
         blocks.any { it.sectionId == selectedSectionTab } -> selectedSectionTab
         else -> blocks.firstOrNull()?.sectionId
@@ -2551,11 +2540,11 @@ private fun StartPage(
             val showsHeader = block.sectionId != null || sectionsEnabled
             val gridTopOffsetPx = topOffsetPx + if (showsHeader) headerHeightPx else 0f
             val specs = block.ids.mapNotNull { id -> byId[id]?.let { TileSpec(id, it.size) } }
-            // TABBED mode's active tab always renders its tiles regardless of
-            // its own persisted collapsed flag — selecting a tab IS the "open
-            // it" gesture in that mode, so a section collapsed back in SCROLL
-            // mode still shows its content once it's the selected tab.
-            val forcedOpen = sectionDisplayMode == SectionDisplayMode.TABBED && block.sectionId == activeTabSectionId
+            // The active tab always renders its tiles regardless of its own
+            // persisted collapsed flag — selecting a tab IS the "open it"
+            // gesture (any earlier collapse is moot once it's the one
+            // selected).
+            val forcedOpen = block.sectionId == activeTabSectionId
             val placements = if (!block.collapsed || forcedOpen) {
                 val base = slotOf?.let { GridPacker.packSticky(specs, it, columns) } ?: GridPacker.pack(specs, columns)
                 expandTransform?.invoke(base) ?: base
@@ -2567,22 +2556,19 @@ private fun StartPage(
             BlockRender(block, specs, placements, topOffsetPx, gridTopOffsetPx)
         }
     }
-    // In TABBED mode, only the active tab's own block is actually composed
-    // below, rebased to start at the very top of the content (topOffsetPx=0)
-    // instead of wherever it would sit within the full SCROLL-mode stack —
-    // it's the only block on screen, so nothing else pushes it down. Its
-    // own specs/placements are untouched (already purely local to the
-    // block), only the two absolute-position fields are rebased.
-    val visibleBlockRenders = if (sectionDisplayMode == SectionDisplayMode.TABBED) {
+    // Only the active tab's own block is actually composed below, rebased to
+    // start at the very top of the content (topOffsetPx=0) — it's the only
+    // block on screen, so nothing else pushes it down. Its own specs/
+    // placements are untouched (already purely local to the block), only the
+    // two absolute-position fields are rebased.
+    val visibleBlockRenders = run {
         val active = blockRenders.firstOrNull { it.block.sectionId == activeTabSectionId }
         if (active != null) {
-            val rebasedGridTopPx = if (active.block.sectionId != null) headerHeightPx else 0f
+            val rebasedGridTopPx = if (active.block.sectionId != null || sectionsEnabled) headerHeightPx else 0f
             listOf(active.copy(topOffsetPx = 0f, gridTopOffsetPx = rebasedGridTopPx))
         } else {
             emptyList()
         }
-    } else {
-        blockRenders
     }
     // One flat list of every visible tile's absolute (block-offset) rect, for
     // the two empty-space gestures — a plain pack per block would put a
@@ -2763,26 +2749,12 @@ private fun StartPage(
             // so it reads as its own boxed region (user-requested "show
             // visually various ways sections can be shown"); the trailing
             // unsectioned block never does, staying exactly as it rendered
-            // before this. No border/stroke is drawn — a hard line sitting
-            // flush against a tile's own edge (tiles already touch the
-            // screen's own left/right edges) is what read as "crowded"/"bad
-            // design" (user-reported), so the tint alone marks the region.
-            // This Column adds no padding/spacing of its own around its
-            // children (a bare wrapper, not a card inset), so it changes
-            // nothing about blockRenders' own topOffsetPx/gridTopOffsetPx
-            // bookkeeping or any drag/hit-test math below — purely a paint
-            // change.
-            // Skipped in TABBED mode — only one section is ever on screen
-            // there, so there's nothing else to visually distinguish it from.
-            val sectionPanelModifier = if (block.sectionId != null && sectionDisplayMode == SectionDisplayMode.SCROLL) {
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Glass.sectionPanelFill(darkTheme, wallpaperAccent ?: accent))
-            } else {
-                Modifier.fillMaxWidth()
-            }
-            Column(modifier = sectionPanelModifier) {
+            // Only the active tab's block is ever in [visibleBlockRenders],
+            // so there's never a second section on screen to visually set
+            // this one apart from — no tinted panel wrapper needed here (an
+            // earlier continuous-scroll display mode used one; dropped along
+            // with that mode).
+            Column(modifier = Modifier.fillMaxWidth()) {
             if (block.sectionId != null) {
                 SectionHeader(
                     label = block.label ?: "",
@@ -2797,7 +2769,11 @@ private fun StartPage(
                     onMoveDown = { onMoveSection(block.sectionId, 1) },
                     onRename = { newLabel -> onRenameSection(block.sectionId, newLabel) },
                     onDelete = { onDeleteSection(block.sectionId) },
-                    collapsible = !(sectionDisplayMode == SectionDisplayMode.TABBED && block.sectionId == activeTabSectionId),
+                    // The block shown here is always the active tab (see
+                    // [visibleBlockRenders]), so its chevron never applies —
+                    // it can't be collapsed away while it's the only thing
+                    // on screen.
+                    collapsible = false,
                 )
             } else if (sectionsEnabled) {
                 // The unsectioned block reads as "main" once sections are
@@ -2809,15 +2785,11 @@ private fun StartPage(
                 // here.
                 UnsectionedHeader(textColor = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.85f))
             }
-            // Real bug, user-reported ("contents of tab not visible", for a
-            // collapsed section that becomes the active tab): blockRenders'
-            // own placements already bypass a collapsed flag via forcedOpen,
-            // but this second, independent gate — whether the grid/gesture
-            // machinery is composed at all — didn't know about that and kept
-            // skipping it outright for any section persisted as collapsed,
-            // even while it's being force-shown as the active tab.
-            val forcedOpenForRender = sectionDisplayMode == SectionDisplayMode.TABBED && block.sectionId == activeTabSectionId
-            if (!block.collapsed || forcedOpenForRender) {
+            // The block rendered here is always the active tab (see
+            // [visibleBlockRenders]) — its tiles show regardless of its own
+            // persisted collapsed flag, the same [forcedOpen] rule
+            // [blockRenders] already applied when computing its placements.
+            run {
             key(block.sectionId ?: "__unsectioned__") {
             val blockIds = block.ids
             val blockIdSet = blockIds.toHashSet()
@@ -3236,12 +3208,18 @@ private fun StartPage(
                             wallpaperZoom = wallpaperZoom,
                             // This tile's window onto the screen-fixed wallpaper: its live
                             // on-screen top-left (grid slot minus the scroll offset, below
-                            // the status bar). Read in the draw phase, so the wallpaper
-                            // stays put while the tiles scroll over it.
+                            // the status bar). [slot] is local to this block's own grid —
+                            // real bug, user-reported ("behind the tiles option not working
+                            // well for section view"): this dropped [render.gridTopOffsetPx],
+                            // the block's own header height, so every section's tiles (any
+                            // block with a header above its grid) painted the wallpaper
+                            // window shifted up by exactly that height, visibly seaming at
+                            // the header. Read in the draw phase, so the wallpaper stays put
+                            // while the tiles scroll over it.
                             wallpaperOrigin = {
                                 Offset(
                                     slot.x.toFloat(),
-                                    statusBarTopPx + slot.y.toFloat() - scrollState.value.toFloat(),
+                                    statusBarTopPx + render.gridTopOffsetPx + slot.y.toFloat() - scrollState.value.toFloat(),
                                 )
                             },
                             fullWidth = widthPx,
@@ -3344,42 +3322,54 @@ private fun StartPage(
             }
         }
 
-        // Section jump-pill bar: one pill per block (real sections + a
-        // trailing "unsectioned"), anchored at the bottom of the screen in
-        // both this and the future tabbed-sections mode (kept out of edit
-        // mode — EditBar already owns BottomCenter there, and blockRenders'
-        // topOffsetPx assumes no "+ add section" affordance is showing).
-        // Only shown once there's more than one block to jump between — the
-        // same >= 2 gate the App List's "pin to section" picker already uses.
-        // The row itself is hidden by default, revealed by its own small
-        // toggle handle (user-requested), rather than always occupying
-        // bottom screen space. Also hidden outright while the "sections"
-        // feature itself is off in Personalize (user-requested: "section
-        // selection should also be off if section is off") — an install
-        // that has real sections from before the feature was made opt-in
-        // still renders/uses them normally, it just loses this nav aid
-        // until "enable sections" is switched back on.
+        // Section dropdown: a single compact pill showing the current
+        // section (its label + aggregate badge) that expands, on tap, into
+        // a list of every block to jump/switch to — replaces the old
+        // always-visible row of every section's own pill (user asked for an
+        // alternative to "showing all tabs in pills at bottom" — this is a
+        // restyle of the same already-built state: toggle-to-reveal,
+        // per-section badges, active-tab highlighting — not a rebuild).
+        // Kept out of edit mode — EditBar already owns BottomCenter there,
+        // and blockRenders' topOffsetPx assumes no "+ add section"
+        // affordance is showing. Only shown once there's more than one
+        // block to jump between — the same >= 2 gate the App List's "pin to
+        // section" picker already uses. Also hidden outright while the
+        // "sections" feature itself is off in Personalize (user-requested:
+        // "section selection should also be off if section is off") — an
+        // install that has real sections from before the feature was made
+        // opt-in still renders/uses them normally, it just loses this nav
+        // aid until "enable sections" is switched back on.
         if (!editMode && sectionsEnabled && blocks.size >= 2) {
             val sectionNavTextColor = Glass.faceTextColor(screenBackgroundIsLight)
             // User-configurable placement (Personalize's "section pills"),
-            // for easier one-handed thumb reach: the pill row itself hugs
-            // whichever corner is chosen, or stays centered — but the toggle
-            // handle that shows/hides it always stays centered regardless
-            // (user-requested), so it's in the same predictable spot no
-            // matter which side the pills are set to.
+            // for easier one-handed thumb reach.
             val sectionNavBoxAlignment = when (sectionPillAlignment) {
                 SectionPillAlignment.START -> Alignment.BottomStart
                 SectionPillAlignment.CENTER -> Alignment.BottomCenter
                 SectionPillAlignment.END -> Alignment.BottomEnd
             }
+            val sectionNavHorizontalAlignment = when (sectionPillAlignment) {
+                SectionPillAlignment.START -> Alignment.Start
+                SectionPillAlignment.CENTER -> Alignment.CenterHorizontally
+                SectionPillAlignment.END -> Alignment.End
+            }
             // Clears the edge strip's own handle/recents affordance when
             // it's showing (same reserved space `iconsBottomOffset` below
-            // lifts the chevron/gear icons above) — user-reported the pill
-            // bar was otherwise sitting right on top of it.
+            // lifts the chevron/gear icons above) — user-reported the old
+            // pill bar was otherwise sitting right on top of it.
             val sectionNavBottomOffset = if (edgeStripVisible) STRIP_THICK + 8.dp else 10.dp
-            val sectionNavHandleSize = 36.dp
-            AnimatedVisibility(
-                visible = sectionNavOpen,
+            val currentBlockLabel = (blocks.firstOrNull { it.sectionId == activeTabSectionId }?.label
+                ?: UNSECTIONED_LABEL).lowercase()
+            val currentBadgeCount = blockBadgeCount(activeTabSectionId)
+            fun selectSection(sectionId: String?) {
+                // Picking a section switches which block fills the screen —
+                // no collapse concept (forcedOpen already bypasses it) and
+                // no scrolling (the active block always starts at the top).
+                sectionDropdownExpanded = false
+                selectedSectionTab = sectionId
+            }
+            Column(
+                horizontalAlignment = sectionNavHorizontalAlignment,
                 modifier = Modifier
                     .align(sectionNavBoxAlignment)
                     .navigationBarsPadding()
@@ -3387,70 +3377,27 @@ private fun StartPage(
                         start = if (sectionPillAlignment == SectionPillAlignment.START) 14.dp else 0.dp,
                         end = if (sectionPillAlignment == SectionPillAlignment.END) 14.dp else 0.dp,
                     )
-                    // Sits just above the always-centered toggle handle
-                    // below, regardless of its own horizontal placement.
-                    .padding(bottom = sectionNavBottomOffset + sectionNavHandleSize + 8.dp),
+                    .padding(bottom = sectionNavBottomOffset),
             ) {
-                SectionPillBar(
-                    blocks = blocks,
+                AnimatedVisibility(visible = sectionDropdownExpanded) {
+                    SectionDropdownList(
+                        blocks = blocks,
+                        textColor = sectionNavTextColor,
+                        selectedSectionId = activeTabSectionId,
+                        accent = wallpaperAccent ?: accent,
+                        darkTheme = darkTheme,
+                        badgeCountFor = ::blockBadgeCount,
+                        onSelect = ::selectSection,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                }
+                SectionDropdownPill(
+                    label = currentBlockLabel,
+                    badgeCount = currentBadgeCount,
+                    expanded = sectionDropdownExpanded,
                     textColor = sectionNavTextColor,
-                    highlightSelection = sectionDisplayMode == SectionDisplayMode.TABBED,
-                    selectedSectionId = activeTabSectionId,
-                    accent = wallpaperAccent ?: accent,
                     darkTheme = darkTheme,
-                    badgeCountFor = ::blockBadgeCount,
-                    onJumpTo = { sectionId ->
-                        if (sectionDisplayMode == SectionDisplayMode.TABBED) {
-                            // Tabbed mode: a pill just switches which
-                            // block fills the screen — no collapse
-                            // concept (forcedOpen already bypasses it)
-                            // and no scrolling (the active block always
-                            // starts at the top of the content).
-                            selectedSectionTab = sectionId
-                        } else {
-                            // Scroll mode: a pill is a real open/close
-                            // toggle for its section (user-requested),
-                            // not just an "open if collapsed" — tapping
-                            // an already-open section's pill collapses it
-                            // again, same as tapping its own header
-                            // chevron would. No-op for the "unsectioned"
-                            // pill (sectionId null; it has no collapsed
-                            // state). Always scrolls there too, whichever
-                            // way it ends up. A section's own topOffsetPx
-                            // is unaffected by its own collapsed state
-                            // (only later blocks shift), so reading it
-                            // here is correct even though the toggle's
-                            // effect hasn't recomposed yet.
-                            sectionId?.let(onToggleSectionCollapsed)
-                            val render = blockRenders.firstOrNull { it.block.sectionId == sectionId }
-                                ?: return@SectionPillBar
-                            sectionNavScope.launch {
-                                scrollState.animateScrollTo(render.topOffsetPx.roundToInt())
-                            }
-                        }
-                    },
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = sectionNavBottomOffset)
-                    .size(sectionNavHandleSize)
-                    .clip(CircleShape)
-                    .background(sectionNavTextColor.copy(alpha = 0.14f))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { sectionNavOpen = !sectionNavOpen },
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = TileIcons["chevron"],
-                    contentDescription = if (sectionNavOpen) "hide sections" else "show sections",
-                    tint = sectionNavTextColor.copy(alpha = 0.72f),
-                    modifier = Modifier.size(16.dp).rotate(if (sectionNavOpen) 90f else -90f),
+                    onClick = { sectionDropdownExpanded = !sectionDropdownExpanded },
                 )
             }
         }
@@ -4371,68 +4318,114 @@ private fun FolderExpandedPlaceholder(
 }
 
 /**
- * A row of pills anchored at the bottom of Start, one per [TileBlock] — a
- * real section's own [TileBlock.label], plus a trailing "unsectioned" pill
- * for the catch-all block ([blocksFor] always appends exactly one of those).
- * Tapping a pill calls [onJumpTo] with that block's [TileBlock.sectionId]
- * (null for "unsectioned") — this composable has no scroll/tab logic of its
- * own, so the same pill row can back either the current scroll-jump mode or
- * a future tabbed mode, per the plan to keep both as a Personalize choice.
- *
- * Wraps onto more than one line instead of scrolling horizontally
- * (user-reported: a horizontally-scrolling row here fought with Start's own
- * left/right pager swipe for the same gesture, since both are horizontal
- * drags starting in roughly the same screen region) — with a small handful
- * of sections this reads as one line exactly like before; only a genuinely
- * long list wraps.
+ * The always-visible collapsed half of the section dropdown: one small pill
+ * showing the current section's label + its aggregate badge count, plus a
+ * chevron indicating whether [SectionDropdownList] is expanded below/above
+ * it. Tapping toggles [expanded] (owned by the caller) — this composable has
+ * no tab-switching logic of its own.
  */
 @Composable
-private fun SectionPillBar(
+private fun SectionDropdownPill(
+    label: String,
+    badgeCount: Int,
+    expanded: Boolean,
+    textColor: Color,
+    onClick: () -> Unit,
+    darkTheme: Boolean = true,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(textColor.copy(alpha = 0.12f))
+            .border(1.dp, textColor.copy(alpha = 0.24f), RoundedCornerShape(16.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    ) {
+        Text(text = label, color = textColor, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        if (badgeCount > 0) {
+            NotificationBadge(
+                count = badgeCount,
+                dark = darkTheme,
+                small = true,
+                cornerInset = false,
+                modifier = Modifier.padding(start = 6.dp),
+            )
+        }
+        Icon(
+            imageVector = TileIcons["chevron"],
+            contentDescription = if (expanded) "hide sections" else "show sections",
+            tint = textColor.copy(alpha = 0.72f),
+            modifier = Modifier
+                .padding(start = 6.dp)
+                .size(14.dp)
+                .rotate(if (expanded) 90f else -90f),
+        )
+    }
+}
+
+/**
+ * The expandable half of the section dropdown: a vertical list of every
+ * [TileBlock] — a real section's own [TileBlock.label], plus a trailing
+ * "unsectioned"/"main" row for the catch-all block ([blocksFor] always
+ * appends exactly one of those) — each with its own aggregate badge count
+ * (user-requested: in tabbed mode there's no way to see a notification
+ * hiding under an app in a *different* tab, so every row, not just the
+ * active one, carries this regardless of display mode). Tapping a row calls
+ * [onSelect] with that block's [TileBlock.sectionId] (null for
+ * "unsectioned"). Replaces the old always-visible row of every pill at once
+ * (user-requested alternative) — same underlying state (badges, active-tab
+ * highlight), restyled as a list instead of inline pills. Highlights
+ * whichever row matches the block currently filling the screen (the only
+ * display mode there is now).
+ */
+@Composable
+private fun SectionDropdownList(
     blocks: List<TileBlock>,
     textColor: Color,
-    onJumpTo: (String?) -> Unit,
+    onSelect: (String?) -> Unit,
     modifier: Modifier = Modifier,
-    // Tabbed mode highlights whichever pill matches the block currently
-    // filling the screen (a real "which tab am I on" indicator); scroll
-    // mode has no such concept, so [highlightSelection] stays false there
-    // and every pill renders identically regardless of [selectedSectionId].
-    highlightSelection: Boolean = false,
     selectedSectionId: String? = null,
     accent: Color = textColor,
     darkTheme: Boolean = true,
-    // A block's own aggregate pending-notification count (same sum a
-    // collapsed section's own header already shows) — user-requested: in
-    // tabbed mode there's no way to see a notification hiding under an app
-    // in a *different* tab, so every pill (not just the active one) carries
-    // this regardless of display mode.
     badgeCountFor: (String?) -> Int = { 0 },
 ) {
-    androidx.compose.foundation.layout.FlowRow(
-        modifier = modifier.padding(horizontal = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+    Column(
+        modifier = modifier
+            .widthIn(min = 160.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Glass.raisedCardFill(darkTheme, 0f))
+            .border(1.dp, textColor.copy(alpha = 0.16f), RoundedCornerShape(14.dp))
+            .padding(vertical = 4.dp),
     ) {
         blocks.forEach { block ->
-            val selected = highlightSelection && block.sectionId == selectedSectionId
+            val selected = block.sectionId == selectedSectionId
             val badgeCount = badgeCountFor(block.sectionId)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(if (selected) accent.copy(alpha = 0.85f) else textColor.copy(alpha = 0.12f))
-                    .border(1.dp, textColor.copy(alpha = if (selected) 0f else 0.24f), RoundedCornerShape(16.dp))
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (selected) accent.copy(alpha = 0.85f) else Color.Transparent)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                        onClick = { onJumpTo(block.sectionId) },
+                        onClick = { onSelect(block.sectionId) },
                     )
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
             ) {
                 Text(
                     text = (block.label ?: UNSECTIONED_LABEL).lowercase(),
                     color = if (selected) Color.White else textColor,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f),
                 )
                 if (badgeCount > 0) {
                     NotificationBadge(
@@ -4520,19 +4513,17 @@ private fun SectionHeader(
     onMoveDown: () -> Unit,
     onRename: (String) -> Unit,
     onDelete: () -> Unit,
-    // False while this section is the active tab in TABBED mode: its
-    // content is always shown there regardless of the persisted [collapsed]
-    // flag (user-requested: "app contents of tab should be open by default
-    // and can not be closed"), so the collapse chevron is a dead — and
-    // actively misleading — control in that state; it's rendered as a plain,
-    // non-interactive "open" indicator instead of a toggle.
+    // False while this section is the active tab (the only block ever shown
+    // on screen): its content is always displayed regardless of the
+    // persisted [collapsed] flag (user-requested: "app contents of tab
+    // should be open by default and can not be closed"), so the collapse
+    // chevron is a dead — and actively misleading — control in that state;
+    // it's omitted entirely instead of rendered as a disabled toggle.
     collapsible: Boolean = true,
 ) {
     var renaming by remember(label) { mutableStateOf(false) }
     // Reflects reality: forced open (not collapsible) always reads as open,
-    // whatever the persisted flag says — that flag still matters once this
-    // section stops being the active tab (or the display mode switches back
-    // to scroll), just not while it's being force-shown here.
+    // whatever the persisted flag says.
     val effectivelyCollapsed = collapsible && collapsed
     Column(modifier = Modifier.fillMaxWidth()) {
     Row(
@@ -4542,11 +4533,10 @@ private fun SectionHeader(
             .padding(horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Omitted entirely (not just disabled) while not collapsible — in
-        // TABBED mode the active tab's content can't be closed at all, so a
-        // chevron here would just be visual clutter with nothing to show or
-        // toggle (user-requested: "downarrow on tab heading should be
-        // removed").
+        // Omitted entirely (not just disabled) while not collapsible — the
+        // active tab's content can't be closed at all, so a chevron here
+        // would just be visual clutter with nothing to show or toggle
+        // (user-requested: "downarrow on tab heading should be removed").
         if (collapsible) {
             Box(
                 modifier = Modifier

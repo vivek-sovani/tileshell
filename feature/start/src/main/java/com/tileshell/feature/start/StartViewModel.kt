@@ -42,7 +42,6 @@ import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.core.data.settings.SettingsRepository
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
-import com.tileshell.core.data.settings.SectionDisplayMode
 import com.tileshell.core.data.settings.SectionPillAlignment
 import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.data.settings.isAnchored
@@ -1225,12 +1224,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Switch how Start's sections are browsed — one continuous scroll, or tabbed one-at-a-time. */
-    fun setSectionDisplayMode(mode: SectionDisplayMode) {
-        viewModelScope.launch(writeContext) { settingsRepository.setSectionDisplayMode(mode) }
-    }
-
-    /** Where the section jump-pill bar sits (left/center/right), for thumb reach. */
+    /** Where the section dropdown sits (left/center/right), for thumb reach. */
     fun setSectionPillAlignment(alignment: SectionPillAlignment) {
         viewModelScope.launch(writeContext) { settingsRepository.setSectionPillAlignment(alignment) }
     }
