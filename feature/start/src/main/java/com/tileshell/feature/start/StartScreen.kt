@@ -1343,6 +1343,7 @@ fun StartScreen(
             AppListScreen(
                 modifier = Modifier.fillMaxSize(),
                 visible = isAppList,
+                activeSectionId = activeSectionId,
                 onPinned = { settleTo(0f) },
                 onOpenPersonalize = viewModel::openPersonalize,
                 onAddWidget = { provider ->

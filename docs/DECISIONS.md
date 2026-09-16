@@ -7417,3 +7417,26 @@ Build + full unit test suite green (5 new `BackupManagerTest` cases: sections/se
 pre-sections-backup compatibility, and two `layoutHash` sensitivity cases). Actual on-device
 export → wipe/reset → import round-trip, confirming sections truly survive, still needs the user's
 own hands-on pass — this project has no Room-instrumented test harness to simulate it headlessly.
+
+## Pinning an app now always lands in the active section — no chooser at all
+
+Direct follow-up, user-requested: "pin should be always to current section. dont ask user the
+choice. implement this for app and more from this app." Then, once tried: "pin to section option
+not needed" — removing the separate explicit picker entirely rather than leaving it as a secondary
+path alongside the new automatic behaviour.
+
+`AppListScreen` gained an `activeSectionId: String?` param (Start already tracks this as local state
+via `onActiveSectionChange`; threaded straight through at the `AppListScreen(...)` call site) — both
+`onPin` (plain "pin to start") and `onPinSibling` ("more from this app": shortcuts + other activities
+of the same app) now pass it to `AppListViewModel.pin(app, activeSectionId)` instead of an implicit
+null, landing the pin in whichever tab is showing right now, mirroring how a live tile added from
+Start's own edit-mode toolbar already works. The standalone "pin to section" menu item, its own
+`sectionsMenuOpen` dropdown, and `AppRow`'s `sections`/`onPinToSection` params were deleted outright
+once it was clear the new automatic behaviour made picking a different section unnecessary — along
+with `AppListViewModel.sections` (now read by nothing) and its now-unused `Section`/
+`UNSECTIONED_LABEL` imports. Guide/about docs updated to match (dropped the "pin to start lands
+unsectioned" and "shortcuts always land unsectioned" claims, both now false).
+
+Build + full unit test suite green; installed with no crash. The actual on-device check — pin an
+app while a specific tab is active and confirm it lands there — still needs the user's own hands-on
+pass.

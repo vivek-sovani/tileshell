@@ -176,6 +176,7 @@ fun AboutSheet(
                     "the \"personalize\" tile is a normal start tile — drag, resize, or unpin it like any other",
                     "removed it by accident? pin it back from the app list's own \"personalize\" entry",
                     "group tiles into named, reorderable sections shown one tab at a time — turn it on and manage them from personalize",
+                    "pinning an app (or one of its shortcuts, via \"more from this app\") always lands it in whichever section tab is currently active — no picker to answer",
                     "on a tab with room below its tiles, drag down from that empty space to pull them closer to your thumb; tap one to open it, or tap elsewhere to let go",
                 ),
             )
