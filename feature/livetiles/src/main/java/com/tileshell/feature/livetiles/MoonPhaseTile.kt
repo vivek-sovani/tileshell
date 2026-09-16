@@ -2,6 +2,7 @@ package com.tileshell.feature.livetiles
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -136,6 +137,32 @@ internal fun currentMoonPhaseFace(): MoonPhaseFace =
 
 private val FaceText: Color
     @Composable get() = LocalTileFaceColor.current
+
+/**
+ * The compact 1×1 face (ICONS home style / SMALL tile) — just tonight's real
+ * crescent/gibbous/full disc via [MoonPhaseVisual], no text. Was missing from
+ * this tile entirely: unlike every other live-data tile in this file (clock,
+ * calendar, weather, battery, steps, stock, …), "moonphase" had no entry in
+ * `IconCellView`'s small-face dispatch, so a small/icon-mode instance fell
+ * through to the tile's own generic static glyph (`TileIcons["moonphase"]` —
+ * a fixed disc shape, the same every day) instead of ever showing the real
+ * phase (user-reported: "not showing the right image... showing half moon"
+ * regardless of the actual date).
+ */
+@Composable
+fun MoonPhaseSmallFace(active: Boolean, modifier: Modifier = Modifier) {
+    var face by remember { mutableStateOf(currentMoonPhaseFace()) }
+    LaunchedEffect(active) {
+        if (!active) return@LaunchedEffect
+        while (true) {
+            face = currentMoonPhaseFace()
+            delay(60_000L - (System.currentTimeMillis() % 60_000L))
+        }
+    }
+    Box(modifier = modifier.fillMaxSize().padding(4.dp), contentAlignment = Alignment.Center) {
+        MoonPhaseVisual(fraction = face.fraction, modifier = Modifier.fillMaxSize())
+    }
+}
 
 /**
  * The live moon-phase tile: front shows tonight's phase name + illumination,

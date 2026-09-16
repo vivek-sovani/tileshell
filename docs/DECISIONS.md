@@ -7440,3 +7440,47 @@ unsectioned" and "shortcuts always land unsectioned" claims, both now false).
 Build + full unit test suite green; installed with no crash. The actual on-device check — pin an
 app while a specific tab is active and confirm it lands there — still needs the user's own hands-on
 pass.
+
+## Moon phase: the small/icon-sized tile showed a fixed generic glyph, not the real phase
+
+User-reported: "moonphase is not showing the right image as per moon phase. today is 5th day but
+it is showing half moon. it is same for calendar systems panchang option." Investigated by directly
+computing today's real values through the actual app code (a temporary JUnit test calling
+`HinduPanchang.panchangFor(now)` + `tithiMoonFraction` + `moonPhaseFraction`, removed once done):
+paksha=SHUKLA, tithi=panchami (5, matching the user's own reference), tithi-based fraction=0.15,
+independently-computed real astronomical fraction=0.157 — both agree closely, ~21-22% illuminated.
+Rendering that exact fraction through the actual two-half-ellipse algorithm (reproduced faithfully
+in a throwaway script, both at full size and at the real ~50px on-screen size) draws a genuine
+tapered crescent, not anything resembling a half moon — confirmed visually, not just by formula
+(the area under that specific curved boundary works out to exactly (1-cos(2πf))/2, the same
+illumination formula `moonIllumination` reports, so the shape and the percentage always agree).
+
+The one real, confirmed bug: `IconCellView.kt`'s small/1×1-face dispatch (ICONS home style, or any
+tile resized down to SMALL) has a branch for every other live-data tile — weather, calendar, clock,
+battery, flashlight, countdown, steps, stock, commodity, calsys — but "moonphase" was simply never
+added to that list. A small moon-phase tile therefore fell through to the tile's own generic static
+glyph (`TileIcons["moonphase"]`, deliberately described in its own comment as "a disc with an
+S-curved terminator" — one fixed shape, every day, forever) instead of ever showing the real phase.
+That fixed shape is exactly the kind of thing a user would reasonably call "half moon," and it would
+never change regardless of the actual date — matching the report precisely.
+
+Fixed with a new `MoonPhaseSmallFace` (`:feature:livetiles`, mirroring `ClockSmallFace`'s own
+minute-tick refresh pattern exactly) rendering the real `MoonPhaseVisual` crescent at icon size, and
+one new dispatch line in `IconCellView.kt`. `CalendarSystemSmallFace` (the panchang tile's own
+small face) was separately confirmed to show only the Roman day-of-month number at that size — no
+moon glyph, real or fake, so nothing to fix there; the panchang report was most likely the same
+"tithi 5 renders as a wider-than-expected but still genuinely curved crescent" perception the
+render-and-look verification above addresses, not a second bug.
+
+Also directly verified (code review, not just formula-matching) that neither home-screen widget
+(`MoonPhaseWidgetRefreshWorker`, `CalendarSystemWidgetRefreshWorker`) has an equivalent static-glyph
+gap — both already call the identical `tithiMoonFraction`/`moonPhaseBitmap` pipeline unconditionally,
+with no fallback branch. Their one real structural risk, left alone since it's a scheduling-
+robustness question rather than a wrong-calculation bug: each refreshes only once daily (just after
+midnight) via a periodic `WorkManager` job, with no refresh tied to the app's own launch — if that
+job were ever killed by OEM battery management (a documented concern elsewhere in this project) a
+widget could go stale for days, which at ~3 days off *would* land near fraction 0.25 (true half
+moon). Worth revisiting only if a widget specifically (not the in-app tile) is confirmed stale.
+
+Build + full unit test suite green; installed with no crash. The user's device was locked during
+this session, so the actual on-screen fix for the small/icon tile still needs their own confirmation.
