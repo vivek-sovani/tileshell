@@ -13,8 +13,19 @@ enum class Paksha { SHUKLA, KRISHNA }
 data class TithiInfo(val paksha: Paksha, val tithiInPaksha: Int, val name: String)
 
 /**
+ * The Sun's half-year solar journey: [UTTARAYANA] (northward, from Makar
+ * Sankranti to Karka Sankranti) and [DAKSHINAYANA] (southward, the other
+ * half) — the traditional Hindu almanac's own ayana boundaries, defined by
+ * the *sidereal* solar longitude crossing Capricorn (270°) and Cancer (90°),
+ * not the tropical solstices (which fall about three weeks earlier, per the
+ * same Lahiri ayanamsa already used for [PanchangInfo]'s tithi/nakshatra/
+ * month) — see [HinduPanchang.panchangFor].
+ */
+enum class Ayana { UTTARAYANA, DAKSHINAYANA }
+
+/**
  * A full day's Panchang: the prevailing [tithi], [nakshatra], lunar [month],
- * [vara] (weekday), and the two most common Hindu calendar years —
+ * [vara] (weekday), [ayana], and the two most common Hindu calendar years —
  * [shakaSamvat] (the Indian National Calendar's own era, epoch 78 CE) and
  * [vikramSamvat] (epoch 57 BCE) — both anchored to the same Chaitra new-year
  * crossing, so they always move together.
@@ -26,6 +37,7 @@ data class PanchangInfo(
     val vara: String,
     val shakaSamvat: Int,
     val vikramSamvat: Int,
+    val ayana: Ayana,
 )
 
 internal val TITHI_NAMES_1_TO_14 = listOf(
@@ -259,7 +271,13 @@ object HinduPanchang {
         val shakaSamvat = chaitraGregorianYear - 78
         val vikramSamvat = chaitraGregorianYear + 57
 
-        return PanchangInfo(tithi, nakshatra, month, vara, shakaSamvat, vikramSamvat)
+        // Uttarayana runs from Makar Sankranti (sidereal longitude 270°, Sun
+        // enters Capricorn) through Karka Sankranti (90°, Sun enters Cancer);
+        // Dakshinayana is the other half.
+        val sunSidereal = sunSiderealLongitude(t)
+        val ayana = if (sunSidereal < 90.0 || sunSidereal >= 270.0) Ayana.UTTARAYANA else Ayana.DAKSHINAYANA
+
+        return PanchangInfo(tithi, nakshatra, month, vara, shakaSamvat, vikramSamvat, ayana)
     }
 }
 
@@ -306,4 +324,5 @@ object PanchangDevanagari {
     fun paksha(paksha: Paksha): String = if (paksha == Paksha.SHUKLA) "शुक्ल पक्ष" else "कृष्ण पक्ष"
     fun month(value: String): String = MONTH[value] ?: value
     fun nakshatra(value: String): String = NAKSHATRA[value] ?: value
+    fun ayana(ayana: Ayana): String = if (ayana == Ayana.UTTARAYANA) "उत्तरायण" else "दक्षिणायन"
 }

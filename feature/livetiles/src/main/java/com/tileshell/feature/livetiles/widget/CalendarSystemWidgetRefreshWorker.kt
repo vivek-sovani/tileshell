@@ -3,6 +3,7 @@ package com.tileshell.feature.livetiles.widget
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
+import android.view.View
 import android.widget.RemoteViews
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -11,15 +12,19 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.tileshell.core.data.Ayana
 import com.tileshell.core.data.HINDU_PANCHANG_ID
 import com.tileshell.core.data.HinduPanchang
-import com.tileshell.core.data.Paksha
 import com.tileshell.core.data.PanchangDevanagari
 import com.tileshell.core.data.PanchangInfo
+import com.tileshell.core.data.SunTimes
+import com.tileshell.core.data.SunTimesInfo
 import com.tileshell.core.data.calendarSystemFor
 import com.tileshell.core.data.formatRomanDate
 import com.tileshell.feature.livetiles.R
+import com.tileshell.feature.livetiles.formatClockTime12
 import com.tileshell.feature.livetiles.formatSelectedSystemDate
+import com.tileshell.feature.livetiles.lastCoarseLocationOrDefault
 import com.tileshell.feature.livetiles.tithiMoonFraction
 import java.util.concurrent.TimeUnit
 
@@ -84,12 +89,16 @@ class CalendarSystemWidgetRefreshWorker(
             if (ids.isEmpty()) return
 
             val nowMillis = System.currentTimeMillis()
+            // One location resolution per push (not per widget instance) —
+            // reused by the Hindu Panchang face's sunrise/sunset line below.
+            val location = lastCoarseLocationOrDefault(context)
+            val sunTimes = SunTimes.sunriseSunsetFor(nowMillis, location.first, location.second)
             ids.forEach { id ->
                 val systemId = WidgetConfigStore.calendarSystemId(context, id)
                 val minWidthDp = manager.getAppWidgetOptions(id)
                     .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 110)
                 val (accent, onAccent) = resolveWidgetAccent(context, id)
-                val views = buildRemoteViews(context, id, systemId, nowMillis, accent, onAccent, isCompactWidget(minWidthDp))
+                val views = buildRemoteViews(context, id, systemId, nowMillis, sunTimes, accent, onAccent, isCompactWidget(minWidthDp))
                 manager.updateAppWidget(id, views)
             }
         }
@@ -99,6 +108,7 @@ class CalendarSystemWidgetRefreshWorker(
             appWidgetId: Int,
             systemId: String?,
             nowMillis: Long,
+            sunTimes: SunTimesInfo?,
             accent: Int,
             onAccent: Int,
             compact: Boolean,
@@ -145,8 +155,8 @@ class CalendarSystemWidgetRefreshWorker(
                 val moon = moonPhaseBitmap(moonFraction, onAccent)
                 views.setImageViewBitmap(R.id.widget_icon, moon)
                 views.setImageViewBitmap(R.id.widget_icon_back, moon)
-                setPanchangFace(views, panchang, romanDate, onAccent, devanagari = true, back = false)
-                setPanchangFace(views, panchang, romanDate, onAccent, devanagari = false, back = true)
+                setPanchangFace(views, panchang, romanDate, sunTimes, onAccent, devanagari = true, back = false, compact = compact)
+                setPanchangFace(views, panchang, romanDate, sunTimes, onAccent, devanagari = false, back = true, compact = compact)
             } else {
                 views.setTextColor(R.id.widget_label, onAccent)
                 views.setTextColor(R.id.widget_date, onAccent)
@@ -163,39 +173,84 @@ class CalendarSystemWidgetRefreshWorker(
             return views
         }
 
+        /**
+         * Mirrors the in-app tile's own [com.tileshell.feature.livetiles
+         * .PanchangFace]: the front face has vara (weekday) + paksha/tithi/
+         * month + nakshatra + the two calendar years, all in Devanagari; the
+         * [back] face drops vara entirely (no day-name line) and shows only
+         * sunrise/sunset + ayana — the ayana word itself in Devanagari too
+         * (user-requested, see [PanchangFace]'s own doc comment for the full
+         * reasoning). [compact]'s narrow layout has only one extra text slot
+         * beyond vara, so it reuses the same "paksha" id for whichever of
+         * the two the current face shows.
+         */
         private fun setPanchangFace(
             views: RemoteViews,
             panchang: PanchangInfo,
             romanDate: String,
+            sunTimes: SunTimesInfo?,
             onAccent: Int,
             devanagari: Boolean,
             back: Boolean,
+            compact: Boolean,
         ) {
-            val pakshaName = if (devanagari) {
-                PanchangDevanagari.paksha(panchang.tithi.paksha)
-            } else if (panchang.tithi.paksha == Paksha.SHUKLA) {
-                "shukla paksha"
-            } else {
-                "krishna paksha"
-            }
-            val vara = if (devanagari) PanchangDevanagari.vara(panchang.vara) else panchang.vara
-            val tithiName = if (devanagari) PanchangDevanagari.tithiName(panchang.tithi.name) else panchang.tithi.name
-            val month = if (devanagari) PanchangDevanagari.month(panchang.month) else panchang.month
-            val nakshatra = if (devanagari) PanchangDevanagari.nakshatra(panchang.nakshatra) else panchang.nakshatra
-            val nakshatraLabel = if (devanagari) "नक्षत्र" else "nakshatra"
-
             val varaId = if (back) R.id.widget_back_vara else R.id.widget_vara
             val pakshaId = if (back) R.id.widget_back_paksha else R.id.widget_paksha
+            if (back) {
+                views.setViewVisibility(varaId, View.GONE)
+            } else {
+                views.setViewVisibility(varaId, View.VISIBLE)
+                views.setTextColor(varaId, onAccent)
+                views.setTextViewText(varaId, PanchangDevanagari.vara(panchang.vara))
+            }
+
+            if (devanagari) {
+                val pakshaName = PanchangDevanagari.paksha(panchang.tithi.paksha)
+                val tithiName = PanchangDevanagari.tithiName(panchang.tithi.name)
+                val month = PanchangDevanagari.month(panchang.month)
+                views.setViewVisibility(pakshaId, View.VISIBLE)
+                views.setTextViewText(pakshaId, "$pakshaName · $tithiName · $month")
+            } else if (compact) {
+                // No dedicated sunrise/sunset slot in the compact layout —
+                // reuse the one extra text line the devanagari face uses
+                // for tithi (this face shows no tithi text at all).
+                views.setTextColor(pakshaId, onAccent)
+                views.setTextViewText(pakshaId, sunriseSunsetAyanaLine(sunTimes, panchang.ayana))
+            } else {
+                // Full layout: no tithi text on this face — hide the line
+                // entirely rather than leave it blank (an empty amber-styled
+                // row would still reserve its own height).
+                views.setViewVisibility(pakshaId, View.GONE)
+            }
+
+            if (compact) return
+
             val nakshatraId = if (back) R.id.widget_back_nakshatra else R.id.widget_nakshatra
             val romanId = if (back) R.id.widget_back_roman else R.id.widget_roman
-
-            views.setTextColor(varaId, onAccent)
             views.setTextColor(nakshatraId, onAccent)
             views.setTextColor(romanId, onAccent)
-            views.setTextViewText(varaId, vara)
-            views.setTextViewText(pakshaId, "$pakshaName · $tithiName · $month")
-            views.setTextViewText(nakshatraId, "$nakshatraLabel: $nakshatra")
+            if (devanagari) {
+                val nakshatra = PanchangDevanagari.nakshatra(panchang.nakshatra)
+                views.setTextViewText(nakshatraId, "नक्षत्र: $nakshatra")
+            } else {
+                views.setTextViewText(nakshatraId, sunriseSunsetAyanaLine(sunTimes, panchang.ayana))
+            }
             views.setTextViewText(romanId, romanDate)
+        }
+
+        /**
+         * "↑ 6:12 am · ↓ 6:34 pm · उत्तरायण"-style single line — the widget
+         * has no spare ImageView slot for the in-app tile's own sun glyphs,
+         * so a plain arrow stands in for "rising"/"setting". The ayana word
+         * renders in Devanagari even on the back face (user-requested) — a
+         * clock time and the arrows need no script of their own.
+         */
+        private fun sunriseSunsetAyanaLine(sunTimes: SunTimesInfo?, ayana: Ayana): String {
+            val ayanaLabel = PanchangDevanagari.ayana(ayana)
+            if (sunTimes == null) return ayanaLabel
+            val sunrise = formatClockTime12(sunTimes.sunriseMillis)
+            val sunset = formatClockTime12(sunTimes.sunsetMillis)
+            return "↑ $sunrise · ↓ $sunset · $ayanaLabel"
         }
     }
 }

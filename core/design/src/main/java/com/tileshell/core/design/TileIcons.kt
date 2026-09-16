@@ -215,6 +215,28 @@ object TileIcons {
             p("M6.5 18h10.5a3.2 3.2 0 0 0 0-6.4 4.8 4.8 0 0 0-9.2-1"),
         ))
 
+        // Sun half-disc above a horizon line, an arrow through the middle
+        // showing which way it's moving — up (rising) or down (setting).
+        // Rays are identical between the two; only the arrow direction
+        // (and its position relative to the sun) differs.
+        put("sunrise", vector("sunrise",
+            p("M7 18a5 5 0 0 1 10 0"),
+            p(line(2.0, 18.0, 22.0, 18.0)),
+            p(line(12.0, 6.0, 12.0, 2.0)),
+            p("M8.5 9l3.5-3.5 3.5 3.5"),
+            p(line(5.0, 18.0, 3.0, 16.0)),
+            p(line(19.0, 18.0, 21.0, 16.0)),
+        ))
+
+        put("sunset", vector("sunset",
+            p("M7 18a5 5 0 0 1 10 0"),
+            p(line(2.0, 18.0, 22.0, 18.0)),
+            p(line(12.0, 2.0, 12.0, 6.0)),
+            p("M8.5 4.5l3.5 3.5 3.5-3.5"),
+            p(line(5.0, 18.0, 3.0, 16.0)),
+            p(line(19.0, 18.0, 21.0, 16.0)),
+        ))
+
         put("calendar", vector("calendar",
             p(rect(3.0, 5.0, 18.0, 16.0, 1.5)),
             p(line(3.0, 9.0, 21.0, 9.0)),

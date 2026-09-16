@@ -1,5 +1,9 @@
 package com.tileshell.feature.livetiles
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.location.LocationManager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -7,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -17,26 +22,63 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.tileshell.core.data.HINDU_PANCHANG_ID
 import com.tileshell.core.data.HinduPanchang
 import com.tileshell.core.data.Paksha
 import com.tileshell.core.data.PanchangDevanagari
 import com.tileshell.core.data.PanchangInfo
+import com.tileshell.core.data.SunTimes
+import com.tileshell.core.data.SunTimesInfo
 import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.calendarSystemFor
 import com.tileshell.core.data.formatRomanDate
 import com.tileshell.core.design.LocalTileFaceColor
 import com.tileshell.core.design.TileAccents
+import com.tileshell.core.design.TileIcons
 import kotlinx.coroutines.delay
 import java.util.Locale
 
 private val FaceText: Color
     @Composable get() = LocalTileFaceColor.current
+
+// India's rough geographic centre — used only as a fallback when location
+// access isn't granted/available (see [lastCoarseLocationOrDefault]), so the
+// Panchang's sunrise/sunset line always shows a plausible time instead of
+// degrading to blank.
+private const val DEFAULT_LATITUDE = 20.5937
+private const val DEFAULT_LONGITUDE = 78.9629
+
+/**
+ * Best-effort device latitude/longitude for [SunTimes] — the same granted
+ * coarse-location permission and last-known-fix technique the weather tile
+ * already uses ([WeatherRefreshWorker]'s own `lastCoarseLocation`): no new
+ * permission prompt, no active fix request, just whatever's already cached
+ * by the OS. Falls back to [DEFAULT_LATITUDE]/[DEFAULT_LONGITUDE] when
+ * denied or unavailable. Internal (not private) — the home-screen calendar-
+ * system widget's own refresh worker reuses this exact function rather than
+ * duplicating it.
+ */
+internal fun lastCoarseLocationOrDefault(context: Context): Pair<Double, Double> {
+    val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+        PackageManager.PERMISSION_GRANTED
+    if (granted) {
+        val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+        val loc = runCatching {
+            lm?.getProviders(true)?.asSequence()
+                ?.mapNotNull { lm.getLastKnownLocation(it) }
+                ?.maxByOrNull { it.time }
+        }.getOrNull()
+        if (loc != null) return loc.latitude to loc.longitude
+    }
+    return DEFAULT_LATITUDE to DEFAULT_LONGITUDE
+}
 
 /**
  * The selected system's date, as text — every system but [HINDU_PANCHANG_ID]
@@ -98,11 +140,19 @@ fun CalendarSystemTileFace(
 
     if (systemId == HINDU_PANCHANG_ID) {
         val panchang = HinduPanchang.panchangFor(nowMillis)
+        // Resolved once per tile instance (location doesn't meaningfully
+        // change minute to minute), then a fresh sunrise/sunset only when the
+        // calendar day actually changes — both cheap local reads, no network.
+        val context = LocalContext.current
+        val location = remember { lastCoarseLocationOrDefault(context) }
+        val sunTimes = remember(romanDate, location) {
+            SunTimes.sunriseSunsetFor(nowMillis, location.first, location.second)
+        }
         FlipTile(
             flipped = flipped,
             modifier = modifier.fillMaxSize(),
-            front = { PanchangFace(panchang = panchang, size = size, romanDate = romanDate, devanagari = true) },
-            back = { PanchangFace(panchang = panchang, size = size, romanDate = romanDate, devanagari = false) },
+            front = { PanchangFace(panchang = panchang, size = size, romanDate = romanDate, devanagari = true, sunTimes = sunTimes) },
+            back = { PanchangFace(panchang = panchang, size = size, romanDate = romanDate, devanagari = false, sunTimes = sunTimes) },
         )
         return
     }
@@ -183,20 +233,49 @@ internal fun tithiMoonFraction(paksha: Paksha, tithiInPaksha: Int): Double {
 }
 
 /**
+ * "6:12 am"-style 12-hour clock formatting, matching [clockFace]'s own
+ * convention. Internal (not private) — the home-screen calendar-system
+ * widget's own refresh worker reuses this for the exact same formatting.
+ */
+internal fun formatClockTime12(epochMillis: Long): String {
+    val cal = java.util.Calendar.getInstance().apply { timeInMillis = epochMillis }
+    val hour24 = cal.get(java.util.Calendar.HOUR_OF_DAY)
+    val minute = cal.get(java.util.Calendar.MINUTE)
+    val hour12 = (hour24 % 12).let { if (it == 0) 12 else it }
+    val suffix = if (hour24 < 12) "am" else "pm"
+    return "$hour12:${minute.toString().padStart(2, '0')} $suffix"
+}
+
+/**
  * The Hindu Panchang face — a typographic hierarchy (mirrors [ClockFront]'s
  * big-time/weekday/date grouping) instead of one flat block of text, per
  * explicit request: vara (weekday) leads at the largest size since it's the
  * single most glanceable fact, tithi+month follow at medium size as the
- * day's defining pair, then nakshatra and the two calendar years trail at
- * the smallest, dimmed size as supplementary detail — and [romanDate] trails
- * everything as its own bottom line, on both the [devanagari] and the
- * English face (the two faces this tile flips between; see
- * [CalendarSystemTileFace]). A big [MoonPhaseVisual] sits beside the text on
- * both faces (user-requested) — mirrors [MoonPhaseTile]'s own front-face
- * layout (visual beside text when there's room, above it when [narrow]).
+ * day's defining pair (Devanagari face only — see below), then a
+ * supplementary detail line trails at the smallest, dimmed size — and
+ * [romanDate] trails everything as its own bottom line, on both the
+ * [devanagari] and the English face (the two faces this tile flips between;
+ * see [CalendarSystemTileFace]). A big [MoonPhaseVisual] sits beside the
+ * text on both faces (user-requested) — mirrors [MoonPhaseTile]'s own
+ * front-face layout (visual beside text when there's room, above it when
+ * [narrow]).
+ *
+ * The two faces show different content, per explicit request: the front
+ * face has vara (weekday) + paksha/tithi/month + nakshatra + the two
+ * calendar years, all in Devanagari; the back face drops vara entirely (no
+ * day-name line at all) and shows only [sunTimes]' sunrise/sunset (with
+ * matching glyphs) and [PanchangInfo.ayana] — the ayana word itself in
+ * Devanagari too ([PanchangDevanagari.ayana]), since a clock time and the
+ * sun glyphs need no script of their own.
  */
 @Composable
-private fun PanchangFace(panchang: PanchangInfo, size: TileSize, romanDate: String, devanagari: Boolean) {
+private fun PanchangFace(
+    panchang: PanchangInfo,
+    size: TileSize,
+    romanDate: String,
+    devanagari: Boolean,
+    sunTimes: SunTimesInfo?,
+) {
     val narrow = size.narrowLive
     val short = size.shortLive
     val big = size == TileSize.LARGE
@@ -218,46 +297,114 @@ private fun PanchangFace(panchang: PanchangInfo, size: TileSize, romanDate: Stri
 
     val textColumn = @Composable {
         Column(horizontalAlignment = if (narrow) Alignment.CenterHorizontally else Alignment.Start) {
-            Text(
-                text = vara,
-                color = FaceText,
-                fontSize = if (short) 16.sp else if (narrow) 18.sp else if (big) 26.sp else 20.sp,
-                fontWeight = FontWeight.Light,
-                letterSpacing = (-0.5).sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
-            )
-            Text(
-                text = "$pakshaName · $tithiName · $month",
-                // A fixed highlight tint (not the tile's own accent fill, which
-                // this text sits on top of and would risk blending into) so
-                // tithi+month reads as the day's defining pair at a glance,
-                // distinct from the plain face-text vara/nakshatra/year lines.
-                color = TileAccents.Amber,
-                fontSize = if (short) 11.sp else if (narrow) 12.sp else if (big) 15.sp else 13.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = if (narrow) 3 else 2,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
-            )
-            if (!short) {
+            // Vara (weekday) only on the Devanagari face — the back face
+            // shows sunrise/sunset/ayana only, with no day-name line at all
+            // (user-requested).
+            if (devanagari) {
                 Text(
-                    text = "$nakshatraLabel: $nakshatra",
-                    color = FaceText.copy(alpha = 0.75f),
-                    fontSize = if (narrow) 10.sp else if (big) 12.sp else 11.sp,
-                    maxLines = if (narrow) 2 else 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
-                )
-                Text(
-                    text = yearLabel,
-                    color = FaceText.copy(alpha = 0.6f),
-                    fontSize = if (narrow) 9.sp else if (big) 12.sp else 11.sp,
+                    text = vara,
+                    color = FaceText,
+                    fontSize = if (short) 16.sp else if (narrow) 18.sp else if (big) 26.sp else 20.sp,
+                    fontWeight = FontWeight.Light,
+                    letterSpacing = (-0.5).sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
                 )
+            }
+            // Tithi/paksha/month text only on the Devanagari face — the
+            // back face shows sunrise/sunset/ayana instead of repeating the
+            // same facts (user-requested).
+            if (devanagari) {
+                Text(
+                    text = "$pakshaName · $tithiName · $month",
+                    // A fixed highlight tint (not the tile's own accent fill,
+                    // which this text sits on top of and would risk blending
+                    // into) so tithi+month reads as the day's defining pair
+                    // at a glance, distinct from the plain face-text vara/
+                    // nakshatra/year lines.
+                    color = TileAccents.Amber,
+                    fontSize = if (short) 11.sp else if (narrow) 12.sp else if (big) 15.sp else 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = if (narrow) 3 else 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
+                )
+            }
+            if (!short) {
+                if (devanagari) {
+                    Text(
+                        text = "$nakshatraLabel: $nakshatra",
+                        color = FaceText.copy(alpha = 0.75f),
+                        fontSize = if (narrow) 10.sp else if (big) 12.sp else 11.sp,
+                        maxLines = if (narrow) 2 else 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
+                    )
+                    Text(
+                        text = yearLabel,
+                        color = FaceText.copy(alpha = 0.6f),
+                        fontSize = if (narrow) 9.sp else if (big) 12.sp else 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
+                    )
+                } else {
+                    // Sunrise/sunset + ayana — back-face-only detail (user-
+                    // requested), in place of what the Devanagari face still
+                    // shows here (nakshatra + the two calendar years). The
+                    // ayana word itself renders in Devanagari even here
+                    // (user-requested) — a clock time and the sun glyphs
+                    // above need no script of their own.
+                    val detailFontSize = if (narrow) 10.sp else if (big) 12.sp else 11.sp
+                    val detailIconSize = if (narrow) 11.dp else if (big) 13.dp else 12.dp
+                    if (sunTimes != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Icon(
+                                imageVector = TileIcons["sunrise"],
+                                contentDescription = "sunrise",
+                                tint = FaceText.copy(alpha = 0.75f),
+                                modifier = Modifier.size(detailIconSize),
+                            )
+                            Text(
+                                text = formatClockTime12(sunTimes.sunriseMillis),
+                                color = FaceText.copy(alpha = 0.75f),
+                                fontSize = detailFontSize,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Icon(
+                                imageVector = TileIcons["sunset"],
+                                contentDescription = "sunset",
+                                tint = FaceText.copy(alpha = 0.75f),
+                                modifier = Modifier.size(detailIconSize),
+                            )
+                            Text(
+                                text = formatClockTime12(sunTimes.sunsetMillis),
+                                color = FaceText.copy(alpha = 0.75f),
+                                fontSize = detailFontSize,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    Text(
+                        text = PanchangDevanagari.ayana(panchang.ayana),
+                        color = FaceText.copy(alpha = 0.6f),
+                        fontSize = if (narrow) 9.sp else if (big) 12.sp else 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
+                    )
+                }
             }
             Text(
                 text = romanDate,

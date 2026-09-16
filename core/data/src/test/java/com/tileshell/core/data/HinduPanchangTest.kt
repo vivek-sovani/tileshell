@@ -107,6 +107,42 @@ class PanchangForRealDateTest {
             // March 2026 — Shaka epoch 78 CE, Vikram epoch 57 BCE.
             assertEquals(1948, panchang.shakaSamvat)
             assertEquals(2083, panchang.vikramSamvat)
+            // Karka Sankranti (sidereal, ~mid-July) to Makar Sankranti
+            // (~mid-January) is Dakshinayana — late August falls well inside
+            // that span.
+            assertEquals(Ayana.DAKSHINAYANA, panchang.ayana)
         }
+    }
+
+    @Test
+    fun `ayana flips between Uttarayana and Dakshinayana around the sidereal sankrantis`() {
+        // Makar Sankranti (Sun enters sidereal Capricorn, ~mid-January):
+        // Uttarayana starts.
+        val beforeMakarSankranti = HinduPanchang.panchangFor(
+            java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US)
+                .apply { timeZone = ist }.parse("2026-01-10 06:00")!!.time,
+            ist,
+        )
+        assertEquals(Ayana.DAKSHINAYANA, beforeMakarSankranti.ayana)
+        val afterMakarSankranti = HinduPanchang.panchangFor(
+            java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US)
+                .apply { timeZone = ist }.parse("2026-01-20 06:00")!!.time,
+            ist,
+        )
+        assertEquals(Ayana.UTTARAYANA, afterMakarSankranti.ayana)
+
+        // Karka Sankranti (Sun enters sidereal Cancer, ~mid-July): Dakshinayana starts.
+        val beforeKarkaSankranti = HinduPanchang.panchangFor(
+            java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US)
+                .apply { timeZone = ist }.parse("2026-07-10 06:00")!!.time,
+            ist,
+        )
+        assertEquals(Ayana.UTTARAYANA, beforeKarkaSankranti.ayana)
+        val afterKarkaSankranti = HinduPanchang.panchangFor(
+            java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US)
+                .apply { timeZone = ist }.parse("2026-07-22 06:00")!!.time,
+            ist,
+        )
+        assertEquals(Ayana.DAKSHINAYANA, afterKarkaSankranti.ayana)
     }
 }
