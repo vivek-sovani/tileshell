@@ -42,6 +42,13 @@
          — confirmed absent from Play Console's restricted-permissions list, so it
          needs no Permissions Declaration Form / extended review. -->
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+    <!-- Personalize → wallpaper "also update system wallpaper" prompt: pushes
+         TileShell's own gradient/photo wallpaper to the real Android
+         WallpaperManager (home and/or lock screen), since this app otherwise
+         only ever draws its wallpaper in-app. Normal-protection permission —
+         auto-granted at install, not on Play Console's restricted-permissions
+         list, no Data Safety disclosure. -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
 
     <queries>
         <intent>

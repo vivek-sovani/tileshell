@@ -139,6 +139,17 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
     }
 
     /**
+     * Remember which real Android surface(s) — [WallpaperSyncTarget.HOME]/[LOCK]/
+     * [HOME_AND_LOCK], or [WallpaperSyncTarget.NONE] to stop — TileShell's own
+     * wallpaper should also be pushed to. Purely a preference; the actual
+     * `WallpaperManager` push happens at the call site (`SystemWallpaperSync`),
+     * since that needs a real `Context` this pure repository doesn't have.
+     */
+    suspend fun setWallpaperSyncTarget(target: WallpaperSyncTarget) {
+        store.updateData { it.copy(wallpaperSyncTarget = target) }
+    }
+
+    /**
      * Store the freshly downloaded Bing image URI (called by `BingWallpaperWorker`).
      * No-ops if the user has since turned Bing off, so a late download can't
      * resurrect the wallpaper after it was dismissed.

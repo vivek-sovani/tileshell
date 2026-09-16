@@ -7288,3 +7288,60 @@ a while. `GridGeometry.of`'s `side` is back to the original proportional `totalW
 removal — rather than hardcoded `0f`. Single-source-of-truth change (`GridGeometry` is shared by
 `DenseTileGrid`, the folder overlay's inline-expand grid, and resize/hit-testing geometry), so every
 consumer picks it up automatically. Build + full unit test suite green.
+
+## Personalize wallpaper: optional sync to the real Android home/lock screen
+
+User asked "is there a solution" to also use TileShell's own wallpaper (gradient or photo) as the
+real Android lock screen's wallpaper — until now it was purely drawn in-app (`WallpaperBackground.kt`),
+never touching `android.app.WallpaperManager`, so the actual system lock screen (drawn entirely by
+the OS) never reflected it.
+
+Added `SET_WALLPAPER` (a normal, auto-granted-at-install permission — not on Play's restricted-
+permissions list, no Data Safety disclosure needed) and a small `SystemWallpaperSync` object
+(`:feature:start`) that pushes the current wallpaper via `WallpaperManager.setBitmap(..., flags)`:
+a real photo/Bing image reuses the existing downsampled decode (`WallpaperBackground.decodeWallpaper`,
+widened from `private` to `internal`); a bundled gradient is rasterized off-screen via a new
+`core/design` function, `renderWallpaperToBitmap` — the exact same `drawWallpaperGradient` draw
+[wallpaperBackground] itself uses, just run through a `CanvasDrawScope` onto a real `Bitmap` instead
+of a live composition, so the pushed image matches the in-app one exactly.
+
+Per explicit request, this is a prompt at the moment of picking a wallpaper (gradient tap, photo
+crop-confirm, Bing-history pick — *not* the plain re-crop/re-frame overlay, which changes no
+content), offering exactly "home screen" / "lock screen" / "home + lock screen" (plus "not now" to
+skip), rather than a persistent Personalize toggle — mirrors Android's own native "set wallpaper"
+chooser. The choice is remembered (`LauncherSettings.wallpaperSyncTarget`, default `NONE` — byte-
+identical behaviour for every existing install until they opt in) so a future pick could reapply the
+same target without re-asking, though that reapplication is **not** wired for the *automatic*
+refreshers (the Bing daily worker, the wallpaper slideshow rotation) in this pass — both live in
+`:feature:livetiles`, which cannot depend on `:feature:start` (the dependency graph runs the other
+way), and relocating `SystemWallpaperSync` to unblock that wasn't asked for. A daily-refreshing Bing
+wallpaper synced to the lock screen will therefore fall slightly behind until the user picks from
+Bing history again; worth revisiting if that's reported as a real annoyance.
+
+Build + full unit test suite green.
+
+## Wallpaper sync prompt: redesigned to match the OEM wallpaper-set flow exactly
+
+Direct same-day follow-up. First version applied the wallpaper immediately, then separately asked
+"also update system wallpaper?" with explanatory text and a "not now" that only skipped the OS push.
+User corrected it on two points, then clarified against their own OEM (Samsung) launcher's own
+wallpaper-set flow as the reference: no explanatory copy at all, just the bare targets; and the
+choice must come *before* anything is applied, with declining meaning nothing is set — not even
+TileShell's own in-app wallpaper.
+
+Reworked so none of the three pick sites (`onWallpaperChange`, the crop overlay's `onConfirm`,
+`BingHistorySheet.onPick`) call `viewModel.setWallpaper`/`setCustomWallpaper`/`applyBingImage`
+directly anymore — each just records a `PendingWallpaperPick` (gradient id / photo uri+crop / Bing
+url) and shows the chooser. The chooser itself dropped its title and body text entirely, leaving
+only the three target buttons plus "cancel"; picking one calls a new matching `StartViewModel
+.*WithSync` function that does the set-wallpaper write and the `SystemWallpaperSync` push together,
+passing the just-picked value directly rather than reading it back through the `settings` StateFlow
+(which could still reflect the pre-write value depending on collection timing) — the only place that
+still reads `settings.value` is for the unrelated `dark` flag. The Bing case is the one genuinely
+async one — `BingWallpaperWorker.applyImage` only enqueues a download, so `applyBingImageWithSync`
+awaits (bounded to 20s) the settings flow actually reflecting a new `customWallpaperUri` before
+pushing, rather than pushing a stale/absent image.
+
+Build + full unit test suite green; installed on the physical device with no crash. The actual
+on-device flow (pick a wallpaper → bare 3-option/cancel prompt → confirm → check the real lock
+screen) still needs the user's own hands-on pass.

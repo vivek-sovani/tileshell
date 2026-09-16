@@ -895,6 +895,67 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Apply a bundled gradient wallpaper AND push it to [target] (Personalize's
+     * "home screen / lock screen / home + lock screen" chooser, shown before
+     * anything is set — mirrors the OEM wallpaper-picker flow). Nothing here
+     * runs unless the user actually picked a target; there is no bare
+     * "just set it for TileShell" path anymore, by design.
+     */
+    fun setWallpaperWithSync(wallpaperId: String, target: com.tileshell.core.data.settings.WallpaperSyncTarget) {
+        val context = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsRepository.setWallpaper(wallpaperId)
+            settingsRepository.setWallpaperSyncTarget(target)
+            SystemWallpaperSync.apply(
+                context = context, target = target,
+                gradientId = wallpaperId, customWallpaperUri = null, dark = settings.value.dark,
+            )
+        }
+    }
+
+    /** Photo counterpart of [setWallpaperWithSync]. */
+    fun setCustomWallpaperWithSync(
+        uri: String,
+        alignX: Float,
+        alignY: Float,
+        zoom: Float,
+        target: com.tileshell.core.data.settings.WallpaperSyncTarget,
+    ) {
+        val context = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsRepository.setCustomWallpaper(uri, alignX, alignY, zoom)
+            settingsRepository.setWallpaperSyncTarget(target)
+            SystemWallpaperSync.apply(
+                context = context, target = target,
+                gradientId = settings.value.wallpaperId, customWallpaperUri = uri, dark = settings.value.dark,
+            )
+        }
+    }
+
+    /**
+     * Bing-history counterpart of [setWallpaperWithSync]. `BingWallpaperWorker
+     * .applyImage` downloads asynchronously and only then persists the final
+     * local file URI, so — unlike the other two, which know their target
+     * bitmap immediately — this waits (bounded, in case the download fails)
+     * for that URI to actually land before pushing it to [target].
+     */
+    fun applyBingImageWithSync(imageUrl: String, target: com.tileshell.core.data.settings.WallpaperSyncTarget) {
+        val context = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            val previousUri = settings.value.customWallpaperUri
+            settingsRepository.setWallpaperSyncTarget(target)
+            com.tileshell.feature.livetiles.BingWallpaperWorker.applyImage(context, imageUrl)
+            val newUri = kotlinx.coroutines.withTimeoutOrNull(20_000L) {
+                settings.first { it.customWallpaperUri != null && it.customWallpaperUri != previousUri }
+            }?.customWallpaperUri ?: return@launch
+            SystemWallpaperSync.apply(
+                context = context, target = target,
+                gradientId = settings.value.wallpaperId, customWallpaperUri = newUri, dark = settings.value.dark,
+            )
+        }
+    }
+
+    /**
      * Turn the Microsoft Bing daily wallpaper on or off. Enabling flips the setting,
      * schedules the daily refresh and kicks an immediate download; disabling clears the
      * image (reverting to the gradient) and cancels the work.

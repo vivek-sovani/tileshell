@@ -69,6 +69,18 @@ val TilePackMode.isAnchored: Boolean get() = this != TilePackMode.DENSE
 enum class TileColorSource { GLOBAL_ACCENT, APP_ICON, WALLPAPER_ACCENT }
 
 /**
+ * Whether TileShell's own wallpaper (gradient or photo) is also pushed to the
+ * real Android [android.app.WallpaperManager] — since this app draws its own
+ * wallpaper entirely in-app, the actual system lock screen (drawn by the OS,
+ * outside the launcher's control) otherwise never reflects it. [NONE] is the
+ * default and matches every prior release's behaviour exactly (a purely
+ * in-app wallpaper). Remembered across an automatic refresh (the Bing daily
+ * worker, the wallpaper slideshow) so those keep the system wallpaper synced
+ * too without asking again each time — only an interactive re-pick prompts.
+ */
+enum class WallpaperSyncTarget { NONE, HOME, LOCK, HOME_AND_LOCK }
+
+/**
  * Horizontal placement of the section dropdown at the bottom of Start
  * (user-requested, for easier one-handed thumb reach): [START] hugs the
  * bottom-left corner, [CENTER] (the original placement) stays centered,
@@ -188,6 +200,7 @@ data class LauncherSettings(
     val wallpaperId: String = "none",
     val customWallpaperUri: String? = null,
     val bingWallpaper: Boolean = false,
+    val wallpaperSyncTarget: WallpaperSyncTarget = WallpaperSyncTarget.NONE,
     val tiledWallpaper: Boolean = false,
     /**
      * "Borderless" tile style: the tile paints no fill and no outline at all —
@@ -332,6 +345,7 @@ object SettingsCodec {
         append("wallpaper=").append(settings.wallpaperId).append('\n')
         append("customWallpaper=").append(settings.customWallpaperUri.orEmpty()).append('\n')
         append("bingWallpaper=").append(settings.bingWallpaper).append('\n')
+        append("wallpaperSyncTarget=").append(settings.wallpaperSyncTarget.name).append('\n')
         append("tiledWallpaper=").append(settings.tiledWallpaper).append('\n')
         append("borderlessTiles=").append(settings.borderlessTiles).append('\n')
         append("tileOutline=").append(settings.tileOutline).append('\n')
@@ -385,6 +399,7 @@ object SettingsCodec {
         var wallpaperId = d.wallpaperId
         var customWallpaperUri = d.customWallpaperUri
         var bingWallpaper = d.bingWallpaper
+        var wallpaperSyncTarget = d.wallpaperSyncTarget
         var tiledWallpaper = d.tiledWallpaper
         var borderlessTiles = d.borderlessTiles
         var tileOutline = d.tileOutline
@@ -440,6 +455,8 @@ object SettingsCodec {
                 "wallpaper" -> if (value.isNotEmpty()) wallpaperId = value
                 "customWallpaper" -> customWallpaperUri = value.ifEmpty { null }
                 "bingWallpaper" -> bingWallpaper = value.toBooleanStrictOrNull() ?: bingWallpaper
+                "wallpaperSyncTarget" ->
+                    WallpaperSyncTarget.entries.find { it.name == value }?.let { wallpaperSyncTarget = it }
                 "tiledWallpaper" -> tiledWallpaper = value.toBooleanStrictOrNull() ?: tiledWallpaper
                 "borderlessTiles" -> borderlessTiles = value.toBooleanStrictOrNull() ?: borderlessTiles
                 "tileOutline" -> tileOutline = value.toBooleanStrictOrNull() ?: tileOutline
@@ -511,6 +528,7 @@ object SettingsCodec {
             wallpaperId = wallpaperId,
             customWallpaperUri = customWallpaperUri,
             bingWallpaper = bingWallpaper,
+            wallpaperSyncTarget = wallpaperSyncTarget,
             tiledWallpaper = tiledWallpaper,
             borderlessTiles = borderlessTiles,
             tileOutline = tileOutline,

@@ -186,6 +186,7 @@ import com.tileshell.core.data.settings.SectionPillAlignment
 import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.data.settings.TilePackMode
+import com.tileshell.core.data.settings.WallpaperSyncTarget
 import com.tileshell.core.data.settings.isAnchored
 import com.tileshell.core.data.shortcutIconDrawable
 import com.tileshell.core.design.CornerArcGlyph
@@ -517,6 +518,14 @@ fun StartScreen(
     var adjustingWallpaper by remember { mutableStateOf(false) }
     // True while the recent-Bing-wallpapers viewer is open.
     var bingHistoryOpen by remember { mutableStateOf(false) }
+    // A brand-new wallpaper pick (gradient/photo/Bing) waiting on the
+    // "where should this apply" chooser below — nothing is actually set as
+    // TileShell's own wallpaper until one of its options is tapped;
+    // dismissing it discards the pick entirely (per explicit request, "not
+    // now" means not even setting it for TileShell). Not used for a plain
+    // re-crop/re-frame of the *already-active* image — that changes no
+    // content, so there's nothing new to choose a target for.
+    var pendingWallpaperPick by remember { mutableStateOf<PendingWallpaperPick?>(null) }
 
     // Gallery photo picker for a custom wallpaper. PickVisualMedia opens the phone's
     // gallery / system photo picker (nicer than the SAF document browser). Its grant
@@ -1610,7 +1619,7 @@ fun StartScreen(
             onGlassChange = viewModel::setGlass,
             onTransparencyChange = viewModel::setTransparency,
             onBlurChange = viewModel::setBlur,
-            onWallpaperChange = viewModel::setWallpaper,
+            onWallpaperChange = { id -> pendingWallpaperPick = PendingWallpaperPick.Gradient(id) },
             onPickCustomWallpaper = {
                 wallpaperPicker.launch(
                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
@@ -2067,12 +2076,15 @@ fun StartScreen(
             darkTheme = dark,
             glassLine = tokens.glassLine,
             onConfirm = { alignX, alignY, zoom ->
-                pendingWallpaperCropUri?.let { viewModel.setCustomWallpaper(it, alignX, alignY, zoom) }
+                pendingWallpaperCropUri?.let {
+                    pendingWallpaperPick = PendingWallpaperPick.Photo(it, alignX, alignY, zoom)
+                }
                 pendingWallpaperCropUri = null
                 // Reached via personalize → wallpaper → photo (or the share/
                 // "apply via" entry points, where this is a harmless no-op since
-                // personalize was never open) — once applied, land back on Start
-                // instead of leaving the personalize sheet showing underneath.
+                // personalize was never open) — the target chooser lands on
+                // Start instead of leaving the personalize sheet showing
+                // underneath, same as before.
                 viewModel.closePersonalize()
             },
             onCancel = { pendingWallpaperCropUri = null },
@@ -2112,12 +2124,51 @@ fun StartScreen(
             dark = dark,
             accentId = settings.accentId,
             onPick = { imageUrl ->
-                viewModel.applyBingImage(imageUrl)
+                pendingWallpaperPick = PendingWallpaperPick.Bing(imageUrl)
                 bingHistoryOpen = false
-                Toast.makeText(context, "setting bing wallpaper…", Toast.LENGTH_SHORT).show()
             },
             onDismiss = { bingHistoryOpen = false },
         )
+
+        // Where to apply a freshly picked wallpaper — bare options, no
+        // explanatory copy, shown *before* anything is set (mirrors the
+        // OEM/AOSP wallpaper-set flow's own bottom prompt exactly: pick a
+        // target or cancel, nothing applied either way until you do).
+        // Dismissing discards [pendingWallpaperPick] outright — it's never
+        // set as TileShell's own wallpaper, let alone pushed to the OS.
+        pendingWallpaperPick?.let { pick ->
+            fun applyTo(target: WallpaperSyncTarget) {
+                when (pick) {
+                    is PendingWallpaperPick.Gradient -> viewModel.setWallpaperWithSync(pick.id, target)
+                    is PendingWallpaperPick.Photo ->
+                        viewModel.setCustomWallpaperWithSync(pick.uri, pick.alignX, pick.alignY, pick.zoom, target)
+                    is PendingWallpaperPick.Bing -> viewModel.applyBingImageWithSync(pick.imageUrl, target)
+                }
+                pendingWallpaperPick = null
+            }
+            AlertDialog(
+                onDismissRequest = { pendingWallpaperPick = null },
+                title = null,
+                text = {
+                    Column {
+                        listOf(
+                            "home screen" to WallpaperSyncTarget.HOME,
+                            "lock screen" to WallpaperSyncTarget.LOCK,
+                            "home + lock screen" to WallpaperSyncTarget.HOME_AND_LOCK,
+                        ).forEach { (label, target) ->
+                            TextButton(
+                                onClick = { applyTo(target) },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) { Text(label) }
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { pendingWallpaperPick = null }) { Text("cancel") }
+                },
+            )
+        }
     }
     }
 }
@@ -2132,6 +2183,19 @@ fun StartScreen(
  * colon unambiguously recovers both parts.
  */
 private const val FOLDER_CHILD_ID_PREFIX = "folderchild:"
+
+/**
+ * A wallpaper picked but not yet applied — waiting on the "home screen /
+ * lock screen / home + lock screen" chooser (mirrors the real Android
+ * wallpaper-setting flow's own bare 3-option + cancel prompt). Resolved
+ * into the matching `StartViewModel.*WithSync` call once a target is
+ * picked; discarded with no effect at all if the chooser is dismissed.
+ */
+private sealed interface PendingWallpaperPick {
+    data class Gradient(val id: String) : PendingWallpaperPick
+    data class Photo(val uri: String, val alignX: Float, val alignY: Float, val zoom: Float) : PendingWallpaperPick
+    data class Bing(val imageUrl: String) : PendingWallpaperPick
+}
 
 /**
  * Fixed geometry for a "borderless" tile — deliberately not derived from
