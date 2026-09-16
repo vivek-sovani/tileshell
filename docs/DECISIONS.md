@@ -7484,3 +7484,36 @@ moon). Worth revisiting only if a widget specifically (not the in-app tile) is c
 
 Build + full unit test suite green; installed with no crash. The user's device was locked during
 this session, so the actual on-screen fix for the small/icon tile still needs their own confirmation.
+
+## Moon phase crescent: real root cause found (the earlier "small face" fix was not it)
+
+Direct correction after the previous entry — user confirmed the full-size live tile *and* the real
+home-screen widget both still showed a plain half-moon after that fix, and were right: that fix
+(the missing `IconCellView` dispatch entry) was real but not the actual bug behind the visual report.
+
+Root-caused with on-device logging: instrumented `PanchangFace` and `MoonPhaseVisual` directly and
+confirmed the exact runtime values feeding the render — `paksha=SHUKLA, tithiInPaksha=5,
+moonFraction=0.15, cosVal=0.588, rx=42.9 (r=73)` — mathematically and by an independent script-based
+render, *should* draw a clear tapered crescent. It didn't, on the real device, because of a
+different bug entirely: `MoonPhaseVisual`/`moonPhaseBitmap` built the crescent by painting the wide
+half-disc fully opaque in `lit`, then painting the narrower "cut" half-ellipse in `shadow` *on top of
+it* to carve the crescent out — but `shadow` is defined as `lit`'s own colour at 18% alpha. Painting
+an 18%-alpha version of a colour over an already-*opaque* fill of that same colour barely changes
+the pixels at all — the "cut" was never visible, on any tile background, at any fraction (except
+exactly full/new moon) — always leaving what looks like a plain half-moon (a full opaque half-disc)
+regardless of the real phase. This is why the earlier verification (a from-scratch script using
+different, genuinely contrasting placeholder colours for lit/shadow) rendered a correct crescent —
+it didn't reproduce the real app's lit-and-shadow-are-the-same-hue relationship, so it couldn't
+surface this bug at all.
+
+Fixed by computing the actual lit silhouette as one real path boolean operation — `PathOperation
+.Difference` (crescent) / `.Union` (gibbous) in Compose's `MoonPhaseVisual`, `Path.Op.DIFFERENCE`/
+`.UNION` in the widget's plain-`android.graphics` `moonPhaseBitmap` — and filling that single
+resulting path once, rather than painting two overlapping half-ellipses and hoping the alpha blend
+reads as a cut. Confirmed on-device: the panchang tile now shows a real tapered crescent for tithi 5,
+matching what tithi 5 (~21% illuminated) should actually look like.
+
+Build + full unit test suite green; visually confirmed on the physical device via screenshot — the
+same fix applies to the standalone moon-phase live tile (identical code path) and both home-screen
+widgets (identical `Path.op`-based fix mirrored into `WidgetMoonPhaseVisual.kt`), though only the
+panchang tile was directly screenshotted this session.

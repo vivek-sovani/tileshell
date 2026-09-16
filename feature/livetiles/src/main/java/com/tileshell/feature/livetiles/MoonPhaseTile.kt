@@ -23,6 +23,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -267,6 +268,17 @@ private fun MoonPhaseFront(face: MoonPhaseFace, size: TileSize) {
  * into it (crescent) on the appropriate side, so the two half-ellipses alone
  * reproduce new / crescent / quarter / gibbous / full exactly at their
  * canonical fractions (0, ~0.15, 0.25, ~0.35, 0.5, …).
+ *
+ * The two half-ellipses are combined via a real path boolean op
+ * ([PathOperation.Union]/[PathOperation.Difference]), not by painting the
+ * narrower one in [shadow] on top of the wider one already painted in [lit]
+ * (an earlier version did this, and it never actually worked — [shadow] is
+ * just [lit] at 18% alpha, so painting it over an already-*opaque* [lit]
+ * fill barely changes the pixels at all; the "cut" was invisible on every
+ * background, always leaving what looked like a plain half-moon regardless
+ * of the real phase — user-reported: "today is 5th day but it is showing
+ * half moon"). Computing the actual lit silhouette once and filling it a
+ * single time has no such blending problem.
  */
 /** Widened to internal so [CalendarSystemTile]'s Hindu Panchang face can reuse the same crescent — tithi is fundamentally a lunar-phase measure, so the two are drawn identically. */
 @Composable
@@ -296,9 +308,14 @@ internal fun MoonPhaseVisual(fraction: Double, modifier: Modifier = Modifier) {
         val rx = kotlin.math.abs(cosVal) * r
         val isGibbous = cosVal < 0f
 
+        val bigHalf = halfEllipsePath(r, litRight)
+        val smallHalf = halfEllipsePath(rx, if (isGibbous) !litRight else litRight)
+        val litPath = Path().apply {
+            op(bigHalf, smallHalf, if (isGibbous) PathOperation.Union else PathOperation.Difference)
+        }
+
         drawCircle(color = shadow, radius = r, center = center)
-        drawPath(halfEllipsePath(r, litRight), color = lit)
-        drawPath(halfEllipsePath(rx, if (isGibbous) !litRight else litRight), color = if (isGibbous) lit else shadow)
+        drawPath(litPath, color = lit)
         drawCircle(color = rim, radius = r, center = center, style = Stroke(width = 1.dp.toPx()))
     }
 }
