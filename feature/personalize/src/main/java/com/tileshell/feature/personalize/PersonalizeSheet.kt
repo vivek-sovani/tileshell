@@ -35,7 +35,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
+import com.tileshell.core.design.Glass
 import com.tileshell.core.design.SquircleShape
+import com.tileshell.core.design.isLightBackground
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -633,7 +635,7 @@ fun PersonalizeSheet(
                                 val selected = wallpaperSlideshowIntervalMin == min
                                 Text(
                                     text = label,
-                                    color = if (selected) Color.White else tokens.fgDim,
+                                    color = if (selected) accentOnColor(accent) else tokens.fgDim,
                                     fontSize = 12.sp,
                                     modifier = Modifier
                                         .background(
@@ -983,7 +985,7 @@ fun PersonalizeSheet(
                             ) {
                                 Text(
                                     text = count.toString(),
-                                    color = if (selected) Color.White else tokens.fg,
+                                    color = if (selected) accentOnColor(accent) else tokens.fg,
                                     fontSize = 13.sp,
                                 )
                             }
@@ -1194,7 +1196,7 @@ fun PersonalizeSheet(
                         ) {
                             Text(
                                 text = label,
-                                color = if (selected) Color.White else tokens.fg,
+                                color = if (selected) accentOnColor(accent) else tokens.fg,
                                 fontSize = 13.sp,
                             )
                         }
@@ -1681,7 +1683,7 @@ private fun ThemeTile(
     onClick: () -> Unit,
 ) {
     val bg = if (selected) accent else tokens.chip
-    val fg = if (selected) Color.White else tokens.fgDim
+    val fg = if (selected) accentOnColor(accent) else tokens.fgDim
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(10.dp))
@@ -1728,6 +1730,21 @@ private fun RefreshRateRow(
 }
 
 /**
+ * Text/icon colour for content sitting directly on an [accent] fill whose
+ * own brightness isn't known ahead of time — e.g. every selected segmented-
+ * toggle cell below, which is filled with the sheet's own `accent` local,
+ * itself the wallpaper-derived colour whenever "tile colour source" is set
+ * to wallpaper (see [PersonalizeSheet]'s own `accent` resolution). A plain
+ * hardcoded white read fine against the app's own accent swatches, which are
+ * always mid-to-dark, but not against an arbitrary light wallpaper accent
+ * (user-reported: "accent bar... text color not adjusted based on light and
+ * dark wallpaper") — picks dark or light text by the fill's actual luminance
+ * instead, matching how the app list/Quick Panel already do this for an
+ * arbitrary accent-filled surface.
+ */
+private fun accentOnColor(accent: Color): Color = Glass.faceTextColor(isLightBackground(accent))
+
+/**
  * One cell of the segmented toggle (prototype .seg div / .seg div.on).
  * [swatch], when non-null, draws a small colour dot before the label — e.g.
  * the "tile color source" row's "wallpaper" cell, previewing the actual
@@ -1762,7 +1779,7 @@ private fun RowScope.SegCell(
             }
             Text(
                 text = label,
-                color = if (selected) Color.White else fg,
+                color = if (selected) accentOnColor(accent) else fg,
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center,
                 maxLines = 1,

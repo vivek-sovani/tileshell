@@ -4415,6 +4415,15 @@ private fun SectionDropdownList(
         blocks.forEach { block ->
             val selected = block.sectionId == selectedSectionId
             val badgeCount = badgeCountFor(block.sectionId)
+            // A wallpaper-derived accent (Personalize's "tile colour source")
+            // can be light or dark on its own, independent of the app's
+            // dark/light theme setting — user-reported ("accent bar... text
+            // color not adjusted based on light and dark wallpaper"): the
+            // selected row's text used to be hardcoded white, unreadable
+            // against a light wallpaper accent. Reads the accent's own
+            // brightness instead, matching how the app list/Quick Panel
+            // already pick text colour for an arbitrary accent fill.
+            val selectedTextColor = Glass.faceTextColor(isLightBackground(accent))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -4431,7 +4440,7 @@ private fun SectionDropdownList(
             ) {
                 Text(
                     text = (block.label ?: UNSECTIONED_LABEL).lowercase(),
-                    color = if (selected) Color.White else tokens.fg,
+                    color = if (selected) selectedTextColor else tokens.fg,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.weight(1f),
