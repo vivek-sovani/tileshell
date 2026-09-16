@@ -3340,7 +3340,6 @@ private fun StartPage(
         // opt-in still renders/uses them normally, it just loses this nav
         // aid until "enable sections" is switched back on.
         if (!editMode && sectionsEnabled && blocks.size >= 2) {
-            val sectionNavTextColor = Glass.faceTextColor(screenBackgroundIsLight)
             // User-configurable placement (Personalize's "section pills"),
             // for easier one-handed thumb reach.
             val sectionNavBoxAlignment = when (sectionPillAlignment) {
@@ -3382,7 +3381,6 @@ private fun StartPage(
                 AnimatedVisibility(visible = sectionDropdownExpanded) {
                     SectionDropdownList(
                         blocks = blocks,
-                        textColor = sectionNavTextColor,
                         selectedSectionId = activeTabSectionId,
                         accent = wallpaperAccent ?: accent,
                         darkTheme = darkTheme,
@@ -3395,7 +3393,6 @@ private fun StartPage(
                     label = currentBlockLabel,
                     badgeCount = currentBadgeCount,
                     expanded = sectionDropdownExpanded,
-                    textColor = sectionNavTextColor,
                     darkTheme = darkTheme,
                     onClick = { sectionDropdownExpanded = !sectionDropdownExpanded },
                 )
@@ -4323,23 +4320,31 @@ private fun FolderExpandedPlaceholder(
  * chevron indicating whether [SectionDropdownList] is expanded below/above
  * it. Tapping toggles [expanded] (owned by the caller) — this composable has
  * no tab-switching logic of its own.
+ *
+ * Uses the app's own opaque sheet/chrome colour (same as [EditBar]), not a
+ * translucent wallpaper-derived tint — real bug, user-reported ("transperent
+ * tab menu - can not see clearly"): a low-alpha fill sampled against an
+ * arbitrary photo wallpaper can land on a same-brightness region and all but
+ * disappear (confirmed on-device against a bright, near-white area of a
+ * photo wallpaper). A solid themed surface is legible regardless of what's
+ * behind it.
  */
 @Composable
 private fun SectionDropdownPill(
     label: String,
     badgeCount: Int,
     expanded: Boolean,
-    textColor: Color,
     onClick: () -> Unit,
     darkTheme: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
+    val tokens = colorTokens(darkTheme)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
-            .background(textColor.copy(alpha = 0.12f))
-            .border(1.dp, textColor.copy(alpha = 0.24f), RoundedCornerShape(16.dp))
+            .background(tokens.sheet)
+            .border(1.dp, tokens.sheetLine, RoundedCornerShape(16.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -4347,7 +4352,7 @@ private fun SectionDropdownPill(
             )
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
-        Text(text = label, color = textColor, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Text(text = label, color = tokens.fg, fontSize = 13.sp, fontWeight = FontWeight.Medium)
         if (badgeCount > 0) {
             NotificationBadge(
                 count = badgeCount,
@@ -4360,7 +4365,7 @@ private fun SectionDropdownPill(
         Icon(
             imageVector = TileIcons["chevron"],
             contentDescription = if (expanded) "hide sections" else "show sections",
-            tint = textColor.copy(alpha = 0.72f),
+            tint = tokens.fgDim,
             modifier = Modifier
                 .padding(start = 6.dp)
                 .size(14.dp)
@@ -4383,24 +4388,28 @@ private fun SectionDropdownPill(
  * highlight), restyled as a list instead of inline pills. Highlights
  * whichever row matches the block currently filling the screen (the only
  * display mode there is now).
+ *
+ * Uses the app's own opaque sheet/chrome colour, same as [SectionDropdownPill]
+ * — see its doc comment for why a translucent wallpaper-derived tint isn't
+ * reliably legible here.
  */
 @Composable
 private fun SectionDropdownList(
     blocks: List<TileBlock>,
-    textColor: Color,
     onSelect: (String?) -> Unit,
     modifier: Modifier = Modifier,
     selectedSectionId: String? = null,
-    accent: Color = textColor,
+    accent: Color = Color.White,
     darkTheme: Boolean = true,
     badgeCountFor: (String?) -> Int = { 0 },
 ) {
+    val tokens = colorTokens(darkTheme)
     Column(
         modifier = modifier
             .widthIn(min = 160.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(Glass.raisedCardFill(darkTheme, 0f))
-            .border(1.dp, textColor.copy(alpha = 0.16f), RoundedCornerShape(14.dp))
+            .background(tokens.sheet)
+            .border(1.dp, tokens.sheetLine, RoundedCornerShape(14.dp))
             .padding(vertical = 4.dp),
     ) {
         blocks.forEach { block ->
@@ -4422,7 +4431,7 @@ private fun SectionDropdownList(
             ) {
                 Text(
                     text = (block.label ?: UNSECTIONED_LABEL).lowercase(),
-                    color = if (selected) Color.White else textColor,
+                    color = if (selected) Color.White else tokens.fg,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.weight(1f),
