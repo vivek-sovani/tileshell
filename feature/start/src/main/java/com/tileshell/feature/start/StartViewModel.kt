@@ -908,7 +908,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             settingsRepository.setWallpaperSyncTarget(target)
             SystemWallpaperSync.apply(
                 context = context, target = target,
-                gradientId = wallpaperId, customWallpaperUri = null, dark = settings.value.dark,
+                gradientId = wallpaperId, customWallpaperUri = null,
+                alignX = 0.5f, alignY = 0.5f, zoom = 1f, dark = settings.value.dark,
             )
         }
     }
@@ -927,7 +928,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             settingsRepository.setWallpaperSyncTarget(target)
             SystemWallpaperSync.apply(
                 context = context, target = target,
-                gradientId = settings.value.wallpaperId, customWallpaperUri = uri, dark = settings.value.dark,
+                gradientId = settings.value.wallpaperId, customWallpaperUri = uri,
+                alignX = alignX, alignY = alignY, zoom = zoom, dark = settings.value.dark,
             )
         }
     }
@@ -948,9 +950,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             val newUri = kotlinx.coroutines.withTimeoutOrNull(20_000L) {
                 settings.first { it.customWallpaperUri != null && it.customWallpaperUri != previousUri }
             }?.customWallpaperUri ?: return@launch
+            val s = settings.value
             SystemWallpaperSync.apply(
                 context = context, target = target,
-                gradientId = settings.value.wallpaperId, customWallpaperUri = newUri, dark = settings.value.dark,
+                gradientId = s.wallpaperId, customWallpaperUri = newUri,
+                alignX = s.wallpaperAlignX, alignY = s.wallpaperAlignY, zoom = s.wallpaperZoom, dark = s.dark,
             )
         }
     }

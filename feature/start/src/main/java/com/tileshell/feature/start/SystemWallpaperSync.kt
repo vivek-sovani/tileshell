@@ -3,10 +3,12 @@ package com.tileshell.feature.start
 import android.app.WallpaperManager
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Rect
 import androidx.compose.ui.graphics.asAndroidBitmap
 import com.tileshell.core.data.settings.WallpaperSyncTarget
 import com.tileshell.core.design.Wallpapers
 import com.tileshell.core.design.renderWallpaperToBitmap
+import kotlin.math.roundToInt
 
 /**
  * Pushes TileShell's own wallpaper (gradient or photo) to the real Android
@@ -22,17 +24,27 @@ object SystemWallpaperSync {
 
     /**
      * Applies [target] using [customWallpaperUri] (a real photo/Bing image,
-     * decoded the same downsampled way the in-app background already is)
-     * when set, else the bundled [gradientId] rasterized to a bitmap at the
-     * device's own screen size. A no-op for [WallpaperSyncTarget.NONE] or if
-     * the bitmap can't be produced; failures are swallowed — this is a
-     * best-effort sync, never something a settings change should crash on.
+     * decoded the same downsampled way the in-app background already is —
+     * and, since the decoded photo is usually bigger than the screen and
+     * the user has their own chosen [alignX]/[alignY]/[zoom] framing for it
+     * (see [wallpaperCropGeometry], the exact same math the in-app renderer
+     * uses), passed to `WallpaperManager` as a `visibleCropHint` so the
+     * pushed wallpaper is framed identically, not just centre-cropped by
+     * the OS's own default) when set, else the bundled [gradientId]
+     * rasterized to a bitmap already at the device's own screen size (no
+     * crop hint needed — it already exactly fills the box). A no-op for
+     * [WallpaperSyncTarget.NONE] or if the bitmap can't be produced;
+     * failures are swallowed — this is a best-effort sync, never something
+     * a settings change should crash on.
      */
     fun apply(
         context: Context,
         target: WallpaperSyncTarget,
         gradientId: String,
         customWallpaperUri: String?,
+        alignX: Float,
+        alignY: Float,
+        zoom: Float,
         dark: Boolean,
     ) {
         val flags = when (target) {
@@ -41,22 +53,45 @@ object SystemWallpaperSync {
             WallpaperSyncTarget.HOME_AND_LOCK -> WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK
             WallpaperSyncTarget.NONE -> return
         }
-        val bitmap = resolveBitmap(context, gradientId, customWallpaperUri, dark) ?: return
-        runCatching { WallpaperManager.getInstance(context).setBitmap(bitmap, null, true, flags) }
+        val metrics = context.resources.displayMetrics
+        val boxWidth = metrics.widthPixels.toFloat()
+        val boxHeight = metrics.heightPixels.toFloat()
+
+        var cropHint: Rect? = null
+        val bitmap: Bitmap = if (!customWallpaperUri.isNullOrBlank()) {
+            val decoded = decodeWallpaper(context, customWallpaperUri)?.asAndroidBitmap() ?: return
+            cropHint = visibleCropHint(decoded, boxWidth, boxHeight, alignX, alignY, zoom)
+            decoded
+        } else {
+            runCatching {
+                renderWallpaperToBitmap(Wallpapers.forId(gradientId), boxWidth.roundToInt(), boxHeight.roundToInt(), dark)
+            }.getOrNull() ?: return
+        }
+        runCatching { WallpaperManager.getInstance(context).setBitmap(bitmap, cropHint, true, flags) }
     }
 
-    private fun resolveBitmap(
-        context: Context,
-        gradientId: String,
-        customWallpaperUri: String?,
-        dark: Boolean,
-    ): Bitmap? {
-        if (!customWallpaperUri.isNullOrBlank()) {
-            return decodeWallpaper(context, customWallpaperUri)?.asAndroidBitmap()
-        }
-        val metrics = context.resources.displayMetrics
-        return runCatching {
-            renderWallpaperToBitmap(Wallpapers.forId(gradientId), metrics.widthPixels, metrics.heightPixels, dark)
-        }.getOrNull()
+    /**
+     * The region of [bitmap] (in its own pixel coordinates) that
+     * [wallpaperCropGeometry]'s alignment/zoom would show inside a
+     * [boxWidth]×[boxHeight] box — the inverse of that function's draw
+     * geometry, converting "where the scaled image sits relative to the
+     * box" back into "which slice of the source image is visible."
+     */
+    private fun visibleCropHint(
+        bitmap: Bitmap,
+        boxWidth: Float,
+        boxHeight: Float,
+        alignX: Float,
+        alignY: Float,
+        zoom: Float,
+    ): Rect {
+        val crop = wallpaperCropGeometry(
+            bitmap.width.toFloat(), bitmap.height.toFloat(), boxWidth, boxHeight, alignX, alignY, zoom,
+        )
+        val left = (-crop.left / crop.scale).coerceIn(0f, bitmap.width.toFloat())
+        val top = (-crop.top / crop.scale).coerceIn(0f, bitmap.height.toFloat())
+        val right = (left + boxWidth / crop.scale).coerceIn(0f, bitmap.width.toFloat())
+        val bottom = (top + boxHeight / crop.scale).coerceIn(0f, bitmap.height.toFloat())
+        return Rect(left.roundToInt(), top.roundToInt(), right.roundToInt(), bottom.roundToInt())
     }
 }

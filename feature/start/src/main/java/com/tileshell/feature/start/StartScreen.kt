@@ -39,6 +39,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -2148,36 +2149,54 @@ fun StartScreen(
                 }
                 pendingWallpaperPick = null
             }
-            AlertDialog(
-                onDismissRequest = { pendingWallpaperPick = null },
-                title = null,
-                text = {
-                    // All 4 actions live here, in one tightly-packed Column —
-                    // Material3's own title/button-row slots each carry a lot
-                    // of default padding meant for a title + prose + a couple
-                    // of side-by-side buttons, which read as oversized for a
-                    // plain list of 4 equal choices.
-                    Column {
+            // A plain custom Dialog, not Material3's AlertDialog — full
+            // control over sizing instead of fighting its title/button-row
+            // default chrome. Two separate cards (iOS/Android's classic
+            // action-sheet shape): the 3 targets grouped together, "cancel"
+            // on its own below with a visible gap — never grouped with the
+            // real choices, per explicit request.
+            Dialog(onDismissRequest = { pendingWallpaperPick = null }) {
+                Column(modifier = Modifier.fillMaxWidth(0.84f)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(tokens.sheet),
+                    ) {
                         listOf(
                             "home screen" to WallpaperSyncTarget.HOME,
                             "lock screen" to WallpaperSyncTarget.LOCK,
                             "home + lock screen" to WallpaperSyncTarget.HOME_AND_LOCK,
-                        ).forEach { (label, target) ->
-                            TextButton(
-                                onClick = { applyTo(target) },
-                                contentPadding = PaddingValues(vertical = 10.dp, horizontal = 8.dp),
-                                modifier = Modifier.fillMaxWidth(),
-                            ) { Text(label, modifier = Modifier.fillMaxWidth()) }
+                        ).forEachIndexed { index, (label, target) ->
+                            if (index > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(tokens.tileLine))
+                            Text(
+                                text = label,
+                                color = tokens.fg,
+                                fontSize = 15.sp,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { applyTo(target) }
+                                    .padding(vertical = 14.dp),
+                            )
                         }
-                        TextButton(
-                            onClick = { pendingWallpaperPick = null },
-                            contentPadding = PaddingValues(vertical = 10.dp, horizontal = 8.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { Text("cancel", modifier = Modifier.fillMaxWidth()) }
                     }
-                },
-                confirmButton = {},
-            )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "cancel",
+                        color = tokens.fg,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(tokens.sheet)
+                            .clickable { pendingWallpaperPick = null }
+                            .padding(vertical = 14.dp),
+                    )
+                }
+            }
         }
     }
     }

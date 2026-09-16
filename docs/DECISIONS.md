@@ -7345,3 +7345,29 @@ pushing, rather than pushing a stale/absent image.
 Build + full unit test suite green; installed on the physical device with no crash. The actual
 on-device flow (pick a wallpaper → bare 3-option/cancel prompt → confirm → check the real lock
 screen) still needs the user's own hands-on pass.
+
+## Wallpaper sync: the photo's chosen framing wasn't reaching the OS push
+
+User-reported: "framed wallpaper is not set on lockscreen" (found while testing the Bing image
+flow specifically). Root cause: `SystemWallpaperSync.apply` handed the *whole* decoded photo
+bitmap straight to `WallpaperManager.setBitmap` with no `visibleCropHint` — the user's chosen
+alignX/alignY/zoom (from the crop overlay, or the existing framing a Bing image inherits) were
+never passed in at all, so the OS fell back to its own default centre-crop instead of the framing
+shown in-app.
+
+Fixed by computing a real `visibleCropHint` `Rect`, in the decoded bitmap's own pixel coordinates,
+via a new `SystemWallpaperSync.visibleCropHint` — the algebraic inverse of `wallpaperCropGeometry`
+(`WallpaperGeometry.kt`, the exact same function the in-app crop overlay and renderer already use):
+that function says where a scaled/aligned image sits *relative to the screen box*; this inverts it
+to say which *slice of the source image* is visible, which is what `WallpaperManager` expects.
+Threaded `alignX`/`alignY`/`zoom` through all three `StartViewModel.*WithSync` call sites — the
+direct photo pick passes its own just-confirmed crop values (never a settings readback, avoiding
+the same staleness risk noted in the wallpaper-sync-prompt entry above); the Bing pick reads
+`settings.value.wallpaperAlignX/Y/Zoom` right after its bounded wait resolves (Bing has no crop UI
+of its own — it inherits whatever framing was already set, per `SettingsRepository.setBingImage`'s
+own existing "keep the user's chosen framing across daily refreshes" behaviour). The gradient case
+needs no crop hint — it's rendered directly at screen size, so it already exactly fills the box.
+
+Build + full unit test suite green; installed with no crash. The actual on-device framing match
+(pick a photo, crop off-centre/zoomed, confirm home+lock, check the real lock screen shows the same
+crop) still needs the user's own hands-on pass.
