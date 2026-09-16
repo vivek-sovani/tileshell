@@ -5280,7 +5280,16 @@ private fun Modifier.emptySpaceEnterEdit(
     val slop = 7.dp.toPx()
     val commitPx = 40.dp.toPx()
     awaitEachGesture {
-        val down = awaitFirstDown(requireUnconsumed = false)
+        // Initial pass throughout: Compose dispatches the default Main pass
+        // child-first (bottom-up), so the scrolling Column *inside* this Box
+        // (see the call site) gets first look at a Main-pass drag and — even
+        // clamped to zero scroll at its bounds — consumes it before this
+        // outer recognizer would ever see an unconsumed event. Watching in
+        // Initial pass (parent-first) instead means we decide first; we only
+        // ever actually [consume] once a downward drag is confirmed, so a
+        // genuine long-press-still or a disqualified drag still reaches the
+        // scrollable exactly as before.
+        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
         val contentPos = down.position.copy(
             y = down.position.y - contentTopPx + scrollOffsetPx() - reachabilityOffsetPx,
         )
@@ -5294,7 +5303,7 @@ private fun Modifier.emptySpaceEnterEdit(
             if (onTile) return@awaitEachGesture
             var moved = false
             while (true) {
-                val event = awaitPointerEvent()
+                val event = awaitPointerEvent(PointerEventPass.Initial)
                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
                 if (change.isConsumed) return@awaitEachGesture
                 if ((change.position - down.position).getDistance() > slop) moved = true
@@ -5310,13 +5319,22 @@ private fun Modifier.emptySpaceEnterEdit(
 
         // Phase 1: race "held still 600ms" -> enter edit, against "moved
         // past slop" -> fall through to phase 2 instead of doing nothing.
+        // The moment slop breaks, claim the touch for reachability right
+        // there (before returning) if that's active — this is the one
+        // event where the scrollable child would otherwise get first crack
+        // at an unconsumed drag on its own next (Main-pass) turn.
+        var enteredReachability = false
         val movedPastSlop = withTimeoutOrNull(600L) {
             while (true) {
-                val event = awaitPointerEvent()
+                val event = awaitPointerEvent(PointerEventPass.Initial)
                 val change = event.changes.firstOrNull { it.id == down.id }
                 if (change != null && change.isConsumed) return@withTimeoutOrNull false
                 if (change == null || !change.pressed) return@withTimeoutOrNull false
                 if ((change.position - down.position).getDistance() > slop) {
+                    if (reachabilityActive && onReachabilityDrag != null) {
+                        change.consume()
+                        enteredReachability = true
+                    }
                     return@withTimeoutOrNull true
                 }
             }
@@ -5331,30 +5349,35 @@ private fun Modifier.emptySpaceEnterEdit(
             false -> return@awaitEachGesture // released early, or consumed elsewhere
             true -> Unit // fall through to phase 2
         }
+        if (!enteredReachability) return@awaitEachGesture
 
-        // Phase 2: the drag broke slop before the long-press could fire. If
-        // it's cleanly downward and reachability is active, give it
-        // unbounded time (no 600ms cap — a slow swipe is still a swipe) to
-        // live-track as a reachability pull instead of being treated as an
-        // ordinary/irrelevant drag.
-        if (!reachabilityActive || onReachabilityDrag == null) return@awaitEachGesture
+        // Phase 2: live-track the confirmed reachability drag, no time cap
+        // (a slow swipe is still a swipe). Every event we accept is consumed
+        // for the same reason as above — otherwise the scrollable child
+        // keeps eating each subsequent move too.
+        val onDrag = onReachabilityDrag ?: return@awaitEachGesture
+        var offsetSoFar = 0f
         while (true) {
-            val event = awaitPointerEvent()
+            val event = awaitPointerEvent(PointerEventPass.Initial)
             val change = event.changes.firstOrNull { it.id == down.id }
-            if (change == null || change.isConsumed) {
-                onReachabilitySettle?.invoke(false)
+            if (change == null) {
+                onReachabilitySettle?.invoke(offsetSoFar > commitPx)
                 return@awaitEachGesture
             }
             val delta = change.position - down.position
-            val downwardTrending = delta.y > 0f && delta.y > kotlin.math.abs(delta.x) * 1.2f
-            if (!downwardTrending) {
-                onReachabilitySettle?.invoke(false)
+            // Deliberately lenient: only bail once the finger has moved back
+            // above the start point (a real "not downward" signal). A single
+            // early frame with some sideways wobble is normal for a real
+            // swipe and must not permanently kill the gesture.
+            if (delta.y <= 0f) {
+                onReachabilitySettle?.invoke(offsetSoFar > commitPx)
                 return@awaitEachGesture
             }
-            val clamped = delta.y.coerceIn(0f, maxReachabilityOffsetPx)
-            onReachabilityDrag.invoke(clamped)
+            change.consume()
+            offsetSoFar = delta.y.coerceIn(0f, maxReachabilityOffsetPx)
+            onDrag(offsetSoFar)
             if (!change.pressed) {
-                onReachabilitySettle?.invoke(clamped > commitPx)
+                onReachabilitySettle?.invoke(offsetSoFar > commitPx)
                 return@awaitEachGesture
             }
         }
