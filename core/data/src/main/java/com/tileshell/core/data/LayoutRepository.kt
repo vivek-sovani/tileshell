@@ -16,6 +16,14 @@ import com.tileshell.core.data.seed.SeededTile
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
+/** Raw DB entities for a manual backup export/import — see [LayoutRepository.tilesForBackup]. */
+data class LayoutBackupSnapshot(
+    val tiles: List<TileEntity>,
+    val folders: List<FolderEntity>,
+    val children: List<FolderChildEntity>,
+    val sections: List<SectionEntity>,
+)
+
 /**
  * Source of truth for the persisted Start layout. Exposes the tiles as a
  * [Flow]<[List]<[TileModel]>> and seeds the WP default layout (mapped to
@@ -614,24 +622,28 @@ class LayoutRepository(
      * Return the raw DB entities for a manual backup export. Reuses the
      * existing [LayoutDao.tilesOnce] snapshot; no new DAO query needed.
      */
-    suspend fun tilesForBackup(): Triple<List<TileEntity>, List<FolderEntity>, List<FolderChildEntity>> {
+    suspend fun tilesForBackup(): LayoutBackupSnapshot {
         val all = dao.tilesOnce()
         val tiles = all.map { it.tile }
         val folders = all.mapNotNull { it.folder?.folder }
         val children = all.flatMap { it.folder?.children.orEmpty() }
-        return Triple(tiles, folders, children)
+        val sections = dao.sectionsOnce()
+        return LayoutBackupSnapshot(tiles, folders, children, sections)
     }
 
     /**
      * Atomically replace the persisted layout with the data from a backup
      * import. Delegates to the existing [LayoutDao.replaceLayout] transaction
-     * (no new DAO code needed).
+     * (no new DAO code needed). [sections] defaults empty so callers restoring
+     * an older snapshot that never captured them (see `BackupManager`) don't
+     * need to change.
      */
     suspend fun restoreFromBackup(
         tiles: List<TileEntity>,
         folders: List<FolderEntity>,
         children: List<FolderChildEntity>,
-    ) = dao.replaceLayout(tiles, folders, children)
+        sections: List<SectionEntity> = emptyList(),
+    ) = dao.replaceLayout(tiles, folders, children, sections)
 
     /** Seed the default layout iff the grid is empty. Safe to call repeatedly. */
     suspend fun seedIfEmpty() {

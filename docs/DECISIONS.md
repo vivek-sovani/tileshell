@@ -7371,3 +7371,49 @@ needs no crop hint — it's rendered directly at screen size, so it already exac
 Build + full unit test suite green; installed with no crash. The actual on-device framing match
 (pick a photo, crop off-centre/zoomed, confirm home+lock, check the real lock screen shows the same
 crop) still needs the user's own hands-on pass.
+
+## Backup/restore never captured sections — restoring silently ungrouped every tile
+
+User asked to update backup/restore for the latest features "so that restore should not break the
+launcher." Audit found sections was the one real gap, the exact same class of bug this file's own
+history already lists repeatedly (`gridSlot`, `displayAsIcon`, `hiddenApps`, `feedSources`, `widgets`,
+photo/slideshow URIs — each added to `BackupManager` well after shipping, since none of it was wired
+in when first built): `BackupManager.buildBackupJson`/`parseBackup` never serialized a tile's
+`sectionId`, and never touched the `sections` table (`SectionEntity`) at all — so restoring *any*
+backup (a manual export, or the automatic rolling layout-history snapshots) silently ungrouped every
+tile back to unsectioned, leaving whatever sections existed on the device as empty, orphaned tabs.
+Not a crash ("break the launcher" in the literal sense), but a real silent-data-loss regression on
+restore, worth fixing before it was reported that way.
+
+Fixed additively (no backup version bump, matching this file's own established convention): each
+tile's `sectionId` is now `putOpt`/read the same way `accentOverride`/`folderId` already are, and a
+new top-level `"sections"` array carries every `SectionEntity` (id/label/sortOrder/collapsed). A
+backup written before this change simply has neither key, and every tile lands unsectioned exactly as
+it always would have — verified with a dedicated test that strips both keys out of a freshly-built
+JSON to simulate an old file. `LayoutRepository.tilesForBackup()` widened from a `Triple` to a new
+`LayoutBackupSnapshot` data class (4 components, so every existing `val (tiles, folders, children) =`
+destructuring call site needed exactly one more name added, not a restructure) so it can also return
+`dao.sectionsOnce()`; `restoreFromBackup`/`LayoutDao.replaceLayout` both gained an additive
+`sections: List<SectionEntity> = emptyList()` param, clearing and reinserting the `sections` table in
+the same atomic `@Transaction` as tiles/folders/children. `BackupManager.layoutHash` also gained
+`sectionId`/`sections` (otherwise renaming a section or moving a tile between sections wouldn't
+register as a layout change, so "save now" would silently no-op and an auto-backup snapshot would
+never capture it — the identical class of bug `layoutHash`'s own doc comment already describes for
+`accentOverride`/`displayAsIcon`). Threaded through all the real call sites: `StartViewModel
+.exportBackup`/`importBackup`/`saveLayoutSnapshot`/`cacheForegroundScreenshot`/`restoreFromSnapshot`,
+and `LayoutAutoBackupWork`'s worker — sections is treated as genuinely part of "the layout" (unlike
+`hiddenApps`/`feedSources`/etc., which stay manual-export-only by design), so both the manual backup
+path and the automatic layout-history snapshots now capture it identically.
+
+Also audited while in this file: pinning a *new* app into a specific section (app list → long-press →
+"pin to section", 2+ sections) and moving an *already-pinned* tile between sections (its own colour
+picker's "move to section" chips) both already worked correctly and needed no code change — just
+documentation, added separately. A real, deliberate gap found but left alone (not asked for): pinning
+an app shortcut or another activity of the same app ("more from this app") always lands unsectioned,
+with no section-choice at pin time, unlike a plain app pin — noted in the guide as current behaviour
+rather than treated as a bug, since extending that picker wasn't requested.
+
+Build + full unit test suite green (5 new `BackupManagerTest` cases: sections/sectionId round-trip,
+pre-sections-backup compatibility, and two `layoutHash` sensitivity cases). Actual on-device
+export → wipe/reset → import round-trip, confirming sections truly survive, still needs the user's
+own hands-on pass — this project has no Room-instrumented test harness to simulate it headlessly.

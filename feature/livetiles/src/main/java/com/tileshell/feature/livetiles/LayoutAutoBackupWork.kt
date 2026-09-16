@@ -34,9 +34,9 @@ class LayoutAutoBackupWorker(
         val layoutRepo = LayoutRepository.create(applicationContext)
         val historyRepo = LayoutHistoryRepository(applicationContext)
 
-        val (tiles, folders, children) = layoutRepo.tilesForBackup()
-        val json = BackupManager.buildBackupJson(tiles, folders, children, settings)
-        val hash = BackupManager.layoutHash(tiles, folders, children, settings)
+        val (tiles, folders, children, sections) = layoutRepo.tilesForBackup()
+        val json = BackupManager.buildBackupJson(tiles, folders, children, settings, sections = sections)
+        val hash = BackupManager.layoutHash(tiles, folders, children, settings, sections)
         val now = System.currentTimeMillis()
 
         // PixelCopy needs a live, on-screen window, which this headless worker never has —

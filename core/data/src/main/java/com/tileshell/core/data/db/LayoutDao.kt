@@ -138,20 +138,35 @@ interface LayoutDao {
     /**
      * Atomically replace the whole persisted layout. Folders are inserted first
      * so child rows satisfy the foreign key; clearing folders cascades to
-     * `folder_children`.
+     * `folder_children`. [sections] defaults empty so every existing caller
+     * (layout history's own restore, which never captured sections — see
+     * `BackupManager`) keeps its prior "restore drops sections" behaviour
+     * unless it's explicitly updated to pass them; backup import passes the
+     * real list. Sections are replaced before tiles so a restored tile's own
+     * `sectionId` always refers to a section that already exists by the time
+     * it's inserted, even though there's no enforced foreign key either way.
      */
     @Transaction
     suspend fun replaceLayout(
         tiles: List<TileEntity>,
         folders: List<FolderEntity>,
         children: List<FolderChildEntity>,
+        sections: List<SectionEntity> = emptyList(),
     ) {
         clearTiles()
         clearFolders()
+        clearSections()
+        insertSections(sections)
         insertFolders(folders)
         insertTiles(tiles)
         insertFolderChildren(children)
     }
+
+    @Query("DELETE FROM sections")
+    suspend fun clearSections()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSections(sections: List<SectionEntity>)
 
     // ---- create a folder directly (category folders) --------------------
 

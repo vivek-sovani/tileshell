@@ -1989,7 +1989,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 val application = getApplication<Application>()
-                val (tiles, folders, children) = repository.tilesForBackup()
+                val (tiles, folders, children, sections) = repository.tilesForBackup()
                 val currentSettings = settingsRepository.settings.first()
                 val hiddenApps = HiddenApps.hidden(application).first()
                 val feed = feedStore.read()
@@ -2004,6 +2004,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
                     widgets = widgets.map { BackupWidget(it.widgetId, it.heightDp, it.widthDp) },
                     photoUris = photoUris,
                     wallpaperSlideshowUris = wallpaperUris,
+                    sections = sections,
                 )
                 application.contentResolver
                     .openOutputStream(uri)?.use { it.write(json.encodeToByteArray()) }
@@ -2031,7 +2032,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
                     .openInputStream(uri)?.use { it.readBytes().decodeToString() }
                     ?: error("could not read backup file")
                 val backup = BackupManager.parseBackup(json)
-                repository.restoreFromBackup(backup.tiles, backup.folders, backup.folderChildren)
+                repository.restoreFromBackup(backup.tiles, backup.folders, backup.folderChildren, backup.sections)
                 settingsRepository.restoreSettings(backup.settings)
                 HiddenApps.replaceAll(application, backup.hiddenApps)
                 feedStore.replaceSourcesAndRegions(
@@ -2060,10 +2061,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     fun saveLayoutSnapshot(id: String = System.currentTimeMillis().toString(), screenshotPath: String? = null) {
         viewModelScope.launch(writeContext) {
             runCatching {
-                val (tiles, folders, children) = repository.tilesForBackup()
+                val (tiles, folders, children, sections) = repository.tilesForBackup()
                 val currentSettings = settingsRepository.settings.first()
-                val json = BackupManager.buildBackupJson(tiles, folders, children, currentSettings)
-                val hash = BackupManager.layoutHash(tiles, folders, children, currentSettings)
+                val json = BackupManager.buildBackupJson(tiles, folders, children, currentSettings, sections = sections)
+                val hash = BackupManager.layoutHash(tiles, folders, children, currentSettings, sections)
                 val ts = id.toLongOrNull() ?: System.currentTimeMillis()
                 historyRepository.addSnapshot(
                     LayoutSnapshot(
@@ -2091,9 +2092,9 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) {
             runCatching {
                 val app = getApplication<Application>()
-                val (tiles, folders, children) = repository.tilesForBackup()
+                val (tiles, folders, children, sections) = repository.tilesForBackup()
                 val currentSettings = settingsRepository.settings.first()
-                val hash = BackupManager.layoutHash(tiles, folders, children, currentSettings)
+                val hash = BackupManager.layoutHash(tiles, folders, children, currentSettings, sections)
                 val previous = CachedScreenshotPrefs.currentPath(app)
                 CachedScreenshotPrefs.save(app, path, hash)
                 // Clean up the file we're superseding, unless a saved history entry still
@@ -2111,7 +2112,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) {
             runCatching {
                 val backup = BackupManager.parseBackup(snapshot.json)
-                repository.restoreFromBackup(backup.tiles, backup.folders, backup.folderChildren)
+                repository.restoreFromBackup(backup.tiles, backup.folders, backup.folderChildren, backup.sections)
                 settingsRepository.restoreSettings(backup.settings)
                 _backupMessage.tryEmit("layout restored")
             }.onFailure { _backupMessage.tryEmit("restore failed") }
