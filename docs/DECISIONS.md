@@ -7278,3 +7278,13 @@ code is ever added here or a future AndroidX release ships unstripped libraries.
 plainly that it is currently inert, so nobody later mistakes it for a working fix. **No re-upload is
 needed for this warning**, and since 402 has now been uploaded, a later change would need a new
 versionCode anyway.
+
+## Start grid: side margin reinstated (reverses the earlier edge-to-edge change)
+
+Direct follow-up on "Start grid: side margin removed — tiles now go edge-to-edge" above: user asked
+for "a slight gap between the screen corner and tile edge" after living with edge-to-edge tiles for
+a while. `GridGeometry.of`'s `side` is back to the original proportional `totalWidthPx * (9f / 393f)`
+— real Windows Phone's own Start-screen outer margin, the same value used before the earlier
+removal — rather than hardcoded `0f`. Single-source-of-truth change (`GridGeometry` is shared by
+`DenseTileGrid`, the folder overlay's inline-expand grid, and resize/hit-testing geometry), so every
+consumer picks it up automatically. Build + full unit test suite green.
