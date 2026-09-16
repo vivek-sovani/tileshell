@@ -537,7 +537,7 @@ class LayoutRepository(
      * false when there is no such template or it can't be seeded (a non-liveOnly
      * role that doesn't resolve on this device).
      */
-    suspend fun addDefaultTile(appId: String): Boolean {
+    suspend fun addDefaultTile(appId: String, sectionId: String? = null): Boolean {
         val template = DefaultLayout.ALL_TILE_TEMPLATES
             .firstOrNull { !it.isGroup && it.app == appId } ?: return false
         val seeded = seeder.seed(listOf(template), resolver)
@@ -555,6 +555,7 @@ class LayoutRepository(
                     activityName = seeded.component.activityName,
                     label = seeded.component.label,
                     iconKey = seeded.iconKey,
+                    sectionId = sectionId,
                 ),
             ),
         )
@@ -572,7 +573,7 @@ class LayoutRepository(
      * caller already resolved the user's choice before this is ever called
      * (see `StartViewModel.applyWeatherLocation`).
      */
-    suspend fun addWeatherTile(encodedLocation: String): Boolean {
+    suspend fun addWeatherTile(encodedLocation: String, sectionId: String? = null): Boolean {
         val template = DefaultLayout.ALL_TILE_TEMPLATES
             .firstOrNull { !it.isGroup && it.app == "weather" } ?: return false
         val seeded = seeder.seed(listOf(template), resolver)
@@ -590,6 +591,7 @@ class LayoutRepository(
                     activityName = encodedLocation,
                     label = seeded.component.label,
                     iconKey = seeded.iconKey,
+                    sectionId = sectionId,
                 ),
             ),
         )

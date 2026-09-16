@@ -746,10 +746,12 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      * and widget is added, ask for current location or select location."
      * Nothing is inserted until [setWeatherLocationCurrent]/[setWeatherLocationPlace]
      * answers; backing out via [closeWeatherLocationSheet] adds nothing, same
-     * as declining any other picker mid-add.
+     * as declining any other picker mid-add. [sectionId] is the currently
+     * active section tab (user-requested: a newly pinned live tile should
+     * land in whichever section is showing, not always unsectioned/main).
      */
-    fun openWeatherLocationForNewTile() {
-        _weatherLocationTarget.value = WeatherLocationTarget.NewTile
+    fun openWeatherLocationForNewTile(sectionId: String? = null) {
+        _weatherLocationTarget.value = WeatherLocationTarget.NewTile(sectionId)
     }
 
     /** Reopens the same sheet to change an already-pinned weather tile's location. */
@@ -776,7 +778,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         _weatherLocationTarget.value = null
         viewModelScope.launch(writeContext) {
             when (target) {
-                WeatherLocationTarget.NewTile -> repository.addWeatherTile(encoded)
+                is WeatherLocationTarget.NewTile -> repository.addWeatherTile(encoded, target.sectionId)
                 is WeatherLocationTarget.ExistingTile -> repository.setTileText(target.id, encoded)
             }
         }
@@ -1401,9 +1403,14 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Re-add a deleted default live tile (clock/weather/calendar) to the grid. */
-    fun addLiveTile(appId: String) {
-        viewModelScope.launch(writeContext) { repository.addDefaultTile(appId) }
+    /**
+     * Re-add a deleted default live tile (clock/weather/calendar) to the
+     * grid. [sectionId] is the currently active section tab (user-requested:
+     * a newly pinned live tile should land in whichever section is showing,
+     * not always unsectioned/main).
+     */
+    fun addLiveTile(appId: String, sectionId: String? = null) {
+        viewModelScope.launch(writeContext) { repository.addDefaultTile(appId, sectionId) }
     }
 
     /** Force a manual news refresh (the feed's refresh action). */
@@ -2147,6 +2154,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
 /** What the weather-location sheet is currently deciding — see [StartViewModel.weatherLocationTarget]. */
 sealed interface WeatherLocationTarget {
-    data object NewTile : WeatherLocationTarget
+    /** [sectionId] is whichever section tab was active when the sheet was opened (null = unsectioned/main) — the new tile lands there, not always unsectioned. */
+    data class NewTile(val sectionId: String? = null) : WeatherLocationTarget
     data class ExistingTile(val id: String) : WeatherLocationTarget
 }

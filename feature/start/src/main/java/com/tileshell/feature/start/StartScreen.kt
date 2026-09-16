@@ -362,6 +362,13 @@ fun StartScreen(
     // being unmounted while personalize/edit-mode/a folder is on top (it used to live
     // inside EdgeStrip itself and reset to expanded every time the strip remounted).
     var edgeStripExpanded by remember { mutableStateOf(true) }
+    // Mirrors StartPage's own internal "which section tab is active" state
+    // (StartPage.onActiveSectionChange), so a live tile added from outside
+    // StartPage (the "add live tiles" sheet, the weather-location sheet)
+    // can pin into whichever section is currently showing instead of always
+    // landing unsectioned — user-reported: "when i ask to pin live tile it
+    // gets pinned to main. it should pin to active section."
+    var activeSectionId by remember { mutableStateOf<String?>(null) }
     val hiddenPackages by viewModel.hiddenPackages.collectAsStateWithLifecycle()
     val isAppList by viewModel.isAppList.collectAsStateWithLifecycle()
     val apps by viewModel.apps.collectAsStateWithLifecycle()
@@ -1284,6 +1291,7 @@ fun StartScreen(
                     onPersonalize = viewModel::openPersonalize,
                     onAddWidgets = viewModel::openAddWidgets,
                     onQuickPanel = viewModel::openQuickPanel,
+                    onActiveSectionChange = { activeSectionId = it },
                 )
         }
 
@@ -1799,9 +1807,9 @@ fun StartScreen(
                     // tile itself once the user answers, so this closes the
                     // catalog and waits rather than calling addLiveTile now.
                     viewModel.closeAddWidgets()
-                    viewModel.openWeatherLocationForNewTile()
+                    viewModel.openWeatherLocationForNewTile(activeSectionId)
                 } else {
-                    viewModel.addLiveTile(appId)
+                    viewModel.addLiveTile(appId, activeSectionId)
                     // Land back on a normal, settled Start screen showing the new
                     // tile in place, instead of leaving edit mode's jiggle/edit-bar
                     // up — matches the existing "add" (app list) entry point,
@@ -2300,6 +2308,11 @@ private fun StartPage(
     onAssignTileSection: (tileId: String, sectionId: String?) -> Unit = { _, _ -> },
     sectionsEnabled: Boolean = false,
     sectionPillAlignment: SectionPillAlignment = SectionPillAlignment.START,
+    // Reports which section tab is currently active/visible (null =
+    // unsectioned/main), so a caller outside this composable (the "add live
+    // tiles" sheet, the weather-location sheet) can pin a newly added tile
+    // into that same section instead of always landing unsectioned.
+    onActiveSectionChange: (String?) -> Unit = {},
     onAdd: () -> Unit,
     onPersonalize: () -> Unit,
     onAddWidgets: () -> Unit = {},
@@ -2507,6 +2520,7 @@ private fun StartPage(
         blocks.any { it.sectionId == selectedSectionTab } -> selectedSectionTab
         else -> blocks.firstOrNull()?.sectionId
     }
+    LaunchedEffect(activeTabSectionId) { onActiveSectionChange(activeTabSectionId) }
 
     // For every block: its own tile specs, its own packed placements (the
     // same pack/packSticky + [expandTransform] pipeline DenseTileGrid runs
