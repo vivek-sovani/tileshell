@@ -135,7 +135,7 @@ fun PersonalizeGuideSheet(
                     letterSpacing = (-0.8).sp,
                 )
                 Text(
-                    text = "colours, wallpaper, tiles, home style, pinning apps, the feed, the quick panel, and permissions",
+                    text = "colours, wallpaper, tiles, home style, sections, pinning apps, the feed, the quick panel, and permissions",
                     color = tokens.fgDim,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.W300,
@@ -169,6 +169,7 @@ fun PersonalizeGuideSheet(
                     "with a photo or bing wallpaper set, use \"adjust position · reframe\" to pinch-zoom and drag it into place",
                     "slideshow rotates through photos you pick, every 15 minutes to 3 hours",
                     "turn on \"behind tiles\" (tile background) to let the wallpaper show through the grid",
+                    "after picking a new wallpaper, choose home screen, lock screen, or both to also set it as your device's real system wallpaper, framed exactly as you positioned it — cancel to skip and keep it just for start",
                 ),
             )
 
@@ -225,6 +226,18 @@ fun PersonalizeGuideSheet(
                     "tap the folder icon on a selected folder or stack to expand it in place and manage its members",
                     "drag an app out of an open folder to drop it exactly where you release it on start, or onto another tile to merge into it",
                     "tap × on a selected tile to unpin it — inside an open folder or stack, that sends the member to the end of start without needing to drag",
+                ),
+            )
+
+            FeatureGroup(
+                title = "sections",
+                accent = accent,
+                tokens = tokens,
+                items = listOf(
+                    "personalize · enable sections to group your tiles into named tabs instead of one long scroll",
+                    "in edit mode, tap the \"+\" at the top of start to add a section; each section header lets you rename, reorder, or remove it (tiles just ungroup, they're never deleted)",
+                    "switch tabs from the small pill at the bottom of start, or the list it expands into — either way shows every tab's own pending-notification count",
+                    "on a tab with room to spare below its tiles, drag down from that empty space to pull the tiles closer to your thumb — release to hold them there, tap one to open it (that also lets go), or tap the empty area to let go without doing anything",
                 ),
             )
 

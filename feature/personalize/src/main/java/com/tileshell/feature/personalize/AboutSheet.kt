@@ -175,6 +175,8 @@ fun AboutSheet(
                     "apps with a pending notification show up in the app list's recent section, even if they're not pinned to start",
                     "the \"personalize\" tile is a normal start tile — drag, resize, or unpin it like any other",
                     "removed it by accident? pin it back from the app list's own \"personalize\" entry",
+                    "group tiles into named, reorderable sections shown one tab at a time — turn it on and manage them from personalize",
+                    "on a tab with room below its tiles, drag down from that empty space to pull them closer to your thumb; tap one to open it, or tap elsewhere to let go",
                 ),
             )
 
@@ -377,6 +379,7 @@ fun AboutSheet(
                     "pinch to zoom, drag to reposition when framing a wallpaper photo",
                     "daily bing wallpaper, with a viewer for recent days",
                     "wallpaper visible through tiles (show-through mode)",
+                    "after picking a wallpaper, optionally set it as your device's real home and/or lock screen wallpaper too, framed exactly as positioned",
                     "tile corner radius slider and gradient fill option",
                     "font style: outfit (default), nunito, or system",
                     "grid columns — pack 4, 5, or 6 tiles into a row",
