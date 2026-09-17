@@ -7631,3 +7631,45 @@ Both fixes needed only a `remember` key, not a behavior redesign — the underly
 correct, it just never re-ran once the truly dynamic `blockCount`/`upper` stopped being effectively
 constant. Build + full unit test suite green; the page-dot indicator, quick search, quick panel, and
 edge-swipe still need the user's own on-device confirmation across more than one section page.
+
+## Two real scroll bugs from the per-page ScrollState split: blank-space scroll freeze + spurious auto-scroll while dragging a tile
+
+User reports, two rounds: (1) "pull down collides with edit mode especially moving the tile it starts
+scrolling down even if i scroll it vertically. check you tube tile on main page", then (2) "scrolling
+is freezed after when i go beyond first visible section of page" / "scrollin only happend if i scroll
+throgh tiles" / "not through blank space" — two separate, real bugs, both root-caused independently.
+
+**(1) Dragging a tile spuriously auto-scrolls the page.** `editDragGesture`'s own near-edge auto-scroll
+check (`fingerViewportY = (contentTopPx + blockTopOffsetPx + pos.y) - scrollOffsetPx()`) was still fed
+by its call site's `scrollOffsetPx = { scrollState.value.toFloat() }` — the OUTER `scrollState` param,
+which is orphaned now that each block page owns its own `ScrollState` (`blockScrollStates`, this
+session's earlier per-page-pages work) and nothing scrolls the outer one any more (permanently `0`).
+Once a page had genuinely been scrolled down at all (exactly the situation reaching a YouTube tile
+further down "main"), `fingerViewportY` was inflated by the whole real scroll offset it never
+subtracted, tripping the "near the bottom edge" branch and firing a real, continuing
+`activeScrollState.scrollBy` well before the finger was anywhere near the true edge — reads exactly as
+"moving the tile starts scrolling the page." Fixed: `scrollOffsetPx = { blockScrollStates[blockIndex]
+.value.toFloat() }`.
+
+**(2) Scrolling via blank space (not over a tile) froze entirely.** A separate, pre-existing bug in
+`emptySpaceEnterEdit`'s "reachability" pull-down recognizer, now far more commonly triggered: it
+watches in `PointerEventPass.Initial` (parent-first, ahead of the child `Column`'s own
+`.verticalScroll()`) and, the moment a touch on empty space exceeds its 7dp slop, consumed that event
+for reachability whenever `reachabilityActive` — **regardless of direction**, including a plain upward
+"scroll down to see more" drag. Losing just that one move event is enough to stop the child
+`verticalScroll`'s own gesture detector from ever recognizing the drag, freezing scroll for the rest of
+that touch (a tile-started drag is unaffected — `tileGesture` never consumes on its own drag).
+`reachabilityActive` (`!editMode && expandedFolderId == null && blocks.size >= 2`) was always the gate,
+but `blocks.size >= 2` used to be rare (sections were opt-in and uncommon); now that pages are always
+on, any install with even one named section hits it by default, which is why this reads as a new
+regression even though the flaw itself predates this session. Fixed by only claiming the slop-break for
+reachability when the move is genuinely downward (`change.position.y > down.position.y`) — an upward
+scroll-intent drag is now never touched here at all, so the child `verticalScroll` sees an unbroken
+gesture from the start. `folderCollapseOnEmptyTap`'s own `absoluteTileRects` hit-test was also found,
+while investigating, to skip the same scroll/reachability-offset coordinate conversion
+`emptySpaceEnterEdit` already applies — flagged as a real but separate robustness gap (only reachable
+while a folder is expanded, unrelated to this bug), not fixed in this pass.
+
+Build + full unit test suite green. Both fixes need the user's own on-device confirmation: dragging a
+tile down a scrolled page no longer auto-scrolls spuriously, and a blank-space scroll (up or down)
+works throughout a page that also has 2+ block pages.

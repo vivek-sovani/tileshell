@@ -3119,7 +3119,18 @@ private fun StartPage(
                 onTapExit = onExitEdit,
                 contentTopPx = statusBarTopPx,
                 viewportHeightPx = viewportHeightPx,
-                scrollOffsetPx = { scrollState.value.toFloat() },
+                // The real per-page scroll position — not the outer
+                // `scrollState` param, which is orphaned now that each block
+                // page owns its own ScrollState (see blockScrollStates
+                // above) and nothing scrolls the outer one any more. Real
+                // bug, user-reported ("moving the tile it starts scrolling
+                // down"): reading the dead, permanently-0 outer scrollState
+                // here inflated the drag's on-screen finger position by the
+                // page's real scroll offset once it had actually been
+                // scrolled, spuriously tripping the near-bottom-edge
+                // auto-scroll check well before the finger was anywhere
+                // near the true bottom edge.
+                scrollOffsetPx = { blockScrollStates[blockIndex].value.toFloat() },
                 edgeZonePx = with(density) { 64.dp.toPx() },
                 blockTopOffsetPx = render.gridTopOffsetPx,
                 slotOf = slotOf,
@@ -5117,8 +5128,8 @@ private fun Modifier.folderCollapseOnEmptyTap(
  * area below the last row), while [GridGeometry]/[tileAt] work in grid
  * *content* space — the same content space [contentTopPx]/[scrollOffsetPx]
  * already convert to/from at the call site's other scroll-aware gestures
- * (e.g. the screen-Y math next to `scrollState.value` a few lines up). A
- * touch's raw position must get the same conversion here, or hit-testing
+ * (e.g. the active page's own `blockScrollStates[blockIndex].value` a few
+ * lines up). A touch's raw position must get the same conversion here, or hit-testing
  * silently drifts by the current scroll offset the moment the grid has been
  * scrolled at all — confirmed live on an emulator (an on-screen gap hit an
  * unrelated tile below it once scrolled).
@@ -5195,10 +5206,22 @@ private fun Modifier.emptySpaceEnterEdit(
 
         // Phase 1: race "held still 600ms" -> enter edit, against "moved
         // past slop" -> fall through to phase 2 instead of doing nothing.
-        // The moment slop breaks, claim the touch for reachability right
-        // there (before returning) if that's active — this is the one
-        // event where the scrollable child would otherwise get first crack
-        // at an unconsumed drag on its own next (Main-pass) turn.
+        // The moment slop breaks on a genuinely DOWNWARD move, claim the
+        // touch for reachability right there (before returning) if that's
+        // active — this is the one event where the scrollable child would
+        // otherwise get first crack at an unconsumed drag on its own next
+        // (Main-pass) turn. Direction-gated (`movingDown`) — real bug, user-
+        // reported: without this check, ANY slop-break (including an upward
+        // "scroll down the page to see more" drag) was consumed here
+        // whenever reachabilityActive was on, which is the common case now
+        // that Start's blocks.size is almost always >= 2 (every install with
+        // even one named section). Phase 2's own "bailed once reversed"
+        // check happens one event too late to undo that already-dropped
+        // event — losing just that one move is enough to stop the child
+        // Column's own `verticalScroll` from ever recognizing the drag,
+        // freezing scroll for the rest of that touch. Scrolling via a tile
+        // was unaffected (a different gesture path, [tileGesture] below,
+        // never consumes on drag).
         var enteredReachability = false
         val movedPastSlop = withTimeoutOrNull(600L) {
             while (true) {
@@ -5207,7 +5230,8 @@ private fun Modifier.emptySpaceEnterEdit(
                 if (change != null && change.isConsumed) return@withTimeoutOrNull false
                 if (change == null || !change.pressed) return@withTimeoutOrNull false
                 if ((change.position - down.position).getDistance() > slop) {
-                    if (reachabilityActive && onReachabilityDrag != null) {
+                    val movingDown = change.position.y > down.position.y
+                    if (reachabilityActive && onReachabilityDrag != null && movingDown) {
                         change.consume()
                         enteredReachability = true
                     }
