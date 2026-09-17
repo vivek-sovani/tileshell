@@ -441,10 +441,16 @@ fun FeedPage(
 
 /**
  * The feed's own ambient colour identity: a synthesized [WallpaperGradient]
- * (never the actual photo) plus its most prominent colour as [feedAccent].
- * For a stock gradient this is just the gradient itself (already an abstract
- * colour mesh); for a custom photo, [photoGradient] extracts a palette via
- * androidx.palette off the main thread. Recomputes only when the underlying
+ * (never the actual photo, and never a [WallpaperGradient.discField]
+ * wallpaper's own crisp circles) plus its most prominent colour as
+ * [feedAccent]. For an ordinary soft-glow stock gradient this is just the
+ * gradient itself (already an abstract colour mesh); for a custom photo,
+ * [photoGradient] extracts a palette via androidx.palette off the main
+ * thread; for a `discField` wallpaper (Nebula/Ember/Reef — see
+ * [discFieldGradient]), its own two colours are re-laid-out as the same kind
+ * of soft glow, since their flat, hard-edged discs read as the right look for
+ * the actual Start/lock-screen wallpaper but not for a small chrome surface
+ * like Quick Panel or this page. Recomputes only when the underlying
  * photo/gradient actually changes; briefly shows the previous result (or the
  * plain stock gradient) while a new photo's palette is extracting.
  */
@@ -454,7 +460,11 @@ internal fun rememberFeedPalette(
     wallpaper: WallpaperGradient,
     fallbackAccent: Color,
 ): Pair<WallpaperGradient, Color> {
-    val stockResult = wallpaper to (wallpaper.layers.firstOrNull()?.color ?: fallbackAccent)
+    val stockResult = if (wallpaper.discField) {
+        discFieldGradient(wallpaper, fallbackAccent)
+    } else {
+        wallpaper to (wallpaper.layers.firstOrNull()?.color ?: fallbackAccent)
+    }
     var result by remember(wallpaper, fallbackAccent) { mutableStateOf(stockResult) }
     LaunchedEffect(customPhoto, wallpaper, fallbackAccent) {
         result = if (customPhoto != null) {
@@ -465,6 +475,20 @@ internal fun rememberFeedPalette(
     }
     return result
 }
+
+/** The 3-corner soft-glow layout shared by [photoGradient] and [discFieldGradient]. */
+private val softGlowPositions = listOf(
+    Triple(0.15f, 0.10f, 1.2f),
+    Triple(0.85f, 0.00f, 1.2f),
+    Triple(0.70f, 1.00f, 1.4f),
+)
+
+/** Lays [layerColors] out as soft radial glows (never flat/crisp discs) over [base]. */
+private fun softGlowGradient(id: String, label: String, base: Color, layerColors: List<Color>): List<WallpaperLayer> =
+    layerColors.mapIndexed { i, color ->
+        val (cx, cy, radius) = softGlowPositions.getOrElse(i) { Triple(0.5f, 0.5f, 1.3f) }
+        WallpaperLayer(color = color, cx = cx, cy = cy, radiusPct = radius, fade = 0.55f)
+    }
 
 /**
  * Extracts up to 3 prominent colours from [photo] via [Palette] and lays them
@@ -505,17 +529,24 @@ private fun photoGradient(photo: ImageBitmap): Pair<WallpaperGradient, Color>? {
         layerColors = listOf(lighten(avg, 0.12f), avg, darken(avg, 0.15f))
     }
 
-    // Same 3-corner layout the bundled gradients (e.g. Aurora) use.
-    val positions = listOf(
-        Triple(0.15f, 0.10f, 1.2f),
-        Triple(0.85f, 0.00f, 1.2f),
-        Triple(0.70f, 1.00f, 1.4f),
-    )
-    val layers = layerColors.mapIndexed { i, color ->
-        val (cx, cy, radius) = positions.getOrElse(i) { Triple(0.5f, 0.5f, 1.3f) }
-        WallpaperLayer(color = color, cx = cx, cy = cy, radiusPct = radius, fade = 0.55f)
-    }
+    val layers = softGlowGradient("photo", "photo", base, layerColors)
     return WallpaperGradient(id = "photo", label = "photo", base = base, layers = layers) to accent
+}
+
+/**
+ * The `discField` (Nebula/Ember/Reef) counterpart of [photoGradient]: instead
+ * of extracting colours from pixels, the two disc colours are already known
+ * exactly (no [Palette] needed) — just re-laid-out as the same soft 3-corner
+ * glow every other synthesized background here uses, over the wallpaper's
+ * own (already near-black) base, so Quick Panel/the glance page show a muted
+ * backdrop consistent with every other wallpaper choice instead of the crisp,
+ * busy circle field.
+ */
+private fun discFieldGradient(wallpaper: WallpaperGradient, fallbackAccent: Color): Pair<WallpaperGradient, Color> {
+    val colors = wallpaper.layers.map { it.color }.distinct()
+    val accent = colors.firstOrNull() ?: fallbackAccent
+    val layers = softGlowGradient(wallpaper.id, wallpaper.label, wallpaper.base, colors.take(3))
+    return WallpaperGradient(id = wallpaper.id, label = wallpaper.label, base = wallpaper.base, layers = layers) to accent
 }
 
 /** Darkens [color] toward black by [factor] (0..1); alpha untouched. */

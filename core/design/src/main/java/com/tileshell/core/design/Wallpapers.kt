@@ -49,6 +49,19 @@ data class WallpaperGradient(
     val label: String,
     val base: Color,
     val layers: List<WallpaperLayer>,
+    /**
+     * `true` only for the "disc field" family ([Wallpapers.Nebula]/[Ember]/
+     * [Reef]) — their layers are crisp, flat-edged circles (see
+     * [WallpaperLayer.core]), not soft glows. That hard-edged look is right
+     * as the actual Start/lock-screen wallpaper, but doesn't suit Quick
+     * Panel or the glance page — those surfaces need a soft, muted backdrop
+     * behind their cards/text, the same reason a custom *photo* is never
+     * shown there directly either (see [rememberFeedPalette]/
+     * `photoGradient` in `feature/start/feed/FeedPage.kt`). A `discField`
+     * wallpaper should get the same treatment: synthesize a soft gradient
+     * from its own colours instead of passing it through as-is.
+     */
+    val discField: Boolean = false,
 )
 
 object Wallpapers {
@@ -106,22 +119,52 @@ object Wallpapers {
     )
 
     /**
+     * Shared geometry for the "disc field" family ([Nebula]/[Ember]/[Reef]):
+     * eleven flat, crisp-edged circles (see [WallpaperLayer.core]) scattered
+     * across the *whole* canvas — not just two corners. The original two-disc
+     * version only covered opposite corners, which read as near-empty on a
+     * full-height lock screen (no tile grid there to fill in the gap); this
+     * spreads circles from top to bottom at varied sizes, including the
+     * middle band, so the design holds up full-bleed. `discFieldColorSlot`
+     * selects which of the family's two colours each same-index circle uses.
+     */
+    private val discFieldLayout: List<Triple<Float, Float, Float>> = listOf(
+        Triple(0.08f, 0.05f, 0.34f), // top-left, large
+        Triple(0.90f, 0.10f, 0.22f), // top-right, medium
+        Triple(0.35f, 0.20f, 0.16f), // upper-middle, small
+        Triple(0.65f, 0.30f, 0.20f), // upper-right-middle, medium
+        Triple(0.05f, 0.42f, 0.18f), // left-middle, small
+        Triple(0.50f, 0.50f, 0.24f), // centre, medium
+        Triple(0.92f, 0.48f, 0.16f), // right-middle, small
+        Triple(0.20f, 0.68f, 0.20f), // lower-left-middle, medium
+        Triple(0.75f, 0.75f, 0.28f), // lower-right-middle, medium
+        Triple(0.10f, 0.90f, 0.22f), // bottom-left, medium
+        Triple(0.96f, 0.96f, 0.36f), // bottom-right, large
+    )
+    private val discFieldColorSlot = listOf(0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0)
+
+    private fun discField(colorA: Color, colorB: Color): List<WallpaperLayer> =
+        discFieldLayout.mapIndexed { i, (cx, cy, r) ->
+            val color = if (discFieldColorSlot[i] == 0) colorA else colorB
+            WallpaperLayer(color, cx, cy, r, fade = 1f, core = 0.96f)
+        }
+
+    /**
      * Not from the prototype — added after the "borderless tiles" design pass,
-     * where this near-black backdrop read best behind unfilled tiles. Unlike
-     * every gradient above it, its two layers are **flat discs with crisp
-     * edges** (see [WallpaperLayer.core]), not soft glows: that hard-edged
-     * geometry is the whole look, and rendering it as a glow reads as a
-     * different wallpaper entirely. Each disc is centred just off its own
-     * corner so only an arc of it is on screen. Sits on the same near-black
-     * base as the dark theme's own `bg`, so a borderless/glass tile's content
-     * stays high-contrast wherever neither disc reaches.
+     * where this near-black backdrop read best behind unfilled tiles. Its
+     * layers are **flat discs with crisp edges** (see [WallpaperLayer.core]),
+     * not soft glows: that hard-edged geometry is the whole look, and
+     * rendering it as a glow reads as a different wallpaper entirely. See
+     * [discField] — six circles spread across the full canvas, not just two
+     * corners, so the design still reads on a full-height lock screen. Sits
+     * on the same near-black base as the dark theme's own `bg`, so a
+     * borderless/glass tile's content stays high-contrast wherever no disc
+     * reaches.
      */
     val Nebula = WallpaperGradient(
         id = "nebula", label = "nebula", base = Color(0xFF0A0A0D),
-        layers = listOf(
-            WallpaperLayer(Color(0xFF1D5AA8), 0.16f, 0.09f, 0.62f, 1f, core = 0.97f),
-            WallpaperLayer(Color(0xFF7A3A6A), 0.86f, 0.91f, 0.66f, 1f, core = 0.97f),
-        ),
+        layers = discField(Color(0xFF1D5AA8), Color(0xFF7A3A6A)),
+        discField = true,
     )
 
     /**
@@ -131,19 +174,15 @@ object Wallpapers {
      */
     val Ember = WallpaperGradient(
         id = "ember", label = "ember", base = Color(0xFF0A0A0D),
-        layers = listOf(
-            WallpaperLayer(Color(0xFFC25A14), 0.16f, 0.09f, 0.62f, 1f, core = 0.97f),
-            WallpaperLayer(Color(0xFF8C2F4A), 0.86f, 0.91f, 0.66f, 1f, core = 0.97f),
-        ),
+        layers = discField(Color(0xFFC25A14), Color(0xFF8C2F4A)),
+        discField = true,
     )
 
     /** The cool-green third of the disc family — see [Ember]. */
     val Reef = WallpaperGradient(
         id = "reef", label = "reef", base = Color(0xFF0A0A0D),
-        layers = listOf(
-            WallpaperLayer(Color(0xFF128C7A), 0.16f, 0.09f, 0.62f, 1f, core = 0.97f),
-            WallpaperLayer(Color(0xFF5C8A1C), 0.86f, 0.91f, 0.66f, 1f, core = 0.97f),
-        ),
+        layers = discField(Color(0xFF128C7A), Color(0xFF5C8A1C)),
+        discField = true,
     )
 
     /**
