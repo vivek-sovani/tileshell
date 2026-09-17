@@ -8086,3 +8086,21 @@ expanded, else a plain `14.dp`), so the dots never sit under the edge strip when
 other gating condition (hidden with one page, while editing, over the feed/app list) is unchanged.
 
 Build + full unit test suite green. Needs the user's own on-device confirmation.
+
+## TileShell branding mark on the glance page, top-right of the greeting
+
+User-requested: "place tileshell icon on top right on glance in the same line of greeting. as part of
+branding." Reused `TileLogoMark` — the compact 2×2 accent-tile mosaic already shown next to the
+wordmark in the About sheet's header — rather than inventing a second mark, so the app's branding
+reads consistently across both surfaces. Widened from `private` to public in `AboutSheet.kt` (`:feature
+:personalize`) so `FeedPage.kt` (`:feature:start`, which already depends on `:feature:personalize` —
+no new module dependency) can reuse it.
+
+`GreetingHeader`'s call site is now wrapped in a `Row(Arrangement.SpaceBetween, Alignment.Top)`: the
+greeting stays exactly as it was (still its own `Column`, no `weight` needed since `SpaceBetween`
+pushes the second child to the far edge regardless of the first's width), and `TileLogoMark(accent)`
+sits at the top-right, level with the greeting's first line rather than vertically centered against
+the taller two-line "good morning, `<name>`" variant. Uses the page's own already-resolved `accent`
+(wallpaper-derived when that tile-colour source is active), matching the rest of the glance page.
+
+Build + full unit test suite green. Needs the user's own on-device confirmation.

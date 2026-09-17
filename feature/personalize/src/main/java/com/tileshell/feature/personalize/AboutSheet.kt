@@ -451,9 +451,13 @@ fun AboutSheet(
     }
 }
 
-/** Compact 2×2 tile grid mark representing the launcher. */
+/**
+ * Compact 2×2 tile grid mark representing the launcher. Public (not private) so
+ * the feed's glance page can reuse it as a small branding mark next to the
+ * greeting.
+ */
 @Composable
-private fun TileLogoMark(accent: Color) {
+fun TileLogoMark(accent: Color) {
     val gap = 3.dp
     val cell = 18.dp
     Row(horizontalArrangement = Arrangement.spacedBy(gap)) {

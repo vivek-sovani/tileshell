@@ -86,6 +86,7 @@ import com.tileshell.core.design.tileGradientBrush
 import com.tileshell.feature.personalize.FeedSourceItem
 import com.tileshell.feature.personalize.RegionChipGrid
 import com.tileshell.feature.personalize.RegionOption
+import com.tileshell.feature.personalize.TileLogoMark
 import com.tileshell.core.design.LocalColorTokens
 import com.tileshell.feature.start.dominantIconColor
 import com.tileshell.feature.start.rememberChosenWallpaperIsLight
@@ -324,7 +325,20 @@ fun FeedPage(
             .padding(start = 14.dp, end = 14.dp, top = topPad),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        GreetingHeader(userName = userName, hour = now.get(Calendar.HOUR_OF_DAY), fg = feedFg, fgDim = feedFgDim)
+        // TileShell's own mark, top-right on the same line as the greeting —
+        // user-requested branding ("place tileshell icon on top right on
+        // glance in the same line of greeting"). SpaceBetween pushes it to
+        // the far edge regardless of how wide the greeting text itself is;
+        // Top alignment keeps it level with the greeting's first line rather
+        // than centering against the taller two-line name variant.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top,
+        ) {
+            GreetingHeader(userName = userName, hour = now.get(Calendar.HOUR_OF_DAY), fg = feedFg, fgDim = feedFgDim)
+            TileLogoMark(accent = accent)
+        }
         GlanceRow(glance = glance, clock = clock, fg = feedFg, fgDim = feedFgDim)
         SearchPill(accent = accent, tokens = tokens, onOpenQuickSearch = onOpenQuickSearch)
 
