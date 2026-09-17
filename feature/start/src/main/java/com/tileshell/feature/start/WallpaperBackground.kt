@@ -147,7 +147,7 @@ fun rememberWallpaperBitmap(uri: String): ImageBitmap? {
     return image
 }
 
-private fun decodeWallpaper(context: Context, uri: String): ImageBitmap? = runCatching {
+internal fun decodeWallpaper(context: Context, uri: String): ImageBitmap? = runCatching {
     val parsed = Uri.parse(uri)
     // First pass: read dimensions without allocating pixels.
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }

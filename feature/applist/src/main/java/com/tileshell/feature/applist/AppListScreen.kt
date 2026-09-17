@@ -78,8 +78,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.AppLauncher
 import com.tileshell.core.data.PinResult
-import com.tileshell.core.data.Section
-import com.tileshell.core.data.UNSECTIONED_LABEL
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.design.Glass
@@ -116,6 +114,14 @@ fun AppListScreen(
     onPinned: () -> Unit = {},
     onOpenPersonalize: () -> Unit = {},
     onAddWidget: (android.appwidget.AppWidgetProviderInfo) -> Unit = {},
+    // Whichever section tab is currently active on Start (null =
+    // unsectioned, or sections are off) — a plain "pin to start" and a
+    // "more from this app" pin (shortcuts/sibling activities) both land
+    // there directly, with no chooser, mirroring how a live tile added
+    // from Start's own edit-mode toolbar lands in the active tab. There is
+    // no separate "pick a section" menu (removed) — this is the only way a
+    // pinned app's section is decided.
+    activeSectionId: String? = null,
     viewModel: AppListViewModel = viewModel(),
 ) {
     val apps by viewModel.filteredApps.collectAsStateWithLifecycle()
@@ -125,7 +131,6 @@ fun AppListScreen(
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val siblingsByPackage by viewModel.siblingsByPackage.collectAsStateWithLifecycle()
     val pinnedActivityKeys by viewModel.pinnedActivityKeys.collectAsStateWithLifecycle()
-    val sections by viewModel.sections.collectAsStateWithLifecycle()
     val accent = LocalAccent.current // global accent (FR-7, S17)
     val context = LocalContext.current
 
@@ -199,7 +204,7 @@ fun AppListScreen(
                                         AppLauncher.launch(context, app.packageName, app.activityName)
                                     }
                                 },
-                                onPin = { viewModel.pin(app) },
+                                onPin = { viewModel.pin(app, activeSectionId) },
                                 onUninstall = { uninstallApp(context, app.packageName) },
                                 onHide = { viewModel.hide(app) },
                                 badgeCount = notifications.badgeFor(app.packageName),
@@ -209,12 +214,10 @@ fun AppListScreen(
                                 // see DECISIONS.md "Themed icons: parked".
                                 siblings = siblingsByPackage[app.packageName].orEmpty(),
                                 pinnedActivityKeys = pinnedActivityKeys,
-                                onPinSibling = { sibling -> viewModel.pin(sibling) },
+                                onPinSibling = { sibling -> viewModel.pin(sibling, activeSectionId) },
                                 loadShortcuts = viewModel::shortcutsFor,
                                 loadWidgets = viewModel::widgetsFor,
                                 onPinWidget = onAddWidget,
-                                sections = sections,
-                                onPinToSection = { sectionId -> viewModel.pin(app, sectionId) },
                             )
                         }
                     }
@@ -239,7 +242,11 @@ fun AppListScreen(
                             onPin = {
                                 // The synthetic "personalize" entry can't go through the
                                 // generic pin flow — see pinPersonalize's own doc comment.
-                                if (app.packageName.isBlank()) viewModel.pinPersonalize() else viewModel.pin(app)
+                                if (app.packageName.isBlank()) {
+                                    viewModel.pinPersonalize()
+                                } else {
+                                    viewModel.pin(app, activeSectionId)
+                                }
                             },
                             onUninstall = { uninstallApp(context, app.packageName) },
                             homeStyle = settings.homeStyle,
@@ -249,12 +256,10 @@ fun AppListScreen(
                             onHide = { viewModel.hide(app) },
                             siblings = siblingsByPackage[app.packageName].orEmpty(),
                             pinnedActivityKeys = pinnedActivityKeys,
-                            onPinSibling = { sibling -> viewModel.pin(sibling) },
+                            onPinSibling = { sibling -> viewModel.pin(sibling, activeSectionId) },
                             loadShortcuts = viewModel::shortcutsFor,
                             loadWidgets = viewModel::widgetsFor,
                             onPinWidget = onAddWidget,
-                            sections = if (app.packageName.isBlank()) emptyList() else sections,
-                            onPinToSection = { sectionId -> viewModel.pin(app, sectionId) },
                         )
                     }
                 }
@@ -350,8 +355,6 @@ private fun AppRow(
     loadShortcuts: suspend (String) -> List<AppEntry> = { emptyList() },
     loadWidgets: suspend (String) -> List<android.appwidget.AppWidgetProviderInfo> = { emptyList() },
     onPinWidget: (android.appwidget.AppWidgetProviderInfo) -> Unit = {},
-    sections: List<Section> = emptyList(),
-    onPinToSection: (String?) -> Unit = {},
 ) {
     // Long-press opens a WP-style context menu: pin the app to Start, hide it
     // from the list, or uninstall it (the system uninstall dialog). A quick tap
@@ -362,7 +365,6 @@ private fun AppRow(
     var menuOpen by remember { mutableStateOf(false) }
     var siblingsMenuOpen by remember { mutableStateOf(false) }
     var widgetsMenuOpen by remember { mutableStateOf(false) }
-    var sectionsMenuOpen by remember { mutableStateOf(false) }
     // App shortcuts (e.g. a camera app's "selfie"/"video" quick actions) and
     // home-screen widgets are both real system calls per package, so unlike
     // [siblings] (already loaded for free from the in-memory catalogue) they're
@@ -477,15 +479,6 @@ private fun AppRow(
                 text = { Text("pin to start") },
                 onClick = { menuOpen = false; onPin() },
             )
-            // Only offered once 2+ sections exist — with none or one, the plain
-            // "pin to start" above already lands the app exactly where a picker
-            // would (unsectioned), so this stays out of the way otherwise.
-            if (sections.size >= 2) {
-                DropdownMenuItem(
-                    text = { Text("pin to section") },
-                    onClick = { menuOpen = false; sectionsMenuOpen = true },
-                )
-            }
             if (hasSiblings) {
                 DropdownMenuItem(
                     text = { Text("more from this app") },
@@ -538,22 +531,6 @@ private fun AppRow(
                         null
                     },
                     onClick = { siblingsMenuOpen = false; onPinSibling(sibling) },
-                )
-            }
-        }
-
-        // "pin to section": every section currently defined, plus the
-        // catch-all group's own label — only reachable once 2+ sections
-        // exist (the menu item above it).
-        DropdownMenu(expanded = sectionsMenuOpen, onDismissRequest = { sectionsMenuOpen = false }) {
-            DropdownMenuItem(
-                text = { Text(UNSECTIONED_LABEL) },
-                onClick = { sectionsMenuOpen = false; onPinToSection(null) },
-            )
-            sections.sortedBy { it.order }.forEach { section ->
-                DropdownMenuItem(
-                    text = { Text(section.label.lowercase()) },
-                    onClick = { sectionsMenuOpen = false; onPinToSection(section.id) },
                 )
             }
         }

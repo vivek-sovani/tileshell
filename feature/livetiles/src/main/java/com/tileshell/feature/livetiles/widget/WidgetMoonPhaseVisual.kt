@@ -22,6 +22,16 @@ import kotlin.math.cos
  * colour; shadow/rim are the same alpha-scaled derivatives
  * [com.tileshell.feature.livetiles.MoonPhaseVisual] uses (0.18/0.4) against
  * `FaceText`, which in a widget's context just *is* [onAccent].
+ *
+ * The two half-ellipses are combined with a real [Path.op] (union/difference),
+ * not by painting the narrower one in [shadowPaint] on top of the wider one
+ * already painted in [litPaint] — an earlier version did that, and it never
+ * worked: [shadowPaint] is just [litPaint]'s colour at 18% alpha, so painting
+ * it over an already-*opaque* lit fill barely changes the pixels, leaving
+ * what always looked like a plain half-moon regardless of the real phase
+ * (user-reported, both here and in the in-app tile: "today is 5th day but it
+ * is showing half moon"). Computing the actual lit silhouette once and
+ * filling it a single time has no such blending problem.
  */
 fun moonPhaseBitmap(fraction: Double, onAccent: Int, sizePx: Int = 128): Bitmap {
     val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
@@ -54,9 +64,12 @@ fun moonPhaseBitmap(fraction: Double, onAccent: Int, sizePx: Int = 128): Bitmap 
     val rx = abs(cosVal) * r
     val isGibbous = cosVal < 0f
 
+    val litPath = halfEllipsePath(r, litRight)
+    val smallHalf = halfEllipsePath(rx, if (isGibbous) !litRight else litRight)
+    litPath.op(smallHalf, if (isGibbous) Path.Op.UNION else Path.Op.DIFFERENCE)
+
     canvas.drawCircle(cx, cy, r, shadowPaint)
-    canvas.drawPath(halfEllipsePath(r, litRight), litPaint)
-    canvas.drawPath(halfEllipsePath(rx, if (isGibbous) !litRight else litRight), if (isGibbous) litPaint else shadowPaint)
+    canvas.drawPath(litPath, litPaint)
     canvas.drawCircle(cx, cy, r - rimPaint.strokeWidth / 2f, rimPaint)
 
     return bitmap

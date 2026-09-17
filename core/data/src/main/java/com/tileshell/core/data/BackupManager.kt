@@ -2,6 +2,7 @@ package com.tileshell.core.data
 
 import com.tileshell.core.data.db.FolderChildEntity
 import com.tileshell.core.data.db.FolderEntity
+import com.tileshell.core.data.db.SectionEntity
 import com.tileshell.core.data.db.TileEntity
 import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.core.data.settings.SettingsCodec
@@ -19,13 +20,15 @@ data class BackupFeedSource(val url: String, val name: String, val category: Str
 data class BackupWidget(val widgetId: Int, val heightDp: Int, val widthDp: Int)
 
 /**
- * Serialized snapshot of the Start layout + settings for export/import. The
- * trailing fields (default empty) cover domains added well after the original
- * tiles/folders/settings backup and are populated only by the manual
- * export/import path (`StartViewModel.exportBackup`/`importBackup`), not by the
- * automatic rolling layout-history snapshots (`saveLayoutSnapshot`/
- * `restoreFromSnapshot`) — those stay scoped to layout + settings, since
- * feed subscriptions/hidden apps/etc. aren't really part of "the layout."
+ * Serialized snapshot of the Start layout + settings for export/import. Most
+ * of the trailing fields (default empty) cover domains added well after the
+ * original tiles/folders/settings backup and are populated only by the
+ * manual export/import path (`StartViewModel.exportBackup`/`importBackup`),
+ * not by the automatic rolling layout-history snapshots (`saveLayoutSnapshot`/
+ * `restoreFromSnapshot`) — those stay scoped to layout + settings, since feed
+ * subscriptions/hidden apps/etc. aren't really part of "the layout." [sections]
+ * is the one exception: it (and each tile's own `sectionId`, in [tiles])
+ * genuinely *is* part of the layout, so both paths populate it.
  */
 data class BackupData(
     val tiles: List<TileEntity>,
@@ -38,6 +41,11 @@ data class BackupData(
     val widgets: List<BackupWidget> = emptyList(),
     val photoUris: List<String> = emptyList(),
     val wallpaperSlideshowUris: List<String> = emptyList(),
+    // Named sections + each tile's own sectionId (in `tiles` above) —
+    // omitted from a backup written before the sections feature existed, so
+    // an older file still restores fine (every tile just lands unsectioned,
+    // the same as it always would have).
+    val sections: List<SectionEntity> = emptyList(),
 )
 
 /**
@@ -59,7 +67,11 @@ data class BackupData(
  * `feedSources`/`feedRegions`, `widgets`, `photoUris`, and
  * `wallpaperSlideshowUris` were added the same way (additive, no version
  * bump) after a fuller audit found those entire domains — added in later
- * sessions — were never wired into backup/restore at all.
+ * sessions — were never wired into backup/restore at all. `sections` (the
+ * named groups themselves, `SectionEntity`) and each tile's own `sectionId`
+ * joined the same way once the sections feature shipped — before this,
+ * restoring *any* backup silently ungrouped every tile back to unsectioned,
+ * regardless of what the backup actually held.
  */
 object BackupManager {
 
@@ -76,6 +88,7 @@ object BackupManager {
         widgets: List<BackupWidget> = emptyList(),
         photoUris: List<String> = emptyList(),
         wallpaperSlideshowUris: List<String> = emptyList(),
+        sections: List<SectionEntity> = emptyList(),
     ): String = JSONObject().apply {
         put("version", CURRENT_VERSION)
         put("settings", SettingsCodec.encode(settings))
@@ -98,6 +111,21 @@ object BackupManager {
                     // silently reverted every per-tile "show as tile" choice
                     // back to a plain icon (the entity default).
                     put("displayAsIcon", t.displayAsIcon)
+                    // Which named section (below) this tile belongs to, if
+                    // any — omitted until now, so restoring a backup taken
+                    // after the sections feature shipped silently ungrouped
+                    // every tile back to unsectioned.
+                    putOpt("sectionId", t.sectionId)
+                })
+            }
+        })
+        put("sections", JSONArray().also { arr ->
+            sections.forEach { s ->
+                arr.put(JSONObject().apply {
+                    put("id", s.id)
+                    put("label", s.label)
+                    put("sortOrder", s.sortOrder)
+                    put("collapsed", s.collapsed)
                 })
             }
         })
@@ -161,6 +189,7 @@ object BackupManager {
         folders: List<FolderEntity>,
         children: List<FolderChildEntity>,
         settings: LauncherSettings,
+        sections: List<SectionEntity> = emptyList(),
     ): String = buildString {
         // Every field that a restore would bring back has to be in here, or a
         // change to it looks like "nothing changed" and no new snapshot is
@@ -168,13 +197,14 @@ object BackupManager {
         // restores a version without their change. accentOverride,
         // displayAsIcon, label and iconKey were all missing, so recolouring
         // tiles or toggling show-as-icon silently produced no snapshot at all.
+        // sectionId/sections joined the same way once sections shipped.
         tiles.sortedBy { it.id }.forEach { t ->
             append(t.id).append(':').append(t.position).append(':')
                 .append(t.size.name).append(':').append(t.type).append(':')
                 .append(t.packageName).append(':').append(t.folderId).append(':')
                 .append(t.gridSlot).append(':').append(t.accentOverride).append(':')
                 .append(t.displayAsIcon).append(':').append(t.label).append(':')
-                .append(t.iconKey).append('|')
+                .append(t.iconKey).append(':').append(t.sectionId).append('|')
         }
         folders.sortedBy { it.id }.forEach { f ->
             append(f.id).append(':').append(f.name).append(':').append(f.showAsStack).append('|')
@@ -183,6 +213,10 @@ object BackupManager {
             append(c.folderId).append(':').append(c.position).append(':')
                 .append(c.packageName).append(':').append(c.activityName).append(':')
                 .append(c.size.name).append(':').append(c.accentOverride).append('|')
+        }
+        sections.sortedBy { it.id }.forEach { s ->
+            append(s.id).append(':').append(s.label).append(':')
+                .append(s.sortOrder).append(':').append(s.collapsed).append('|')
         }
         append("settings:").append(SettingsCodec.encode(settings))
     }.hashCode().toString()
@@ -224,6 +258,10 @@ object BackupManager {
                     // don't carry it; the entity default is the right answer
                     // for them, so an older file still restores cleanly.
                     displayAsIcon = o.optBoolean("displayAsIcon", true),
+                    // Same "older file, no field, default is correct" story
+                    // as displayAsIcon above — an old backup's tiles land
+                    // unsectioned, same as before sections even existed.
+                    sectionId = o.optString("sectionId", "").ifEmpty { null },
                 )
             }
         }
@@ -296,9 +334,22 @@ object BackupManager {
             (0 until arr.length()).map { arr.getString(it) }
         } ?: emptyList()
 
+        val sections = root.optJSONArray("sections")?.let { arr ->
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                SectionEntity(
+                    id = o.getString("id"),
+                    label = o.getString("label"),
+                    sortOrder = o.getInt("sortOrder"),
+                    collapsed = o.optBoolean("collapsed", false),
+                )
+            }
+        } ?: emptyList()
+
         return BackupData(
             tiles, folders, folderChildren, settings,
             hiddenApps, feedSources, feedRegions, widgets, photoUris, wallpaperSlideshowUris,
+            sections,
         )
     }
 }

@@ -75,7 +75,6 @@ import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
-import com.tileshell.core.data.settings.SectionPillAlignment
 import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
@@ -185,6 +184,11 @@ fun PersonalizeSheet(
     onTransparencyChange: (Float) -> Unit,
     onBlurChange: (Boolean) -> Unit,
     onWallpaperChange: (id: String) -> Unit,
+    // Switching to the "stock" type tab defaults to the first gradient just
+    // so the section isn't blank — a plain apply, never the "which real
+    // screen(s) should this go to" chooser [onWallpaperChange] triggers,
+    // since the user hasn't deliberately picked a specific wallpaper yet.
+    onSelectStockWallpaperType: () -> Unit,
     onPickCustomWallpaper: () -> Unit,
     onClearWallpaper: () -> Unit,
     onResetTileStyle: () -> Unit,
@@ -210,16 +214,6 @@ fun PersonalizeSheet(
     onColumnsChange: (Int) -> Unit,
     tilePackMode: TilePackMode,
     onTilePackModeChange: (TilePackMode) -> Unit,
-    sectionsEnabled: Boolean,
-    onSectionsEnabledChange: (Boolean) -> Unit,
-    /** Whether any real section currently exists — gates the "turn sections
-     *  off" confirmation dialog (nothing to warn about/merge otherwise). */
-    hasSections: Boolean,
-    /** User confirmed "turn sections off" while sections exist: merges
-     *  every section into "main" and disables the feature together. */
-    onDisableSectionsConfirmed: () -> Unit,
-    sectionPillAlignment: SectionPillAlignment,
-    onSectionPillAlignmentChange: (SectionPillAlignment) -> Unit,
     homeStyle: HomeStyle,
     onHomeStyleChange: (HomeStyle) -> Unit,
     iconShape: IconShape,
@@ -287,7 +281,6 @@ fun PersonalizeSheet(
     }
     var showResetTileStyleConfirm by remember { mutableStateOf(false) }
     var showLiveTilesPermissionPrompt by remember { mutableStateOf(false) }
-    var showDisableSectionsConfirm by remember { mutableStateOf(false) }
 
     // Android back / back-gesture closes the sheet. When a sub-sheet (about,
     // folders, bing history) is open on top, its own handler — registered later —
@@ -331,28 +324,6 @@ fun PersonalizeSheet(
             },
             dismissButton = {
                 TextButton(onClick = { showLiveTilesPermissionPrompt = false }) { Text("not now") }
-            },
-        )
-    }
-
-    if (showDisableSectionsConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDisableSectionsConfirm = false },
-            title = { Text("turn off sections?") },
-            text = {
-                Text(
-                    "all your sections will be merged into main — their apps and folders stay " +
-                        "exactly as they are, just ungrouped, in the same overall order.",
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    showDisableSectionsConfirm = false
-                    onDisableSectionsConfirmed()
-                }) { Text("turn off") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDisableSectionsConfirm = false }) { Text("cancel") }
             },
         )
     }
@@ -456,7 +427,7 @@ fun PersonalizeSheet(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(text = "how to personalize", color = tokens.fg, fontSize = 14.sp)
                         Text(
-                            text = "colours, wallpaper, tiles, home style, pinning apps, the feed, and permissions",
+                            text = "colours, wallpaper, tiles, home style, pages, pinning apps, the feed, and permissions",
                             color = tokens.fgDim,
                             fontSize = 12.sp,
                         )
@@ -583,7 +554,7 @@ fun PersonalizeSheet(
                         WallpaperType.PHOTO -> onPickCustomWallpaper()
                         WallpaperType.SLIDESHOW -> onWallpaperSlideshowChange(true)
                         WallpaperType.BING -> onBingWallpaperChange(true)
-                        WallpaperType.STOCK -> onWallpaperChange(Wallpapers.all.first().id)
+                        WallpaperType.STOCK -> onSelectStockWallpaperType()
                     }
                 }
 
@@ -1104,71 +1075,10 @@ fun PersonalizeSheet(
                 }
             }
 
-            // ---- sections: master on/off (exclusive, opt-in feature, user-requested)
-            // + dropdown placement (sections always fill the screen one at a time) ----
-            SettingGroup(label = "sections", tokens.fgDim) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ToggleRow(
-                        "enable sections",
-                        on = sectionsEnabled,
-                        accent = accent,
-                        tokens,
-                    ) { turningOn ->
-                        // Turning off while real sections exist needs a
-                        // confirmation first (user-requested) — nothing to
-                        // warn about/merge if there are none yet.
-                        if (!turningOn && hasSections) {
-                            showDisableSectionsConfirm = true
-                        } else {
-                            onSectionsEnabledChange(turningOn)
-                        }
-                    }
-                    Text(
-                        "group Start tiles into named, collapsible sections — turning this off just " +
-                            "hides the \"+ add section\" button; any sections you've already made keep working",
-                        color = tokens.fgDim,
-                        fontSize = 12.sp,
-                    )
-                    if (sectionsEnabled) {
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "only one section fills the screen at a time — tap the section menu at the bottom to switch",
-                            color = tokens.fgDim,
-                            fontSize = 12.sp,
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "section menu placement",
-                            color = tokens.fgDim,
-                            fontSize = 13.sp,
-                        )
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(1.dp, tokens.tileLine),
-                        ) {
-                            SegCell(
-                                "left",
-                                selected = sectionPillAlignment == SectionPillAlignment.START,
-                                accent = accent,
-                                fg = tokens.fg,
-                            ) { onSectionPillAlignmentChange(SectionPillAlignment.START) }
-                            SegCell(
-                                "center",
-                                selected = sectionPillAlignment == SectionPillAlignment.CENTER,
-                                accent = accent,
-                                fg = tokens.fg,
-                            ) { onSectionPillAlignmentChange(SectionPillAlignment.CENTER) }
-                            SegCell(
-                                "right",
-                                selected = sectionPillAlignment == SectionPillAlignment.END,
-                                accent = accent,
-                                fg = tokens.fg,
-                            ) { onSectionPillAlignmentChange(SectionPillAlignment.END) }
-                        }
-                    }
-                }
-            }
+            // ---- pages: start is organized into always-available, swipeable
+            // pages (named sections + the trailing "main" page) — nothing to
+            // toggle here any more, "+ add page" just always works, like
+            // folders. See the guide sheet for how to add/rename/reorder. ----
 
             // ---- typography ----
             SettingGroup(label = "typography", tokens.fgDim) {

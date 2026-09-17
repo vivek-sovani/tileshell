@@ -7279,6 +7279,740 @@ plainly that it is currently inert, so nobody later mistakes it for a working fi
 needed for this warning**, and since 402 has now been uploaded, a later change would need a new
 versionCode anyway.
 
+## Start grid: side margin reinstated (reverses the earlier edge-to-edge change)
+
+Direct follow-up on "Start grid: side margin removed — tiles now go edge-to-edge" above: user asked
+for "a slight gap between the screen corner and tile edge" after living with edge-to-edge tiles for
+a while. `GridGeometry.of`'s `side` is back to the original proportional `totalWidthPx * (9f / 393f)`
+— real Windows Phone's own Start-screen outer margin, the same value used before the earlier
+removal — rather than hardcoded `0f`. Single-source-of-truth change (`GridGeometry` is shared by
+`DenseTileGrid`, the folder overlay's inline-expand grid, and resize/hit-testing geometry), so every
+consumer picks it up automatically. Build + full unit test suite green.
+
+## Personalize wallpaper: optional sync to the real Android home/lock screen
+
+User asked "is there a solution" to also use TileShell's own wallpaper (gradient or photo) as the
+real Android lock screen's wallpaper — until now it was purely drawn in-app (`WallpaperBackground.kt`),
+never touching `android.app.WallpaperManager`, so the actual system lock screen (drawn entirely by
+the OS) never reflected it.
+
+Added `SET_WALLPAPER` (a normal, auto-granted-at-install permission — not on Play's restricted-
+permissions list, no Data Safety disclosure needed) and a small `SystemWallpaperSync` object
+(`:feature:start`) that pushes the current wallpaper via `WallpaperManager.setBitmap(..., flags)`:
+a real photo/Bing image reuses the existing downsampled decode (`WallpaperBackground.decodeWallpaper`,
+widened from `private` to `internal`); a bundled gradient is rasterized off-screen via a new
+`core/design` function, `renderWallpaperToBitmap` — the exact same `drawWallpaperGradient` draw
+[wallpaperBackground] itself uses, just run through a `CanvasDrawScope` onto a real `Bitmap` instead
+of a live composition, so the pushed image matches the in-app one exactly.
+
+Per explicit request, this is a prompt at the moment of picking a wallpaper (gradient tap, photo
+crop-confirm, Bing-history pick — *not* the plain re-crop/re-frame overlay, which changes no
+content), offering exactly "home screen" / "lock screen" / "home + lock screen" (plus "not now" to
+skip), rather than a persistent Personalize toggle — mirrors Android's own native "set wallpaper"
+chooser. The choice is remembered (`LauncherSettings.wallpaperSyncTarget`, default `NONE` — byte-
+identical behaviour for every existing install until they opt in) so a future pick could reapply the
+same target without re-asking, though that reapplication is **not** wired for the *automatic*
+refreshers (the Bing daily worker, the wallpaper slideshow rotation) in this pass — both live in
+`:feature:livetiles`, which cannot depend on `:feature:start` (the dependency graph runs the other
+way), and relocating `SystemWallpaperSync` to unblock that wasn't asked for. A daily-refreshing Bing
+wallpaper synced to the lock screen will therefore fall slightly behind until the user picks from
+Bing history again; worth revisiting if that's reported as a real annoyance.
+
+Build + full unit test suite green.
+
+## Wallpaper sync prompt: redesigned to match the OEM wallpaper-set flow exactly
+
+Direct same-day follow-up. First version applied the wallpaper immediately, then separately asked
+"also update system wallpaper?" with explanatory text and a "not now" that only skipped the OS push.
+User corrected it on two points, then clarified against their own OEM (Samsung) launcher's own
+wallpaper-set flow as the reference: no explanatory copy at all, just the bare targets; and the
+choice must come *before* anything is applied, with declining meaning nothing is set — not even
+TileShell's own in-app wallpaper.
+
+Reworked so none of the three pick sites (`onWallpaperChange`, the crop overlay's `onConfirm`,
+`BingHistorySheet.onPick`) call `viewModel.setWallpaper`/`setCustomWallpaper`/`applyBingImage`
+directly anymore — each just records a `PendingWallpaperPick` (gradient id / photo uri+crop / Bing
+url) and shows the chooser. The chooser itself dropped its title and body text entirely, leaving
+only the three target buttons plus "cancel"; picking one calls a new matching `StartViewModel
+.*WithSync` function that does the set-wallpaper write and the `SystemWallpaperSync` push together,
+passing the just-picked value directly rather than reading it back through the `settings` StateFlow
+(which could still reflect the pre-write value depending on collection timing) — the only place that
+still reads `settings.value` is for the unrelated `dark` flag. The Bing case is the one genuinely
+async one — `BingWallpaperWorker.applyImage` only enqueues a download, so `applyBingImageWithSync`
+awaits (bounded to 20s) the settings flow actually reflecting a new `customWallpaperUri` before
+pushing, rather than pushing a stale/absent image.
+
+Build + full unit test suite green; installed on the physical device with no crash. The actual
+on-device flow (pick a wallpaper → bare 3-option/cancel prompt → confirm → check the real lock
+screen) still needs the user's own hands-on pass.
+
+## Wallpaper sync: the photo's chosen framing wasn't reaching the OS push
+
+User-reported: "framed wallpaper is not set on lockscreen" (found while testing the Bing image
+flow specifically). Root cause: `SystemWallpaperSync.apply` handed the *whole* decoded photo
+bitmap straight to `WallpaperManager.setBitmap` with no `visibleCropHint` — the user's chosen
+alignX/alignY/zoom (from the crop overlay, or the existing framing a Bing image inherits) were
+never passed in at all, so the OS fell back to its own default centre-crop instead of the framing
+shown in-app.
+
+Fixed by computing a real `visibleCropHint` `Rect`, in the decoded bitmap's own pixel coordinates,
+via a new `SystemWallpaperSync.visibleCropHint` — the algebraic inverse of `wallpaperCropGeometry`
+(`WallpaperGeometry.kt`, the exact same function the in-app crop overlay and renderer already use):
+that function says where a scaled/aligned image sits *relative to the screen box*; this inverts it
+to say which *slice of the source image* is visible, which is what `WallpaperManager` expects.
+Threaded `alignX`/`alignY`/`zoom` through all three `StartViewModel.*WithSync` call sites — the
+direct photo pick passes its own just-confirmed crop values (never a settings readback, avoiding
+the same staleness risk noted in the wallpaper-sync-prompt entry above); the Bing pick reads
+`settings.value.wallpaperAlignX/Y/Zoom` right after its bounded wait resolves (Bing has no crop UI
+of its own — it inherits whatever framing was already set, per `SettingsRepository.setBingImage`'s
+own existing "keep the user's chosen framing across daily refreshes" behaviour). The gradient case
+needs no crop hint — it's rendered directly at screen size, so it already exactly fills the box.
+
+Build + full unit test suite green; installed with no crash. The actual on-device framing match
+(pick a photo, crop off-centre/zoomed, confirm home+lock, check the real lock screen shows the same
+crop) still needs the user's own hands-on pass.
+
+## Backup/restore never captured sections — restoring silently ungrouped every tile
+
+User asked to update backup/restore for the latest features "so that restore should not break the
+launcher." Audit found sections was the one real gap, the exact same class of bug this file's own
+history already lists repeatedly (`gridSlot`, `displayAsIcon`, `hiddenApps`, `feedSources`, `widgets`,
+photo/slideshow URIs — each added to `BackupManager` well after shipping, since none of it was wired
+in when first built): `BackupManager.buildBackupJson`/`parseBackup` never serialized a tile's
+`sectionId`, and never touched the `sections` table (`SectionEntity`) at all — so restoring *any*
+backup (a manual export, or the automatic rolling layout-history snapshots) silently ungrouped every
+tile back to unsectioned, leaving whatever sections existed on the device as empty, orphaned tabs.
+Not a crash ("break the launcher" in the literal sense), but a real silent-data-loss regression on
+restore, worth fixing before it was reported that way.
+
+Fixed additively (no backup version bump, matching this file's own established convention): each
+tile's `sectionId` is now `putOpt`/read the same way `accentOverride`/`folderId` already are, and a
+new top-level `"sections"` array carries every `SectionEntity` (id/label/sortOrder/collapsed). A
+backup written before this change simply has neither key, and every tile lands unsectioned exactly as
+it always would have — verified with a dedicated test that strips both keys out of a freshly-built
+JSON to simulate an old file. `LayoutRepository.tilesForBackup()` widened from a `Triple` to a new
+`LayoutBackupSnapshot` data class (4 components, so every existing `val (tiles, folders, children) =`
+destructuring call site needed exactly one more name added, not a restructure) so it can also return
+`dao.sectionsOnce()`; `restoreFromBackup`/`LayoutDao.replaceLayout` both gained an additive
+`sections: List<SectionEntity> = emptyList()` param, clearing and reinserting the `sections` table in
+the same atomic `@Transaction` as tiles/folders/children. `BackupManager.layoutHash` also gained
+`sectionId`/`sections` (otherwise renaming a section or moving a tile between sections wouldn't
+register as a layout change, so "save now" would silently no-op and an auto-backup snapshot would
+never capture it — the identical class of bug `layoutHash`'s own doc comment already describes for
+`accentOverride`/`displayAsIcon`). Threaded through all the real call sites: `StartViewModel
+.exportBackup`/`importBackup`/`saveLayoutSnapshot`/`cacheForegroundScreenshot`/`restoreFromSnapshot`,
+and `LayoutAutoBackupWork`'s worker — sections is treated as genuinely part of "the layout" (unlike
+`hiddenApps`/`feedSources`/etc., which stay manual-export-only by design), so both the manual backup
+path and the automatic layout-history snapshots now capture it identically.
+
+Also audited while in this file: pinning a *new* app into a specific section (app list → long-press →
+"pin to section", 2+ sections) and moving an *already-pinned* tile between sections (its own colour
+picker's "move to section" chips) both already worked correctly and needed no code change — just
+documentation, added separately. A real, deliberate gap found but left alone (not asked for): pinning
+an app shortcut or another activity of the same app ("more from this app") always lands unsectioned,
+with no section-choice at pin time, unlike a plain app pin — noted in the guide as current behaviour
+rather than treated as a bug, since extending that picker wasn't requested.
+
+Build + full unit test suite green (5 new `BackupManagerTest` cases: sections/sectionId round-trip,
+pre-sections-backup compatibility, and two `layoutHash` sensitivity cases). Actual on-device
+export → wipe/reset → import round-trip, confirming sections truly survive, still needs the user's
+own hands-on pass — this project has no Room-instrumented test harness to simulate it headlessly.
+
+## Pinning an app now always lands in the active section — no chooser at all
+
+Direct follow-up, user-requested: "pin should be always to current section. dont ask user the
+choice. implement this for app and more from this app." Then, once tried: "pin to section option
+not needed" — removing the separate explicit picker entirely rather than leaving it as a secondary
+path alongside the new automatic behaviour.
+
+`AppListScreen` gained an `activeSectionId: String?` param (Start already tracks this as local state
+via `onActiveSectionChange`; threaded straight through at the `AppListScreen(...)` call site) — both
+`onPin` (plain "pin to start") and `onPinSibling` ("more from this app": shortcuts + other activities
+of the same app) now pass it to `AppListViewModel.pin(app, activeSectionId)` instead of an implicit
+null, landing the pin in whichever tab is showing right now, mirroring how a live tile added from
+Start's own edit-mode toolbar already works. The standalone "pin to section" menu item, its own
+`sectionsMenuOpen` dropdown, and `AppRow`'s `sections`/`onPinToSection` params were deleted outright
+once it was clear the new automatic behaviour made picking a different section unnecessary — along
+with `AppListViewModel.sections` (now read by nothing) and its now-unused `Section`/
+`UNSECTIONED_LABEL` imports. Guide/about docs updated to match (dropped the "pin to start lands
+unsectioned" and "shortcuts always land unsectioned" claims, both now false).
+
+Build + full unit test suite green; installed with no crash. The actual on-device check — pin an
+app while a specific tab is active and confirm it lands there — still needs the user's own hands-on
+pass.
+
+## Moon phase: the small/icon-sized tile showed a fixed generic glyph, not the real phase
+
+User-reported: "moonphase is not showing the right image as per moon phase. today is 5th day but
+it is showing half moon. it is same for calendar systems panchang option." Investigated by directly
+computing today's real values through the actual app code (a temporary JUnit test calling
+`HinduPanchang.panchangFor(now)` + `tithiMoonFraction` + `moonPhaseFraction`, removed once done):
+paksha=SHUKLA, tithi=panchami (5, matching the user's own reference), tithi-based fraction=0.15,
+independently-computed real astronomical fraction=0.157 — both agree closely, ~21-22% illuminated.
+Rendering that exact fraction through the actual two-half-ellipse algorithm (reproduced faithfully
+in a throwaway script, both at full size and at the real ~50px on-screen size) draws a genuine
+tapered crescent, not anything resembling a half moon — confirmed visually, not just by formula
+(the area under that specific curved boundary works out to exactly (1-cos(2πf))/2, the same
+illumination formula `moonIllumination` reports, so the shape and the percentage always agree).
+
+The one real, confirmed bug: `IconCellView.kt`'s small/1×1-face dispatch (ICONS home style, or any
+tile resized down to SMALL) has a branch for every other live-data tile — weather, calendar, clock,
+battery, flashlight, countdown, steps, stock, commodity, calsys — but "moonphase" was simply never
+added to that list. A small moon-phase tile therefore fell through to the tile's own generic static
+glyph (`TileIcons["moonphase"]`, deliberately described in its own comment as "a disc with an
+S-curved terminator" — one fixed shape, every day, forever) instead of ever showing the real phase.
+That fixed shape is exactly the kind of thing a user would reasonably call "half moon," and it would
+never change regardless of the actual date — matching the report precisely.
+
+Fixed with a new `MoonPhaseSmallFace` (`:feature:livetiles`, mirroring `ClockSmallFace`'s own
+minute-tick refresh pattern exactly) rendering the real `MoonPhaseVisual` crescent at icon size, and
+one new dispatch line in `IconCellView.kt`. `CalendarSystemSmallFace` (the panchang tile's own
+small face) was separately confirmed to show only the Roman day-of-month number at that size — no
+moon glyph, real or fake, so nothing to fix there; the panchang report was most likely the same
+"tithi 5 renders as a wider-than-expected but still genuinely curved crescent" perception the
+render-and-look verification above addresses, not a second bug.
+
+Also directly verified (code review, not just formula-matching) that neither home-screen widget
+(`MoonPhaseWidgetRefreshWorker`, `CalendarSystemWidgetRefreshWorker`) has an equivalent static-glyph
+gap — both already call the identical `tithiMoonFraction`/`moonPhaseBitmap` pipeline unconditionally,
+with no fallback branch. Their one real structural risk, left alone since it's a scheduling-
+robustness question rather than a wrong-calculation bug: each refreshes only once daily (just after
+midnight) via a periodic `WorkManager` job, with no refresh tied to the app's own launch — if that
+job were ever killed by OEM battery management (a documented concern elsewhere in this project) a
+widget could go stale for days, which at ~3 days off *would* land near fraction 0.25 (true half
+moon). Worth revisiting only if a widget specifically (not the in-app tile) is confirmed stale.
+
+Build + full unit test suite green; installed with no crash. The user's device was locked during
+this session, so the actual on-screen fix for the small/icon tile still needs their own confirmation.
+
+## Moon phase crescent: real root cause found (the earlier "small face" fix was not it)
+
+Direct correction after the previous entry — user confirmed the full-size live tile *and* the real
+home-screen widget both still showed a plain half-moon after that fix, and were right: that fix
+(the missing `IconCellView` dispatch entry) was real but not the actual bug behind the visual report.
+
+Root-caused with on-device logging: instrumented `PanchangFace` and `MoonPhaseVisual` directly and
+confirmed the exact runtime values feeding the render — `paksha=SHUKLA, tithiInPaksha=5,
+moonFraction=0.15, cosVal=0.588, rx=42.9 (r=73)` — mathematically and by an independent script-based
+render, *should* draw a clear tapered crescent. It didn't, on the real device, because of a
+different bug entirely: `MoonPhaseVisual`/`moonPhaseBitmap` built the crescent by painting the wide
+half-disc fully opaque in `lit`, then painting the narrower "cut" half-ellipse in `shadow` *on top of
+it* to carve the crescent out — but `shadow` is defined as `lit`'s own colour at 18% alpha. Painting
+an 18%-alpha version of a colour over an already-*opaque* fill of that same colour barely changes
+the pixels at all — the "cut" was never visible, on any tile background, at any fraction (except
+exactly full/new moon) — always leaving what looks like a plain half-moon (a full opaque half-disc)
+regardless of the real phase. This is why the earlier verification (a from-scratch script using
+different, genuinely contrasting placeholder colours for lit/shadow) rendered a correct crescent —
+it didn't reproduce the real app's lit-and-shadow-are-the-same-hue relationship, so it couldn't
+surface this bug at all.
+
+Fixed by computing the actual lit silhouette as one real path boolean operation — `PathOperation
+.Difference` (crescent) / `.Union` (gibbous) in Compose's `MoonPhaseVisual`, `Path.Op.DIFFERENCE`/
+`.UNION` in the widget's plain-`android.graphics` `moonPhaseBitmap` — and filling that single
+resulting path once, rather than painting two overlapping half-ellipses and hoping the alpha blend
+reads as a cut. Confirmed on-device: the panchang tile now shows a real tapered crescent for tithi 5,
+matching what tithi 5 (~21% illuminated) should actually look like.
+
+Build + full unit test suite green; visually confirmed on the physical device via screenshot — the
+same fix applies to the standalone moon-phase live tile (identical code path) and both home-screen
+widgets (identical `Path.op`-based fix mirrored into `WidgetMoonPhaseVisual.kt`), though only the
+panchang tile was directly screenshotted this session.
+
+## Sections become swipeable pages, not a menu-switched tab
+
+Direct user follow-up on the "sections" feature (see the earlier "Start screen 'sections'" entries):
+tapping a dropdown pill to switch between sections is replaced with plain horizontal swipe, folded
+into the *same* pager Start already uses for the feed/glance page and the app list. User's own framing:
+"i am just asking you instead of selecting a section via menu. just do it by scroll." Landed as one
+`Animatable<Float>` position space spanning `-1` (feed) through `0 .. blockCount-1` (one page per
+section, plus the trailing unsectioned "main" page) through `blockCount` (app list) — `pagerCommitTarget`/
+`pagerModifier` generalized from their old hardcoded 3-position `[-1,1]` range to a `lower`/`upper` pair.
+Three more explicit user calls landed in the same pass: a page's name is now shown **only in edit
+mode** (hidden otherwise — no dropdown pill, no permanent label, "just scroll" to know where you are);
+reorder controls became **left/right** arrows instead of up/down (matching the new horizontal
+navigation, same underlying `moveSection` swap); and the "enable sections" Personalize toggle was
+**removed outright** — pages are now an always-available capability like folders, with no on/off
+switch, no "turn off sections?" merge-back confirmation dialog, and no `SectionPillAlignment` setting
+(it only ever configured the now-deleted dropdown pill's placement). Per an explicit rename-scope
+decision, "section" → "page" only in user-facing text (labels, hints, docs) — internal Kotlin symbols,
+the Room `sections` table/`sectionId` column, and `SectionBlocks.kt`/its tests all keep saying
+`Section`. The collapse/expand chevron (`SectionHeader`'s `collapsible`/`onToggleCollapsed`, already
+forced open for the one visible block before this change) is dropped entirely — a "collapsed" page has
+no purpose once every section is already its own page you swipe past.
+
+Mechanically: every block now renders simultaneously as its own full page (`StartPage`'s per-block
+loop, `blockRenders.forEachIndexed`), each translated horizontally by `widthPx * (index -
+pagerProgress)` — the same plain full-slide treatment the feed/app-list pages already used — instead
+of narrowing to just the one active block and swapping its content on settle (the old
+`visibleBlockRenders`/`selectedSectionTab`/dropdown mechanism, all deleted). This is a real behaviour
+change on the existing Start↔feed and Start↔app-list edges too: they previously used a subtler ±22%
+parallax + fade specific to "the single Start position"; once Start splits into N pages there's no
+longer one obviously-special position to keep that treatment for, so every page (feed, every block,
+app list) now uses the same full-slide formula — a deliberate simplification, not preserved for those
+two edges specifically. Each block gets its own independent `rememberScrollState()` (real, separate
+pages, not one shared scrolling column any more) — the "home press scrolls Start to the top" behaviour
+is a known, accepted regression as a result (only the pager position resets to whichever page you were
+last on; the per-page scroll position itself is no longer force-reset from outside `StartPage`).
+
+Two real correctness traps were caught and fixed during this pass, not just plumbing: (1) naively
+deriving "the active section" from `round(pagerProgress)` breaks the instant you rest on the app list
+(`progress == upper`), which is *exactly* when a newly added tile needs to be pinned into "the section
+you were last viewing" (the add-live-tile sheet and the weather-location picker are both opened from
+the app list) — this would have silently regressed to "always pins to the last page," the exact bug
+this feature's own history already fixed once before. Fixed with `lastActiveBlockIndex`, updated only
+while resting on a real block page and always read back re-clamped, so a delete/reorder can never
+leave it dangling. (2) Tapping a page's own new ←/→ reorder button swaps its index with a neighbor's;
+since the pager position doesn't otherwise move, the page you just reordered would visibly swap out
+from under the tap. Fixed by having `onMoveSection`'s `StartScreen`-level wiring also `settleTo` the
+tile's new index — safe because a page's own reorder buttons are only reachable on the block currently
+centered on-screen, so the pager's current integer position is guaranteed to be that page's own index
+at the moment of the tap.
+
+Explicitly **not** part of this pass, flagged back to the user rather than silently dropped: dragging a
+tile to the screen edge to carry it onto a neighboring page (discussed and agreed as a follow-up
+gesture) needs a genuinely separate floating-overlay rendering path for the dragged tile — since each
+block's own `DenseTileGrid` only renders tiles that belong to it, a tile "dragged across" a page
+boundary would otherwise visually vanish with its origin page rather than following the finger. Not
+attempted in this pass; the existing per-tile "move to page" chip (in the colour-picker sheet, plain
+rename from "move to section") remains the only way to move a tile to a different page for now.
+
+Build + full unit test suite green (`FeedFormatTest` extended for `pagerCommitTarget`'s wider range;
+`SectionTest`/`SectionBlocksTest` untouched, since `SectionBlocks.kt` itself didn't change).
+On-device gesture verification (the actual swipe feel, edit-mode header visibility, left/right reorder)
+still needs the user's own hands-on pass, per this project's own established ADB-synthetic-swipe
+limitation.
+
+## "Main" moved back to first in the page sequence
+
+Direct same-day follow-up, user-requested: "main should be first in sequence." `blocksFor`
+(`SectionBlocks.kt`) previously appended the unsectioned/"main" block *last*, after every named
+section — a deliberate choice from this feature's earlier vertical-stacked-list era (named sections
+as the organized front-and-center content, "main" as the leftover area below them). Now that sections
+are swipeable pages rather than a stacked list, "main" reading as the anchor/home page you land on
+before swiping into named ones makes more sense — `blocksFor` now returns `listOf(unsectioned) +
+sectionBlocks` instead of `sectionBlocks + unsectioned`. Named-section reordering (`moveSection`/
+`swapSectionOrder`) is unaffected — it only ever permutes real `Section` entities among themselves;
+"main" was never one of those and isn't reorderable either way, just always first now instead of
+always last. `SectionBlocksTest`'s two order-sensitive cases updated to match (`blocks.first()`
+instead of `blocks.last()`, and the sequence assertion); the About/Guide sheet copy already written
+this session ("the last one is always main") corrected to "the first one is always main" before it
+shipped anywhere. Build + full unit test suite green.
+
+## Page-dot indicator uncovered a real "only works on main" bug affecting quick search/live tiles too
+
+User asked for a small dot indicator at the top of Start (one per page) since a page's name is
+hidden outside edit mode and there was otherwise no visible cue that Start has more than one page.
+Straightforward to add (`PageDotsIndicator`), but the user then reported it "is only shown on main
+page." Root-caused, and it's a real, more consequential bug than the indicator itself: `appListShown`
+(`val appListShown by remember { derivedStateOf { progress.value >= upper - 0.5f } }`, added when the
+pager was generalized to N block pages) has no `remember` key, so its calculation block — closing
+over the local `upper` — is created exactly once, on the very first composition, and never recreated
+even once the real `upper` value changes. Since `sections` is collected via
+`collectAsStateWithLifecycle()`, its very first composition can render before the real Room data has
+streamed in, i.e. with `sections = emptyList()` and `upper = 1f` — and that stale `upper` is what
+`appListShown` keeps comparing against forever after. With `upper` stuck at `1f`, `progress.value >=
+0.5f` reads true for every non-main block page's own resting position (1, 2, 3, ...), not just the
+real app list — so `appListShown` silently misreported "the app list is showing" any time the user
+was on any page other than main. This didn't just hide the page-dot indicator: `liveSuspended`
+(`appListShown || feedShown || personalizeOpen`) reads the same value, so **live tiles have been
+silently pausing on every non-main Start page** since the swipeable-pages change landed. Fixed with
+`remember(upper) { ... }`.
+
+The exact same stale-closure shape existed one more place, found by inspecting every other
+`remember { derivedStateOf { ... } }` in the file for the same pattern: `restingAtStart` (gates the
+two-finger quick-search/quick-panel swipes and the single-finger edge-swipe) used to mean "resting at
+progress ≈ 0" — correct back when Start was a single page at position 0, but never updated once Start
+became N pages — so those three gestures have likewise only worked on the main page since that
+change, silently doing nothing on any named section page. Fixed by checking "resting on the nearest
+integer, and that integer is a real block index (`0 until blockCount`)" instead of "resting at
+exactly 0," keyed on `blockCount` for the same reason.
+
+Both fixes needed only a `remember` key, not a behavior redesign — the underlying logic was already
+correct, it just never re-ran once the truly dynamic `blockCount`/`upper` stopped being effectively
+constant. Build + full unit test suite green; the page-dot indicator, quick search, quick panel, and
+edge-swipe still need the user's own on-device confirmation across more than one section page.
+
+## Two real scroll bugs from the per-page ScrollState split: blank-space scroll freeze + spurious auto-scroll while dragging a tile
+
+User reports, two rounds: (1) "pull down collides with edit mode especially moving the tile it starts
+scrolling down even if i scroll it vertically. check you tube tile on main page", then (2) "scrolling
+is freezed after when i go beyond first visible section of page" / "scrollin only happend if i scroll
+throgh tiles" / "not through blank space" — two separate, real bugs, both root-caused independently.
+
+**(1) Dragging a tile spuriously auto-scrolls the page.** `editDragGesture`'s own near-edge auto-scroll
+check (`fingerViewportY = (contentTopPx + blockTopOffsetPx + pos.y) - scrollOffsetPx()`) was still fed
+by its call site's `scrollOffsetPx = { scrollState.value.toFloat() }` — the OUTER `scrollState` param,
+which is orphaned now that each block page owns its own `ScrollState` (`blockScrollStates`, this
+session's earlier per-page-pages work) and nothing scrolls the outer one any more (permanently `0`).
+Once a page had genuinely been scrolled down at all (exactly the situation reaching a YouTube tile
+further down "main"), `fingerViewportY` was inflated by the whole real scroll offset it never
+subtracted, tripping the "near the bottom edge" branch and firing a real, continuing
+`activeScrollState.scrollBy` well before the finger was anywhere near the true edge — reads exactly as
+"moving the tile starts scrolling the page." Fixed: `scrollOffsetPx = { blockScrollStates[blockIndex]
+.value.toFloat() }`.
+
+**(2) Scrolling via blank space (not over a tile) froze entirely.** A separate, pre-existing bug in
+`emptySpaceEnterEdit`'s "reachability" pull-down recognizer, now far more commonly triggered: it
+watches in `PointerEventPass.Initial` (parent-first, ahead of the child `Column`'s own
+`.verticalScroll()`) and, the moment a touch on empty space exceeds its 7dp slop, consumed that event
+for reachability whenever `reachabilityActive` — **regardless of direction**, including a plain upward
+"scroll down to see more" drag. Losing just that one move event is enough to stop the child
+`verticalScroll`'s own gesture detector from ever recognizing the drag, freezing scroll for the rest of
+that touch (a tile-started drag is unaffected — `tileGesture` never consumes on its own drag).
+`reachabilityActive` (`!editMode && expandedFolderId == null && blocks.size >= 2`) was always the gate,
+but `blocks.size >= 2` used to be rare (sections were opt-in and uncommon); now that pages are always
+on, any install with even one named section hits it by default, which is why this reads as a new
+regression even though the flaw itself predates this session. Fixed by only claiming the slop-break for
+reachability when the move is genuinely downward (`change.position.y > down.position.y`) — an upward
+scroll-intent drag is now never touched here at all, so the child `verticalScroll` sees an unbroken
+gesture from the start. `folderCollapseOnEmptyTap`'s own `absoluteTileRects` hit-test was also found,
+while investigating, to skip the same scroll/reachability-offset coordinate conversion
+`emptySpaceEnterEdit` already applies — flagged as a real but separate robustness gap (only reachable
+while a folder is expanded, unrelated to this bug), not fixed in this pass.
+
+Build + full unit test suite green. Both fixes need the user's own on-device confirmation: dragging a
+tile down a scrolled page no longer auto-scrolls spuriously, and a blank-space scroll (up or down)
+works throughout a page that also has 2+ block pages.
+
+## Drag a tile to the screen edge to carry it onto a neighboring page
+
+Explicitly deferred earlier in this branch's own history ("Not attempted in this pass... needs a
+genuinely separate floating-overlay rendering path for the dragged tile"), now built per direct user
+request ("carry out the work of dragging tile to another page"). Landed a **release-time** design
+instead of the originally-sketched continuous-carry one, trading a little visual polish for
+substantially lower risk: holding a tile at the left/right screen edge for `CROSS_PAGE_DRAG_DWELL_MS`
+(550ms — a fresh, explicit choice, not reused from the 430ms tile long-press or 700ms app-list-pin
+thresholds) arms the move, but nothing happens until release — at that point the tile's section is
+reassigned (reusing the existing `onAssignTileSection`/`setTileSection` plumbing the colour picker's
+"move to page" chip already uses, so `gridSlot` clears for free the same way) and the pager settles to
+the destination page in one motion. The originally-sketched version wanted the tile to visually follow
+the finger continuously across the page transition; the release-time trade avoids that entirely — the
+tile stays put in its own page's `DenseTileGrid` throughout the hold (no floating overlay, no cross-
+block hand-off of an in-flight gesture) and only "moves" at the moment of release, landing already
+correctly placed on the destination page.
+
+Mechanically, all inside the existing `editDragGesture` (`StartScreen.kt`), new inert-by-default params
+(`crossPageEdgeZonePx = 0f`, `crossPageDwellMs`, `onCrossPageDrop`) so every other caller/behaviour is
+unaffected. A drag's own local x (already in the block's own 0..widthPx content space — pages don't
+scroll horizontally within themselves the way they scroll vertically, so no coordinate conversion is
+needed the way the existing vertical auto-scroll check needs one) is tracked against the edge zone
+every tick; only on release, if held there long enough, does `onCrossPageDrop(startId, direction)` fire
+**instead of** the normal reorder/merge/sticky-drop commit — folder children are excluded outright
+(`parseFolderChildId(startId) == null`), since a child moves with its folder, not on its own.
+`StartPage`'s own wiring resets the shared `draggingId`/`mergeTargetId`/`autoScroll` state on this path
+(since the normal `onDrop` callback, which usually does that cleanup, is deliberately skipped), then
+forwards to `StartScreen`, which is the one composable that actually knows `blockCount`/
+`sortedSections`/`settleTo` — computed there as `targetIndex = (activeBlockIndex + direction).coerceIn
+(0, blockCount - 1)`, `targetSectionId = sortedSections.getOrNull(targetIndex - 1)?.id` (block 0 is
+always "main"/null, matching the earlier "main first" decision), then `setTileSection` + `settleTo`.
+A drag can only ever originate on the page currently on screen, so `activeBlockIndex` doubles as the
+source index with no extra plumbing needed to track "which page did this drag start on."
+
+Build + full unit test suite green. Needs the user's own on-device confirmation — this is exactly the
+kind of live-drag-feel gesture this project's own history repeatedly notes ADB can't reliably
+synthesize.
+
+## Cross-page tile drop lands where it was released, not wherever the destination page auto-picks
+
+Direct same-day follow-up, user-reported: "tile shift one page to another but the position on another
+page can not be [decided]" — the release-time cross-page drop above only reassigned the tile's section,
+leaving the destination page's own placement engine to auto-pick wherever it liked, with no way for the
+user to influence where it landed.
+
+Fixed by computing a real target cell from the actual drop position and writing it, instead of leaving
+it to auto-placement: `editDragGesture`'s edge-held release branch now also computes
+`geom.cellAt(pos - grab, columns, widthCols)` — the same "top-left pixel → (col, row)" geometry the
+in-page sticky drag-drop already uses (every page shares identical column count/gap/width, so this
+math is valid regardless of which page the tile ends up on) — and encodes it via
+`GridPacker.encodeSlot`. `onCrossPageDrop` gained a third argument, `targetSlot: Int`, threaded through
+the same `StartPage` → `StartScreen` path as before. `StartScreen`'s handler now calls
+`viewModel.setTileGridSlot(tileId, targetSlot)` right after `setTileSection`, reusing the exact same
+sticky/free placement-resolution path (`GridPacker.stickyPlacement`/`freePlacement`) an ordinary
+in-page drag-drop already goes through — collisions with whatever's already on the destination page at
+that cell are resolved the same way they always are.
+
+One accepted, documented risk: `setTileSection` and `setTileGridSlot` are two separate ViewModel calls
+(both serialized onto the same single-thread write dispatcher, so they can't literally race each
+other), but `setTileGridSlot`'s own placement computation reads the ViewModel's in-memory
+tiles/sections state, not a fresh DB read — if that state hasn't yet re-observed the just-written
+section change by the time the second call runs, the slot computation could momentarily still see the
+tile as belonging to its old section. Worst case this yields a slightly different cell than intended,
+resolved harmlessly by the placement engine's own collision handling — never a crash or corrupted
+data — so it was left as a known edge case rather than merging the two writes into one new atomic
+ViewModel method, given the added surface area that would need testing against sticky/free/dense modes.
+
+Build + full unit test suite green. Needs on-device confirmation, same as the cross-page-drop feature
+itself.
+
+## Cross-page drop: shift the page immediately on reaching the edge, not only on release
+
+Direct same-day follow-up, user-requested: "when i drag at edge can't you shift the page so that i can
+put properly" — the earlier release-time design (hold at the edge 550ms, then release to commit) never
+showed the destination page until after you let go, so there was no way to see what you were placing
+the tile relative to.
+
+A genuinely live version — the tile visually following the finger while continuing to see/adjust
+within the destination page's own grid — isn't reachable without a much bigger rework: Compose ties an
+in-progress touch to whichever `pointerInput` node first claimed it (this project's per-page
+`editDragGesture` instances are genuinely separate recognizers, one per block), so there's no way to
+hand an in-flight drag over to a different page's own grid mid-touch without hoisting the whole
+recognizer to a page-agnostic level. Given a straight choice between that larger rework and a smaller,
+still genuinely useful compromise, the user picked: **shift immediately, commit right there** — the
+instant the dragged tile's own centre first crosses into the edge zone (no more dwell/hold wait at all),
+the page shifts and the move commits on the spot, with no further re-aiming once past the edge.
+
+Mechanically: the dwell-and-check-on-release design is replaced by a one-shot `crossPageTriggered` flag
+checked at the very top of `lifted`'s per-tick handling, before `onDrag`/consume/any of the merge-
+reorder-sticky-autoscroll branches — the moment it fires, every one of those is skipped for the rest of
+the gesture (a guard at the top of the tick loop makes every subsequent tick an immediate no-op besides
+watching for release), since the tile has already left this page's own grid. `crossPageDwellMs`/
+`CROSS_PAGE_DRAG_DWELL_MS` are gone entirely — there's nothing left to time.
+
+Build + full unit test suite green. Needs the user's own on-device confirmation, same as before.
+
+## Cross-page drag: keep adjusting the drop after the page shifts, instead of placing it instantly
+
+Direct same-day follow-up. The immediate-shift-and-commit version above traded away all control — the
+user pushed back: "can't we assign the new page to the tile and again enter into edit immediately so
+that i don't lose control of tile." Landed a real (if partial) answer, not the full continuous-visual-
+carry rework: the page **shift** still fires immediately on crossing into the edge zone (unchanged),
+but the actual **commit** (section reassignment + grid slot) now waits for release — so the same held
+touch keeps being usable to aim the drop after the destination page is already visible, instead of
+freezing the instant it crosses.
+
+The key realization that made this tractable without hoisting drag recognition to a page-spanning
+level: every block page shares *identical* grid geometry (columns, gap, width) and sits at the same
+base layout position, differing only by a `graphicsLayer { translationX = widthPx * (index -
+pagerProgress) }`. Converting a touch's local x from the source page's coordinate space into "as if it
+were already on the destination page" is pure algebra —
+`screenX = parentX + widthPx*(blockIndex - pagerProgress) + localX`, and setting two blocks' `screenX`
+equal (same physical finger) and solving shows the `pagerProgress` term cancels out completely, leaving
+`destLocalX = sourceLocalX - widthPx * direction` — a **fixed constant** offset, valid the instant the
+shift begins and throughout the entire transition, not something that needs to track the live shift
+animation at all. So the same `editDragGesture` instance that started the drag keeps consuming the same
+touch after `onCrossPageShift` fires (Compose ties an in-progress touch to whichever node first claimed
+it — genuinely can't hand it to the destination page's own grid instance), just applying this fixed
+correction to compute the eventual drop cell; every other per-tick branch (merge/reorder/sticky/auto-
+scroll, all scoped to the *source* page's own tiles) is skipped for the rest of the gesture, since
+they'd be meaningless once the tile is leaving. `onCrossPageDrop` — now purely the release-time commit,
+no longer also responsible for the page shift — computes the final `targetSlot` from the
+correction-adjusted position at that point.
+
+Known, accepted limitation: the dragged tile's own visual is still rendered inside the source page's
+`DenseTileGrid`, which is now off-screen — so nothing floats/follows visually during this extended
+hold; the user aims using the *destination page's own visible layout* as a reference, trusting the
+computed drop position, rather than watching the tile itself travel there. A true floating overlay
+would need its own separate render path outside any single page's clipped bounds — not attempted here,
+flagged as a possible follow-up if the current middle ground isn't precise enough in practice.
+
+Build + full unit test suite green. Needs the user's own on-device confirmation.
+
+## Cross-page drag: a real floating ghost, not just an invisible-but-adjustable hold
+
+Direct same-day follow-up — the "keep aiming after the shift" entry above shipped with a known,
+accepted limitation (no visible tile during the hold, aiming by the destination page's own layout
+alone). The user tried it and pushed back: "not working as you described. tile should be visually seen
+when i drag" — asking for the floating visual after all, rather than accepting that trade-off.
+
+Built it without needing to hoist drag recognition to a page-spanning system, using the same
+coordinate-space insight as the release-time slot math, extended to a *live*, continuously-updating
+position: every block page's own `translationX = widthPx * (blockIndex - pagerProgress)` is relative to
+one shared outer Box, so `liveTranslationX + (touch's own local offset)` is *always* a valid position in
+that shared Box's own coordinate space — during the shift animation, after it settles, at any point —
+with no special-casing needed for "is the animation still running." The one new piece this needed that
+the release-time-only design didn't: a *live* reader of the pager's position (`livePagerProgress: () ->
+Float`, threaded from `StartScreen`'s `progress.value` down through `StartPage` into
+`editDragGesture`), since the ghost has to track the live shift animation itself, not just its resting
+value — the release-time slot computation still only needs the fixed per-page-crossed offset, unchanged.
+
+New `onCrossPageDragPosition(tileId, offset)` callback fires every tick once `crossPageTriggered`,
+reporting that live position; `null` on release. `CrossPageDragGhost` (a new small composable) renders
+a deliberately simplified stand-in for the dragged tile — its accent colour and icon, sized via the
+same `GridGeometry`/`resizeGeom` every tile already uses, but no live faces/badges/folder mini-grid —
+as the very last child of `StartPage`'s own outer Box, so it draws above every block page. The real
+in-grid tile (now on an off-screen page) and this ghost are never both visible at once by construction
+(the ghost only exists once `crossPageTriggered`, i.e. only once the source page has already started
+sliding away), so there's no risk of the two visuals appearing to double up.
+
+Build + full unit test suite green. Needs the user's own on-device confirmation — this is exactly the
+kind of live-drag-feel gesture ADB can't reliably synthesize, so a code-level review is as far as this
+can be verified without a real finger.
+
+## Cross-page drag: fixed a runaway auto-scroll that dumped the tile at the bottom
+
+Direct same-day follow-up, user-reported: "visual is seen but tile is not placed where i release the
+finger it still placed at bottom." The release-time target-cell math itself is fine (verified again by
+re-deriving it from the same shared-coordinate-space relationship the ghost uses — the pager-progress
+term cancels out identically whether the shift animation has settled or not, so it's correct at any
+point in time). The actual bug: `editDragGesture`'s existing vertical near-edge auto-scroll check
+(`onAutoScroll`) sets a shared `autoScroll` value that drives a separate `LaunchedEffect` scrolling
+loop — once `crossPageTriggered`, that check is skipped for the rest of the gesture (the branch
+`continue`s past it), but nothing ever reset `autoScroll` back to `0` if it happened to already be
+non-zero at the exact instant the horizontal edge was crossed (plausible whenever the drag was also
+near the top/bottom of the screen when it crossed the side edge — not an unusual combination). With
+nothing to stop it, that scroll loop kept running for the entire aim-after-shift hold, scrolling
+whichever page was active all the way to its bottom before the eventual release — landing the tile far
+down the grid regardless of where the user actually released. Fixed with one `onAutoScroll(0)` call at
+the exact moment the cross-page shift triggers.
+
+Build + full unit test suite green. Needs the user's own on-device confirmation.
+
+## Cross-page drag: the real "still placed at bottom" cause — a deterministic race, not a rare one
+
+Direct same-day follow-up — the auto-scroll fix above didn't fix it; user confirmed "it still placed at
+bottom." Found the actual cause on inspecting `setTileGridSlot`'s real implementation (previously only
+described secondhand in an earlier entry's "known, accepted risk" — this is that risk, materializing):
+it computes its target placement **synchronously**, reading the tile's section via the cached `tiles`
+StateFlow (`tiles.value.firstOrNull { it.id == id }`) and scoping collision-resolution to
+`tilesInBlock(model.sectionId, ...)` — all *before* the `viewModelScope.launch(writeContext)` block
+that actually writes anything. `StartScreen`'s `onCrossPageDrop` called `setTileSection(...)` then
+immediately `setTileGridSlot(...)` — two separate top-level calls — so the second call's synchronous
+read happened essentially instantly after the first, with no realistic chance for the first call's
+*asynchronous* DB write, let alone the `tiles` Flow re-collecting it, to have landed yet. This wasn't an
+occasional race, it was **guaranteed** every time: `setTileGridSlot` always computed the destination
+cell scoped to the tile's *old* section's own tiles, not the new one's — landing it wherever that
+unrelated layout happened to put the requested `(col,row)`, which (especially crossing from a taller
+"main" page into a shorter named page, or vice versa) reads exactly as "randomly ends up at the bottom."
+
+Fixed with a new atomic `StartViewModel.moveTileToSectionAtSlot(tileId, targetSectionId, targetSlot)` —
+the same body `setTileGridSlot` already has, except it scopes placement to the caller-supplied
+`targetSectionId` directly (the moved tile's own current section is never read at all, so there's
+nothing stale to race against), and writes the section change and the resulting slots inside **one**
+`viewModelScope.launch(writeContext)` block instead of two separate public calls. `setTileGridSlot`
+itself is unchanged — every other, non-cross-page caller still calls it exactly as before.
+
+Build + full unit test suite green. Needs the user's own on-device confirmation.
+
+## Folder-level "unfold folder" and "remove folder & tiles"
+
+User request, drawing the direct parallel to the page-level "merge with main" just shipped: "for folder
+similar option needed, unfold all tiles, or delete the folder with all [tiles] inside." Landed as two
+new rows in the same per-tile colour-picker sheet the "show as stack" toggle already lives in, gated
+the same way (a real folder only, never a folder child — `childRef == null`):
+
+- **"unfold folder"** — dissolves the folder, turning every child into its own top-level pinned tile at
+  once (the bulk counterpart to dragging each child out one at a time). Nothing is lost, no
+  confirmation needed, same as "merge with main."
+- **"remove folder & tiles"** — unpins the folder and every one of its children from Start in one
+  action. Apps stay installed (same non-destructive "remove = unpin" convention every other removal in
+  this app already follows) — but unpinning several tiles in one tap is enough of a step up from a
+  single tile's own × that it gets a confirmation dialog first, unlike "unfold folder."
+
+Mechanically, looping the existing `removeFolderChild` once per child (the obvious first instinct) is
+unsafe: its own last-child branch rewrites the *folder's own tile id* into a plain app tile for the
+survivor rather than minting a fresh one, which would leave one child inconsistent with its
+newly-repinned siblings (a stale/reused id). Added dedicated bulk methods instead —
+`LayoutDao.unfoldFolder`/`removeFolderAndChildren`, `LayoutRepository.unfoldFolder` (mints one fresh
+id/colour per child, same convention as `removeFolderChild`, appended in the folder's own section) and
+`.removeFolderAndChildren`, `StartViewModel.unfoldFolder`/`.removeFolderAndTiles` — mirroring
+`toggleFolderStack`'s existing shape. The About sheet's "folders" group and the Personalize guide's
+"organizing tiles" group were both updated with both actions in the same pass.
+
+Build + full unit test suite green. Needs the user's own on-device confirmation.
+
+## Page-level "remove page & tiles" — moved to a fixed top-right corner control
+
+Direct follow-up to the folder-level unfold/remove actions above — user asked for the same option at
+the page (section) level: "also provide remove page option in edit mode." A first attempt placed it as
+a dropdown menu inline inside `SectionHeader`'s own row (mirroring where the folder actions live, in a
+per-tile sheet). The user corrected the placement: "this option top right corner of page" — pages
+don't have a per-tile sheet the way a folder does, and the header itself scrolls out of view with the
+grid, so a page-level control needs its own fixed anchor instead.
+
+Reverted the inline `SectionHeader` dropdown and added a fixed `Box(Modifier.align(Alignment.TopEnd)
+.statusBarsPadding().padding(...))` overlay in `StartPage`, always reachable regardless of scroll
+position. Gated on `blocks.getOrNull(activeBlockIndex)?.sectionId` being non-null while editing — only
+ever shown for a real named page, never "main" (which has nothing to merge into and isn't itself
+removable this way). Tapping the visible "remove" pill (icon + text, not icon-only — see the earlier
+"merge with main" label-visibility bug in this same log for why) opens a `DropdownMenu` with two items:
+"merge with main" (the existing, already-shipped `onDeleteSection` — no confirmation, nothing lost) and
+"remove page & tiles" (a new bulk action, confirmed via `AlertDialog` first, same non-destructive
+"remove = unpin" convention as every other bulk removal in this app).
+
+New `LayoutDao.tileIdsInSection`/`removeSectionAndTiles` (loop `deleteTileById`/`deleteFolderById` over
+every tile in the section, then `deleteSectionById`, in one `@Transaction`), `LayoutRepository
+.removeSectionAndTiles` wrapper, and `StartViewModel.removeSectionAndTiles` — same shape as the
+folder-level `removeFolderAndChildren` chain above. `StartPage` gained an `onRemovePageAndTiles: (String)
+-> Unit = {}` param wired from `StartScreen`'s call site to `viewModel::removeSectionAndTiles`.
+
+Build + full unit test suite green. Needs the user's own on-device confirmation.
+
+## Fixed a real bug: removing the last page landed on the app list instead of the adjacent page
+
+Direct on-device follow-up to the entry above, user-flagged: "after remove page and tile option is
+selected and confirmed... adjacent page to be shown" — confirmed reproducible by hand (created a new
+page, removed it via the corner control, and it opened the app list instead of sliding back to the
+previous page).
+
+Root cause was a real race in the pager's own bounds-reclamp effect
+(`LaunchedEffect(blockCount)`, `StartScreen.kt`), not the removal logic itself. That effect keeps
+`progress` valid whenever the number of pages changes (a section created/deleted/merged), and branches
+on whether the app list is currently showing before deciding how to reclamp. It read that from
+`appListShown`, a `derivedStateOf { progress.value >= upper - 0.5f }` that recomputes live off the
+*current* `upper` (`blockCount.toFloat()`) — but `upper` is exactly what just shrank. Removing
+whichever page you're currently resting on, when it happens to be the *last* one (true of any
+just-created page, since new pages append at the end), drops `blockCount` by one so that the new
+`upper` now numerically equals the still-unchanged `progress.value` you were resting at — and
+`progress.value >= upper - 0.5f` is trivially true at that point even though you were never anywhere
+near the app list. The reclamp effect saw that false-positive and took its `appListShown ->
+progress.snapTo(upper)` branch, snapping straight to the app list instead of coercing back to the
+newly-last (adjacent) page.
+
+Fixed by branching on `isAppList` instead — the ViewModel's own `StateFlow`, set only by `settleTo`'s
+post-animation call, i.e. a real committed "you settled on the app list" fact rather than a live
+recomputation that can be fooled by `upper` moving out from under an unrelated resting position. This
+is the same distinction (`isAppList` vs. the continuously-updating drag-derived flag) an existing
+Post-S27 entry in this log already made for the same reason at the `AppListScreen` `visible` param —
+this bug is a second, independent place the same live/committed distinction mattered and had been
+missed. Every other branch of the reclamp effect (`feedShown`, the plain coerce) is unaffected.
+
+Reproduced the bug first via adb-driven taps on the physical device (create a page → remove it →
+landed on the app list, confirming the exact failure the user reported), then confirmed the fix
+compiles and the reclamp logic is correct by inspection. User confirmed on their own device: the
+adjacent page now shows correctly, but flagged a follow-up — edit mode stayed on afterward, now
+editing whatever page you landed on rather than the one you actually asked to remove. Fixed by
+calling `onExitEdit()` right alongside `onRemovePageAndTiles` in the confirm dialog's button —
+mirrors the existing pattern (`onDone = onExitEdit` on the edit bar's own "done" button) rather than
+leaving the user mid-edit on a page they never chose to edit. "remove folder & tiles"'s own confirm
+deliberately keeps editing on afterward (unchanged) — you're still on the same page there, just minus
+one folder, so staying in edit mode to keep arranging the rest of that page is the useful default;
+removing a whole *page* has nothing left on it worth continuing to edit.
+
+Build + full unit test suite green.
+
+## "add page" is now a real modal dialog, and exits edit mode once added
+
+Direct follow-up, user-requested: "add page should ask in new dialoge box and when added should come
+out of edit mode." Previously tapping "+ add page" swapped the button itself for an inline
+`SectionNameEditor` text field row (the same one the header's tap-to-rename already uses) right at the
+top of the grid — easy to dismiss with a stray tap elsewhere, and gave no confirmation that a page had
+actually been created.
+
+New `AddPageDialog` — a real `AlertDialog` with a bordered `BasicTextField` (this codebase never uses
+Material3's own `TextField`/`OutlinedTextField`; every text entry here, including the existing rename
+editors, is a styled `BasicTextField`, so this follows that same convention rather than introducing a
+new one) and "add"/"cancel" buttons, matching the weight of the "remove page & tiles?" dialog for the
+opposite action. "add" is disabled outright on a blank/whitespace-only name (`enabled =
+draft.text.isNotBlank()`), so there's no way to create a nameless page. Committing calls
+`onCreateSection(label)` immediately followed by `onExitEdit()` — a fresh, empty page has nothing on it
+yet worth staying in edit mode to arrange, same reasoning as the just-shipped "remove page & tiles"
+exit-edit-mode fix above. Cancelling just dismisses, unchanged from before. The old inline
+`addingSectionAtTop`/`SectionNameEditor` swap for this one call site is gone; `SectionNameEditor`
+itself is unchanged and still backs the header's own tap-to-rename.
+
+Build + full unit test suite green.
+
+## About/guide docs updated for the top-right "remove page" control
+
+User-requested doc pass after the page-removal arc above. Both `AboutSheet.kt`'s "start screen" group
+and `PersonalizeGuideSheet.kt`'s "pages" group still described the header's now-removed inline
+"merge with main" (×) button and claimed "tiles are never deleted" — no longer true since "remove page
+& tiles" ships. Split into two bullets in both files: one for "+ add page" (now names the page via a
+dialog), one for the top-right "remove" control's two options — "merge with main" (nothing lost) and
+"remove page & tiles" (confirmed first, apps stay installed) — phrased to match the existing
+folder-actions bullet's own "confirmed first — apps stay installed" convention in both files.
+
+Build + full unit test suite green.
 ## v4.5.0 (versionCode 450) — release cut
 
 User-requested: "create ver 4.5.0 release bundle, apk, and release notes by mentioning all changes

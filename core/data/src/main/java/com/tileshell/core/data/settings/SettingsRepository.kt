@@ -139,6 +139,17 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
     }
 
     /**
+     * Remember which real Android surface(s) — [WallpaperSyncTarget.HOME]/[LOCK]/
+     * [HOME_AND_LOCK], or [WallpaperSyncTarget.NONE] to stop — TileShell's own
+     * wallpaper should also be pushed to. Purely a preference; the actual
+     * `WallpaperManager` push happens at the call site (`SystemWallpaperSync`),
+     * since that needs a real `Context` this pure repository doesn't have.
+     */
+    suspend fun setWallpaperSyncTarget(target: WallpaperSyncTarget) {
+        store.updateData { it.copy(wallpaperSyncTarget = target) }
+    }
+
+    /**
      * Store the freshly downloaded Bing image URI (called by `BingWallpaperWorker`).
      * No-ops if the user has since turned Bing off, so a late download can't
      * resurrect the wallpaper after it was dismissed.
@@ -354,16 +365,6 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
     /** Use each app's themed/monochrome icon (tinted to the current accent) in the app list and on live-tile corner badges. */
     suspend fun setThemedIcons(enabled: Boolean) {
         store.updateData { it.copy(themedIcons = enabled) }
-    }
-
-    /** Master on/off switch for the "sections" feature — see [LauncherSettings.sectionsEnabled]. */
-    suspend fun setSectionsEnabled(enabled: Boolean) {
-        store.updateData { it.copy(sectionsEnabled = enabled) }
-    }
-
-    /** Where the section dropdown sits (left/center/right), for thumb reach. */
-    suspend fun setSectionPillAlignment(alignment: SectionPillAlignment) {
-        store.updateData { it.copy(sectionPillAlignment = alignment) }
     }
 
     /** Replace all settings with a restored backup value atomically. */

@@ -68,6 +68,7 @@ import com.tileshell.feature.livetiles.CalendarSystemSmallFace
 import com.tileshell.feature.livetiles.ClockSmallFace
 import com.tileshell.feature.livetiles.CountdownSmallFace
 import com.tileshell.feature.livetiles.FlashlightSmallFace
+import com.tileshell.feature.livetiles.MoonPhaseSmallFace
 import com.tileshell.feature.livetiles.NotificationSnapshot
 import com.tileshell.feature.livetiles.StepsSmallFace
 import com.tileshell.feature.livetiles.StockSmallFace
@@ -232,6 +233,9 @@ internal fun IconCellView(
             }
             "calsys" -> LiveIconTile(accent, badgeCount, darkTheme) {
                 CalendarSystemSmallFace(modifier = Modifier.fillMaxSize())
+            }
+            "moonphase" -> LiveIconTile(accent, badgeCount, darkTheme) {
+                MoonPhaseSmallFace(active = liveActive, modifier = Modifier.fillMaxSize())
             }
             else -> {
                 // Hide the label at 6 columns — a 1×1 cell is too narrow there

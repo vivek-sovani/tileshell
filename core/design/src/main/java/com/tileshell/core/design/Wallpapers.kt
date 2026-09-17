@@ -1,11 +1,17 @@
 package com.tileshell.core.design
 
+import android.graphics.Bitmap
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 
 /**
  * One radial layer of a mesh-gradient wallpaper, modelling a CSS
@@ -206,12 +212,12 @@ private fun layerStops(layer: WallpaperLayer, color: Color): Array<Pair<Float, C
 }
 
 /**
- * Paints [wallpaper] as the background of the modified node: the base colour
- * first, then each radial layer composited over it (matching the CSS layer
- * order, top gradient last). [dark] selects the theme-appropriate palette
- * (see [themedBase]/[themedLayer]).
+ * The base colour, then each radial layer composited over it (matching the
+ * CSS layer order, top gradient last) — shared by [wallpaperBackground] (a
+ * live composition) and [renderWallpaperToBitmap] (an offscreen raster), so
+ * a pushed system wallpaper looks identical to the in-app one.
  */
-fun Modifier.wallpaperBackground(wallpaper: WallpaperGradient, dark: Boolean = true): Modifier = drawBehind {
+private fun DrawScope.drawWallpaperGradient(wallpaper: WallpaperGradient, dark: Boolean) {
     drawRect(themedBase(wallpaper.base, dark))
     wallpaper.layers.forEach { layer ->
         val color = themedLayer(layer.color, dark)
@@ -224,6 +230,31 @@ fun Modifier.wallpaperBackground(wallpaper: WallpaperGradient, dark: Boolean = t
             ),
         )
     }
+}
+
+/**
+ * Paints [wallpaper] as the background of the modified node. [dark] selects
+ * the theme-appropriate palette (see [themedBase]/[themedLayer]).
+ */
+fun Modifier.wallpaperBackground(wallpaper: WallpaperGradient, dark: Boolean = true): Modifier =
+    drawBehind { drawWallpaperGradient(wallpaper, dark) }
+
+/**
+ * Rasterizes [wallpaper] to a real [Bitmap] at [widthPx]×[heightPx] — the
+ * same draw as [wallpaperBackground], just off-screen, for pushing a bundled
+ * gradient to the real Android `WallpaperManager` (see `SystemWallpaperSync`
+ * in `:feature:start`), which needs an actual bitmap rather than a live
+ * Compose draw.
+ */
+fun renderWallpaperToBitmap(wallpaper: WallpaperGradient, widthPx: Int, heightPx: Int, dark: Boolean): Bitmap {
+    val w = widthPx.coerceAtLeast(1)
+    val h = heightPx.coerceAtLeast(1)
+    val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+    val canvas = androidx.compose.ui.graphics.Canvas(android.graphics.Canvas(bitmap))
+    CanvasDrawScope().draw(Density(1f), LayoutDirection.Ltr, canvas, Size(w.toFloat(), h.toFloat())) {
+        drawWallpaperGradient(wallpaper, dark)
+    }
+    return bitmap
 }
 
 /**

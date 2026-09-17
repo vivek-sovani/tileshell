@@ -42,7 +42,6 @@ import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.core.data.settings.SettingsRepository
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
-import com.tileshell.core.data.settings.SectionPillAlignment
 import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.data.settings.isAnchored
 import com.tileshell.feature.livetiles.DEFAULT_FEED_SOURCES
@@ -895,6 +894,71 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Apply a bundled gradient wallpaper AND push it to [target] (Personalize's
+     * "home screen / lock screen / home + lock screen" chooser, shown before
+     * anything is set — mirrors the OEM wallpaper-picker flow). Nothing here
+     * runs unless the user actually picked a target; there is no bare
+     * "just set it for TileShell" path anymore, by design.
+     */
+    fun setWallpaperWithSync(wallpaperId: String, target: com.tileshell.core.data.settings.WallpaperSyncTarget) {
+        val context = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsRepository.setWallpaper(wallpaperId)
+            settingsRepository.setWallpaperSyncTarget(target)
+            SystemWallpaperSync.apply(
+                context = context, target = target,
+                gradientId = wallpaperId, customWallpaperUri = null,
+                alignX = 0.5f, alignY = 0.5f, zoom = 1f, dark = settings.value.dark,
+            )
+        }
+    }
+
+    /** Photo counterpart of [setWallpaperWithSync]. */
+    fun setCustomWallpaperWithSync(
+        uri: String,
+        alignX: Float,
+        alignY: Float,
+        zoom: Float,
+        target: com.tileshell.core.data.settings.WallpaperSyncTarget,
+    ) {
+        val context = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsRepository.setCustomWallpaper(uri, alignX, alignY, zoom)
+            settingsRepository.setWallpaperSyncTarget(target)
+            SystemWallpaperSync.apply(
+                context = context, target = target,
+                gradientId = settings.value.wallpaperId, customWallpaperUri = uri,
+                alignX = alignX, alignY = alignY, zoom = zoom, dark = settings.value.dark,
+            )
+        }
+    }
+
+    /**
+     * Bing-history counterpart of [setWallpaperWithSync]. `BingWallpaperWorker
+     * .applyImage` downloads asynchronously and only then persists the final
+     * local file URI, so — unlike the other two, which know their target
+     * bitmap immediately — this waits (bounded, in case the download fails)
+     * for that URI to actually land before pushing it to [target].
+     */
+    fun applyBingImageWithSync(imageUrl: String, target: com.tileshell.core.data.settings.WallpaperSyncTarget) {
+        val context = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            val previousUri = settings.value.customWallpaperUri
+            settingsRepository.setWallpaperSyncTarget(target)
+            com.tileshell.feature.livetiles.BingWallpaperWorker.applyImage(context, imageUrl)
+            val newUri = kotlinx.coroutines.withTimeoutOrNull(20_000L) {
+                settings.first { it.customWallpaperUri != null && it.customWallpaperUri != previousUri }
+            }?.customWallpaperUri ?: return@launch
+            val s = settings.value
+            SystemWallpaperSync.apply(
+                context = context, target = target,
+                gradientId = s.wallpaperId, customWallpaperUri = newUri,
+                alignX = s.wallpaperAlignX, alignY = s.wallpaperAlignY, zoom = s.wallpaperZoom, dark = s.dark,
+            )
+        }
+    }
+
+    /**
      * Turn the Microsoft Bing daily wallpaper on or off. Enabling flips the setting,
      * schedules the daily refresh and kicks an immediate download; disabling clears the
      * image (reverting to the gradient) and cancels the work.
@@ -1207,30 +1271,6 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) { settingsRepository.setIconShape(shape) }
     }
 
-    /** Master on/off switch for the "sections" feature — see [LauncherSettings.sectionsEnabled]. */
-    fun setSectionsEnabled(enabled: Boolean) {
-        viewModelScope.launch(writeContext) { settingsRepository.setSectionsEnabled(enabled) }
-    }
-
-    /**
-     * The user-confirmed "turn sections off while sections exist" action
-     * (Personalize's own confirmation dialog, shown only when there's
-     * actually something to merge): dissolves every section into "main" and
-     * turns the feature off in the same write, so there's never a moment
-     * where the setting is off but old sections/pills are still visible.
-     */
-    fun disableSectionsAndMerge() {
-        viewModelScope.launch(writeContext) {
-            repository.mergeAllSectionsIntoUnsectioned()
-            settingsRepository.setSectionsEnabled(false)
-        }
-    }
-
-    /** Where the section dropdown sits (left/center/right), for thumb reach. */
-    fun setSectionPillAlignment(alignment: SectionPillAlignment) {
-        viewModelScope.launch(writeContext) { settingsRepository.setSectionPillAlignment(alignment) }
-    }
-
     /** Use each app's themed/monochrome icon in the app list and on live-tile corner badges. */
     fun setThemedIcons(enabled: Boolean) {
         viewModelScope.launch(writeContext) { settingsRepository.setThemedIcons(enabled) }
@@ -1358,6 +1398,45 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
         viewModelScope.launch(writeContext) {
+            finalSlots.forEach { (tid, s) -> repository.setTileGridSlot(tid, s) }
+        }
+    }
+
+    /**
+     * Atomic counterpart to [setTileSection] + [setTileGridSlot] for a
+     * cross-page tile drag: calling those two separately raced, every time —
+     * [setTileGridSlot] computes its placement *synchronously*, off the
+     * cached [tiles] StateFlow, before [setTileSection]'s own write has any
+     * chance to land, so it always scoped collision-resolution to the tile's
+     * *old* section (via [tilesInBlock]'s `model.sectionId`), not the one it
+     * was actually moving to — landing it wherever the old section's own
+     * tile layout happened to put that cell, typically nowhere near the new
+     * section's own content (user-reported: "tile ... still placed at
+     * bottom"). This computes placement against [targetSectionId] directly
+     * (the moved tile's *own* current section is never read at all), then
+     * writes the section change and the resulting slots in one coroutine on
+     * the serialized write dispatcher, so there's no external call in
+     * between for anything to race against.
+     */
+    fun moveTileToSectionAtSlot(tileId: String, targetSectionId: String?, targetSlot: Int) {
+        val model = tiles.value.firstOrNull { it.id == tileId } ?: return
+        val targetCol = GridPacker.decodeSlotCol(targetSlot)
+        val targetRow = GridPacker.decodeSlotRow(targetSlot)
+        val finalSlots = if (settings.value.tilePackMode == TilePackMode.FREE) {
+            val columns = settings.value.columns
+            val anchored = tilesInBlock(targetSectionId, excludeId = tileId).mapNotNull { t ->
+                val s = t.gridSlot ?: return@mapNotNull null
+                TilePlacement(t.id, t.size, GridPacker.decodeSlotCol(s), GridPacker.decodeSlotRow(s))
+            }
+            GridPacker.freePlacement(anchored, tileId, model.size, targetCol, targetRow, columns)
+        } else {
+            stickySlotsForPlacement(
+                movedId = tileId, size = model.size, targetCol = targetCol, targetRow = targetRow,
+                sectionId = targetSectionId,
+            )
+        }
+        viewModelScope.launch(writeContext) {
+            repository.setTileSection(tileId, targetSectionId)
             finalSlots.forEach { (tid, s) -> repository.setTileGridSlot(tid, s) }
         }
     }
@@ -1583,6 +1662,26 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             val target = model.size.takeIf { it.stackable } ?: TileSize.MEDIUM
             convertFolderToStack(folderId, target)
         }
+    }
+
+    /**
+     * "unfold folder": dissolve a folder, turning every one of its children
+     * into their own top-level pinned tile at once — the bulk counterpart to
+     * dragging each child out one at a time. Nothing is lost; every child
+     * stays on Start, just no longer grouped.
+     */
+    fun unfoldFolder(folderId: String) {
+        val folder = tiles.value.firstOrNull { it.id == folderId } as? TileModel.Folder ?: return
+        viewModelScope.launch(writeContext) { repository.unfoldFolder(folderId, folder.children) }
+    }
+
+    /**
+     * "remove folder & tiles": remove the folder and every one of its
+     * children from Start in one action. Apps stay installed — like every
+     * other removal in this app, this only unpins.
+     */
+    fun removeFolderAndTiles(folderId: String) {
+        viewModelScope.launch(writeContext) { repository.removeFolderAndChildren(folderId) }
     }
 
     /** Set or clear a folder child's own accent override (null = follow global, FR-7). */
@@ -1881,6 +1980,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) { repository.deleteSection(id) }
     }
 
+    /** Remove a page (section) and delete every tile/folder it contains. */
+    fun removeSectionAndTiles(sectionId: String) {
+        viewModelScope.launch(writeContext) { repository.removeSectionAndTiles(sectionId) }
+    }
+
     /** Move a section up (-1) or down (+1) relative to its neighbors. */
     fun moveSection(id: String, direction: Int) {
         viewModelScope.launch(writeContext) { repository.moveSection(id, direction) }
@@ -1924,7 +2028,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 val application = getApplication<Application>()
-                val (tiles, folders, children) = repository.tilesForBackup()
+                val (tiles, folders, children, sections) = repository.tilesForBackup()
                 val currentSettings = settingsRepository.settings.first()
                 val hiddenApps = HiddenApps.hidden(application).first()
                 val feed = feedStore.read()
@@ -1939,6 +2043,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
                     widgets = widgets.map { BackupWidget(it.widgetId, it.heightDp, it.widthDp) },
                     photoUris = photoUris,
                     wallpaperSlideshowUris = wallpaperUris,
+                    sections = sections,
                 )
                 application.contentResolver
                     .openOutputStream(uri)?.use { it.write(json.encodeToByteArray()) }
@@ -1966,7 +2071,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
                     .openInputStream(uri)?.use { it.readBytes().decodeToString() }
                     ?: error("could not read backup file")
                 val backup = BackupManager.parseBackup(json)
-                repository.restoreFromBackup(backup.tiles, backup.folders, backup.folderChildren)
+                repository.restoreFromBackup(backup.tiles, backup.folders, backup.folderChildren, backup.sections)
                 settingsRepository.restoreSettings(backup.settings)
                 HiddenApps.replaceAll(application, backup.hiddenApps)
                 feedStore.replaceSourcesAndRegions(
@@ -1995,10 +2100,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     fun saveLayoutSnapshot(id: String = System.currentTimeMillis().toString(), screenshotPath: String? = null) {
         viewModelScope.launch(writeContext) {
             runCatching {
-                val (tiles, folders, children) = repository.tilesForBackup()
+                val (tiles, folders, children, sections) = repository.tilesForBackup()
                 val currentSettings = settingsRepository.settings.first()
-                val json = BackupManager.buildBackupJson(tiles, folders, children, currentSettings)
-                val hash = BackupManager.layoutHash(tiles, folders, children, currentSettings)
+                val json = BackupManager.buildBackupJson(tiles, folders, children, currentSettings, sections = sections)
+                val hash = BackupManager.layoutHash(tiles, folders, children, currentSettings, sections)
                 val ts = id.toLongOrNull() ?: System.currentTimeMillis()
                 historyRepository.addSnapshot(
                     LayoutSnapshot(
@@ -2026,9 +2131,9 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) {
             runCatching {
                 val app = getApplication<Application>()
-                val (tiles, folders, children) = repository.tilesForBackup()
+                val (tiles, folders, children, sections) = repository.tilesForBackup()
                 val currentSettings = settingsRepository.settings.first()
-                val hash = BackupManager.layoutHash(tiles, folders, children, currentSettings)
+                val hash = BackupManager.layoutHash(tiles, folders, children, currentSettings, sections)
                 val previous = CachedScreenshotPrefs.currentPath(app)
                 CachedScreenshotPrefs.save(app, path, hash)
                 // Clean up the file we're superseding, unless a saved history entry still
@@ -2046,7 +2151,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) {
             runCatching {
                 val backup = BackupManager.parseBackup(snapshot.json)
-                repository.restoreFromBackup(backup.tiles, backup.folders, backup.folderChildren)
+                repository.restoreFromBackup(backup.tiles, backup.folders, backup.folderChildren, backup.sections)
                 settingsRepository.restoreSettings(backup.settings)
                 _backupMessage.tryEmit("layout restored")
             }.onFailure { _backupMessage.tryEmit("restore failed") }

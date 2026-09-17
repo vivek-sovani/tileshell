@@ -2,6 +2,7 @@ package com.tileshell.feature.livetiles
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,6 +23,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -138,6 +140,32 @@ private val FaceText: Color
     @Composable get() = LocalTileFaceColor.current
 
 /**
+ * The compact 1×1 face (ICONS home style / SMALL tile) — just tonight's real
+ * crescent/gibbous/full disc via [MoonPhaseVisual], no text. Was missing from
+ * this tile entirely: unlike every other live-data tile in this file (clock,
+ * calendar, weather, battery, steps, stock, …), "moonphase" had no entry in
+ * `IconCellView`'s small-face dispatch, so a small/icon-mode instance fell
+ * through to the tile's own generic static glyph (`TileIcons["moonphase"]` —
+ * a fixed disc shape, the same every day) instead of ever showing the real
+ * phase (user-reported: "not showing the right image... showing half moon"
+ * regardless of the actual date).
+ */
+@Composable
+fun MoonPhaseSmallFace(active: Boolean, modifier: Modifier = Modifier) {
+    var face by remember { mutableStateOf(currentMoonPhaseFace()) }
+    LaunchedEffect(active) {
+        if (!active) return@LaunchedEffect
+        while (true) {
+            face = currentMoonPhaseFace()
+            delay(60_000L - (System.currentTimeMillis() % 60_000L))
+        }
+    }
+    Box(modifier = modifier.fillMaxSize().padding(4.dp), contentAlignment = Alignment.Center) {
+        MoonPhaseVisual(fraction = face.fraction, modifier = Modifier.fillMaxSize())
+    }
+}
+
+/**
  * The live moon-phase tile: front shows tonight's phase name + illumination,
  * back shows the next full/new moon countdown. Entirely local date math — no
  * location, no permission, no network — so unlike every other flippable face
@@ -240,6 +268,17 @@ private fun MoonPhaseFront(face: MoonPhaseFace, size: TileSize) {
  * into it (crescent) on the appropriate side, so the two half-ellipses alone
  * reproduce new / crescent / quarter / gibbous / full exactly at their
  * canonical fractions (0, ~0.15, 0.25, ~0.35, 0.5, …).
+ *
+ * The two half-ellipses are combined via a real path boolean op
+ * ([PathOperation.Union]/[PathOperation.Difference]), not by painting the
+ * narrower one in [shadow] on top of the wider one already painted in [lit]
+ * (an earlier version did this, and it never actually worked — [shadow] is
+ * just [lit] at 18% alpha, so painting it over an already-*opaque* [lit]
+ * fill barely changes the pixels at all; the "cut" was invisible on every
+ * background, always leaving what looked like a plain half-moon regardless
+ * of the real phase — user-reported: "today is 5th day but it is showing
+ * half moon"). Computing the actual lit silhouette once and filling it a
+ * single time has no such blending problem.
  */
 /** Widened to internal so [CalendarSystemTile]'s Hindu Panchang face can reuse the same crescent — tithi is fundamentally a lunar-phase measure, so the two are drawn identically. */
 @Composable
@@ -269,9 +308,14 @@ internal fun MoonPhaseVisual(fraction: Double, modifier: Modifier = Modifier) {
         val rx = kotlin.math.abs(cosVal) * r
         val isGibbous = cosVal < 0f
 
+        val bigHalf = halfEllipsePath(r, litRight)
+        val smallHalf = halfEllipsePath(rx, if (isGibbous) !litRight else litRight)
+        val litPath = Path().apply {
+            op(bigHalf, smallHalf, if (isGibbous) PathOperation.Union else PathOperation.Difference)
+        }
+
         drawCircle(color = shadow, radius = r, center = center)
-        drawPath(halfEllipsePath(r, litRight), color = lit)
-        drawPath(halfEllipsePath(rx, if (isGibbous) !litRight else litRight), color = if (isGibbous) lit else shadow)
+        drawPath(litPath, color = lit)
         drawCircle(color = rim, radius = r, center = center, style = Stroke(width = 1.dp.toPx()))
     }
 }

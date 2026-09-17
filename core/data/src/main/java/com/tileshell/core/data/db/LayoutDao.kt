@@ -138,20 +138,35 @@ interface LayoutDao {
     /**
      * Atomically replace the whole persisted layout. Folders are inserted first
      * so child rows satisfy the foreign key; clearing folders cascades to
-     * `folder_children`.
+     * `folder_children`. [sections] defaults empty so every existing caller
+     * (layout history's own restore, which never captured sections — see
+     * `BackupManager`) keeps its prior "restore drops sections" behaviour
+     * unless it's explicitly updated to pass them; backup import passes the
+     * real list. Sections are replaced before tiles so a restored tile's own
+     * `sectionId` always refers to a section that already exists by the time
+     * it's inserted, even though there's no enforced foreign key either way.
      */
     @Transaction
     suspend fun replaceLayout(
         tiles: List<TileEntity>,
         folders: List<FolderEntity>,
         children: List<FolderChildEntity>,
+        sections: List<SectionEntity> = emptyList(),
     ) {
         clearTiles()
         clearFolders()
+        clearSections()
+        insertSections(sections)
         insertFolders(folders)
         insertTiles(tiles)
         insertFolderChildren(children)
     }
+
+    @Query("DELETE FROM sections")
+    suspend fun clearSections()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSections(sections: List<SectionEntity>)
 
     // ---- create a folder directly (category folders) --------------------
 
@@ -372,6 +387,41 @@ interface LayoutDao {
     }
 
     /**
+     * Dissolve [folderId] entirely, turning every one of its children into a
+     * fresh top-level app tile at once — the bulk counterpart to pulling
+     * children out one at a time via [removeFolderChild]. Looping
+     * [removeFolderChild] isn't safe for this: its last-child branch
+     * rewrites the *folder's own tile id* into a plain app tile rather than
+     * minting a fresh one, which would leave one survivor inconsistent with
+     * its newly-repinned siblings (a stale/reused id, not one of the fresh
+     * ones the caller generated). [newTiles] — one freshly-built
+     * [TileEntity] per child, in their existing relative order, positions
+     * already sequential — is built by the caller ([LayoutRepository
+     * .unfoldFolder]), mirroring [removeFolderChild]'s own field-copy
+     * convention. The folder tile and its meta are then dropped
+     * unconditionally — there's no survivor to keep, every child left.
+     */
+    @Transaction
+    suspend fun unfoldFolder(folderId: String, newTiles: List<TileEntity>) {
+        if (newTiles.isNotEmpty()) insertTiles(newTiles)
+        deleteTileById(folderId)
+        deleteFolderById(folderId)
+    }
+
+    /**
+     * Remove a folder and every one of its children from Start in one
+     * action — unlike [unfoldFolder], nothing is re-pinned; dropping the
+     * folder tile (cascading its [FolderChildEntity] rows) is the whole
+     * operation. Apps stay installed — this only unpins, the same as
+     * removing any other tile.
+     */
+    @Transaction
+    suspend fun removeFolderAndChildren(folderId: String) {
+        deleteTileById(folderId)
+        deleteFolderById(folderId)
+    }
+
+    /**
      * Pull one app out of a folder and place it as a top-level tile exactly
      * where a drag released it, instead of always appending to the bottom
      * ([removeFolderChild]'s tap-× shortcut). [gridSlot] anchors it directly
@@ -556,33 +606,25 @@ interface LayoutDao {
         deleteSectionById(id)
     }
 
+    @Query("SELECT id FROM tiles WHERE sectionId = :sectionId")
+    suspend fun tileIdsInSection(sectionId: String): List<String>
+
     /**
-     * Dissolves every section at once, into the single unsectioned ("main")
-     * area — the user-confirmed "turn sections off" action (Personalize's
-     * "enable sections" toggle). Every section's own tiles land together, in
-     * section order, ahead of whatever was already unsectioned (mirrors
-     * [com.tileshell.feature.start.blocksFor]'s own "sections first, then
-     * unsectioned" grouping — same relative order the user was already
-     * seeing on screen, just flattened into one block instead of several).
-     * `gridSlot` is cleared for every tile that changes section, same as
-     * [updateTileSection] does one at a time, to avoid the "big empty gap"
-     * bug this arc chased down repeatedly (an old anchor reinterpreted
-     * inside a differently-shaped block). A tile whose `sectionId` already
-     * pointed at a section that no longer exists is treated as unsectioned,
-     * matching `blocksFor`'s own defensive fallback.
+     * Remove a section and every tile currently on it from Start in one
+     * action — "remove page & tiles," the bulk counterpart to [deleteSection]
+     * ("merge with main"), which only ungroups. Each tile is dropped the same
+     * way [removeTile] drops any top-level tile (`deleteTileById` +
+     * `deleteFolderById` — the latter a harmless no-op for a plain app tile,
+     * but cascades a folder tile's own `folder_children` rows away when the
+     * page held a folder), so a folder on the page is fully removed too, not
+     * left as an orphaned meta row. Apps stay installed — this only unpins.
      */
     @Transaction
-    suspend fun mergeAllSectionsIntoUnsectioned() {
-        val orderedSections = sectionsOnce()
-        val validSectionIds = orderedSections.mapTo(HashSet()) { it.id }
-        val allTiles = tilesOnce().map { it.tile }
-        val bySection = allTiles.groupBy { it.sectionId?.takeIf { id -> id in validSectionIds } }
-        val newOrder = orderedSections.flatMap { section -> bySection[section.id].orEmpty() } +
-            bySection[null].orEmpty()
-        newOrder.forEachIndexed { index, tile ->
-            updateTilePosition(tile.id, index)
-            if (tile.sectionId != null) updateTileSection(tile.id, null)
+    suspend fun removeSectionAndTiles(sectionId: String) {
+        tileIdsInSection(sectionId).forEach { id ->
+            deleteTileById(id)
+            deleteFolderById(id)
         }
-        orderedSections.forEach { deleteSectionById(it.id) }
+        deleteSectionById(sectionId)
     }
 }

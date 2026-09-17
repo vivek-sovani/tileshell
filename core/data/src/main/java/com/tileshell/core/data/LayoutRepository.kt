@@ -16,6 +16,14 @@ import com.tileshell.core.data.seed.SeededTile
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
+/** Raw DB entities for a manual backup export/import — see [LayoutRepository.tilesForBackup]. */
+data class LayoutBackupSnapshot(
+    val tiles: List<TileEntity>,
+    val folders: List<FolderEntity>,
+    val children: List<FolderChildEntity>,
+    val sections: List<SectionEntity>,
+)
+
 /**
  * Source of truth for the persisted Start layout. Exposes the tiles as a
  * [Flow]<[List]<[TileModel]>> and seeds the WP default layout (mapped to
@@ -104,6 +112,12 @@ class LayoutRepository(
     suspend fun deleteSection(id: String) = dao.deleteSection(id)
 
     /**
+     * Remove a section and every tile currently on it from Start in one
+     * action — "remove page & tiles." Apps stay installed, this only unpins.
+     */
+    suspend fun removeSectionAndTiles(id: String) = dao.removeSectionAndTiles(id)
+
+    /**
      * Move a section up/down relative to its neighbors (the section header's
      * ↑/↓ control). Computed via the pure, unit-tested [swapSectionOrder] so
      * only the (at most two) sections whose order actually changed are
@@ -120,17 +134,9 @@ class LayoutRepository(
         }
     }
 
-    /** Assign (or clear, with null) a tile's section — the "move to section" picker. */
+    /** Assign (or clear, with null) a tile's section — the "move to page" picker. */
     suspend fun setTileSection(tileId: String, sectionId: String?) =
         dao.updateTileSection(tileId, sectionId)
-
-    /**
-     * Dissolve every section into the single unsectioned area — the
-     * user-confirmed result of turning Personalize's "enable sections"
-     * toggle off while real sections exist. See
-     * [LayoutDao.mergeAllSectionsIntoUnsectioned] for the exact ordering.
-     */
-    suspend fun mergeAllSectionsIntoUnsectioned() = dao.mergeAllSectionsIntoUnsectioned()
 
     /** Rename a folder (FR-4). Blank names are ignored by the caller. */
     suspend fun renameFolder(id: String, name: String) = dao.updateFolderName(id, name)
@@ -148,6 +154,37 @@ class LayoutRepository(
             newTileId = "pin-${child.packageName}-${System.currentTimeMillis()}",
             newTileColorId = TileColors.defaultIdFor(child.packageName),
         )
+
+    /**
+     * Dissolve a folder, turning every one of its children into a fresh
+     * top-level app tile at once — the "unfold folder" action. Mints one
+     * fresh id/colour per child, same convention as [removeFolderChild],
+     * appended in the folder's own section starting right after the current
+     * max position, in their existing relative order.
+     */
+    suspend fun unfoldFolder(folderId: String, children: List<FolderChild>) {
+        val folderSectionId = dao.sectionIdOf(folderId)
+        val base = dao.maxPosition() + 1
+        val newTiles = children.mapIndexed { index, child ->
+            TileEntity(
+                id = "pin-${child.packageName}-${System.currentTimeMillis()}-$index",
+                position = base + index,
+                size = child.size,
+                colorId = TileColors.defaultIdFor(child.packageName),
+                type = TileEntity.TYPE_APP,
+                packageName = child.packageName,
+                activityName = child.activityName,
+                label = child.label,
+                iconKey = child.iconKey,
+                accentOverride = child.accentOverride,
+                sectionId = folderSectionId,
+            )
+        }
+        dao.unfoldFolder(folderId, newTiles)
+    }
+
+    /** Remove a folder and every one of its children from Start in one action — the "remove folder & tiles" action. Apps stay installed, this only unpins. */
+    suspend fun removeFolderAndChildren(folderId: String) = dao.removeFolderAndChildren(folderId)
 
     /**
      * Pull one app out of a folder and place it as a top-level tile exactly
@@ -614,24 +651,28 @@ class LayoutRepository(
      * Return the raw DB entities for a manual backup export. Reuses the
      * existing [LayoutDao.tilesOnce] snapshot; no new DAO query needed.
      */
-    suspend fun tilesForBackup(): Triple<List<TileEntity>, List<FolderEntity>, List<FolderChildEntity>> {
+    suspend fun tilesForBackup(): LayoutBackupSnapshot {
         val all = dao.tilesOnce()
         val tiles = all.map { it.tile }
         val folders = all.mapNotNull { it.folder?.folder }
         val children = all.flatMap { it.folder?.children.orEmpty() }
-        return Triple(tiles, folders, children)
+        val sections = dao.sectionsOnce()
+        return LayoutBackupSnapshot(tiles, folders, children, sections)
     }
 
     /**
      * Atomically replace the persisted layout with the data from a backup
      * import. Delegates to the existing [LayoutDao.replaceLayout] transaction
-     * (no new DAO code needed).
+     * (no new DAO code needed). [sections] defaults empty so callers restoring
+     * an older snapshot that never captured them (see `BackupManager`) don't
+     * need to change.
      */
     suspend fun restoreFromBackup(
         tiles: List<TileEntity>,
         folders: List<FolderEntity>,
         children: List<FolderChildEntity>,
-    ) = dao.replaceLayout(tiles, folders, children)
+        sections: List<SectionEntity> = emptyList(),
+    ) = dao.replaceLayout(tiles, folders, children, sections)
 
     /** Seed the default layout iff the grid is empty. Safe to call repeatedly. */
     suspend fun seedIfEmpty() {

@@ -69,15 +69,16 @@ val TilePackMode.isAnchored: Boolean get() = this != TilePackMode.DENSE
 enum class TileColorSource { GLOBAL_ACCENT, APP_ICON, WALLPAPER_ACCENT }
 
 /**
- * Horizontal placement of the section dropdown at the bottom of Start
- * (user-requested, for easier one-handed thumb reach): [START] hugs the
- * bottom-left corner, [CENTER] (the original placement) stays centered,
- * [END] hugs the bottom-right corner. Sections always fill the screen one
- * at a time ("tabbed" browsing) — a separate continuous-scroll display mode
- * existed earlier in this feature's history and was dropped once the section
- * dropdown gave every mode the same "jump to any section" nav for free.
+ * Whether TileShell's own wallpaper (gradient or photo) is also pushed to the
+ * real Android [android.app.WallpaperManager] — since this app draws its own
+ * wallpaper entirely in-app, the actual system lock screen (drawn by the OS,
+ * outside the launcher's control) otherwise never reflects it. [NONE] is the
+ * default and matches every prior release's behaviour exactly (a purely
+ * in-app wallpaper). Remembered across an automatic refresh (the Bing daily
+ * worker, the wallpaper slideshow) so those keep the system wallpaper synced
+ * too without asking again each time — only an interactive re-pick prompts.
  */
-enum class SectionPillAlignment { START, CENTER, END }
+enum class WallpaperSyncTarget { NONE, HOME, LOCK, HOME_AND_LOCK }
 
 /**
  * How often a live-data tile (stock, commodity, sports) re-polls its network
@@ -188,6 +189,7 @@ data class LauncherSettings(
     val wallpaperId: String = "none",
     val customWallpaperUri: String? = null,
     val bingWallpaper: Boolean = false,
+    val wallpaperSyncTarget: WallpaperSyncTarget = WallpaperSyncTarget.NONE,
     val tiledWallpaper: Boolean = false,
     /**
      * "Borderless" tile style: the tile paints no fill and no outline at all —
@@ -287,19 +289,6 @@ data class LauncherSettings(
     val commodityRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
     /** How often sports tiles re-poll — see [LiveRefreshRate]. */
     val sportsRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
-    /**
-     * Master on/off switch for Start's "sections" feature (user-requested:
-     * treated as an exclusive, opt-in feature turned on only through
-     * Personalize). Off by default, matching every other opt-in Start
-     * addition in this file (bing wallpaper, edge strip, themed icons, ...).
-     * Gates only the "+ add section" creation entry point — an install that
-     * already has real sections (e.g. from before this flag existed, or
-     * after it's turned back off) keeps rendering/using them normally; this
-     * just stops *new* ones from being created while off.
-     */
-    val sectionsEnabled: Boolean = false,
-    /** Where the section dropdown sits — see [SectionPillAlignment]. */
-    val sectionPillAlignment: SectionPillAlignment = SectionPillAlignment.START,
 ) {
     companion object {
         const val DEFAULT_COLUMNS = 4
@@ -332,6 +321,7 @@ object SettingsCodec {
         append("wallpaper=").append(settings.wallpaperId).append('\n')
         append("customWallpaper=").append(settings.customWallpaperUri.orEmpty()).append('\n')
         append("bingWallpaper=").append(settings.bingWallpaper).append('\n')
+        append("wallpaperSyncTarget=").append(settings.wallpaperSyncTarget.name).append('\n')
         append("tiledWallpaper=").append(settings.tiledWallpaper).append('\n')
         append("borderlessTiles=").append(settings.borderlessTiles).append('\n')
         append("tileOutline=").append(settings.tileOutline).append('\n')
@@ -369,9 +359,7 @@ object SettingsCodec {
         append("taskAutoClearDaily=").append(settings.taskAutoClearDaily).append('\n')
         append("stockRefreshRate=").append(settings.stockRefreshRate.name).append('\n')
         append("commodityRefreshRate=").append(settings.commodityRefreshRate.name).append('\n')
-        append("sportsRefreshRate=").append(settings.sportsRefreshRate.name).append('\n')
-        append("sectionsEnabled=").append(settings.sectionsEnabled).append('\n')
-        append("sectionPillAlignment=").append(settings.sectionPillAlignment.name)
+        append("sportsRefreshRate=").append(settings.sportsRefreshRate.name)
     }
 
     fun decode(text: String): LauncherSettings {
@@ -385,6 +373,7 @@ object SettingsCodec {
         var wallpaperId = d.wallpaperId
         var customWallpaperUri = d.customWallpaperUri
         var bingWallpaper = d.bingWallpaper
+        var wallpaperSyncTarget = d.wallpaperSyncTarget
         var tiledWallpaper = d.tiledWallpaper
         var borderlessTiles = d.borderlessTiles
         var tileOutline = d.tileOutline
@@ -423,8 +412,6 @@ object SettingsCodec {
         var stockRefreshRate = d.stockRefreshRate
         var commodityRefreshRate = d.commodityRefreshRate
         var sportsRefreshRate = d.sportsRefreshRate
-        var sectionsEnabled = d.sectionsEnabled
-        var sectionPillAlignment = d.sectionPillAlignment
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
             if (sep <= 0) return@forEach
@@ -440,6 +427,8 @@ object SettingsCodec {
                 "wallpaper" -> if (value.isNotEmpty()) wallpaperId = value
                 "customWallpaper" -> customWallpaperUri = value.ifEmpty { null }
                 "bingWallpaper" -> bingWallpaper = value.toBooleanStrictOrNull() ?: bingWallpaper
+                "wallpaperSyncTarget" ->
+                    WallpaperSyncTarget.entries.find { it.name == value }?.let { wallpaperSyncTarget = it }
                 "tiledWallpaper" -> tiledWallpaper = value.toBooleanStrictOrNull() ?: tiledWallpaper
                 "borderlessTiles" -> borderlessTiles = value.toBooleanStrictOrNull() ?: borderlessTiles
                 "tileOutline" -> tileOutline = value.toBooleanStrictOrNull() ?: tileOutline
@@ -496,9 +485,6 @@ object SettingsCodec {
                     LiveRefreshRate.entries.find { it.name == value }?.let { commodityRefreshRate = it }
                 "sportsRefreshRate" ->
                     LiveRefreshRate.entries.find { it.name == value }?.let { sportsRefreshRate = it }
-                "sectionsEnabled" -> sectionsEnabled = value.toBooleanStrictOrNull() ?: sectionsEnabled
-                "sectionPillAlignment" ->
-                    SectionPillAlignment.entries.find { it.name == value }?.let { sectionPillAlignment = it }
             }
         }
         return LauncherSettings(
@@ -511,6 +497,7 @@ object SettingsCodec {
             wallpaperId = wallpaperId,
             customWallpaperUri = customWallpaperUri,
             bingWallpaper = bingWallpaper,
+            wallpaperSyncTarget = wallpaperSyncTarget,
             tiledWallpaper = tiledWallpaper,
             borderlessTiles = borderlessTiles,
             tileOutline = tileOutline,
@@ -549,8 +536,6 @@ object SettingsCodec {
             stockRefreshRate = stockRefreshRate,
             commodityRefreshRate = commodityRefreshRate,
             sportsRefreshRate = sportsRefreshRate,
-            sectionsEnabled = sectionsEnabled,
-            sectionPillAlignment = sectionPillAlignment,
         )
     }
 }

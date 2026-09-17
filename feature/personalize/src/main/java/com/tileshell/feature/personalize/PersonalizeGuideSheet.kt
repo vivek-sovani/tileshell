@@ -135,7 +135,7 @@ fun PersonalizeGuideSheet(
                     letterSpacing = (-0.8).sp,
                 )
                 Text(
-                    text = "colours, wallpaper, tiles, home style, pinning apps, the feed, the quick panel, and permissions",
+                    text = "colours, wallpaper, tiles, home style, pages, pinning apps, the feed, the quick panel, and permissions",
                     color = tokens.fgDim,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.W300,
@@ -169,6 +169,7 @@ fun PersonalizeGuideSheet(
                     "with a photo or bing wallpaper set, use \"adjust position · reframe\" to pinch-zoom and drag it into place",
                     "slideshow rotates through photos you pick, every 15 minutes to 3 hours",
                     "turn on \"behind tiles\" (tile background) to let the wallpaper show through the grid",
+                    "after picking a new wallpaper, choose home screen, lock screen, or both to also set it as your device's real system wallpaper, framed exactly as you positioned it — cancel to skip and keep it just for start",
                 ),
             )
 
@@ -225,6 +226,23 @@ fun PersonalizeGuideSheet(
                     "tap the folder icon on a selected folder or stack to expand it in place and manage its members",
                     "drag an app out of an open folder to drop it exactly where you release it on start, or onto another tile to merge into it",
                     "tap × on a selected tile to unpin it — inside an open folder or stack, that sends the member to the end of start without needing to drag",
+                    "a selected folder's colour picker also offers \"unfold folder\" (dissolves it — every app stays pinned to start, just no longer grouped) and \"remove folder & tiles\" (unpins the folder and everything in it at once, with a confirmation first — apps stay installed)",
+                ),
+            )
+
+            FeatureGroup(
+                title = "pages",
+                accent = accent,
+                tokens = tokens,
+                items = listOf(
+                    "start is organized into pages — swipe left/right to move between them; the first one is always \"main\", for anything you haven't grouped, with your named pages after it",
+                    "a small dot row at the top of start shows how many pages there are and which one you're on, whenever there's more than one — hidden in edit mode, since each page's own header shows its name there instead",
+                    "in edit mode, tap the \"+\" at the top of start and name it to add a page; each page's own name (hidden the rest of the time) appears there too, with ←/→ to move it earlier/later",
+                    "while editing a named page (not main), a \"remove\" control in start's top-right corner offers \"merge with main\" (ungroups its tiles back into main, nothing lost) or \"remove page & tiles\" (unpins the page and everything on it at once, with a confirmation first — apps stay installed)",
+                    "pinning an app from the app list — \"pin to start\" or \"more from this app\" (its shortcuts and other activities) — always lands it on whichever page you were last viewing, no picker to answer",
+                    "a live tile added from start's own edit-mode \"add live tiles\" lands the same way, on whichever page you were last viewing",
+                    "already-pinned tile? select it in edit mode, tap its colour dot, and use \"move to page\" at the bottom of the colour picker to move it somewhere else — or, in edit mode, drag it to the left or right edge of the screen instead: the page shifts there right away, with a floating preview of the tile so you can keep aiming before releasing to drop it in place",
+                    "on a page with room to spare below its tiles, drag down from that empty space to pull the tiles closer to your thumb — release to hold them there, tap one to open it (that also lets go), or tap the empty area to let go without doing anything",
                 ),
             )
 

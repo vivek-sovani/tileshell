@@ -2,6 +2,7 @@ package com.tileshell.core.data
 
 import com.tileshell.core.data.db.FolderChildEntity
 import com.tileshell.core.data.db.FolderEntity
+import com.tileshell.core.data.db.SectionEntity
 import com.tileshell.core.data.db.TileEntity
 import com.tileshell.core.data.settings.FontStyle
 import com.tileshell.core.data.settings.LauncherSettings
@@ -322,6 +323,65 @@ class BackupManagerTest {
             sampleTiles, sampleFolders,
             sampleChildren.mapIndexed { i, c -> if (i == 0) c.copy(accentOverride = "#123456") else c },
             sampleSettings,
+        )
+        assertNotEquals(before, after)
+    }
+
+    private val sampleSections = listOf(
+        SectionEntity(id = "s1", label = "work", sortOrder = 0, collapsed = false),
+        SectionEntity(id = "s2", label = "social", sortOrder = 1, collapsed = true),
+    )
+
+    @Test
+    fun `round-trip preserves sections and each tile's sectionId`() {
+        val tiles = sampleTiles.map { if (it.id == "t1") it.copy(sectionId = "s1") else it }
+        val json = BackupManager.buildBackupJson(
+            tiles, sampleFolders, sampleChildren, sampleSettings, sections = sampleSections,
+        )
+        val data = BackupManager.parseBackup(json)
+
+        assertEquals(2, data.sections.size)
+        assertEquals("work", data.sections[0].label)
+        assertEquals(1, data.sections[1].sortOrder)
+        assertEquals(true, data.sections[1].collapsed)
+        assertEquals("s1", data.tiles.first { it.id == "t1" }.sectionId)
+        assertNull(data.tiles.first { it.id == "t2" }.sectionId)
+    }
+
+    @Test
+    fun `a backup predating sections still restores, landing every tile unsectioned`() {
+        // Before the sections feature existed, neither "sections" nor a
+        // tile's "sectionId" was ever written — simulate that older file by
+        // stripping both keys out entirely, the same way the displayAsIcon
+        // test above simulates a pre-existing field's absence.
+        val tiles = sampleTiles.map { if (it.id == "t1") it.copy(sectionId = "s1") else it }
+        val json = BackupManager.buildBackupJson(tiles, sampleFolders, sampleChildren, sampleSettings)
+            .replace(Regex(",?\"sectionId\":\"s1\""), "")
+            .replace(Regex(",?\"sections\":\\[]"), "")
+        val restored = BackupManager.parseBackup(json)
+
+        assertEquals(emptyList<SectionEntity>(), restored.sections)
+        restored.tiles.forEach { assertNull(it.sectionId) }
+    }
+
+    @Test
+    fun `layoutHash changes when a tile's section changes`() {
+        val before = BackupManager.layoutHash(sampleTiles, sampleFolders, sampleChildren, sampleSettings)
+        val after = BackupManager.layoutHash(
+            sampleTiles.map { if (it.id == "t1") it.copy(sectionId = "s1") else it },
+            sampleFolders, sampleChildren, sampleSettings,
+        )
+        assertNotEquals(before, after)
+    }
+
+    @Test
+    fun `layoutHash changes when a section is renamed`() {
+        val before = BackupManager.layoutHash(
+            sampleTiles, sampleFolders, sampleChildren, sampleSettings, sampleSections,
+        )
+        val after = BackupManager.layoutHash(
+            sampleTiles, sampleFolders, sampleChildren, sampleSettings,
+            sampleSections.map { if (it.id == "s1") it.copy(label = "office") else it },
         )
         assertNotEquals(before, after)
     }

@@ -64,6 +64,19 @@ class FeedFormatTest {
     }
 
     @Test
+    fun `commit generalizes to a wider upper bound for Start's own block pages`() {
+        // Start now has several pages of its own (one per section, plus the
+        // trailing unsectioned page) between the feed (-1) and the app list —
+        // the app list sits at `upper`, not a hardcoded 1f.
+        assertEquals(3f, pagerCommitTarget(base = 2f, pos = 2.4f, lower = -1f, upper = 3f), 0f)
+        assertEquals(2f, pagerCommitTarget(base = 2f, pos = 2.2f, lower = -1f, upper = 3f), 0f)
+        // Still clamps to the wider range instead of the old [-1, 1].
+        assertEquals(3f, pagerCommitTarget(base = 3f, pos = 3.5f, lower = -1f, upper = 3f), 0f)
+        // Defaults preserve the original 3-position behaviour unchanged.
+        assertEquals(1f, pagerCommitTarget(base = 0f, pos = 0.4f), 0f)
+    }
+
+    @Test
     fun `greeting buckets by hour with boundaries`() {
         assertEquals("good night", greetingFor(0))
         assertEquals("good night", greetingFor(4))
