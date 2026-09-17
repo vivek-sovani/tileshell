@@ -88,6 +88,7 @@ import com.tileshell.feature.personalize.RegionChipGrid
 import com.tileshell.feature.personalize.RegionOption
 import com.tileshell.feature.personalize.TileLogoMark
 import com.tileshell.core.design.LocalColorTokens
+import com.tileshell.core.design.SquircleShape
 import com.tileshell.feature.start.dominantIconColor
 import com.tileshell.feature.start.rememberChosenWallpaperIsLight
 import com.tileshell.feature.start.rememberWallpaperBitmap
@@ -337,7 +338,23 @@ fun FeedPage(
             verticalAlignment = Alignment.Top,
         ) {
             GreetingHeader(userName = userName, hour = now.get(Calendar.HOUR_OF_DAY), fg = feedFg, fgDim = feedFgDim)
-            TileLogoMark()
+            // The bare mosaic read poorly floating directly on the glance
+            // page's colourful gradient background (user: "it doesn't look
+            // good on the background of glance screen. show it like icon (on
+            // black background)") — the About/Personalize headers don't need
+            // this since they already sit on the sheet's own opaque
+            // background. A real squircle plate in the launcher icon's own
+            // background colour (ic_launcher_background) makes this read as
+            // "the actual app icon", not just a loose group of coloured
+            // squares.
+            Box(
+                modifier = Modifier
+                    .clip(SquircleShape())
+                    .background(Color(0xFF0A0A0D))
+                    .padding(10.dp),
+            ) {
+                TileLogoMark()
+            }
         }
         GlanceRow(glance = glance, clock = clock, fg = feedFg, fgDim = feedFgDim)
         SearchPill(accent = accent, tokens = tokens, onOpenQuickSearch = onOpenQuickSearch)

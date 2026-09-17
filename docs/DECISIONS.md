@@ -8120,3 +8120,17 @@ same treatment as the About sheet's own header, for a consistent brand mark acro
 sheet.
 
 Build + full unit test suite green. Needs the user's own on-device confirmation.
+
+## Glance page's branding mark gets a real icon background plate
+
+Direct follow-up, user-reported after installing over wireless debugging: "it doesnt look good on the
+background of glance screen. show it like icon (on black background)." The bare 2×2 mosaic floated
+directly on the glance page's colourful gradient background — fine on the About/Personalize sheets
+(both sit on the sheet's own opaque background already) but not on the glance page. Only the glance
+page's call site changed: `TileLogoMark()` is now wrapped in a `Box` clipped to `SquircleShape()`
+(`:core:design`, the same real-superellipse shape icons-mode already uses) filled with the launcher
+icon's own actual background colour (`#0A0A0D`, `ic_launcher_background`) — so it reads as "the real
+app icon," not a loose group of coloured squares. The About sheet/Personalize headers are unchanged
+(no plate — the mosaic there is a wordmark accompaniment, not standing in for the app icon).
+
+Build + full unit test suite green. Needs the user's own on-device confirmation.
