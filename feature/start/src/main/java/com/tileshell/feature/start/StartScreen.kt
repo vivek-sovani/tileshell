@@ -4801,13 +4801,33 @@ private fun SectionHeader(
                 contentDescription = "move page later",
                 onClick = onMoveLater,
             )
-            SectionHeaderIconButton(
-                iconKey = "close",
-                rotationDegrees = 0f,
-                tint = textColor,
-                contentDescription = "merge with main",
-                onClick = onDelete,
-            )
+            // A visible text pill, not just an icon — "×" alone never said
+            // what tapping it actually does (ungroup back into main), and an
+            // icon-only contentDescription is invisible to sighted users
+            // (screen-reader-only) — user-reported: "where is the merge with
+            // main? it is still 'x'".
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .padding(start = 3.dp)
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(textColor.copy(alpha = 0.12f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onDelete,
+                    )
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            ) {
+                Icon(
+                    imageVector = TileIcons["close"],
+                    contentDescription = null,
+                    tint = textColor,
+                    modifier = Modifier.size(12.dp),
+                )
+                Spacer(Modifier.width(4.dp))
+                Text("merge with main", color = textColor, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+            }
         }
     }
     Box(
