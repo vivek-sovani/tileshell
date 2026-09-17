@@ -80,6 +80,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
@@ -1384,6 +1386,7 @@ fun StartScreen(
                     onCreateSection = viewModel::createSection,
                     onRenameSection = viewModel::renameSection,
                     onDeleteSection = viewModel::deleteSection,
+                    onRemovePageAndTiles = viewModel::removeSectionAndTiles,
                     onMoveSection = { id, direction ->
                         viewModel.moveSection(id, direction)
                         // Follow the section being reordered so it doesn't visually
@@ -2546,6 +2549,10 @@ private fun StartPage(
     onCreateSection: (String) -> Unit = {},
     onRenameSection: (id: String, label: String) -> Unit = { _, _ -> },
     onDeleteSection: (String) -> Unit = {},
+    // "remove page & tiles" — unpins the page's section AND every tile
+    // currently on it, at once (apps stay installed) — the bulk counterpart
+    // to [onDeleteSection] ("merge with main"), which only ungroups.
+    onRemovePageAndTiles: (String) -> Unit = {},
     onMoveSection: (id: String, direction: Int) -> Unit = { _, _ -> },
     onAssignTileSection: (tileId: String, sectionId: String?) -> Unit = { _, _ -> },
     // The pager's own live position (see StartScreen's `progress`) and the
@@ -2620,6 +2627,11 @@ private fun StartPage(
     // nothing) — set once the picker's own button is tapped, shown after the
     // picker sheet itself has closed.
     var confirmRemoveFolderId by remember { mutableStateOf<String?>(null) }
+    // Whether the fixed top-right "remove [page]" menu (see below) is open,
+    // and the section id pending confirmation for "remove page & tiles" —
+    // same two-state shape as the folder ones above, for the same reason.
+    var pageRemoveMenuExpanded by remember { mutableStateOf(false) }
+    var confirmRemovePageId by remember { mutableStateOf<String?>(null) }
     // Sticky-mode drag preview: id -> live push-down cell, recomputed on every
     // pointer move so the tiles a drop would displace visibly slide out of the
     // way *during* the drag (dense mode already got this for free via `order`
@@ -3079,7 +3091,6 @@ private fun StartPage(
                         onMoveEarlier = { onMoveSection(block.sectionId, -1) },
                         onMoveLater = { onMoveSection(block.sectionId, 1) },
                         onRename = { newLabel -> onRenameSection(block.sectionId, newLabel) },
-                        onDelete = { onDeleteSection(block.sectionId) },
                     )
                 } else {
                     // The unsectioned ("main") page reads as a plain label,
@@ -3636,6 +3647,91 @@ private fun StartPage(
                     wallpaperAccent = wallpaperAccent,
                 )
             }
+        }
+
+        // Whole-page removal — moved out of the scrolling page header into a
+        // fixed top-right corner control (user-requested: "this option top
+        // right corner of page") so it's always reachable regardless of
+        // scroll position, rather than scrolling away with the header. Only
+        // the currently active page's own id is ever in scope here — a real
+        // section only (never "main", which has nothing to merge into and
+        // isn't itself removable this way).
+        val activeSectionId = if (editMode) blocks.getOrNull(activeBlockIndex)?.sectionId else null
+        if (activeSectionId != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(top = 8.dp, end = 8.dp),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.12f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { pageRemoveMenuExpanded = true },
+                        )
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                ) {
+                    Icon(
+                        imageVector = TileIcons["close"],
+                        contentDescription = null,
+                        tint = Glass.faceTextColor(screenBackgroundIsLight),
+                        modifier = Modifier.size(12.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "remove",
+                        color = Glass.faceTextColor(screenBackgroundIsLight),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+                DropdownMenu(expanded = pageRemoveMenuExpanded, onDismissRequest = { pageRemoveMenuExpanded = false }) {
+                    DropdownMenuItem(
+                        text = { Text("merge with main") },
+                        onClick = {
+                            pageRemoveMenuExpanded = false
+                            onDeleteSection(activeSectionId)
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("remove page & tiles") },
+                        onClick = {
+                            pageRemoveMenuExpanded = false
+                            confirmRemovePageId = activeSectionId
+                        },
+                    )
+                }
+            }
+        }
+
+        // "remove page & tiles" confirmation — a bulk, multi-tile unpin in one
+        // tap is worth guarding against an accidental press, unlike "merge
+        // with main" (nothing is lost there, just ungrouped).
+        confirmRemovePageId?.let { sectionId ->
+            AlertDialog(
+                onDismissRequest = { confirmRemovePageId = null },
+                title = { Text("remove page & tiles?") },
+                text = {
+                    Text(
+                        "this page and everything on it will be removed from start. " +
+                            "apps stay installed — you can pin them again any time from the app list.",
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmRemovePageId = null
+                        onRemovePageAndTiles(sectionId)
+                    }) { Text("remove") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmRemovePageId = null }) { Text("cancel") }
+                },
+            )
         }
 
         // App-list affordance (prototype .allapps-btn) with a settings button just
@@ -4839,7 +4935,6 @@ private fun SectionHeader(
     onMoveEarlier: () -> Unit,
     onMoveLater: () -> Unit,
     onRename: (String) -> Unit,
-    onDelete: () -> Unit,
 ) {
     var renaming by remember(label) { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -4913,33 +5008,6 @@ private fun SectionHeader(
                 contentDescription = "move page later",
                 onClick = onMoveLater,
             )
-            // A visible text pill, not just an icon — "×" alone never said
-            // what tapping it actually does (ungroup back into main), and an
-            // icon-only contentDescription is invisible to sighted users
-            // (screen-reader-only) — user-reported: "where is the merge with
-            // main? it is still 'x'".
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .padding(start = 3.dp)
-                    .clip(RoundedCornerShape(13.dp))
-                    .background(textColor.copy(alpha = 0.12f))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onDelete,
-                    )
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-            ) {
-                Icon(
-                    imageVector = TileIcons["close"],
-                    contentDescription = null,
-                    tint = textColor,
-                    modifier = Modifier.size(12.dp),
-                )
-                Spacer(Modifier.width(4.dp))
-                Text("merge with main", color = textColor, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-            }
         }
     }
     Box(

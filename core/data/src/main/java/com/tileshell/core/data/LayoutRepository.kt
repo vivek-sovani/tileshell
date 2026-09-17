@@ -112,6 +112,12 @@ class LayoutRepository(
     suspend fun deleteSection(id: String) = dao.deleteSection(id)
 
     /**
+     * Remove a section and every tile currently on it from Start in one
+     * action — "remove page & tiles." Apps stay installed, this only unpins.
+     */
+    suspend fun removeSectionAndTiles(id: String) = dao.removeSectionAndTiles(id)
+
+    /**
      * Move a section up/down relative to its neighbors (the section header's
      * ↑/↓ control). Computed via the pure, unit-tested [swapSectionOrder] so
      * only the (at most two) sections whose order actually changed are

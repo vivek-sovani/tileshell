@@ -7909,3 +7909,30 @@ id/colour per child, same convention as `removeFolderChild`, appended in the fol
 "organizing tiles" group were both updated with both actions in the same pass.
 
 Build + full unit test suite green. Needs the user's own on-device confirmation.
+
+## Page-level "remove page & tiles" — moved to a fixed top-right corner control
+
+Direct follow-up to the folder-level unfold/remove actions above — user asked for the same option at
+the page (section) level: "also provide remove page option in edit mode." A first attempt placed it as
+a dropdown menu inline inside `SectionHeader`'s own row (mirroring where the folder actions live, in a
+per-tile sheet). The user corrected the placement: "this option top right corner of page" — pages
+don't have a per-tile sheet the way a folder does, and the header itself scrolls out of view with the
+grid, so a page-level control needs its own fixed anchor instead.
+
+Reverted the inline `SectionHeader` dropdown and added a fixed `Box(Modifier.align(Alignment.TopEnd)
+.statusBarsPadding().padding(...))` overlay in `StartPage`, always reachable regardless of scroll
+position. Gated on `blocks.getOrNull(activeBlockIndex)?.sectionId` being non-null while editing — only
+ever shown for a real named page, never "main" (which has nothing to merge into and isn't itself
+removable this way). Tapping the visible "remove" pill (icon + text, not icon-only — see the earlier
+"merge with main" label-visibility bug in this same log for why) opens a `DropdownMenu` with two items:
+"merge with main" (the existing, already-shipped `onDeleteSection` — no confirmation, nothing lost) and
+"remove page & tiles" (a new bulk action, confirmed via `AlertDialog` first, same non-destructive
+"remove = unpin" convention as every other bulk removal in this app).
+
+New `LayoutDao.tileIdsInSection`/`removeSectionAndTiles` (loop `deleteTileById`/`deleteFolderById` over
+every tile in the section, then `deleteSectionById`, in one `@Transaction`), `LayoutRepository
+.removeSectionAndTiles` wrapper, and `StartViewModel.removeSectionAndTiles` — same shape as the
+folder-level `removeFolderAndChildren` chain above. `StartPage` gained an `onRemovePageAndTiles: (String)
+-> Unit = {}` param wired from `StartScreen`'s call site to `viewModel::removeSectionAndTiles`.
+
+Build + full unit test suite green. Needs the user's own on-device confirmation.

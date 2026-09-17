@@ -1980,6 +1980,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) { repository.deleteSection(id) }
     }
 
+    /** Remove a page (section) and delete every tile/folder it contains. */
+    fun removeSectionAndTiles(sectionId: String) {
+        viewModelScope.launch(writeContext) { repository.removeSectionAndTiles(sectionId) }
+    }
+
     /** Move a section up (-1) or down (+1) relative to its neighbors. */
     fun moveSection(id: String, direction: Int) {
         viewModelScope.launch(writeContext) { repository.moveSection(id, direction) }

@@ -605,4 +605,26 @@ interface LayoutDao {
         clearTileSection(id)
         deleteSectionById(id)
     }
+
+    @Query("SELECT id FROM tiles WHERE sectionId = :sectionId")
+    suspend fun tileIdsInSection(sectionId: String): List<String>
+
+    /**
+     * Remove a section and every tile currently on it from Start in one
+     * action — "remove page & tiles," the bulk counterpart to [deleteSection]
+     * ("merge with main"), which only ungroups. Each tile is dropped the same
+     * way [removeTile] drops any top-level tile (`deleteTileById` +
+     * `deleteFolderById` — the latter a harmless no-op for a plain app tile,
+     * but cascades a folder tile's own `folder_children` rows away when the
+     * page held a folder), so a folder on the page is fully removed too, not
+     * left as an orphaned meta row. Apps stay installed — this only unpins.
+     */
+    @Transaction
+    suspend fun removeSectionAndTiles(sectionId: String) {
+        tileIdsInSection(sectionId).forEach { id ->
+            deleteTileById(id)
+            deleteFolderById(id)
+        }
+        deleteSectionById(sectionId)
+    }
 }
