@@ -1411,12 +1411,14 @@ fun StartScreen(
                         // actual move, at wherever the touch ended up.
                         val targetIndex = (activeBlockIndex + direction).coerceIn(0, blockCount - 1)
                         val targetSectionId = sortedSections.getOrNull(targetIndex - 1)?.id
-                        viewModel.setTileSection(tileId, targetSectionId)
-                        // Lands it where it was actually dropped instead of
-                        // wherever the destination page's own placement
-                        // engine would auto-pick — same slot-write path an
-                        // ordinary in-page sticky drag-drop already uses.
-                        viewModel.setTileGridSlot(tileId, targetSlot)
+                        // Section + slot in one atomic call — calling
+                        // setTileSection then setTileGridSlot separately
+                        // raced every time (real bug, user-reported: "still
+                        // placed at bottom" even after the auto-scroll fix —
+                        // setTileGridSlot computes its placement synchronously
+                        // off the tile's own still-stale section, scoping
+                        // collision-resolution to the wrong page's tiles).
+                        viewModel.moveTileToSectionAtSlot(tileId, targetSectionId, targetSlot)
                     },
                     onAdd = {
                         viewModel.exitEdit()

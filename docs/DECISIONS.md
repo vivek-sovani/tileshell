@@ -7856,3 +7856,29 @@ down the grid regardless of where the user actually released. Fixed with one `on
 the exact moment the cross-page shift triggers.
 
 Build + full unit test suite green. Needs the user's own on-device confirmation.
+
+## Cross-page drag: the real "still placed at bottom" cause — a deterministic race, not a rare one
+
+Direct same-day follow-up — the auto-scroll fix above didn't fix it; user confirmed "it still placed at
+bottom." Found the actual cause on inspecting `setTileGridSlot`'s real implementation (previously only
+described secondhand in an earlier entry's "known, accepted risk" — this is that risk, materializing):
+it computes its target placement **synchronously**, reading the tile's section via the cached `tiles`
+StateFlow (`tiles.value.firstOrNull { it.id == id }`) and scoping collision-resolution to
+`tilesInBlock(model.sectionId, ...)` — all *before* the `viewModelScope.launch(writeContext)` block
+that actually writes anything. `StartScreen`'s `onCrossPageDrop` called `setTileSection(...)` then
+immediately `setTileGridSlot(...)` — two separate top-level calls — so the second call's synchronous
+read happened essentially instantly after the first, with no realistic chance for the first call's
+*asynchronous* DB write, let alone the `tiles` Flow re-collecting it, to have landed yet. This wasn't an
+occasional race, it was **guaranteed** every time: `setTileGridSlot` always computed the destination
+cell scoped to the tile's *old* section's own tiles, not the new one's — landing it wherever that
+unrelated layout happened to put the requested `(col,row)`, which (especially crossing from a taller
+"main" page into a shorter named page, or vice versa) reads exactly as "randomly ends up at the bottom."
+
+Fixed with a new atomic `StartViewModel.moveTileToSectionAtSlot(tileId, targetSectionId, targetSlot)` —
+the same body `setTileGridSlot` already has, except it scopes placement to the caller-supplied
+`targetSectionId` directly (the moved tile's own current section is never read at all, so there's
+nothing stale to race against), and writes the section change and the resulting slots inside **one**
+`viewModelScope.launch(writeContext)` block instead of two separate public calls. `setTileGridSlot`
+itself is unchanged — every other, non-cross-page caller still calls it exactly as before.
+
+Build + full unit test suite green. Needs the user's own on-device confirmation.

@@ -1402,6 +1402,45 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Atomic counterpart to [setTileSection] + [setTileGridSlot] for a
+     * cross-page tile drag: calling those two separately raced, every time —
+     * [setTileGridSlot] computes its placement *synchronously*, off the
+     * cached [tiles] StateFlow, before [setTileSection]'s own write has any
+     * chance to land, so it always scoped collision-resolution to the tile's
+     * *old* section (via [tilesInBlock]'s `model.sectionId`), not the one it
+     * was actually moving to — landing it wherever the old section's own
+     * tile layout happened to put that cell, typically nowhere near the new
+     * section's own content (user-reported: "tile ... still placed at
+     * bottom"). This computes placement against [targetSectionId] directly
+     * (the moved tile's *own* current section is never read at all), then
+     * writes the section change and the resulting slots in one coroutine on
+     * the serialized write dispatcher, so there's no external call in
+     * between for anything to race against.
+     */
+    fun moveTileToSectionAtSlot(tileId: String, targetSectionId: String?, targetSlot: Int) {
+        val model = tiles.value.firstOrNull { it.id == tileId } ?: return
+        val targetCol = GridPacker.decodeSlotCol(targetSlot)
+        val targetRow = GridPacker.decodeSlotRow(targetSlot)
+        val finalSlots = if (settings.value.tilePackMode == TilePackMode.FREE) {
+            val columns = settings.value.columns
+            val anchored = tilesInBlock(targetSectionId, excludeId = tileId).mapNotNull { t ->
+                val s = t.gridSlot ?: return@mapNotNull null
+                TilePlacement(t.id, t.size, GridPacker.decodeSlotCol(s), GridPacker.decodeSlotRow(s))
+            }
+            GridPacker.freePlacement(anchored, tileId, model.size, targetCol, targetRow, columns)
+        } else {
+            stickySlotsForPlacement(
+                movedId = tileId, size = model.size, targetCol = targetCol, targetRow = targetRow,
+                sectionId = targetSectionId,
+            )
+        }
+        viewModelScope.launch(writeContext) {
+            repository.setTileSection(tileId, targetSectionId)
+            finalSlots.forEach { (tid, s) -> repository.setTileGridSlot(tid, s) }
+        }
+    }
+
     /** Subscribe a custom RSS/Atom feed and refresh so its articles appear soon. */
     fun addFeedSource(url: String, name: String) {
         viewModelScope.launch(Dispatchers.IO) {
