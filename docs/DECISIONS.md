@@ -7979,3 +7979,25 @@ one folder, so staying in edit mode to keep arranging the rest of that page is t
 removing a whole *page* has nothing left on it worth continuing to edit.
 
 Build + full unit test suite green.
+
+## "add page" is now a real modal dialog, and exits edit mode once added
+
+Direct follow-up, user-requested: "add page should ask in new dialoge box and when added should come
+out of edit mode." Previously tapping "+ add page" swapped the button itself for an inline
+`SectionNameEditor` text field row (the same one the header's tap-to-rename already uses) right at the
+top of the grid — easy to dismiss with a stray tap elsewhere, and gave no confirmation that a page had
+actually been created.
+
+New `AddPageDialog` — a real `AlertDialog` with a bordered `BasicTextField` (this codebase never uses
+Material3's own `TextField`/`OutlinedTextField`; every text entry here, including the existing rename
+editors, is a styled `BasicTextField`, so this follows that same convention rather than introducing a
+new one) and "add"/"cancel" buttons, matching the weight of the "remove page & tiles?" dialog for the
+opposite action. "add" is disabled outright on a blank/whitespace-only name (`enabled =
+draft.text.isNotBlank()`), so there's no way to create a nameless page. Committing calls
+`onCreateSection(label)` immediately followed by `onExitEdit()` — a fresh, empty page has nothing on it
+yet worth staying in edit mode to arrange, same reasoning as the just-shipped "remove page & tiles"
+exit-edit-mode fix above. Cancelling just dismisses, unchanged from before. The old inline
+`addingSectionAtTop`/`SectionNameEditor` swap for this one call site is gone; `SectionNameEditor`
+itself is unchanged and still backs the header's own tap-to-rename.
+
+Build + full unit test suite green.

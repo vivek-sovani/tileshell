@@ -3020,55 +3020,57 @@ private fun StartPage(
         ) {
             // "+ add page" (edit mode only): a prominent affordance at the
             // very top of the grid — always available now, like folders
-            // (no separate on/off setting to gate it any more).
+            // (no separate on/off setting to gate it any more). Naming a new
+            // page is a real modal dialog (not the inline swap-the-button-
+            // for-a-text-field this used to be) — user-requested, so it
+            // reads as a deliberate "create" step rather than something that
+            // could be dismissed by an accidental tap elsewhere; committing
+            // also exits edit mode, since there's nothing on the fresh empty
+            // page yet worth staying in edit mode to arrange.
             if (editMode) {
-                var addingSectionAtTop by remember { mutableStateOf(false) }
-                if (addingSectionAtTop) {
-                    Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp)) {
-                        SectionNameEditor(
-                            initial = "",
-                            textColor = Glass.faceTextColor(screenBackgroundIsLight),
-                            onCommit = { newLabel ->
-                                addingSectionAtTop = false
-                                if (newLabel.isNotBlank()) onCreateSection(newLabel)
-                            },
-                            onCancel = { addingSectionAtTop = false },
-                        )
-                    }
-                } else {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
+                var addingSectionDialog by remember { mutableStateOf(false) }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp, vertical = 10.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { addingSectionDialog = true },
+                        ),
+                ) {
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 6.dp, vertical = 10.dp)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = { addingSectionAtTop = true },
-                            ),
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clip(CircleShape)
-                                .background(Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.16f)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = "+",
-                                color = Glass.faceTextColor(screenBackgroundIsLight),
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
-                        Spacer(Modifier.width(10.dp))
                         Text(
-                            text = "add page",
-                            color = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.85f),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
+                            text = "+",
+                            color = Glass.faceTextColor(screenBackgroundIsLight),
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
                         )
                     }
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = "add page",
+                        color = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.85f),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+                if (addingSectionDialog) {
+                    AddPageDialog(
+                        onCommit = { label ->
+                            addingSectionDialog = false
+                            onCreateSection(label)
+                            onExitEdit()
+                        },
+                        onCancel = { addingSectionDialog = false },
+                    )
                 }
             }
             // A real section gets a tinted panel wrapping its header + tiles,
@@ -5074,7 +5076,7 @@ private fun SectionHeaderIconButton(
 }
 
 /**
- * Section name entry (both "+ add section" and the header's tap-to-rename):
+ * Section name entry (the header's tap-to-rename):
  * a text field with an explicit "✓" confirm and "✕" cancel, rather than
  * relying only on the keyboard's own Done action or losing focus to commit —
  * on a real device, dismissing the keyboard (e.g. the system back button)
@@ -5149,6 +5151,61 @@ private fun SectionNameEditor(
             ),
         )
     }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+}
+
+/**
+ * "add page" as a real modal dialog (user-requested, replacing an earlier
+ * inline-swap-the-button-for-a-text-field design) — a deliberate "create"
+ * step that a stray tap elsewhere can't silently dismiss, matching the
+ * "remove page & tiles?" confirmation dialog's own weight for the opposite
+ * action. "add" is disabled on a blank name rather than silently no-oping,
+ * so there's no way to create a nameless page from here.
+ */
+@Composable
+private fun AddPageDialog(onCommit: (String) -> Unit, onCancel: () -> Unit) {
+    var draft by remember { mutableStateOf(TextFieldValue("")) }
+    val focus = remember { FocusRequester() }
+    val textColor = LocalTextStyle.current.color
+    fun commit() {
+        val trimmed = draft.text.trim()
+        if (trimmed.isNotEmpty()) onCommit(trimmed)
+    }
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text("add page") },
+        text = {
+            BasicTextField(
+                value = draft,
+                onValueChange = { draft = it },
+                singleLine = true,
+                textStyle = TextStyle(color = textColor, fontSize = 15.sp),
+                cursorBrush = SolidColor(textColor),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { commit() }),
+                modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                decorationBox = { innerField ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, textColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                    ) {
+                        if (draft.text.isEmpty()) {
+                            Text("page name", color = textColor.copy(alpha = 0.5f), fontSize = 15.sp)
+                        }
+                        innerField()
+                    }
+                },
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = ::commit, enabled = draft.text.isNotBlank()) { Text("add") }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancel) { Text("cancel") }
+        },
+    )
     LaunchedEffect(Unit) { focus.requestFocus() }
 }
 
