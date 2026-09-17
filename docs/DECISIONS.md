@@ -8040,3 +8040,37 @@ Deliberately built from `main`, not the `start-sections` branch this same sessio
 working on — `start-sections` is its own separate, not-yet-merged experimental branch (a different,
 swipeable-pages take on "sections" than the tabbed/dropdown one already shipped on `main` in this same
 release), and merging an unrelated in-progress branch was never part of this request.
+
+## v4.5.0 re-cut — `start-sections` merged in, replacing dropdown/tabbed pages with swipeable ones
+
+Direct follow-up, user-requested: after seeing the v4.5.0 release notes didn't mention "pages" the way
+this session had otherwise been discussing it, the user clarified the whole session's `start-sections`
+work had been done serially on top of `main` and asked for "latest tested apk in main, should not
+differ in functioning" — i.e. `main` should reflect what was actually tested this session, not an
+earlier design the user had since moved past.
+
+`git merge --no-ff start-sections` into `main`: clean except one conflict in this file (append-only on
+both sides — resolved by keeping both blocks, `start-sections`' entries ordered first since that work
+predates this session's release cut). No other file conflicted; `start-sections` never touched
+`app/build.gradle.kts`; `main`'s two release-cut/docs-only commits never touched any of the files
+`start-sections` changed. Build + full unit test suite green post-merge.
+
+This replaces the dropdown/tabbed page-switching the v4.5.0 release notes originally described with
+the swipeable-pages design: swipe left/right between pages (same gesture as the feed/app-list swipe,
+no menu), pages are always available (the "enable sections" toggle is gone), a page-count dot
+indicator, left/right reorder, drag-a-tile-to-the-screen-edge to move it onto a neighboring page, and
+a fixed top-right "remove" control per named page (merge with main / remove page & tiles) — plus the
+parallel folder-level unfold/remove actions. Also user-requested in the same exchange: the release
+notes and in-app terminology both say "pages," not "sections" (the underlying Kotlin symbols/DB
+columns are unchanged, per the original plan's own scoping — this is a user-facing rename only).
+
+Re-cut at the same `versionCode`/`versionName` (450 / 4.5.0) — the previous build was only ever
+delivered to the user in this chat, never uploaded to Play, so nothing is burned; `app/build.gradle.kts`
+gained a `--- re-cut` note under the existing v4.5.0 comment block, matching this project's established
+convention for an un-uploaded re-cut. `docs/PLAY_STORE.md`'s "Release notes (v4.5.0)" section was
+rewritten to describe the swipeable-pages design (the actual shipped behaviour) instead of the
+dropdown/tabbed one, with a note that this changelog already reflects the final version, not an
+intermediate one. Signed APK + AAB rebuilt and overwritten in place at
+`release-out/tileshell-4.5.0-release.{apk,aab}`; signing identity re-verified unchanged
+(`apksigner verify`, same SHA-256 cert digest as every prior release); `versionCode`/`versionName`
+confirmed via `aapt2 dump badging`.

@@ -158,36 +158,40 @@ data. Users can also clear app data via Android Settings at any time.
 
 ## Release notes (v4.5.0)
 
-*Everything below is new since v4.0.2 (the last version actually uploaded to Play) — 50 commits on
-`main`, none of which had shipped to a real user before this release.*
+*Everything below is new since v4.0.2 (the last version actually uploaded to Play), none of which had
+shipped to a real user before this release — including a same-versionCode re-cut that replaced the
+first pass's dropdown/tabbed page-switching with the swipeable-pages version described below, so this
+changelog already reflects the final, shipped behaviour rather than an intermediate design.*
 
 *"What's new" — newest release first. Keep under Play's 500-character limit.*
 
 ```
 TileShell 4.5.0
 
-• New: opt-in Start "pages" - group tiles, browse by scroll or
-  tabs, pin/move apps into a page
+• New: Start is now organized into swipeable "pages" - group
+  tiles, drag a tile to the edge to move it to another page
 • New: "widget cards" tile style (also on feed & quick panel); 3
   new wallpapers - nebula, ember, reef
 • Fixed: clock tile date no longer clipped; free-mode drag no
   longer displaces tiles; panchang shows real sunrise/sunset
 ```
 
-*(Character count 340, under Play's 500 limit.)*
+*(Character count 364, under Play's 500 limit.)*
 
 ### What's new since v4.0.2 (for reference — not the Play-facing blurb above)
 
-- **New: Start-screen "pages"** — an opt-in way to group tiles into named pages (Personalize ·
-  sections · "enable sections" in the app's own menus — this changelog calls them "pages" as the
-  friendlier user-facing term; off by default, so nothing changes unless you turn it on). Browse
-  pages either by continuous scroll (each page's header + tiles sit inside a tinted panel, with
-  a jump-pill bar at the bottom to hop between them) or in a tabbed view (one page fills the screen
-  at a time, switched via a dropdown pill). Reorder, rename, or remove a page from its own header;
-  pin a new app straight into a specific page from the App List, or move an already-pinned tile
-  into one from its colour picker; a page (or its pill/dropdown entry) shows a summed notification
-  badge across everything inside it, even while collapsed or not the active tab. In the tabbed view,
-  drag down from empty space below a short page's tiles to slide them within one-handed reach.
+- **New: Start-screen "pages"** — swipe left/right on Start to move between named pages of tiles,
+  the same gesture already used to reach the feed and app list, no menu involved. The first page is
+  always "main" (everything you haven't grouped); a small dot row at the top shows how many pages
+  there are and which one you're on. In edit mode, tap "+" at the top and name it to add a page —
+  each page's own name (otherwise hidden) appears there too, with ←/→ to reorder it. Pin a new app,
+  or an already-pinned tile via its colour picker's "move to page," straight into whichever page you
+  were last viewing — or drag a tile to the left/right screen edge to carry it onto a neighboring
+  page directly, with a floating preview so you can keep aiming before you let go. While editing a
+  named page, a "remove" control in the top-right corner offers "merge with main" (ungroups its
+  tiles back into main, nothing lost) or "remove page & tiles" (unpins the page and everything on
+  it at once, confirmed first — apps stay installed). Folders get the same two-option treatment from
+  their own colour picker: "unfold folder" or "remove folder & tiles."
 - **New: "widget cards" tile style**, and it's no longer Start-only. A 4th tile background style —
   no flat fill, no outline, just the tile's own content over a translucent, wallpaper-showing card
   with its own corner-radius and gap so tiles read as distinct raised panes (like a home-screen

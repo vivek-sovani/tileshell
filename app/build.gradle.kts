@@ -593,6 +593,16 @@ android {
         //   anything; and the Hindu Panchang widget's back face now shows real sunrise/sunset
         //   times and the current ayana instead of repeating tithi info. See docs/PLAY_STORE.md
         //   "Release notes (v4.5.0)" for the full changelog.
+        //   --- re-cut at the same versionCode 450 (never uploaded, so nothing is burned):
+        //   merged in the `start-sections` branch's own rework of the same feature — the
+        //   dropdown/tabbed page-switching above is replaced with swipeable pages (the same
+        //   swipe gesture already used for the feed/app list, no menu), an always-available
+        //   capability instead of an opt-in toggle (the "enable sections" setting is gone), a
+        //   page-count dot indicator, left/right reorder, drag-a-tile-to-the-screen-edge to
+        //   move it to another page, and a fixed top-right "remove" control per named page
+        //   ("merge with main" / "remove page & tiles", the same two-option pattern folders
+        //   get too via "unfold folder" / "remove folder & tiles"). User-requested: the
+        //   in-app terminology and this changelog both now say "pages," not "sections."
         versionCode = 450
         versionName = "4.5.0"
     }
