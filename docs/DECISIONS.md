@@ -8196,3 +8196,33 @@ itself describes reverted. The "for reference" detailed changelog section undern
 never shown to users) still documents the same v4.0.2→v4.5.0 delta as before, unaffected by this.
 
 Documentation-only change — no rebuild needed.
+
+## v4.5.0's wider scope restored, as a one-time exception; narrow scope confirmed for future releases
+
+Direct reversal of the entry immediately above, same session — after being shown the two candidate
+blurbs side by side (the narrow v4.0.2-only one just reverted to, and the earlier wider one covering
+icons home style/live tiles/gadgets), the user picked the wider one specifically for v4.5.0, while
+confirming every release *after* this one goes back to the narrow "only that release's own changes"
+scope. So the "no catch-up need" reasoning in the reverted entry wasn't wrong about *how Play's update
+card works* — it just wasn't the deciding factor; the user wants v4.5.0 specifically to name a few
+long-standing, never-before-described capabilities as a one-time exception, independent of Play
+mechanics.
+
+`docs/PLAY_STORE.md`'s v4.5.0 blurb now reads: **New features** — icons home style, live tiles (clock/
+weather/calendar/music, live even as icons), the 14-gadget widget catalog (any launcher), multiple
+Start pages, widget-card tile style + 3 wallpapers; **Bugs fixed** — scoped to battery/performance
+items only (removed duplicate widget refresh jobs, widgets/feed no longer wake the device overnight, a
+pager-swipe stutter fix, notification-burst UI freeze fix), per an earlier same-session request to
+narrow "Bugs fixed" to that category for this release. A one-sentence note above the entry states this
+wider scope is a deliberate one-time exception and that future entries return to the narrow convention.
+
+**Caught and fixed a real bug while finalizing this**: the doc claimed "Character count 499" but the
+actual text (as first written) was 501 — one bullet read "Widgets and feed no longer wake device
+overnight" instead of the shorter "Widgets & feed..." the confirmed mockup and the earlier verified
+499-count draft both used. Since the mockup literally rendered "and" (a transcription slip when the
+python character-count check was run against a slightly different draft than what was actually shown
+and typed into the file), the character claim silently went stale — this would have shipped over Play's
+hard 500-character limit if uploaded as-is. Fixed by restoring "&"; recounted directly against the
+final file content (not a remembered figure) to confirm 499, with 1 character of margin.
+
+Documentation-only change — no rebuild needed.

@@ -163,27 +163,36 @@ original format as the historical record, unchanged). Still capped at Play's 500
 
 ## Release notes (v4.5.0)
 
-*Scoped to what's actually new since v4.0.2 (the last version uploaded to Play) — not a catch-up
-covering older releases. An earlier draft of this entry tried covering all the way back to v3.0.0,
-on the reasoning that v4.0.0/v4.0.1 never reached Play; reverted, since the update card a real user
-sees is generated fresh from whatever text is in Play Console at the moment a release is uploaded —
-it has nothing to do with which version they're updating from, so there's no real "catch-up" need.*
+*A deliberate one-time exception: this entry's "New features" section reaches back further than
+v4.0.2 to also name a few defining, long-standing capabilities (icons home style, live tiles, the
+gadgets-as-widgets catalog) that no prior release's Play-facing text ever actually described — since
+v4.0.0/v4.0.1 never reached Play and v4.0.2's own blurb never mentioned them either, most real users
+have never seen them called out anywhere in the store listing's update history. "Bugs fixed" is
+scoped to battery/performance work specifically (by request), not the full 4.0.2→4.5.0 fix list —
+see the "for reference" section below for everything else that shipped. **From the next release
+onward**: every future entry's blurb goes back to describing only that release's own new features
+and fixes, per this project's usual convention — this wider scope is a one-time exception for v4.5.0.*
 
 ```
 TileShell 4.5.0
 
 New features:
+• Icons home style – shaped icons, 11 sizes
+• Live tiles: clock, weather, calendar & music stay
+  live as icons too
+• 14 gadgets (stocks, sports, calendars...) as real
+  widgets, any launcher
 • Start supports multiple pages – swipe to switch
-• Widget-card tile style, also on feed & quick panel
-• 3 new wallpapers – nebula, ember, reef
+• Widget-card tile style; 3 new wallpapers
 
 Bugs fixed:
-• Clock tile date no longer clipped
-• Free-mode drag no longer displaces tiles
-• Panchang widget shows real sunrise/sunset
+• Removed duplicate widget refresh jobs
+• Widgets & feed no longer wake device overnight
+• Fixed a stutter on every screen swipe
+• Notification bursts no longer freeze UI
 ```
 
-*(Character count 310, under Play's 500 limit.)*
+*(Character count 499, under Play's 500 limit.)*
 
 ### What's new since v4.0.2 (for reference — not the Play-facing blurb above)
 
