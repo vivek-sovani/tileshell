@@ -8134,3 +8134,12 @@ app icon," not a loose group of coloured squares. The About sheet/Personalize he
 (no plate — the mosaic there is a wordmark accompaniment, not standing in for the app icon).
 
 Build + full unit test suite green. Needs the user's own on-device confirmation.
+
+## Glance page's branding icon shrunk
+
+Direct follow-up, user-reported: "size can be little smaller." `TileLogoMark` gained `cell`/`gap`
+params (default 18dp/3dp, unchanged for the About/Personalize headers) instead of hardcoding them, so
+just the glance page's plated instance could shrink (13dp/2dp cell/gap, plate padding 10dp → 7dp)
+without affecting the other two call sites, which weren't part of this complaint.
+
+Build + full unit test suite green. Needs the user's own on-device confirmation.

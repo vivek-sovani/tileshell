@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.design.SheetStage
@@ -461,9 +462,7 @@ fun AboutSheet(
  * (user-requested: "it should be colorful just like app icon").
  */
 @Composable
-fun TileLogoMark(modifier: Modifier = Modifier) {
-    val gap = 3.dp
-    val cell = 18.dp
+fun TileLogoMark(modifier: Modifier = Modifier, cell: Dp = 18.dp, gap: Dp = 3.dp) {
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(gap)) {
         Column(verticalArrangement = Arrangement.spacedBy(gap)) {
             Box(Modifier.size(cell).background(Color(0xFF2B78E4)))

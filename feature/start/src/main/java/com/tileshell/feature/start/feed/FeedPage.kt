@@ -351,9 +351,9 @@ fun FeedPage(
                 modifier = Modifier
                     .clip(SquircleShape())
                     .background(Color(0xFF0A0A0D))
-                    .padding(10.dp),
+                    .padding(7.dp),
             ) {
-                TileLogoMark()
+                TileLogoMark(cell = 13.dp, gap = 2.dp)
             }
         }
         GlanceRow(glance = glance, clock = clock, fg = feedFg, fgDim = feedFgDim)
