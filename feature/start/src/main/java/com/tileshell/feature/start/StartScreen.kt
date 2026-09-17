@@ -336,6 +336,18 @@ fun StartScreen(
     onOpenNotifications: () -> Unit = {},
 ) {
     val tiles by viewModel.tiles.collectAsStateWithLifecycle()
+    // The "main" (unsectioned) page only — see SectionBlocks.kt's TileBlock doc:
+    // sections are swipeable pages, and the unsectioned block is always the
+    // first one, "the anchor/home page you land on before swiping into named
+    // ones". WallpaperStartPreview packs whatever list it's given as one flat
+    // grid with no notion of blocks/pages at all, so feeding it every tile
+    // (main page + every named section mixed together) produced a jumbled
+    // arrangement unrelated to any real page — user-reported ("wallpaper
+    // preview should always show main page... now it shows some unidentified
+    // page"). Filtering to just the unsectioned tiles here is enough to make
+    // the preview always show that one anchor page, matching what "main page"
+    // means in this app.
+    val mainPageTiles = remember(tiles) { tiles.filter { it.sectionId == null } }
     val swipeEnabled by viewModel.swipeEnabled.collectAsStateWithLifecycle()
     val editMode by viewModel.editMode.collectAsStateWithLifecycle()
     val selectedTileId by viewModel.selectedTileId.collectAsStateWithLifecycle()
@@ -2218,7 +2230,7 @@ fun StartScreen(
         // fade-out) — read at call time, not the moment now null.
         WallpaperCropOverlayHost(
             uri = pendingWallpaperCropUri,
-            tiles = tiles,
+            tiles = mainPageTiles,
             settings = settings,
             accent = accent,
             wallpaperGradient = wallpaper,
@@ -2245,7 +2257,7 @@ fun StartScreen(
         // only the alignment is written — the image/daily-mode are left untouched.
         WallpaperCropOverlayHost(
             uri = if (adjustingWallpaper) settings.customWallpaperUri else null,
-            tiles = tiles,
+            tiles = mainPageTiles,
             settings = settings,
             accent = accent,
             wallpaperGradient = wallpaper,
