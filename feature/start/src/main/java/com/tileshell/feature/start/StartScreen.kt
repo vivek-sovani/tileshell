@@ -103,6 +103,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -1392,6 +1393,7 @@ fun StartScreen(
                     },
                     onAssignTileSection = viewModel::setTileSection,
                     pagerProgress = progress.value,
+                    livePagerProgress = { progress.value },
                     activeBlockIndex = activeBlockIndex,
                     // A drag can only ever originate on the page currently on
                     // screen, so activeBlockIndex IS the source index for
@@ -2543,6 +2545,13 @@ private fun StartPage(
     // caller (StartScreen) so this composable never needs its own separate
     // active-block state to keep in sync.
     pagerProgress: Float = 0f,
+    // A *live*-reading variant of [pagerProgress] for the cross-page drag
+    // ghost below — that runs inside a suspend gesture loop (not
+    // recomposition), so it needs to re-read the animating value fresh
+    // every tick rather than see whatever [pagerProgress] snapshot this
+    // composable happened to be recomposed with. Defaults to that snapshot
+    // for any caller that doesn't provide a live one.
+    livePagerProgress: () -> Float = { pagerProgress },
     activeBlockIndex: Int = 0,
     // Drag a top-level tile to the screen edge to carry it onto the
     // neighboring page — [direction] is -1 (earlier/left) or 1 (later/
@@ -2570,6 +2579,13 @@ private fun StartPage(
     val order = remember { mutableStateListOf<String>() }
     var draggingId by remember { mutableStateOf<String?>(null) }
     val dragOffset = remember { mutableStateOf(IntOffset.Zero) }
+    // A cross-page drag's own floating visual (see CrossPageDragGhost below):
+    // the dragged tile's id and its live offset relative to this composable's
+    // own outer Box — set once the drag crosses a screen edge (its source
+    // page's own in-grid rendering is invisible from then on, since that
+    // page has slid off-screen), cleared the moment it's released.
+    var crossPageDragId by remember { mutableStateOf<String?>(null) }
+    var crossPageDragOffset by remember { mutableStateOf(Offset.Zero) }
 
     // Gesture-based drag resize (Stage 2 of the icons-mode arc). resizingId is
     // the tile currently under a resize handle; resizePreviewSize is the
@@ -3244,6 +3260,12 @@ private fun StartPage(
                     mergeTargetId = null
                     onCrossPageDrop(tileId, direction, targetSlot)
                 },
+                blockIndex = blockIndex,
+                livePagerProgress = livePagerProgress,
+                onCrossPageDragPosition = { tileId, offset ->
+                    crossPageDragId = tileId
+                    if (offset != null) crossPageDragOffset = offset
+                },
             )
 
             DenseTileGrid(
@@ -3581,6 +3603,26 @@ private fun StartPage(
         } // end per-page Box(translationX)
         } // end key(block.sectionId ?: "__unsectioned__") [outer]
         } // end blockRenders.forEachIndexed
+
+        // Cross-page drag's own floating visual: the dragged tile's real
+        // in-grid rendering lives inside its source page's own DenseTileGrid,
+        // invisible once that page has slid off-screen mid-carry — this is
+        // what lets the user actually see (a simplified stand-in for) the
+        // tile while continuing to aim it on the now-visible destination
+        // page, addressing the real gap the release-time-only design left
+        // (see docs/DECISIONS.md). Drawn last, so it's always on top.
+        crossPageDragId?.let { dragId ->
+            byId[dragId]?.let { model ->
+                CrossPageDragGhost(
+                    model = model,
+                    offsetPx = crossPageDragOffset,
+                    resizeGeom = resizeGeom,
+                    accent = accent,
+                    accentId = accentId,
+                    wallpaperAccent = wallpaperAccent,
+                )
+            }
+        }
 
         // App-list affordance (prototype .allapps-btn) with a settings button just
         // below it; both hidden in edit mode (personalize is on the edit bar there).
@@ -4573,6 +4615,60 @@ private fun PageDotsIndicator(count: Int, activeIndex: Int, tint: Color, modifie
 }
 
 /**
+ * The dragged tile's own floating stand-in during a cross-page carry (see
+ * `onCrossPageDragPosition`) — its real rendering lives inside its source
+ * page's `DenseTileGrid`, invisible once that page slides off-screen mid-
+ * carry, so without this the tile would appear to vanish the instant it
+ * crosses the edge even though the user is still actively holding it.
+ * Deliberately a simplified stand-in, not full parity with [TileView] (no
+ * live faces, badges, or folder mini-grid) — good enough to see and track
+ * what's being placed without re-deriving that whole rendering pipeline for
+ * a tile that's already off its own page's grid.
+ */
+@Composable
+private fun CrossPageDragGhost(
+    model: TileModel,
+    offsetPx: Offset,
+    resizeGeom: GridGeometry,
+    accent: Color,
+    accentId: String,
+    wallpaperAccent: Color?,
+) {
+    val tileOverride = when (model) {
+        is TileModel.App -> model.accentOverride
+        is TileModel.Folder -> model.accentOverride
+    }
+    val tileAccent = when {
+        tileOverride != null -> TileAccents.colorForOverride(tileOverride, accentId)
+        wallpaperAccent != null -> wallpaperAccent
+        else -> accent
+    }
+    val sizePx = resizeGeom.sizePx(TilePlacement(model.id, model.size, 0, 0))
+    val density = LocalDensity.current
+    Box(
+        modifier = Modifier
+            .offset { IntOffset(offsetPx.x.roundToInt(), offsetPx.y.roundToInt()) }
+            .size(with(density) { sizePx.width.toDp() }, with(density) { sizePx.height.toDp() })
+            .zIndex(20f)
+            .alpha(0.92f)
+            .clip(RoundedCornerShape(10.dp))
+            .background(tileAccent),
+        contentAlignment = Alignment.Center,
+    ) {
+        val iconKey = when (model) {
+            is TileModel.App -> model.iconKey
+            is TileModel.Folder -> "folder"
+        }
+        Icon(
+            imageVector = TileIcons[iconKey],
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(28.dp),
+        )
+    }
+}
+
+/**
  * The unsectioned ("main") page's own plain label header — shown only in
  * edit mode, alongside every named page's own [SectionHeader] (a page's name
  * is otherwise hidden, identified purely by swiping to it). Deliberately not
@@ -5491,6 +5587,20 @@ private fun Modifier.editDragGesture(
     // site), not left to whatever the destination page's placement engine
     // would auto-pick.
     onCrossPageDrop: (dragId: String, direction: Int, targetSlot: Int) -> Unit = { _, _, _ -> },
+    // This block's own fixed page index and a *live* reader of the pager's
+    // position (not a snapshot — this runs inside a suspend gesture loop,
+    // recomposition doesn't re-supply it) — together these let the floating
+    // drag ghost track the true, continuously-correct on-screen position
+    // throughout the page-shift animation and the aim-after-shift hold that
+    // follows it, expressed relative to the shared outer Box every block
+    // page's own translationX is already relative to (see the call site).
+    blockIndex: Int = 0,
+    livePagerProgress: () -> Float = { 0f },
+    // Reports the dragged tile's own live offset (relative to that same
+    // shared outer Box) once a cross-page carry is under way, so a floating
+    // visual can track it after its source page slides off-screen — null
+    // both before crossing and again once released.
+    onCrossPageDragPosition: (tileId: String?, offset: Offset?) -> Unit = { _, _ -> },
 ): Modifier = pointerInput(editMode, widthPx, columns, gapPx, byId, selectedId()) {
     // Re-keyed on byId so a resize/unpin mid-session refreshes the captured tile
     // sizes, and on the selected id so an in-edit selection switch refreshes the
@@ -5716,6 +5826,16 @@ private fun Modifier.editDragGesture(
                     // being aimed after the page has already shifted, instead
                     // of freezing the moment it crosses the edge.
                     change.consume()
+
+                    // The floating ghost's own live position, expressed
+                    // relative to the shared outer Box every block page's
+                    // translationX is already relative to — this DOES need
+                    // the live pager position (unlike the release-time slot
+                    // math above), since the ghost must visually track the
+                    // page-shift animation itself, not just its end state.
+                    val liveTranslationX = widthPx * (blockIndex - livePagerProgress())
+                    onCrossPageDragPosition(startId, Offset(liveTranslationX + (pos - grab).x, (pos - grab).y))
+
                     if (!change.pressed) {
                         val startIdSnapshot = startId
                         if (startIdSnapshot != null) {
@@ -5726,6 +5846,7 @@ private fun Modifier.editDragGesture(
                             val cell = geom.cellAt(correctedTopLeft, columns, widthCols)
                             onCrossPageDrop(startIdSnapshot, crossPageDirection, GridPacker.encodeSlot(cell.x, cell.y))
                         }
+                        onCrossPageDragPosition(null, null)
                         break
                     }
                     continue

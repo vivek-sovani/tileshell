@@ -7806,3 +7806,34 @@ would need its own separate render path outside any single page's clipped bounds
 flagged as a possible follow-up if the current middle ground isn't precise enough in practice.
 
 Build + full unit test suite green. Needs the user's own on-device confirmation.
+
+## Cross-page drag: a real floating ghost, not just an invisible-but-adjustable hold
+
+Direct same-day follow-up — the "keep aiming after the shift" entry above shipped with a known,
+accepted limitation (no visible tile during the hold, aiming by the destination page's own layout
+alone). The user tried it and pushed back: "not working as you described. tile should be visually seen
+when i drag" — asking for the floating visual after all, rather than accepting that trade-off.
+
+Built it without needing to hoist drag recognition to a page-spanning system, using the same
+coordinate-space insight as the release-time slot math, extended to a *live*, continuously-updating
+position: every block page's own `translationX = widthPx * (blockIndex - pagerProgress)` is relative to
+one shared outer Box, so `liveTranslationX + (touch's own local offset)` is *always* a valid position in
+that shared Box's own coordinate space — during the shift animation, after it settles, at any point —
+with no special-casing needed for "is the animation still running." The one new piece this needed that
+the release-time-only design didn't: a *live* reader of the pager's position (`livePagerProgress: () ->
+Float`, threaded from `StartScreen`'s `progress.value` down through `StartPage` into
+`editDragGesture`), since the ghost has to track the live shift animation itself, not just its resting
+value — the release-time slot computation still only needs the fixed per-page-crossed offset, unchanged.
+
+New `onCrossPageDragPosition(tileId, offset)` callback fires every tick once `crossPageTriggered`,
+reporting that live position; `null` on release. `CrossPageDragGhost` (a new small composable) renders
+a deliberately simplified stand-in for the dragged tile — its accent colour and icon, sized via the
+same `GridGeometry`/`resizeGeom` every tile already uses, but no live faces/badges/folder mini-grid —
+as the very last child of `StartPage`'s own outer Box, so it draws above every block page. The real
+in-grid tile (now on an off-screen page) and this ghost are never both visible at once by construction
+(the ghost only exists once `crossPageTriggered`, i.e. only once the source page has already started
+sliding away), so there's no risk of the two visuals appearing to double up.
+
+Build + full unit test suite green. Needs the user's own on-device confirmation — this is exactly the
+kind of live-drag-feel gesture ADB can't reliably synthesize, so a code-level review is as far as this
+can be verified without a real finger.
