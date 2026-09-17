@@ -7597,3 +7597,37 @@ always last. `SectionBlocksTest`'s two order-sensitive cases updated to match (`
 instead of `blocks.last()`, and the sequence assertion); the About/Guide sheet copy already written
 this session ("the last one is always main") corrected to "the first one is always main" before it
 shipped anywhere. Build + full unit test suite green.
+
+## Page-dot indicator uncovered a real "only works on main" bug affecting quick search/live tiles too
+
+User asked for a small dot indicator at the top of Start (one per page) since a page's name is
+hidden outside edit mode and there was otherwise no visible cue that Start has more than one page.
+Straightforward to add (`PageDotsIndicator`), but the user then reported it "is only shown on main
+page." Root-caused, and it's a real, more consequential bug than the indicator itself: `appListShown`
+(`val appListShown by remember { derivedStateOf { progress.value >= upper - 0.5f } }`, added when the
+pager was generalized to N block pages) has no `remember` key, so its calculation block — closing
+over the local `upper` — is created exactly once, on the very first composition, and never recreated
+even once the real `upper` value changes. Since `sections` is collected via
+`collectAsStateWithLifecycle()`, its very first composition can render before the real Room data has
+streamed in, i.e. with `sections = emptyList()` and `upper = 1f` — and that stale `upper` is what
+`appListShown` keeps comparing against forever after. With `upper` stuck at `1f`, `progress.value >=
+0.5f` reads true for every non-main block page's own resting position (1, 2, 3, ...), not just the
+real app list — so `appListShown` silently misreported "the app list is showing" any time the user
+was on any page other than main. This didn't just hide the page-dot indicator: `liveSuspended`
+(`appListShown || feedShown || personalizeOpen`) reads the same value, so **live tiles have been
+silently pausing on every non-main Start page** since the swipeable-pages change landed. Fixed with
+`remember(upper) { ... }`.
+
+The exact same stale-closure shape existed one more place, found by inspecting every other
+`remember { derivedStateOf { ... } }` in the file for the same pattern: `restingAtStart` (gates the
+two-finger quick-search/quick-panel swipes and the single-finger edge-swipe) used to mean "resting at
+progress ≈ 0" — correct back when Start was a single page at position 0, but never updated once Start
+became N pages — so those three gestures have likewise only worked on the main page since that
+change, silently doing nothing on any named section page. Fixed by checking "resting on the nearest
+integer, and that integer is a real block index (`0 until blockCount`)" instead of "resting at
+exactly 0," keyed on `blockCount` for the same reason.
+
+Both fixes needed only a `remember` key, not a behavior redesign — the underlying logic was already
+correct, it just never re-ran once the truly dynamic `blockCount`/`upper` stopped being effectively
+constant. Build + full unit test suite green; the page-dot indicator, quick search, quick panel, and
+edge-swipe still need the user's own on-device confirmation across more than one section page.

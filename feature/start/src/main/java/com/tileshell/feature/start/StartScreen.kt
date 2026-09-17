@@ -748,7 +748,17 @@ fun StartScreen(
     // that numeric slot, not a hardcoded `1f`, since Start itself may now
     // occupy several pager positions (one per section, plus the trailing
     // unsectioned page).
-    val appListShown by remember { derivedStateOf { progress.value >= upper - 0.5f } }
+    // Keyed on `upper` — without this, the derivedStateOf's calculation block
+    // is created once (on the very first composition, when `sections` may
+    // still be the collectAsStateWithLifecycle default empty list, i.e.
+    // `upper == 1f`) and never recreated, so it would keep comparing against
+    // that stale bound forever even once real section data raises `upper` —
+    // every non-main block page's resting position (progress 1, 2, 3, ...)
+    // is `>= 1f - 0.5f`, so every one of them would then misreport as "the
+    // app list is showing" (found via: page-dot indicator, and live tiles,
+    // both only working on the main page — `liveSuspended` below reads this
+    // same value).
+    val appListShown by remember(upper) { derivedStateOf { progress.value >= upper - 0.5f } }
     val feedShown by remember { derivedStateOf { progress.value <= -0.5f } }
     // An expanded folder no longer suspends live tiles — it's inline on Start,
     // not a separate full-screen surface, so there's nothing to pause behind.
@@ -830,7 +840,20 @@ fun StartScreen(
     // pager crosses the threshold; every other progress.value read in this file
     // is already deferred into a graphicsLayer block, which reads at draw time
     // and never recomposes. This one line was the exception.
-    val restingAtStart by remember { derivedStateOf { abs(progress.value) < 0.05f } }
+    //
+    // "Resting on Start" now means resting on ANY of its block pages
+    // (0 until blockCount), not just position 0 — real bug, found the same
+    // way as the appListShown one above: this used to just check `≈0`, back
+    // when Start was a single page at position 0, so quick search/quick
+    // panel/edge-swipe silently only worked on the main page and did nothing
+    // on any named section page. Keyed on `blockCount` for the same reason
+    // appListShown needed `upper` as a key.
+    val restingAtStart by remember(blockCount) {
+        derivedStateOf {
+            val rounded = progress.value.roundToInt()
+            abs(progress.value - rounded) < 0.05f && rounded in 0 until blockCount
+        }
+    }
     val anySheetOpen = personalizeOpen || aboutOpen || historyOpen || backupOpen ||
         foldersOpen || hiddenAppsOpen || addWidgetsOpen || (tasksOpen != null) || notesOpen ||
         (stickyNoteEditTileId != null) || (countdownEditTileId != null) || (sportsEditTileId != null) || (stockEditTileId != null) ||
