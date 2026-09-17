@@ -176,9 +176,11 @@ fun AboutSheet(
                     "the \"personalize\" tile is a normal start tile — drag, resize, or unpin it like any other",
                     "removed it by accident? pin it back from the app list's own \"personalize\" entry",
                     "start is organized into pages — swipe left/right between them; the first one is always \"main\", for anything you haven't grouped, with your named pages after it",
-                    "in edit mode, tap the \"+\" at the top to add a page, and use its name/←/→/× controls to rename, reorder, or remove it (tiles just ungroup, they're never deleted)",
+                    "a small dot row at the top shows how many pages there are and which one you're on, whenever there's more than one",
+                    "in edit mode, tap the \"+\" at the top to add a page; each page's own name (otherwise hidden) appears there too, with ←/→ to reorder it and a \"merge with main\" (×) button to ungroup its tiles back into main — tiles are never deleted",
                     "pinning an app (or one of its shortcuts, via \"more from this app\") always lands it on whichever page you were last viewing — no picker to answer",
-                    "drag a tile to the left or right edge of the screen to carry it onto a neighboring page",
+                    "drag a tile to the left or right edge of the screen to carry it onto a neighboring page — the page shifts right away and a floating preview of the tile lets you keep aiming before you let go",
+                    "already-pinned tile? select it in edit mode, tap its colour dot, and use \"move to page\" at the bottom of the colour picker to move it without dragging",
                     "on a page with room below its tiles, drag down from that empty space to pull them closer to your thumb; tap one to open it, or tap elsewhere to let go",
                 ),
             )

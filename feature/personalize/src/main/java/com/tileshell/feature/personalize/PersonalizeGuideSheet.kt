@@ -235,10 +235,11 @@ fun PersonalizeGuideSheet(
                 tokens = tokens,
                 items = listOf(
                     "start is organized into pages — swipe left/right to move between them; the first one is always \"main\", for anything you haven't grouped, with your named pages after it",
-                    "in edit mode, tap the \"+\" at the top of start to add a page; each page's own header (visible only while editing) lets you rename it, move it earlier/later with ←/→, or remove it (tiles just ungroup, they're never deleted)",
+                    "a small dot row at the top of start shows how many pages there are and which one you're on, whenever there's more than one — hidden in edit mode, since each page's own header shows its name there instead",
+                    "in edit mode, tap the \"+\" at the top of start to add a page; each page's own name (hidden the rest of the time) appears there too, with ←/→ to move it earlier/later and a \"merge with main\" (×) button that ungroups its tiles back into main — tiles are never deleted",
                     "pinning an app from the app list — \"pin to start\" or \"more from this app\" (its shortcuts and other activities) — always lands it on whichever page you were last viewing, no picker to answer",
                     "a live tile added from start's own edit-mode \"add live tiles\" lands the same way, on whichever page you were last viewing",
-                    "already-pinned tile? select it in edit mode, tap its colour dot, and use \"move to page\" at the bottom of the colour picker to move it somewhere else — or, in edit mode, drag it to the left or right edge of the screen to carry it onto a neighboring page directly",
+                    "already-pinned tile? select it in edit mode, tap its colour dot, and use \"move to page\" at the bottom of the colour picker to move it somewhere else — or, in edit mode, drag it to the left or right edge of the screen instead: the page shifts there right away, with a floating preview of the tile so you can keep aiming before releasing to drop it in place",
                     "on a page with room to spare below its tiles, drag down from that empty space to pull the tiles closer to your thumb — release to hold them there, tap one to open it (that also lets go), or tap the empty area to let go without doing anything",
                 ),
             )
