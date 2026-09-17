@@ -5806,6 +5806,17 @@ private fun Modifier.editDragGesture(
                     if (dir != 0) {
                         crossPageTriggered = true
                         crossPageDirection = dir
+                        // The vertical auto-scroll check below never runs
+                        // again once triggered (the branch right after this
+                        // one `continue`s past it) — stop it explicitly here
+                        // too, or it keeps scrolling whatever page is active
+                        // for the rest of the hold if it happened to already
+                        // be running the instant this fires (real bug, user-
+                        // reported: "tile ... still placed at bottom" — the
+                        // destination page had auto-scrolled itself to the
+                        // bottom during the aim-after-shift hold before the
+                        // eventual release).
+                        onAutoScroll(0)
                         onCrossPageShift(dir)
                     }
                 }

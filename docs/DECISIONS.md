@@ -7837,3 +7837,22 @@ sliding away), so there's no risk of the two visuals appearing to double up.
 Build + full unit test suite green. Needs the user's own on-device confirmation — this is exactly the
 kind of live-drag-feel gesture ADB can't reliably synthesize, so a code-level review is as far as this
 can be verified without a real finger.
+
+## Cross-page drag: fixed a runaway auto-scroll that dumped the tile at the bottom
+
+Direct same-day follow-up, user-reported: "visual is seen but tile is not placed where i release the
+finger it still placed at bottom." The release-time target-cell math itself is fine (verified again by
+re-deriving it from the same shared-coordinate-space relationship the ghost uses — the pager-progress
+term cancels out identically whether the shift animation has settled or not, so it's correct at any
+point in time). The actual bug: `editDragGesture`'s existing vertical near-edge auto-scroll check
+(`onAutoScroll`) sets a shared `autoScroll` value that drives a separate `LaunchedEffect` scrolling
+loop — once `crossPageTriggered`, that check is skipped for the rest of the gesture (the branch
+`continue`s past it), but nothing ever reset `autoScroll` back to `0` if it happened to already be
+non-zero at the exact instant the horizontal edge was crossed (plausible whenever the drag was also
+near the top/bottom of the screen when it crossed the side edge — not an unusual combination). With
+nothing to stop it, that scroll loop kept running for the entire aim-after-shift hold, scrolling
+whichever page was active all the way to its bottom before the eventual release — landing the tile far
+down the grid regardless of where the user actually released. Fixed with one `onAutoScroll(0)` call at
+the exact moment the cross-page shift triggers.
+
+Build + full unit test suite green. Needs the user's own on-device confirmation.
