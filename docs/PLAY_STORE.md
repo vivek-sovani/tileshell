@@ -166,27 +166,28 @@ data. Users can also clear app data via Android Settings at any time.
 ```
 TileShell 4.5.0
 
-• New: opt-in Start "sections" - group tiles, browse by scroll or
-  tabs, pin/move apps into a section
+• New: opt-in Start "pages" - group tiles, browse by scroll or
+  tabs, pin/move apps into a page
 • New: "widget cards" tile style (also on feed & quick panel); 3
   new wallpapers - nebula, ember, reef
 • Fixed: clock tile date no longer clipped; free-mode drag no
   longer displaces tiles; panchang shows real sunrise/sunset
 ```
 
-*(Character count 346, under Play's 500 limit.)*
+*(Character count 340, under Play's 500 limit.)*
 
 ### What's new since v4.0.2 (for reference — not the Play-facing blurb above)
 
-- **New: Start-screen "sections"** — an opt-in way to group tiles into named sections (Personalize ·
-  sections · "enable sections"; off by default, so nothing changes unless you turn it on). Browse
-  sections either by continuous scroll (each section's header + tiles sit inside a tinted panel, with
-  a jump-pill bar at the bottom to hop between them) or in a tabbed view (one section fills the screen
-  at a time, switched via a dropdown pill). Reorder, rename, or remove a section from its own header;
-  pin a new app straight into a specific section from the App List, or move an already-pinned tile
-  into one from its colour picker; a section (or its pill/dropdown entry) shows a summed notification
+- **New: Start-screen "pages"** — an opt-in way to group tiles into named pages (Personalize ·
+  sections · "enable sections" in the app's own menus — this changelog calls them "pages" as the
+  friendlier user-facing term; off by default, so nothing changes unless you turn it on). Browse
+  pages either by continuous scroll (each page's header + tiles sit inside a tinted panel, with
+  a jump-pill bar at the bottom to hop between them) or in a tabbed view (one page fills the screen
+  at a time, switched via a dropdown pill). Reorder, rename, or remove a page from its own header;
+  pin a new app straight into a specific page from the App List, or move an already-pinned tile
+  into one from its colour picker; a page (or its pill/dropdown entry) shows a summed notification
   badge across everything inside it, even while collapsed or not the active tab. In the tabbed view,
-  drag down from empty space below a short section's tiles to slide them within one-handed reach.
+  drag down from empty space below a short page's tiles to slide them within one-handed reach.
 - **New: "widget cards" tile style**, and it's no longer Start-only. A 4th tile background style —
   no flat fill, no outline, just the tile's own content over a translucent, wallpaper-showing card
   with its own corner-radius and gap so tiles read as distinct raised panes (like a home-screen
