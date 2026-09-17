@@ -3741,6 +3741,11 @@ private fun StartPage(
                     TextButton(onClick = {
                         confirmRemovePageId = null
                         onRemovePageAndTiles(sectionId)
+                        // The page you were editing is gone — the pager lands you on
+                        // whichever page is now adjacent, but there's nothing left to
+                        // edit *there* on your behalf, so edit mode exits too rather
+                        // than leaving you editing a page you didn't ask to edit.
+                        onExitEdit()
                     }) { Text("remove") }
                 },
                 dismissButton = {

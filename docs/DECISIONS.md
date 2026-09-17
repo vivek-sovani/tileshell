@@ -7968,6 +7968,14 @@ missed. Every other branch of the reclamp effect (`feedShown`, the plain coerce)
 
 Reproduced the bug first via adb-driven taps on the physical device (create a page → remove it →
 landed on the app list, confirming the exact failure the user reported), then confirmed the fix
-compiles and the reclamp logic is correct by inspection. Build + full unit test suite green — the
-corrected on-device behavior (lands on the adjacent page, not the app list) needs the user's own
-hands-on confirmation.
+compiles and the reclamp logic is correct by inspection. User confirmed on their own device: the
+adjacent page now shows correctly, but flagged a follow-up — edit mode stayed on afterward, now
+editing whatever page you landed on rather than the one you actually asked to remove. Fixed by
+calling `onExitEdit()` right alongside `onRemovePageAndTiles` in the confirm dialog's button —
+mirrors the existing pattern (`onDone = onExitEdit` on the edit bar's own "done" button) rather than
+leaving the user mid-edit on a page they never chose to edit. "remove folder & tiles"'s own confirm
+deliberately keeps editing on afterward (unchanged) — you're still on the same page there, just minus
+one folder, so staying in edit mode to keep arranging the rest of that page is the useful default;
+removing a whole *page* has nothing left on it worth continuing to edit.
+
+Build + full unit test suite green.
