@@ -8001,3 +8001,15 @@ exit-edit-mode fix above. Cancelling just dismisses, unchanged from before. The 
 itself is unchanged and still backs the header's own tap-to-rename.
 
 Build + full unit test suite green.
+
+## About/guide docs updated for the top-right "remove page" control
+
+User-requested doc pass after the page-removal arc above. Both `AboutSheet.kt`'s "start screen" group
+and `PersonalizeGuideSheet.kt`'s "pages" group still described the header's now-removed inline
+"merge with main" (×) button and claimed "tiles are never deleted" — no longer true since "remove page
+& tiles" ships. Split into two bullets in both files: one for "+ add page" (now names the page via a
+dialog), one for the top-right "remove" control's two options — "merge with main" (nothing lost) and
+"remove page & tiles" (confirmed first, apps stay installed) — phrased to match the existing
+folder-actions bullet's own "confirmed first — apps stay installed" convention in both files.
+
+Build + full unit test suite green.
