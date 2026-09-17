@@ -2334,14 +2334,11 @@ private const val REACHABILITY_HELD_FRACTION = 0.7f
 
 // Drag-a-tile-to-a-neighboring-page (see editDragGesture's onCrossPageDrop):
 // how close to the left/right screen edge the dragged tile's own centre must
-// sit, and how long it must stay held there, to count as an intentional
-// carry rather than an ordinary reorder that happens to pass near the edge.
-// Both are fresh, explicit choices for this gesture specifically — not
-// reused from the 430ms tile long-press or 700ms app-list-pin thresholds
-// elsewhere in this file, per DECISIONS.md "Drag a tile to the screen edge
-// to carry it onto a neighboring page."
+// sit before the page shifts and the move commits, immediately, right there
+// — no dwell/hold requirement (a deliberate simplification per direct user
+// request, see docs/DECISIONS.md). A fresh, explicit choice for this gesture
+// specifically, not reused from any other zone width elsewhere in this file.
 private const val CROSS_PAGE_DRAG_EDGE_ZONE_DP = 32f
-private const val CROSS_PAGE_DRAG_DWELL_MS = 550L
 
 private fun folderChildTileId(folderId: String, rowId: Long): String =
     "$FOLDER_CHILD_ID_PREFIX$folderId:$rowId"
@@ -3227,7 +3224,6 @@ private fun StartPage(
                     }
                 },
                 crossPageEdgeZonePx = with(density) { CROSS_PAGE_DRAG_EDGE_ZONE_DP.dp.toPx() },
-                crossPageDwellMs = CROSS_PAGE_DRAG_DWELL_MS,
                 onCrossPageDrop = { tileId, direction, targetSlot ->
                     // This gesture's own onDrop (below) never fires for this
                     // branch — the tile is leaving this page entirely, so its
@@ -5467,13 +5463,13 @@ private fun Modifier.editDragGesture(
     // the synthetic id never lingers in `order` past the gesture.
     onFolderChildDensePreviewClear: (childId: String) -> Unit = {},
     // Carry a top-level tile onto a neighboring page by dragging it to the
-    // screen edge and holding it there — the drag-based counterpart to the
-    // per-tile colour picker's "move to page" chip. 0 (the default) disables
-    // it entirely for any caller that doesn't opt in, matching every other
+    // screen edge — the drag-based counterpart to the per-tile colour
+    // picker's "move to page" chip. Triggers immediately on first crossing
+    // into the zone, no dwell/hold required. 0 (the default) disables it
+    // entirely for any caller that doesn't opt in, matching every other
     // inert-by-default param above. A folder child is out of scope (checked
     // at the call site via [parseFolderChildId]) — it moves with its folder.
     crossPageEdgeZonePx: Float = 0f,
-    crossPageDwellMs: Long = 550L,
     // targetSlot is where on the destination page to land — computed from
     // where the tile was actually held/released (this block's own grid
     // geometry is identical to every other block's, so the same cell math
@@ -5636,14 +5632,14 @@ private fun Modifier.editDragGesture(
         var pulledOutDwellId: String? = null
         var pulledOutDwellAnchor = Offset.Zero
         var pulledOutDwellStartMs = 0L
-        // Cross-page carry: which screen edge (-1 left, 0 neither, 1 right)
-        // the dragged tile's own centre currently sits within
-        // [crossPageEdgeZonePx] of, and when it most recently started
-        // sitting there — reset the moment it leaves the zone, so only a
-        // single unbroken hold counts, mirroring the merge-dwell tracking
-        // above.
-        var edgeDir = 0
-        var edgeSinceMs = 0L
+        // Cross-page carry: fires once, immediately the first tick the
+        // dragged tile's own centre crosses into [crossPageEdgeZonePx] of a
+        // screen edge — no dwell/hold requirement (an explicit, deliberate
+        // simplification: the page shifts the instant you reach the edge,
+        // committing there and then, rather than only on release after a
+        // hold — see docs/DECISIONS.md). Guards every other per-tick branch
+        // below once true, since the tile has already left this page.
+        var crossPageTriggered = false
 
         while (true) {
             val event = awaitPointerEvent()
@@ -5662,6 +5658,33 @@ private fun Modifier.editDragGesture(
             }
 
             if (lifted) {
+                // Cross-page carry: fires once, the instant the dragged
+                // tile's own centre first crosses into [crossPageEdgeZonePx]
+                // of a screen edge — no dwell/hold required, the page shifts
+                // and the move commits right there (see docs/DECISIONS.md).
+                // Checked before consuming/dragging further so every branch
+                // below (merge/reorder/sticky/auto-scroll) is skipped for
+                // the rest of this gesture the moment it fires.
+                if (!crossPageTriggered && crossPageEdgeZonePx > 0f &&
+                    startId != null && parseFolderChildId(startId) == null
+                ) {
+                    val dragCentreX = (pos - grab).x + dragHalf.x
+                    val dir = when {
+                        dragCentreX < crossPageEdgeZonePx -> -1
+                        dragCentreX > widthPx - crossPageEdgeZonePx -> 1
+                        else -> 0
+                    }
+                    if (dir != 0) {
+                        crossPageTriggered = true
+                        val widthCols = byId[startId]?.size?.cols ?: 1
+                        val cell = geom.cellAt(pos - grab, columns, widthCols)
+                        onCrossPageDrop(startId, dir, GridPacker.encodeSlot(cell.x, cell.y))
+                    }
+                }
+                if (crossPageTriggered) {
+                    if (!change.pressed) break else continue
+                }
+
                 change.consume()
                 onDrag((pos - grab).round())
 
@@ -5979,45 +6002,10 @@ private fun Modifier.editDragGesture(
                         else -> 0
                     },
                 )
-
-                // Cross-page carry: track which screen edge (if any) the
-                // dragged tile's own centre currently sits within, purely in
-                // this block's own local x — it's a whole page wide (widthPx)
-                // and pages don't scroll horizontally within themselves, so
-                // no scroll-offset conversion is needed the way the vertical
-                // check above needs one. A folder child never qualifies (it
-                // moves with its folder, not on its own).
-                if (crossPageEdgeZonePx > 0f && startId != null && parseFolderChildId(startId) == null) {
-                    val dragCentreX = (pos - grab).x + dragHalf.x
-                    val newEdgeDir = when {
-                        dragCentreX < crossPageEdgeZonePx -> -1
-                        dragCentreX > widthPx - crossPageEdgeZonePx -> 1
-                        else -> 0
-                    }
-                    if (newEdgeDir != edgeDir) {
-                        edgeDir = newEdgeDir
-                        edgeSinceMs = change.uptimeMillis
-                    }
-                }
             }
 
             if (!change.pressed) {
-                val edgeHeld = edgeDir != 0 && change.uptimeMillis - edgeSinceMs >= crossPageDwellMs
                 when {
-                    // Released while held at the edge long enough: carry the
-                    // tile onto the neighboring page instead of the normal
-                    // reorder/merge/sticky-drop commit below — its position
-                    // within this page's own grid is moot once it's leaving.
-                    // The target cell comes from where it was actually
-                    // released, using this block's own geometry (every
-                    // block/page shares the same columns/gap/width) —
-                    // the same "top-left pixel -> (col,row)" math the
-                    // in-page sticky drop already uses.
-                    edgeHeld && startId != null -> {
-                        val widthCols = byId[startId]?.size?.cols ?: 1
-                        val cell = geom.cellAt(pos - grab, columns, widthCols)
-                        onCrossPageDrop(startId, edgeDir, GridPacker.encodeSlot(cell.x, cell.y))
-                    }
                     lifted || draggingId() != null -> {
                         if (startId != null && parseFolderChildId(startId) != null) {
                             if (pulledOut) {

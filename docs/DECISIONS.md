@@ -7743,3 +7743,29 @@ ViewModel method, given the added surface area that would need testing against s
 
 Build + full unit test suite green. Needs on-device confirmation, same as the cross-page-drop feature
 itself.
+
+## Cross-page drop: shift the page immediately on reaching the edge, not only on release
+
+Direct same-day follow-up, user-requested: "when i drag at edge can't you shift the page so that i can
+put properly" — the earlier release-time design (hold at the edge 550ms, then release to commit) never
+showed the destination page until after you let go, so there was no way to see what you were placing
+the tile relative to.
+
+A genuinely live version — the tile visually following the finger while continuing to see/adjust
+within the destination page's own grid — isn't reachable without a much bigger rework: Compose ties an
+in-progress touch to whichever `pointerInput` node first claimed it (this project's per-page
+`editDragGesture` instances are genuinely separate recognizers, one per block), so there's no way to
+hand an in-flight drag over to a different page's own grid mid-touch without hoisting the whole
+recognizer to a page-agnostic level. Given a straight choice between that larger rework and a smaller,
+still genuinely useful compromise, the user picked: **shift immediately, commit right there** — the
+instant the dragged tile's own centre first crosses into the edge zone (no more dwell/hold wait at all),
+the page shifts and the move commits on the spot, with no further re-aiming once past the edge.
+
+Mechanically: the dwell-and-check-on-release design is replaced by a one-shot `crossPageTriggered` flag
+checked at the very top of `lifted`'s per-tick handling, before `onDrag`/consume/any of the merge-
+reorder-sticky-autoscroll branches — the moment it fires, every one of those is skipped for the rest of
+the gesture (a guard at the top of the tick loop makes every subsequent tick an immediate no-op besides
+watching for release), since the tile has already left this page's own grid. `crossPageDwellMs`/
+`CROSS_PAGE_DRAG_DWELL_MS` are gone entirely — there's nothing left to time.
+
+Build + full unit test suite green. Needs the user's own on-device confirmation, same as before.
