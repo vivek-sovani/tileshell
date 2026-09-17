@@ -234,7 +234,7 @@ fun PersonalizeGuideSheet(
                 accent = accent,
                 tokens = tokens,
                 items = listOf(
-                    "start is organized into pages — swipe left/right to move between them; the last one is always \"main\" for anything you haven't grouped",
+                    "start is organized into pages — swipe left/right to move between them; the first one is always \"main\", for anything you haven't grouped, with your named pages after it",
                     "in edit mode, tap the \"+\" at the top of start to add a page; each page's own header (visible only while editing) lets you rename it, move it earlier/later with ←/→, or remove it (tiles just ungroup, they're never deleted)",
                     "pinning an app from the app list — \"pin to start\" or \"more from this app\" (its shortcuts and other activities) — always lands it on whichever page you were last viewing, no picker to answer",
                     "a live tile added from start's own edit-mode \"add live tiles\" lands the same way, on whichever page you were last viewing",

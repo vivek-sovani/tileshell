@@ -7581,3 +7581,19 @@ Build + full unit test suite green (`FeedFormatTest` extended for `pagerCommitTa
 On-device gesture verification (the actual swipe feel, edit-mode header visibility, left/right reorder)
 still needs the user's own hands-on pass, per this project's own established ADB-synthetic-swipe
 limitation.
+
+## "Main" moved back to first in the page sequence
+
+Direct same-day follow-up, user-requested: "main should be first in sequence." `blocksFor`
+(`SectionBlocks.kt`) previously appended the unsectioned/"main" block *last*, after every named
+section — a deliberate choice from this feature's earlier vertical-stacked-list era (named sections
+as the organized front-and-center content, "main" as the leftover area below them). Now that sections
+are swipeable pages rather than a stacked list, "main" reading as the anchor/home page you land on
+before swiping into named ones makes more sense — `blocksFor` now returns `listOf(unsectioned) +
+sectionBlocks` instead of `sectionBlocks + unsectioned`. Named-section reordering (`moveSection`/
+`swapSectionOrder`) is unaffected — it only ever permutes real `Section` entities among themselves;
+"main" was never one of those and isn't reorderable either way, just always first now instead of
+always last. `SectionBlocksTest`'s two order-sensitive cases updated to match (`blocks.first()`
+instead of `blocks.last()`, and the sequence assertion); the About/Guide sheet copy already written
+this session ("the last one is always main") corrected to "the first one is always main" before it
+shipped anywhere. Build + full unit test suite green.
