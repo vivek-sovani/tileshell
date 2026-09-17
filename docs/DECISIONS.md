@@ -8074,3 +8074,15 @@ intermediate one. Signed APK + AAB rebuilt and overwritten in place at
 `release-out/tileshell-4.5.0-release.{apk,aab}`; signing identity re-verified unchanged
 (`apksigner verify`, same SHA-256 cert digest as every prior release); `versionCode`/`versionName`
 confirmed via `aapt2 dump badging`.
+
+## Page-dot indicator moved from the top to the bottom of the screen
+
+Direct user follow-up, post-merge: "page indicators instead of top, place at bottom." Moved
+`PageDotsIndicator`'s call site (`StartScreen.kt`) from `Alignment.TopCenter`/`statusBarsPadding` to
+`Alignment.BottomCenter`/`navigationBarsPadding`, reusing the same dynamic bottom-offset pattern the
+app-list/quick-panel icon column already uses (`edgeStripVisible` — already computed once at this
+same outer scope — swaps the offset to clear `STRIP_THICK + 8.dp` when the edge strip is actually
+expanded, else a plain `14.dp`), so the dots never sit under the edge strip when it's showing. Every
+other gating condition (hidden with one page, while editing, over the feed/app list) is unchanged.
+
+Build + full unit test suite green. Needs the user's own on-device confirmation.

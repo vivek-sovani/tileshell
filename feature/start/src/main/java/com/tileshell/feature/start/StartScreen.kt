@@ -1611,22 +1611,30 @@ fun StartScreen(
             }
         }
 
-        // Small dot row at the top of the screen showing how many pages Start
+        // Small dot row at the bottom of the screen showing how many pages Start
         // has and which one is active — page names are hidden outside edit
         // mode (user-requested "just do it by scroll"), so this is the only
         // always-visible cue that there's more than one page to swipe to.
         // Hidden with a single page (nothing to indicate), while editing
         // (every page's own header already shows its name there), and while
-        // the feed/app-list is what's actually showing.
+        // the feed/app-list is what's actually showing. User-requested move
+        // from the top to the bottom; rises to clear the edge strip exactly
+        // like the app-list/quick-panel icon column does, via the same
+        // already-computed edgeStripVisible.
         if (blockCount > 1 && !editMode && !appListShown && !feedShown) {
+            val dotsBottomOffset by animateDpAsState(
+                targetValue = if (edgeStripVisible) STRIP_THICK + 8.dp else 14.dp,
+                animationSpec = spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMediumLow),
+                label = "pageDotsBottomOffset",
+            )
             PageDotsIndicator(
                 count = blockCount,
                 activeIndex = activeBlockIndex,
                 tint = Glass.faceTextColor(screenBackgroundIsLight),
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .statusBarsPadding()
-                    .padding(top = 8.dp),
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = dotsBottomOffset),
             )
         }
 
