@@ -4574,7 +4574,7 @@ private fun SectionHeader(
                 iconKey = "close",
                 rotationDegrees = 0f,
                 tint = textColor,
-                contentDescription = "remove page",
+                contentDescription = "merge with main",
                 onClick = onDelete,
             )
         }
