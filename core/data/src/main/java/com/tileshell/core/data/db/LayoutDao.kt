@@ -387,6 +387,41 @@ interface LayoutDao {
     }
 
     /**
+     * Dissolve [folderId] entirely, turning every one of its children into a
+     * fresh top-level app tile at once — the bulk counterpart to pulling
+     * children out one at a time via [removeFolderChild]. Looping
+     * [removeFolderChild] isn't safe for this: its last-child branch
+     * rewrites the *folder's own tile id* into a plain app tile rather than
+     * minting a fresh one, which would leave one survivor inconsistent with
+     * its newly-repinned siblings (a stale/reused id, not one of the fresh
+     * ones the caller generated). [newTiles] — one freshly-built
+     * [TileEntity] per child, in their existing relative order, positions
+     * already sequential — is built by the caller ([LayoutRepository
+     * .unfoldFolder]), mirroring [removeFolderChild]'s own field-copy
+     * convention. The folder tile and its meta are then dropped
+     * unconditionally — there's no survivor to keep, every child left.
+     */
+    @Transaction
+    suspend fun unfoldFolder(folderId: String, newTiles: List<TileEntity>) {
+        if (newTiles.isNotEmpty()) insertTiles(newTiles)
+        deleteTileById(folderId)
+        deleteFolderById(folderId)
+    }
+
+    /**
+     * Remove a folder and every one of its children from Start in one
+     * action — unlike [unfoldFolder], nothing is re-pinned; dropping the
+     * folder tile (cascading its [FolderChildEntity] rows) is the whole
+     * operation. Apps stay installed — this only unpins, the same as
+     * removing any other tile.
+     */
+    @Transaction
+    suspend fun removeFolderAndChildren(folderId: String) {
+        deleteTileById(folderId)
+        deleteFolderById(folderId)
+    }
+
+    /**
      * Pull one app out of a folder and place it as a top-level tile exactly
      * where a drag released it, instead of always appending to the bottom
      * ([removeFolderChild]'s tap-× shortcut). [gridSlot] anchors it directly

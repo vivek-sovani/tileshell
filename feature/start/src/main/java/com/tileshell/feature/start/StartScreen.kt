@@ -1349,6 +1349,8 @@ fun StartScreen(
                     },
                     onRenameFolder = { folderId, name -> viewModel.renameFolder(folderId, name) },
                     onToggleFolderStack = { folderId -> viewModel.toggleFolderStack(folderId) },
+                    onUnfoldFolder = viewModel::unfoldFolder,
+                    onRemoveFolderAndTiles = viewModel::removeFolderAndTiles,
                     onReorderFolderChildren = viewModel::reorderFolderChildren,
                     onChevron = { settleTo(upper) },
                     onEnterEdit = { id ->
@@ -2505,6 +2507,11 @@ private fun StartPage(
     onSetFolderChildColor: (folderId: String, rowId: Long, colorId: String?) -> Unit,
     onRenameFolder: (folderId: String, name: String) -> Unit,
     onToggleFolderStack: (folderId: String) -> Unit,
+    // "unfold folder" (dissolve, keeping every child as its own pinned tile)
+    // and "remove folder & tiles" (unpin the folder and every child at
+    // once) — both from the folder's own colour-picker sheet.
+    onUnfoldFolder: (folderId: String) -> Unit = {},
+    onRemoveFolderAndTiles: (folderId: String) -> Unit = {},
     onReorderFolderChildren: (List<FolderChild>) -> Unit,
     onChevron: () -> Unit,
     // Empty-space long-press passes null (enter edit with nothing selected).
@@ -2608,6 +2615,11 @@ private fun StartPage(
     var mergeTargetId by remember { mutableStateOf<String?>(null) }
     // Tile whose accent-colour picker is open (edit-mode colour dot tapped), or null.
     var colorPickerFor by remember { mutableStateOf<String?>(null) }
+    // Folder id pending confirmation for "remove folder & tiles" (a bulk,
+    // multi-tile unpin — worth a confirm, unlike "unfold folder" which loses
+    // nothing) — set once the picker's own button is tapped, shown after the
+    // picker sheet itself has closed.
+    var confirmRemoveFolderId by remember { mutableStateOf<String?>(null) }
     // Sticky-mode drag preview: id -> live push-down cell, recomputed on every
     // pointer move so the tiles a drop would displace visibly slide out of the
     // way *during* the drag (dense mode already got this for free via `order`
@@ -3715,6 +3727,11 @@ private fun StartPage(
                     else -> null
                 }
             }
+            // "unfold folder" / "remove folder & tiles": a real (not a
+            // folder-child pseudo-tile) folder only — same gating as the
+            // stack toggle above, minus its stack-eligibility condition
+            // (these two apply to any folder regardless of size/uniformity).
+            val isRealFolder = model is TileModel.Folder && childRef == null
             // The "show as icon"/"show as tile" toggle: single top-level app
             // tiles only (never a folder child — mirrors childRef != null
             // exclusion above, since FolderChild has no persisted field for
@@ -3747,6 +3764,16 @@ private fun StartPage(
                 onToggleStack = {
                     onToggleFolderStack(pickId)
                     colorPickerFor = null
+                },
+                unfoldFolderLabel = if (isRealFolder) "unfold folder" else null,
+                onUnfoldFolder = {
+                    onUnfoldFolder(pickId)
+                    colorPickerFor = null
+                },
+                removeFolderLabel = if (isRealFolder) "remove folder & tiles" else null,
+                onRemoveFolderAndTiles = {
+                    colorPickerFor = null
+                    confirmRemoveFolderId = pickId
                 },
                 iconToggleLabel = iconToggle?.first,
                 iconToggleIconKey = iconToggle?.second,
@@ -3789,6 +3816,31 @@ private fun StartPage(
                 onDismiss = { colorPickerFor = null },
             )
         }
+
+        // "remove folder & tiles" confirmation — a bulk, multi-tile unpin in
+        // one tap is worth guarding against an accidental press, unlike
+        // "unfold folder" (nothing is lost there, just ungrouped).
+        confirmRemoveFolderId?.let { folderId ->
+            AlertDialog(
+                onDismissRequest = { confirmRemoveFolderId = null },
+                title = { Text("remove folder & tiles?") },
+                text = {
+                    Text(
+                        "this folder and everything in it will be removed from start. " +
+                            "apps stay installed — you can pin them again any time from the app list.",
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmRemoveFolderId = null
+                        onRemoveFolderAndTiles(folderId)
+                    }) { Text("remove") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmRemoveFolderId = null }) { Text("cancel") }
+                },
+            )
+        }
     }
 }
 
@@ -3817,6 +3869,14 @@ private fun BoxScope.TileColorPicker(
     stackToggleLabel: String? = null,
     stackToggleIconKey: String? = null,
     onToggleStack: () -> Unit = {},
+    // "unfold folder" (dissolve, every child stays pinned as its own tile)
+    // and "remove folder & tiles" (unpin the folder and every child at
+    // once) — a real folder only (null hides each row), same as the stack
+    // toggle above.
+    unfoldFolderLabel: String? = null,
+    onUnfoldFolder: () -> Unit = {},
+    removeFolderLabel: String? = null,
+    onRemoveFolderAndTiles: () -> Unit = {},
     iconToggleLabel: String? = null,
     iconToggleIconKey: String? = null,
     onToggleIconDisplay: () -> Unit = {},
@@ -3956,6 +4016,56 @@ private fun BoxScope.TileColorPicker(
                 Text(stackToggleLabel, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
         }
+        if (unfoldFolderLabel != null) {
+            if (showColorOptions || stackToggleLabel != null) {
+                Spacer(Modifier.height(16.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.15f)))
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.White.copy(alpha = 0.12f))
+                    .clickable(onClick = onUnfoldFolder)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+            ) {
+                Icon(
+                    imageVector = TileIcons["folder"],
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(unfoldFolderLabel, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+        if (removeFolderLabel != null) {
+            if (showColorOptions || stackToggleLabel != null || unfoldFolderLabel != null) {
+                Spacer(Modifier.height(16.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.15f)))
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.White.copy(alpha = 0.12f))
+                    .clickable(onClick = onRemoveFolderAndTiles)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+            ) {
+                Icon(
+                    imageVector = TileIcons["close"],
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(removeFolderLabel, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            }
+        }
         if (iconToggleLabel != null) {
             if (showColorOptions) {
                 Spacer(Modifier.height(16.dp))
@@ -3982,7 +4092,9 @@ private fun BoxScope.TileColorPicker(
             }
         }
         if (sectionOptions != null) {
-            if (showColorOptions || stackToggleLabel != null || iconToggleLabel != null) {
+            if (showColorOptions || stackToggleLabel != null || unfoldFolderLabel != null ||
+                removeFolderLabel != null || iconToggleLabel != null
+            ) {
                 Spacer(Modifier.height(16.dp))
                 Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.15f)))
             }

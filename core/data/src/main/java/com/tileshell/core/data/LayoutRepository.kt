@@ -150,6 +150,37 @@ class LayoutRepository(
         )
 
     /**
+     * Dissolve a folder, turning every one of its children into a fresh
+     * top-level app tile at once — the "unfold folder" action. Mints one
+     * fresh id/colour per child, same convention as [removeFolderChild],
+     * appended in the folder's own section starting right after the current
+     * max position, in their existing relative order.
+     */
+    suspend fun unfoldFolder(folderId: String, children: List<FolderChild>) {
+        val folderSectionId = dao.sectionIdOf(folderId)
+        val base = dao.maxPosition() + 1
+        val newTiles = children.mapIndexed { index, child ->
+            TileEntity(
+                id = "pin-${child.packageName}-${System.currentTimeMillis()}-$index",
+                position = base + index,
+                size = child.size,
+                colorId = TileColors.defaultIdFor(child.packageName),
+                type = TileEntity.TYPE_APP,
+                packageName = child.packageName,
+                activityName = child.activityName,
+                label = child.label,
+                iconKey = child.iconKey,
+                accentOverride = child.accentOverride,
+                sectionId = folderSectionId,
+            )
+        }
+        dao.unfoldFolder(folderId, newTiles)
+    }
+
+    /** Remove a folder and every one of its children from Start in one action — the "remove folder & tiles" action. Apps stay installed, this only unpins. */
+    suspend fun removeFolderAndChildren(folderId: String) = dao.removeFolderAndChildren(folderId)
+
+    /**
      * Pull one app out of a folder and place it as a top-level tile exactly
      * where a drag released it (contrast [removeFolderChild], which always
      * appends to the bottom). [gridSlot] anchors it directly (sticky/free

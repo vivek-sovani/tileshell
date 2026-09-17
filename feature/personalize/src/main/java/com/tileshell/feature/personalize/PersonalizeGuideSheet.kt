@@ -226,6 +226,7 @@ fun PersonalizeGuideSheet(
                     "tap the folder icon on a selected folder or stack to expand it in place and manage its members",
                     "drag an app out of an open folder to drop it exactly where you release it on start, or onto another tile to merge into it",
                     "tap × on a selected tile to unpin it — inside an open folder or stack, that sends the member to the end of start without needing to drag",
+                    "a selected folder's colour picker also offers \"unfold folder\" (dissolves it — every app stays pinned to start, just no longer grouped) and \"remove folder & tiles\" (unpins the folder and everything in it at once, with a confirmation first — apps stay installed)",
                 ),
             )
 

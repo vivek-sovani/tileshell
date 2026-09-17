@@ -7882,3 +7882,30 @@ nothing stale to race against), and writes the section change and the resulting 
 itself is unchanged — every other, non-cross-page caller still calls it exactly as before.
 
 Build + full unit test suite green. Needs the user's own on-device confirmation.
+
+## Folder-level "unfold folder" and "remove folder & tiles"
+
+User request, drawing the direct parallel to the page-level "merge with main" just shipped: "for folder
+similar option needed, unfold all tiles, or delete the folder with all [tiles] inside." Landed as two
+new rows in the same per-tile colour-picker sheet the "show as stack" toggle already lives in, gated
+the same way (a real folder only, never a folder child — `childRef == null`):
+
+- **"unfold folder"** — dissolves the folder, turning every child into its own top-level pinned tile at
+  once (the bulk counterpart to dragging each child out one at a time). Nothing is lost, no
+  confirmation needed, same as "merge with main."
+- **"remove folder & tiles"** — unpins the folder and every one of its children from Start in one
+  action. Apps stay installed (same non-destructive "remove = unpin" convention every other removal in
+  this app already follows) — but unpinning several tiles in one tap is enough of a step up from a
+  single tile's own × that it gets a confirmation dialog first, unlike "unfold folder."
+
+Mechanically, looping the existing `removeFolderChild` once per child (the obvious first instinct) is
+unsafe: its own last-child branch rewrites the *folder's own tile id* into a plain app tile for the
+survivor rather than minting a fresh one, which would leave one child inconsistent with its
+newly-repinned siblings (a stale/reused id). Added dedicated bulk methods instead —
+`LayoutDao.unfoldFolder`/`removeFolderAndChildren`, `LayoutRepository.unfoldFolder` (mints one fresh
+id/colour per child, same convention as `removeFolderChild`, appended in the folder's own section) and
+`.removeFolderAndChildren`, `StartViewModel.unfoldFolder`/`.removeFolderAndTiles` — mirroring
+`toggleFolderStack`'s existing shape. The About sheet's "folders" group and the Personalize guide's
+"organizing tiles" group were both updated with both actions in the same pass.
+
+Build + full unit test suite green. Needs the user's own on-device confirmation.

@@ -1664,6 +1664,26 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * "unfold folder": dissolve a folder, turning every one of its children
+     * into their own top-level pinned tile at once — the bulk counterpart to
+     * dragging each child out one at a time. Nothing is lost; every child
+     * stays on Start, just no longer grouped.
+     */
+    fun unfoldFolder(folderId: String) {
+        val folder = tiles.value.firstOrNull { it.id == folderId } as? TileModel.Folder ?: return
+        viewModelScope.launch(writeContext) { repository.unfoldFolder(folderId, folder.children) }
+    }
+
+    /**
+     * "remove folder & tiles": remove the folder and every one of its
+     * children from Start in one action. Apps stay installed — like every
+     * other removal in this app, this only unpins.
+     */
+    fun removeFolderAndTiles(folderId: String) {
+        viewModelScope.launch(writeContext) { repository.removeFolderAndChildren(folderId) }
+    }
+
     /** Set or clear a folder child's own accent override (null = follow global, FR-7). */
     fun setFolderChildAccent(child: FolderChild, colorId: String?) {
         viewModelScope.launch(writeContext) { repository.setFolderChildAccent(child.rowId, colorId) }

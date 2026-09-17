@@ -271,6 +271,7 @@ fun AboutSheet(
                     "give a tile inside a folder its own colour, just like on start",
                     "drag an app out of a folder to place it exactly where you drop it on start — drop onto another tile to merge into it instead",
                     "tap × on an app inside a folder to unpin it straight to the end of start, without dragging",
+                    "select a folder and tap its colour dot for two whole-folder actions: \"unfold folder\" dissolves it while keeping every app pinned to start, and \"remove folder & tiles\" unpins the folder and everything inside it at once (confirmed first — apps stay installed either way)",
                     "folder shows a combined badge; each app shows its own inside",
                     "music keeps playing controls and album art live inside a folder",
                 ),
