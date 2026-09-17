@@ -237,6 +237,27 @@ Bugs fixed:
   others) pick readable text automatically against a light wallpaper-derived accent instead of
   staying hardcoded white.
 
+### Also folded into this same versionCode 450 — a re-cut, still never uploaded to Play
+
+- **New: an in-app "what's new" card**, shown once the first time you open TileShell after an
+  update (never on a genuinely fresh install), mirroring this exact Play listing's own "new
+  features"/"bugs fixed" text. Tap the version number in Personalize to bring it back up any time.
+- **New: a TileShell branding mark** on the glance page's greeting row (top-right, level with
+  "good morning") — the same 2×2 accent mosaic already shown in the About sheet, on its own icon
+  plate so it reads as the real app icon over the page's colourful background.
+- **Fixed: Nebula/Ember/Reef now scatter 11 circles across the whole canvas**, not just two in
+  opposite corners — the two-disc version read as nearly empty on a full-height lock screen. Quick
+  Panel and the glance page no longer show the crisp circles directly either (they didn't suit a
+  small chrome surface) — both now show a soft glow synthesized from the wallpaper's own two
+  colours instead, the same treatment a custom photo's palette already got.
+- **Fixed: the wallpaper preview** (shown while positioning a custom photo) could show a jumbled
+  mix of tiles from every page at once instead of your actual main page.
+- **Fixed: dragging a tile to a neighboring page** could leave its floating preview stuck on
+  screen if the drag was interrupted (e.g. by the system's own edge-back gesture) instead of
+  released normally.
+- Also included: the page-dot indicator moved from the top of Start to the bottom, clearing the
+  edge strip when it's expanded.
+
 ## Release notes (v4.0.2)
 
 *Same user-facing release notes as v4.0.1 and v4.0.0 below — none of those ever reached Play, so the

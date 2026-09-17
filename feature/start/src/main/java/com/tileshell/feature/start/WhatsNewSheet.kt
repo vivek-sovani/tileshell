@@ -130,9 +130,13 @@ private fun WhatsNewSection(title: String, accent: Color, items: List<String>) {
 internal const val WHATS_NEW_VERSION_CODE = 450
 private const val WHATS_NEW_VERSION_NAME = "4.5.0"
 
-// Kept word-for-word in sync with docs/PLAY_STORE.md's "Release notes (v4.5.0)"
-// Play-facing blurb — same content, no character limit here so each line can
-// read as a full sentence rather than a compressed bullet fragment.
+// Started word-for-word in sync with docs/PLAY_STORE.md's "Release notes (v4.5.0)"
+// Play-facing blurb (no character limit here, so each line reads as a full
+// sentence rather than a compressed bullet fragment). The two trailing fixes
+// were added in a later same-versionCode re-cut; per this project's own
+// convention the frozen Play blurb text isn't rewritten for a re-cut (see
+// "Also folded into this same versionCode 450" in PLAY_STORE.md instead) —
+// this in-app card reflects what's actually in the build, not that frozen text.
 private val WHATS_NEW_FEATURES = listOf(
     "icons home style — shaped app icons, 11 tile sizes",
     "live tiles: clock, weather, calendar & music stay live, even as icons",
@@ -146,6 +150,8 @@ private val WHATS_NEW_FIXES = listOf(
     "widgets & the feed no longer wake the device overnight",
     "fixed a stutter on every Start screen swipe",
     "notification bursts no longer freeze the UI",
+    "wallpaper preview now shows your actual main page, not a mix of every page",
+    "dragging a tile to another page no longer leaves its preview stuck on screen",
 )
 
 /**

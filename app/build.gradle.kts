@@ -603,6 +603,15 @@ android {
         //   ("merge with main" / "remove page & tiles", the same two-option pattern folders
         //   get too via "unfold folder" / "remove folder & tiles"). User-requested: the
         //   in-app terminology and this changelog both now say "pages," not "sections."
+        //   --- re-cut again at the same versionCode 450 (still never uploaded): a new in-app
+        //   "what's new" card (shown once after an update, reopenable from Personalize's version
+        //   pill), a TileShell branding mark on the glance page's greeting row, the page-dot
+        //   indicator moved to the bottom, the Nebula/Ember/Reef wallpapers reworked to 11
+        //   scattered circles (was 2 corner-only) with a synthesized soft glow on Quick Panel/
+        //   glance instead of the raw circles, a wallpaper-crop-preview fix (it could show a
+        //   jumbled mix of every page's tiles instead of just the main page), and a fix for the
+        //   cross-page drag ghost getting stuck on screen when the drag was interrupted instead
+        //   of released normally. See docs/PLAY_STORE.md "Release notes (v4.5.0)".
         versionCode = 450
         versionName = "4.5.0"
     }
