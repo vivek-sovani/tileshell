@@ -163,38 +163,29 @@ original format as the historical record, unchanged). Still capped at Play's 500
 
 ## Release notes (v4.5.0)
 
-*This release's blurb covers every major feature and bug fix back to v3.0.0, a one-time catch-up —
-v4.0.0/v4.0.1 never reached Play and v4.0.2's own notes only covered its own narrow slice, so no prior
-release ever actually described the full run of major work most real users have never seen listed.
-Future releases go back to describing only what's new in that release, using the same two-section
-format.*
+*Scoped to what's actually new since v4.0.2 (the last version uploaded to Play) — not a catch-up
+covering older releases. An earlier draft of this entry tried covering all the way back to v3.0.0,
+on the reasoning that v4.0.0/v4.0.1 never reached Play; reverted, since the update card a real user
+sees is generated fresh from whatever text is in Play Console at the moment a release is uploaded —
+it has nothing to do with which version they're updating from, so there's no real "catch-up" need.*
 
 ```
 TileShell 4.5.0
 
 New features:
-• Icons home style – shaped app icons, 11 tile sizes
-• 14 real Android widgets – use on any launcher
-• Glance gadgets – stocks, sports, extra calendars
-• Start now swipes between named pages
-• Widget-card tile style; 3 new wallpapers
+• Start supports multiple pages – swipe to switch
+• Widget-card tile style, also on feed & quick panel
+• 3 new wallpapers – nebula, ember, reef
 
 Bugs fixed:
-• 2 security holes letting other apps alter your data
-• Data loss on profile switch or folder creation
-• A launcher crash from background screenshot capture
-• Heavy battery drain from background widgets
+• Clock tile date no longer clipped
+• Free-mode drag no longer displaces tiles
+• Panchang widget shows real sunrise/sunset
 ```
 
-*(Character count 480, under Play's 500 limit.)*
+*(Character count 310, under Play's 500 limit.)*
 
 ### What's new since v4.0.2 (for reference — not the Play-facing blurb above)
-
-*This section details only the 4.0.2→4.5.0 delta — the features and fixes that are genuinely new in
-this release. The Play-facing blurb's "New features"/"security holes"/"data loss" bullets above draw
-on the full v3.0.0→v4.5.0 span; each earlier feature's own detail lives in that version's own "Release
-notes" section further down this document (v4.0.0's security/data-loss/crash audit, v3.6.0's glance
-gadgets, v3.0.0's icons home style, etc.) rather than being repeated here.*
 
 - **New: Start-screen "pages"** — swipe left/right on Start to move between named pages of tiles,
   the same gesture already used to reach the feed and app list, no menu involved. The first page is

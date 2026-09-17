@@ -8167,3 +8167,32 @@ notes" section for that feature's full detail, rather than re-narrating the whol
 
 480 characters, under Play's 500 limit. Documentation-only change — `docs/PLAY_STORE.md` isn't baked
 into the app, so no rebuild was needed.
+
+## Reverted the v3.0-catch-up scope; v4.5.0's blurb covers only its own changes
+
+Direct reversal of the entry above, same session. Several rounds of live iteration followed the
+initial "cover back to v3.0.0" decision — separating "live tiles" from the "14 gadgets/widgets"
+feature (they're genuinely different: live tiles are TileShell's own Start-screen tiles, gadgets are
+the catalog that became real, any-launcher widgets), narrowing "Bugs fixed" to battery/performance
+only, then reverting that narrowing back — each shown as a mockup of the actual Play update card via
+the visualize tool before touching any file, per the user's own standing rule from this same thread:
+"always confirm what is getting included."
+
+The user then asked a genuine mechanics question — how does a user on an *older* version see what's
+in the *next* one, since the old app can't know anything about a release it hasn't seen — and the
+answer clarified why the whole v3.0-catch-up premise didn't hold: the "what's new" card Play shows is
+generated live from whatever text sits in Play Console at the moment a release is uploaded, entirely
+independent of which version the user is updating from. There's no real "the last actual upload was
+v4.0.2, so this needs to catch a user up from there" logic on Play's side — every install always sees
+the newest uploaded version's own text, never a merged history. That premise had driven the whole
+v3.0.0-catch-up idea, so once it didn't hold, the catch-up was reverted rather than kept as a curiosity.
+
+v4.5.0's `## Release notes` entry now describes only its own three features (pages, widget-card tile
+style, three wallpapers) and three fixes (clock tile date clipping, FREE-mode drag, Panchang sunrise/
+sunset) — 310 characters, comfortably under Play's 500-character limit. The standing "New features:"/
+"Bugs fixed:" two-section format convention (declared for every release from v4.5.0 onward, in the note
+directly above the `## Release notes (v4.5.0)` heading) is unchanged — only the *scope* of what v4.5.0
+itself describes reverted. The "for reference" detailed changelog section underneath (developer-facing,
+never shown to users) still documents the same v4.0.2→v4.5.0 delta as before, unaffected by this.
+
+Documentation-only change — no rebuild needed.
