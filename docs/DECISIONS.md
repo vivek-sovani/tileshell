@@ -8104,3 +8104,19 @@ the taller two-line "good morning, `<name>`" variant. Uses the page's own alread
 (wallpaper-derived when that tile-colour source is active), matching the rest of the glance page.
 
 Build + full unit test suite green. Needs the user's own on-device confirmation.
+
+## Branding mark: fixed brand colours instead of the accent, and added to Personalize's header
+
+Two direct follow-ups on the mark above. (1) User-reported: "it should be colorful just like app icon
+(currently it is shown in accent color)." `TileLogoMark` previously derived its four cells from the
+tile accent (varying alpha), so it recoloured with personalization instead of looking like the actual
+app icon. Now hardcodes the same four brand colours the real launcher icon uses (`app/src/main/res/
+drawable/ic_launcher_foreground.xml`: `#2B78E4` blue / `#C4287E` magenta / `#E2A200` amber / `#1F9E57`
+green) — the `accent: Color` parameter is gone (no longer used by the function; both call sites
+updated) since the mark no longer varies at all, by design. (2) User-requested: "also show the icon in
+personalise screen." `TileLogoMark` gained a `modifier: Modifier = Modifier` param for flexible
+placement, and `PersonalizeSheet.kt`'s header now shows it directly above the "personalize" title —
+same treatment as the About sheet's own header, for a consistent brand mark across every top-level
+sheet.
+
+Build + full unit test suite green. Needs the user's own on-device confirmation.

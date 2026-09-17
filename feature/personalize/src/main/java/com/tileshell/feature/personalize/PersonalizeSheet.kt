@@ -370,13 +370,17 @@ fun PersonalizeSheet(
                     .background(tokens.fgDim.copy(alpha = 0.5f)),
             )
 
+            // Branding mark, same as the About sheet's own header — user-requested
+            // ("also show the icon in personalise screen").
+            TileLogoMark(modifier = Modifier.padding(start = 20.dp, top = 6.dp))
+
             Text(
                 text = "personalize",
                 color = tokens.fg,
                 fontSize = 30.sp,
                 fontWeight = FontWeight.W200,
                 letterSpacing = (-1).sp,
-                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 14.dp),
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 14.dp),
             )
 
             // ---- android settings: quick jump to the real device Settings app,

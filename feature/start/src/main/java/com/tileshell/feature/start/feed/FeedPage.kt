@@ -337,7 +337,7 @@ fun FeedPage(
             verticalAlignment = Alignment.Top,
         ) {
             GreetingHeader(userName = userName, hour = now.get(Calendar.HOUR_OF_DAY), fg = feedFg, fgDim = feedFgDim)
-            TileLogoMark(accent = accent)
+            TileLogoMark()
         }
         GlanceRow(glance = glance, clock = clock, fg = feedFg, fgDim = feedFgDim)
         SearchPill(accent = accent, tokens = tokens, onOpenQuickSearch = onOpenQuickSearch)

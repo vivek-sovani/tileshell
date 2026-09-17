@@ -113,7 +113,7 @@ fun AboutSheet(
                     .fillMaxWidth()
                     .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp),
             ) {
-                TileLogoMark(accent = accent)
+                TileLogoMark()
                 Spacer(Modifier.height(14.dp))
                 Text(
                     text = "tileshell",
@@ -453,21 +453,25 @@ fun AboutSheet(
 
 /**
  * Compact 2×2 tile grid mark representing the launcher. Public (not private) so
- * the feed's glance page can reuse it as a small branding mark next to the
- * greeting.
+ * the feed's glance page and Personalize sheet can reuse it as a small
+ * branding mark. Colours are the real launcher icon's own four fixed brand
+ * accents (see `app/src/main/res/drawable/ic_launcher_foreground.xml`) —
+ * deliberately fixed, not derived from the user's chosen tile accent, so this
+ * mark reads as "the actual app icon" regardless of personalization
+ * (user-requested: "it should be colorful just like app icon").
  */
 @Composable
-fun TileLogoMark(accent: Color) {
+fun TileLogoMark(modifier: Modifier = Modifier) {
     val gap = 3.dp
     val cell = 18.dp
-    Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(gap)) {
         Column(verticalArrangement = Arrangement.spacedBy(gap)) {
-            Box(Modifier.size(cell).background(accent))
-            Box(Modifier.size(cell).background(accent.copy(alpha = 0.5f)))
+            Box(Modifier.size(cell).background(Color(0xFF2B78E4)))
+            Box(Modifier.size(cell).background(Color(0xFFE2A200)))
         }
         Column(verticalArrangement = Arrangement.spacedBy(gap)) {
-            Box(Modifier.size(cell).background(accent.copy(alpha = 0.7f)))
-            Box(Modifier.size(cell).background(accent.copy(alpha = 0.35f)))
+            Box(Modifier.size(cell).background(Color(0xFFC4287E)))
+            Box(Modifier.size(cell).background(Color(0xFF1F9E57)))
         }
     }
 }
