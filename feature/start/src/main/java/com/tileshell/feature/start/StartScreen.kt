@@ -363,6 +363,7 @@ fun StartScreen(
     val edgeStripOpen by viewModel.edgeStripOpen.collectAsStateWithLifecycle()
     val quickPanelOpen by viewModel.quickPanelOpen.collectAsStateWithLifecycle()
     val homeStyleWizardOpen by viewModel.homeStyleWizardOpen.collectAsStateWithLifecycle()
+    val whatsNewOpen by viewModel.whatsNewOpen.collectAsStateWithLifecycle()
     val searchOpen by viewModel.searchOpen.collectAsStateWithLifecycle()
     // Hoisted above the EdgeStrip composable so its expanded/collapsed state survives
     // being unmounted while personalize/edit-mode/a folder is on top (it used to live
@@ -2187,6 +2188,24 @@ fun StartScreen(
             HomeStyleWizardScreen(
                 onChoose = viewModel::chooseHomeStyle,
                 onSkip = viewModel::skipHomeStyleWizard,
+            )
+        }
+
+        // "What's new" card — one-time, shown only to a device that has
+        // already run TileShell before (never alongside the wizard above,
+        // which owns a genuinely fresh install's first impression instead;
+        // whatsNewOpen and homeStyleWizardOpen are mutually exclusive by
+        // construction in StartViewModel.init). Suppressed while any other
+        // overlay chrome is up, same condition set showUpdateBanner already
+        // uses, so it never appears mid-edit, over the app list, or stacked
+        // behind/in front of another sheet.
+        if (whatsNewOpen && !editMode && !isAppList && expandedFolderId == null &&
+            !personalizeOpen && !searchOpen
+        ) {
+            WhatsNewSheet(
+                visible = true,
+                accentId = settings.accentId,
+                onDismiss = viewModel::dismissWhatsNew,
             )
         }
 

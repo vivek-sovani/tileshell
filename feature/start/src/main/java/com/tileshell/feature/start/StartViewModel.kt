@@ -348,6 +348,21 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val _homeStyleWizardOpen = MutableStateFlow(false)
     val homeStyleWizardOpen: StateFlow<Boolean> = _homeStyleWizardOpen.asStateFlow()
 
+    /**
+     * True while the one-shot "what's new in this version" card is open — see
+     * [WhatsNewSheet] and [WhatsNewPrefs]. Set in [init], only ever for a
+     * device that has already run TileShell before (never on a genuinely
+     * fresh install, which sees [homeStyleWizardOpen] instead — the two are
+     * mutually exclusive by construction, checked in the same `if`/`else`).
+     */
+    private val _whatsNewOpen = MutableStateFlow(false)
+    val whatsNewOpen: StateFlow<Boolean> = _whatsNewOpen.asStateFlow()
+
+    fun dismissWhatsNew() {
+        WhatsNewPrefs.markSeen(getApplication(), WHATS_NEW_VERSION_CODE)
+        _whatsNewOpen.value = false
+    }
+
     fun setAppList(value: Boolean) {
         _isAppList.value = value
     }
@@ -462,6 +477,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             migrateSettingsTile()
             if (!HomeStyleWizardPrefs.shown(getApplication())) {
                 _homeStyleWizardOpen.value = true
+            } else if (WhatsNewPrefs.shouldShow(getApplication(), WHATS_NEW_VERSION_CODE)) {
+                _whatsNewOpen.value = true
             }
         }
         // Resolve the news-region preset from the device locale before reconciling
@@ -1728,6 +1745,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         // skip (marks it shown) — same "never nags twice" rule every other
         // one-shot flag in this app follows.
         if (_homeStyleWizardOpen.value) skipHomeStyleWizard()
+        if (_whatsNewOpen.value) dismissWhatsNew()
         _homeRequests.tryEmit(Unit)
     }
 

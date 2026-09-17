@@ -8226,3 +8226,48 @@ hard 500-character limit if uploaded as-is. Fixed by restoring "&"; recounted di
 final file content (not a remembered figure) to confirm 499, with 1 character of margin.
 
 Documentation-only change — no rebuild needed.
+
+## New: "what's new" in-app card, shown once after updating
+
+User-requested ("implement this update feature in app") — after all the work drafting the Play Store
+"what's new" text, surface the same content inside TileShell itself, so a real user who updates
+actually sees it rather than the text only ever living in a doc used to fill in Play Console by hand.
+
+New `WhatsNewSheet.kt` (`:feature:start`): mirrors `FirstRunHint`'s exact shape (scrim + bottom card,
+tap-anywhere-or-"got it" to dismiss, `AnimatedVisibility(fadeIn/fadeOut)`) rather than inventing a new
+overlay style, since both are one-shot informational cards over Start. Content is two labeled bulleted
+sections ("new features"/"bugs fixed"), kept in sync by hand with `docs/PLAY_STORE.md`'s v4.5.0 Play-
+facing blurb — same wording, just without that doc's 500-character compression, so each line reads as
+a full sentence. `WHATS_NEW_VERSION_CODE = 450` is a hardcoded constant (this content isn't shipped
+from `docs/PLAY_STORE.md`, which isn't in the APK) that must be bumped by hand alongside `app/
+build.gradle.kts`'s own `versionCode` every time this content changes for a new release — noted
+explicitly in its own doc comment as a manual sync point, since nothing enforces it automatically.
+
+`WhatsNewPrefs` (same file) tracks the last versionCode a device has actually seen this card for,
+deliberately an `Int` rather than `FirstRunHintPrefs`'s plain `Boolean` — this needs to re-trigger on
+every future version bump, not just once ever. **A real logic bug caught before it shipped**: the
+first draft defaulted "never recorded" to `currentVersionCode` itself (so `shouldShow` read as
+`current < current` = always false) — meant to stop a fresh install from seeing it, but it also
+permanently stopped an *existing* user from ever seeing it for the version that introduces this
+feature, since their very first check would establish that same false baseline and no future bump
+would ever un-stick it (the next check reads the *new* current version as its own "never recorded"
+default too, repeating the same false negative forever). Fixed by defaulting to `0` instead — a real
+existing user's first-ever check now correctly reads `0 < 450` = true — and moving the "don't show on
+a genuinely fresh install" guard entirely to the call site instead: `StartViewModel.init` only
+consults `WhatsNewPrefs` at all in the `else` branch of the same `if (!HomeStyleWizardPrefs.shown(...))`
+check the first-run wizard already uses, so a fresh install (wizard shown instead) never reaches this
+check in the first place, and an upgrading install (wizard already marked shown, possibly from long
+before this feature existed) always gets a real `0` baseline on its first real check. `dismissWhatsNew()`
+calls `WhatsNewPrefs.markSeen` only on actual dismiss (matching `FirstRunHintPrefs`/`HomeStyleWizardPrefs`'s
+own mark-on-action convention, not mark-on-detect) and is also wired into `goHome()`'s existing
+force-close chain (alongside `skipHomeStyleWizard()`) so a Home/back press doesn't leave it stuck open
+forever.
+
+`StartScreen.kt`'s call site reuses `showUpdateBanner`'s own mutual-exclusion condition set (`!editMode
+&& !isAppList && expandedFolderId == null && !personalizeOpen && !searchOpen`) so the card never shows
+mid-edit, over the app list, over an expanded folder, or stacked behind another sheet — deliberately
+*not* hooked into the existing `UpdateBanner.kt`/`AppUpdateChecker.kt` machinery, which is a wholly
+separate, orthogonal concern (that one prompts *before* a Play Store update, reading Play's own Play
+Core API; this one fires *after*, reading nothing but a hardcoded local constant).
+
+Build + full unit test suite green.
