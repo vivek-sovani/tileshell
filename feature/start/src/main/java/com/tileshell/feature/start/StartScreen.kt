@@ -6089,7 +6089,22 @@ private fun Modifier.editDragGesture(
 
         while (true) {
             val event = awaitPointerEvent()
-            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+            val change = event.changes.firstOrNull { it.id == down.id }
+            if (change == null) {
+                // The pointer vanished without ever delivering a normal
+                // "finger up" (change.pressed == false) — e.g. the system's
+                // own edge-back gesture claiming the touch, which a
+                // cross-page drag's edge-hold makes far more likely to hit
+                // than an ordinary same-page drag. The cross-page ghost
+                // (CrossPageDragGhost, driven by onCrossPageDragPosition) is
+                // only ever cleared from the `!change.pressed` release branch
+                // below, so losing the pointer any other way left it floating
+                // on screen forever — user-reported: "drag ... two or more
+                // pages at a time then it doesn't move and the visual keeps
+                // hanging".
+                if (crossPageTriggered) onCrossPageDragPosition(null, null)
+                break
+            }
             val pos = change.position
             if (!moved && (pos - down.position).getDistance() > slop) moved = true
 
