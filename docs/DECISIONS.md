@@ -8271,3 +8271,20 @@ separate, orthogonal concern (that one prompts *before* a Play Store update, rea
 Core API; this one fires *after*, reading nothing but a hardcoded local constant).
 
 Build + full unit test suite green.
+
+## Tapping the about sheet's version pill re-opens "what's new" on demand
+
+Direct follow-up, user-requested: "on ver no displayed in features and info, if i tap on that show
+this whatsnew" — a way back into the card once it's already been auto-shown-and-dismissed, since
+[WhatsNewPrefs] otherwise means it's gone for good until the next version bump.
+
+`AboutSheet` gained `onVersionTap: () -> Unit = {}`; the existing "v4.5.0" pill in its header is now
+`clickable`, calling it. New `StartViewModel.reopenWhatsNew()` closes about and personalize (both
+`_aboutOpen`/`_personalizeOpen` set false in the same call) and sets `_whatsNewOpen.value = true`
+directly — unlike the auto-trigger in `init`, this bypasses `WhatsNewPrefs.shouldShow` entirely, since
+tapping the version is an explicit "show me again" request, not a first-time check. Necessarily closes
+about/personalize first: `WhatsNewSheet`'s own display condition in `StartScreen.kt` already excludes
+`personalizeOpen`, mirroring every other "jump to a different overlay from within this one" action in
+this file.
+
+Build + full unit test suite green.

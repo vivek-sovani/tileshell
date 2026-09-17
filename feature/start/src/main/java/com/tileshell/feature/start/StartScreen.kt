@@ -1824,6 +1824,7 @@ fun StartScreen(
             dark = dark,
             accentId = settings.accentId,
             onDismiss = viewModel::closeAbout,
+            onVersionTap = viewModel::reopenWhatsNew,
         )
 
         // How-to-personalize guide (personalize → guide; auto-shown once, see the

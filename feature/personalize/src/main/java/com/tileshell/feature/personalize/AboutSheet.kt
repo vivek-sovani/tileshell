@@ -48,6 +48,7 @@ fun AboutSheet(
     dark: Boolean,
     accentId: String,
     onDismiss: () -> Unit,
+    onVersionTap: () -> Unit = {},
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -131,10 +132,18 @@ fun AboutSheet(
                     letterSpacing = 0.sp,
                 )
                 Spacer(Modifier.height(10.dp))
+                // Tapping the version re-opens "what's new" on demand (user-
+                // requested), rather than only ever showing once after an
+                // actual update — a way back in once it's already been seen.
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .background(accent.copy(alpha = 0.15f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onVersionTap,
+                        )
                         .padding(horizontal = 10.dp, vertical = 4.dp),
                 ) {
                     Text(

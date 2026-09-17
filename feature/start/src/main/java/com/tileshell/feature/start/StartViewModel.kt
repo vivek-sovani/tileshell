@@ -570,6 +570,21 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         _aboutOpen.value = false
     }
 
+    /**
+     * Re-open the "what's new" card on demand — tapping the version pill in
+     * the about sheet (user-requested: "if i tap on that show this
+     * whatsnew"). Unlike the one-shot auto-trigger in [init], this always
+     * shows regardless of [WhatsNewPrefs]'s own already-seen state; closes
+     * about/personalize first since [whatsNewOpen]'s own display condition in
+     * `StartScreen.kt` is gated off while either is open (mirrors every other
+     * "jump to a different overlay from within this one" action in this file).
+     */
+    fun reopenWhatsNew() {
+        _aboutOpen.value = false
+        _personalizeOpen.value = false
+        _whatsNewOpen.value = true
+    }
+
     /** Open the how-to-personalize guide sheet (personalize → guide). */
     fun openPersonalizeGuide() {
         _personalizeGuideOpen.value = true
