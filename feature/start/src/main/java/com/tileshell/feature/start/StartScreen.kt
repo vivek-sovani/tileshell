@@ -1393,13 +1393,20 @@ fun StartScreen(
                     onAssignTileSection = viewModel::setTileSection,
                     pagerProgress = progress.value,
                     activeBlockIndex = activeBlockIndex,
+                    // A drag can only ever originate on the page currently on
+                    // screen, so activeBlockIndex IS the source index for
+                    // both callbacks below — no separate "which page did
+                    // this start on" plumbing needed.
+                    onCrossPageShift = { direction ->
+                        val targetIndex = (activeBlockIndex + direction).coerceIn(0, blockCount - 1)
+                        settleTo(targetIndex.toFloat())
+                    },
                     onCrossPageDrop = { tileId, direction, targetSlot ->
-                        // A drag can only ever originate on the page currently
-                        // on screen, so activeBlockIndex IS the source index —
-                        // no separate "which page did this start on" plumbing
-                        // needed. Block 0 is always the unsectioned "main"
-                        // page (see SectionBlocks.kt); every index after it
-                        // maps to sortedSections in order.
+                        // Block 0 is always the unsectioned "main" page (see
+                        // SectionBlocks.kt); every index after it maps to
+                        // sortedSections in order. The page itself already
+                        // shifted at onCrossPageShift — this only commits the
+                        // actual move, at wherever the touch ended up.
                         val targetIndex = (activeBlockIndex + direction).coerceIn(0, blockCount - 1)
                         val targetSectionId = sortedSections.getOrNull(targetIndex - 1)?.id
                         viewModel.setTileSection(tileId, targetSectionId)
@@ -1408,7 +1415,6 @@ fun StartScreen(
                         // engine would auto-pick — same slot-write path an
                         // ordinary in-page sticky drag-drop already uses.
                         viewModel.setTileGridSlot(tileId, targetSlot)
-                        settleTo(targetIndex.toFloat())
                     },
                     onAdd = {
                         viewModel.exitEdit()
@@ -2538,12 +2544,15 @@ private fun StartPage(
     // active-block state to keep in sync.
     pagerProgress: Float = 0f,
     activeBlockIndex: Int = 0,
-    // Drag a top-level tile to the screen edge and hold it there to carry it
-    // onto the neighboring page — [direction] is -1 (earlier/left) or 1
-    // (later/right), [targetSlot] is where on that page to land it (already
-    // computed from the drop position), resolved to an actual page +
-    // section + slot write by the caller (StartScreen), which is the one
-    // that knows blockCount/sortedSections/settleTo.
+    // Drag a top-level tile to the screen edge to carry it onto the
+    // neighboring page — [direction] is -1 (earlier/left) or 1 (later/
+    // right). [onCrossPageShift] fires once, immediately on crossing, to
+    // shift the pager there and then; [onCrossPageDrop] fires once, at
+    // release, with [targetSlot] (where on that page to land it, already
+    // computed from the drop position). Both resolved to real
+    // navigation/page/section/slot writes by the caller (StartScreen),
+    // which is the one that knows blockCount/sortedSections/settleTo.
+    onCrossPageShift: (direction: Int) -> Unit = {},
     onCrossPageDrop: (tileId: String, direction: Int, targetSlot: Int) -> Unit = { _, _, _ -> },
     onAdd: () -> Unit,
     onPersonalize: () -> Unit,
@@ -3224,6 +3233,7 @@ private fun StartPage(
                     }
                 },
                 crossPageEdgeZonePx = with(density) { CROSS_PAGE_DRAG_EDGE_ZONE_DP.dp.toPx() },
+                onCrossPageShift = onCrossPageShift,
                 onCrossPageDrop = { tileId, direction, targetSlot ->
                     // This gesture's own onDrop (below) never fires for this
                     // branch — the tile is leaving this page entirely, so its
@@ -5464,17 +5474,22 @@ private fun Modifier.editDragGesture(
     onFolderChildDensePreviewClear: (childId: String) -> Unit = {},
     // Carry a top-level tile onto a neighboring page by dragging it to the
     // screen edge — the drag-based counterpart to the per-tile colour
-    // picker's "move to page" chip. Triggers immediately on first crossing
-    // into the zone, no dwell/hold required. 0 (the default) disables it
-    // entirely for any caller that doesn't opt in, matching every other
-    // inert-by-default param above. A folder child is out of scope (checked
-    // at the call site via [parseFolderChildId]) — it moves with its folder.
+    // picker's "move to page" chip. The page shift ([onCrossPageShift])
+    // fires immediately on first crossing into the zone, no dwell/hold
+    // required; the actual move ([onCrossPageDrop]) only commits at
+    // release, so where it lands can still be adjusted after the shift. 0
+    // (the default) disables the whole feature for any caller that doesn't
+    // opt in, matching every other inert-by-default param above. A folder
+    // child is out of scope (checked at the call site via
+    // [parseFolderChildId]) — it moves with its folder.
     crossPageEdgeZonePx: Float = 0f,
+    onCrossPageShift: (direction: Int) -> Unit = {},
     // targetSlot is where on the destination page to land — computed from
-    // where the tile was actually held/released (this block's own grid
-    // geometry is identical to every other block's, so the same cell math
-    // applies regardless of which page it ends up on), not left to whatever
-    // the destination page's placement engine would auto-pick.
+    // wherever the touch was at release, converted into that page's own
+    // coordinate space (every page shares identical grid geometry, so a
+    // fixed page-width offset is all the conversion needs — see the call
+    // site), not left to whatever the destination page's placement engine
+    // would auto-pick.
     onCrossPageDrop: (dragId: String, direction: Int, targetSlot: Int) -> Unit = { _, _, _ -> },
 ): Modifier = pointerInput(editMode, widthPx, columns, gapPx, byId, selectedId()) {
     // Re-keyed on byId so a resize/unpin mid-session refreshes the captured tile
@@ -5632,14 +5647,16 @@ private fun Modifier.editDragGesture(
         var pulledOutDwellId: String? = null
         var pulledOutDwellAnchor = Offset.Zero
         var pulledOutDwellStartMs = 0L
-        // Cross-page carry: fires once, immediately the first tick the
-        // dragged tile's own centre crosses into [crossPageEdgeZonePx] of a
-        // screen edge — no dwell/hold requirement (an explicit, deliberate
-        // simplification: the page shifts the instant you reach the edge,
-        // committing there and then, rather than only on release after a
-        // hold — see docs/DECISIONS.md). Guards every other per-tick branch
-        // below once true, since the tile has already left this page.
+        // Cross-page carry: the page SHIFT fires once, immediately the first
+        // tick the dragged tile's own centre crosses into
+        // [crossPageEdgeZonePx] of a screen edge — no dwell/hold requirement.
+        // The actual COMMIT (section + slot) still waits for release, so the
+        // drop position can keep being adjusted after the shift instead of
+        // freezing the instant it crosses (see docs/DECISIONS.md).
+        // [crossPageDirection] is which edge triggered it (-1 left, 1 right),
+        // fixed for the rest of the gesture once set.
         var crossPageTriggered = false
+        var crossPageDirection = 0
 
         while (true) {
             val event = awaitPointerEvent()
@@ -5661,10 +5678,12 @@ private fun Modifier.editDragGesture(
                 // Cross-page carry: fires once, the instant the dragged
                 // tile's own centre first crosses into [crossPageEdgeZonePx]
                 // of a screen edge — no dwell/hold required, the page shifts
-                // and the move commits right there (see docs/DECISIONS.md).
-                // Checked before consuming/dragging further so every branch
-                // below (merge/reorder/sticky/auto-scroll) is skipped for
-                // the rest of this gesture the moment it fires.
+                // but the page shift itself fires only once (see
+                // docs/DECISIONS.md). Checked before consuming/dragging
+                // further so every branch below (merge/reorder/sticky/
+                // auto-scroll) is skipped from that point on — they're all
+                // scoped to this page's own tiles, meaningless once this
+                // tile is on its way to a different one.
                 if (!crossPageTriggered && crossPageEdgeZonePx > 0f &&
                     startId != null && parseFolderChildId(startId) == null
                 ) {
@@ -5676,13 +5695,40 @@ private fun Modifier.editDragGesture(
                     }
                     if (dir != 0) {
                         crossPageTriggered = true
-                        val widthCols = byId[startId]?.size?.cols ?: 1
-                        val cell = geom.cellAt(pos - grab, columns, widthCols)
-                        onCrossPageDrop(startId, dir, GridPacker.encodeSlot(cell.x, cell.y))
+                        crossPageDirection = dir
+                        onCrossPageShift(dir)
                     }
                 }
+
                 if (crossPageTriggered) {
-                    if (!change.pressed) break else continue
+                    // Still the same touch, still tracked by this page's own
+                    // gesture (Compose ties an in-progress touch to whichever
+                    // node first claimed it — there's no handing it to the
+                    // destination page's own grid instance) — but every
+                    // other page shares this page's exact column/gap/width,
+                    // so a fixed offset of one page-width per page crossed
+                    // converts this touch's own local x into "as if it were
+                    // already on the destination page," with no dependency
+                    // on the shift animation's live progress at all (that
+                    // term cancels out algebraically — see DECISIONS.md).
+                    // Real placement is computed once, at release, from
+                    // wherever the touch is then — this is what lets it keep
+                    // being aimed after the page has already shifted, instead
+                    // of freezing the moment it crosses the edge.
+                    change.consume()
+                    if (!change.pressed) {
+                        val startIdSnapshot = startId
+                        if (startIdSnapshot != null) {
+                            val correctedTopLeft = (pos - grab).copy(
+                                x = (pos - grab).x - widthPx * crossPageDirection,
+                            )
+                            val widthCols = byId[startIdSnapshot]?.size?.cols ?: 1
+                            val cell = geom.cellAt(correctedTopLeft, columns, widthCols)
+                            onCrossPageDrop(startIdSnapshot, crossPageDirection, GridPacker.encodeSlot(cell.x, cell.y))
+                        }
+                        break
+                    }
+                    continue
                 }
 
                 change.consume()

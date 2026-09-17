@@ -7769,3 +7769,40 @@ watching for release), since the tile has already left this page's own grid. `cr
 `CROSS_PAGE_DRAG_DWELL_MS` are gone entirely — there's nothing left to time.
 
 Build + full unit test suite green. Needs the user's own on-device confirmation, same as before.
+
+## Cross-page drag: keep adjusting the drop after the page shifts, instead of placing it instantly
+
+Direct same-day follow-up. The immediate-shift-and-commit version above traded away all control — the
+user pushed back: "can't we assign the new page to the tile and again enter into edit immediately so
+that i don't lose control of tile." Landed a real (if partial) answer, not the full continuous-visual-
+carry rework: the page **shift** still fires immediately on crossing into the edge zone (unchanged),
+but the actual **commit** (section reassignment + grid slot) now waits for release — so the same held
+touch keeps being usable to aim the drop after the destination page is already visible, instead of
+freezing the instant it crosses.
+
+The key realization that made this tractable without hoisting drag recognition to a page-spanning
+level: every block page shares *identical* grid geometry (columns, gap, width) and sits at the same
+base layout position, differing only by a `graphicsLayer { translationX = widthPx * (index -
+pagerProgress) }`. Converting a touch's local x from the source page's coordinate space into "as if it
+were already on the destination page" is pure algebra —
+`screenX = parentX + widthPx*(blockIndex - pagerProgress) + localX`, and setting two blocks' `screenX`
+equal (same physical finger) and solving shows the `pagerProgress` term cancels out completely, leaving
+`destLocalX = sourceLocalX - widthPx * direction` — a **fixed constant** offset, valid the instant the
+shift begins and throughout the entire transition, not something that needs to track the live shift
+animation at all. So the same `editDragGesture` instance that started the drag keeps consuming the same
+touch after `onCrossPageShift` fires (Compose ties an in-progress touch to whichever node first claimed
+it — genuinely can't hand it to the destination page's own grid instance), just applying this fixed
+correction to compute the eventual drop cell; every other per-tick branch (merge/reorder/sticky/auto-
+scroll, all scoped to the *source* page's own tiles) is skipped for the rest of the gesture, since
+they'd be meaningless once the tile is leaving. `onCrossPageDrop` — now purely the release-time commit,
+no longer also responsible for the page shift — computes the final `targetSlot` from the
+correction-adjusted position at that point.
+
+Known, accepted limitation: the dragged tile's own visual is still rendered inside the source page's
+`DenseTileGrid`, which is now off-screen — so nothing floats/follows visually during this extended
+hold; the user aims using the *destination page's own visible layout* as a reference, trusting the
+computed drop position, rather than watching the tile itself travel there. A true floating overlay
+would need its own separate render path outside any single page's clipped bounds — not attempted here,
+flagged as a possible follow-up if the current middle ground isn't precise enough in practice.
+
+Build + full unit test suite green. Needs the user's own on-device confirmation.
