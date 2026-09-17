@@ -7711,3 +7711,35 @@ source index with no extra plumbing needed to track "which page did this drag st
 Build + full unit test suite green. Needs the user's own on-device confirmation — this is exactly the
 kind of live-drag-feel gesture this project's own history repeatedly notes ADB can't reliably
 synthesize.
+
+## Cross-page tile drop lands where it was released, not wherever the destination page auto-picks
+
+Direct same-day follow-up, user-reported: "tile shift one page to another but the position on another
+page can not be [decided]" — the release-time cross-page drop above only reassigned the tile's section,
+leaving the destination page's own placement engine to auto-pick wherever it liked, with no way for the
+user to influence where it landed.
+
+Fixed by computing a real target cell from the actual drop position and writing it, instead of leaving
+it to auto-placement: `editDragGesture`'s edge-held release branch now also computes
+`geom.cellAt(pos - grab, columns, widthCols)` — the same "top-left pixel → (col, row)" geometry the
+in-page sticky drag-drop already uses (every page shares identical column count/gap/width, so this
+math is valid regardless of which page the tile ends up on) — and encodes it via
+`GridPacker.encodeSlot`. `onCrossPageDrop` gained a third argument, `targetSlot: Int`, threaded through
+the same `StartPage` → `StartScreen` path as before. `StartScreen`'s handler now calls
+`viewModel.setTileGridSlot(tileId, targetSlot)` right after `setTileSection`, reusing the exact same
+sticky/free placement-resolution path (`GridPacker.stickyPlacement`/`freePlacement`) an ordinary
+in-page drag-drop already goes through — collisions with whatever's already on the destination page at
+that cell are resolved the same way they always are.
+
+One accepted, documented risk: `setTileSection` and `setTileGridSlot` are two separate ViewModel calls
+(both serialized onto the same single-thread write dispatcher, so they can't literally race each
+other), but `setTileGridSlot`'s own placement computation reads the ViewModel's in-memory
+tiles/sections state, not a fresh DB read — if that state hasn't yet re-observed the just-written
+section change by the time the second call runs, the slot computation could momentarily still see the
+tile as belonging to its old section. Worst case this yields a slightly different cell than intended,
+resolved harmlessly by the placement engine's own collision handling — never a crash or corrupted
+data — so it was left as a known edge case rather than merging the two writes into one new atomic
+ViewModel method, given the added surface area that would need testing against sticky/free/dense modes.
+
+Build + full unit test suite green. Needs on-device confirmation, same as the cross-page-drop feature
+itself.

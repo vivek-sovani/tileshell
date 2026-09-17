@@ -1393,7 +1393,7 @@ fun StartScreen(
                     onAssignTileSection = viewModel::setTileSection,
                     pagerProgress = progress.value,
                     activeBlockIndex = activeBlockIndex,
-                    onCrossPageDrop = { tileId, direction ->
+                    onCrossPageDrop = { tileId, direction, targetSlot ->
                         // A drag can only ever originate on the page currently
                         // on screen, so activeBlockIndex IS the source index —
                         // no separate "which page did this start on" plumbing
@@ -1403,6 +1403,11 @@ fun StartScreen(
                         val targetIndex = (activeBlockIndex + direction).coerceIn(0, blockCount - 1)
                         val targetSectionId = sortedSections.getOrNull(targetIndex - 1)?.id
                         viewModel.setTileSection(tileId, targetSectionId)
+                        // Lands it where it was actually dropped instead of
+                        // wherever the destination page's own placement
+                        // engine would auto-pick — same slot-write path an
+                        // ordinary in-page sticky drag-drop already uses.
+                        viewModel.setTileGridSlot(tileId, targetSlot)
                         settleTo(targetIndex.toFloat())
                     },
                     onAdd = {
@@ -2538,10 +2543,11 @@ private fun StartPage(
     activeBlockIndex: Int = 0,
     // Drag a top-level tile to the screen edge and hold it there to carry it
     // onto the neighboring page — [direction] is -1 (earlier/left) or 1
-    // (later/right), resolved to an actual page + section reassignment by
-    // the caller (StartScreen), which is the one that knows blockCount/
-    // sortedSections/settleTo.
-    onCrossPageDrop: (tileId: String, direction: Int) -> Unit = { _, _ -> },
+    // (later/right), [targetSlot] is where on that page to land it (already
+    // computed from the drop position), resolved to an actual page +
+    // section + slot write by the caller (StartScreen), which is the one
+    // that knows blockCount/sortedSections/settleTo.
+    onCrossPageDrop: (tileId: String, direction: Int, targetSlot: Int) -> Unit = { _, _, _ -> },
     onAdd: () -> Unit,
     onPersonalize: () -> Unit,
     onAddWidgets: () -> Unit = {},
@@ -3222,7 +3228,7 @@ private fun StartPage(
                 },
                 crossPageEdgeZonePx = with(density) { CROSS_PAGE_DRAG_EDGE_ZONE_DP.dp.toPx() },
                 crossPageDwellMs = CROSS_PAGE_DRAG_DWELL_MS,
-                onCrossPageDrop = { tileId, direction ->
+                onCrossPageDrop = { tileId, direction, targetSlot ->
                     // This gesture's own onDrop (below) never fires for this
                     // branch — the tile is leaving this page entirely, so its
                     // position within this page's own grid is moot — reset
@@ -3230,7 +3236,7 @@ private fun StartPage(
                     autoScroll = 0
                     draggingId = null
                     mergeTargetId = null
-                    onCrossPageDrop(tileId, direction)
+                    onCrossPageDrop(tileId, direction, targetSlot)
                 },
             )
 
@@ -5468,7 +5474,12 @@ private fun Modifier.editDragGesture(
     // at the call site via [parseFolderChildId]) — it moves with its folder.
     crossPageEdgeZonePx: Float = 0f,
     crossPageDwellMs: Long = 550L,
-    onCrossPageDrop: (dragId: String, direction: Int) -> Unit = { _, _ -> },
+    // targetSlot is where on the destination page to land — computed from
+    // where the tile was actually held/released (this block's own grid
+    // geometry is identical to every other block's, so the same cell math
+    // applies regardless of which page it ends up on), not left to whatever
+    // the destination page's placement engine would auto-pick.
+    onCrossPageDrop: (dragId: String, direction: Int, targetSlot: Int) -> Unit = { _, _, _ -> },
 ): Modifier = pointerInput(editMode, widthPx, columns, gapPx, byId, selectedId()) {
     // Re-keyed on byId so a resize/unpin mid-session refreshes the captured tile
     // sizes, and on the selected id so an in-edit selection switch refreshes the
@@ -5997,7 +6008,16 @@ private fun Modifier.editDragGesture(
                     // tile onto the neighboring page instead of the normal
                     // reorder/merge/sticky-drop commit below — its position
                     // within this page's own grid is moot once it's leaving.
-                    edgeHeld && startId != null -> onCrossPageDrop(startId, edgeDir)
+                    // The target cell comes from where it was actually
+                    // released, using this block's own geometry (every
+                    // block/page shares the same columns/gap/width) —
+                    // the same "top-left pixel -> (col,row)" math the
+                    // in-page sticky drop already uses.
+                    edgeHeld && startId != null -> {
+                        val widthCols = byId[startId]?.size?.cols ?: 1
+                        val cell = geom.cellAt(pos - grab, columns, widthCols)
+                        onCrossPageDrop(startId, edgeDir, GridPacker.encodeSlot(cell.x, cell.y))
+                    }
                     lifted || draggingId() != null -> {
                         if (startId != null && parseFolderChildId(startId) != null) {
                             if (pulledOut) {
