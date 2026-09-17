@@ -156,6 +156,66 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
+## Release notes (v4.5.0)
+
+*Everything below is new since v4.0.2 (the last version actually uploaded to Play) — 50 commits on
+`main`, none of which had shipped to a real user before this release.*
+
+*"What's new" — newest release first. Keep under Play's 500-character limit.*
+
+```
+TileShell 4.5.0
+
+• New: opt-in Start "sections" - group tiles, browse by scroll or
+  tabs, pin/move apps into a section
+• New: "widget cards" tile style (also on feed & quick panel); 3
+  new wallpapers - nebula, ember, reef
+• Fixed: clock tile date no longer clipped; free-mode drag no
+  longer displaces tiles; panchang shows real sunrise/sunset
+```
+
+*(Character count 346, under Play's 500 limit.)*
+
+### What's new since v4.0.2 (for reference — not the Play-facing blurb above)
+
+- **New: Start-screen "sections"** — an opt-in way to group tiles into named sections (Personalize ·
+  sections · "enable sections"; off by default, so nothing changes unless you turn it on). Browse
+  sections either by continuous scroll (each section's header + tiles sit inside a tinted panel, with
+  a jump-pill bar at the bottom to hop between them) or in a tabbed view (one section fills the screen
+  at a time, switched via a dropdown pill). Reorder, rename, or remove a section from its own header;
+  pin a new app straight into a specific section from the App List, or move an already-pinned tile
+  into one from its colour picker; a section (or its pill/dropdown entry) shows a summed notification
+  badge across everything inside it, even while collapsed or not the active tab. In the tabbed view,
+  drag down from empty space below a short section's tiles to slide them within one-handed reach.
+- **New: "widget cards" tile style**, and it's no longer Start-only. A 4th tile background style —
+  no flat fill, no outline, just the tile's own content over a translucent, wallpaper-showing card
+  with its own corner-radius and gap so tiles read as distinct raised panes (like a home-screen
+  widget) rather than a borderless void. Tied to the existing "tile transparency" slider. The same
+  card material now also carries onto the feed page's weather/agenda/now-playing cards and every
+  Quick Panel tile (there, the on/off signal moves to the icon's own colour instead of the tile's
+  fill, since the card no longer changes shape between states); Quick Panel's brightness/volume
+  sliders got a matching frosted-glass restyle.
+- **New: three wallpapers — Nebula, Ember, and Reef.** Flat, hard-edged colour discs (not soft
+  glows), each a different colour pairing on identical geometry so they read as one family. The
+  wallpaper picker's swatch grid is now a proper 3-per-row layout (a leftover hardcoded "3 then
+  everything else" split had started producing a lopsided second row).
+- **Fixed: the clock tile's back face** no longer clips its date at larger sizes ("15 september
+  2026" could render as just "15" on a 2×2 tile). Rebuilt to match the calendar tile's own
+  day-number-hero layout — always fits, with weekday and month as small captions — and the
+  alarm caption now pairs its own weekday with its date too.
+- **Fixed: FREE tile arrangement mode no longer displaces an existing tile.** Dropping a dragged
+  tile onto an already-occupied cell used to swap it with whatever was there, even with free space
+  elsewhere on the grid — against FREE mode's whole premise that nothing moves unless you move it.
+  It now redirects to the nearest free cell instead, both in the live drag preview and in what
+  actually gets saved.
+- **Fixed: the Hindu Panchang widget's back face** no longer repeats the same tithi/month facts
+  it already shows on the front — it now shows real sunrise/sunset times and the current ayana
+  (uttarayana/dakshinayana), in Devanagari, on both the in-app tile and the real home-screen widget.
+- Also included: the tile-style picker wraps to a clearer 2×2 grid now that two of its four
+  labels are two words; selected accent-filled pills (theme, tile colour source, grid columns, and
+  others) pick readable text automatically against a light wallpaper-derived accent instead of
+  staying hardcoded white.
+
 ## Release notes (v4.0.2)
 
 *Same user-facing release notes as v4.0.1 and v4.0.0 below — none of those ever reached Play, so the

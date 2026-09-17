@@ -7278,3 +7278,31 @@ code is ever added here or a future AndroidX release ships unstripped libraries.
 plainly that it is currently inert, so nobody later mistakes it for a working fix. **No re-upload is
 needed for this warning**, and since 402 has now been uploaded, a later change would need a new
 versionCode anyway.
+
+## v4.5.0 (versionCode 450) — release cut
+
+User-requested: "create ver 4.5.0 release bundle, apk, and release notes by mentioning all changes
+after 4.0.2." Rolls up every commit merged to `main` since the 4.0.2 upload (50 commits, none of it
+previously shipped) into one signed release — the biggest single jump between two uploaded versions
+in this project's history, covering: the "widget cards" tile style and its extension onto the feed's
+glance cards and Quick Panel; three new disc wallpapers (nebula/ember/reef) plus the wallpaper-picker
+grid/`EdgeStripSheet` overflow fixes that came with them; the whole opt-in Start-screen "sections"
+feature (schema through two full browsing-mode passes, the section-scoped placement-engine bug hunt,
+and its many on-device-reported fixes); the clock tile's back-face rebuild; the FREE-mode drag-drop
+fix; and the Panchang widget's sunrise/sunset/ayana back face. See `docs/PLAY_STORE.md` "Release
+notes (v4.5.0)" for the full user-facing changelog — not duplicated here since every constituent
+change already has its own detailed entry earlier in this file (or, in a few smaller cases, only a
+descriptive commit message, per this project's own norm of not requiring a DECISIONS entry for every
+single commit).
+
+`app/build.gradle.kts`: `versionCode = 450` / `versionName = "4.5.0"`, following the established
+changelog-comment convention above the version fields. Signed release APK + AAB built via
+`bundleRelease`/`assembleRelease` off the existing `key.properties` keystore — same signing identity
+verified against every prior release (`apksigner verify`, SHA-256 cert digest unchanged), copied to
+`release-out/tileshell-4.5.0-release.{apk,aab}` per this project's own established artifact-naming
+convention. Build + full unit test suite green on `main` before cutting.
+
+Deliberately built from `main`, not the `start-sections` branch this same session had otherwise been
+working on — `start-sections` is its own separate, not-yet-merged experimental branch (a different,
+swipeable-pages take on "sections" than the tabbed/dropdown one already shipped on `main` in this same
+release), and merging an unrelated in-progress branch was never part of this request.

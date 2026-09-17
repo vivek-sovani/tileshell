@@ -579,8 +579,22 @@ android {
         //   not by review: weather_cache.pb was last written 22:24 and still being displayed at
         //   06:09 the next morning. Same demand-driven shape as the feed's refresh-on-open, using
         //   the cache's existing fetchedAtMillis; verified on-device in both directions.
-        versionCode = 402
-        versionName = "4.0.2"
+        //   v4.5.0 (code 450) — a real feature release covering everything merged to main
+        //   since 4.0.2 (50 commits, none of them shipped to Play yet): a new "widget cards"
+        //   tile style (translucent, wallpaper-showing cards with their own corner/gap
+        //   floors, carried onto the feed's glance cards and Quick Panel tiles too, plus
+        //   frosted sliders); three new hard-edged disc wallpapers (nebula/ember/reef) and a
+        //   fixed 3-per-row picker grid; an opt-in Start-screen "sections" feature (named tile
+        //   groups, off by default) with two browsing modes — a continuous scroll with tinted
+        //   panels and a jump-pill bar, or a tabbed one-section-at-a-time view with a section
+        //   dropdown — plus pin/move-to-section pickers and per-section notification badges;
+        //   a rebuilt clock-tile back face (day-number hero instead of clipped date text); a
+        //   FREE-arrangement fix so dropping a tile on an occupied cell no longer displaces
+        //   anything; and the Hindu Panchang widget's back face now shows real sunrise/sunset
+        //   times and the current ayana instead of repeating tithi info. See docs/PLAY_STORE.md
+        //   "Release notes (v4.5.0)" for the full changelog.
+        versionCode = 450
+        versionName = "4.5.0"
     }
 
     if (keystoreFile.exists()) {
