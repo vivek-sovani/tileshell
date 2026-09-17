@@ -156,29 +156,45 @@ data. Users can also clear app data via Android Settings at any time.
 | Phone screenshots | Min 2, 1080×1920 or 1440×2560 | Start screen, feed, personalize, edit mode |
 | 10" tablet screenshots | Optional | |
 
+*Format convention, effective v4.5.0 and every release after it: the "what's new" blurb below is two
+labeled sections — "New features:" and "Bugs fixed:" — each a short bulleted list, replacing the older
+"• New: / • Improved: / • Fixed:" per-line style used in every entry before this one (those keep their
+original format as the historical record, unchanged). Still capped at Play's 500-character limit.*
+
 ## Release notes (v4.5.0)
 
-*Everything below is new since v4.0.2 (the last version actually uploaded to Play), none of which had
-shipped to a real user before this release — including a same-versionCode re-cut that replaced the
-first pass's dropdown/tabbed page-switching with the swipeable-pages version described below, so this
-changelog already reflects the final, shipped behaviour rather than an intermediate design.*
-
-*"What's new" — newest release first. Keep under Play's 500-character limit.*
+*This release's blurb covers every major feature and bug fix back to v3.0.0, a one-time catch-up —
+v4.0.0/v4.0.1 never reached Play and v4.0.2's own notes only covered its own narrow slice, so no prior
+release ever actually described the full run of major work most real users have never seen listed.
+Future releases go back to describing only what's new in that release, using the same two-section
+format.*
 
 ```
 TileShell 4.5.0
 
-• New: Start is now organized into swipeable "pages" - group
-  tiles, drag a tile to the edge to move it to another page
-• New: "widget cards" tile style (also on feed & quick panel); 3
-  new wallpapers - nebula, ember, reef
-• Fixed: clock tile date no longer clipped; free-mode drag no
-  longer displaces tiles; panchang shows real sunrise/sunset
+New features:
+• Icons home style – shaped app icons, 11 tile sizes
+• 14 real Android widgets – use on any launcher
+• Glance gadgets – stocks, sports, extra calendars
+• Start now swipes between named pages
+• Widget-card tile style; 3 new wallpapers
+
+Bugs fixed:
+• 2 security holes letting other apps alter your data
+• Data loss on profile switch or folder creation
+• A launcher crash from background screenshot capture
+• Heavy battery drain from background widgets
 ```
 
-*(Character count 364, under Play's 500 limit.)*
+*(Character count 480, under Play's 500 limit.)*
 
 ### What's new since v4.0.2 (for reference — not the Play-facing blurb above)
+
+*This section details only the 4.0.2→4.5.0 delta — the features and fixes that are genuinely new in
+this release. The Play-facing blurb's "New features"/"security holes"/"data loss" bullets above draw
+on the full v3.0.0→v4.5.0 span; each earlier feature's own detail lives in that version's own "Release
+notes" section further down this document (v4.0.0's security/data-loss/crash audit, v3.6.0's glance
+gadgets, v3.0.0's icons home style, etc.) rather than being repeated here.*
 
 - **New: Start-screen "pages"** — swipe left/right on Start to move between named pages of tiles,
   the same gesture already used to reach the feed and app list, no menu involved. The first page is

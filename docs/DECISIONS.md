@@ -8143,3 +8143,27 @@ just the glance page's plated instance could shrink (13dp/2dp cell/gap, plate pa
 without affecting the other two call sites, which weren't part of this complaint.
 
 Build + full unit test suite green. Needs the user's own on-device confirmation.
+
+## Play Store "what's new" reformatted into "New features:" / "Bugs fixed:" sections, going forward
+
+User-requested, after reviewing a mockup of the Play Store update screen (rendered via the visualize
+tool before touching any file, so the wording could be approved first): a new standing format
+convention for every release's Play-facing blurb, replacing the old "• New: / • Improved: / • Fixed:"
+per-line style — two labeled sections, "New features:" then "Bugs fixed:", each a short bulleted list.
+Documented as a standing note in `docs/PLAY_STORE.md` right above the "Release notes" heading, marked
+effective from v4.5.0 onward; every earlier entry keeps its original format unchanged, as the
+historical record.
+
+v4.5.0's own blurb was rewritten in this format and, per direct request, expanded to cover the full
+run of major features and bug fixes back to v3.0.0 rather than just the v4.0.2→v4.5.0 delta — a
+one-time catch-up, since v4.0.0/v4.0.1 never reached Play and v4.0.2's own notes never described
+anything earlier, so no release has ever actually listed the full body of work most real users have
+never seen. The "since v3.0" framing itself is deliberately not stated inside the blurb text (user:
+"remove this from 3.0 label") — it's just "New features:"/"Bugs fixed:", explained instead in this
+doc's own surrounding note. Future releases go back to describing only that release's own delta, still
+in the same two-section format. The existing "What's new since v4.0.2" detailed reference section
+(developer-facing, not Play-facing) gained a note pointing to each earlier version's own "Release
+notes" section for that feature's full detail, rather than re-narrating the whole history there too.
+
+480 characters, under Play's 500 limit. Documentation-only change — `docs/PLAY_STORE.md` isn't baked
+into the app, so no rebuild was needed.
