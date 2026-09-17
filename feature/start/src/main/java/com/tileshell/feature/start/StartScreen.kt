@@ -1393,6 +1393,18 @@ fun StartScreen(
                     onAssignTileSection = viewModel::setTileSection,
                     pagerProgress = progress.value,
                     activeBlockIndex = activeBlockIndex,
+                    onCrossPageDrop = { tileId, direction ->
+                        // A drag can only ever originate on the page currently
+                        // on screen, so activeBlockIndex IS the source index —
+                        // no separate "which page did this start on" plumbing
+                        // needed. Block 0 is always the unsectioned "main"
+                        // page (see SectionBlocks.kt); every index after it
+                        // maps to sortedSections in order.
+                        val targetIndex = (activeBlockIndex + direction).coerceIn(0, blockCount - 1)
+                        val targetSectionId = sortedSections.getOrNull(targetIndex - 1)?.id
+                        viewModel.setTileSection(tileId, targetSectionId)
+                        settleTo(targetIndex.toFloat())
+                    },
                     onAdd = {
                         viewModel.exitEdit()
                         settleTo(upper)
@@ -2315,6 +2327,17 @@ private const val BORDERLESS_TILE_GAP_DP = 12f
 /** Fraction of the available travel a reachability pull settles at once held. */
 private const val REACHABILITY_HELD_FRACTION = 0.7f
 
+// Drag-a-tile-to-a-neighboring-page (see editDragGesture's onCrossPageDrop):
+// how close to the left/right screen edge the dragged tile's own centre must
+// sit, and how long it must stay held there, to count as an intentional
+// carry rather than an ordinary reorder that happens to pass near the edge.
+// Both are fresh, explicit choices for this gesture specifically — not
+// reused from the 430ms tile long-press or 700ms app-list-pin thresholds
+// elsewhere in this file, per DECISIONS.md "Drag a tile to the screen edge
+// to carry it onto a neighboring page."
+private const val CROSS_PAGE_DRAG_EDGE_ZONE_DP = 32f
+private const val CROSS_PAGE_DRAG_DWELL_MS = 550L
+
 private fun folderChildTileId(folderId: String, rowId: Long): String =
     "$FOLDER_CHILD_ID_PREFIX$folderId:$rowId"
 
@@ -2513,6 +2536,12 @@ private fun StartPage(
     // active-block state to keep in sync.
     pagerProgress: Float = 0f,
     activeBlockIndex: Int = 0,
+    // Drag a top-level tile to the screen edge and hold it there to carry it
+    // onto the neighboring page — [direction] is -1 (earlier/left) or 1
+    // (later/right), resolved to an actual page + section reassignment by
+    // the caller (StartScreen), which is the one that knows blockCount/
+    // sortedSections/settleTo.
+    onCrossPageDrop: (tileId: String, direction: Int) -> Unit = { _, _ -> },
     onAdd: () -> Unit,
     onPersonalize: () -> Unit,
     onAddWidgets: () -> Unit = {},
@@ -3190,6 +3219,18 @@ private fun StartPage(
                         val idx = ids.indexOf(childId).let { if (it >= 0) it else folderChildOrder.size }
                         folderChildOrder.add(idx.coerceIn(0, folderChildOrder.size), childId)
                     }
+                },
+                crossPageEdgeZonePx = with(density) { CROSS_PAGE_DRAG_EDGE_ZONE_DP.dp.toPx() },
+                crossPageDwellMs = CROSS_PAGE_DRAG_DWELL_MS,
+                onCrossPageDrop = { tileId, direction ->
+                    // This gesture's own onDrop (below) never fires for this
+                    // branch — the tile is leaving this page entirely, so its
+                    // position within this page's own grid is moot — reset
+                    // the shared drag state it would otherwise have cleaned up.
+                    autoScroll = 0
+                    draggingId = null
+                    mergeTargetId = null
+                    onCrossPageDrop(tileId, direction)
                 },
             )
 
@@ -5419,6 +5460,15 @@ private fun Modifier.editDragGesture(
     // the folder block, enters a merge, or the gesture ends for any reason, so
     // the synthetic id never lingers in `order` past the gesture.
     onFolderChildDensePreviewClear: (childId: String) -> Unit = {},
+    // Carry a top-level tile onto a neighboring page by dragging it to the
+    // screen edge and holding it there — the drag-based counterpart to the
+    // per-tile colour picker's "move to page" chip. 0 (the default) disables
+    // it entirely for any caller that doesn't opt in, matching every other
+    // inert-by-default param above. A folder child is out of scope (checked
+    // at the call site via [parseFolderChildId]) — it moves with its folder.
+    crossPageEdgeZonePx: Float = 0f,
+    crossPageDwellMs: Long = 550L,
+    onCrossPageDrop: (dragId: String, direction: Int) -> Unit = { _, _ -> },
 ): Modifier = pointerInput(editMode, widthPx, columns, gapPx, byId, selectedId()) {
     // Re-keyed on byId so a resize/unpin mid-session refreshes the captured tile
     // sizes, and on the selected id so an in-edit selection switch refreshes the
@@ -5575,6 +5625,14 @@ private fun Modifier.editDragGesture(
         var pulledOutDwellId: String? = null
         var pulledOutDwellAnchor = Offset.Zero
         var pulledOutDwellStartMs = 0L
+        // Cross-page carry: which screen edge (-1 left, 0 neither, 1 right)
+        // the dragged tile's own centre currently sits within
+        // [crossPageEdgeZonePx] of, and when it most recently started
+        // sitting there — reset the moment it leaves the zone, so only a
+        // single unbroken hold counts, mirroring the merge-dwell tracking
+        // above.
+        var edgeDir = 0
+        var edgeSinceMs = 0L
 
         while (true) {
             val event = awaitPointerEvent()
@@ -5910,10 +5968,36 @@ private fun Modifier.editDragGesture(
                         else -> 0
                     },
                 )
+
+                // Cross-page carry: track which screen edge (if any) the
+                // dragged tile's own centre currently sits within, purely in
+                // this block's own local x — it's a whole page wide (widthPx)
+                // and pages don't scroll horizontally within themselves, so
+                // no scroll-offset conversion is needed the way the vertical
+                // check above needs one. A folder child never qualifies (it
+                // moves with its folder, not on its own).
+                if (crossPageEdgeZonePx > 0f && startId != null && parseFolderChildId(startId) == null) {
+                    val dragCentreX = (pos - grab).x + dragHalf.x
+                    val newEdgeDir = when {
+                        dragCentreX < crossPageEdgeZonePx -> -1
+                        dragCentreX > widthPx - crossPageEdgeZonePx -> 1
+                        else -> 0
+                    }
+                    if (newEdgeDir != edgeDir) {
+                        edgeDir = newEdgeDir
+                        edgeSinceMs = change.uptimeMillis
+                    }
+                }
             }
 
             if (!change.pressed) {
+                val edgeHeld = edgeDir != 0 && change.uptimeMillis - edgeSinceMs >= crossPageDwellMs
                 when {
+                    // Released while held at the edge long enough: carry the
+                    // tile onto the neighboring page instead of the normal
+                    // reorder/merge/sticky-drop commit below — its position
+                    // within this page's own grid is moot once it's leaving.
+                    edgeHeld && startId != null -> onCrossPageDrop(startId, edgeDir)
                     lifted || draggingId() != null -> {
                         if (startId != null && parseFolderChildId(startId) != null) {
                             if (pulledOut) {

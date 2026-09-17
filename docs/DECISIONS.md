@@ -7673,3 +7673,41 @@ while a folder is expanded, unrelated to this bug), not fixed in this pass.
 Build + full unit test suite green. Both fixes need the user's own on-device confirmation: dragging a
 tile down a scrolled page no longer auto-scrolls spuriously, and a blank-space scroll (up or down)
 works throughout a page that also has 2+ block pages.
+
+## Drag a tile to the screen edge to carry it onto a neighboring page
+
+Explicitly deferred earlier in this branch's own history ("Not attempted in this pass... needs a
+genuinely separate floating-overlay rendering path for the dragged tile"), now built per direct user
+request ("carry out the work of dragging tile to another page"). Landed a **release-time** design
+instead of the originally-sketched continuous-carry one, trading a little visual polish for
+substantially lower risk: holding a tile at the left/right screen edge for `CROSS_PAGE_DRAG_DWELL_MS`
+(550ms — a fresh, explicit choice, not reused from the 430ms tile long-press or 700ms app-list-pin
+thresholds) arms the move, but nothing happens until release — at that point the tile's section is
+reassigned (reusing the existing `onAssignTileSection`/`setTileSection` plumbing the colour picker's
+"move to page" chip already uses, so `gridSlot` clears for free the same way) and the pager settles to
+the destination page in one motion. The originally-sketched version wanted the tile to visually follow
+the finger continuously across the page transition; the release-time trade avoids that entirely — the
+tile stays put in its own page's `DenseTileGrid` throughout the hold (no floating overlay, no cross-
+block hand-off of an in-flight gesture) and only "moves" at the moment of release, landing already
+correctly placed on the destination page.
+
+Mechanically, all inside the existing `editDragGesture` (`StartScreen.kt`), new inert-by-default params
+(`crossPageEdgeZonePx = 0f`, `crossPageDwellMs`, `onCrossPageDrop`) so every other caller/behaviour is
+unaffected. A drag's own local x (already in the block's own 0..widthPx content space — pages don't
+scroll horizontally within themselves the way they scroll vertically, so no coordinate conversion is
+needed the way the existing vertical auto-scroll check needs one) is tracked against the edge zone
+every tick; only on release, if held there long enough, does `onCrossPageDrop(startId, direction)` fire
+**instead of** the normal reorder/merge/sticky-drop commit — folder children are excluded outright
+(`parseFolderChildId(startId) == null`), since a child moves with its folder, not on its own.
+`StartPage`'s own wiring resets the shared `draggingId`/`mergeTargetId`/`autoScroll` state on this path
+(since the normal `onDrop` callback, which usually does that cleanup, is deliberately skipped), then
+forwards to `StartScreen`, which is the one composable that actually knows `blockCount`/
+`sortedSections`/`settleTo` — computed there as `targetIndex = (activeBlockIndex + direction).coerceIn
+(0, blockCount - 1)`, `targetSectionId = sortedSections.getOrNull(targetIndex - 1)?.id` (block 0 is
+always "main"/null, matching the earlier "main first" decision), then `setTileSection` + `settleTo`.
+A drag can only ever originate on the page currently on screen, so `activeBlockIndex` doubles as the
+source index with no extra plumbing needed to track "which page did this drag start on."
+
+Build + full unit test suite green. Needs the user's own on-device confirmation — this is exactly the
+kind of live-drag-feel gesture this project's own history repeatedly notes ADB can't reliably
+synthesize.
