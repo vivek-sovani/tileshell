@@ -362,33 +362,6 @@ class SettingsCodecTest {
         )
         assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
     }
-
-    @Test
-    fun `sectionPillAlignment decodes, bad value keeps default, round-trips`() {
-        assertEquals(SectionPillAlignment.START, LauncherSettings().sectionPillAlignment)
-
-        assertEquals(SectionPillAlignment.END, SettingsCodec.decode("sectionPillAlignment=END").sectionPillAlignment)
-
-        assertEquals(
-            SectionPillAlignment.START,
-            SettingsCodec.decode("sectionPillAlignment=GARBLED").sectionPillAlignment,
-        )
-
-        val s = LauncherSettings(sectionPillAlignment = SectionPillAlignment.CENTER)
-        assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
-    }
-
-    @Test
-    fun `sectionsEnabled decodes and bad value keeps default`() {
-        assertEquals(false, LauncherSettings().sectionsEnabled)
-        assertEquals(true, SettingsCodec.decode("sectionsEnabled=true").sectionsEnabled)
-        assertEquals(
-            LauncherSettings().sectionsEnabled,
-            SettingsCodec.decode("sectionsEnabled=nope").sectionsEnabled,
-        )
-        val s = LauncherSettings(sectionsEnabled = true)
-        assertEquals(true, SettingsCodec.decode(SettingsCodec.encode(s)).sectionsEnabled)
-    }
 }
 
 class LiveRefreshRateResolveMsTest {

@@ -184,7 +184,6 @@ import com.tileshell.core.data.settings.FontStyle
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.data.settings.LiveRefreshRate
-import com.tileshell.core.data.settings.SectionPillAlignment
 import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.data.settings.TilePackMode
@@ -366,17 +365,19 @@ fun StartScreen(
     // being unmounted while personalize/edit-mode/a folder is on top (it used to live
     // inside EdgeStrip itself and reset to expanded every time the strip remounted).
     var edgeStripExpanded by remember { mutableStateOf(true) }
-    // Mirrors StartPage's own internal "which section tab is active" state
-    // (StartPage.onActiveSectionChange), so a live tile added from outside
-    // StartPage (the "add live tiles" sheet, the weather-location sheet)
-    // can pin into whichever section is currently showing instead of always
-    // landing unsectioned — user-reported: "when i ask to pin live tile it
-    // gets pinned to main. it should pin to active section."
-    var activeSectionId by remember { mutableStateOf<String?>(null) }
     val hiddenPackages by viewModel.hiddenPackages.collectAsStateWithLifecycle()
     val isAppList by viewModel.isAppList.collectAsStateWithLifecycle()
     val apps by viewModel.apps.collectAsStateWithLifecycle()
     val sections by viewModel.sections.collectAsStateWithLifecycle()
+    // One pager page per section plus the trailing implicit unsectioned block
+    // (mirrors `blocksFor`'s own "sections + exactly one trailing unsectioned
+    // block" invariant, without needing `order`/`byId`/`blocksFor` here — see
+    // SectionBlocks.kt). Always ≥ 1, so a fresh install with zero named
+    // sections still has exactly one Start block page, same as before this
+    // feature existed.
+    val blockCount = sections.size + 1
+    val upper = blockCount.toFloat()
+    val sortedSections = remember(sections) { sections.sortedBy { it.order } }
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val feedSources by viewModel.feedSources.collectAsStateWithLifecycle()
     val feedRegions by viewModel.feedRegions.collectAsStateWithLifecycle()
@@ -730,8 +731,10 @@ fun StartScreen(
     }
 
     val scrollState = rememberScrollState()
-    // Pager position: -1 = feed (left), 0 = Start, +1 = app list (right). The feed
-    // page is the swipe-right surface; it is only reachable when enabled (FR-7).
+    // Pager position: -1 = feed (left), 0 .. blockCount-1 = Start's own block
+    // pages (one per section, plus the trailing unsectioned page), blockCount
+    // = app list (right). The feed page is the swipe-right surface; it is
+    // only reachable when enabled (FR-7).
     val feedEnabled = settings.feedEnabled
     // In landscape we drop the feed↔Start swipe and show both as side-by-side
     // panels instead (so a 4-col grid never balloons to fill the wide screen).
@@ -740,8 +743,12 @@ fun StartScreen(
     val progress = remember { Animatable(0f) }
     // Live tiles pause when Start is no longer the foreground surface: the app
     // list (>50% right) or the feed (>50% left) has taken over, or an overlay
-    // sits above it (FR-2 gating).
-    val appListShown by remember { derivedStateOf { progress.value >= 0.5f } }
+    // sits above it (FR-2 gating). `upper` is however many block pages Start
+    // currently has (see `blockCount` above) — the app list always sits at
+    // that numeric slot, not a hardcoded `1f`, since Start itself may now
+    // occupy several pager positions (one per section, plus the trailing
+    // unsectioned page).
+    val appListShown by remember { derivedStateOf { progress.value >= upper - 0.5f } }
     val feedShown by remember { derivedStateOf { progress.value <= -0.5f } }
     // An expanded folder no longer suspends live tiles — it's inline on Start,
     // not a separate full-screen surface, so there's nothing to pause behind.
@@ -751,7 +758,37 @@ fun StartScreen(
     fun settleTo(target: Float) {
         scope.launch {
             progress.animateTo(target, settleSpec)
-            viewModel.setAppList(target >= 0.5f)
+            viewModel.setAppList(target >= upper - 0.5f)
+        }
+    }
+
+    // Which block page is "active" — the single source of truth for "pin a
+    // new tile/live tile into whichever section is currently showing."
+    // Naively reading this straight off `progress.value` breaks the instant
+    // you rest on the app list (`progress.value == upper`), which is exactly
+    // when a tile actually needs to be pinned (the add-live-tile sheet, the
+    // weather-location picker, both opened from the app list) — that would
+    // silently regress to "always pins to the last block," the exact bug
+    // this feature's own history says was already fixed once. Instead, only
+    // update while resting on a real block page, and always read it back
+    // re-clamped so a delete/reorder can never leave it dangling.
+    val currentIntPosition by remember { derivedStateOf { progress.value.roundToInt() } }
+    var lastActiveBlockIndex by remember { mutableStateOf(0) }
+    LaunchedEffect(currentIntPosition, blockCount) {
+        if (currentIntPosition in 0 until blockCount) lastActiveBlockIndex = currentIntPosition
+    }
+    val activeBlockIndex = lastActiveBlockIndex.coerceIn(0, blockCount - 1)
+    val activeSectionId: String? = sortedSections.getOrNull(activeBlockIndex)?.id
+
+    // Keep the pager in a valid range whenever the number of block pages
+    // changes (a section created/deleted/merged) — e.g. stay on the app
+    // list at its new numeric slot rather than sliding into where a deleted
+    // section used to sit.
+    LaunchedEffect(blockCount) {
+        when {
+            appListShown -> progress.snapTo(upper)
+            feedShown -> {} // feed's position (-1) is independent of blockCount
+            else -> progress.animateTo(progress.value.coerceIn(0f, (blockCount - 1).toFloat()), settleSpec)
         }
     }
 
@@ -998,7 +1035,7 @@ fun StartScreen(
         // claimed before the vertical grid scroll (a child) can consume it;
         // vertical drags pass straight through.
         fun pagerModifier(pageWidthPx: Float, lower: Float): Modifier =
-            Modifier.pointerInput(swipeEnabled, pageWidthPx, lower) {
+            Modifier.pointerInput(swipeEnabled, pageWidthPx, lower, upper) {
                 if (!swipeEnabled) return@pointerInput
                 val slop = 12.dp.toPx()
                 awaitEachGesture {
@@ -1038,7 +1075,7 @@ fun StartScreen(
                         }
                         if (horizontal) {
                             change.consume()
-                            lastTarget = (base - dx / pageWidthPx).coerceIn(lower, 1f)
+                            lastTarget = (base - dx / pageWidthPx).coerceIn(lower, upper)
                             updates?.trySend(lastTarget)
                         }
                         if (!change.pressed) break
@@ -1049,7 +1086,7 @@ fun StartScreen(
                         // progress.value — the background consumer above applies
                         // updates asynchronously, so progress.value could still
                         // be a stale, earlier position at this exact instant.
-                        settleTo(pagerCommitTarget(base, lastTarget).coerceAtLeast(lower))
+                        settleTo(pagerCommitTarget(base, lastTarget, lower, upper).coerceAtLeast(lower))
                     }
                 }
             }
@@ -1289,7 +1326,7 @@ fun StartScreen(
                     onRenameFolder = { folderId, name -> viewModel.renameFolder(folderId, name) },
                     onToggleFolderStack = { folderId -> viewModel.toggleFolderStack(folderId) },
                     onReorderFolderChildren = viewModel::reorderFolderChildren,
-                    onChevron = { settleTo(1f) },
+                    onChevron = { settleTo(upper) },
                     onEnterEdit = { id ->
                         if (settings.lockLayout) {
                             Toast.makeText(
@@ -1320,22 +1357,28 @@ fun StartScreen(
                     sections = sections,
                     onCreateSection = viewModel::createSection,
                     onRenameSection = viewModel::renameSection,
-                    onToggleSectionCollapsed = viewModel::toggleSectionCollapsed,
                     onDeleteSection = viewModel::deleteSection,
-                    onMoveSection = viewModel::moveSection,
+                    onMoveSection = { id, direction ->
+                        viewModel.moveSection(id, direction)
+                        // Follow the section being reordered so it doesn't visually
+                        // swap out from under the tap — safe because a section's own
+                        // reorder buttons are only reachable on the block currently
+                        // centered on-screen, so currentIntPosition is guaranteed to
+                        // be that section's own index at the moment of the tap.
+                        settleTo((currentIntPosition + direction).coerceIn(0, blockCount - 1).toFloat())
+                    },
                     onAssignTileSection = viewModel::setTileSection,
-                    sectionsEnabled = settings.sectionsEnabled,
-                    sectionPillAlignment = settings.sectionPillAlignment,
+                    pagerProgress = progress.value,
+                    activeBlockIndex = activeBlockIndex,
                     onAdd = {
                         viewModel.exitEdit()
-                        settleTo(1f)
+                        settleTo(upper)
                         Toast.makeText(context, "long-press an app to pin", Toast.LENGTH_SHORT)
                             .show()
                     },
                     onPersonalize = viewModel::openPersonalize,
                     onAddWidgets = viewModel::openAddWidgets,
                     onQuickPanel = viewModel::openQuickPanel,
-                    onActiveSectionChange = { activeSectionId = it },
                 )
         }
 
@@ -1344,7 +1387,7 @@ fun StartScreen(
                 modifier = Modifier.fillMaxSize(),
                 visible = isAppList,
                 activeSectionId = activeSectionId,
-                onPinned = { settleTo(0f) },
+                onPinned = { settleTo(lastActiveBlockIndex.toFloat()) },
                 onOpenPersonalize = viewModel::openPersonalize,
                 onAddWidget = { provider ->
                     if (feedEnabled) {
@@ -1420,18 +1463,16 @@ fun StartScreen(
                                 .clipToBounds()
                                 .then(pagerModifier(panelWidthPx, 0f)),
                         ) {
+                            // Start's own block pages each position/slide themselves
+                            // (see StartPage's per-block rendering) — this box just
+                            // hosts them and clips the ones translated off-screen.
+                            Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
+                                renderStartPage(panelWidthPx)
+                            }
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .graphicsLayer {
-                                        translationX = -0.22f * panelWidthPx * progress.value
-                                        alpha = 1f - 0.6f * abs(progress.value)
-                                    },
-                            ) { renderStartPage(panelWidthPx) }
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .graphicsLayer { translationX = panelWidthPx * (1f - progress.value) }
+                                    .graphicsLayer { translationX = panelWidthPx * (upper - progress.value) }
                                     .background(LocalColorTokens.current.bg),
                             ) { renderAppList() }
                         }
@@ -1448,41 +1489,35 @@ fun StartScreen(
                                 .align(Alignment.Center)
                                 .width(with(density) { cappedWidthPx.toDp() })
                                 .fillMaxHeight()
-                                .graphicsLayer {
-                                    translationX = -0.22f * widthPx * progress.value
-                                    alpha = 1f - 0.6f * abs(progress.value)
-                                },
+                                .clipToBounds(),
                         ) { renderStartPage(cappedWidthPx) }
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .graphicsLayer { translationX = widthPx * (1f - progress.value) }
+                                .graphicsLayer { translationX = widthPx * (upper - progress.value) }
                                 .background(LocalColorTokens.current.bg),
                         ) { renderAppList() }
                     }
                 }
-                // Portrait: the stacked, swipeable pager (feed −1, Start 0, list +1).
+                // Portrait: the stacked, swipeable pager (feed −1, Start's own
+                // block pages 0..blockCount-1, app list blockCount).
                 else -> {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .then(pagerModifier(widthPx, if (feedEnabled) -1f else 0f)),
                     ) {
-                        // Start page: parallaxes (±22%) and fades as a side page comes in.
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .graphicsLayer {
-                                    translationX = -0.22f * widthPx * progress.value
-                                    alpha = 1f - 0.6f * abs(progress.value)
-                                },
-                        ) { renderStartPage(widthPx) }
+                        // Start's own block pages each position/slide themselves
+                        // (see StartPage's per-block rendering).
+                        Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
+                            renderStartPage(widthPx)
+                        }
 
                         // App-list page: slides in from the right.
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .graphicsLayer { translationX = widthPx * (1f - progress.value) }
+                                .graphicsLayer { translationX = widthPx * (upper - progress.value) }
                                 .background(LocalColorTokens.current.bg),
                         ) { renderAppList() }
 
@@ -1663,12 +1698,6 @@ fun StartScreen(
             onColumnsChange = viewModel::setColumns,
             tilePackMode = settings.tilePackMode,
             onTilePackModeChange = viewModel::setTilePackMode,
-            sectionsEnabled = settings.sectionsEnabled,
-            onSectionsEnabledChange = viewModel::setSectionsEnabled,
-            hasSections = sections.isNotEmpty(),
-            onDisableSectionsConfirmed = viewModel::disableSectionsAndMerge,
-            sectionPillAlignment = settings.sectionPillAlignment,
-            onSectionPillAlignmentChange = viewModel::setSectionPillAlignment,
             homeStyle = settings.homeStyle,
             onHomeStyleChange = viewModel::setHomeStyle,
             iconShape = settings.iconShape,
@@ -2432,17 +2461,16 @@ private fun StartPage(
     sections: List<Section> = emptyList(),
     onCreateSection: (String) -> Unit = {},
     onRenameSection: (id: String, label: String) -> Unit = { _, _ -> },
-    onToggleSectionCollapsed: (String) -> Unit = {},
     onDeleteSection: (String) -> Unit = {},
     onMoveSection: (id: String, direction: Int) -> Unit = { _, _ -> },
     onAssignTileSection: (tileId: String, sectionId: String?) -> Unit = { _, _ -> },
-    sectionsEnabled: Boolean = false,
-    sectionPillAlignment: SectionPillAlignment = SectionPillAlignment.START,
-    // Reports which section tab is currently active/visible (null =
-    // unsectioned/main), so a caller outside this composable (the "add live
-    // tiles" sheet, the weather-location sheet) can pin a newly added tile
-    // into that same section instead of always landing unsectioned.
-    onActiveSectionChange: (String?) -> Unit = {},
+    // The pager's own live position (see StartScreen's `progress`) and the
+    // already-clamped block index it currently resolves to — the single
+    // source of truth for "which page is active," computed once by the
+    // caller (StartScreen) so this composable never needs its own separate
+    // active-block state to keep in sync.
+    pagerProgress: Float = 0f,
+    activeBlockIndex: Int = 0,
     onAdd: () -> Unit,
     onPersonalize: () -> Unit,
     onAddWidgets: () -> Unit = {},
@@ -2453,21 +2481,6 @@ private fun StartPage(
     // signs so the grid shimmers like WP edit mode.
     val jigglePhase = rememberJigglePhase(editMode)
     val density = LocalDensity.current
-    // The section nav is a compact single collapsed pill (current section +
-    // its badge + a chevron) rather than every pill shown at once — tapping
-    // it expands a list of every section to jump/switch to. Whether that
-    // list is currently expanded.
-    var sectionDropdownExpanded by remember { mutableStateOf(false) }
-    // Sections render one block full-screen at a time ("tabbed" — the only
-    // display mode now; a separate continuous-scroll mode existed earlier in
-    // this feature's history and was dropped in favor of this dropdown-based
-    // nav). This is which block is currently shown. `""` is a dedicated
-    // "nothing picked yet" sentinel distinct from `null` (which is itself a
-    // real, meaningful choice here — the "unsectioned"/"main" block's own
-    // id) — resolved to an actual block below, so a deleted/renamed section
-    // never leaves this pointing at nothing. Ephemeral (not persisted):
-    // restarting the app starts back at the first block.
-    var selectedSectionTab by remember { mutableStateOf<String?>("") }
 
     // Working order driving the grid. Mirrors the persisted order except during
     // a drag, when reorder mutates it live (the drop persists the result).
@@ -2641,17 +2654,6 @@ private fun StartPage(
         }
     }
 
-    // Exactly one block fills the screen at a time; resolved fresh every
-    // recomposition (never trusts a stale [selectedSectionTab] pointing at a
-    // section that no longer exists — falls back to the first block instead,
-    // e.g. right after that section is deleted).
-    val activeTabSectionId: String? = when {
-        selectedSectionTab == "" -> blocks.firstOrNull()?.sectionId
-        blocks.any { it.sectionId == selectedSectionTab } -> selectedSectionTab
-        else -> blocks.firstOrNull()?.sectionId
-    }
-    LaunchedEffect(activeTabSectionId) { onActiveSectionChange(activeTabSectionId) }
-
     // For every block: its own tile specs, its own packed placements (the
     // same pack/packSticky + [expandTransform] pipeline DenseTileGrid runs
     // internally — redone here too, once, purely to learn how tall the
@@ -2668,99 +2670,71 @@ private fun StartPage(
     // mid-drag to starve the touch-handling coroutine when left unmemoized
     // (see the comment on [expandedFolder] above).
     val headerHeightPx = with(density) { SECTION_HEADER_HEIGHT_DP.dp.toPx() }
-    val blockGapPx = with(density) { SECTION_BLOCK_GAP_DP.dp.toPx() }
-    val blockRenders = remember(
-        blocks, columns, slotOf, stickyPreview, expandTransform, folderChildOrder.toList(), resizeGeom,
-        activeTabSectionId, sectionsEnabled,
-    ) {
-        var offset = 0f
+    // Each block is now its own full page (see the per-block render loop
+    // below) rather than stacked vertically, so there's no cross-block
+    // running offset to accumulate any more — every block's own content
+    // starts at the top of its own page. A block's header only takes space
+    // in edit mode (the name is hidden otherwise, reclaiming that height);
+    // collapse/expand is gone — every block always renders its own tiles.
+    val blockRenders = remember(blocks, columns, slotOf, stickyPreview, expandTransform, folderChildOrder.toList(), resizeGeom, editMode) {
+        val gridTopOffsetPx = if (editMode) headerHeightPx else 0f
         blocks.map { block ->
-            val topOffsetPx = offset
-            // The unsectioned ("main") block gets its own label header too,
-            // but only once the "sections" feature is actually on
-            // (user-requested) — reserves the same header height a real
-            // section's own header does, so downstream absolute-position
-            // math (autoscroll, tabbed-mode scroll-jump) stays correct.
-            val showsHeader = block.sectionId != null || sectionsEnabled
-            val gridTopOffsetPx = topOffsetPx + if (showsHeader) headerHeightPx else 0f
             val specs = block.ids.mapNotNull { id -> byId[id]?.let { TileSpec(id, it.size) } }
-            // The active tab always renders its tiles regardless of its own
-            // persisted collapsed flag — selecting a tab IS the "open it"
-            // gesture (any earlier collapse is moot once it's the one
-            // selected).
-            val forcedOpen = block.sectionId == activeTabSectionId
-            val placements = if (!block.collapsed || forcedOpen) {
-                val base = slotOf?.let { GridPacker.packSticky(specs, it, columns) } ?: GridPacker.pack(specs, columns)
-                expandTransform?.invoke(base) ?: base
-            } else {
-                emptyList()
-            }
-            val gridHeightPx = resizeGeom.totalHeight(GridPacker.rowCount(placements))
-            offset = gridTopOffsetPx + gridHeightPx + blockGapPx
-            BlockRender(block, specs, placements, topOffsetPx, gridTopOffsetPx)
+            val base = slotOf?.let { GridPacker.packSticky(specs, it, columns) } ?: GridPacker.pack(specs, columns)
+            val placements = expandTransform?.invoke(base) ?: base
+            BlockRender(block, specs, placements, topOffsetPx = 0f, gridTopOffsetPx = gridTopOffsetPx)
         }
     }
-    // Only the active tab's own block is actually composed below, rebased to
-    // start at the very top of the content (topOffsetPx=0) — it's the only
-    // block on screen, so nothing else pushes it down. Its own specs/
-    // placements are untouched (already purely local to the block), only the
-    // two absolute-position fields are rebased.
-    val visibleBlockRenders = run {
-        val active = blockRenders.firstOrNull { it.block.sectionId == activeTabSectionId }
-        if (active != null) {
-            val rebasedGridTopPx = if (active.block.sectionId != null || sectionsEnabled) headerHeightPx else 0f
-            listOf(active.copy(topOffsetPx = 0f, gridTopOffsetPx = rebasedGridTopPx))
-        } else {
-            emptyList()
+    // One flat list of the ACTIVE block's own tiles' absolute rects, for the
+    // two empty-space gestures — the only block a real touch can ever reach,
+    // since every other block is translated off-screen (see the per-block
+    // render loop below).
+    val absoluteTileRects = remember(blockRenders, activeBlockIndex) {
+        val render = blockRenders.getOrNull(activeBlockIndex) ?: return@remember emptyList()
+        render.placements.map { p ->
+            val r = resizeGeom.rect(p)
+            p.id to Rect(r.left, r.top + render.gridTopOffsetPx, r.right, r.bottom + render.gridTopOffsetPx)
         }
     }
-    // One flat list of every visible tile's absolute (block-offset) rect, for
-    // the two empty-space gestures — a plain pack per block would put a
-    // later block's tiles at the wrong on-screen row the moment headers/gaps
-    // are involved, so each block's own local rects are shifted down by its
-    // own [BlockRender.gridTopOffsetPx] first.
-    val absoluteTileRects = remember(visibleBlockRenders) {
-        visibleBlockRenders.flatMap { render ->
-            render.placements.map { p ->
-                val r = resizeGeom.rect(p)
-                p.id to Rect(r.left, r.top + render.gridTopOffsetPx, r.right, r.bottom + render.gridTopOffsetPx)
-            }
-        }
+    // Each block page gets its own independent vertical scroll position (they're
+    // genuinely separate pages now, not one shared scrolling column) — `key`
+    // keeps a given section's own scroll position attached to its own identity
+    // across a reorder, instead of following "whichever block is now at this
+    // index." `activeScrollState` is only ever touched by the empty-space
+    // gestures/auto-scroll below, which only ever fire on the one block a real
+    // touch can reach (every other block is translated off-screen).
+    val blockScrollStates: List<androidx.compose.foundation.ScrollState> = blocks.map { block ->
+        key(block.sectionId ?: "__unsectioned__") { rememberScrollState() }
     }
+    val activeScrollState = blockScrollStates[activeBlockIndex.coerceIn(0, blockScrollStates.size - 1)]
 
-    // "Reachability": dragging down from empty space on this tab slides its
+    // "Reachability": dragging down from empty space on this page slides its
     // own already-rendered tiles down toward the thumb — a pure paint
     // transform (graphicsLayer on the active block's own Column below), not
-    // a reflow or a persisted change. Ephemeral + local, like
-    // [sectionDropdownExpanded]. [reachabilityOffsetPx] is the plain,
-    // synchronously-updated value the gesture (running inside a restricted
-    // `awaitPointerEventScope`, which can't call arbitrary suspend
-    // functions like `Animatable.snapTo`) sets directly on every drag tick;
-    // [reachabilityAnim] only drives the one-shot settle/collapse
-    // animation, off the restricted scope entirely (see [settleReachability]).
+    // a reflow or a persisted change.
     var reachabilityOffsetPx by remember { mutableStateOf(0f) }
     var reachabilityHeld by remember { mutableStateOf(false) }
     val reachabilityAnim = remember { Animatable(0f) }
     val reachabilityScope = rememberCoroutineScope()
-    val reachabilityActive = !editMode && expandedFolderId == null && sectionsEnabled && blocks.size >= 2
+    val reachabilityActive = !editMode && expandedFolderId == null && blocks.size >= 2
     fun settleReachability(target: Float) {
         reachabilityScope.launch {
             reachabilityAnim.snapTo(reachabilityOffsetPx)
             reachabilityAnim.animateTo(target, tween(220)) { reachabilityOffsetPx = value }
         }
     }
-    LaunchedEffect(activeTabSectionId, editMode) {
+    LaunchedEffect(activeBlockIndex, editMode) {
         reachabilityHeld = false
         reachabilityAnim.stop()
         reachabilityOffsetPx = 0f
     }
     // How far the tiles may travel: exactly the real empty space below the
-    // active tab's own rendered content, capped at a sane max — this both
+    // active page's own rendered content, capped at a sane max — this both
     // keeps a tile from ever being dragged past the bottom of the screen and
-    // makes the gesture a natural no-op on an already-full tab, with no
+    // makes the gesture a natural no-op on an already-full page, with no
     // extra feature-gating needed for that case.
-    val maxReachabilityOffsetPx = remember(visibleBlockRenders, viewportHeightPx) {
-        val active = visibleBlockRenders.firstOrNull()
+    val maxReachabilityOffsetPx = remember(blockRenders, activeBlockIndex, viewportHeightPx) {
+        val active = blockRenders.getOrNull(activeBlockIndex)
         val contentBottomPx = active?.let {
             it.gridTopOffsetPx + resizeGeom.totalHeight(GridPacker.rowCount(it.placements))
         } ?: 0f
@@ -2788,9 +2762,13 @@ private fun StartPage(
         }
     }
 
-    // Live tiles (FR-2). The flip scheduler turns one of the visible flippable
-    // tiles every ~2.6 s, paused whenever live tiles are gated off (edit mode,
-    // off-screen, screen off, battery saver, animations off).
+    // Live tiles (FR-2). The flip scheduler turns one of the flippable tiles
+    // every ~2.6 s, paused whenever live tiles are gated off (edit mode,
+    // off-screen, screen off, battery saver, animations off) — a per-tile
+    // `liveActive` additionally gates each block's own tiles to only the
+    // currently active page (see the per-block render loop below), so an
+    // off-screen section's tiles don't keep animating/polling once every
+    // block is simultaneously composed for the swipe.
     val liveActive = rememberLiveTilesActive(suspended = editMode || liveSuspended || !liveTilesEnabled)
     // Publish active media sessions into MediaCenter so the music tile and any
     // music-app tile (Apple Music, YT Music, …) can show their now-playing track.
@@ -2804,13 +2782,15 @@ private fun StartPage(
     val flipState = rememberFlipState(liveIds, active = liveActive)
 
     // Auto-scroll while a drag hovers near the top/bottom viewport edge (FR-3.2).
+    // Always targets the active page's own scroll state — the only one a
+    // real drag can ever be happening on.
     var autoScroll by remember { mutableStateOf(0) } // -1 up, 0 off, +1 down
     LaunchedEffect(autoScroll) {
         if (autoScroll == 0) return@LaunchedEffect
         val speed = with(density) { 8.dp.toPx() }
         while (true) {
             val delta = autoScroll * speed
-            val consumed = scrollState.scrollBy(delta)
+            val consumed = activeScrollState.scrollBy(delta)
             if (consumed == 0f) break // hit an edge
             withFrameNanos { }
         }
@@ -2846,7 +2826,7 @@ private fun StartPage(
                 active = !editMode && expandedFolderId == null,
                 absoluteTileRects = absoluteTileRects,
                 contentTopPx = if (hideStatusBar) 0f else statusBarTopPx,
-                scrollOffsetPx = { scrollState.value.toFloat() },
+                scrollOffsetPx = { activeScrollState.value.toFloat() },
                 onEnterEdit = { onEnterEdit(null) },
                 reachabilityActive = reachabilityActive,
                 reachabilityHeld = reachabilityHeld,
@@ -2863,10 +2843,27 @@ private fun StartPage(
                 },
             ),
     ) {
+        // Every block renders as its own full page, translated horizontally by
+        // its own index relative to the pager's live position — the same
+        // plain full-slide treatment the feed/app-list pages already use, so
+        // an in-progress swipe shows real neighboring pages sliding in rather
+        // than narrowing to just the active one and swapping content on
+        // settle. `key` keeps a section's own scroll/drag-adjacent state
+        // (see [blockScrollStates] above) attached to its own identity across
+        // a reorder, not to "whichever block is now at this index."
+        blockRenders.forEachIndexed { blockIndex, render ->
+        val block = render.block
+        key(block.sectionId ?: "__unsectioned__") {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { translationX = widthPx * (blockIndex - pagerProgress) }
+                .clipToBounds(),
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(scrollState)
+                .verticalScroll(blockScrollStates[blockIndex])
                 .then(
                     if (hideStatusBar) {
                         // Reclaim the top of the screen fully — including the
@@ -2881,15 +2878,10 @@ private fun StartPage(
                 )
                 .navigationBarsPadding(),
         ) {
-            // "+ add section" (edit mode only): a prominent affordance at the
-            // very top of the grid — moved here from a small text row at the
-            // bottom per user feedback ("add it at top by big + sign").
-            // Hidden entirely while the "sections" feature is off in
-            // Personalize (user-requested: sections are an exclusive, opt-in
-            // feature turned on only there) — an install that already has
-            // real sections keeps rendering/using them regardless, this just
-            // stops new ones from being created while off.
-            if (editMode && sectionsEnabled) {
+            // "+ add page" (edit mode only): a prominent affordance at the
+            // very top of the grid — always available now, like folders
+            // (no separate on/off setting to gate it any more).
+            if (editMode) {
                 var addingSectionAtTop by remember { mutableStateOf(false) }
                 if (addingSectionAtTop) {
                     Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp)) {
@@ -2931,7 +2923,7 @@ private fun StartPage(
                         }
                         Spacer(Modifier.width(10.dp))
                         Text(
-                            text = "add section",
+                            text = "add page",
                             color = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.85f),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
@@ -2939,8 +2931,6 @@ private fun StartPage(
                     }
                 }
             }
-            visibleBlockRenders.forEach { render ->
-            val block = render.block
             // A real section gets a tinted panel wrapping its header + tiles,
             // so it reads as its own boxed region (user-requested "show
             // visually various ways sections can be shown"); the trailing
@@ -2961,40 +2951,33 @@ private fun StartPage(
                     // tiles' own taps land) moves.
                     .graphicsLayer { translationY = reachabilityOffsetPx },
             ) {
-            if (block.sectionId != null) {
-                SectionHeader(
-                    label = block.label ?: "",
-                    collapsed = block.collapsed,
-                    editMode = editMode,
-                    textColor = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.85f),
-                    accent = wallpaperAccent ?: accent,
-                    badgeCount = blockBadgeCount(block.sectionId),
-                    darkTheme = darkTheme,
-                    onToggleCollapsed = { onToggleSectionCollapsed(block.sectionId) },
-                    onMoveUp = { onMoveSection(block.sectionId, -1) },
-                    onMoveDown = { onMoveSection(block.sectionId, 1) },
-                    onRename = { newLabel -> onRenameSection(block.sectionId, newLabel) },
-                    onDelete = { onDeleteSection(block.sectionId) },
-                    // The block shown here is always the active tab (see
-                    // [visibleBlockRenders]), so its chevron never applies —
-                    // it can't be collapsed away while it's the only thing
-                    // on screen.
-                    collapsible = false,
-                )
-            } else if (sectionsEnabled) {
-                // The unsectioned block reads as "main" once sections are
-                // actually on (user-requested) — a plain label, not the full
-                // interactive SectionHeader: there's no real Section row
-                // behind it to rename/reorder/delete, and it can never
-                // collapse (TileBlock always sets that false for this
-                // block), so none of those controls would mean anything
-                // here.
-                UnsectionedHeader(textColor = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.85f))
+            // The page's own name/rename/reorder/remove controls only show
+            // while editing — hidden otherwise, reclaiming that height (the
+            // page is identified purely by swiping to it, not by a
+            // permanently-visible label).
+            if (editMode) {
+                if (block.sectionId != null) {
+                    SectionHeader(
+                        label = block.label ?: "",
+                        editMode = editMode,
+                        textColor = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.85f),
+                        badgeCount = blockBadgeCount(block.sectionId),
+                        darkTheme = darkTheme,
+                        onMoveEarlier = { onMoveSection(block.sectionId, -1) },
+                        onMoveLater = { onMoveSection(block.sectionId, 1) },
+                        onRename = { newLabel -> onRenameSection(block.sectionId, newLabel) },
+                        onDelete = { onDeleteSection(block.sectionId) },
+                    )
+                } else {
+                    // The unsectioned ("main") page reads as a plain label,
+                    // not the full interactive SectionHeader: there's no real
+                    // Section row behind it to rename/reorder/delete.
+                    UnsectionedHeader(textColor = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.85f))
+                }
             }
-            // The block rendered here is always the active tab (see
-            // [visibleBlockRenders]) — its tiles show regardless of its own
-            // persisted collapsed flag, the same [forcedOpen] rule
-            // [blockRenders] already applied when computing its placements.
+            // Every block's tiles always show — collapse/expand is gone (a
+            // "collapsed" page has no purpose once every section is already
+            // its own page you swipe past).
             run {
             key(block.sectionId ?: "__unsectioned__") {
             val blockIds = block.ids
@@ -3358,7 +3341,7 @@ private fun StartPage(
                             stockRefreshRate = stockRefreshRate,
                             commodityRefreshRate = commodityRefreshRate,
                             accent = tileAccent,
-                            liveActive = liveActive,
+                            liveActive = liveActive && blockIndex == activeBlockIndex,
                             resizeHandlesEnabled = resizeHandlesEnabled,
                             onResizeDragStart = onResizeDragStartAction,
                             onResizeDragBy = onResizeDragByAction,
@@ -3436,14 +3419,14 @@ private fun StartPage(
                             wallpaperOrigin = {
                                 Offset(
                                     slot.x.toFloat(),
-                                    statusBarTopPx + render.gridTopOffsetPx + slot.y.toFloat() - scrollState.value.toFloat(),
+                                    statusBarTopPx + render.gridTopOffsetPx + slot.y.toFloat() - blockScrollStates[blockIndex].value.toFloat(),
                                 )
                             },
                             fullWidth = widthPx,
                             fullHeight = viewportHeightPx,
                             jigglePhase = jigglePhase,
                             flipped = flipState.isFlipped(model.id),
-                            liveActive = liveActive,
+                            liveActive = liveActive && blockIndex == activeBlockIndex,
                             notifications = notifications,
                             badgeCount = badgeCount,
                             darkTheme = darkTheme,
@@ -3482,14 +3465,16 @@ private fun StartPage(
                     }
                 }
             }
-            } // end key(block.sectionId)
-            } // end if (!block.collapsed)
+            } // end key(block.sectionId) [inner]
+            } // end run
             } // end Column(sectionPanelModifier)
-            } // end visibleBlockRenders.forEach
             // FR-1 bottom breathing room (prototype home-scroll padding-bottom:74px;
             // grows to clear the edit bar while editing, like .home-scroll padding).
             Spacer(Modifier.height(if (editMode) 130.dp else 74.dp))
-        }
+        } // end per-page Column(verticalScroll)
+        } // end per-page Box(translationX)
+        } // end key(block.sectionId ?: "__unsectioned__") [outer]
+        } // end blockRenders.forEachIndexed
 
         // App-list affordance (prototype .allapps-btn) with a settings button just
         // below it; both hidden in edit mode (personalize is on the edit bar there).
@@ -3536,83 +3521,6 @@ private fun StartPage(
                         modifier = Modifier.size(24.dp),
                     )
                 }
-            }
-        }
-
-        // Section dropdown: a single compact pill showing the current
-        // section (its label + aggregate badge) that expands, on tap, into
-        // a list of every block to jump/switch to — replaces the old
-        // always-visible row of every section's own pill (user asked for an
-        // alternative to "showing all tabs in pills at bottom" — this is a
-        // restyle of the same already-built state: toggle-to-reveal,
-        // per-section badges, active-tab highlighting — not a rebuild).
-        // Kept out of edit mode — EditBar already owns BottomCenter there,
-        // and blockRenders' topOffsetPx assumes no "+ add section"
-        // affordance is showing. Only shown once there's more than one
-        // block to jump between — the same >= 2 gate the App List's "pin to
-        // section" picker already uses. Also hidden outright while the
-        // "sections" feature itself is off in Personalize (user-requested:
-        // "section selection should also be off if section is off") — an
-        // install that has real sections from before the feature was made
-        // opt-in still renders/uses them normally, it just loses this nav
-        // aid until "enable sections" is switched back on.
-        if (!editMode && sectionsEnabled && blocks.size >= 2) {
-            // User-configurable placement (Personalize's "section pills"),
-            // for easier one-handed thumb reach.
-            val sectionNavBoxAlignment = when (sectionPillAlignment) {
-                SectionPillAlignment.START -> Alignment.BottomStart
-                SectionPillAlignment.CENTER -> Alignment.BottomCenter
-                SectionPillAlignment.END -> Alignment.BottomEnd
-            }
-            val sectionNavHorizontalAlignment = when (sectionPillAlignment) {
-                SectionPillAlignment.START -> Alignment.Start
-                SectionPillAlignment.CENTER -> Alignment.CenterHorizontally
-                SectionPillAlignment.END -> Alignment.End
-            }
-            // Clears the edge strip's own handle/recents affordance when
-            // it's showing (same reserved space `iconsBottomOffset` below
-            // lifts the chevron/gear icons above) — user-reported the old
-            // pill bar was otherwise sitting right on top of it.
-            val sectionNavBottomOffset = if (edgeStripVisible) STRIP_THICK + 8.dp else 10.dp
-            val currentBlockLabel = (blocks.firstOrNull { it.sectionId == activeTabSectionId }?.label
-                ?: UNSECTIONED_LABEL).lowercase()
-            val currentBadgeCount = blockBadgeCount(activeTabSectionId)
-            fun selectSection(sectionId: String?) {
-                // Picking a section switches which block fills the screen —
-                // no collapse concept (forcedOpen already bypasses it) and
-                // no scrolling (the active block always starts at the top).
-                sectionDropdownExpanded = false
-                selectedSectionTab = sectionId
-            }
-            Column(
-                horizontalAlignment = sectionNavHorizontalAlignment,
-                modifier = Modifier
-                    .align(sectionNavBoxAlignment)
-                    .navigationBarsPadding()
-                    .padding(
-                        start = if (sectionPillAlignment == SectionPillAlignment.START) 14.dp else 0.dp,
-                        end = if (sectionPillAlignment == SectionPillAlignment.END) 14.dp else 0.dp,
-                    )
-                    .padding(bottom = sectionNavBottomOffset),
-            ) {
-                AnimatedVisibility(visible = sectionDropdownExpanded) {
-                    SectionDropdownList(
-                        blocks = blocks,
-                        selectedSectionId = activeTabSectionId,
-                        accent = wallpaperAccent ?: accent,
-                        darkTheme = darkTheme,
-                        badgeCountFor = ::blockBadgeCount,
-                        onSelect = ::selectSection,
-                        modifier = Modifier.padding(bottom = 8.dp),
-                    )
-                }
-                SectionDropdownPill(
-                    label = currentBlockLabel,
-                    badgeCount = currentBadgeCount,
-                    expanded = sectionDropdownExpanded,
-                    darkTheme = darkTheme,
-                    onClick = { sectionDropdownExpanded = !sectionDropdownExpanded },
-                )
             }
         }
 
@@ -3929,7 +3837,7 @@ private fun BoxScope.TileColorPicker(
                 Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.15f)))
             }
             Spacer(Modifier.height(16.dp))
-            Text("move to section", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
+            Text("move to page", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
             Spacer(Modifier.height(10.dp))
             androidx.compose.foundation.layout.FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -4532,160 +4440,12 @@ private fun FolderExpandedPlaceholder(
 }
 
 /**
- * The always-visible collapsed half of the section dropdown: one small pill
- * showing the current section's label + its aggregate badge count, plus a
- * chevron indicating whether [SectionDropdownList] is expanded below/above
- * it. Tapping toggles [expanded] (owned by the caller) — this composable has
- * no tab-switching logic of its own.
- *
- * Uses the app's own opaque sheet/chrome colour (same as [EditBar]), not a
- * translucent wallpaper-derived tint — real bug, user-reported ("transperent
- * tab menu - can not see clearly"): a low-alpha fill sampled against an
- * arbitrary photo wallpaper can land on a same-brightness region and all but
- * disappear (confirmed on-device against a bright, near-white area of a
- * photo wallpaper). A solid themed surface is legible regardless of what's
- * behind it.
- */
-@Composable
-private fun SectionDropdownPill(
-    label: String,
-    badgeCount: Int,
-    expanded: Boolean,
-    onClick: () -> Unit,
-    darkTheme: Boolean = true,
-    modifier: Modifier = Modifier,
-) {
-    val tokens = colorTokens(darkTheme)
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(tokens.sheet)
-            .border(1.dp, tokens.sheetLine, RoundedCornerShape(16.dp))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            )
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-    ) {
-        Text(text = label, color = tokens.fg, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-        if (badgeCount > 0) {
-            NotificationBadge(
-                count = badgeCount,
-                dark = darkTheme,
-                small = true,
-                cornerInset = false,
-                modifier = Modifier.padding(start = 6.dp),
-            )
-        }
-        Icon(
-            imageVector = TileIcons["chevron"],
-            contentDescription = if (expanded) "hide sections" else "show sections",
-            tint = tokens.fgDim,
-            modifier = Modifier
-                .padding(start = 6.dp)
-                .size(14.dp)
-                .rotate(if (expanded) 90f else -90f),
-        )
-    }
-}
-
-/**
- * The expandable half of the section dropdown: a vertical list of every
- * [TileBlock] — a real section's own [TileBlock.label], plus a trailing
- * "unsectioned"/"main" row for the catch-all block ([blocksFor] always
- * appends exactly one of those) — each with its own aggregate badge count
- * (user-requested: in tabbed mode there's no way to see a notification
- * hiding under an app in a *different* tab, so every row, not just the
- * active one, carries this regardless of display mode). Tapping a row calls
- * [onSelect] with that block's [TileBlock.sectionId] (null for
- * "unsectioned"). Replaces the old always-visible row of every pill at once
- * (user-requested alternative) — same underlying state (badges, active-tab
- * highlight), restyled as a list instead of inline pills. Highlights
- * whichever row matches the block currently filling the screen (the only
- * display mode there is now).
- *
- * Uses the app's own opaque sheet/chrome colour, same as [SectionDropdownPill]
- * — see its doc comment for why a translucent wallpaper-derived tint isn't
- * reliably legible here.
- */
-@Composable
-private fun SectionDropdownList(
-    blocks: List<TileBlock>,
-    onSelect: (String?) -> Unit,
-    modifier: Modifier = Modifier,
-    selectedSectionId: String? = null,
-    accent: Color = Color.White,
-    darkTheme: Boolean = true,
-    badgeCountFor: (String?) -> Int = { 0 },
-) {
-    val tokens = colorTokens(darkTheme)
-    Column(
-        modifier = modifier
-            .widthIn(min = 160.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(tokens.sheet)
-            .border(1.dp, tokens.sheetLine, RoundedCornerShape(14.dp))
-            .padding(vertical = 4.dp),
-    ) {
-        blocks.forEach { block ->
-            val selected = block.sectionId == selectedSectionId
-            val badgeCount = badgeCountFor(block.sectionId)
-            // A wallpaper-derived accent (Personalize's "tile colour source")
-            // can be light or dark on its own, independent of the app's
-            // dark/light theme setting — user-reported ("accent bar... text
-            // color not adjusted based on light and dark wallpaper"): the
-            // selected row's text used to be hardcoded white, unreadable
-            // against a light wallpaper accent. Reads the accent's own
-            // brightness instead, matching how the app list/Quick Panel
-            // already pick text colour for an arbitrary accent fill.
-            val selectedTextColor = Glass.faceTextColor(isLightBackground(accent))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (selected) accent.copy(alpha = 0.85f) else Color.Transparent)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { onSelect(block.sectionId) },
-                    )
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-            ) {
-                Text(
-                    text = (block.label ?: UNSECTIONED_LABEL).lowercase(),
-                    color = if (selected) selectedTextColor else tokens.fg,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f),
-                )
-                if (badgeCount > 0) {
-                    NotificationBadge(
-                        count = badgeCount,
-                        dark = darkTheme,
-                        small = true,
-                        cornerInset = false,
-                        modifier = Modifier.padding(start = 6.dp),
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * The unsectioned block's own plain label header — shown only once the
- * "sections" feature is on (user-requested: "the unsectioned tab should be
- * grouped as main"), so it reads as a peer of the real sections around it
- * instead of an unlabeled leftover area. Deliberately not the full
- * interactive [SectionHeader]: there's no real `Section` row behind "main"
- * to rename/reorder/delete, and [TileBlock.collapsed] is always false for
- * this block, so a collapse chevron would be a dead control here. Matches
- * [SectionHeader]'s own label styling/divider exactly, just without any of
- * its edit-mode controls.
+ * The unsectioned ("main") page's own plain label header — shown only in
+ * edit mode, alongside every named page's own [SectionHeader] (a page's name
+ * is otherwise hidden, identified purely by swiping to it). Deliberately not
+ * the full interactive [SectionHeader]: there's no real `Section` row behind
+ * "main" to rename/reorder/delete. Matches [SectionHeader]'s own label
+ * styling/divider exactly, just without any of its edit-mode controls.
  */
 @Composable
 private fun UnsectionedHeader(textColor: Color) {
@@ -4716,50 +4476,29 @@ private fun UnsectionedHeader(textColor: Color) {
 }
 
 /**
- * A Start-screen section's header row: an accent-tinted circular chevron
- * button (tap toggles collapse, in or out of edit mode; rotates 0°→90° as it
- * expands, matching the app-list chevron's own visual language), the label
- * (tap-to-rename via [SectionNameEditor], edit mode only), and — edit mode
- * only — ↑/↓ reorder and a remove ("close", ungroups the section's tiles
- * rather than deleting them) action, each a small ghost icon button rather
- * than a bare glyph (user-requested: "can [this] be more better design
- * wise"). A thin low-opacity divider under the row separates it from the
- * tiles/next header below without a heavy box.
+ * A named page's header row: the label (tap-to-rename via
+ * [SectionNameEditor], edit mode only), and — edit mode only — ←/→ reorder
+ * and a remove ("close", ungroups the page's tiles rather than deleting
+ * them) action, each a small ghost icon button rather than a bare glyph
+ * (user-requested: "can [this] be more better design wise"). Only ever shown
+ * while editing — the page's name is otherwise hidden, identified purely by
+ * swiping to it. A thin low-opacity divider under the row separates it from
+ * the tiles below without a heavy box.
  */
 @Composable
 private fun SectionHeader(
     label: String,
-    collapsed: Boolean,
     editMode: Boolean,
     textColor: Color,
-    accent: Color,
-    // Summed notification badge across every tile currently in this section
-    // (an app tile's own count, or a folder's already-aggregated sum) — a
-    // collapsed section hides its tiles (and so their individual badges)
-    // entirely, so this is the only way pending notifications underneath it
-    // stay visible (user-requested: "notifications under the section tiles
-    // should be shown as count even if section is closed"). Shown whenever
-    // it's positive, collapsed or not, for the same reason a folder's own
-    // aggregate badge doesn't wait for anything either.
+    // Summed notification badge across every tile currently in this section.
     badgeCount: Int,
     darkTheme: Boolean,
-    onToggleCollapsed: () -> Unit,
-    onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit,
+    onMoveEarlier: () -> Unit,
+    onMoveLater: () -> Unit,
     onRename: (String) -> Unit,
     onDelete: () -> Unit,
-    // False while this section is the active tab (the only block ever shown
-    // on screen): its content is always displayed regardless of the
-    // persisted [collapsed] flag (user-requested: "app contents of tab
-    // should be open by default and can not be closed"), so the collapse
-    // chevron is a dead — and actively misleading — control in that state;
-    // it's omitted entirely instead of rendered as a disabled toggle.
-    collapsible: Boolean = true,
 ) {
     var renaming by remember(label) { mutableStateOf(false) }
-    // Reflects reality: forced open (not collapsible) always reads as open,
-    // whatever the persisted flag says.
-    val effectivelyCollapsed = collapsible && collapsed
     Column(modifier = Modifier.fillMaxWidth()) {
     Row(
         modifier = Modifier
@@ -4768,32 +4507,6 @@ private fun SectionHeader(
             .padding(horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Omitted entirely (not just disabled) while not collapsible — the
-        // active tab's content can't be closed at all, so a chevron here
-        // would just be visual clutter with nothing to show or toggle
-        // (user-requested: "downarrow on tab heading should be removed").
-        if (collapsible) {
-            Box(
-                modifier = Modifier
-                    .size(26.dp)
-                    .clip(CircleShape)
-                    .background(accent.copy(alpha = 0.85f))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onToggleCollapsed,
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = TileIcons["chevron"],
-                    contentDescription = if (effectivelyCollapsed) "expand section" else "collapse section",
-                    tint = Color.White,
-                    modifier = Modifier.size(14.dp).rotate(if (effectivelyCollapsed) 0f else 90f),
-                )
-            }
-            Spacer(Modifier.width(10.dp))
-        }
         Box(modifier = Modifier.weight(1f)) {
             if (renaming) {
                 SectionNameEditor(
@@ -4845,23 +4558,23 @@ private fun SectionHeader(
         if (editMode && !renaming) {
             SectionHeaderIconButton(
                 iconKey = "chevron",
-                rotationDegrees = -90f,
+                rotationDegrees = 180f,
                 tint = textColor,
-                contentDescription = "move section up",
-                onClick = onMoveUp,
+                contentDescription = "move page earlier",
+                onClick = onMoveEarlier,
             )
             SectionHeaderIconButton(
                 iconKey = "chevron",
-                rotationDegrees = 90f,
+                rotationDegrees = 0f,
                 tint = textColor,
-                contentDescription = "move section down",
-                onClick = onMoveDown,
+                contentDescription = "move page later",
+                onClick = onMoveLater,
             )
             SectionHeaderIconButton(
                 iconKey = "close",
                 rotationDegrees = 0f,
                 tint = textColor,
-                contentDescription = "remove section",
+                contentDescription = "remove page",
                 onClick = onDelete,
             )
         }

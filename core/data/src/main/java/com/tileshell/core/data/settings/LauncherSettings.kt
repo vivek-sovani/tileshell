@@ -81,17 +81,6 @@ enum class TileColorSource { GLOBAL_ACCENT, APP_ICON, WALLPAPER_ACCENT }
 enum class WallpaperSyncTarget { NONE, HOME, LOCK, HOME_AND_LOCK }
 
 /**
- * Horizontal placement of the section dropdown at the bottom of Start
- * (user-requested, for easier one-handed thumb reach): [START] hugs the
- * bottom-left corner, [CENTER] (the original placement) stays centered,
- * [END] hugs the bottom-right corner. Sections always fill the screen one
- * at a time ("tabbed" browsing) — a separate continuous-scroll display mode
- * existed earlier in this feature's history and was dropped once the section
- * dropdown gave every mode the same "jump to any section" nav for free.
- */
-enum class SectionPillAlignment { START, CENTER, END }
-
-/**
  * How often a live-data tile (stock, commodity, sports) re-polls its network
  * source, user-selectable per category (Personalize's "live data refresh").
  * [DEFAULT] keeps that category's own original interval — see each tile
@@ -300,19 +289,6 @@ data class LauncherSettings(
     val commodityRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
     /** How often sports tiles re-poll — see [LiveRefreshRate]. */
     val sportsRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
-    /**
-     * Master on/off switch for Start's "sections" feature (user-requested:
-     * treated as an exclusive, opt-in feature turned on only through
-     * Personalize). Off by default, matching every other opt-in Start
-     * addition in this file (bing wallpaper, edge strip, themed icons, ...).
-     * Gates only the "+ add section" creation entry point — an install that
-     * already has real sections (e.g. from before this flag existed, or
-     * after it's turned back off) keeps rendering/using them normally; this
-     * just stops *new* ones from being created while off.
-     */
-    val sectionsEnabled: Boolean = false,
-    /** Where the section dropdown sits — see [SectionPillAlignment]. */
-    val sectionPillAlignment: SectionPillAlignment = SectionPillAlignment.START,
 ) {
     companion object {
         const val DEFAULT_COLUMNS = 4
@@ -383,9 +359,7 @@ object SettingsCodec {
         append("taskAutoClearDaily=").append(settings.taskAutoClearDaily).append('\n')
         append("stockRefreshRate=").append(settings.stockRefreshRate.name).append('\n')
         append("commodityRefreshRate=").append(settings.commodityRefreshRate.name).append('\n')
-        append("sportsRefreshRate=").append(settings.sportsRefreshRate.name).append('\n')
-        append("sectionsEnabled=").append(settings.sectionsEnabled).append('\n')
-        append("sectionPillAlignment=").append(settings.sectionPillAlignment.name)
+        append("sportsRefreshRate=").append(settings.sportsRefreshRate.name)
     }
 
     fun decode(text: String): LauncherSettings {
@@ -438,8 +412,6 @@ object SettingsCodec {
         var stockRefreshRate = d.stockRefreshRate
         var commodityRefreshRate = d.commodityRefreshRate
         var sportsRefreshRate = d.sportsRefreshRate
-        var sectionsEnabled = d.sectionsEnabled
-        var sectionPillAlignment = d.sectionPillAlignment
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
             if (sep <= 0) return@forEach
@@ -513,9 +485,6 @@ object SettingsCodec {
                     LiveRefreshRate.entries.find { it.name == value }?.let { commodityRefreshRate = it }
                 "sportsRefreshRate" ->
                     LiveRefreshRate.entries.find { it.name == value }?.let { sportsRefreshRate = it }
-                "sectionsEnabled" -> sectionsEnabled = value.toBooleanStrictOrNull() ?: sectionsEnabled
-                "sectionPillAlignment" ->
-                    SectionPillAlignment.entries.find { it.name == value }?.let { sectionPillAlignment = it }
             }
         }
         return LauncherSettings(
@@ -567,8 +536,6 @@ object SettingsCodec {
             stockRefreshRate = stockRefreshRate,
             commodityRefreshRate = commodityRefreshRate,
             sportsRefreshRate = sportsRefreshRate,
-            sectionsEnabled = sectionsEnabled,
-            sectionPillAlignment = sectionPillAlignment,
         )
     }
 }

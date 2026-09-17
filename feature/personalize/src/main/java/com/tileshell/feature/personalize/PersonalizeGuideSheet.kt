@@ -135,7 +135,7 @@ fun PersonalizeGuideSheet(
                     letterSpacing = (-0.8).sp,
                 )
                 Text(
-                    text = "colours, wallpaper, tiles, home style, sections, pinning apps, the feed, the quick panel, and permissions",
+                    text = "colours, wallpaper, tiles, home style, pages, pinning apps, the feed, the quick panel, and permissions",
                     color = tokens.fgDim,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.W300,
@@ -230,17 +230,16 @@ fun PersonalizeGuideSheet(
             )
 
             FeatureGroup(
-                title = "sections",
+                title = "pages",
                 accent = accent,
                 tokens = tokens,
                 items = listOf(
-                    "personalize · enable sections to group your tiles into named tabs instead of one long scroll",
-                    "in edit mode, tap the \"+\" at the top of start to add a section; each section header lets you rename, reorder, or remove it (tiles just ungroup, they're never deleted)",
-                    "switch tabs from the small pill at the bottom of start, or the list it expands into — either way shows every tab's own pending-notification count",
-                    "pinning an app from the app list — \"pin to start\" or \"more from this app\" (its shortcuts and other activities) — always lands it in whichever section tab is currently active, no picker to answer",
-                    "a live tile added from start's own edit-mode \"add live tiles\" lands the same way, in whichever section tab is active",
-                    "already-pinned tile? select it in edit mode, tap its colour dot, and use \"move to section\" at the bottom of the colour picker to move it somewhere else",
-                    "on a tab with room to spare below its tiles, drag down from that empty space to pull the tiles closer to your thumb — release to hold them there, tap one to open it (that also lets go), or tap the empty area to let go without doing anything",
+                    "start is organized into pages — swipe left/right to move between them; the last one is always \"main\" for anything you haven't grouped",
+                    "in edit mode, tap the \"+\" at the top of start to add a page; each page's own header (visible only while editing) lets you rename it, move it earlier/later with ←/→, or remove it (tiles just ungroup, they're never deleted)",
+                    "pinning an app from the app list — \"pin to start\" or \"more from this app\" (its shortcuts and other activities) — always lands it on whichever page you were last viewing, no picker to answer",
+                    "a live tile added from start's own edit-mode \"add live tiles\" lands the same way, on whichever page you were last viewing",
+                    "already-pinned tile? select it in edit mode, tap its colour dot, and use \"move to page\" at the bottom of the colour picker to move it somewhere else — or, in edit mode, drag it to the left or right edge of the screen to carry it onto a neighboring page directly",
+                    "on a page with room to spare below its tiles, drag down from that empty space to pull the tiles closer to your thumb — release to hold them there, tap one to open it (that also lets go), or tap the empty area to let go without doing anything",
                 ),
             )
 

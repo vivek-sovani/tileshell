@@ -175,9 +175,11 @@ fun AboutSheet(
                     "apps with a pending notification show up in the app list's recent section, even if they're not pinned to start",
                     "the \"personalize\" tile is a normal start tile — drag, resize, or unpin it like any other",
                     "removed it by accident? pin it back from the app list's own \"personalize\" entry",
-                    "group tiles into named, reorderable sections shown one tab at a time — turn it on and manage them from personalize",
-                    "pinning an app (or one of its shortcuts, via \"more from this app\") always lands it in whichever section tab is currently active — no picker to answer",
-                    "on a tab with room below its tiles, drag down from that empty space to pull them closer to your thumb; tap one to open it, or tap elsewhere to let go",
+                    "start is organized into pages — swipe left/right between them; the last one is always \"main\" for anything you haven't grouped",
+                    "in edit mode, tap the \"+\" at the top to add a page, and use its name/←/→/× controls to rename, reorder, or remove it (tiles just ungroup, they're never deleted)",
+                    "pinning an app (or one of its shortcuts, via \"more from this app\") always lands it on whichever page you were last viewing — no picker to answer",
+                    "drag a tile to the left or right edge of the screen to carry it onto a neighboring page",
+                    "on a page with room below its tiles, drag down from that empty space to pull them closer to your thumb; tap one to open it, or tap elsewhere to let go",
                 ),
             )
 

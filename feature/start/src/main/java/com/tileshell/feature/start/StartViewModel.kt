@@ -42,7 +42,6 @@ import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.core.data.settings.SettingsRepository
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
-import com.tileshell.core.data.settings.SectionPillAlignment
 import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.data.settings.isAnchored
 import com.tileshell.feature.livetiles.DEFAULT_FEED_SOURCES
@@ -1270,30 +1269,6 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Set the icon mask ICONS home style applies (unused in TILES). */
     fun setIconShape(shape: IconShape) {
         viewModelScope.launch(writeContext) { settingsRepository.setIconShape(shape) }
-    }
-
-    /** Master on/off switch for the "sections" feature — see [LauncherSettings.sectionsEnabled]. */
-    fun setSectionsEnabled(enabled: Boolean) {
-        viewModelScope.launch(writeContext) { settingsRepository.setSectionsEnabled(enabled) }
-    }
-
-    /**
-     * The user-confirmed "turn sections off while sections exist" action
-     * (Personalize's own confirmation dialog, shown only when there's
-     * actually something to merge): dissolves every section into "main" and
-     * turns the feature off in the same write, so there's never a moment
-     * where the setting is off but old sections/pills are still visible.
-     */
-    fun disableSectionsAndMerge() {
-        viewModelScope.launch(writeContext) {
-            repository.mergeAllSectionsIntoUnsectioned()
-            settingsRepository.setSectionsEnabled(false)
-        }
-    }
-
-    /** Where the section dropdown sits (left/center/right), for thumb reach. */
-    fun setSectionPillAlignment(alignment: SectionPillAlignment) {
-        viewModelScope.launch(writeContext) { settingsRepository.setSectionPillAlignment(alignment) }
     }
 
     /** Use each app's themed/monochrome icon in the app list and on live-tile corner badges. */

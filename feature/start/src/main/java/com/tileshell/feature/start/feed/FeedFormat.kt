@@ -64,18 +64,20 @@ fun feedGlanceClock(calendar: Calendar): String = clock12Digits(calendar)
 /**
  * The pager page to settle to after a horizontal drag, given the [base] page the
  * gesture started on and the live [pos] at release. Pages are ordered
- * `feed = -1, start = 0, apps = +1`; a net travel past 0.28 of a page width
- * commits to the adjacent page (prototype `d>0.28 / d<-0.28`), otherwise it
- * springs back. The result is the nearest whole page, clamped to [-1, 1].
+ * `feed = -1, start's own block pages = 0 .. upper-1, apps = upper` (`upper` is
+ * however many block pages Start currently has); a net travel past 0.28 of a
+ * page width commits to the adjacent page (prototype `d>0.28 / d<-0.28`),
+ * otherwise it springs back. The result is the nearest whole page, clamped to
+ * `[lower, upper]`.
  */
-fun pagerCommitTarget(base: Float, pos: Float): Float {
+fun pagerCommitTarget(base: Float, pos: Float, lower: Float = -1f, upper: Float = 1f): Float {
     val delta = pos - base
     val target = when {
         delta > 0.28f -> base + 1f
         delta < -0.28f -> base - 1f
         else -> base
     }
-    return Math.round(target.coerceIn(-1f, 1f)).toFloat()
+    return Math.round(target.coerceIn(lower, upper)).toFloat()
 }
 
 /**

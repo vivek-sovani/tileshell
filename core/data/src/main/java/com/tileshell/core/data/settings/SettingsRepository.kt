@@ -367,16 +367,6 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(themedIcons = enabled) }
     }
 
-    /** Master on/off switch for the "sections" feature — see [LauncherSettings.sectionsEnabled]. */
-    suspend fun setSectionsEnabled(enabled: Boolean) {
-        store.updateData { it.copy(sectionsEnabled = enabled) }
-    }
-
-    /** Where the section dropdown sits (left/center/right), for thumb reach. */
-    suspend fun setSectionPillAlignment(alignment: SectionPillAlignment) {
-        store.updateData { it.copy(sectionPillAlignment = alignment) }
-    }
-
     /** Replace all settings with a restored backup value atomically. */
     suspend fun restoreSettings(settings: LauncherSettings) {
         store.updateData { settings }

@@ -7517,3 +7517,67 @@ Build + full unit test suite green; visually confirmed on the physical device vi
 same fix applies to the standalone moon-phase live tile (identical code path) and both home-screen
 widgets (identical `Path.op`-based fix mirrored into `WidgetMoonPhaseVisual.kt`), though only the
 panchang tile was directly screenshotted this session.
+
+## Sections become swipeable pages, not a menu-switched tab
+
+Direct user follow-up on the "sections" feature (see the earlier "Start screen 'sections'" entries):
+tapping a dropdown pill to switch between sections is replaced with plain horizontal swipe, folded
+into the *same* pager Start already uses for the feed/glance page and the app list. User's own framing:
+"i am just asking you instead of selecting a section via menu. just do it by scroll." Landed as one
+`Animatable<Float>` position space spanning `-1` (feed) through `0 .. blockCount-1` (one page per
+section, plus the trailing unsectioned "main" page) through `blockCount` (app list) — `pagerCommitTarget`/
+`pagerModifier` generalized from their old hardcoded 3-position `[-1,1]` range to a `lower`/`upper` pair.
+Three more explicit user calls landed in the same pass: a page's name is now shown **only in edit
+mode** (hidden otherwise — no dropdown pill, no permanent label, "just scroll" to know where you are);
+reorder controls became **left/right** arrows instead of up/down (matching the new horizontal
+navigation, same underlying `moveSection` swap); and the "enable sections" Personalize toggle was
+**removed outright** — pages are now an always-available capability like folders, with no on/off
+switch, no "turn off sections?" merge-back confirmation dialog, and no `SectionPillAlignment` setting
+(it only ever configured the now-deleted dropdown pill's placement). Per an explicit rename-scope
+decision, "section" → "page" only in user-facing text (labels, hints, docs) — internal Kotlin symbols,
+the Room `sections` table/`sectionId` column, and `SectionBlocks.kt`/its tests all keep saying
+`Section`. The collapse/expand chevron (`SectionHeader`'s `collapsible`/`onToggleCollapsed`, already
+forced open for the one visible block before this change) is dropped entirely — a "collapsed" page has
+no purpose once every section is already its own page you swipe past.
+
+Mechanically: every block now renders simultaneously as its own full page (`StartPage`'s per-block
+loop, `blockRenders.forEachIndexed`), each translated horizontally by `widthPx * (index -
+pagerProgress)` — the same plain full-slide treatment the feed/app-list pages already used — instead
+of narrowing to just the one active block and swapping its content on settle (the old
+`visibleBlockRenders`/`selectedSectionTab`/dropdown mechanism, all deleted). This is a real behaviour
+change on the existing Start↔feed and Start↔app-list edges too: they previously used a subtler ±22%
+parallax + fade specific to "the single Start position"; once Start splits into N pages there's no
+longer one obviously-special position to keep that treatment for, so every page (feed, every block,
+app list) now uses the same full-slide formula — a deliberate simplification, not preserved for those
+two edges specifically. Each block gets its own independent `rememberScrollState()` (real, separate
+pages, not one shared scrolling column any more) — the "home press scrolls Start to the top" behaviour
+is a known, accepted regression as a result (only the pager position resets to whichever page you were
+last on; the per-page scroll position itself is no longer force-reset from outside `StartPage`).
+
+Two real correctness traps were caught and fixed during this pass, not just plumbing: (1) naively
+deriving "the active section" from `round(pagerProgress)` breaks the instant you rest on the app list
+(`progress == upper`), which is *exactly* when a newly added tile needs to be pinned into "the section
+you were last viewing" (the add-live-tile sheet and the weather-location picker are both opened from
+the app list) — this would have silently regressed to "always pins to the last page," the exact bug
+this feature's own history already fixed once before. Fixed with `lastActiveBlockIndex`, updated only
+while resting on a real block page and always read back re-clamped, so a delete/reorder can never
+leave it dangling. (2) Tapping a page's own new ←/→ reorder button swaps its index with a neighbor's;
+since the pager position doesn't otherwise move, the page you just reordered would visibly swap out
+from under the tap. Fixed by having `onMoveSection`'s `StartScreen`-level wiring also `settleTo` the
+tile's new index — safe because a page's own reorder buttons are only reachable on the block currently
+centered on-screen, so the pager's current integer position is guaranteed to be that page's own index
+at the moment of the tap.
+
+Explicitly **not** part of this pass, flagged back to the user rather than silently dropped: dragging a
+tile to the screen edge to carry it onto a neighboring page (discussed and agreed as a follow-up
+gesture) needs a genuinely separate floating-overlay rendering path for the dragged tile — since each
+block's own `DenseTileGrid` only renders tiles that belong to it, a tile "dragged across" a page
+boundary would otherwise visually vanish with its origin page rather than following the finger. Not
+attempted in this pass; the existing per-tile "move to page" chip (in the colour-picker sheet, plain
+rename from "move to section") remains the only way to move a tile to a different page for now.
+
+Build + full unit test suite green (`FeedFormatTest` extended for `pagerCommitTarget`'s wider range;
+`SectionTest`/`SectionBlocksTest` untouched, since `SectionBlocks.kt` itself didn't change).
+On-device gesture verification (the actual swipe feel, edit-mode header visibility, left/right reorder)
+still needs the user's own hands-on pass, per this project's own established ADB-synthetic-swipe
+limitation.
