@@ -8288,3 +8288,14 @@ about/personalize first: `WhatsNewSheet`'s own display condition in `StartScreen
 this file.
 
 Build + full unit test suite green.
+
+## "What's new" card: only "got it" dismisses it, not a tap anywhere on the scrim
+
+Direct follow-up, user-requested: "only tap on got it should dismiss the update info screen." Unlike
+`FirstRunHint`, whose scrim is itself a dismiss button, `WhatsNewSheet`'s scrim is now a no-op consuming
+click (`indication = null`, empty `onClick`) instead of calling `onDismiss` — a stray tap can no longer
+brush past the card without the user actually reading and acknowledging it, while the scrim still
+blocks the tap from falling through to a Start tile underneath. "got it" is unchanged, still the only
+path to `onDismiss`.
+
+Build + full unit test suite green.

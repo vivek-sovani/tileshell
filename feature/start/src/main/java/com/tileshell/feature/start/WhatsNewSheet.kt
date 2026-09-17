@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -47,7 +49,16 @@ fun WhatsNewSheet(visible: Boolean, accentId: String, onDismiss: () -> Unit, mod
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color(0x99060608))
-                .clickable(onClick = onDismiss),
+                // Deliberately not a tap-to-dismiss scrim (unlike FirstRunHint's) —
+                // user-requested: only "got it" should dismiss this card, so it
+                // reads as a real acknowledgement rather than something a stray
+                // tap could brush past. Still consumes the tap (no-op click, no
+                // ripple) so it doesn't fall through to a Start tile underneath.
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {},
+                ),
             contentAlignment = Alignment.BottomCenter,
         ) {
             Column(
