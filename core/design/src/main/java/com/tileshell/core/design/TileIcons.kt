@@ -284,6 +284,23 @@ object TileIcons {
 
         put("back", vector("back", p("M15 6l-6 6 6 6")))
 
+        // Three filled dots (real Windows Phone's own "all apps" glyph) —
+        // used for "open app list" instead of a directional chevron now that
+        // arrows are already doing double duty for page swipe/reorder.
+        // Filled, not stroked like every other glyph here, so it needs its
+        // own small builder rather than the shared `vector()` helper.
+        put("more", ImageVector.Builder(
+            name = "more",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+        ).apply {
+            listOf(6.0, 12.0, 18.0).forEach { cx ->
+                addPath(pathData = addPathNodes(circle(cx, 12.0, 1.7)), fill = strokeColor, stroke = null)
+            }
+        }.build())
+
         put("plus", vector("plus",
             p(line(12.0, 5.0, 12.0, 19.0)),
             p(line(5.0, 12.0, 19.0, 12.0)),

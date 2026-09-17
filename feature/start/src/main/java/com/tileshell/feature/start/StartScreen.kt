@@ -3501,7 +3501,7 @@ private fun StartPage(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = TileIcons["chevron"],
+                        imageVector = TileIcons["more"],
                         contentDescription = "open app list",
                         tint = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.72f),
                         modifier = Modifier.size(28.dp),
