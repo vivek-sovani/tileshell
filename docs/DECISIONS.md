@@ -7936,3 +7936,38 @@ folder-level `removeFolderAndChildren` chain above. `StartPage` gained an `onRem
 -> Unit = {}` param wired from `StartScreen`'s call site to `viewModel::removeSectionAndTiles`.
 
 Build + full unit test suite green. Needs the user's own on-device confirmation.
+
+## Fixed a real bug: removing the last page landed on the app list instead of the adjacent page
+
+Direct on-device follow-up to the entry above, user-flagged: "after remove page and tile option is
+selected and confirmed... adjacent page to be shown" — confirmed reproducible by hand (created a new
+page, removed it via the corner control, and it opened the app list instead of sliding back to the
+previous page).
+
+Root cause was a real race in the pager's own bounds-reclamp effect
+(`LaunchedEffect(blockCount)`, `StartScreen.kt`), not the removal logic itself. That effect keeps
+`progress` valid whenever the number of pages changes (a section created/deleted/merged), and branches
+on whether the app list is currently showing before deciding how to reclamp. It read that from
+`appListShown`, a `derivedStateOf { progress.value >= upper - 0.5f }` that recomputes live off the
+*current* `upper` (`blockCount.toFloat()`) — but `upper` is exactly what just shrank. Removing
+whichever page you're currently resting on, when it happens to be the *last* one (true of any
+just-created page, since new pages append at the end), drops `blockCount` by one so that the new
+`upper` now numerically equals the still-unchanged `progress.value` you were resting at — and
+`progress.value >= upper - 0.5f` is trivially true at that point even though you were never anywhere
+near the app list. The reclamp effect saw that false-positive and took its `appListShown ->
+progress.snapTo(upper)` branch, snapping straight to the app list instead of coercing back to the
+newly-last (adjacent) page.
+
+Fixed by branching on `isAppList` instead — the ViewModel's own `StateFlow`, set only by `settleTo`'s
+post-animation call, i.e. a real committed "you settled on the app list" fact rather than a live
+recomputation that can be fooled by `upper` moving out from under an unrelated resting position. This
+is the same distinction (`isAppList` vs. the continuously-updating drag-derived flag) an existing
+Post-S27 entry in this log already made for the same reason at the `AppListScreen` `visible` param —
+this bug is a second, independent place the same live/committed distinction mattered and had been
+missed. Every other branch of the reclamp effect (`feedShown`, the plain coerce) is unaffected.
+
+Reproduced the bug first via adb-driven taps on the physical device (create a page → remove it →
+landed on the app list, confirming the exact failure the user reported), then confirmed the fix
+compiles and the reclamp logic is correct by inspection. Build + full unit test suite green — the
+corrected on-device behavior (lands on the adjacent page, not the app list) needs the user's own
+hands-on confirmation.

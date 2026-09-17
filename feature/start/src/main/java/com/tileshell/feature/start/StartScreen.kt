@@ -797,9 +797,24 @@ fun StartScreen(
     // changes (a section created/deleted/merged) — e.g. stay on the app
     // list at its new numeric slot rather than sliding into where a deleted
     // section used to sit.
+    //
+    // Deliberately branches on `isAppList` (the ViewModel's own committed
+    // open/close flag, set only by `settleTo`'s post-animation call) rather
+    // than the live-derived `appListShown` above. `appListShown` recomputes
+    // from the CURRENT `upper`, which shrinks the instant a page is removed
+    // — so deleting whichever page you're currently resting on, when it
+    // happens to be the *last* one, makes `upper` drop to equal your
+    // unchanged `progress.value`, and `progress.value >= upper - 0.5f`
+    // trivially becomes true even though you were never on the app list.
+    // That misfire took this exact branch and snapped straight to the app
+    // list instead of reclamping to the newly-last page — reproduced
+    // on-device: removing the last named page via "remove page & tiles"
+    // landed on the app list instead of the adjacent page. `isAppList` only
+    // reflects a real, deliberate `settleTo(upper)`, so it can't be fooled
+    // by `upper` moving out from under an unrelated resting position.
     LaunchedEffect(blockCount) {
         when {
-            appListShown -> progress.snapTo(upper)
+            isAppList -> progress.snapTo(upper)
             feedShown -> {} // feed's position (-1) is independent of blockCount
             else -> progress.animateTo(progress.value.coerceIn(0f, (blockCount - 1).toFloat()), settleSpec)
         }
