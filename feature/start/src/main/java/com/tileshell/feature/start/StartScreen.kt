@@ -1430,7 +1430,28 @@ fun StartScreen(
                     sections = sections,
                     onCreateSection = viewModel::createSection,
                     onRenameSection = viewModel::renameSection,
-                    onMergeSection = viewModel::mergeSection,
+                    onMergeSection = { id, targetId ->
+                        viewModel.mergeSection(id, targetId)
+                        // Show the page the tiles actually merged into, rather
+                        // than leaving the user on whatever page the shrunken
+                        // blockCount happens to coerce the current position
+                        // to (the same class of bug as "merge with main" not
+                        // showing main — see DECISIONS). The merged-away page
+                        // disappears once this commits, shifting every LATER
+                        // page's block index down by one, so a page after it
+                        // in section order needs its computed target index
+                        // adjusted by that same shift; a page before it (or
+                        // main, block 0) is unaffected.
+                        val removedIndex = sortedSections.indexOfFirst { it.id == id }
+                        val targetBlockIndex = if (targetId == null) {
+                            0
+                        } else {
+                            val oldIndex = sortedSections.indexOfFirst { it.id == targetId }
+                            val adjusted = if (removedIndex in 0 until oldIndex) oldIndex - 1 else oldIndex
+                            adjusted + 1
+                        }
+                        settleTo(targetBlockIndex.coerceAtLeast(0).toFloat())
+                    },
                     onRemovePageAndTiles = viewModel::removeSectionAndTiles,
                     onMoveSection = { id, direction ->
                         viewModel.moveSection(id, direction)

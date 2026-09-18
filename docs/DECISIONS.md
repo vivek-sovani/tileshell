@@ -3,6 +3,41 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## "Merge into…" (arbitrary target page) now shows the target page right after merging
+
+Direct follow-up, user-requested: "merge into feature now working but after
+merge i had asked you to show the page in which it was merged." Same ask as
+the earlier "merge with main" fix, extended to `main`'s own newer "merge
+into…" picker (`b601e0e`, which lets a removed page's tiles fold into *any*
+other existing page, not just main) — that feature had shipped without ever
+picking up the "show the destination afterward" behavior.
+
+`onMergeSection`'s call site (`StartScreen.kt`) previously delegated straight
+to `viewModel::mergeSection` with no navigation at all, so the generic
+`LaunchedEffect(blockCount)` reclamp effect was the only thing moving the
+pager after a merge — it just coerces the current position into the new
+(shrunken) valid range, which is not the same as showing wherever the tiles
+actually landed.
+
+Fix is one level more involved than the plain "always main" case, because the
+target can be *any* page, including one that sits *after* the removed page in
+section order — removing a page shifts every later page's block index down
+by one, so a target after it needs that same shift applied to the index
+computed from the picker's own (pre-merge) `sortedSections`; a target before
+it, or main (block 0), is unaffected. Computed as: locate the removed page's
+and the target's index in the current `sortedSections`, subtract one from the
+target's index only if the removed page's index is lower, then convert to a
+block index (`+1` for a real section, `0` for main). `settleTo` is called
+with that already-correct post-merge index immediately, rather than waiting
+for `sections` to actually update — the arithmetic makes it correct up front,
+so there's no need for a reactive follow-up once the write commits.
+
+Build + full unit test suite green; installed on the physical device, no
+crash in `adb logcat`. Needs the user's own on-device confirmation — same
+caveat as the "merge with main" fix, and the same gesture (long-press → edit
+mode → merge-into picker) this project's own history says ADB can't reliably
+synthesize.
+
 ## Sections' "big gap" bug: why the same symptom kept reappearing across three fixes
 
 User reports across several rounds all described the same visible symptom —
