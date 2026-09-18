@@ -2935,20 +2935,25 @@ private fun StartPage(
     // by scroll," per an earlier user request), so swiping to a different
     // page has no visible cue for which one you landed on. Briefly shows the
     // destination page's own label whenever [activeBlockIndex] settles on a
-    // new page — mirrors how most launchers flash the target screen's name
-    // on a page swipe. Skips the very first composition (nothing was
-    // "swiped to" yet, so flashing on cold start would be noise) and stays
-    // silent in edit mode, where the block's own header already shows the
-    // name permanently.
+    // new *named* page — mirrors how most launchers flash the target
+    // screen's name on a page swipe. Never flashes for main itself (nothing
+    // to name — user-requested) or on the very first composition (nothing
+    // was "swiped to" yet), and stays silent in edit mode, where the
+    // block's own header already shows the name permanently. Kept brief
+    // ("just flash it," user-requested) — a quick blip, not a lingering
+    // banner.
     var pageFlashLabel by remember { mutableStateOf<String?>(null) }
     var pageFlashSeeded by remember { mutableStateOf(false) }
     LaunchedEffect(activeBlockIndex) {
         if (!pageFlashSeeded) {
             pageFlashSeeded = true
         } else if (!editMode) {
-            pageFlashLabel = blocks.getOrNull(activeBlockIndex)?.label ?: UNSECTIONED_LABEL
-            delay(1100)
-            pageFlashLabel = null
+            val label = blocks.getOrNull(activeBlockIndex)?.label
+            if (label != null) {
+                pageFlashLabel = label
+                delay(450)
+                pageFlashLabel = null
+            }
         }
     }
     // How far the tiles may travel: exactly the real empty space below the
@@ -3734,8 +3739,8 @@ private fun StartPage(
         // status bar area so it never competes with the grid's own content.
         AnimatedVisibility(
             visible = pageFlashLabel != null,
-            enter = fadeIn(tween(150)),
-            exit = fadeOut(tween(400)),
+            enter = fadeIn(tween(100)),
+            exit = fadeOut(tween(200)),
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .statusBarsPadding()
