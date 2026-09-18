@@ -3,7 +3,11 @@ package com.tileshell.feature.livetiles
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationListener
 import android.location.LocationManager
+import android.os.Bundle
+import android.os.Looper
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,41 +48,86 @@ import com.tileshell.core.design.LocalTileFaceColor
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
+import kotlin.coroutines.resume
 
 private val FaceText: Color
     @Composable get() = LocalTileFaceColor.current
 
-// India's rough geographic centre — used only as a fallback when location
-// access isn't granted/available (see [lastCoarseLocationOrDefault]), so the
-// Panchang's sunrise/sunset line always shows a plausible time instead of
-// degrading to blank.
+// India's rough geographic centre — used only as a last-resort fallback when
+// no real location is available at all (see [lastCoarseLocationOrDefault]),
+// so the Panchang's sunrise/sunset line always shows a plausible time
+// instead of degrading to blank. It's a coarse country-wide average, not a
+// specific city — real sunrise/sunset for a location like Pune can be off by
+// ~15-20 minutes from what this centre would compute, so it's only ever used
+// once both a cached fix and a fresh fix attempt (below) come up empty.
 private const val DEFAULT_LATITUDE = 20.5937
 private const val DEFAULT_LONGITUDE = 78.9629
 
+/** Bound on the one-time fresh-fix request in [lastCoarseLocationOrDefault], so a cold-start caller is never blocked long. */
+private const val LOCATION_FIX_TIMEOUT_MS = 8_000L
+
 /**
- * Best-effort device latitude/longitude for [SunTimes] — the same granted
- * coarse-location permission and last-known-fix technique the weather tile
- * already uses ([WeatherRefreshWorker]'s own `lastCoarseLocation`): no new
- * permission prompt, no active fix request, just whatever's already cached
- * by the OS. Falls back to [DEFAULT_LATITUDE]/[DEFAULT_LONGITUDE] when
- * denied or unavailable. Internal (not private) — the home-screen calendar-
- * system widget's own refresh worker reuses this exact function rather than
+ * Best-effort device latitude/longitude for [SunTimes], strongly preferring
+ * the user's real location over [DEFAULT_LATITUDE]/[DEFAULT_LONGITUDE].
+ * First tries whatever's already cached by the OS (the same granted
+ * coarse-location permission + last-known-fix technique the weather tile
+ * already uses — [WeatherRefreshWorker]'s own `lastCoarseLocation`); when
+ * nothing is cached yet — the common case right after a fresh install, since
+ * nothing else may have ever asked the network-location provider for a fix —
+ * this makes one bounded, single-shot request for a fresh network-location
+ * fix (no new permission: `NETWORK_PROVIDER` only needs the coarse grant
+ * already checked below) rather than silently falling back to a country-wide
+ * average immediately. Falls back to the default only when both come up
+ * empty (permission denied, no provider enabled, or no fix within the
+ * timeout). Internal (not private) — the home-screen calendar-system
+ * widget's own refresh worker reuses this exact function rather than
  * duplicating it.
  */
-internal fun lastCoarseLocationOrDefault(context: Context): Pair<Double, Double> {
+internal suspend fun lastCoarseLocationOrDefault(context: Context): Pair<Double, Double> {
     val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
         PackageManager.PERMISSION_GRANTED
-    if (granted) {
-        val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
-        val loc = runCatching {
-            lm?.getProviders(true)?.asSequence()
-                ?.mapNotNull { lm.getLastKnownLocation(it) }
-                ?.maxByOrNull { it.time }
-        }.getOrNull()
-        if (loc != null) return loc.latitude to loc.longitude
-    }
+    if (!granted) return DEFAULT_LATITUDE to DEFAULT_LONGITUDE
+
+    val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+        ?: return DEFAULT_LATITUDE to DEFAULT_LONGITUDE
+
+    val cached = runCatching {
+        lm.getProviders(true).asSequence()
+            .mapNotNull { lm.getLastKnownLocation(it) }
+            .maxByOrNull { it.time }
+    }.getOrNull()
+    if (cached != null) return cached.latitude to cached.longitude
+
+    val fresh = withTimeoutOrNull(LOCATION_FIX_TIMEOUT_MS) { requestSingleNetworkFix(lm) }
+    if (fresh != null) return fresh.latitude to fresh.longitude
+
     return DEFAULT_LATITUDE to DEFAULT_LONGITUDE
+}
+
+/** One bounded `NETWORK_PROVIDER` fix, resumed at most once; cancellation/timeout unregisters the listener. */
+private suspend fun requestSingleNetworkFix(lm: LocationManager): Location? = suspendCancellableCoroutine { cont ->
+    if (!runCatching { lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER) }.getOrDefault(false)) {
+        cont.resume(null)
+        return@suspendCancellableCoroutine
+    }
+    val listener = object : LocationListener {
+        override fun onLocationChanged(location: Location) {
+            if (cont.isActive) cont.resume(location)
+        }
+        @Deprecated("Deprecated in Java", ReplaceWith(""))
+        override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+        override fun onProviderEnabled(provider: String) {}
+        override fun onProviderDisabled(provider: String) {
+            if (cont.isActive) cont.resume(null)
+        }
+    }
+    runCatching {
+        lm.requestSingleUpdate(LocationManager.NETWORK_PROVIDER, listener, Looper.getMainLooper())
+    }.onFailure { if (cont.isActive) cont.resume(null) }
+    cont.invokeOnCancellation { runCatching { lm.removeUpdates(listener) } }
 }
 
 /**
@@ -141,10 +191,15 @@ fun CalendarSystemTileFace(
     if (systemId == HINDU_PANCHANG_ID) {
         val panchang = HinduPanchang.panchangFor(nowMillis)
         // Resolved once per tile instance (location doesn't meaningfully
-        // change minute to minute), then a fresh sunrise/sunset only when the
-        // calendar day actually changes — both cheap local reads, no network.
+        // change minute to minute) — cheap if a fix is already cached by the
+        // OS, else a bounded on-device location request (see
+        // lastCoarseLocationOrDefault); a fresh sunrise/sunset is then
+        // recomputed only when the calendar day actually changes or once
+        // this resolves.
         val context = LocalContext.current
-        val location = remember { lastCoarseLocationOrDefault(context) }
+        val location by produceState(initialValue = DEFAULT_LATITUDE to DEFAULT_LONGITUDE, context) {
+            value = lastCoarseLocationOrDefault(context)
+        }
         val sunTimes = remember(romanDate, location) {
             SunTimes.sunriseSunsetFor(nowMillis, location.first, location.second)
         }
@@ -463,15 +518,22 @@ private fun PanchangFace(
 
 /** The compact 1×1 face (ICONS home style / SMALL tile): just today's Roman day number, never flips. */
 @Composable
-fun CalendarSystemSmallFace(modifier: Modifier = Modifier) {
-    val cal = remember { java.util.Calendar.getInstance() }
+fun CalendarSystemSmallFace(active: Boolean, modifier: Modifier = Modifier) {
+    var dayOfMonth by remember { mutableStateOf(java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_MONTH)) }
+    LaunchedEffect(active) {
+        if (!active) return@LaunchedEffect
+        while (true) {
+            dayOfMonth = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_MONTH)
+            delay(60_000L - (System.currentTimeMillis() % 60_000L))
+        }
+    }
     Column(
         modifier = modifier.fillMaxSize().padding(4.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = cal.get(java.util.Calendar.DAY_OF_MONTH).toString(),
+            text = dayOfMonth.toString(),
             color = FaceText,
             fontSize = 22.sp,
             fontWeight = FontWeight.Light,

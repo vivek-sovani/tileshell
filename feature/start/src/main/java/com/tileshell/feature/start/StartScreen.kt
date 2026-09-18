@@ -6763,7 +6763,7 @@ private fun AppTileContent(
                 )
                 return
             }
-            "calsys" -> { CalendarSystemSmallFace(modifier = Modifier.fillMaxSize()); return }
+            "calsys" -> { CalendarSystemSmallFace(active = liveActive, modifier = Modifier.fillMaxSize()); return }
         }
     }
 

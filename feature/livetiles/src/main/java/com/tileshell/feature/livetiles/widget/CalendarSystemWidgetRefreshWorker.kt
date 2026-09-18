@@ -90,6 +90,9 @@ class CalendarSystemWidgetRefreshWorker(
             val nowMillis = System.currentTimeMillis()
             // One location resolution per push (not per widget instance) —
             // reused by the Hindu Panchang face's sunrise/sunset line below.
+            // Suspends briefly (bounded) on a cold start with no cached fix
+            // yet — see lastCoarseLocationOrDefault; fine here since this
+            // already runs inside a CoroutineWorker.
             val location = lastCoarseLocationOrDefault(context)
             val sunTimes = SunTimes.sunriseSunsetFor(nowMillis, location.first, location.second)
             ids.forEach { id ->

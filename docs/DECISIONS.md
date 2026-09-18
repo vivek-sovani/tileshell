@@ -8289,6 +8289,50 @@ this file.
 
 Build + full unit test suite green.
 
+## Calendar-system tile: sunrise/sunset location fallback, and a real day-rollover bug on the small icon face
+
+User-reported: "sunrise and sunset timing is not accurate... in pune it is 6:19am and 6:38pm," plus a
+separate report that the tile/widget showed the previous day's date when checked at 5am.
+
+**Sunrise/sunset accuracy**: verified [SunTimes.sunriseSunsetFor]'s own trig (the standard "sunrise
+equation," Wikipedia/NOAA idiom) against an independent reference implementation (the `astral` Python
+library) for Pune's real coordinates on today's date — they agree to within ~2 minutes, well inside this
+formula's own documented ~1-minute accuracy budget, and both land close to the user's quoted real-world
+times. The formula itself isn't the bug. The real cause: `lastCoarseLocationOrDefault`
+(`CalendarSystemTile.kt`) only ever read `LocationManager.getLastKnownLocation` — a *passively cached*
+fix that can simply be empty (nothing else on the device has ever asked the network-location provider
+for one, common right after a fresh install) — and silently fell back to **India's geographic centroid**
+(20.5937, 78.9629) whenever it was. Re-running the same formula with that fallback point instead of
+Pune's real coordinates lands ~20 minutes off (6:03/18:16 vs. the correct ~6:24/18:36) — squarely
+matching a user complaint of "not accurate," and a far bigger error than the algorithm's own margin.
+Fixed by making the function try one bounded (8s), single-shot fresh fix from `NETWORK_PROVIDER` (still
+only needs the already-checked `ACCESS_COARSE_LOCATION` grant — no new permission) whenever nothing is
+cached, before falling back to the country-wide default — strongly preferring the user's real location.
+The in-app tile face now resolves this via `produceState` (the function became `suspend`); the
+home-screen widget's refresh worker (already a `CoroutineWorker`) just awaits it directly.
+
+**Day rollover — a real, separate bug, isolated to one composable**: `CalendarSystemSmallFace` (the
+compact 1×1 icon-grid face) read `remember { Calendar.getInstance() }` — captured exactly once, the
+first time the composable entered composition, with no ticker of any kind to ever refresh it. Every
+sibling live face in this file (`MoonPhaseSmallFace`, `StepsSmallFace`, `StockSmallFace`,
+`CommoditySmallFace`, and the calendar tile's own bigger flippable face) re-renders once a minute via a
+gated `LaunchedEffect(active) { while (true) { ...; delay(60_000L - now % 60_000L) } }` loop — this one
+face never got that treatment, so once composed it would freeze on whatever day it started on
+indefinitely (not just "at 5am" — any time, for however long the launcher process stays alive without
+that composable leaving and re-entering composition), exactly matching the user's report. Fixed by
+giving it the same ticker + an `active: Boolean` parameter, wired from both call sites
+(`StartScreen.kt`'s `"calsys"` branch and `IconCellView.kt`'s `LiveIconTile` branch) with `active =
+liveActive`, matching how the adjacent `"moonphase"` branch in both files already does it. The bigger
+flippable Panchang/calendar-system face was never affected — it already had the correct ticker.
+
+For reference, the home-screen widget's own day-rollover (separate code path, `WidgetWork
+.millisUntilNextMidnight` / `CalendarSystemWidgetRefreshWorker`) is a single WorkManager job scheduled
+for just after local midnight — by design, not the bug above — so it can lag by however long WorkManager
+defers it under Doze on an idle device, unlike the in-app tile which self-corrects every minute while on
+screen.
+
+Build + full unit test suite green.
+
 ## "What's new" card: only "got it" dismisses it, not a tap anywhere on the scrim
 
 Direct follow-up, user-requested: "only tap on got it should dismiss the update info screen." Unlike
