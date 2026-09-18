@@ -3735,8 +3735,11 @@ private fun StartPage(
         } // end blockRenders.forEachIndexed
 
         // Page-name flash's own visual (state/trigger above, near
-        // [activeBlockIndex]) — a centered pill, faded in/out, over the
-        // status bar area so it never competes with the grid's own content.
+        // [activeBlockIndex]) — plain text, no pill/background/border, so it
+        // reads as a quick flash rather than a new UI chrome element
+        // (user-requested: "dont add much visual elements"). Fade only, no
+        // motion, over the status bar area so it never competes with the
+        // grid's own content or the page-swipe animation itself.
         AnimatedVisibility(
             visible = pageFlashLabel != null,
             enter = fadeIn(tween(100)),
@@ -3746,19 +3749,12 @@ private fun StartPage(
                 .statusBarsPadding()
                 .padding(top = 22.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.16f))
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-            ) {
-                Text(
-                    text = (pageFlashLabel ?: "").lowercase(),
-                    color = Glass.faceTextColor(screenBackgroundIsLight),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
+            Text(
+                text = (pageFlashLabel ?: "").lowercase(),
+                color = Glass.faceTextColor(screenBackgroundIsLight),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+            )
         }
 
         // Cross-page drag's own floating visual: the dragged tile's real
