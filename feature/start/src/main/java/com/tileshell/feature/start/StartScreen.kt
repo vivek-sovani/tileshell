@@ -804,7 +804,12 @@ fun StartScreen(
         if (currentIntPosition in 0 until blockCount) lastActiveBlockIndex = currentIntPosition
     }
     val activeBlockIndex = lastActiveBlockIndex.coerceIn(0, blockCount - 1)
-    val activeSectionId: String? = sortedSections.getOrNull(activeBlockIndex)?.id
+    // Block 0 is always the unsectioned "main" page (see SectionBlocks.blocksFor,
+    // which prepends it ahead of every real section) — sortedSections only holds
+    // named sections, so a real section at block index k lives at
+    // sortedSections[k - 1], not sortedSections[k]. Mirrors the same -1 correction
+    // at the cross-page-drag target-section lookup below.
+    val activeSectionId: String? = sortedSections.getOrNull(activeBlockIndex - 1)?.id
 
     // Keep the pager in a valid range whenever the number of block pages
     // changes (a section created/deleted/merged) — e.g. stay on the app
