@@ -2008,9 +2008,13 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) { repository.setSectionCollapsed(id, !current) }
     }
 
-    /** Remove a section, ungrouping its member tiles back to unsectioned. */
-    fun deleteSection(id: String) {
-        viewModelScope.launch(writeContext) { repository.deleteSection(id) }
+    /**
+     * Remove a section, merging its member tiles into [targetSectionId]
+     * (null = unsectioned/"main", the default; any other id = another
+     * existing page the user picked).
+     */
+    fun mergeSection(id: String, targetSectionId: String? = null) {
+        viewModelScope.launch(writeContext) { repository.mergeSection(id, targetSectionId) }
     }
 
     /** Remove a page (section) and delete every tile/folder it contains. */

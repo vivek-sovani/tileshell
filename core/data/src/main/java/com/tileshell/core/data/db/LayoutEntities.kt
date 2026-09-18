@@ -61,9 +61,9 @@ data class TileEntity(
 /**
  * A named, collapsible group of top-level Start tiles ("work", "games", ...),
  * in [sortOrder]. Purely organizational — a [TileEntity] carries its own
- * `sectionId`, so deleting a section (`LayoutDao.deleteSection`) ungroups its
- * member tiles back to unsectioned rather than deleting them. Added in
- * schema v13.
+ * `sectionId`, so deleting a section (`LayoutDao.mergeSectionInto`) merges its
+ * member tiles into whichever page the user picks (default: unsectioned)
+ * rather than deleting them. Added in schema v13.
  */
 @Entity(tableName = "sections")
 data class SectionEntity(

@@ -591,18 +591,32 @@ interface LayoutDao {
     @Query("UPDATE tiles SET sectionId = NULL WHERE sectionId = :sectionId")
     suspend fun clearTileSection(sectionId: String)
 
+    /**
+     * Retag every tile currently on [id] to [targetSectionId] (null =
+     * unsectioned/"main") — the bulk counterpart to [updateTileSection]'s
+     * single-tile move. Also clears `gridSlot` for the same reason
+     * [updateTileSection] does: an anchored row/column only means something
+     * within the block that produced it, so carrying it into a different
+     * block's own local grid can anchor a tile many rows down and leave a
+     * large empty gap in the destination section.
+     */
+    @Query("UPDATE tiles SET sectionId = :targetSectionId, gridSlot = NULL WHERE sectionId = :id")
+    suspend fun retagTileSection(id: String, targetSectionId: String?)
+
     @Query("DELETE FROM sections WHERE id = :id")
     suspend fun deleteSectionById(id: String)
 
     /**
-     * Delete a section, ungrouping its member tiles back to unsectioned rather
-     * than deleting them — the "remove section" action never touches tile
-     * data, the same organizational-only contract a dissolving folder has for
-     * its own children.
+     * Delete a section, merging its member tiles into [targetSectionId]
+     * (null = unsectioned/"main") rather than deleting them — the "remove
+     * page" action never touches tile data, the same organizational-only
+     * contract a dissolving folder has for its own children. [targetSectionId]
+     * lets the user pick any existing page to fold the removed one's tiles
+     * into, not just main.
      */
     @Transaction
-    suspend fun deleteSection(id: String) {
-        clearTileSection(id)
+    suspend fun mergeSectionInto(id: String, targetSectionId: String?) {
+        retagTileSection(id, targetSectionId)
         deleteSectionById(id)
     }
 
@@ -611,8 +625,8 @@ interface LayoutDao {
 
     /**
      * Remove a section and every tile currently on it from Start in one
-     * action — "remove page & tiles," the bulk counterpart to [deleteSection]
-     * ("merge with main"), which only ungroups. Each tile is dropped the same
+     * action — "remove page & tiles," the bulk counterpart to [mergeSectionInto]
+     * ("merge into..."), which only ungroups/retags. Each tile is dropped the same
      * way [removeTile] drops any top-level tile (`deleteTileById` +
      * `deleteFolderById` — the latter a harmless no-op for a plain app tile,
      * but cascades a folder tile's own `folder_children` rows away when the

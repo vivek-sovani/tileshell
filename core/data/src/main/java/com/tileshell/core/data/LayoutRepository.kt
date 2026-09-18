@@ -106,10 +106,12 @@ class LayoutRepository(
         dao.updateSectionCollapsed(id, collapsed)
 
     /**
-     * Remove a section, ungrouping its member tiles back to the default
-     * unsectioned area — tiles are never deleted along with their section.
+     * Remove a section, merging its member tiles into [targetSectionId]
+     * (null = the default unsectioned/"main" area, any other id = another
+     * existing page) — tiles are never deleted along with their section.
      */
-    suspend fun deleteSection(id: String) = dao.deleteSection(id)
+    suspend fun mergeSection(id: String, targetSectionId: String? = null) =
+        dao.mergeSectionInto(id, targetSectionId)
 
     /**
      * Remove a section and every tile currently on it from Start in one

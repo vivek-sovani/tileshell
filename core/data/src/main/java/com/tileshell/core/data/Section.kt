@@ -13,9 +13,9 @@ const val UNSECTIONED_LABEL = "main"
 /**
  * A named, collapsible group of top-level Start tiles ("work", "games", ...),
  * in [order]. Purely organizational: a [TileModel]'s own `sectionId` records
- * membership, so deleting a section ([LayoutRepository.deleteSection])
- * ungroups its members back to the default unsectioned area rather than
- * deleting them.
+ * membership, so deleting a section ([LayoutRepository.mergeSection])
+ * merges its members into whichever page the user picks (default: the
+ * unsectioned area) rather than deleting them.
  */
 data class Section(
     val id: String,

@@ -83,6 +83,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -1429,7 +1430,7 @@ fun StartScreen(
                     sections = sections,
                     onCreateSection = viewModel::createSection,
                     onRenameSection = viewModel::renameSection,
-                    onDeleteSection = viewModel::deleteSection,
+                    onMergeSection = viewModel::mergeSection,
                     onRemovePageAndTiles = viewModel::removeSectionAndTiles,
                     onMoveSection = { id, direction ->
                         viewModel.moveSection(id, direction)
@@ -2619,10 +2620,13 @@ private fun StartPage(
     sections: List<Section> = emptyList(),
     onCreateSection: (String) -> Unit = {},
     onRenameSection: (id: String, label: String) -> Unit = { _, _ -> },
-    onDeleteSection: (String) -> Unit = {},
+    // "merge into..." — ungroups the page's tiles into another page the user
+    // picks (null target = unsectioned/"main"); the page itself is removed,
+    // its tiles never are.
+    onMergeSection: (id: String, targetSectionId: String?) -> Unit = { _, _ -> },
     // "remove page & tiles" — unpins the page's section AND every tile
     // currently on it, at once (apps stay installed) — the bulk counterpart
-    // to [onDeleteSection] ("merge with main"), which only ungroups.
+    // to [onMergeSection], which only ungroups/retags.
     onRemovePageAndTiles: (String) -> Unit = {},
     onMoveSection: (id: String, direction: Int) -> Unit = { _, _ -> },
     onAssignTileSection: (tileId: String, sectionId: String?) -> Unit = { _, _ -> },
@@ -2703,6 +2707,9 @@ private fun StartPage(
     // same two-state shape as the folder ones above, for the same reason.
     var pageRemoveMenuExpanded by remember { mutableStateOf(false) }
     var confirmRemovePageId by remember { mutableStateOf<String?>(null) }
+    // "merge into..." — which page to fold the removed page's tiles into,
+    // chosen by the user rather than always defaulting to main.
+    var mergeSectionPickerId by remember { mutableStateOf<String?>(null) }
     // Sticky-mode drag preview: id -> live push-down cell, recomputed on every
     // pointer move so the tiles a drop would displace visibly slide out of the
     // way *during* the drag (dense mode already got this for free via `order`
@@ -3765,10 +3772,10 @@ private fun StartPage(
                 }
                 DropdownMenu(expanded = pageRemoveMenuExpanded, onDismissRequest = { pageRemoveMenuExpanded = false }) {
                     DropdownMenuItem(
-                        text = { Text("merge with main") },
+                        text = { Text("merge into…") },
                         onClick = {
                             pageRemoveMenuExpanded = false
-                            onDeleteSection(activeSectionId)
+                            mergeSectionPickerId = activeSectionId
                         },
                     )
                     DropdownMenuItem(
@@ -3782,9 +3789,56 @@ private fun StartPage(
             }
         }
 
+        // "merge into..." — pick any other existing page (main, or another
+        // named section) to fold this page's tiles into, instead of always
+        // defaulting to main (user-requested).
+        mergeSectionPickerId?.let { sectionId ->
+            val destinations = listOf<Pair<String?, String>>(null to UNSECTIONED_LABEL) +
+                sections.sortedBy { it.order }.filter { it.id != sectionId }.map { it.id to it.label }
+            AlertDialog(
+                onDismissRequest = { mergeSectionPickerId = null },
+                title = { Text("merge into which page?") },
+                text = {
+                    Column {
+                        Text(
+                            "this page will be removed and its tiles moved to the page you pick. " +
+                                "nothing is unpinned.",
+                            fontSize = 13.sp,
+                        )
+                        Spacer(Modifier.height(14.dp))
+                        androidx.compose.foundation.layout.FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            destinations.forEach { (targetId, label) ->
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .border(1.dp, LocalContentColor.current.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                                        .clickable {
+                                            mergeSectionPickerId = null
+                                            onMergeSection(sectionId, targetId)
+                                            // The page you were editing is gone — same
+                                            // treatment as "remove page & tiles" below.
+                                            onExitEdit()
+                                        }
+                                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                                ) {
+                                    Text(label.lowercase(), fontSize = 13.sp)
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { mergeSectionPickerId = null }) { Text("cancel") }
+                },
+            )
+        }
+
         // "remove page & tiles" confirmation — a bulk, multi-tile unpin in one
         // tap is worth guarding against an accidental press, unlike "merge
-        // with main" (nothing is lost there, just ungrouped).
+        // into..." (nothing is lost there, just ungrouped).
         confirmRemovePageId?.let { sectionId ->
             AlertDialog(
                 onDismissRequest = { confirmRemovePageId = null },
