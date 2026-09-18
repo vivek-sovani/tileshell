@@ -193,15 +193,17 @@ fun CalendarSystemTileFace(
         // Resolved once per tile instance (location doesn't meaningfully
         // change minute to minute) — cheap if a fix is already cached by the
         // OS, else a bounded on-device location request (see
-        // lastCoarseLocationOrDefault); a fresh sunrise/sunset is then
-        // recomputed only when the calendar day actually changes or once
-        // this resolves.
+        // lastCoarseLocationOrDefault). sunTimes is recomputed every minute
+        // (keyed on nowMillis, which the ticker above already updates) —
+        // needed because nextSunriseSunset rolls sunrise/sunset forward to
+        // tomorrow the instant each one passes, not just at the date
+        // rollover; still cheap, pure local trig, no network.
         val context = LocalContext.current
         val location by produceState(initialValue = DEFAULT_LATITUDE to DEFAULT_LONGITUDE, context) {
             value = lastCoarseLocationOrDefault(context)
         }
-        val sunTimes = remember(romanDate, location) {
-            SunTimes.sunriseSunsetFor(nowMillis, location.first, location.second)
+        val sunTimes = remember(nowMillis, location) {
+            SunTimes.nextSunriseSunset(nowMillis, location.first, location.second)
         }
         FlipTile(
             flipped = flipped,
@@ -435,6 +437,12 @@ private fun PanchangFace(
                     val detailFontSize = if (narrow) 11.sp else if (big) 13.sp else 12.sp
                     val detailIconSize = if (narrow) 11.dp else if (big) 13.dp else 12.dp
                     if (sunTimes != null) {
+                        // sunTimes' two times can each independently belong
+                        // to today or tomorrow (see SunTimes.nextSunriseSunset)
+                        // — a short day label in front of each disambiguates
+                        // which, instead of both silently reading as "today."
+                        val sunriseVara = HinduPanchang.shortVaraName(HinduPanchang.varaFor(sunTimes.sunriseMillis))
+                        val sunsetVara = HinduPanchang.shortVaraName(HinduPanchang.varaFor(sunTimes.sunsetMillis))
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -446,7 +454,7 @@ private fun PanchangFace(
                                 modifier = Modifier.size(detailIconSize),
                             )
                             Text(
-                                text = formatClockTime12Devanagari(sunTimes.sunriseMillis),
+                                text = "$sunriseVara ${formatClockTime12Devanagari(sunTimes.sunriseMillis)}",
                                 color = FaceText.copy(alpha = 0.75f),
                                 fontSize = detailFontSize,
                                 maxLines = 1,
@@ -464,7 +472,7 @@ private fun PanchangFace(
                                 modifier = Modifier.size(detailIconSize),
                             )
                             Text(
-                                text = formatClockTime12Devanagari(sunTimes.sunsetMillis),
+                                text = "$sunsetVara ${formatClockTime12Devanagari(sunTimes.sunsetMillis)}",
                                 color = FaceText.copy(alpha = 0.75f),
                                 fontSize = detailFontSize,
                                 maxLines = 1,

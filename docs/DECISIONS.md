@@ -8343,3 +8343,36 @@ blocks the tap from falling through to a Start tile underneath. "got it" is unch
 path to `onDismiss`.
 
 Build + full unit test suite green.
+
+## Panchang sunrise/sunset: show the *next* occurrence of each, with a day label
+
+Direct user follow-up, same-day as the location-fallback fix above: "sunrise time should be shown of
+next day if sunrise is already passed and sunset of next day if it has already passed."
+
+Read literally — and independently per field, not "flip the whole line to tomorrow once either has
+passed" — this means during the daytime window between today's sunrise and today's sunset, the
+sunrise line should already show *tomorrow's* sunrise (today's has passed) while the sunset line still
+shows *today's* (hasn't happened yet); only after today's sunset do both roll forward together. New
+`SunTimes.nextSunriseSunset(epochMillis, lat, lon, zone)` computes today's pair via the existing
+[SunTimes.sunriseSunsetFor], then independently rolls each of sunrise/sunset forward by one calendar
+day (`Calendar.add(DAY_OF_MONTH, 1)`, not raw millis arithmetic, to stay correct across DST-observing
+zones even though India itself has none) whenever `epochMillis` is at or past that specific instant.
+Both in-app tile (`CalendarSystemTile.kt`) and the home-screen widget worker now call this instead of
+`sunriseSunsetFor`; the in-app tile's `remember` key changed from `romanDate` (which only changes once
+a day) to `nowMillis` (already ticking once a minute) since the sunrise/sunset display can now change
+intraday, at the exact moment either instant passes — still cheap, pure local trig, no network.
+
+Because the two times can now genuinely belong to different calendar days, a bare clock time is
+ambiguous ("6:24" — today's or tomorrow's?) — user follow-up: "show day (som, mangal, budh) in front
+of respective times." New `HinduPanchang.varaFor(epochMillis, zone)` (the same weekday derivation
+`panchangFor` already does internally, exposed standalone so it can be asked about an arbitrary
+sunrise/sunset instant rather than "today") plus `HinduPanchang.shortVaraName(value)`, a small explicit
+lookup table for the commonly-used short forms (`"mangalavara"` → `"mangal"`, `"budhavara"` → `"budh"`,
+etc. — not a mechanical `removeSuffix("vara")`, which leaves a trailing vowel on several of them, e.g.
+`"mangala"`/`"budha"`/`"soma"`). Both the in-app tile's back face and the widget's back face now prefix
+each of the sunrise/sunset lines with its own short vara label, computed from that specific time's own
+millis (not the tile's "today" vara) — so during the post-sunrise/pre-sunset window the two lines can
+legitimately show two different day labels, which is exactly the case this makes legible.
+
+Build + full unit test suite green (`SunTimesTest` extended for `nextSunriseSunset`'s three phases;
+new `VaraForTest` for `varaFor`/`shortVaraName`).

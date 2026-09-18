@@ -279,6 +279,39 @@ object HinduPanchang {
 
         return PanchangInfo(tithi, nakshatra, month, vara, shakaSamvat, vikramSamvat, ayana)
     }
+
+    /**
+     * Just the [VARA_NAMES] weekday key for the calendar day (in [zone])
+     * containing [epochMillis] — the same "vara" [panchangFor] computes
+     * internally, exposed on its own (no tithi/nakshatra/month astronomy)
+     * for labelling an arbitrary timestamp's day-of-week, e.g. a sunrise/
+     * sunset time that may belong to a different calendar day than
+     * [panchangFor]'s own "today."
+     */
+    fun varaFor(epochMillis: Long, zone: java.util.TimeZone = java.util.TimeZone.getDefault()): String {
+        val cal = java.util.Calendar.getInstance(zone).apply { timeInMillis = epochMillis }
+        return VARA_NAMES[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]
+    }
+
+    /**
+     * Compact, commonly-used Roman abbreviation for a [VARA_NAMES] key
+     * (`"somavara"` → `"som"`) — a short "which day does this belong to"
+     * label, distinct from [PanchangInfo.vara]'s own full transliterated
+     * name or [PanchangDevanagari.vara]'s full Devanagari one. Not a
+     * mechanical suffix-strip (`"mangalavara"`/`"budhavara"` don't reduce to
+     * `"mangal"`/`"budh"` by trimming `"vara"` alone) — these are simply the
+     * short forms in common use.
+     */
+    fun shortVaraName(value: String): String = when (value) {
+        "ravivara" -> "ravi"
+        "somavara" -> "som"
+        "mangalavara" -> "mangal"
+        "budhavara" -> "budh"
+        "guruvara" -> "guru"
+        "shukravara" -> "shukra"
+        "shanivara" -> "shani"
+        else -> value
+    }
 }
 
 /**

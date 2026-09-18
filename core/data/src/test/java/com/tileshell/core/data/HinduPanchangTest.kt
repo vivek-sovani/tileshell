@@ -71,6 +71,44 @@ class TithiForRealDateTest {
     }
 }
 
+class VaraForTest {
+
+    private val ist = TimeZone.getTimeZone("Asia/Kolkata")
+
+    // Same 2026-08-30 reference day as the other real-date tests — a Sunday.
+    private val midnightIst = 1788028200000L
+
+    @Test
+    fun `varaFor a Sunday returns ravivara`() {
+        assertEquals("ravivara", HinduPanchang.varaFor(midnightIst, ist))
+    }
+
+    @Test
+    fun `varaFor the next day rolls to somavara (Monday)`() {
+        val nextDay = java.util.Calendar.getInstance(ist).apply {
+            timeInMillis = midnightIst
+            add(java.util.Calendar.DAY_OF_MONTH, 1)
+        }.timeInMillis
+        assertEquals("somavara", HinduPanchang.varaFor(nextDay, ist))
+    }
+
+    @Test
+    fun `shortVaraName abbreviates every vara key to its commonly-used short form`() {
+        assertEquals("ravi", HinduPanchang.shortVaraName("ravivara"))
+        assertEquals("som", HinduPanchang.shortVaraName("somavara"))
+        assertEquals("mangal", HinduPanchang.shortVaraName("mangalavara"))
+        assertEquals("budh", HinduPanchang.shortVaraName("budhavara"))
+        assertEquals("guru", HinduPanchang.shortVaraName("guruvara"))
+        assertEquals("shukra", HinduPanchang.shortVaraName("shukravara"))
+        assertEquals("shani", HinduPanchang.shortVaraName("shanivara"))
+    }
+
+    @Test
+    fun `shortVaraName falls back to its input on an unrecognized key`() {
+        assertEquals("unknown", HinduPanchang.shortVaraName("unknown"))
+    }
+}
+
 class PanchangForRealDateTest {
 
     private val ist = TimeZone.getTimeZone("Asia/Kolkata")

@@ -94,7 +94,7 @@ class CalendarSystemWidgetRefreshWorker(
             // yet — see lastCoarseLocationOrDefault; fine here since this
             // already runs inside a CoroutineWorker.
             val location = lastCoarseLocationOrDefault(context)
-            val sunTimes = SunTimes.sunriseSunsetFor(nowMillis, location.first, location.second)
+            val sunTimes = SunTimes.nextSunriseSunset(nowMillis, location.first, location.second)
             ids.forEach { id ->
                 val systemId = WidgetConfigStore.calendarSystemId(context, id)
                 val minWidthDp = manager.getAppWidgetOptions(id)
@@ -229,8 +229,13 @@ class CalendarSystemWidgetRefreshWorker(
                     views.setViewVisibility(sunsetId, View.VISIBLE)
                     views.setTextColor(sunriseId, onAccent)
                     views.setTextColor(sunsetId, onAccent)
-                    views.setTextViewText(sunriseId, "🌅 ${formatClockTime12Devanagari(sunTimes.sunriseMillis)}")
-                    views.setTextViewText(sunsetId, "🌇 ${formatClockTime12Devanagari(sunTimes.sunsetMillis)}")
+                    // sunTimes' two times can each independently belong to
+                    // today or tomorrow (see SunTimes.nextSunriseSunset) — a
+                    // short day label in front of each disambiguates which.
+                    val sunriseVara = HinduPanchang.shortVaraName(HinduPanchang.varaFor(sunTimes.sunriseMillis))
+                    val sunsetVara = HinduPanchang.shortVaraName(HinduPanchang.varaFor(sunTimes.sunsetMillis))
+                    views.setTextViewText(sunriseId, "🌅 $sunriseVara ${formatClockTime12Devanagari(sunTimes.sunriseMillis)}")
+                    views.setTextViewText(sunsetId, "🌇 $sunsetVara ${formatClockTime12Devanagari(sunTimes.sunsetMillis)}")
                 } else {
                     views.setViewVisibility(sunriseId, View.GONE)
                     views.setViewVisibility(sunsetId, View.GONE)

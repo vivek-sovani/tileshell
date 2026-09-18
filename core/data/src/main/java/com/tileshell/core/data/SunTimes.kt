@@ -87,4 +87,39 @@ object SunTimes {
         fun toEpochMillis(jd: Double) = ((jd - 2440587.5) * 86_400_000.0).toLong()
         return SunTimesInfo(sunriseMillis = toEpochMillis(jRise), sunsetMillis = toEpochMillis(jSet))
     }
+
+    /**
+     * Like [sunriseSunsetFor], but each of [SunTimesInfo.sunriseMillis]/
+     * [SunTimesInfo.sunsetMillis] is independently rolled forward to
+     * tomorrow whenever *that specific* moment has already passed as of
+     * [epochMillis] — e.g. checked at 5pm, sunrise is still today's (hasn't
+     * happened yet) but sunset has already passed, so sunset rolls to
+     * tomorrow while sunrise doesn't; checked at 11pm, both have passed and
+     * both roll forward. This is what a glanceable "next sunrise / next
+     * sunset" tile line wants, as opposed to [sunriseSunsetFor]'s plain
+     * "today's" pair (which a display showing it after sunset would
+     * otherwise read as stale). Still returns null in the (never realistic
+     * for this app's userbase) polar day/night case, even if only one of
+     * today/tomorrow would have failed to resolve.
+     */
+    fun nextSunriseSunset(
+        epochMillis: Long,
+        latitude: Double,
+        longitude: Double,
+        zone: java.util.TimeZone = java.util.TimeZone.getDefault(),
+    ): SunTimesInfo? {
+        val today = sunriseSunsetFor(epochMillis, latitude, longitude, zone) ?: return null
+        fun tomorrowIfPassed(passedMillis: Boolean, todayValue: Long, pick: (SunTimesInfo) -> Long): Long {
+            if (!passedMillis) return todayValue
+            val tomorrowAnchor = java.util.Calendar.getInstance(zone).apply {
+                timeInMillis = epochMillis
+                add(java.util.Calendar.DAY_OF_MONTH, 1)
+            }.timeInMillis
+            val tomorrow = sunriseSunsetFor(tomorrowAnchor, latitude, longitude, zone) ?: return todayValue
+            return pick(tomorrow)
+        }
+        val sunrise = tomorrowIfPassed(epochMillis >= today.sunriseMillis, today.sunriseMillis) { it.sunriseMillis }
+        val sunset = tomorrowIfPassed(epochMillis >= today.sunsetMillis, today.sunsetMillis) { it.sunsetMillis }
+        return SunTimesInfo(sunriseMillis = sunrise, sunsetMillis = sunset)
+    }
 }

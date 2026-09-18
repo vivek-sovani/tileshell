@@ -71,4 +71,39 @@ class SunTimesTest {
         val result = SunTimes.sunriseSunsetFor(epochMillisUtc(2025, 6, 21), latitude = 80.0, longitude = 0.0, zone = utc)
         assertNull(result)
     }
+
+    // Latitude 18.52 (Pune-like) but longitude 0 (not Pune's real ~73.86) —
+    // deliberately, so local sunrise/sunset land mid-day in UTC (~6am/~6pm)
+    // rather than near the UTC midnight boundary, which would make these
+    // `zone = utc` tests' own hour-offset arithmetic flaky around a real
+    // longitude's date-line-relative sunrise time.
+    @Test
+    fun `nextSunriseSunset before today's sunrise returns both times unchanged`() {
+        val today = SunTimes.sunriseSunsetFor(epochMillisUtc(2026, 3, 15), latitude = 18.52, longitude = 0.0, zone = utc)!!
+        val beforeSunrise = today.sunriseMillis - TimeUnit.HOURS.toMillis(1)
+        val next = SunTimes.nextSunriseSunset(beforeSunrise, latitude = 18.52, longitude = 0.0, zone = utc)!!
+        assertEquals(today.sunriseMillis, next.sunriseMillis)
+        assertEquals(today.sunsetMillis, next.sunsetMillis)
+    }
+
+    @Test
+    fun `nextSunriseSunset between today's sunrise and sunset rolls only sunrise forward`() {
+        val today = SunTimes.sunriseSunsetFor(epochMillisUtc(2026, 3, 15), latitude = 18.52, longitude = 0.0, zone = utc)!!
+        val midday = (today.sunriseMillis + today.sunsetMillis) / 2
+        val next = SunTimes.nextSunriseSunset(midday, latitude = 18.52, longitude = 0.0, zone = utc)!!
+        // Sunrise already passed today, so the "next" sunrise is tomorrow's — after today's sunset.
+        assertTrue(next.sunriseMillis > today.sunsetMillis)
+        // Sunset hasn't passed yet — still today's, unchanged.
+        assertEquals(today.sunsetMillis, next.sunsetMillis)
+    }
+
+    @Test
+    fun `nextSunriseSunset after today's sunset rolls both forward to tomorrow`() {
+        val today = SunTimes.sunriseSunsetFor(epochMillisUtc(2026, 3, 15), latitude = 18.52, longitude = 0.0, zone = utc)!!
+        val afterSunset = today.sunsetMillis + TimeUnit.HOURS.toMillis(1)
+        val next = SunTimes.nextSunriseSunset(afterSunset, latitude = 18.52, longitude = 0.0, zone = utc)!!
+        val tomorrow = SunTimes.sunriseSunsetFor(epochMillisUtc(2026, 3, 16), latitude = 18.52, longitude = 0.0, zone = utc)!!
+        assertEquals(tomorrow.sunriseMillis, next.sunriseMillis)
+        assertEquals(tomorrow.sunsetMillis, next.sunsetMillis)
+    }
 }
