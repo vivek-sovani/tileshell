@@ -798,10 +798,21 @@ fun StartScreen(
     // this feature's own history says was already fixed once. Instead, only
     // update while resting on a real block page, and always read it back
     // re-clamped so a delete/reorder can never leave it dangling.
+    //
+    // Real bug found on-device: `progress` is animated smoothly (spring/
+    // animateTo) whenever the chevron or any other `settleTo(upper)` call
+    // jumps straight to the app list — that animation sweeps `progress.value`
+    // continuously through every intermediate block index on its way there,
+    // so this effect kept firing and overwriting `lastActiveBlockIndex` with
+    // each block it passed, landing on `blockCount - 1` (the very last page)
+    // right before the animation reaches `upper` — regardless of which page
+    // the user actually started from. A plain drag settle (via `snapTo`, not
+    // an animation) never sets `isRunning`, so gating on it here only
+    // suppresses updates during an animated fly-through, not real dragging.
     val currentIntPosition by remember { derivedStateOf { progress.value.roundToInt() } }
     var lastActiveBlockIndex by remember { mutableStateOf(0) }
-    LaunchedEffect(currentIntPosition, blockCount) {
-        if (currentIntPosition in 0 until blockCount) lastActiveBlockIndex = currentIntPosition
+    LaunchedEffect(currentIntPosition, blockCount, progress.isRunning) {
+        if (!progress.isRunning && currentIntPosition in 0 until blockCount) lastActiveBlockIndex = currentIntPosition
     }
     val activeBlockIndex = lastActiveBlockIndex.coerceIn(0, blockCount - 1)
     // Block 0 is always the unsectioned "main" page (see SectionBlocks.blocksFor,
