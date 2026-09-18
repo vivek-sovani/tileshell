@@ -8376,3 +8376,12 @@ legitimately show two different day labels, which is exactly the case this makes
 
 Build + full unit test suite green (`SunTimesTest` extended for `nextSunriseSunset`'s three phases;
 new `VaraForTest` for `varaFor`/`shortVaraName`).
+
+**Same-day follow-up**: "day is displayed in english, it should be in devnagari" — the short vara label
+above was `HinduPanchang.shortVaraName` (Roman: "som"/"mangal"/"budh"), sitting on the tile's otherwise-
+English back face; the user wants it in Devanagari script instead, like [PanchangDevanagari.ayana]
+already is on that same face. Added `PanchangDevanagari.shortVara(value)` (a matching short-form
+Devanagari lookup: `"mangalavara"` → `"मंगल"`, etc.) and swapped both display call sites to it. Since
+`HinduPanchang.shortVaraName` (Roman) had no other caller left once swapped, deleted it outright along
+with its test, rather than leave unused code behind — replaced with `PanchangDevanagari.shortVara`
+coverage instead. Build + full unit test suite green.

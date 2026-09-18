@@ -441,8 +441,8 @@ private fun PanchangFace(
                         // to today or tomorrow (see SunTimes.nextSunriseSunset)
                         // — a short day label in front of each disambiguates
                         // which, instead of both silently reading as "today."
-                        val sunriseVara = HinduPanchang.shortVaraName(HinduPanchang.varaFor(sunTimes.sunriseMillis))
-                        val sunsetVara = HinduPanchang.shortVaraName(HinduPanchang.varaFor(sunTimes.sunsetMillis))
+                        val sunriseVara = PanchangDevanagari.shortVara(HinduPanchang.varaFor(sunTimes.sunriseMillis))
+                        val sunsetVara = PanchangDevanagari.shortVara(HinduPanchang.varaFor(sunTimes.sunsetMillis))
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),

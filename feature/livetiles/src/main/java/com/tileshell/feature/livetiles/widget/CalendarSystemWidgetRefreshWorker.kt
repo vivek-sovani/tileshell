@@ -232,8 +232,8 @@ class CalendarSystemWidgetRefreshWorker(
                     // sunTimes' two times can each independently belong to
                     // today or tomorrow (see SunTimes.nextSunriseSunset) — a
                     // short day label in front of each disambiguates which.
-                    val sunriseVara = HinduPanchang.shortVaraName(HinduPanchang.varaFor(sunTimes.sunriseMillis))
-                    val sunsetVara = HinduPanchang.shortVaraName(HinduPanchang.varaFor(sunTimes.sunsetMillis))
+                    val sunriseVara = PanchangDevanagari.shortVara(HinduPanchang.varaFor(sunTimes.sunriseMillis))
+                    val sunsetVara = PanchangDevanagari.shortVara(HinduPanchang.varaFor(sunTimes.sunsetMillis))
                     views.setTextViewText(sunriseId, "🌅 $sunriseVara ${formatClockTime12Devanagari(sunTimes.sunriseMillis)}")
                     views.setTextViewText(sunsetId, "🌇 $sunsetVara ${formatClockTime12Devanagari(sunTimes.sunsetMillis)}")
                 } else {

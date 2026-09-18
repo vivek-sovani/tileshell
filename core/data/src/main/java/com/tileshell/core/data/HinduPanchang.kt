@@ -292,26 +292,6 @@ object HinduPanchang {
         val cal = java.util.Calendar.getInstance(zone).apply { timeInMillis = epochMillis }
         return VARA_NAMES[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]
     }
-
-    /**
-     * Compact, commonly-used Roman abbreviation for a [VARA_NAMES] key
-     * (`"somavara"` → `"som"`) — a short "which day does this belong to"
-     * label, distinct from [PanchangInfo.vara]'s own full transliterated
-     * name or [PanchangDevanagari.vara]'s full Devanagari one. Not a
-     * mechanical suffix-strip (`"mangalavara"`/`"budhavara"` don't reduce to
-     * `"mangal"`/`"budh"` by trimming `"vara"` alone) — these are simply the
-     * short forms in common use.
-     */
-    fun shortVaraName(value: String): String = when (value) {
-        "ravivara" -> "ravi"
-        "somavara" -> "som"
-        "mangalavara" -> "mangal"
-        "budhavara" -> "budh"
-        "guruvara" -> "guru"
-        "shukravara" -> "shukra"
-        "shanivara" -> "shani"
-        else -> value
-    }
 }
 
 /**
@@ -326,6 +306,18 @@ object PanchangDevanagari {
     private val VARA = mapOf(
         "ravivara" to "रविवार", "somavara" to "सोमवार", "mangalavara" to "मंगलवार",
         "budhavara" to "बुधवार", "guruvara" to "गुरुवार", "shukravara" to "शुक्रवार", "shanivara" to "शनिवार",
+    )
+
+    /**
+     * Compact, commonly-used Devanagari abbreviation for a [HinduPanchang
+     * .VARA_NAMES] key (`"somavara"` → `"सोम"`) — a short "which day does
+     * this belong to" label, distinct from [vara]'s own full name. Not a
+     * mechanical suffix-strip of [vara]'s output (several don't reduce
+     * cleanly) — these are simply the short forms in common use.
+     */
+    private val SHORT_VARA = mapOf(
+        "ravivara" to "रवि", "somavara" to "सोम", "mangalavara" to "मंगल",
+        "budhavara" to "बुध", "guruvara" to "गुरु", "shukravara" to "शुक्र", "shanivara" to "शनि",
     )
 
     private val TITHI = mapOf(
@@ -353,6 +345,7 @@ object PanchangDevanagari {
     )
 
     fun vara(value: String): String = VARA[value] ?: value
+    fun shortVara(value: String): String = SHORT_VARA[value] ?: value
     fun tithiName(value: String): String = TITHI[value] ?: value
     fun paksha(paksha: Paksha): String = if (paksha == Paksha.SHUKLA) "शुक्ल पक्ष" else "कृष्ण पक्ष"
     fun month(value: String): String = MONTH[value] ?: value

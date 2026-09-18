@@ -93,19 +93,19 @@ class VaraForTest {
     }
 
     @Test
-    fun `shortVaraName abbreviates every vara key to its commonly-used short form`() {
-        assertEquals("ravi", HinduPanchang.shortVaraName("ravivara"))
-        assertEquals("som", HinduPanchang.shortVaraName("somavara"))
-        assertEquals("mangal", HinduPanchang.shortVaraName("mangalavara"))
-        assertEquals("budh", HinduPanchang.shortVaraName("budhavara"))
-        assertEquals("guru", HinduPanchang.shortVaraName("guruvara"))
-        assertEquals("shukra", HinduPanchang.shortVaraName("shukravara"))
-        assertEquals("shani", HinduPanchang.shortVaraName("shanivara"))
+    fun `PanchangDevanagari shortVara abbreviates every vara key to its short Devanagari form`() {
+        assertEquals("रवि", PanchangDevanagari.shortVara("ravivara"))
+        assertEquals("सोम", PanchangDevanagari.shortVara("somavara"))
+        assertEquals("मंगल", PanchangDevanagari.shortVara("mangalavara"))
+        assertEquals("बुध", PanchangDevanagari.shortVara("budhavara"))
+        assertEquals("गुरु", PanchangDevanagari.shortVara("guruvara"))
+        assertEquals("शुक्र", PanchangDevanagari.shortVara("shukravara"))
+        assertEquals("शनि", PanchangDevanagari.shortVara("shanivara"))
     }
 
     @Test
-    fun `shortVaraName falls back to its input on an unrecognized key`() {
-        assertEquals("unknown", HinduPanchang.shortVaraName("unknown"))
+    fun `PanchangDevanagari shortVara falls back to its input on an unrecognized key`() {
+        assertEquals("unknown", PanchangDevanagari.shortVara("unknown"))
     }
 }
 
