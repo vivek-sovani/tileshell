@@ -8385,3 +8385,12 @@ Devanagari lookup: `"mangalavara"` → `"मंगल"`, etc.) and swapped both 
 `HinduPanchang.shortVaraName` (Roman) had no other caller left once swapped, deleted it outright along
 with its test, rather than leave unused code behind — replaced with `PanchangDevanagari.shortVara`
 coverage instead. Build + full unit test suite green.
+
+**Same-day follow-up**: "shak and vikarm sanvay yers are shown in english numbers, it should be in
+devnagari nos" — `yearLabel`'s Devanagari branch (`PanchangFace`) wrapped `panchang.shakaSamvat`/
+`vikramSamvat` (plain `Int`s) directly into the string, so the year numbers rendered in Arabic numerals
+even on the otherwise-fully-Devanagari front face, next to Devanagari month/nakshatra/tithi text — an
+inconsistency, not a new feature. Reused this same file's existing (pre-dating this session)
+`toDevanagariDigits` helper — already used for the sunrise/sunset clock digits — on both year numbers.
+The widget's own Panchang face doesn't display shaka/vikram samvat at all, so no change needed there.
+Build + full unit test suite green.

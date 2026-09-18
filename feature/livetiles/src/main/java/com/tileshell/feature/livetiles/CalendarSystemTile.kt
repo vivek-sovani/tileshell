@@ -369,7 +369,11 @@ private fun PanchangFace(
     val month = if (devanagari) PanchangDevanagari.month(panchang.month) else panchang.month
     val nakshatra = if (devanagari) PanchangDevanagari.nakshatra(panchang.nakshatra) else panchang.nakshatra
     val nakshatraLabel = if (devanagari) "नक्षत्र" else "nakshatra"
-    val yearLabel = if (devanagari) "शक ${panchang.shakaSamvat} · विक्रम ${panchang.vikramSamvat}" else "shaka ${panchang.shakaSamvat} · vikram ${panchang.vikramSamvat}"
+    val yearLabel = if (devanagari) {
+        "शक ${toDevanagariDigits(panchang.shakaSamvat.toString())} · विक्रम ${toDevanagariDigits(panchang.vikramSamvat.toString())}"
+    } else {
+        "shaka ${panchang.shakaSamvat} · vikram ${panchang.vikramSamvat}"
+    }
     val moonFraction = tithiMoonFraction(panchang.tithi.paksha, panchang.tithi.tithiInPaksha)
     val visualSize = if (short) 34.dp else if (narrow) 40.dp else if (big) 72.dp else 52.dp
 
