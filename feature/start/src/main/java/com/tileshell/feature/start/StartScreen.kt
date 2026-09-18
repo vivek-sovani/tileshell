@@ -2931,6 +2931,26 @@ private fun StartPage(
         reachabilityAnim.stop()
         reachabilityOffsetPx = 0f
     }
+    // Page-name flash: page names are hidden outside edit mode ("just do it
+    // by scroll," per an earlier user request), so swiping to a different
+    // page has no visible cue for which one you landed on. Briefly shows the
+    // destination page's own label whenever [activeBlockIndex] settles on a
+    // new page — mirrors how most launchers flash the target screen's name
+    // on a page swipe. Skips the very first composition (nothing was
+    // "swiped to" yet, so flashing on cold start would be noise) and stays
+    // silent in edit mode, where the block's own header already shows the
+    // name permanently.
+    var pageFlashLabel by remember { mutableStateOf<String?>(null) }
+    var pageFlashSeeded by remember { mutableStateOf(false) }
+    LaunchedEffect(activeBlockIndex) {
+        if (!pageFlashSeeded) {
+            pageFlashSeeded = true
+        } else if (!editMode) {
+            pageFlashLabel = blocks.getOrNull(activeBlockIndex)?.label ?: UNSECTIONED_LABEL
+            delay(1100)
+            pageFlashLabel = null
+        }
+    }
     // How far the tiles may travel: exactly the real empty space below the
     // active page's own rendered content, capped at a sane max — this both
     // keeps a tile from ever being dragged past the bottom of the screen and
@@ -3708,6 +3728,33 @@ private fun StartPage(
         } // end per-page Box(translationX)
         } // end key(block.sectionId ?: "__unsectioned__") [outer]
         } // end blockRenders.forEachIndexed
+
+        // Page-name flash's own visual (state/trigger above, near
+        // [activeBlockIndex]) — a centered pill, faded in/out, over the
+        // status bar area so it never competes with the grid's own content.
+        AnimatedVisibility(
+            visible = pageFlashLabel != null,
+            enter = fadeIn(tween(150)),
+            exit = fadeOut(tween(400)),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 22.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.16f))
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+            ) {
+                Text(
+                    text = (pageFlashLabel ?: "").lowercase(),
+                    color = Glass.faceTextColor(screenBackgroundIsLight),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
 
         // Cross-page drag's own floating visual: the dragged tile's real
         // in-grid rendering lives inside its source page's own DenseTileGrid,
