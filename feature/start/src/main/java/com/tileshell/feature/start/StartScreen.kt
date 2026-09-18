@@ -823,6 +823,25 @@ fun StartScreen(
     // at the cross-page-drag target-section lookup below.
     val activeSectionId: String? = sortedSections.getOrNull(activeBlockIndex - 1)?.id
 
+    // Set right before a merge is kicked off (see `onMergeSection` below) to
+    // the block index the merged tiles are headed to, once the merge
+    // actually lands. Consumed — and cleared — by the very next
+    // `LaunchedEffect(blockCount)` run below, since a merge always changes
+    // `blockCount`. Calling `settleTo(target)` directly from `onMergeSection`
+    // instead (tried first) raced this same effect: `mergeSection`'s DB write
+    // is asynchronous, so `blockCount` often didn't actually change until a
+    // few frames after that `settleTo` had already started animating —
+    // `progress.animateTo` on a shared `Animatable` cancels whatever
+    // animation is currently running on it, so the reclamp effect's own
+    // `animateTo(progress.value.coerceIn(...))` call below would hijack the
+    // still-in-flight navigation mid-transition, freezing it wherever it
+    // happened to be rather than reaching the chosen destination —
+    // user-reported: merging into a page other than the adjacent one landed
+    // nowhere near it. Routing the actual navigation through this same
+    // effect (which only ever runs *after* `blockCount` has truly changed)
+    // means there's only ever one `animateTo` call in flight per merge.
+    var pendingMergeTargetBlockIndex by remember { mutableStateOf<Int?>(null) }
+
     // Keep the pager in a valid range whenever the number of block pages
     // changes (a section created/deleted/merged) — e.g. stay on the app
     // list at its new numeric slot rather than sliding into where a deleted
@@ -843,7 +862,12 @@ fun StartScreen(
     // reflects a real, deliberate `settleTo(upper)`, so it can't be fooled
     // by `upper` moving out from under an unrelated resting position.
     LaunchedEffect(blockCount) {
+        val pendingTarget = pendingMergeTargetBlockIndex
         when {
+            pendingTarget != null -> {
+                pendingMergeTargetBlockIndex = null
+                progress.animateTo(pendingTarget.coerceIn(0, blockCount - 1).toFloat(), settleSpec)
+            }
             isAppList -> progress.snapTo(upper)
             feedShown -> {} // feed's position (-1) is independent of blockCount
             else -> progress.animateTo(progress.value.coerceIn(0f, (blockCount - 1).toFloat()), settleSpec)
@@ -1431,17 +1455,19 @@ fun StartScreen(
                     onCreateSection = viewModel::createSection,
                     onRenameSection = viewModel::renameSection,
                     onMergeSection = { id, targetId ->
-                        viewModel.mergeSection(id, targetId)
                         // Show the page the tiles actually merged into, rather
                         // than leaving the user on whatever page the shrunken
                         // blockCount happens to coerce the current position
-                        // to (the same class of bug as "merge with main" not
-                        // showing main — see DECISIONS). The merged-away page
-                        // disappears once this commits, shifting every LATER
-                        // page's block index down by one, so a page after it
-                        // in section order needs its computed target index
-                        // adjusted by that same shift; a page before it (or
-                        // main, block 0) is unaffected.
+                        // to. The merged-away page disappears once this
+                        // commits, shifting every LATER page's block index
+                        // down by one, so a page after it in section order
+                        // needs its computed target index adjusted by that
+                        // same shift; a page before it (or main, block 0) is
+                        // unaffected. Stashed for the `blockCount` reclamp
+                        // effect above to actually navigate with, once the
+                        // merge's async DB write really lands — see its own
+                        // comment for why calling `settleTo` directly here
+                        // instead raced that effect.
                         val removedIndex = sortedSections.indexOfFirst { it.id == id }
                         val targetBlockIndex = if (targetId == null) {
                             0
@@ -1450,7 +1476,8 @@ fun StartScreen(
                             val adjusted = if (removedIndex in 0 until oldIndex) oldIndex - 1 else oldIndex
                             adjusted + 1
                         }
-                        settleTo(targetBlockIndex.coerceAtLeast(0).toFloat())
+                        pendingMergeTargetBlockIndex = targetBlockIndex.coerceAtLeast(0)
+                        viewModel.mergeSection(id, targetId)
                     },
                     onRemovePageAndTiles = viewModel::removeSectionAndTiles,
                     onMoveSection = { id, direction ->

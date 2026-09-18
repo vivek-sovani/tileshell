@@ -3,6 +3,54 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Fixed a real race: the merge-target navigation raced the generic blockCount reclamp effect
+
+Direct follow-up, user-reported after the entry below shipped: "i merged page
+into music and entertainment. but after merging music page not shwn." The
+previous fix computed the correct post-merge target index and called
+`settleTo(target)` immediately, right after kicking off `viewModel
+.mergeSection(...)`. That looked right in isolation but raced a second,
+unrelated effect on the very same `Animatable`.
+
+`mergeSection`'s DB write is asynchronous (`viewModelScope.launch(writeContext)
+{ repository.mergeSection(...) }`); the removed section's disappearance only
+reaches `blockCount` a few frames later, once Room's Flow re-emits.
+Meanwhile `settleTo(target)`'s `progress.animateTo(target, settleSpec)`
+starts immediately, on the very next frame. When `blockCount` *does* change
+moments later, the existing `LaunchedEffect(blockCount)` reclamp effect —
+which exists to keep the pager in a valid range after any page-count change —
+fires and calls `progress.animateTo(progress.value.coerceIn(0f, (blockCount -
+1).toFloat()), settleSpec)` on the *same* `Animatable`. `Animatable.animateTo`
+cancels whatever animation is already running on it before starting its own —
+so this second call hijacked the still-in-flight navigation mid-transition,
+freezing it at whatever intermediate position it had reached (via
+`progress.value.coerceIn`, which is nearly a no-op against wherever the
+animation currently sat) instead of letting it continue on to the real
+target. The further away the destination page, the more visible the
+freeze — exactly matching the report: merging into a non-adjacent named
+section landed the pager somewhere between the source and destination, not
+on the destination.
+
+Fixed by giving the reclamp effect the destination itself, instead of running
+a second competing animation alongside it. New `pendingMergeTargetBlockIndex`
+state is set (not `settleTo`-driven) the moment a merge is initiated;
+`LaunchedEffect(blockCount)` checks it first, and — since it only runs once
+`blockCount` has *actually* changed — consumes and clears it there, animating
+straight to the real (already `blockCount`-aware) destination as its own
+first branch, ahead of the existing `isAppList`/`feedShown`/generic-coerce
+branches. There is now only ever one `animateTo` call in flight per merge, so
+nothing can hijack it mid-flight. Every other `blockCount` change (add page,
+remove page & tiles, or nothing pending) is completely unaffected — the new
+branch is a no-op whenever `pendingMergeTargetBlockIndex` is null.
+
+Build + full unit test suite green; installed on the physical device, no
+crash in `adb logcat`. Same caveat as the two entries below — this is a
+genuine animation-race fix, not something a unit test harness covers, so it
+needs the user's own on-device confirmation with an actually-distant merge
+target (adjacent-page merges may have looked fine by coincidence even with
+the race present).
+
+## "Merge into…" (arbitrary target page) now shows the target page right after merging
 ## "Merge into…" (arbitrary target page) now shows the target page right after merging
 
 Direct follow-up, user-requested: "merge into feature now working but after
