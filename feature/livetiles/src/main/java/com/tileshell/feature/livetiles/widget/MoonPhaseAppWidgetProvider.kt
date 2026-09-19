@@ -3,10 +3,27 @@ package com.tileshell.feature.livetiles.widget
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 
-/** Home-screen moon-phase widget (S33) — same shell shape as [WeatherAppWidgetProvider]. */
+/**
+ * Home-screen moon-phase widget (S33) — same shell shape as
+ * [WeatherAppWidgetProvider]. [onReceive] adds a push-driven refresh on
+ * `DATE_CHANGED`/`TIME_CHANGED`/`TIMEZONE_CHANGED` on top of the once-a-day
+ * midnight job — see [CalendarSystemAppWidgetProvider]'s doc comment for why
+ * (a deferred once-daily WorkManager run leaves this stale a full day, not
+ * one short interval; this trio is a documented exception to Android 8+'s
+ * implicit-broadcast restrictions).
+ */
 class MoonPhaseAppWidgetProvider : AppWidgetProvider() {
+
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action in DATE_ROLLOVER_ACTIONS) {
+            MoonPhaseWidgetRefreshWorker.refreshNow(context)
+            return
+        }
+        super.onReceive(context, intent)
+    }
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         // Also re-assert the schedule here, not only in onEnabled. The OS
@@ -40,5 +57,13 @@ class MoonPhaseAppWidgetProvider : AppWidgetProvider() {
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         appWidgetIds.forEach { WidgetColorStore.clear(context, it) }
+    }
+
+    companion object {
+        private val DATE_ROLLOVER_ACTIONS = setOf(
+            Intent.ACTION_DATE_CHANGED,
+            Intent.ACTION_TIME_CHANGED,
+            Intent.ACTION_TIMEZONE_CHANGED,
+        )
     }
 }

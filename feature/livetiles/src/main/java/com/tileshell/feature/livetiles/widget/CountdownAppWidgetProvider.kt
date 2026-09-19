@@ -3,6 +3,7 @@ package com.tileshell.feature.livetiles.widget
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 
 /**
@@ -10,9 +11,20 @@ import android.os.Bundle
  * [CalendarSystemAppWidgetProvider]: genuine required per-instance config
  * (a target date + optional label, via [WidgetConfigureActivity]'s
  * `STICKY_NOTE_TEXT`-style date/label step), pure local date math on every
- * refresh, no fetch of its own to force.
+ * refresh, no fetch of its own to force. [onReceive] adds the same
+ * `DATE_CHANGED`/`TIME_CHANGED`/`TIMEZONE_CHANGED` push-driven refresh as
+ * [CalendarSystemAppWidgetProvider] — see its doc comment for why the
+ * once-a-day midnight job alone isn't enough.
  */
 class CountdownAppWidgetProvider : AppWidgetProvider() {
+
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action in DATE_ROLLOVER_ACTIONS) {
+            CountdownWidgetRefreshWorker.refreshNow(context)
+            return
+        }
+        super.onReceive(context, intent)
+    }
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         // Also re-assert the schedule here, not only in onEnabled. The OS
@@ -49,5 +61,13 @@ class CountdownAppWidgetProvider : AppWidgetProvider() {
             WidgetColorStore.clear(context, it)
             WidgetConfigStore.clear(context, it)
         }
+    }
+
+    companion object {
+        private val DATE_ROLLOVER_ACTIONS = setOf(
+            Intent.ACTION_DATE_CHANGED,
+            Intent.ACTION_TIME_CHANGED,
+            Intent.ACTION_TIMEZONE_CHANGED,
+        )
     }
 }

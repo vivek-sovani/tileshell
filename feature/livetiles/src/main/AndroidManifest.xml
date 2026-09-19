@@ -87,6 +87,19 @@
             android:label="@string/moonphase_widget_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <!-- Push-driven refresh for the once-a-day midnight rollover
+                     (see WidgetWork.millisUntilNextMidnight) — the periodic
+                     WorkManager job alone can be deferred by Doze well past
+                     midnight, leaving the widget showing yesterday's phase
+                     until its next scheduled run a full day later. These
+                     three system broadcasts are a documented exception to
+                     Android 8+'s implicit-broadcast restrictions (the same
+                     approach AOSP's own Calendar app widget uses for this
+                     exact problem), so they reach this manifest receiver
+                     reliably without a running process. -->
+                <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.TIME_CHANGED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -111,6 +124,20 @@
             android:label="@string/calsys_widget_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <!-- Push-driven refresh for the once-a-day midnight rollover
+                     (see WidgetWork.millisUntilNextMidnight) — the periodic
+                     WorkManager job alone can be deferred by Doze well past
+                     midnight, leaving the widget showing yesterday's date
+                     (user-reported: "calendar panchang today still at
+                     friday. no rollover") until its next scheduled run a
+                     full day later. These three system broadcasts are a
+                     documented exception to Android 8+'s implicit-broadcast
+                     restrictions (the same approach AOSP's own Calendar app
+                     widget uses for this exact problem), so they reach this
+                     manifest receiver reliably without a running process. -->
+                <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.TIME_CHANGED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -235,6 +262,19 @@
             android:label="@string/countdown_widget_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <!-- Push-driven refresh for the once-a-day midnight rollover
+                     (see WidgetWork.millisUntilNextMidnight) — the periodic
+                     WorkManager job alone can be deferred by Doze well past
+                     midnight, leaving the widget showing yesterday's day
+                     count until its next scheduled run a full day later.
+                     These three system broadcasts are a documented exception
+                     to Android 8+'s implicit-broadcast restrictions (the
+                     same approach AOSP's own Calendar app widget uses for
+                     this exact problem), so they reach this manifest
+                     receiver reliably without a running process. -->
+                <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.TIME_CHANGED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

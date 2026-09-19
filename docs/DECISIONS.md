@@ -3,6 +3,62 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Home-screen calendar-system/moon-phase/countdown widgets stayed a full day stale after a deferred midnight job
+
+User-reported: "calendar panchang today still at friday. no rollover" — the
+Start-screen live tile correctly showed Saturday; only the separate
+home-screen widget (`CalendarSystemAppWidgetProvider`, a real Android
+`AppWidgetProvider`, distinct from the in-app `CalendarSystemTileFace`
+composable — the two don't share a render path at all, only some pure date
+helpers) was stuck on the previous day.
+
+Root cause was already half-documented in the widget's own scheduling code
+(`CalendarSystemWidgetRefreshWorker`/`WidgetWork.millisUntilNextMidnight`):
+since this widget's content is a pure function of the calendar date, it
+deliberately moved off a 30-minute poll to a **single daily WorkManager run
+timed for just after midnight**, on the reasoning that "the providers also
+refresh on placement, resize, reboot and app update, so a deferred run
+self-corrects as soon as the device is in use again." That claim doesn't
+actually hold: none of "placement, resize, reboot, app update" happens just
+from unlocking your phone the next morning, and `ACTION_SCREEN_ON`/
+`ACTION_USER_PRESENT` were never wired to trigger a refresh either (and
+couldn't be via a manifest receiver — Android has never delivered those to
+one, only to a dynamically-registered receiver, which needs a running
+process). So a single Doze-deferred midnight run — an explicitly
+acknowledged possibility in the same comment — left the widget stale for a
+**full extra day**, not the "one short interval" other widgets' shorter
+polling cadences would tolerate, since the next scheduled run is 24h after
+whenever the deferred one actually fired, not correctively closer to the
+next real midnight.
+
+Fixed with the same push-driven-refresh idiom `BatteryAppWidgetProvider`
+already uses for plug/unplug events: `onReceive` now checks for
+`Intent.ACTION_DATE_CHANGED`/`ACTION_TIME_CHANGED`/`ACTION_TIMEZONE_CHANGED`
+and calls the widget's own `refreshNow` directly, ahead of
+`super.onReceive`'s normal AppWidgetProvider dispatch. This trio is a
+documented exception to Android 8+'s implicit-broadcast restrictions for
+manifest-declared receivers — confirmed on-device: `adb shell am broadcast -a
+android.intent.action.DATE_CHANGED` itself is refused with a
+`SecurityException` ("not allowed to send broadcast ... from
+pid=...uid=2000"), meaning it's a genuinely OS-protected broadcast like
+`BOOT_COMPLETED`, not an arbitrary implicit one an app could fake — exactly
+why it reaches a manifest receiver reliably without the app running. It's
+also the same three actions AOSP's own Calendar app widget listens for to
+solve this identical "day rollover while asleep" problem. Applied to all
+three widgets that share this exact once-a-day design and doc comment
+("the midnight-aligned daily workers: calendar system, moon phase,
+countdown") — `MoonPhaseAppWidgetProvider` and `CountdownAppWidgetProvider` —
+not just the one reported, since all three have the identical latent bug.
+
+Build + full unit test suite green; installed on the physical device, no
+crash in `adb logcat`; confirmed via `adb shell dumpsys package` that all
+three providers' intent filters now include the three new actions. The
+actual end-to-end "does it re-render at the real midnight rollover" behavior
+can't be forced via adb (the broadcast is protected, and there's no way to
+fake tomorrow's date without root) — it can only be confirmed by the user
+noticing the widget is correct the morning after a Doze-deferred midnight
+run, which is precisely the failure mode this fix targets.
+
 ## Fixed a real race: the merge-target navigation raced the generic blockCount reclamp effect
 
 Direct follow-up, user-reported after the entry below shipped: "i merged page
