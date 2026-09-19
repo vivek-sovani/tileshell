@@ -8598,12 +8598,35 @@ through the luminance/Otsu path instead, while still catching a genuinely mostly
 on a big empty field" design when one exists. Both rounds verified by hand on the physical device (not
 just unit tests) via `adb`-driven search of the exact reported package names, screenshotting before/after
 each fix; every one of HP, HP Pay, Sadhguru, Kissan Connect, and the Amazon family (Amazon/Alexa/Music/
-Now/Pay) confirmed showing a legible glyph post-fix. One known remaining edge case, not chased further:
-an icon with genuinely minimal internal contrast even in the full composite (e.g. "BOBCARD," a real
-near-blank icon) still degrades to a plain filled plate — an inherent limit of any pixel-derived
-silhouette, not a regression, and out of scope for this session (a monogram-letter fallback was
-considered but deferred — needs threading a human-readable label into all three `monochromeIconBitmap`
-call sites, including the livetiles corner badge's `packageName`-only call site).
+Now/Pay) confirmed showing a legible glyph post-fix.
+
+**Round 3**, after the user reported three more still-broken icons ("bob card, drive, whiteboard") —
+two distinct bugs, neither the "genuinely no detail to extract" limitation round 2 assumed BOBCARD was
+(that assumption turned out wrong; see below). (1) **Google Drive** renders as a solid filled plate with
+zero glyph despite the fix — confirmed via the same instrumentation-logging technique that it uses its
+*own declared, real* Android 13+ monochrome layer (the "prefer the native layer" branch, untouched by
+every fix so far), and that the drawn 96×96 bitmap for that layer is uniformly opaque end to end with no
+shape variation at all — a bug in how that specific Drawable renders when drawn manually outside its
+normal system pipeline, not in this app's synthesis. Fixed with a new sanity check,
+`isUniformAlpha(pixels)`: a native monochrome layer is now only trusted when its own rendered alpha
+actually varies; a uniform one falls back to synthesizing from the ordinary icon pixels instead of being
+trusted blindly. (2) **BOBCARD**, still blank — found via the same logging that it's genuinely close to a
+50/50 split between real transparency (~48%, not meeting round 2's transparent-*majority* bar, so it
+correctly reaches the luminance path) and opaque content (~52%) — but the luminance split itself was
+still broken: a transparent pixel's RGB is typically meaningless (often literal black, whatever the
+decoder leaves for alpha-0), and `synthesizeMonochromeMask` was folding *all* pixels — transparent
+padding included — into one shared Otsu histogram. With roughly half the image "black" padding and half
+real opaque content, the padding alone formed its own low-luma cluster, so minority-cluster selection
+picked the *already-zero-alpha padding* as "ink" — correctly zeroed by the final alpha multiply, but
+that left the real, majority-classified, genuinely-visible content classified as "field" too, i.e. also
+zero opacity. The whole icon rendered blank despite having real content to show. Fixed by restricting
+the luminance split (`otsuThreshold`, `lowCount`/`highCount`/`minLuma`/`maxLuma`) to only the
+substantially-opaque pixels (`alpha >= 128`) — the split is now always computed from pixels that
+actually carry colour information; a fully-transparent-or-near-it image (no opaque pixels at all) short-
+circuits to a fully transparent mask directly. This retroactively invalidates round 2's guess that
+BOBCARD's blankness was "genuinely minimal internal contrast, an inherent limit" — it was a real,
+fixable classification bug the whole time. Every one of BOBCARD, Google Drive, and Microsoft Whiteboard
+confirmed showing a legible glyph post-fix, screenshotted on the physical device.
 
 Build + full unit test suite green throughout every round (`MonochromeTest.kt`, new, in `:core:design`);
 installed and verified on the physical device with no crash in `adb logcat` after each change.

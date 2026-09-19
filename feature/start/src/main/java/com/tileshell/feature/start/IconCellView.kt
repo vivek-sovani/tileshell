@@ -63,6 +63,7 @@ import com.tileshell.core.design.SquircleShape
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.colorTokens
 import com.tileshell.core.design.isLightBackground
+import com.tileshell.core.design.isUniformAlpha
 import com.tileshell.core.design.synthesizeMonochromeMask
 import com.tileshell.feature.livetiles.BatterySmallFace
 import com.tileshell.feature.livetiles.CalendarSmallFace
@@ -677,8 +678,12 @@ private fun unmaskedIconBitmap(drawable: android.graphics.drawable.Drawable, siz
  * separate their visible logo into the foreground layer alone — isolating it
  * threw away the actual wordmark, leaving only a flat coloured blob. The full
  * composite always matches what a user actually sees for that icon, so it
- * can never lose content the icon genuinely has. Never null: some
- * silhouette is always producible from ordinary icon pixels.
+ * can never lose content the icon genuinely has. The native layer itself is
+ * also sanity-checked ([isUniformAlpha]) before being trusted — user-reported
+ * Google Drive declares a real monochrome layer that renders as a solid
+ * filled plate with no visible glyph at all; falls back to synthesizing from
+ * the ordinary icon pixels in that case instead. Never null: some silhouette
+ * is always producible from ordinary icon pixels.
  */
 private fun monochromeIconBitmap(drawable: android.graphics.drawable.Drawable, sizePx: Int, rawBitmap: ImageBitmap): ImageBitmap {
     val native = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -691,7 +696,9 @@ private fun monochromeIconBitmap(drawable: android.graphics.drawable.Drawable, s
         val canvas = Canvas(bitmap)
         native.setBounds(0, 0, sizePx, sizePx)
         native.draw(canvas)
-        return bitmap.asImageBitmap()
+        val nativePixels = IntArray(sizePx * sizePx)
+        bitmap.getPixels(nativePixels, 0, sizePx, 0, 0, sizePx, sizePx)
+        if (!isUniformAlpha(nativePixels)) return bitmap.asImageBitmap()
     }
     val pixels = IntArray(sizePx * sizePx)
     rawBitmap.asAndroidBitmap().getPixels(pixels, 0, sizePx, 0, 0, sizePx, sizePx)

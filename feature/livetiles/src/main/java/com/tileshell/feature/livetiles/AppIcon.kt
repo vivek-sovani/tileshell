@@ -28,6 +28,7 @@ import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.design.LocalTileFaceColor
 import com.tileshell.core.design.SquircleShape
+import com.tileshell.core.design.isUniformAlpha
 import com.tileshell.core.design.synthesizeMonochromeMask
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -116,7 +117,8 @@ private fun unmaskedIconBitmap(drawable: Drawable, sizePx: Int): ImageBitmap {
 }
 
 /** See `:feature:applist`'s `AppListIcon.kt#monochromeIconBitmap` for the full
- *  rationale — prefers the app's own Android 13+ themed-icon layer, else
+ *  rationale — prefers the app's own Android 13+ themed-icon layer (sanity-
+ *  checked via [isUniformAlpha] before being trusted), else
  *  [synthesizeMonochromeMask] derives an equivalent silhouette from
  *  [rawBitmap] (the already-loaded full composite, not just the foreground
  *  layer — see that doc comment for why); the caller ([AppIconCorner]) tints
@@ -132,7 +134,9 @@ private fun monochromeIconBitmap(drawable: Drawable, sizePx: Int, rawBitmap: Ima
         val canvas = Canvas(bitmap)
         native.setBounds(0, 0, sizePx, sizePx)
         native.draw(canvas)
-        return bitmap.asImageBitmap()
+        val nativePixels = IntArray(sizePx * sizePx)
+        bitmap.getPixels(nativePixels, 0, sizePx, 0, 0, sizePx, sizePx)
+        if (!isUniformAlpha(nativePixels)) return bitmap.asImageBitmap()
     }
     val pixels = IntArray(sizePx * sizePx)
     rawBitmap.asAndroidBitmap().getPixels(pixels, 0, sizePx, 0, 0, sizePx, sizePx)

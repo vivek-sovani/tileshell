@@ -39,6 +39,23 @@ package com.tileshell.core.design
  * minority-area content sitting on a majority-area fill, regardless of which
  * one is lighter, which is what minority-cluster selection captures instead.
  * Luma weights match [perceivedLuminance]'s 299/587/114.
+ *
+ * The luminance split itself only ever looks at substantially opaque pixels
+ * (alpha >= 128) — user-reported "BOBCARD" still rendered fully blank even
+ * after the fixes above: that icon is genuinely close to a 50/50 split
+ * between real transparency (padding, not meeting the transparent-majority
+ * bar [hasMeaningfulTransparency] requires) and real opaque content. A
+ * transparent pixel's RGB is typically meaningless (often literal black,
+ * whatever the decoder leaves for alpha-0), and folding those pixels into
+ * the same histogram as the real content skewed Otsu's split itself: with
+ * roughly half "black" transparent padding and half opaque content, the
+ * padding alone formed the low-luma cluster, so minority-cluster selection
+ * picked the transparent padding as "ink" — which the final alpha multiply
+ * correctly zeroes out, but that left the real, majority-classified,
+ * genuinely-visible content with "field" opacity too, i.e. also zero. The
+ * whole icon rendered blank. Restricting classification to the opaque
+ * subset means the split is always computed from pixels that actually
+ * carry colour information.
  */
 fun synthesizeMonochromeMask(pixels: IntArray): IntArray {
     if (pixels.isEmpty()) return pixels
@@ -49,23 +66,35 @@ fun synthesizeMonochromeMask(pixels: IntArray): IntArray {
         }
     }
     val lumas = IntArray(pixels.size)
+    var opaqueLumaCount = 0
     for (i in pixels.indices) {
         val p = pixels[i]
+        val a = (p ushr 24) and 0xFF
         val r = (p ushr 16) and 0xFF
         val g = (p ushr 8) and 0xFF
         val b = p and 0xFF
         lumas[i] = (r * 299 + g * 587 + b * 114) / 1000
+        if (a >= 128) opaqueLumaCount++
     }
-    val threshold = otsuThreshold(lumas)
+    if (opaqueLumaCount == 0) {
+        // Nothing substantially opaque at all — no real content to show.
+        return IntArray(pixels.size)
+    }
+    val opaqueLumas = IntArray(opaqueLumaCount)
+    var w = 0
+    for (i in pixels.indices) {
+        if (((pixels[i] ushr 24) and 0xFF) >= 128) opaqueLumas[w++] = lumas[i]
+    }
+    val threshold = otsuThreshold(opaqueLumas)
     var lowCount = 0
     var minLuma = 255
     var maxLuma = 0
-    for (l in lumas) {
+    for (l in opaqueLumas) {
         if (l <= threshold) lowCount++
         if (l < minLuma) minLuma = l
         if (l > maxLuma) maxLuma = l
     }
-    val highCount = lumas.size - lowCount
+    val highCount = opaqueLumas.size - lowCount
     val inkIsLow = lowCount <= highCount
     // Contrast-stretched within the ink cluster only, so a low-contrast logo
     // (the ink and field close in luma) still reaches full 0..255 opacity
@@ -93,6 +122,30 @@ fun synthesizeMonochromeMask(pixels: IntArray): IntArray {
         val alpha = (origAlpha * opacity) / 255
         (alpha shl 24) or 0xFFFFFF
     }
+}
+
+/**
+ * True when [pixels]' alpha channel is essentially uniform across the whole
+ * image — carrying no usable shape signal at all (entirely opaque, or
+ * entirely transparent). Used to sanity-check an app's own Android 13+
+ * monochrome layer before trusting it: user-reported Google Drive renders
+ * as a solid filled plate with zero visible glyph even though it declares a
+ * real monochrome layer (confirmed on-device — the drawn 96×96 bitmap is
+ * uniformly opaque end to end, for reasons specific to that Drawable's own
+ * rendering rather than anything this app controls). Callers fall back to
+ * [synthesizeMonochromeMask] on the ordinary icon pixels when this is true,
+ * rather than trusting a declared-but-broken native layer blindly.
+ */
+fun isUniformAlpha(pixels: IntArray): Boolean {
+    if (pixels.isEmpty()) return true
+    var minAlpha = 255
+    var maxAlpha = 0
+    for (p in pixels) {
+        val a = (p ushr 24) and 0xFF
+        if (a < minAlpha) minAlpha = a
+        if (a > maxAlpha) maxAlpha = a
+    }
+    return (maxAlpha - minAlpha) < 10
 }
 
 /**

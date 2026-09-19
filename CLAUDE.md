@@ -65,11 +65,17 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   silhouette," discarding all internal colour detail for a flat blob. Fixed by requiring transparent
   pixels to be the strict majority, not merely present. Every one of HP/HP Pay/Sadhguru/Kissan Connect/
   the Amazon family confirmed showing a legible glyph post-fix, screenshotted on the physical device
-  before/after each round. One known non-regression edge case left alone: a genuinely near-blank source
-  icon (e.g. "BOBCARD") still degrades to a plain filled plate — a monogram-letter fallback was
-  considered but deferred (needs a human-readable label threaded into all three call sites). Build +
-  full unit test suite green throughout (`MonochromeTest.kt` new); installed and verified on the
-  physical device with no crash after every round.
+  before/after each round. **Round 3**, after "bob card, drive, whiteboard" reported still broken:
+  Google Drive uses its own declared native monochrome layer, which itself renders as a uniformly
+  opaque solid plate with zero shape variation (a bug in that specific Drawable, confirmed via the same
+  logging technique) — added `isUniformAlpha()` to sanity-check a native layer before trusting it,
+  falling back to synthesis when it's degenerate. BOBCARD (wrongly assumed in round 2 to be a genuine
+  "no detail to extract" case) turned out close to a 50/50 transparent/opaque split — folding the
+  transparent pixels' meaningless (black) RGB into the same Otsu histogram as the real opaque content
+  let the padding win minority-cluster selection, zeroing out the real content too. Fixed by restricting
+  the luminance split to only substantially-opaque pixels. All three (BOBCARD/Drive/Whiteboard)
+  confirmed fixed. Build + full unit test suite green throughout (`MonochromeTest.kt` new); installed
+  and verified on the physical device with no crash after every round.
 - **`start-sections` branch (not merged) — six on-device-reported bug fixes
   after the sessions 2-5 combined pass below, the most important being the
   real root cause of a recurring "big empty gap under a section" report.**

@@ -37,6 +37,7 @@ import com.tileshell.core.design.Glass
 import com.tileshell.core.design.LocalAccent
 import com.tileshell.core.design.SquircleShape
 import com.tileshell.core.design.isLightBackground
+import com.tileshell.core.design.isUniformAlpha
 import com.tileshell.core.design.synthesizeMonochromeMask
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -147,8 +148,10 @@ private fun unmaskedIconBitmap(drawable: Drawable): ImageBitmap {
  * [rawBitmap] (the already-loaded full composite) — see `:feature:start`'s
  * `IconCellView.kt#monochromeIconBitmap` for the full rationale, including
  * why this uses the full composite rather than isolating the foreground
- * layer alone (duplicated here for the same reason the rest of this file's
- * masking logic is duplicated). Never null.
+ * layer alone, and why the native layer is sanity-checked
+ * ([isUniformAlpha]) rather than trusted blindly (duplicated here for the
+ * same reason the rest of this file's masking logic is duplicated). Never
+ * null.
  */
 private fun monochromeIconBitmap(drawable: Drawable, rawBitmap: ImageBitmap): ImageBitmap {
     val native = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -161,7 +164,9 @@ private fun monochromeIconBitmap(drawable: Drawable, rawBitmap: ImageBitmap): Im
         val canvas = Canvas(bitmap)
         native.setBounds(0, 0, 96, 96)
         native.draw(canvas)
-        return bitmap.asImageBitmap()
+        val nativePixels = IntArray(96 * 96)
+        bitmap.getPixels(nativePixels, 0, 96, 0, 0, 96, 96)
+        if (!isUniformAlpha(nativePixels)) return bitmap.asImageBitmap()
     }
     val pixels = IntArray(96 * 96)
     rawBitmap.asAndroidBitmap().getPixels(pixels, 0, 96, 0, 0, 96, 96)

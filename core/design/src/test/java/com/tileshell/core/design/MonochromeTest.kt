@@ -138,6 +138,22 @@ class MonochromeTest {
     }
 
     @Test
+    fun `uniform alpha is degenerate`() {
+        // Regression for the reported Google Drive bug: a real declared
+        // Android 13+ monochrome layer that itself renders as a solid,
+        // fully-opaque filled plate with no shape variation at all — must be
+        // treated as unusable so the caller falls back to synthesizing one.
+        assertTrue(isUniformAlpha(IntArray(100) { argb(255, 0, 0, 0) }))
+        assertTrue(isUniformAlpha(IntArray(100) { argb(0, 0, 0, 0) }))
+    }
+
+    @Test
+    fun `varying alpha is not degenerate`() {
+        val pixels = IntArray(100) { i -> if (i < 30) argb(255, 0, 0, 0) else argb(0, 0, 0, 0) }
+        assertTrue(!isUniformAlpha(pixels))
+    }
+
+    @Test
     fun `opaque-majority rounded legacy icon still shows its wordmark via luminance`() {
         // End-to-end version of the regression above: a rounded icon (red
         // fill, transparent-corner rounding) with a white wordmark occupying
@@ -157,5 +173,34 @@ class MonochromeTest {
         assertEquals(255, alphaOf(mask[20])) // wordmark: fully opaque ink
         assertEquals(0, alphaOf(mask[99])) // fill: transparent field
         assertEquals(0, alphaOf(mask[0])) // corner: stays transparent
+    }
+
+    @Test
+    fun `near-50-50 transparent padding does not swamp the opaque content`() {
+        // Regression for the reported "BOBCARD" bug: an icon close to a 50/50
+        // split between real (but not transparent-majority, so the alpha-as-
+        // silhouette path never triggers) transparent padding and opaque
+        // content — confirmed on-device (~48% transparent / ~52% opaque). The
+        // transparent pixels' own RGB (0,0,0 here, as a decoder commonly
+        // leaves for alpha-0) must never be folded into the same luminance
+        // histogram as the real content: doing so let the black padding form
+        // its own "minority" cluster, so minority-cluster selection picked
+        // the (already-zero-alpha) padding as ink and the real, fully-opaque
+        // wordmark was left classified as "field" — opacity zero, i.e. the
+        // whole icon rendered blank despite having genuine content.
+        val transparentPadding = argb(0, 0, 0, 0)
+        val fill = argb(255, 200, 30, 30) // luma ~85, majority of the opaque half
+        val wordmark = argb(255, 255, 255, 255) // luma 255, minority of the opaque half
+        val pixels = IntArray(100) { i ->
+            when {
+                i < 48 -> transparentPadding
+                i < 58 -> wordmark
+                else -> fill
+            }
+        }
+        val mask = synthesizeMonochromeMask(pixels)
+        assertEquals(255, alphaOf(mask[50])) // wordmark: fully opaque ink
+        assertEquals(0, alphaOf(mask[99])) // fill: transparent field
+        assertEquals(0, alphaOf(mask[0])) // padding: stays transparent
     }
 }
