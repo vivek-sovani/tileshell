@@ -74,8 +74,18 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   transparent pixels' meaningless (black) RGB into the same Otsu histogram as the real opaque content
   let the padding win minority-cluster selection, zeroing out the real content too. Fixed by restricting
   the luminance split to only substantially-opaque pixels. All three (BOBCARD/Drive/Whiteboard)
-  confirmed fixed. Build + full unit test suite green throughout (`MonochromeTest.kt` new); installed
-  and verified on the physical device with no crash after every round.
+  confirmed fixed. **Round 4**, after "dji memo, flow launcher, microsoft 365 admin, subway surf, tata
+  cliq fashion, tata play" reported still not rendering well (Flow Launcher turned out fine — a
+  genuinely minimal logo, not a bug): zoomed into the actual rendered pixels and found each of the other
+  five showed a real accent plate with a solid-white square inset — a small legacy icon correctly
+  detected as inset on a transparent-majority canvas, but whose opaque content is itself a coloured logo
+  on a differently-coloured fill, which the "transparent-majority → trust raw alpha" shortcut was
+  solid-filling instead of colour-splitting. Fixed by gating that shortcut on the opaque region also
+  having no real internal luminance contrast — only a genuinely single-colour glyph still uses raw
+  alpha; anything with real contrast now runs the same opaque-subset Otsu split as the fully-opaque
+  case. All five confirmed showing their real logo post-fix. Build + full unit test suite green
+  throughout (`MonochromeTest.kt` new); installed and verified on the physical device with no crash
+  after every round.
 - **`start-sections` branch (not merged) — six on-device-reported bug fixes
   after the sessions 2-5 combined pass below, the most important being the
   real root cause of a recurring "big empty gap under a section" report.**

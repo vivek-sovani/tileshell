@@ -203,4 +203,46 @@ class MonochromeTest {
         assertEquals(0, alphaOf(mask[99])) // fill: transparent field
         assertEquals(0, alphaOf(mask[0])) // padding: stays transparent
     }
+
+    @Test
+    fun `a colourful logo inset on a transparent field is not flattened to a solid block`() {
+        // Regression for the reported "DJI Mimo / Subway Surf / Tata CLiQ
+        // Fashion / Tata Play / Microsoft 365 Admin" bug: each is a small
+        // legacy icon comfortably inset on a transparent-majority canvas — a
+        // real, correctly-detected silhouette shape — but the opaque content
+        // itself is a coloured logo mark on a differently-coloured fill, not
+        // a single flat colour. Using raw alpha as the final silhouette
+        // (correct for a genuinely single-colour glyph) discarded that
+        // colour information and solid-filled the whole inset square, so it
+        // rendered as a flat, detail-free block instead of the real glyph.
+        val transparentPadding = argb(0, 0, 0, 0)
+        val fill = argb(255, 200, 30, 30) // luma ~85, majority of the opaque inset
+        val logoMark = argb(255, 255, 255, 255) // luma 255, minority of the opaque inset
+        val pixels = IntArray(100) { i ->
+            when {
+                i < 56 -> transparentPadding // transparent majority overall
+                i < 68 -> logoMark
+                else -> fill
+            }
+        }
+        val mask = synthesizeMonochromeMask(pixels)
+        assertEquals(255, alphaOf(mask[60])) // logo mark: fully opaque ink
+        assertEquals(0, alphaOf(mask[99])) // fill: transparent field
+        assertEquals(0, alphaOf(mask[0])) // padding: stays transparent
+    }
+
+    @Test
+    fun `a genuinely single-colour glyph inset on a transparent field still uses alpha as-is`() {
+        // The counterpart case: no internal colour contrast at all within the
+        // opaque inset, so alpha really is the only shape signal available —
+        // must still solid-fill via alpha, not be routed into a luminance
+        // split that has nothing real to separate.
+        val transparentPadding = argb(0, 0, 0, 0)
+        val glyph = argb(255, 10, 20, 30)
+        val pixels = IntArray(100) { i -> if (i < 56) transparentPadding else glyph }
+        val mask = synthesizeMonochromeMask(pixels)
+        assertEquals(255, alphaOf(mask[99]))
+        assertEquals(0xFFFFFF, rgbOf(mask[99]))
+        assertEquals(0, alphaOf(mask[0]))
+    }
 }

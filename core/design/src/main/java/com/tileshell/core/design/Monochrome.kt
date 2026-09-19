@@ -56,29 +56,58 @@ package com.tileshell.core.design
  * whole icon rendered blank. Restricting classification to the opaque
  * subset means the split is always computed from pixels that actually
  * carry colour information.
+ *
+ * [hasMeaningfulTransparency] ("use raw alpha as the final silhouette") is
+ * now only trusted when the opaque region itself has no real internal
+ * colour contrast to extract instead — user-reported "DJI Mimo," "Subway
+ * Surf," "Tata CLiQ Fashion," "Tata Play," and "Microsoft 365 Admin" all
+ * rendered as a flat, detail-free solid block: each is a smallish legacy
+ * icon comfortably inset on a transparent-majority canvas (a real, correctly
+ * detected silhouette shape), but the opaque content *itself* is a coloured
+ * logo mark on a differently-coloured fill, not a single flat colour —
+ * exactly the kind of detail [otsuThreshold] + minority-cluster selection
+ * already extracts correctly elsewhere. Blindly using alpha-as-silhouette
+ * there discards that colour information and solid-fills the whole shape.
+ * Now the opaque region's own luminance range is checked first
+ * ([OPAQUE_CONTRAST_THRESHOLD]): only when it's genuinely low-contrast (a
+ * true single-colour glyph, where alpha legitimately *is* the only shape
+ * signal available) does raw alpha get used as-is; otherwise the luminance
+ * split runs on the opaque subset exactly as the fully-opaque case does, and
+ * the final `origAlpha` multiply still naturally preserves the outer
+ * silhouette bounds [hasMeaningfulTransparency] found.
  */
+private const val OPAQUE_CONTRAST_THRESHOLD = 30
+
 fun synthesizeMonochromeMask(pixels: IntArray): IntArray {
     if (pixels.isEmpty()) return pixels
-    if (hasMeaningfulTransparency(pixels)) {
-        return IntArray(pixels.size) { i ->
-            val alpha = (pixels[i] ushr 24) and 0xFF
-            (alpha shl 24) or 0xFFFFFF
-        }
-    }
     val lumas = IntArray(pixels.size)
     var opaqueLumaCount = 0
+    var opaqueMinLuma = 255
+    var opaqueMaxLuma = 0
     for (i in pixels.indices) {
         val p = pixels[i]
         val a = (p ushr 24) and 0xFF
         val r = (p ushr 16) and 0xFF
         val g = (p ushr 8) and 0xFF
         val b = p and 0xFF
-        lumas[i] = (r * 299 + g * 587 + b * 114) / 1000
-        if (a >= 128) opaqueLumaCount++
+        val luma = (r * 299 + g * 587 + b * 114) / 1000
+        lumas[i] = luma
+        if (a >= 128) {
+            opaqueLumaCount++
+            if (luma < opaqueMinLuma) opaqueMinLuma = luma
+            if (luma > opaqueMaxLuma) opaqueMaxLuma = luma
+        }
     }
     if (opaqueLumaCount == 0) {
         // Nothing substantially opaque at all — no real content to show.
         return IntArray(pixels.size)
+    }
+    val hasInternalContrast = (opaqueMaxLuma - opaqueMinLuma) >= OPAQUE_CONTRAST_THRESHOLD
+    if (hasMeaningfulTransparency(pixels) && !hasInternalContrast) {
+        return IntArray(pixels.size) { i ->
+            val alpha = (pixels[i] ushr 24) and 0xFF
+            (alpha shl 24) or 0xFFFFFF
+        }
     }
     val opaqueLumas = IntArray(opaqueLumaCount)
     var w = 0

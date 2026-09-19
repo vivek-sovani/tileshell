@@ -8628,5 +8628,25 @@ BOBCARD's blankness was "genuinely minimal internal contrast, an inherent limit"
 fixable classification bug the whole time. Every one of BOBCARD, Google Drive, and Microsoft Whiteboard
 confirmed showing a legible glyph post-fix, screenshotted on the physical device.
 
+**Round 4**, after "dji memo, flow launcher, microsoft 365 admin, subway surf, tata cliq fashion, tata
+play atr" reported still not rendering well (`mimo.sz`/"DJI Mimo", `com.kiloo.subwaysurf`/"Subway Surf",
+`com.tul.tatacliq`/"Tata CLiQ Fashion", `com.ryzmedia.tatasky`/"Tata Play", `com.ms.office365admin`/
+"Microsoft 365 Admin" — "Flow Launcher" turned out fine on inspection, a genuinely minimal circular logo,
+not a bug). Zoomed into the actual rendered pixels rather than trusting the screenshot thumbnail: each
+showed a real accent-coloured *plate* with a smaller solid-white *square* inset in the middle — not
+literally blank, but a flat, detail-free block, because each is a small legacy icon comfortably inset on
+a transparent-majority canvas (a real, correctly-detected [hasMeaningfulTransparency] silhouette shape)
+whose *opaque content itself* is a coloured logo mark on a differently-coloured fill — exactly the kind
+of detail minority-cluster luminance selection already extracts correctly elsewhere, but the
+"transparent-majority → trust raw alpha as the final silhouette" rule was unconditionally short-
+circuiting past that check and solid-filling the whole inset shape instead. Fixed by gating that alpha-
+as-silhouette shortcut on the opaque region *also* having no real internal luminance contrast to extract
+(`OPAQUE_CONTRAST_THRESHOLD = 30`, comparing the opaque subset's own min/max luma) — only a genuinely
+single-colour glyph (no colour-based detail exists at all, so alpha really is the only shape signal
+available) still takes that path; anything with real internal contrast now runs the same opaque-subset
+Otsu/minority-cluster split the fully-opaque case already uses, with the final `origAlpha` multiply
+still naturally preserving the outer silhouette bounds. All five confirmed showing their real logo
+post-fix, screenshotted (and pixel-zoomed) on the physical device before/after.
+
 Build + full unit test suite green throughout every round (`MonochromeTest.kt`, new, in `:core:design`);
 installed and verified on the physical device with no crash in `adb logcat` after each change.
