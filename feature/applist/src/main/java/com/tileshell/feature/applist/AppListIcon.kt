@@ -37,6 +37,7 @@ import com.tileshell.core.design.Glass
 import com.tileshell.core.design.LocalAccent
 import com.tileshell.core.design.SquircleShape
 import com.tileshell.core.design.isLightBackground
+import com.tileshell.core.design.synthesizeMonochromeMask
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -74,7 +75,7 @@ internal data class MaskableAppIcon(
     val unmaskedBitmap: ImageBitmap,
     val isAdaptive: Boolean,
     val plateColor: Color?,
-    val monochromeBitmap: ImageBitmap?,
+    val monochromeBitmap: ImageBitmap,
 )
 
 @Composable
@@ -98,7 +99,7 @@ internal fun rememberMaskableAppIcon(packageName: String, activityName: String):
                     rawBitmap,
                     isAdaptive,
                     if (isAdaptive) null else dominantColor(osBitmap),
-                    monochromeIconBitmap(drawable),
+                    monochromeIconBitmap(drawable, rawBitmap),
                 )
             }
             // An app shortcut publishes its own icon and has no resolvable
@@ -137,23 +138,37 @@ private fun unmaskedIconBitmap(drawable: Drawable): ImageBitmap {
 }
 
 /**
- * The app's Android 13+ "themed icon" layer ([AdaptiveIconDrawable.monochrome]),
- * flattened to a 96x96 alpha mask with no tint baked in — the caller applies
- * the current accent via a Compose [ColorFilter] at render time (see
+ * An untinted alpha-mask glyph for [drawable] — the caller applies the
+ * current accent via a Compose [ColorFilter] at render time (see
  * [MaskedAppIcon]), so retinting on an accent change never needs a reload.
- * Null below API 33, for a non-adaptive icon, or when the app declared no
- * monochrome layer at all — every one of those degrades to the app's normal
- * icon, same as `:feature:livetiles`'s `AppIcon.kt#AppIconCorner` and
- * `:feature:start`'s `IconCellView.kt` will once they gain this too.
+ * Prefers the app's own Android 13+ "themed icon" layer
+ * ([AdaptiveIconDrawable.monochrome], API 33+) when declared; otherwise
+ * [synthesizeMonochromeMask] derives an equivalent silhouette from
+ * [rawBitmap] (the already-loaded full composite) — see `:feature:start`'s
+ * `IconCellView.kt#monochromeIconBitmap` for the full rationale, including
+ * why this uses the full composite rather than isolating the foreground
+ * layer alone (duplicated here for the same reason the rest of this file's
+ * masking logic is duplicated). Never null.
  */
-private fun monochromeIconBitmap(drawable: Drawable): ImageBitmap? {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
-    val mono = (drawable as? AdaptiveIconDrawable)?.monochrome ?: return null
-    val bitmap = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-    mono.setBounds(0, 0, 96, 96)
-    mono.draw(canvas)
-    return bitmap.asImageBitmap()
+private fun monochromeIconBitmap(drawable: Drawable, rawBitmap: ImageBitmap): ImageBitmap {
+    val native = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        (drawable as? AdaptiveIconDrawable)?.monochrome
+    } else {
+        null
+    }
+    if (native != null) {
+        val bitmap = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        native.setBounds(0, 0, 96, 96)
+        native.draw(canvas)
+        return bitmap.asImageBitmap()
+    }
+    val pixels = IntArray(96 * 96)
+    rawBitmap.asAndroidBitmap().getPixels(pixels, 0, 96, 0, 0, 96, 96)
+    val masked = synthesizeMonochromeMask(pixels)
+    val result = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
+    result.setPixels(masked, 0, 96, 0, 0, 96, 96)
+    return result.asImageBitmap()
 }
 
 private fun IconShape.toShape(): Shape? = when (this) {
@@ -200,12 +215,11 @@ private fun dominantColor(bitmap: ImageBitmap): Color? {
  * [HomeStyle.ICONS] (matches Start's own icon rendering); a plain unmasked
  * icon in [HomeStyle.TILES], same as before this feature existed.
  *
- * [themedIcons] takes priority over both of those when the app actually has
- * a monochrome layer: the icon renders as its themed glyph, tinted to
- * [LocalAccent], on an accent-filled plate — independent of [homeStyle], since
- * "themed" is a colour choice a user can want in either style. Falls through
- * to the normal icon whenever there's no monochrome layer to show (older
- * device, or the app never declared one).
+ * [themedIcons] takes priority over both of those: the icon renders as a
+ * monochrome glyph (the app's own Android 13+ layer when it declared one,
+ * else a synthesized equivalent — see [monochromeIconBitmap]) tinted to
+ * [LocalAccent], on an accent-filled plate — independent of [homeStyle],
+ * since "themed" is a colour choice a user can want in either style.
  */
 @Composable
 internal fun MaskedAppIcon(
@@ -216,8 +230,8 @@ internal fun MaskedAppIcon(
     themedIcons: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    val mono = loaded.monochromeBitmap
-    if (themedIcons && mono != null) {
+    if (themedIcons) {
+        val mono = loaded.monochromeBitmap
         val accent = LocalAccent.current
         val plateShape = shape.toShape() ?: CircleShape
         Box(

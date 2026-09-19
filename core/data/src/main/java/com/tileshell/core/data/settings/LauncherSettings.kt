@@ -247,15 +247,21 @@ data class LauncherSettings(
     /** Icon mask applied in ICONS home style; unused in TILES. */
     val iconShape: IconShape = IconShape.ORIGINAL,
     /**
-     * Use each app's themed/monochrome adaptive-icon layer (Android 13+'s
-     * "themed icons," `AdaptiveIconDrawable.monochrome`) tinted to the
-     * current accent, instead of the app's full-colour icon — in the app
-     * list and on live-tile "posted by" corner badges. Independent of
-     * [homeStyle]/[iconShape] (it's a colour choice, not a shape one) and of
-     * [accentId]/[tileColorSource] (the tint always follows the resolved
-     * accent at each render site). Default off; an app with no monochrome
-     * layer, or a device below API 33, silently falls back to its normal
-     * icon regardless of this flag.
+     * "Monochrome icons" (Nothing-OS-style unified icon theme): every app
+     * icon renders as a flat glyph tinted to the current accent, instead of
+     * its normal full-colour icon — on Start (both TILES and ICONS home
+     * style), the app list, folder mini-grids, and live-tile "posted by"
+     * corner badges. Prefers an app's own Android 13+ themed-icon layer
+     * (`AdaptiveIconDrawable.monochrome`) when it declared one; otherwise a
+     * silhouette is synthesized from the icon's own pixels (see
+     * `core/design/Monochrome.kt#synthesizeMonochromeMask`), so coverage
+     * isn't limited to the minority of apps that ship a real layer — see
+     * DECISIONS.md "Themed icons: parked" for why the native-layer-only
+     * version shipped once and was turned off, and the later entry that
+     * added this synthesized fallback. Independent of [homeStyle]/
+     * [iconShape] (a colour choice, not a shape one) and of [accentId]/
+     * [tileColorSource] (the tint always follows the resolved accent at each
+     * render site). Default off.
      */
     val themedIcons: Boolean = false,
     /** Periodic background layout snapshot saves (for LayoutHistorySheet). */

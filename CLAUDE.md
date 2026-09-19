@@ -37,6 +37,39 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — monochrome icons (Nothing-OS-style unified icon theme), revisiting the parked
+  `themedIcons` feature, plus two rounds of real on-device bug fixes.** User asked directly for
+  "monolithic icons for all available apps... like nothing phone does"; scoped via `AskUserQuestion` to
+  accent-tinted silhouettes. This is exactly the synthesized-fallback path floated but never built when
+  `themedIcons` was parked (see DECISIONS.md "Themed icons: parked") — that version only themed the
+  minority of apps with a real Android 13+ monochrome adaptive-icon layer and was turned off for the
+  resulting uneven mix. New `core/design/Monochrome.kt#synthesizeMonochromeMask` (pure, unit-tested,
+  no `android.graphics`/Compose imports so it's plain-JVM-testable) derives an equivalent silhouette
+  from any icon's own pixels when no native layer exists, via `otsuThreshold` + minority-luminance-
+  cluster selection (whichever of two Otsu-split clusters is smaller by pixel count is "ink" — a logo/
+  wordmark is nearly always minority-area content on a majority-area fill, regardless of which side is
+  lighter) with contrast stretched within that cluster. `monochromeIconBitmap()` in all three existing
+  duplicate-masking files (`IconCellView.kt`, `AppListIcon.kt`, `feature/livetiles/AppIcon.kt`) now
+  always returns a non-null mask; re-wired the two `themedIcons`-parked call sites (`StartScreen.kt`'s
+  `StartPage(...)`, `AppListScreen.kt`'s two `AppRow(...)`) plus newly threaded it into folder mini-grids
+  (`IconFolderCell`/`IconFolderChildGlyph`, `FolderChildIcon`) which never had it before; new "monochrome
+  icons" Personalize toggle in the "home style" group, in the old row's spot. **Two real bugs found via
+  on-device testing** (user flagged specific apps by name both times): round 1 fixed synthesizing from
+  an isolated foreground layer (lost content on icons like HP/Sadhguru that bake their whole design into
+  one layer) and a whole-image-average polarity rule (inverted on a moderately-bright coloured fill with
+  a white wordmark, e.g. "HP"/"Kissan Connect" — the fill's brightness pulled the average toward "light,"
+  wrongly picking the fill as ink) — switched to the full composited icon + Otsu minority-cluster
+  selection. Round 2, found via temporary `adb logcat` instrumentation after Sadhguru/Kissan Connect
+  still rendered blank: both are plain rounded *legacy* icons, ~80-95% opaque with transparent corner
+  rounding only — `hasMeaningfulTransparency` wrongly treated that as "use raw alpha as the final
+  silhouette," discarding all internal colour detail for a flat blob. Fixed by requiring transparent
+  pixels to be the strict majority, not merely present. Every one of HP/HP Pay/Sadhguru/Kissan Connect/
+  the Amazon family confirmed showing a legible glyph post-fix, screenshotted on the physical device
+  before/after each round. One known non-regression edge case left alone: a genuinely near-blank source
+  icon (e.g. "BOBCARD") still degrades to a plain filled plate — a monogram-letter fallback was
+  considered but deferred (needs a human-readable label threaded into all three call sites). Build +
+  full unit test suite green throughout (`MonochromeTest.kt` new); installed and verified on the
+  physical device with no crash after every round.
 - **`start-sections` branch (not merged) — six on-device-reported bug fixes
   after the sessions 2-5 combined pass below, the most important being the
   real root cause of a recurring "big empty gap under a section" report.**

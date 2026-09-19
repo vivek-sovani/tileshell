@@ -1249,10 +1249,7 @@ fun StartScreen(
                     freeMode = settings.tilePackMode == TilePackMode.FREE,
                     homeStyle = settings.homeStyle,
                     iconShape = settings.iconShape,
-                    // themedIcons intentionally not threaded here — parked (see
-                    // DECISIONS.md "Themed icons: parked"); StartPage's own
-                    // themedIcons param stays at its default false regardless
-                    // of any already-persisted LauncherSettings.themedIcons value.
+                    themedIcons = settings.themedIcons,
                     onSetTileSlot = viewModel::setTileGridSlot,
                     expandedFolderId = expandedFolderId,
                     onCollapseFolder = viewModel::collapseFolder,
@@ -1877,6 +1874,8 @@ fun StartScreen(
             onHomeStyleChange = viewModel::setHomeStyle,
             iconShape = settings.iconShape,
             onIconShapeChange = viewModel::setIconShape,
+            themedIcons = settings.themedIcons,
+            onThemedIconsChange = viewModel::setThemedIcons,
             lockLayout = settings.lockLayout,
             onLockLayoutChange = viewModel::setLockLayout,
             hideStatusBar = settings.hideStatusBar,
@@ -3680,6 +3679,8 @@ private fun StartPage(
                             canMoveBack = canMoveBack,
                             canMoveForward = canMoveForward,
                             iconShape = iconShape,
+                            themedIcons = themedIcons,
+                            accent = tileAccent,
                             resizeHandlesEnabled = resizeHandlesEnabled,
                             onResizeDragStart = onResizeDragStartAction,
                             onResizeDragBy = onResizeDragByAction,
@@ -4877,6 +4878,7 @@ internal fun TileView(
                         notifications = notifications,
                         homeStyle = homeStyle,
                         iconShape = iconShape,
+                        themedIcons = themedIcons,
                         onLaunchChild = onLaunchFolderChild,
                         onOpenFolder = onTap,
                         onEnterEdit = onLongPress,
@@ -7405,12 +7407,18 @@ private fun averageLuminance(bitmap: ImageBitmap): Float {
  * of their real icons, inconsistent with the rest of ICONS mode). TILES mode
  * keeps the original WP-authentic behaviour (glyph whenever the iconKey
  * matches a known category) unchanged.
+ *
+ * [themedIcons] takes priority over both, independent of [homeStyle]/
+ * [iconShape] — same convention as [StaticTileGlyph]'s own themed branch:
+ * this cell already sits on the folder's own mini-grid backdrop, so the
+ * glyph is just tinted via [LocalTileFaceColor], no separate plate drawn.
  */
 @Composable
 private fun FolderChildIcon(
     child: FolderChild?,
     homeStyle: HomeStyle = HomeStyle.TILES,
     iconShape: IconShape = IconShape.ORIGINAL,
+    themedIcons: Boolean = false,
 ) {
     // Always call rememberTileAppIcon so the composable call count is stable
     // regardless of whether child is null or has a WP icon.
@@ -7434,14 +7442,35 @@ private fun FolderChildIcon(
     // top-level SMALL icon cell (IconCellView) — instead of always drawing the
     // OS's own native-shaped bitmap (user-reported inconsistency).
     val composeShape = if (homeStyle == HomeStyle.ICONS) iconShape.toComposeShape() else null
-    val maskable = if (useAppIcon && composeShape != null) rememberMaskableIcon(pkg, act) else null
+    val maskable = if (useAppIcon && (composeShape != null || themedIcons)) rememberMaskableIcon(pkg, act) else null
+    val mono = maskable?.monochromeBitmap
     when {
-        useAppIcon && maskable != null -> {
+        useAppIcon && themedIcons && mono != null -> {
+            Image(
+                bitmap = mono,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                colorFilter = ColorFilter.tint(LocalTileFaceColor.current),
+                modifier = Modifier.size(iconSize),
+            )
+        }
+        useAppIcon && maskable != null && composeShape != null -> {
             Image(
                 bitmap = if (maskable.isAdaptive) maskable.unmaskedBitmap else maskable.bitmap,
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.size(iconSize).clip(composeShape!!),
+                modifier = Modifier.size(iconSize).clip(composeShape),
+            )
+        }
+        useAppIcon && maskable != null -> {
+            // themedIcons requested it but there's nothing else to mask to —
+            // same plain unmasked icon as the appIcon branch below, just
+            // sourced from the already-loaded MaskableIcon.
+            Image(
+                bitmap = maskable.bitmap,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(iconSize),
             )
         }
         useAppIcon && appIcon != null -> {
@@ -7478,6 +7507,7 @@ private fun FolderTileContent(
     notifications: NotificationSnapshot,
     homeStyle: HomeStyle = HomeStyle.TILES,
     iconShape: IconShape = IconShape.ORIGINAL,
+    themedIcons: Boolean = false,
     onLaunchChild: (FolderChild) -> Unit,
     onOpenFolder: () -> Unit,
     onEnterEdit: () -> Unit,
@@ -7585,7 +7615,7 @@ private fun FolderTileContent(
                                     fontWeight = FontWeight.Medium,
                                 )
                             } else {
-                                FolderChildIcon(child, homeStyle, iconShape)
+                                FolderChildIcon(child, homeStyle, iconShape, themedIcons)
                             }
                             // Per-app count — lets a closed folder be scanned for
                             // *which* app has unread items, not just how many in

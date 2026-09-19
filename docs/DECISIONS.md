@@ -8533,3 +8533,77 @@ inconsistency, not a new feature. Reused this same file's existing (pre-dating t
 `toDevanagariDigits` helper — already used for the sunrise/sunset clock digits — on both year numbers.
 The widget's own Panchang face doesn't display shaka/vikram samvat at all, so no change needed there.
 Build + full unit test suite green.
+
+## Monochrome icons (Nothing-OS-style unified icon theme), revisiting "Themed icons: parked"
+
+User asked directly for a Nothing-Phone-style feature: every installed app's icon rendered as a flat,
+single-colour glyph. This is exactly the synthesized-fallback path floated (but not built) when
+`themedIcons` was parked earlier in this log — that version only worked for the minority of apps
+declaring a real Android 13+ monochrome adaptive-icon layer, and was turned off specifically because
+most apps don't have one, producing a visibly uneven mix. Scoped via `AskUserQuestion`: accent-tinted
+silhouette style, applied everywhere the (already-built, still-dormant) `themedIcons` plumbing reaches —
+Start in both TILES and ICONS home style, the app list, folder mini-grids (top-level `IconCellView`'s
+`IconFolderCell`/`IconFolderChildGlyph` and the MEDIUM+ folder tile's `FolderChildIcon`, neither of
+which previously threaded `themedIcons` at all), and live-tile "posted by" corner badges — toggled by a
+new "monochrome icons" row in Personalize's "home style" group (the old row's exact spot), re-wiring the
+two `// themedIcons intentionally not threaded — parked` call sites (`StartScreen.kt`'s `StartPage(...)`
+call, `AppListScreen.kt`'s two `AppRow(...)` calls) back to `settings.themedIcons`.
+
+The actual new work is the synthesis: `core/design/Monochrome.kt#synthesizeMonochromeMask(pixels:
+IntArray): IntArray` — a pure, unit-tested pixel transform living in `:core:design` rather than
+duplicated three times, since (unlike `IconShape`'s masking) it needs neither `:core:data` nor Compose
+types, just plain ARGB ints (`Bitmap.getPixels`'s own packed format) — kept deliberately free of
+`android.graphics`/Compose `Color` imports so it's exercisable by this module's plain-JVM JUnit tests
+with no Robolectric dependency. `monochromeIconBitmap()` in all three existing duplicate-masking files
+(`IconCellView.kt`, `AppListIcon.kt`, `feature/livetiles/AppIcon.kt`) now always returns a non-null
+untinted alpha-mask `ImageBitmap` (the field type on `MaskableIcon`/`MaskableAppIcon` narrowed from
+nullable to non-null to match) — the app's own native monochrome layer when declared, else a synthesized
+equivalent — so `themedIcons` now covers every resolvable icon, not just the minority with a real layer.
+
+**Two real bugs found and fixed via on-device testing, not just code review** (the user flagged specific
+broken-looking icons by name both times — real regression-driving feedback, not hypothetical). Round 1,
+after the user reported "sadhguru, kissan connect, hp, hp pay" (then "amazon now, bob world, botim,
+claudedigi") rendering with "details lost": the first synthesis version isolated an adaptive icon's
+*foreground layer alone* as the source (reasoning that the OS's safe-zone convention guarantees real
+transparency there), with luminance-fallback polarity chosen by comparing each pixel's luma only to the
+whole image's *average* brightness. Both assumptions failed on real installed apps: HP/HP Pay/Kissan
+Connect/Sadhguru-style icons often bake their entire visible design (fill colour *and* wordmark) into
+one PNG rather than cleanly separating the glyph into just the foreground layer, so isolating it threw
+away the actual logo; and a moderately-bright coloured fill (orange/red/pink) with a white wordmark
+pulls the whole-image average toward "light," so the average-based rule inverted and treated the fill as
+"ink," making the wordmark itself vanish. Fixed two ways: `monochromeIconBitmap()` now synthesizes from
+the already-loaded *full composite* (`rawBitmap`/`unmaskedIconBitmap` — background+foreground for an
+adaptive icon, the plain decode for a legacy one, i.e. exactly what a user actually sees), never just one
+isolated layer; and `synthesizeMonochromeMask` replaced the whole-image-average polarity rule with
+`otsuThreshold` (standard histogram-based two-cluster luminance split) plus **minority-cluster selection**
+— whichever luminance cluster is the *smaller* by pixel count is "ink," regardless of which one is
+lighter, since a logo mark or wordmark is nearly always minority-area content sitting on a majority-area
+fill. Contrast is also stretched within the chosen ink cluster alone, so a low-contrast logo (ink and
+field close in luma) still reaches full 0..255 opacity instead of a washed, barely-visible result — a
+second, related "details lost" failure mode for icons with inherently subtle contrast.
+
+Round 2, after the user reported specific still-blank icons (`com.ishafoundation.app`/"Sadhguru",
+`com.kisankonnect.in`/"Kissan Connect") even with the round-1 fix live: found via temporary
+instrumentation logging (`Log.d` in `monochromeIconBitmap`, `adb logcat`, removed once diagnosed — this
+project's established debugging pattern) that both are plain *legacy* (non-adaptive) rounded/circular
+icons, ~80-95% opaque with transparent pixels only in the corner rounding. `hasMeaningfulTransparency`'s
+original criterion ("a meaningful fraction of both transparent and opaque pixels") happily matched this
+shape too, routing it down the "use the raw alpha channel as the final silhouette" path — but a rounded
+icon's alpha channel only encodes its *outer boundary shape*, never internal glyph detail, so the result
+was a flat, filled blob with the actual wordmark (extractable via the composite's own colour contrast,
+confirmed by manually pulling and inspecting Sadhguru's real APK assets) discarded entirely. Fixed by
+requiring transparent pixels to be the **majority**, not merely present in both — a circle-in-square or
+inset-margin shape is always opaque-majority (≈78%+ opaque), which now correctly excludes it and routes
+through the luminance/Otsu path instead, while still catching a genuinely mostly-transparent "small glyph
+on a big empty field" design when one exists. Both rounds verified by hand on the physical device (not
+just unit tests) via `adb`-driven search of the exact reported package names, screenshotting before/after
+each fix; every one of HP, HP Pay, Sadhguru, Kissan Connect, and the Amazon family (Amazon/Alexa/Music/
+Now/Pay) confirmed showing a legible glyph post-fix. One known remaining edge case, not chased further:
+an icon with genuinely minimal internal contrast even in the full composite (e.g. "BOBCARD," a real
+near-blank icon) still degrades to a plain filled plate — an inherent limit of any pixel-derived
+silhouette, not a regression, and out of scope for this session (a monogram-letter fallback was
+considered but deferred — needs threading a human-readable label into all three `monochromeIconBitmap`
+call sites, including the livetiles corner badge's `packageName`-only call site).
+
+Build + full unit test suite green throughout every round (`MonochromeTest.kt`, new, in `:core:design`);
+installed and verified on the physical device with no crash in `adb logcat` after each change.

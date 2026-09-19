@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -27,6 +28,7 @@ import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.design.LocalTileFaceColor
 import com.tileshell.core.design.SquircleShape
+import com.tileshell.core.design.synthesizeMonochromeMask
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -64,7 +66,7 @@ private data class MaskableAppIcon(
     val bitmap: ImageBitmap,
     val unmaskedBitmap: ImageBitmap,
     val isAdaptive: Boolean,
-    val monochromeBitmap: ImageBitmap?,
+    val monochromeBitmap: ImageBitmap,
 )
 
 /**
@@ -92,7 +94,7 @@ private fun rememberMaskableAppIcon(packageName: String, sizePx: Int = 96): Mask
                     val isAdaptive = drawable is AdaptiveIconDrawable
                     val osBitmap = drawable.toBitmap(width = sizePx, height = sizePx).asImageBitmap()
                     val rawBitmap = if (isAdaptive) unmaskedIconBitmap(drawable, sizePx) else osBitmap
-                    MaskableAppIcon(osBitmap, rawBitmap, isAdaptive, monochromeIconBitmap(drawable, sizePx))
+                    MaskableAppIcon(osBitmap, rawBitmap, isAdaptive, monochromeIconBitmap(drawable, sizePx, rawBitmap))
                 }.getOrNull()
             }
         }
@@ -114,18 +116,30 @@ private fun unmaskedIconBitmap(drawable: Drawable, sizePx: Int): ImageBitmap {
 }
 
 /** See `:feature:applist`'s `AppListIcon.kt#monochromeIconBitmap` for the full
- *  rationale — flattens the Android 13+ themed-icon layer to an untinted alpha
- *  mask; the caller ([AppIconCorner]) tints it via [ColorFilter] at render
- *  time. Null below API 33, for a non-adaptive icon, or with no monochrome
- *  layer declared. */
-private fun monochromeIconBitmap(drawable: Drawable, sizePx: Int): ImageBitmap? {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
-    val mono = (drawable as? AdaptiveIconDrawable)?.monochrome ?: return null
-    val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-    mono.setBounds(0, 0, sizePx, sizePx)
-    mono.draw(canvas)
-    return bitmap.asImageBitmap()
+ *  rationale — prefers the app's own Android 13+ themed-icon layer, else
+ *  [synthesizeMonochromeMask] derives an equivalent silhouette from
+ *  [rawBitmap] (the already-loaded full composite, not just the foreground
+ *  layer — see that doc comment for why); the caller ([AppIconCorner]) tints
+ *  the untinted result via [ColorFilter] at render time. Never null. */
+private fun monochromeIconBitmap(drawable: Drawable, sizePx: Int, rawBitmap: ImageBitmap): ImageBitmap {
+    val native = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        (drawable as? AdaptiveIconDrawable)?.monochrome
+    } else {
+        null
+    }
+    if (native != null) {
+        val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        native.setBounds(0, 0, sizePx, sizePx)
+        native.draw(canvas)
+        return bitmap.asImageBitmap()
+    }
+    val pixels = IntArray(sizePx * sizePx)
+    rawBitmap.asAndroidBitmap().getPixels(pixels, 0, sizePx, 0, 0, sizePx, sizePx)
+    val masked = synthesizeMonochromeMask(pixels)
+    val result = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+    result.setPixels(masked, 0, sizePx, 0, 0, sizePx, sizePx)
+    return result.asImageBitmap()
 }
 
 /** See `IconCellView.kt`'s identical mapping's doc comment for why this lives
@@ -152,13 +166,14 @@ private fun IconShape.toComposeShape(): Shape? = when (this) {
  * mode (or [IconShape.ORIGINAL]) draws the same unmasked bitmap as before —
  * no behaviour change there.
  *
- * [themedIcons] takes priority over both of those whenever the app has a
- * monochrome layer: instead of the badge, it draws the app's themed glyph
- * tinted to [LocalTileFaceColor] — the tile's own face text/icon colour
- * (white-on-accent by the WP convention every other face already follows) —
- * so the badge reads as part of the tile instead of a separate full-colour
- * icon sitting on top of it. Falls through to the normal badge whenever
- * there's no monochrome layer to show.
+ * [themedIcons] takes priority over both of those: instead of the badge, it
+ * draws the app's monochrome glyph (its own Android 13+ layer when declared,
+ * else a synthesized equivalent — see [monochromeIconBitmap]) tinted to
+ * [LocalTileFaceColor] — the tile's own face text/icon colour (white-on-accent
+ * by the WP convention every other face already follows) — so the badge reads
+ * as part of the tile instead of a separate full-colour icon sitting on top
+ * of it. Falls through to the normal badge only if the icon itself fails to
+ * resolve at all.
  */
 // User-reported: 18dp read as too small for an actual app icon once a tile
 // has real content to sit next to (mail/messages/music/notification data) —

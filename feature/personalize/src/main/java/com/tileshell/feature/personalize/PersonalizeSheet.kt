@@ -218,6 +218,8 @@ fun PersonalizeSheet(
     onHomeStyleChange: (HomeStyle) -> Unit,
     iconShape: IconShape,
     onIconShapeChange: (IconShape) -> Unit,
+    themedIcons: Boolean,
+    onThemedIconsChange: (Boolean) -> Unit,
     lockLayout: Boolean,
     onLockLayoutChange: (Boolean) -> Unit,
     hideStatusBar: Boolean,
@@ -1032,6 +1034,15 @@ fun PersonalizeSheet(
                                 }
                             }
                         }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    ToggleRow("monochrome icons", on = themedIcons, accent = accent, tokens, onThemedIconsChange)
+                    if (themedIcons) {
+                        Text(
+                            "every app icon renders as a flat glyph in your accent colour, nothing-phone style",
+                            color = tokens.fgDim,
+                            fontSize = 12.sp,
+                        )
                     }
                 }
             }

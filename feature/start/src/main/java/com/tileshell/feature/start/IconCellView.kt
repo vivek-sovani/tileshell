@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -62,6 +63,7 @@ import com.tileshell.core.design.SquircleShape
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.colorTokens
 import com.tileshell.core.design.isLightBackground
+import com.tileshell.core.design.synthesizeMonochromeMask
 import com.tileshell.feature.livetiles.BatterySmallFace
 import com.tileshell.feature.livetiles.CalendarSmallFace
 import com.tileshell.feature.livetiles.CalendarSystemSmallFace
@@ -363,6 +365,8 @@ internal fun IconFolderCell(
     canMoveBack: Boolean,
     canMoveForward: Boolean,
     iconShape: IconShape = IconShape.ORIGINAL,
+    themedIcons: Boolean = false,
+    accent: Color = Color.Gray,
     resizeHandlesEnabled: Boolean = false,
     onResizeDragStart: () -> Unit = {},
     onResizeDragBy: (dxPx: Float, dyPx: Float) -> Unit = { _, _ -> },
@@ -400,7 +404,7 @@ internal fun IconFolderCell(
                             val child = tile.children.getOrNull(rowIndex * 2 + colIndex)
                             Box(modifier = Modifier.size(cellSize)) {
                                 if (child != null) {
-                                    IconFolderChildGlyph(child = child, tint = tokens.fg, size = cellSize)
+                                    IconFolderChildGlyph(child = child, tint = tokens.fg, size = cellSize, themedIcons = themedIcons, accent = accent)
                                     val childBadge = notifications.badgeFor(child.packageName)
                                     if (childBadge > 0) {
                                         FolderChildBadge(
@@ -560,7 +564,7 @@ internal data class MaskableIcon(
     val bitmap: ImageBitmap,
     val unmaskedBitmap: ImageBitmap,
     val isAdaptive: Boolean,
-    val monochromeBitmap: ImageBitmap?,
+    val monochromeBitmap: ImageBitmap,
     /**
      * Backing-plate colour for the legacy-icon branch, extracted once here on
      * the IO dispatcher rather than at render time.
@@ -600,7 +604,7 @@ internal fun rememberMaskableIcon(packageName: String, activityName: String, siz
                     osBitmap,
                     rawBitmap,
                     isAdaptive,
-                    monochromeIconBitmap(drawable, sizePx),
+                    monochromeIconBitmap(drawable, sizePx, rawBitmap),
                     // Only the legacy branch renders a plate, so don't pay for
                     // the scan on an adaptive icon. See MaskableIcon.plateColor.
                     plateColor = if (isAdaptive) null else dominantIconColor(osBitmap),
@@ -652,20 +656,49 @@ private fun unmaskedIconBitmap(drawable: android.graphics.drawable.Drawable, siz
 }
 
 /**
- * See `:feature:applist`'s `AppListIcon.kt#monochromeIconBitmap` for the full
- * rationale — flattens the Android 13+ themed-icon layer to an untinted alpha
- * mask; the caller ([maskedOrGlyphIcon]) tints it via a Compose `ColorFilter`
- * at render time. Null below API 33, for a non-adaptive icon, or when the app
- * declared no monochrome layer.
+ * An untinted alpha-mask glyph for [drawable] — [maskedOrGlyphIcon]'s
+ * [themedIcons][maskedOrGlyphIcon] branch tints it via a Compose
+ * `ColorFilter` at render time, so this never bakes in a colour itself.
+ * Prefers the app's own Android 13+ monochrome layer
+ * ([AdaptiveIconDrawable.getMonochrome], API 33+) when it declared one — an
+ * exact, artist-drawn glyph; otherwise [synthesizeMonochromeMask] derives an
+ * equivalent silhouette from [rawBitmap] (the already-loaded full composite —
+ * background+foreground for an adaptive icon, the plain decode for a legacy
+ * one; see [MaskableIcon.unmaskedBitmap]), so every app gets the "monochrome
+ * icons" treatment, not just the minority that ship a real layer (see
+ * DECISIONS.md "Themed icons: parked", which shipped only the native-layer
+ * path and was turned off specifically because most apps don't have one).
+ *
+ * Deliberately the full composite, not the foreground layer alone: an
+ * earlier version isolated just the foreground (reasoning that the OS's
+ * adaptive-icon safe-zone convention guarantees real transparency there) —
+ * user-reported "details lost" on several real installed apps (HP, HP Pay,
+ * Sadhguru, Kissan Connect and others) traced to icons that don't cleanly
+ * separate their visible logo into the foreground layer alone — isolating it
+ * threw away the actual wordmark, leaving only a flat coloured blob. The full
+ * composite always matches what a user actually sees for that icon, so it
+ * can never lose content the icon genuinely has. Never null: some
+ * silhouette is always producible from ordinary icon pixels.
  */
-private fun monochromeIconBitmap(drawable: android.graphics.drawable.Drawable, sizePx: Int): ImageBitmap? {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
-    val mono = (drawable as? AdaptiveIconDrawable)?.monochrome ?: return null
-    val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-    mono.setBounds(0, 0, sizePx, sizePx)
-    mono.draw(canvas)
-    return bitmap.asImageBitmap()
+private fun monochromeIconBitmap(drawable: android.graphics.drawable.Drawable, sizePx: Int, rawBitmap: ImageBitmap): ImageBitmap {
+    val native = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        (drawable as? AdaptiveIconDrawable)?.monochrome
+    } else {
+        null
+    }
+    if (native != null) {
+        val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        native.setBounds(0, 0, sizePx, sizePx)
+        native.draw(canvas)
+        return bitmap.asImageBitmap()
+    }
+    val pixels = IntArray(sizePx * sizePx)
+    rawBitmap.asAndroidBitmap().getPixels(pixels, 0, sizePx, 0, 0, sizePx, sizePx)
+    val masked = synthesizeMonochromeMask(pixels)
+    val result = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+    result.setPixels(masked, 0, sizePx, 0, 0, sizePx, sizePx)
+    return result.asImageBitmap()
 }
 
 /**
@@ -695,9 +728,10 @@ private fun maskedOrGlyphIcon(
     size: Dp,
     glyphSize: Dp,
     // The tile's own resolved accent — only consulted when [themedIcons] is
-    // true and the app actually has a monochrome layer to tint; distinct
-    // from [tint] (the plain fg/dim glyph colour used for the no-real-icon
-    // fallback and the legacy-icon plate default).
+    // true, to tint the app's monochrome glyph (real layer or synthesized —
+    // see monochromeIconBitmap); distinct from [tint] (the plain fg/dim
+    // glyph colour used for the no-real-icon fallback and the legacy-icon
+    // plate default).
     themedIcons: Boolean = false,
     accent: Color = tint,
 ) {
@@ -822,12 +856,16 @@ private fun IconCellGlyph(
  * cluttered "square border" crammed into a cell already this small — the
  * mini-grid just isn't the size that masking was designed for. Top-level
  * icons are unaffected; this only ever narrows what a *folder's children*
- * show. For the same reason, this never opts into themed icons either — an
- * accent-filled plate at 18dp is exactly the same "square border" clutter
- * this doc comment already describes for real IconShape masking.
+ * show.
+ *
+ * [themedIcons] is honoured here (unlike [IconShape] masking above) — every
+ * child renders on the *same* [accent]-filled plate rather than each one's
+ * own extracted dominant colour, so a themed mini-grid reads as a uniform
+ * row of same-coloured glyphs instead of the busy multi-colour clutter the
+ * legacy-icon plate path describes above.
  */
 @Composable
-private fun IconFolderChildGlyph(child: FolderChild, tint: Color, size: Dp) {
+private fun IconFolderChildGlyph(child: FolderChild, tint: Color, size: Dp, themedIcons: Boolean = false, accent: Color = tint) {
     maskedOrGlyphIcon(
         iconKey = child.iconKey,
         label = child.label,
@@ -837,6 +875,8 @@ private fun IconFolderChildGlyph(child: FolderChild, tint: Color, size: Dp) {
         shape = IconShape.ORIGINAL,
         size = size,
         glyphSize = size * 0.7f,
+        themedIcons = themedIcons,
+        accent = accent,
     )
 }
 
