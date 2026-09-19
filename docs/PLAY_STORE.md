@@ -184,15 +184,17 @@ New features:
   widgets, any launcher
 • Start supports multiple pages – swipe to switch
 • Widget-card tile style; 3 new wallpapers
+• Monochrome icons – accent or black/white glyphs
 
 Bugs fixed:
-• Removed duplicate widget refresh jobs
 • Widgets & feed no longer wake device overnight
-• Fixed a stutter on every screen swipe
 • Notification bursts no longer freeze UI
 ```
 
-*(Character count 499, under Play's 500 limit.)*
+*(Character count 491, under Play's 500 limit. "Removed duplicate widget refresh jobs" and "Fixed
+a stutter on every screen swipe" were dropped from this blurb to make room for the monochrome-icons
+line — both fixes still shipped, just no longer called out in this character-limited text; see the
+sub-sections below for the full detail on every fix.)*
 
 ### Also folded into this same versionCode 450 — the latest re-cut, still never uploaded to Play
 
