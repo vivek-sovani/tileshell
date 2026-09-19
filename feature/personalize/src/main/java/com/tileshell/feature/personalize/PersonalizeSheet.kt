@@ -75,6 +75,7 @@ import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
+import com.tileshell.core.data.settings.MonochromeIconTint
 import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
@@ -220,6 +221,8 @@ fun PersonalizeSheet(
     onIconShapeChange: (IconShape) -> Unit,
     themedIcons: Boolean,
     onThemedIconsChange: (Boolean) -> Unit,
+    monochromeIconTint: MonochromeIconTint,
+    onMonochromeIconTintChange: (MonochromeIconTint) -> Unit,
     lockLayout: Boolean,
     onLockLayoutChange: (Boolean) -> Unit,
     hideStatusBar: Boolean,
@@ -1039,7 +1042,35 @@ fun PersonalizeSheet(
                     ToggleRow("monochrome icons", on = themedIcons, accent = accent, tokens, onThemedIconsChange)
                     if (themedIcons) {
                         Text(
-                            "every app icon renders as a flat glyph in your accent colour, nothing-phone style",
+                            "every app icon renders as a flat glyph — nothing-phone style",
+                            color = tokens.fgDim,
+                            fontSize = 12.sp,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(1.dp, tokens.tileLine),
+                        ) {
+                            SegCell(
+                                "accent",
+                                selected = monochromeIconTint == MonochromeIconTint.ACCENT,
+                                accent = accent,
+                                fg = tokens.fg,
+                            ) { onMonochromeIconTintChange(MonochromeIconTint.ACCENT) }
+                            SegCell(
+                                "monochrome",
+                                selected = monochromeIconTint == MonochromeIconTint.NEUTRAL,
+                                accent = accent,
+                                fg = tokens.fg,
+                            ) { onMonochromeIconTintChange(MonochromeIconTint.NEUTRAL) }
+                        }
+                        Text(
+                            if (monochromeIconTint == MonochromeIconTint.ACCENT) {
+                                "glyphs tint to your accent colour"
+                            } else {
+                                "glyphs are a fixed black/white, independent of your accent colour"
+                            },
                             color = tokens.fgDim,
                             fontSize = 12.sp,
                         )

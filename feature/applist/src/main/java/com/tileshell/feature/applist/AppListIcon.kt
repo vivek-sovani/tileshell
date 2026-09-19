@@ -33,8 +33,10 @@ import com.tileshell.core.data.AppIconCache
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.shortcutIconDrawable
 import com.tileshell.core.data.settings.IconShape
+import com.tileshell.core.data.settings.MonochromeIconTint
 import com.tileshell.core.design.Glass
 import com.tileshell.core.design.LocalAccent
+import com.tileshell.core.design.LocalColorTokens
 import com.tileshell.core.design.SquircleShape
 import com.tileshell.core.design.isLightBackground
 import com.tileshell.core.design.isUniformAlpha
@@ -223,8 +225,9 @@ private fun dominantColor(bitmap: ImageBitmap): Color? {
  * [themedIcons] takes priority over both of those: the icon renders as a
  * monochrome glyph (the app's own Android 13+ layer when it declared one,
  * else a synthesized equivalent — see [monochromeIconBitmap]) tinted to
- * [LocalAccent], on an accent-filled plate — independent of [homeStyle],
- * since "themed" is a colour choice a user can want in either style.
+ * either [LocalAccent] or a fixed neutral (see [monochromeIconTint]), on a
+ * matching plate — independent of [homeStyle], since "themed" is a colour
+ * choice a user can want in either style.
  */
 @Composable
 internal fun MaskedAppIcon(
@@ -233,11 +236,15 @@ internal fun MaskedAppIcon(
     shape: IconShape,
     size: Dp,
     themedIcons: Boolean = false,
+    monochromeIconTint: MonochromeIconTint = MonochromeIconTint.ACCENT,
     modifier: Modifier = Modifier,
 ) {
     if (themedIcons) {
         val mono = loaded.monochromeBitmap
-        val accent = LocalAccent.current
+        val accent = when (monochromeIconTint) {
+            MonochromeIconTint.ACCENT -> LocalAccent.current
+            MonochromeIconTint.NEUTRAL -> LocalColorTokens.current.fg
+        }
         val plateShape = shape.toShape() ?: CircleShape
         Box(
             modifier = modifier.size(size).clip(plateShape).background(accent),

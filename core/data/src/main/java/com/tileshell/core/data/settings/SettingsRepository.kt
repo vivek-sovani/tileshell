@@ -367,6 +367,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(themedIcons = enabled) }
     }
 
+    /** See [LauncherSettings.monochromeIconTint]'s doc comment. */
+    suspend fun setMonochromeIconTint(tint: MonochromeIconTint) {
+        store.updateData { it.copy(monochromeIconTint = tint) }
+    }
+
     /** Replace all settings with a restored backup value atomically. */
     suspend fun restoreSettings(settings: LauncherSettings) {
         store.updateData { settings }

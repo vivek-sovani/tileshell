@@ -68,6 +68,9 @@ val TilePackMode.isAnchored: Boolean get() = this != TilePackMode.DENSE
  */
 enum class TileColorSource { GLOBAL_ACCENT, APP_ICON, WALLPAPER_ACCENT }
 
+/** See [LauncherSettings.monochromeIconTint]'s doc comment. */
+enum class MonochromeIconTint { ACCENT, NEUTRAL }
+
 /**
  * Whether TileShell's own wallpaper (gradient or photo) is also pushed to the
  * real Android [android.app.WallpaperManager] — since this app draws its own
@@ -264,6 +267,16 @@ data class LauncherSettings(
      * render site). Default off.
      */
     val themedIcons: Boolean = false,
+    /**
+     * When [themedIcons] is on, whether the glyph plate tints to the current
+     * accent colour ([MonochromeIconTint.ACCENT], the default — matches
+     * every other accent-tinted element) or to a fixed neutral black/white
+     * that adapts to dark/light theme ([MonochromeIconTint.NEUTRAL]) — a
+     * true monochrome, Nothing-OS-glyph look independent of whatever accent
+     * colour is chosen elsewhere. User-requested as an explicit alternative
+     * to the accent-tinted default. Unused while [themedIcons] is off.
+     */
+    val monochromeIconTint: MonochromeIconTint = MonochromeIconTint.ACCENT,
     /** Periodic background layout snapshot saves (for LayoutHistorySheet). */
     val autoBackupEnabled: Boolean = true,
     /** Hours between automatic snapshots: 1, 4, 6, 12, or 24. */
@@ -348,6 +361,7 @@ object SettingsCodec {
         append("homeStyle=").append(settings.homeStyle.name).append('\n')
         append("iconShape=").append(settings.iconShape.name).append('\n')
         append("themedIcons=").append(settings.themedIcons).append('\n')
+        append("monochromeIconTint=").append(settings.monochromeIconTint.name).append('\n')
         append("autoBackup=").append(settings.autoBackupEnabled).append('\n')
         append("autoBackupInterval=").append(settings.autoBackupIntervalHours).append('\n')
         append("edgeStripEnabled=").append(settings.edgeStripEnabled).append('\n')
@@ -400,6 +414,7 @@ object SettingsCodec {
         var homeStyle = d.homeStyle
         var iconShape = d.iconShape
         var themedIcons = d.themedIcons
+        var monochromeIconTint = d.monochromeIconTint
         var autoBackupEnabled = d.autoBackupEnabled
         var autoBackupIntervalHours = d.autoBackupIntervalHours
         var edgeStripEnabled = d.edgeStripEnabled
@@ -464,6 +479,8 @@ object SettingsCodec {
                 "homeStyle" -> HomeStyle.entries.find { it.name == value }?.let { homeStyle = it }
                 "iconShape" -> IconShape.entries.find { it.name == value }?.let { iconShape = it }
                 "themedIcons" -> themedIcons = value.toBooleanStrictOrNull() ?: themedIcons
+                "monochromeIconTint" ->
+                    MonochromeIconTint.entries.find { it.name == value }?.let { monochromeIconTint = it }
                 "autoBackup" -> autoBackupEnabled = value.toBooleanStrictOrNull() ?: autoBackupEnabled
                 "autoBackupInterval" -> value.toIntOrNull()?.let {
                     autoBackupIntervalHours = it.coerceIn(1, 24)
@@ -524,6 +541,7 @@ object SettingsCodec {
             homeStyle = homeStyle,
             iconShape = iconShape,
             themedIcons = themedIcons,
+            monochromeIconTint = monochromeIconTint,
             autoBackupEnabled = autoBackupEnabled,
             autoBackupIntervalHours = autoBackupIntervalHours,
             edgeStripEnabled = edgeStripEnabled,

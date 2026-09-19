@@ -261,11 +261,13 @@ Bugs fixed:
 ### Also folded into this same versionCode 450 — another re-cut, still never uploaded to Play
 
 - **New: "monochrome icons"** (Personalize → home style) — a Nothing-Phone-style unified icon
-  theme. Every app icon renders as a flat, single-colour glyph in your current accent colour
-  instead of its normal full-colour icon, across Start (both tiles and icons home style), the app
-  list, folder mini-grids, and live-tile "posted by" notification badges. Uses an app's own Android
-  13+ themed-icon layer where it declares one; otherwise a glyph is synthesized from the app's
-  ordinary icon, so the effect covers every app, not just the few that ship a themed layer.
+  theme. Every app icon renders as a flat, single-colour glyph instead of its normal full-colour
+  icon, across Start (both tiles and icons home style), the app list, folder mini-grids, and
+  live-tile "posted by" notification badges. Uses an app's own Android 13+ themed-icon layer where
+  it declares one; otherwise a glyph is synthesized from the app's ordinary icon, so the effect
+  covers every app, not just the few that ship a themed layer. A second row lets you pick whether
+  the glyphs tint to your current accent colour (default) or a fixed black/white, independent of
+  whatever accent is chosen elsewhere.
 - **Fixed: several real installed apps' monochrome icons** — after broad testing across a wide
   range of everyday, banking, and utility apps, four separate rounds of fixes to the underlying
   synthesis (logo text vanishing on a coloured background, rounded icons losing all detail, a

@@ -8650,3 +8650,23 @@ post-fix, screenshotted (and pixel-zoomed) on the physical device before/after.
 
 Build + full unit test suite green throughout every round (`MonochromeTest.kt`, new, in `:core:design`);
 installed and verified on the physical device with no crash in `adb logcat` after each change.
+
+**Follow-up, user-requested: "keep option for monochrome icons instead of accent based icons."**
+Every icon rendered under `themedIcons` was unconditionally tinted to the current global/tile
+accent — there was no way to get a genuinely neutral (colour-independent) monochrome look. New
+`LauncherSettings.monochromeIconTint: MonochromeIconTint { ACCENT, NEUTRAL }`, surfaced as a second
+segmented row in Personalize right below the "monochrome icons" toggle, shown only while it's on.
+`ACCENT` (default, unchanged behaviour) tints to whatever accent the tile/app-list row would
+otherwise resolve; `NEUTRAL` tints to `colorTokens(darkTheme).fg` — the same dark/light-adaptive
+neutral every other theme-aware surface in this app already uses, rather than inventing a new
+hardcoded colour — giving a true black/white glyph-on-plate look independent of the user's chosen
+accent, closer to Nothing OS's own actual Glyph aesthetic. Scoped narrowly: only the two render
+sites that actually draw a *separate accent-filled plate* for the themed glyph needed the choice —
+`IconCellView.kt`'s `maskedOrGlyphIcon` (covers ICONS-mode top-level icons and folder mini-grid
+children, both routing through it) and `AppListIcon.kt`'s `MaskedAppIcon`. The other three
+`themedIcons` call sites (`StaticTileGlyph`/`FolderChildIcon` in TILES mode, and the live-tile
+corner badge in `feature/livetiles/AppIcon.kt`) were confirmed unaffected — none of them draws a
+plate at all; they tint the glyph straight to `LocalTileFaceColor`, since they already sit on the
+tile's own accent-filled face, so there was nothing to make "neutral" there. Build + full unit test
+suite green; installed and verified on the physical device with no crash — visually confirmed
+`NEUTRAL` rendering a clean white-plate/black-glyph app list on-device.

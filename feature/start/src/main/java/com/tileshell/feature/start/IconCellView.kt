@@ -58,6 +58,7 @@ import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.shortcutIconDrawable
 import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.data.settings.LiveRefreshRate
+import com.tileshell.core.data.settings.MonochromeIconTint
 import com.tileshell.core.design.Glass
 import com.tileshell.core.design.SquircleShape
 import com.tileshell.core.design.TileIcons
@@ -133,6 +134,7 @@ internal fun IconCellView(
     canMoveForward: Boolean,
     iconShape: IconShape = IconShape.ORIGINAL,
     themedIcons: Boolean = false,
+    monochromeIconTint: MonochromeIconTint = MonochromeIconTint.ACCENT,
     stockRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
     commodityRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
     accent: Color = Color.Gray,
@@ -152,6 +154,13 @@ internal fun IconCellView(
     showColorDot: Boolean = false,
 ) {
     val tokens = colorTokens(darkTheme)
+    // The colour a themed-icon glyph/plate actually renders in — either the
+    // tile's own resolved accent, or a fixed neutral black/white when the
+    // user picked "monochrome" tint (see MonochromeIconTint's doc comment).
+    // Deliberately not just substituted for [accent] itself: that parameter
+    // is also this composable's own weather/calendar/clock live-icon-tile
+    // fill colour, unrelated to the themed-icon glyph choice.
+    val themedGlyphColor = monochromeIconTint.resolve(accent, darkTheme)
     IconCellChrome(
         a11yLabel = tileAccessibilityLabel(tile, badgeCount, editMode, selected),
         editMode = editMode,
@@ -188,7 +197,7 @@ internal fun IconCellView(
                 WeatherSmallFace(
                     location = WeatherTile.decode(tile.activityName),
                     fallback = {
-                        IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp, themedIcons = themedIcons, accent = accent)
+                        IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp, themedIcons = themedIcons, accent = themedGlyphColor)
                     },
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -211,7 +220,7 @@ internal fun IconCellView(
             }
             "steps" -> LiveIconTile(accent, badgeCount, darkTheme) {
                 StepsSmallFace(
-                    fallback = { IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp, themedIcons = themedIcons, accent = accent) },
+                    fallback = { IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp, themedIcons = themedIcons, accent = themedGlyphColor) },
                     active = liveActive,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -219,7 +228,7 @@ internal fun IconCellView(
             "stock" -> LiveIconTile(accent, badgeCount, darkTheme) {
                 StockSmallFace(
                     selection = StockTile.decode(tile.activityName),
-                    fallback = { IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp, themedIcons = themedIcons, accent = accent) },
+                    fallback = { IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp, themedIcons = themedIcons, accent = themedGlyphColor) },
                     active = liveActive,
                     refreshRate = stockRefreshRate,
                     modifier = Modifier.fillMaxSize(),
@@ -228,7 +237,7 @@ internal fun IconCellView(
             "commodity" -> LiveIconTile(accent, badgeCount, darkTheme) {
                 CommoditySmallFace(
                     symbol = CommodityTile.decode(tile.activityName)?.first,
-                    fallback = { IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp, themedIcons = themedIcons, accent = accent) },
+                    fallback = { IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = 40.dp, glyphSize = 32.dp, themedIcons = themedIcons, accent = themedGlyphColor) },
                     active = liveActive,
                     refreshRate = commodityRefreshRate,
                     modifier = Modifier.fillMaxSize(),
@@ -263,7 +272,7 @@ internal fun IconCellView(
                         // see the badgeCount = 0 comment on the IconCellChrome
                         // call above for why (user-reported).
                         Box(modifier = Modifier.size(size)) {
-                            IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = size, glyphSize = glyphSize, themedIcons = themedIcons, accent = accent)
+                            IconCellGlyph(tile = tile, tint = tokens.fg, shape = iconShape, size = size, glyphSize = glyphSize, themedIcons = themedIcons, accent = themedGlyphColor)
                             if (badgeCount > 0) {
                                 // Scales with the icon itself (18dp at a SMALL
                                 // 40dp icon, up to a cap at the biggest
@@ -367,6 +376,7 @@ internal fun IconFolderCell(
     canMoveForward: Boolean,
     iconShape: IconShape = IconShape.ORIGINAL,
     themedIcons: Boolean = false,
+    monochromeIconTint: MonochromeIconTint = MonochromeIconTint.ACCENT,
     accent: Color = Color.Gray,
     resizeHandlesEnabled: Boolean = false,
     onResizeDragStart: () -> Unit = {},
@@ -374,6 +384,7 @@ internal fun IconFolderCell(
     onResizeDragEnd: () -> Unit = {},
 ) {
     val tokens = colorTokens(darkTheme)
+    val themedGlyphColor = monochromeIconTint.resolve(accent, darkTheme)
     IconCellChrome(
         a11yLabel = tileAccessibilityLabel(tile, badgeCount, editMode, selected),
         editMode = editMode,
@@ -405,7 +416,7 @@ internal fun IconFolderCell(
                             val child = tile.children.getOrNull(rowIndex * 2 + colIndex)
                             Box(modifier = Modifier.size(cellSize)) {
                                 if (child != null) {
-                                    IconFolderChildGlyph(child = child, tint = tokens.fg, size = cellSize, themedIcons = themedIcons, accent = accent)
+                                    IconFolderChildGlyph(child = child, tint = tokens.fg, size = cellSize, themedIcons = themedIcons, accent = themedGlyphColor)
                                     val childBadge = notifications.badgeFor(child.packageName)
                                     if (childBadge > 0) {
                                         FolderChildBadge(
@@ -906,6 +917,16 @@ private fun IconFolderChildGlyph(child: FolderChild, tint: Color, size: Dp, them
  * on one does, which this project's plain-JVM unit tests can't exercise
  * (see `Squircle.kt`'s doc comment).
  */
+/** See [MonochromeIconTint]'s doc comment — resolves the actual colour to
+ *  tint a themed-icon glyph/plate to, given the caller's own resolved accent
+ *  and the current theme's own fg token (near-white in dark theme, near-
+ *  black in light — the same neutral every other themeaware surface in this
+ *  app already uses, rather than inventing a new hardcoded colour). */
+private fun MonochromeIconTint.resolve(accent: Color, darkTheme: Boolean): Color = when (this) {
+    MonochromeIconTint.ACCENT -> accent
+    MonochromeIconTint.NEUTRAL -> colorTokens(darkTheme).fg
+}
+
 internal fun IconShape.toComposeShape(): Shape? = when (this) {
     IconShape.CIRCLE -> CircleShape
     IconShape.SQUIRCLE -> SquircleShape()

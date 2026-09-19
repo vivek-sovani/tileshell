@@ -187,6 +187,7 @@ import com.tileshell.core.data.hasNotesTile
 import com.tileshell.core.data.settings.FontStyle
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
+import com.tileshell.core.data.settings.MonochromeIconTint
 import com.tileshell.core.data.settings.LiveRefreshRate
 import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
@@ -1250,6 +1251,7 @@ fun StartScreen(
                     homeStyle = settings.homeStyle,
                     iconShape = settings.iconShape,
                     themedIcons = settings.themedIcons,
+                    monochromeIconTint = settings.monochromeIconTint,
                     onSetTileSlot = viewModel::setTileGridSlot,
                     expandedFolderId = expandedFolderId,
                     onCollapseFolder = viewModel::collapseFolder,
@@ -1876,6 +1878,8 @@ fun StartScreen(
             onIconShapeChange = viewModel::setIconShape,
             themedIcons = settings.themedIcons,
             onThemedIconsChange = viewModel::setThemedIcons,
+            monochromeIconTint = settings.monochromeIconTint,
+            onMonochromeIconTintChange = viewModel::setMonochromeIconTint,
             lockLayout = settings.lockLayout,
             onLockLayoutChange = viewModel::setLockLayout,
             hideStatusBar = settings.hideStatusBar,
@@ -2608,6 +2612,7 @@ private fun StartPage(
     // Themed/monochrome app icons (Personalize) — threaded to TileView for the
     // live-tile "posted by" corner badge (app list has its own separate path).
     themedIcons: Boolean = false,
+    monochromeIconTint: MonochromeIconTint = MonochromeIconTint.ACCENT,
     onSetTileSlot: (id: String, slot: Int?) -> Unit,
     // FR-4 WP-style inline folder expand/collapse: the currently-expanded
     // folder's id (null = none), and the child-scoped actions that used to
@@ -3643,6 +3648,7 @@ private fun StartPage(
                             canMoveForward = canMoveForward,
                             iconShape = iconShape,
                             themedIcons = themedIcons,
+                            monochromeIconTint = monochromeIconTint,
                             stockRefreshRate = stockRefreshRate,
                             commodityRefreshRate = commodityRefreshRate,
                             accent = tileAccent,
@@ -3680,6 +3686,7 @@ private fun StartPage(
                             canMoveForward = canMoveForward,
                             iconShape = iconShape,
                             themedIcons = themedIcons,
+                            monochromeIconTint = monochromeIconTint,
                             accent = tileAccent,
                             resizeHandlesEnabled = resizeHandlesEnabled,
                             onResizeDragStart = onResizeDragStartAction,

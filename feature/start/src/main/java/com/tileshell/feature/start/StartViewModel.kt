@@ -42,6 +42,7 @@ import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.core.data.settings.SettingsRepository
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
+import com.tileshell.core.data.settings.MonochromeIconTint
 import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.data.settings.isAnchored
 import com.tileshell.feature.livetiles.DEFAULT_FEED_SOURCES
@@ -1306,6 +1307,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Use each app's themed/monochrome icon in the app list and on live-tile corner badges. */
     fun setThemedIcons(enabled: Boolean) {
         viewModelScope.launch(writeContext) { settingsRepository.setThemedIcons(enabled) }
+    }
+
+    /** See [LauncherSettings.monochromeIconTint]'s doc comment. */
+    fun setMonochromeIconTint(tint: MonochromeIconTint) {
+        viewModelScope.launch(writeContext) { settingsRepository.setMonochromeIconTint(tint) }
     }
 
     /**

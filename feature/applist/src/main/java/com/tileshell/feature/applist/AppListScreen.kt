@@ -80,6 +80,7 @@ import com.tileshell.core.data.AppLauncher
 import com.tileshell.core.data.PinResult
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
+import com.tileshell.core.data.settings.MonochromeIconTint
 import com.tileshell.core.design.Glass
 import com.tileshell.core.design.LocalAccent
 import com.tileshell.core.design.LocalColorTokens
@@ -211,6 +212,7 @@ fun AppListScreen(
                                 homeStyle = settings.homeStyle,
                                 iconShape = settings.iconShape,
                                 themedIcons = settings.themedIcons,
+                                monochromeIconTint = settings.monochromeIconTint,
                                 siblings = siblingsByPackage[app.packageName].orEmpty(),
                                 pinnedActivityKeys = pinnedActivityKeys,
                                 onPinSibling = { sibling -> viewModel.pin(sibling, activeSectionId) },
@@ -251,6 +253,7 @@ fun AppListScreen(
                             homeStyle = settings.homeStyle,
                             iconShape = settings.iconShape,
                             themedIcons = settings.themedIcons,
+                            monochromeIconTint = settings.monochromeIconTint,
                             onHide = { viewModel.hide(app) },
                             siblings = siblingsByPackage[app.packageName].orEmpty(),
                             pinnedActivityKeys = pinnedActivityKeys,
@@ -347,6 +350,7 @@ private fun AppRow(
     homeStyle: HomeStyle = HomeStyle.TILES,
     iconShape: IconShape = IconShape.ORIGINAL,
     themedIcons: Boolean = false,
+    monochromeIconTint: MonochromeIconTint = MonochromeIconTint.ACCENT,
     siblings: List<AppEntry> = emptyList(),
     pinnedActivityKeys: Set<String> = emptySet(),
     onPinSibling: (AppEntry) -> Unit = {},
@@ -438,6 +442,7 @@ private fun AppRow(
                         shape = iconShape,
                         size = 40.dp,
                         themedIcons = themedIcons,
+                        monochromeIconTint = monochromeIconTint,
                     )
                 } else {
                     // No real icon: the monoline glyph on the list background (no square).
@@ -518,6 +523,7 @@ private fun AppRow(
                                 shape = iconShape,
                                 size = 24.dp,
                                 themedIcons = themedIcons,
+                                monochromeIconTint = monochromeIconTint,
                             )
                         } else {
                             Icon(TileIcons["app"], null, tint = LocalColorTokens.current.fg, modifier = Modifier.size(18.dp))

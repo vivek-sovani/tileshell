@@ -204,7 +204,7 @@ fun PersonalizeGuideSheet(
                     "in icons mode, small tiles render as shaped icons; live tiles, folders, and widget stacks look exactly the same as in tiles mode",
                     "growing an icon past its smallest size turns it into a live tile; shrinking one back down turns it back into an icon",
                     "in icons mode, personalize · home style also lets you pick an icon shape — circle, squircle, rounded, square, or original (your device's own, unmasked shape)",
-                    "\"monochrome icons\" (personalize · home style) turns every app icon into a flat glyph in your accent colour — nothing-phone style — across start, the app list, folder mini-grids, and live-tile notification badges",
+                    "\"monochrome icons\" (personalize · home style) turns every app icon into a flat glyph — nothing-phone style — across start, the app list, folder mini-grids, and live-tile notification badges; choose whether the glyphs tint to your accent colour or a fixed black/white",
                     "icons mode defaults to \"free\" arrangement (personalize · arrangement) — nothing moves unless you move it, and dropping onto another tile swaps the two instead of pushing everything down",
                 ),
             )

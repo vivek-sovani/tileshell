@@ -85,7 +85,19 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   alpha; anything with real contrast now runs the same opaque-subset Otsu split as the fully-opaque
   case. All five confirmed showing their real logo post-fix. Build + full unit test suite green
   throughout (`MonochromeTest.kt` new); installed and verified on the physical device with no crash
-  after every round.
+  after every round. **Follow-up, user-requested**: "keep option for monochrome icons instead of
+  accent based icons" — new `LauncherSettings.monochromeIconTint {ACCENT, NEUTRAL}`, a second
+  segmented row in Personalize below the toggle. `NEUTRAL` tints to `colorTokens(darkTheme).fg` (the
+  same dark/light-adaptive neutral already used elsewhere, not a new hardcoded colour) instead of the
+  current accent — a true black/white glyph look. Scoped to just the two render sites that draw a
+  separate accent-filled plate (`IconCellView.kt#maskedOrGlyphIcon`, `AppListIcon.kt#MaskedAppIcon`);
+  the other three `themedIcons` sites tint straight to `LocalTileFaceColor` with no plate, so were
+  confirmed unaffected. Verified on-device (a white-plate/black-glyph app list rendered correctly).
+  Also fixed the "Build APK" GitHub Actions workflow, which had been failing on every push for
+  several days (unrelated to any app change — `android-actions/setup-android@v3` unconditionally ran
+  `sdkmanager tools`, a package Google removed from the SDK repo years ago); two attempts (deleting
+  the step outright first broke the *next* step, since that action was also this workflow's only
+  PATH-export source) before landing on exporting the preinstalled SDK's cmdline-tools bin/ directly.
 - **`start-sections` branch (not merged) — six on-device-reported bug fixes
   after the sessions 2-5 combined pass below, the most important being the
   real root cause of a recurring "big empty gap under a section" report.**

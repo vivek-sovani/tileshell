@@ -143,7 +143,7 @@ private val WHATS_NEW_FEATURES = listOf(
     "14 gadgets (stocks, sports, calendars & more) as real widgets — usable on any launcher",
     "start now supports multiple pages — swipe to switch between them",
     "widget-card tile style, plus 3 new wallpapers (nebula, ember, reef)",
-    "monochrome icons — turn every app icon into a flat glyph in your accent colour, nothing-phone style",
+    "monochrome icons — turn every app icon into a flat glyph, nothing-phone style, tinted to your accent colour or a fixed black/white",
 )
 
 private val WHATS_NEW_FIXES = listOf(
