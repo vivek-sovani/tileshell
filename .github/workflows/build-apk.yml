@@ -25,10 +25,19 @@ jobs:
       # step always fails with exit code 1 (confirmed via `gh run view --log-
       # failed`: "Warning: Failed to find package 'tools'"), failing every
       # single build regardless of any app change. GitHub's ubuntu-latest
-      # runner already ships with the Android SDK and cmdline-tools
-      # preinstalled (sdkmanager is already on PATH), so no setup step is
-      # needed at all — going straight to installing the one platform this
-      # build actually needs.
+      # runner does ship the Android SDK/cmdline-tools preinstalled, but NOT
+      # on PATH by default (a first attempt at just deleting this step
+      # entirely still failed CI, with "sdkmanager: command not found" — the
+      # broken action was also this workflow's only source of that PATH
+      # export). Locating cmdline-tools' own bin/ dynamically (rather than
+      # hardcoding today's runner image version, e.g. "16.0") avoids a repeat
+      # of the same class of failure the next time GitHub bumps that version.
+      - name: Set up Android SDK PATH
+        run: |
+          CMDLINE_TOOLS_BIN=$(find "$ANDROID_HOME/cmdline-tools" -maxdepth 2 -type d -name bin | sort -V | tail -1)
+          echo "$CMDLINE_TOOLS_BIN" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+
       - name: Install Android platform 36
         run: |
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
