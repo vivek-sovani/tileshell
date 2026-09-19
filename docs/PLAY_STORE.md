@@ -258,6 +258,21 @@ Bugs fixed:
 - Also included: the page-dot indicator moved from the top of Start to the bottom, clearing the
   edge strip when it's expanded.
 
+### Also folded into this same versionCode 450 — another re-cut, still never uploaded to Play
+
+- **New: "monochrome icons"** (Personalize → home style) — a Nothing-Phone-style unified icon
+  theme. Every app icon renders as a flat, single-colour glyph in your current accent colour
+  instead of its normal full-colour icon, across Start (both tiles and icons home style), the app
+  list, folder mini-grids, and live-tile "posted by" notification badges. Uses an app's own Android
+  13+ themed-icon layer where it declares one; otherwise a glyph is synthesized from the app's
+  ordinary icon, so the effect covers every app, not just the few that ship a themed layer.
+- **Fixed: several real installed apps' monochrome icons** — after broad testing across a wide
+  range of everyday, banking, and utility apps, four separate rounds of fixes to the underlying
+  synthesis (logo text vanishing on a coloured background, rounded icons losing all detail, a
+  couple of apps' own declared themed layer rendering as a blank plate, and a few small icons
+  flattening to a solid block instead of showing their real logo) — every reported icon now shows
+  its actual glyph correctly.
+
 ## Release notes (v4.0.2)
 
 *Same user-facing release notes as v4.0.1 and v4.0.0 below — none of those ever reached Play, so the

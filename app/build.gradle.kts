@@ -612,6 +612,17 @@ android {
         //   jumbled mix of every page's tiles instead of just the main page), and a fix for the
         //   cross-page drag ghost getting stuck on screen when the drag was interrupted instead
         //   of released normally. See docs/PLAY_STORE.md "Release notes (v4.5.0)".
+        //   --- re-cut again at the same versionCode 450 (still never uploaded): "monochrome
+        //   icons" (Personalize > home style) — a Nothing-Phone-style unified icon theme where
+        //   every app icon renders as a flat glyph in the current accent colour, across Start,
+        //   the app list, folder mini-grids, and live-tile notification badges; uses an app's own
+        //   Android 13+ themed-icon layer when declared, else synthesizes an equivalent glyph
+        //   from the app's ordinary icon so coverage isn't limited to the few apps that ship one.
+        //   Four rounds of on-device fixes to that synthesis after broad testing against real
+        //   installed apps (logo text vanishing on a coloured fill, rounded icons losing all
+        //   detail, a couple of apps' own declared themed layer rendering as a blank plate, small
+        //   icons flattening to a solid block instead of their real logo). See docs/PLAY_STORE.md
+        //   "Release notes (v4.5.0)".
         versionCode = 450
         versionName = "4.5.0"
     }

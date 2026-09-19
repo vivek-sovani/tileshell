@@ -169,6 +169,7 @@ fun AboutSheet(
                 items = listOf(
                     "choose a home style: \"tiles\" for the classic windows-phone look, or \"icons\" for a normal android-style grid of shaped icons — a first-run choice screen with a live preview, revisit it any time in personalize · home style",
                     "in icons mode, small tiles render as shaped icons — circle, squircle, rounded, square, or original (your device's own, unmasked shape); live tiles, folders, and widget stacks look the same as in tiles mode",
+                    "\"monochrome icons\" (personalize · home style) turns every app icon into a flat glyph in your accent colour — nothing-phone style — across start, the app list, folder mini-grids, and live-tile notification badges",
                     "growing an icon past its smallest size turns it into a live tile; shrinking one back down turns it back into an icon",
                     "tap a tile's resize handle to cycle small → medium → wide → large, or drag its corner to resize freely across 11 sizes, from a tiny icon up to a full 4×4 tile",
                     "large (3×3) tile available for any app, on any column count",

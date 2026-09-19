@@ -19,9 +19,16 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
+      # `android-actions/setup-android@v3` is deliberately not used here — it
+      # unconditionally runs `sdkmanager tools`, but Google removed the legacy
+      # standalone "tools" package from the SDK repository years ago, so that
+      # step always fails with exit code 1 (confirmed via `gh run view --log-
+      # failed`: "Warning: Failed to find package 'tools'"), failing every
+      # single build regardless of any app change. GitHub's ubuntu-latest
+      # runner already ships with the Android SDK and cmdline-tools
+      # preinstalled (sdkmanager is already on PATH), so no setup step is
+      # needed at all — going straight to installing the one platform this
+      # build actually needs.
       - name: Install Android platform 36
         run: |
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
