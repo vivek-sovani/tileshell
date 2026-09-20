@@ -765,16 +765,16 @@ private fun maskedOrGlyphIcon(
     when {
         useAppIcon && themedIcons && mono != null -> {
             // A monochrome glyph is a transparent silhouette, not a real icon's
-            // own opaque bitmap — dropping the plate for ORIGINAL (tried after
-            // the circle/square back-and-forth below) made it blend straight
-            // into whatever's behind it (user-reported: "merged into
-            // background, no shape as such"). It needs *some* plate to sit on
-            // regardless of shape; ORIGINAL just shouldn't force a shape onto
-            // that plate the way every other IconShape does — falling back to
-            // RectangleShape (a plain square, i.e. "no shape enforced") rather
-            // than the CircleShape that was here originally (user-reported:
-            // "renders in circle shape").
-            val plateShape = composeShape ?: RectangleShape
+            // own opaque bitmap — dropping the plate for ORIGINAL (tried along
+            // the way) made it blend straight into whatever's behind it
+            // (user-reported: "merged into background, no shape as such"). It
+            // needs *some* plate to sit on regardless of shape. What that
+            // plate's own shape should be for ORIGINAL went circle → square →
+            // rounded on direct user request each round — rounded
+            // (`IconShape.ROUNDED`'s own shape) is the final, deliberate
+            // choice, distinct from both CIRCLE and the plain-square fallback
+            // tried in between.
+            val plateShape = composeShape ?: RoundedCornerShape(percent = 30)
             Box(
                 modifier = Modifier.size(size).clip(plateShape).background(accent),
                 contentAlignment = Alignment.Center,

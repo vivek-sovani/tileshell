@@ -246,14 +246,14 @@ internal fun MaskedAppIcon(
             MonochromeIconTint.NEUTRAL -> LocalColorTokens.current.fg
         }
         // A monochrome glyph is a transparent silhouette, not a real icon's own
-        // opaque bitmap — dropping the plate for ORIGINAL (tried after the
-        // circle/square back-and-forth) made it blend straight into whatever's
-        // behind it (user-reported: "merged into background, no shape as
-        // such"). It needs *some* plate regardless of shape; ORIGINAL just
-        // shouldn't force a shape onto that plate — RectangleShape (a plain
-        // square, i.e. "no shape enforced") instead of the CircleShape that was
-        // here originally (user-reported: "renders in circle shape").
-        val plateShape = shape.toShape() ?: RectangleShape
+        // opaque bitmap — dropping the plate for ORIGINAL (tried along the way)
+        // made it blend straight into whatever's behind it (user-reported:
+        // "merged into background, no shape as such"). It needs *some* plate
+        // regardless of shape. See IconCellView.kt's matching branch: the
+        // plate's own shape for ORIGINAL went circle → square → rounded on
+        // direct user request each round — rounded is the final, deliberate
+        // choice.
+        val plateShape = shape.toShape() ?: RoundedCornerShape(percent = 30)
         Box(
             modifier = modifier.size(size).clip(plateShape).background(accent),
             contentAlignment = Alignment.Center,

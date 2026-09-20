@@ -3,14 +3,17 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
-## Monochrome icons + "original" icon shape: circle, then no plate, then settled on a square plate
+## Monochrome icons + "original" icon shape: circle → square → no plate → square → settled on rounded
 
-User-reported, three times in a row, each pinpointing exactly what was wrong
+User-reported, four times in a row, each pinpointing exactly what was wrong
 with the previous fix: "when monochrome icons are selected and icon shape
-original it renderes in circle shape" → (after fix 1) "now it is showing
-square when i select original" → (after fix 2, misreading that second report
-as "no shape at all, not just the wrong shape") "now icon shape getting
-merged into background (inside image looks, but no shape as such)".
+original it renderes in circle shape" → (fix 1) "now it is showing square
+when i select original" → (fix 2, misreading that second report as "no shape
+at all, not just the wrong shape") "now icon shape getting merged into
+background (inside image looks, but no shape as such)" → (fix 3, back to a
+square plate) "instead of square select round icon shape for original" →
+(fix 4, read too literally as `CircleShape`, rejected before it was even
+installed) "no round select rounded".
 
 Root cause of the *shape*: the monochrome accent-plate branches
 (`IconCellView.kt`'s `maskedOrGlyphIcon`, `AppListIcon.kt`'s `MaskedAppIcon`)
@@ -31,12 +34,20 @@ construction; remove the plate and it has no surface to sit on at all, so it
 can vanish straight into a similarly-toned background (dark accent on a dark
 wallpaper, etc.) — exactly what the third report described.
 
-Settled on keeping fix 1's `RectangleShape` plate for `ORIGINAL` and
-reverting fix 2: every shape, including `ORIGINAL`, keeps an accent-filled
-plate for legibility; `ORIGINAL` is the one case where that plate isn't
-clipped to any particular shape (an unclipped `Box` is naturally rectangular,
-which is the honest "no shape enforced" for a plate that must exist either
-way). Applied identically to `IconCellView.kt` (Start, folder mini-grids) and
+Fix 3 reverted fix 2: every shape, including `ORIGINAL`, keeps an
+accent-filled plate for legibility — `ORIGINAL` was just the one case where
+that plate wasn't clipped to any particular shape, falling back to
+`RectangleShape` (an unclipped `Box` is naturally rectangular anyway, so this
+was a plain square). The user then asked directly for round instead of
+square — fix 4 reached for the obvious literal reading, `CircleShape`, but
+that's a *different* named option (`IconShape.CIRCLE`) from the one actually
+requested, `IconShape.ROUNDED` (a `RoundedCornerShape(percent = 30)` —
+rounded corners on a square, not a true circle); caught and corrected before
+that build was even installed. Final state: `ORIGINAL`'s plate falls back to
+`RoundedCornerShape(percent = 30)`, matching `IconShape.ROUNDED`'s own shape
+exactly, distinct from both `CIRCLE` and the plain square tried in between.
+
+Applied identically to `IconCellView.kt` (Start, folder mini-grids) and
 `AppListIcon.kt` (App List); `feature/livetiles/AppIcon.kt`'s
 notification-badge glyph draws no plate for *any* shape (it renders inline in
 a live-tile face, not against an arbitrary background), so it was never
