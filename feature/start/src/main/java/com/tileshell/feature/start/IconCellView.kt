@@ -763,10 +763,26 @@ private fun maskedOrGlyphIcon(
     val mono = loaded?.monochromeBitmap
 
     when {
+        useAppIcon && themedIcons && mono != null && composeShape == null -> {
+            // ORIGINAL: no accent plate at all, matching the real-icon ORIGINAL
+            // branch below (bare bitmap, no Box/background) — a first attempt
+            // kept the plate and only swapped its forced CircleShape for a
+            // RectangleShape, but a real icon's own ORIGINAL never draws a plate
+            // either, so "square" was still an invented shape ORIGINAL isn't
+            // supposed to have (user-reported: "now it is showing square when i
+            // select original"). The glyph itself carries its own safe-zone
+            // inset, so it reads fine floating directly on the cell/tile.
+            Image(
+                bitmap = mono,
+                contentDescription = label,
+                contentScale = ContentScale.Fit,
+                colorFilter = ColorFilter.tint(accent),
+                modifier = Modifier.size(size),
+            )
+        }
         useAppIcon && themedIcons && mono != null -> {
-            val plateShape = composeShape ?: CircleShape
             Box(
-                modifier = Modifier.size(size).clip(plateShape).background(accent),
+                modifier = Modifier.size(size).clip(composeShape!!).background(accent),
                 contentAlignment = Alignment.Center,
             ) {
                 Image(

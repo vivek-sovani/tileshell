@@ -3,6 +3,39 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Monochrome icons + "original" icon shape: a circle, then a square, then no plate at all
+
+User-reported, twice in a row: "when monochrome icons are selected and icon
+shape original it renderes in circle shape" — then, after the first fix,
+"now it is showing square when i select original".
+
+Root cause of the first bug: the monochrome accent-plate branches
+(`IconCellView.kt`'s `maskedOrGlyphIcon`, `AppListIcon.kt`'s `MaskedAppIcon`)
+computed `composeShape` from the selected [IconShape], which is deliberately
+`null` for `ORIGINAL` (every other call site treats that `null` as "don't
+mask, show it as the device actually would") — but the monochrome plate
+branch wrote `val plateShape = composeShape ?: CircleShape`, silently
+substituting a circle for "no shape" instead of leaving it unmasked. First
+fix: fall back to `RectangleShape` instead. That was still wrong in the same
+way, just with a different invented shape — the user's second report made
+this obvious once pointed out: **the real-icon `ORIGINAL` branch a few lines
+below draws no plate at all** (bare bitmap, `contentScale = Fit`, no `Box`/
+`background`); a synthesized monochrome glyph has no OS-native shape to defer
+to, so the honest equivalent of "no shape enforced" is no plate, not a plate
+of some particular shape. Fixed by splitting the branch: when
+`composeShape == null`, skip the `Box`/`background` entirely and tint the
+bare glyph directly to the resolved accent/neutral colour (the same
+`accent`/`themedGlyphColor` value that would otherwise have filled the
+plate) — every other shape still gets its accent-filled plate exactly as
+before. Applied identically to both `IconCellView.kt` (Start, folder
+mini-grids) and `AppListIcon.kt` (App List); `feature/livetiles/AppIcon.kt`'s
+notification-badge glyph was already plate-free for every shape, so it
+needed no change. Build + full unit test suite green; installed on the
+physical device with no crash — the user's own settings already had
+`homeStyle=ICONS, iconShape=ORIGINAL, themedIcons=true` live (confirmed by
+pulling `launcher_settings.pb`), so this is exactly the state they'll see it
+in on next unlock.
+
 ## The date-rollover widget fix didn't work: enqueuing from the broadcast put the repaint back in Doze's queue
 
 User-reported the morning after the previous entry's fix shipped: "yesterday

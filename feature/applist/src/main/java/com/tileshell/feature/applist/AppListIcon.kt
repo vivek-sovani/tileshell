@@ -245,9 +245,27 @@ internal fun MaskedAppIcon(
             MonochromeIconTint.ACCENT -> LocalAccent.current
             MonochromeIconTint.NEUTRAL -> LocalColorTokens.current.fg
         }
-        val plateShape = shape.toShape() ?: CircleShape
+        val composeShape = shape.toShape()
+        if (composeShape == null) {
+            // ORIGINAL: no accent plate at all, matching the real-icon ORIGINAL
+            // branch below (bare bitmap, no Box/background). An earlier attempt
+            // kept a plate and just swapped its forced circle for a square, but
+            // a real icon's own ORIGINAL never draws a plate either — "square"
+            // was still an invented shape ORIGINAL isn't supposed to have
+            // (user-reported: "now it is showing square when i select
+            // original"). The glyph carries its own safe-zone inset, so it
+            // reads fine floating directly on the row.
+            Image(
+                bitmap = mono,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                colorFilter = ColorFilter.tint(accent),
+                modifier = modifier.size(size),
+            )
+            return
+        }
         Box(
-            modifier = modifier.size(size).clip(plateShape).background(accent),
+            modifier = modifier.size(size).clip(composeShape).background(accent),
             contentAlignment = Alignment.Center,
         ) {
             Image(
