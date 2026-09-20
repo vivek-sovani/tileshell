@@ -3,6 +3,75 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## The date-rollover widget fix didn't work: enqueuing from the broadcast put the repaint back in Doze's queue
+
+User-reported the morning after the previous entry's fix shipped: "yesterday
+there was a fix for no rollover of date for calendar widget panchang.. but
+today also it is showing Shanivar at 5.30 today" — and, crucially, "live tile
+of panchang updated correctly", which isolated it to the home-screen widget
+again rather than anything shared with the in-app tile.
+
+Diagnosed on the physical device rather than by reading code, since the
+previous round's reasoning had been right about the mechanism and still wrong
+about the outcome. Pulling TileShell's own WorkManager database
+(`adb shell run-as com.tileshell cat .../no_backup/androidx.work.workdb`, then
+`sqlite3` locally — there is no `sqlite3` binary on the device) gave the two
+facts that settled it:
+
+- The last successful `CalendarSystemWidgetRefreshWorker` run was
+  `2026-09-19 20:51:16`. Nothing had run since — not at midnight, not after.
+  The widget was showing exactly what it was painted with the previous
+  evening, which is precisely the reported symptom.
+- The periodic backstop's next run was not due until ~19:26 that evening
+  (`dumpsys jobscheduler`: `Run time: earliest=+13h44m`), i.e. the "midnight"
+  job was anchored roughly 19 hours away from midnight.
+
+So **both** layers of the design had failed, independently, which is why one
+round of fixing only one of them changed nothing.
+
+**Failure 1 — the push path never did the work.** `onReceive` did receive the
+broadcast (it is a protected system broadcast, genuinely exempt from Android
+8+'s implicit-broadcast restrictions, exactly as the previous entry claimed),
+but all it did with that wake-up was call `refreshNow`, which enqueues a
+`OneTimeWorkRequest`. That hands the actual repaint straight back to
+JobScheduler, where Doze defers it to a maintenance window — on an idle phone
+overnight, potentially for hours. The app being on the device-idle whitelist
+(confirmed: `dumpsys deviceidle whitelist` lists `com.tileshell`) doesn't
+change that, and the jobs' own dumps confirm they sat `Ready: false` on
+`TIMING_DELAY`. The broadcast was the one guaranteed execution window we were
+ever going to get, and we spent it scheduling more work instead of doing the
+work. Fixed with `pushDateRollover` (`WidgetWork.kt`): `goAsync()` plus a
+coroutine that calls the worker's own `pushAll` directly, so the repaint rides
+the wake-up the OS already granted. All three of these widgets are pure local
+date math with no network, so they finish far inside the ~10s the platform
+allows.
+
+**Failure 2 — `ExistingPeriodicWorkPolicy.UPDATE` silently discards the new
+initial delay.** `ensureScheduled` recomputes `millisUntilNextMidnight()` on
+every call, but `UPDATE` applied to periodic work that has *already started
+its cadence* (`period_count` was 7) keeps that existing cadence and ignores
+the new initial delay — so the midnight alignment quietly stopped taking
+effect after the very first period, and the daily run kept whatever
+time-of-day it happened to land on. Changed to `CANCEL_AND_REENQUEUE`, which
+still satisfies the original reason `KEEP` was rejected (an install on the old
+30-minute cadence must not keep it forever) *and* genuinely re-anchors.
+Re-enqueueing on every `onUpdate` is safe here because `updatePeriodMillis` is
+0 for these three, so `onUpdate` only fires on placement, reboot and app
+update, and each re-enqueue targets the very next midnight anyway.
+
+Applied to all three widgets sharing this design — calendar system, moon phase
+and countdown — not just the reported one, same as last time.
+
+Verified after installing: the periodic job came back with `period_count=0`
+and a next run of `2026-09-21 00:01:00` (one minute past midnight, as the code
+always intended, versus 19:26 before), and the `onUpdate` repaint ran and
+succeeded. As with the previous round, the end-to-end "does it repaint at the
+real midnight" behaviour still can't be forced from here: the broadcast is
+protected (even `adb shell`, uid 2000, is refused when it tries to send it),
+and faking tomorrow's date means changing a system setting on the user's own
+phone, which is theirs to do, not ours. The difference this time is that the
+mechanism no longer depends on a second, deferrable scheduling hop.
+
 ## Home-screen calendar-system/moon-phase/countdown widgets stayed a full day stale after a deferred midnight job
 
 User-reported: "calendar panchang today still at friday. no rollover" — the

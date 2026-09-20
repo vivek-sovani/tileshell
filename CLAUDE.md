@@ -37,6 +37,52 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — the date-rollover widget fix from the day before didn't work; both
+  layers of its design had failed independently.** User-reported the next
+  morning ("today also it is showing Shanivar at 5.30 today"), with the key
+  narrowing detail that the in-app live tile *was* correct — so, the
+  home-screen widget only, again. Diagnosed on the physical device rather than
+  from code, by pulling TileShell's own WorkManager DB (`adb shell run-as
+  com.tileshell cat .../no_backup/androidx.work.workdb`, `sqlite3` locally —
+  there's no `sqlite3` on the device): the last successful
+  `CalendarSystemWidgetRefreshWorker` run was 20:51 the *previous evening*, and
+  the periodic backstop wasn't due until ~19:26 that night. Two separate bugs,
+  which is why fixing one changed nothing. (1) **The push path never did the
+  work**: `onReceive` did get the protected `DATE_CHANGED` broadcast, but spent
+  that guaranteed wake-up calling `refreshNow` — enqueuing a
+  `OneTimeWorkRequest`, handing the repaint straight back to JobScheduler for
+  Doze to defer for hours (being on the device-idle whitelist, confirmed via
+  `dumpsys deviceidle whitelist`, doesn't change that; the jobs sat `Ready:
+  false` on `TIMING_DELAY`). Now repaints directly inside the broadcast window
+  via a new shared `pushDateRollover` (`WidgetWork.kt`): `goAsync()` + a
+  coroutine calling the worker's own `pushAll`. These three widgets are pure
+  local date math with no network, so they finish well inside the ~10s the
+  platform allows. (2) **`ExistingPeriodicWorkPolicy.UPDATE` silently discarded
+  the midnight alignment**: applied to periodic work that already started its
+  cadence (`period_count` was 7), UPDATE keeps the existing cadence and ignores
+  the newly computed initial delay — so the daily run had drifted to 19:26,
+  ~19h from the midnight it was supposed to track. Changed to
+  `CANCEL_AND_REENQUEUE`, which still satisfies why `KEEP` was rejected
+  originally *and* actually re-anchors; safe on every `onUpdate` since
+  `updatePeriodMillis` is 0 for these three (so it fires only on placement,
+  reboot and app update) and each re-enqueue targets the next midnight anyway.
+  Applied to all three widgets sharing this design (calendar system, moon
+  phase, countdown), same as the previous round. **Everything is device-local
+  time** (verified after a follow-up question): `millisUntilNextMidnight` uses
+  `ZoneId.systemDefault()`, `HinduPanchang.panchangFor`/`varaFor` default to
+  `TimeZone.getDefault()`, no `ZoneOffset.UTC`/fixed zone anywhere in that
+  path, and `TIMEZONE_CHANGED` is already one of the handled actions so the
+  widget repaints on travel. Build + full unit test suite green; installed on
+  the physical device, no crash in `adb logcat`; re-reading the WorkManager DB
+  after install confirmed the periodic job came back with `period_count=0` and
+  a next run of `2026-09-21 00:01:00` **IST** (one minute past device-local
+  midnight, as always intended — versus 19:26 before), and the `onUpdate`
+  repaint ran and succeeded. As with the previous round, the real end-to-end
+  midnight repaint can't be forced from here: the broadcast is protected (even
+  `adb shell`, uid 2000, is refused when sending it) and faking tomorrow's date
+  means changing a system setting on the user's own phone. The difference is
+  the repaint no longer depends on a second, deferrable scheduling hop. See
+  DECISIONS.md.
 - **`main` — monochrome icons (Nothing-OS-style unified icon theme), revisiting the parked
   `themedIcons` feature, plus two rounds of real on-device bug fixes.** User asked directly for
   "monolithic icons for all available apps... like nothing phone does"; scoped via `AskUserQuestion` to

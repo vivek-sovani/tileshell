@@ -60,9 +60,19 @@ class CalendarSystemWidgetRefreshWorker(
         fun ensureScheduled(context: Context) {
             WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
                 UNIQUE_PERIODIC,
-                // UPDATE, not KEEP: an install already scheduled at the old
-                // 30-minute cadence would otherwise keep it forever.
-                ExistingPeriodicWorkPolicy.UPDATE,
+                // CANCEL_AND_REENQUEUE, not KEEP (an install already on the old
+                // 30-minute cadence would otherwise keep it forever) and not
+                // UPDATE: UPDATE leaves work that has already started its
+                // periodic cadence anchored wherever that cadence already runs
+                // and ignores the new initial delay, so the midnight alignment
+                // below never actually took effect after the first period.
+                // Observed on a real device: this job's daily run had drifted to
+                // 19:26, i.e. the date rolled over 19 hours before its "midnight"
+                // refresh. Re-enqueueing re-anchors it to the next real midnight.
+                // Safe to do on every onUpdate because that fires only on
+                // placement, reboot and app update, and each re-enqueue still
+                // targets the very next midnight.
+                ExistingPeriodicWorkPolicy.CANCEL_AND_REENQUEUE,
                 PeriodicWorkRequestBuilder<CalendarSystemWidgetRefreshWorker>(1, TimeUnit.DAYS)
                     .setInitialDelay(WidgetWork.millisUntilNextMidnight(), TimeUnit.MILLISECONDS)
                     .setConstraints(WidgetWork.localConstraints())

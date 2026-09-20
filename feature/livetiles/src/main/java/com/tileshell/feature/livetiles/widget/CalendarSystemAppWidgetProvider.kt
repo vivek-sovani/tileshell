@@ -26,12 +26,18 @@ import android.os.Bundle
  * 8+'s implicit-broadcast restrictions — the same three AOSP's own Calendar
  * app widget listens for to solve this identical problem — so they reach
  * this manifest-registered receiver reliably even with the app not running.
+ *
+ * The repaint happens **in the broadcast's own wake window** via
+ * [pushDateRollover], not by enqueuing more WorkManager work: a first attempt
+ * called `refreshNow` here and still showed yesterday's date the next
+ * morning, because handing the repaint to a `OneTimeWorkRequest` puts it back
+ * in JobScheduler's queue for Doze to defer. See [pushDateRollover].
  */
 class CalendarSystemAppWidgetProvider : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action in DATE_ROLLOVER_ACTIONS) {
-            CalendarSystemWidgetRefreshWorker.refreshNow(context)
+            pushDateRollover(context) { CalendarSystemWidgetRefreshWorker.pushAll(it) }
             return
         }
         super.onReceive(context, intent)

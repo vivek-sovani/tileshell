@@ -1,12 +1,55 @@
 package com.tileshell.feature.livetiles.widget
 
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.os.PowerManager
 import androidx.work.Constraints
 import androidx.work.NetworkType
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.concurrent.TimeUnit
+
+/**
+ * Repaints a date-driven widget **inside the broadcast's own wake window**,
+ * for the `DATE_CHANGED`/`TIME_CHANGED`/`TIMEZONE_CHANGED` receivers on the
+ * three midnight-aligned widgets (calendar system, moon phase, countdown).
+ *
+ * These used to hand the repaint to `refreshNow` — a plain
+ * `OneTimeWorkRequest`. That was the whole bug: the broadcast is delivered
+ * reliably (it is a protected system broadcast, exempt from Android 8+'s
+ * implicit-broadcast restrictions, and it did arrive), but enqueuing from it
+ * puts the actual work back into JobScheduler's queue, where Doze defers it
+ * to a maintenance window. Verified on a real device the morning after: the
+ * midnight broadcast fired, yet the widget's last actual refresh was from
+ * 20:51 the previous evening and its periodic backstop was not due for
+ * another 14 hours — so the widget sat on yesterday's date all night and all
+ * morning, which is exactly the failure the receiver was added to prevent.
+ *
+ * [goAsync] keeps the receiver (and the process) alive for the ~10s the
+ * platform grants, which is far more than a local date computation plus a
+ * `RemoteViews` push needs — none of these three touch the network. Doing it
+ * here means the repaint rides the wake-up the OS already granted us instead
+ * of asking for a second one that may never come.
+ */
+internal fun BroadcastReceiver.pushDateRollover(
+    context: Context,
+    push: suspend (Context) -> Unit,
+) {
+    val pending = goAsync()
+    val appContext = context.applicationContext
+    CoroutineScope(Dispatchers.IO).launch {
+        try {
+            push(appContext)
+        } catch (t: Throwable) {
+            // Best-effort repaint: the periodic worker is still the backstop.
+        } finally {
+            pending.finish()
+        }
+    }
+}
 
 /**
  * Shared scheduling policy for the home-screen widgets' periodic refresh

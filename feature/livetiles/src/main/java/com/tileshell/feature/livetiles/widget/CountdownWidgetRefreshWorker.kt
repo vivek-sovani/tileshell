@@ -44,9 +44,10 @@ class CountdownWidgetRefreshWorker(
         fun ensureScheduled(context: Context) {
             WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
                 UNIQUE_PERIODIC,
-                // UPDATE, not KEEP: an install already scheduled at the old
-                // 30-minute cadence would otherwise keep it forever.
-                ExistingPeriodicWorkPolicy.UPDATE,
+                // CANCEL_AND_REENQUEUE, not KEEP or UPDATE — see
+                // [CalendarSystemWidgetRefreshWorker.ensureScheduled] for why
+                // UPDATE silently loses the midnight alignment.
+                ExistingPeriodicWorkPolicy.CANCEL_AND_REENQUEUE,
                 PeriodicWorkRequestBuilder<CountdownWidgetRefreshWorker>(1, TimeUnit.DAYS)
                     .setInitialDelay(WidgetWork.millisUntilNextMidnight(), TimeUnit.MILLISECONDS)
                     .setConstraints(WidgetWork.localConstraints())

@@ -19,7 +19,7 @@ class MoonPhaseAppWidgetProvider : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action in DATE_ROLLOVER_ACTIONS) {
-            MoonPhaseWidgetRefreshWorker.refreshNow(context)
+            pushDateRollover(context) { MoonPhaseWidgetRefreshWorker.pushAll(it) }
             return
         }
         super.onReceive(context, intent)
