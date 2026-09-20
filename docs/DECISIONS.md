@@ -3,34 +3,44 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
-## Monochrome icons + "original" icon shape: a circle, then a square, then no plate at all
+## Monochrome icons + "original" icon shape: circle, then no plate, then settled on a square plate
 
-User-reported, twice in a row: "when monochrome icons are selected and icon
-shape original it renderes in circle shape" — then, after the first fix,
-"now it is showing square when i select original".
+User-reported, three times in a row, each pinpointing exactly what was wrong
+with the previous fix: "when monochrome icons are selected and icon shape
+original it renderes in circle shape" → (after fix 1) "now it is showing
+square when i select original" → (after fix 2, misreading that second report
+as "no shape at all, not just the wrong shape") "now icon shape getting
+merged into background (inside image looks, but no shape as such)".
 
-Root cause of the first bug: the monochrome accent-plate branches
+Root cause of the *shape*: the monochrome accent-plate branches
 (`IconCellView.kt`'s `maskedOrGlyphIcon`, `AppListIcon.kt`'s `MaskedAppIcon`)
 computed `composeShape` from the selected [IconShape], which is deliberately
 `null` for `ORIGINAL` (every other call site treats that `null` as "don't
 mask, show it as the device actually would") — but the monochrome plate
 branch wrote `val plateShape = composeShape ?: CircleShape`, silently
-substituting a circle for "no shape" instead of leaving it unmasked. First
-fix: fall back to `RectangleShape` instead. That was still wrong in the same
-way, just with a different invented shape — the user's second report made
-this obvious once pointed out: **the real-icon `ORIGINAL` branch a few lines
-below draws no plate at all** (bare bitmap, `contentScale = Fit`, no `Box`/
-`background`); a synthesized monochrome glyph has no OS-native shape to defer
-to, so the honest equivalent of "no shape enforced" is no plate, not a plate
-of some particular shape. Fixed by splitting the branch: when
-`composeShape == null`, skip the `Box`/`background` entirely and tint the
-bare glyph directly to the resolved accent/neutral colour (the same
-`accent`/`themedGlyphColor` value that would otherwise have filled the
-plate) — every other shape still gets its accent-filled plate exactly as
-before. Applied identically to both `IconCellView.kt` (Start, folder
-mini-grids) and `AppListIcon.kt` (App List); `feature/livetiles/AppIcon.kt`'s
-notification-badge glyph was already plate-free for every shape, so it
-needed no change. Build + full unit test suite green; installed on the
+substituting a circle for "no shape". Fix 1: fall back to `RectangleShape`.
+
+Fix 2 overcorrected: reasoning that the real-icon `ORIGINAL` branch a few
+lines below draws no plate at all (bare bitmap, no `Box`/`background`), it
+dropped the monochrome plate entirely for `ORIGINAL` too. That's where the
+two cases actually diverge and the fix was wrong: a real icon's own bitmap
+*is* its visual surface — solid, opaque, already has contrast against
+almost anything — so `ORIGINAL` needing no extra plate is true for it. A
+*monochrome* glyph is a transparent silhouette with nothing behind it by
+construction; remove the plate and it has no surface to sit on at all, so it
+can vanish straight into a similarly-toned background (dark accent on a dark
+wallpaper, etc.) — exactly what the third report described.
+
+Settled on keeping fix 1's `RectangleShape` plate for `ORIGINAL` and
+reverting fix 2: every shape, including `ORIGINAL`, keeps an accent-filled
+plate for legibility; `ORIGINAL` is the one case where that plate isn't
+clipped to any particular shape (an unclipped `Box` is naturally rectangular,
+which is the honest "no shape enforced" for a plate that must exist either
+way). Applied identically to `IconCellView.kt` (Start, folder mini-grids) and
+`AppListIcon.kt` (App List); `feature/livetiles/AppIcon.kt`'s
+notification-badge glyph draws no plate for *any* shape (it renders inline in
+a live-tile face, not against an arbitrary background), so it was never
+affected either way. Build + full unit test suite green; installed on the
 physical device with no crash — the user's own settings already had
 `homeStyle=ICONS, iconShape=ORIGINAL, themedIcons=true` live (confirmed by
 pulling `launcher_settings.pb`), so this is exactly the state they'll see it

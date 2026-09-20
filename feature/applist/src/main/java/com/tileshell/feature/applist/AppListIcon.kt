@@ -245,27 +245,17 @@ internal fun MaskedAppIcon(
             MonochromeIconTint.ACCENT -> LocalAccent.current
             MonochromeIconTint.NEUTRAL -> LocalColorTokens.current.fg
         }
-        val composeShape = shape.toShape()
-        if (composeShape == null) {
-            // ORIGINAL: no accent plate at all, matching the real-icon ORIGINAL
-            // branch below (bare bitmap, no Box/background). An earlier attempt
-            // kept a plate and just swapped its forced circle for a square, but
-            // a real icon's own ORIGINAL never draws a plate either — "square"
-            // was still an invented shape ORIGINAL isn't supposed to have
-            // (user-reported: "now it is showing square when i select
-            // original"). The glyph carries its own safe-zone inset, so it
-            // reads fine floating directly on the row.
-            Image(
-                bitmap = mono,
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                colorFilter = ColorFilter.tint(accent),
-                modifier = modifier.size(size),
-            )
-            return
-        }
+        // A monochrome glyph is a transparent silhouette, not a real icon's own
+        // opaque bitmap — dropping the plate for ORIGINAL (tried after the
+        // circle/square back-and-forth) made it blend straight into whatever's
+        // behind it (user-reported: "merged into background, no shape as
+        // such"). It needs *some* plate regardless of shape; ORIGINAL just
+        // shouldn't force a shape onto that plate — RectangleShape (a plain
+        // square, i.e. "no shape enforced") instead of the CircleShape that was
+        // here originally (user-reported: "renders in circle shape").
+        val plateShape = shape.toShape() ?: RectangleShape
         Box(
-            modifier = modifier.size(size).clip(composeShape).background(accent),
+            modifier = modifier.size(size).clip(plateShape).background(accent),
             contentAlignment = Alignment.Center,
         ) {
             Image(
