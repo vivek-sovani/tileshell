@@ -623,6 +623,13 @@ android {
         //   detail, a couple of apps' own declared themed layer rendering as a blank plate, small
         //   icons flattening to a solid block instead of their real logo). See docs/PLAY_STORE.md
         //   "Release notes (v4.5.0)".
+        //   --- re-cut again at the same versionCode 450 (still never uploaded): the home-screen
+        //   calendar/panchang, moon-phase and countdown widgets could still show yesterday's date
+        //   all morning. Two independent causes, both fixed: the midnight DATE_CHANGED broadcast
+        //   was arriving but only enqueuing a WorkManager job (which Doze then deferred for
+        //   hours), and the daily backstop job had lost its midnight alignment entirely because
+        //   ExistingPeriodicWorkPolicy.UPDATE ignores a new initial delay once periodic work has
+        //   started its cadence. The repaint now happens inside the broadcast's own wake window.
         versionCode = 450
         versionName = "4.5.0"
     }

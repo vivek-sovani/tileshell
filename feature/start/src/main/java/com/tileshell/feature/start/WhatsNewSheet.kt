@@ -154,6 +154,7 @@ private val WHATS_NEW_FIXES = listOf(
     "wallpaper preview now shows your actual main page, not a mix of every page",
     "dragging a tile to another page no longer leaves its preview stuck on screen",
     "monochrome icons now show the correct glyph for many more apps, after several rounds of real-device fixes",
+    "home-screen calendar, moon-phase and countdown widgets could still show yesterday's date in the morning — they now update the moment the date rolls over",
 )
 
 /**

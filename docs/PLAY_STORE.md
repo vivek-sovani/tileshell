@@ -198,6 +198,12 @@ sub-sections below for the full detail on every fix.)*
 
 ### Also folded into this same versionCode 450 — the latest re-cut, still never uploaded to Play
 
+- **Fixed: the home-screen calendar/panchang, moon-phase and countdown widgets** could still be
+  showing yesterday's date well into the next morning. The midnight refresh now repaints the
+  widget immediately when the date actually rolls over, instead of queuing a background job the
+  system could postpone for hours; the once-a-day backup refresh, which had also drifted away
+  from midnight, is back on it. (Everything here follows your device's local time, and the
+  widgets also repaint if you change time zone.)
 - **New: "monochrome icons"** (Personalize → home style) — a Nothing-Phone-style unified icon
   theme. Every app icon renders as a flat, single-colour glyph instead of its normal full-colour
   icon, across Start (both tiles and icons home style), the app list, folder mini-grids, and
