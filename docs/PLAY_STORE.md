@@ -218,6 +218,8 @@ sub-sections below for the full detail on every fix.)*
   couple of apps' own declared themed layer rendering as a blank plate, and a few small icons
   flattening to a solid block instead of showing their real logo) — every reported icon now shows
   its actual glyph correctly.
+- **Fixed: monochrome icons with icon shape "original"** now sit on a rounded-corner plate for
+  legibility, instead of the wrong shape it was rendering on before.
 
 ### What's new since v4.0.2 (for reference — not the Play-facing blurb above)
 

@@ -630,6 +630,14 @@ android {
         //   hours), and the daily backstop job had lost its midnight alignment entirely because
         //   ExistingPeriodicWorkPolicy.UPDATE ignores a new initial delay once periodic work has
         //   started its cadence. The repaint now happens inside the broadcast's own wake window.
+        //   --- re-cut again at the same versionCode 450 (still never uploaded): monochrome icons
+        //   + icon shape "original" rendered on the wrong accent-plate shape. Went through a full
+        //   circle -> square -> no-plate-at-all -> square -> rounded round trip driven by direct
+        //   on-device feedback at each step (a bare glyph with no plate at all turned out to be a
+        //   real regression, not just a style choice — a monochrome glyph is a transparent
+        //   silhouette with nothing behind it, unlike a real icon's own opaque bitmap, so it could
+        //   vanish into a similarly-toned background). Settled: "original" keeps its accent plate
+        //   for legibility, shaped as rounded-corners rather than a true circle or a plain square.
         versionCode = 450
         versionName = "4.5.0"
     }
