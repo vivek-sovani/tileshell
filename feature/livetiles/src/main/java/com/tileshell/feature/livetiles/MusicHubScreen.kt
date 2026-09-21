@@ -557,7 +557,20 @@ private fun HistoryPage(context: Context, accent: Color, tokens: ColorTokens) {
                             else -> base.clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
-                                onClick = { openApp(context, track.packageName) },
+                                onClick = {
+                                    // Resumes the app's own still-live session
+                                    // when one exists (the common case: the
+                                    // user paused/switched away, didn't fully
+                                    // stop it) — previously this always just
+                                    // opened the app with no attempt to play
+                                    // anything, which read as "not playing"
+                                    // (user-reported). Falls back to plain
+                                    // app-open once that session's genuinely
+                                    // gone, since there's no cross-app API to
+                                    // start a specific past track from
+                                    // scratch in an arbitrary third-party app.
+                                    if (!MediaCenter.play(track.packageName)) openApp(context, track.packageName)
+                                },
                             )
                         }
                     }
