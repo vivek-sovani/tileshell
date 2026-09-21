@@ -469,11 +469,24 @@ private fun MusicAppsPage(context: Context, accent: Color, tokens: ColorTokens) 
     val repository = remember(context) { AppCatalogRepository(context) }
     val apps by repository.apps.collectAsState(initial = emptyList())
     // AppCatalogRepository enumerates every launcher activity, not every
-    // distinct app — an app that declares more than one (Amazon Music does)
-    // would otherwise list itself twice here (user-reported: "amazon music is
-    // appearing two times in apps"). One row per package instead, same
-    // dedup EdgeStripSheet already applies for the same reason.
-    val musicApps = remember(apps) { apps.filter { AppCategories.isMusicApp(it) }.distinctBy { it.packageName } }
+    // distinct app — an app that declares more than one would otherwise list
+    // itself twice here. One row per package, same dedup EdgeStripSheet
+    // already applies for the same reason. That alone wasn't enough for
+    // Amazon Music specifically though (still user-reported afterward): on
+    // this Samsung device it's genuinely installed twice under two different
+    // real packages — `com.amazon.mp3` and `com.amazon.mp3.galaxy`, a
+    // Samsung Galaxy Store-specific build bundled alongside the regular one,
+    // both correctly resolving as their own separate music app. Distinct
+    // packages, so packageName-dedup can't (and, for the real App List,
+    // shouldn't — both are genuinely separately launchable) tell them apart;
+    // this picker's whole point is offering a de-duplicated set of *players*
+    // to choose from, though, so a second dedup pass on the normalized label
+    // collapses same-named duplicates like this one too.
+    val musicApps = remember(apps) {
+        apps.filter { AppCategories.isMusicApp(it) }
+            .distinctBy { it.packageName }
+            .distinctBy { it.label.trim().lowercase() }
+    }
     var query by remember { mutableStateOf("") }
     val shown = remember(musicApps, query) {
         if (query.isBlank()) musicApps else musicApps.filter { it.label.contains(query, ignoreCase = true) }
