@@ -50,10 +50,21 @@ data class PlayedTrack(
  * Locally-recorded play history for the music hub (there's no system "recently
  * played" API to read, and reading a music library needs `READ_MEDIA_AUDIO` —
  * this needs neither: it just remembers what [MediaCenter] already showed us).
- * Ordered most-recent first, capped at [MAX], de-duped against its own most
- * recent entry so a metadata-churn republish of the *same* track doesn't spam
- * the list. Recorded by [MusicHistoryEffect]; the same shape as [RecentApps]
- * (`com.tileshell.core.data`) minus a couple of fields.
+ * **At most one entry per source** (external app package, or the local
+ * library under [PlayedTrack.LOCAL_LIBRARY_MARKER]) — [record] replaces
+ * whichever entry already existed for that source rather than appending, so
+ * the list reads as "the last song played on each app," not a full log of
+ * every play. This is a deliberate redesign, not the original shape: a
+ * chronological per-play log meant tapping an *older* entry for an app that
+ * had since moved on to a different track could only ever resume whatever
+ * that app's session was CURRENTLY on — never the specific past track shown
+ * — which read as "the wrong song plays" (user-reported: "only last played
+ * song is playing irrespective of which song you were tapping"). Collapsing
+ * to one row per source makes the row's own play control unambiguous: it
+ * always reflects and controls that source's one real current session.
+ * Ordered most-recently-played-source first, capped at [MAX]. Recorded by
+ * [MusicHistoryEffect]; the same shape as [RecentApps] (`com.tileshell.core
+ * .data`) minus a couple of fields.
  */
 object MusicHistory {
 
@@ -64,23 +75,17 @@ object MusicHistory {
     fun history(context: Context): Flow<List<PlayedTrack>> =
         context.applicationContext.musicHistoryStore.data
 
-    /** Record a track starting to play (fire-and-forget). */
+    /** Records [track] as the given source's latest play, replacing any earlier
+     * entry for that same source (fire-and-forget). */
     fun record(context: Context, track: PlayedTrack) {
         val app = context.applicationContext
         writeScope.launch {
             app.musicHistoryStore.updateData { current ->
-                if (current.firstOrNull()?.isSameTrack(track) == true) {
-                    current
-                } else {
-                    (listOf(track) + current).take(MAX)
-                }
+                (listOf(track) + current.filterNot { it.packageName == track.packageName }).take(MAX)
             }
         }
     }
 }
-
-private fun PlayedTrack.isSameTrack(other: PlayedTrack): Boolean =
-    title == other.title && artist == other.artist && packageName == other.packageName
 
 /**
  * Watches both playback sources for the whole app session (call once, e.g.

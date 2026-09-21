@@ -98,8 +98,10 @@ private val LOCAL_AUDIO_PERMISSION: String =
  * playing in the background (a real foreground service + lock-screen/
  * notification controls, [LocalMusicPlaybackService]) after this screen
  * closes. "history" is
- * [MusicHistory] — tracks TileShell itself has seen play; there's no system
- * "recently played" API to read instead. "now playing" reads the same
+ * [MusicHistory] — the last song played on each source (one row per app plus
+ * one for the local library, each with its own play/pause control), since
+ * there's no system "recently played" API to read instead; also reachable via
+ * a "history ›" link on "now playing" itself. "now playing" reads the same
  * [MediaCenter] the music tile already reads (its transport buttons dispatch
  * through the exact same session), so play/pause/skip here and on the tile
  * always agree — a separate concern from "library"'s own in-hub playback.
@@ -238,7 +240,9 @@ fun MusicHubScreen(
                 modifier = Modifier.weight(1f),
             ) { page ->
                 when (page) {
-                    0 -> NowPlayingPage(accent, tokens)
+                    0 -> NowPlayingPage(accent, tokens) {
+                        pagerScope.launch { pagerState.animateScrollToPage(HUB_PIVOTS.indexOf("history")) }
+                    }
                     1 -> LibraryPage(context, accent, tokens)
                     2 -> MusicAppsPage(context, accent, tokens)
                     else -> HistoryPage(context, accent, tokens)
@@ -280,7 +284,7 @@ private fun LocalPlaybackButton(iconKey: String, description: String, tint: Colo
  * precedence over TileShell's own library browsing.
  */
 @Composable
-private fun NowPlayingPage(accent: Color, tokens: ColorTokens) {
+private fun NowPlayingPage(accent: Color, tokens: ColorTokens, onOpenHistory: () -> Unit) {
     val media by MediaCenter.nowPlaying.collectAsState()
     val artworkMap by MediaCenter.artwork.collectAsState()
     val externalEntry = media.entries.firstOrNull { it.value.playing } ?: media.entries.firstOrNull()
@@ -294,6 +298,26 @@ private fun NowPlayingPage(accent: Color, tokens: ColorTokens) {
             .verticalScroll(rememberScrollState())
             .padding(bottom = 32.dp),
     ) {
+        // User-requested link straight from "now playing" to the "history"
+        // pivot page, rather than making people swipe/tap over to it.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp)
+                .padding(top = 2.dp, bottom = 10.dp),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            Text(
+                "history ›",
+                color = accent,
+                fontSize = 13.sp,
+                modifier = Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onOpenHistory,
+                ),
+            )
+        }
         when {
             externalEntry != null && (externalEntry.value.playing || localTrack == null) ->
                 ExternalNowPlaying(externalEntry, artworkMap, accent, tokens, context)
@@ -506,6 +530,13 @@ private fun MusicAppCell(app: AppEntry, accent: Color, tokens: ColorTokens, onCl
     }
 }
 
+/**
+ * The last song played on each source (one row per app, plus one for the
+ * local library — see [MusicHistory]'s own doc comment for why this is
+ * collapsed to "last per source" rather than a full chronological log): a
+ * play/pause control per row that's always unambiguous, since a row's source
+ * only ever has one real current session to control.
+ */
 @Composable
 private fun HistoryPage(context: Context, accent: Color, tokens: ColorTokens) {
     val history by MusicHistory.history(context).collectAsState(initial = emptyList())
@@ -519,6 +550,8 @@ private fun HistoryPage(context: Context, accent: Color, tokens: ColorTokens) {
         return
     }
     val scope = rememberCoroutineScope()
+    val media by MediaCenter.nowPlaying.collectAsState()
+    val localPlayback by LocalMusicPlayer.state.collectAsState()
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -527,54 +560,17 @@ private fun HistoryPage(context: Context, accent: Color, tokens: ColorTokens) {
             .padding(bottom = 32.dp),
     ) {
         history.forEachIndexed { index, track ->
+            val activeLocal = localPlayback.track
+            val playing = if (track.isLocal) {
+                localPlayback.playing && activeLocal != null && (
+                    (track.localTrackId != null && activeLocal.id == track.localTrackId) ||
+                        (track.localTrackId == null && activeLocal.title == track.title && activeLocal.artist == track.artist)
+                    )
+            } else {
+                media[track.packageName]?.playing == true
+            }
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .let { base ->
-                        when {
-                            // Re-plays the actual file via the same local
-                            // player the library page uses — this is what was
-                            // missing entirely (user-reported: "when song
-                            // selected from history it is not playing").
-                            // Tries the recorded id first, falling back to an
-                            // exact title+artist match for an entry recorded
-                            // before localTrackId existed (every entry already
-                            // on a device that had used the hub before this
-                            // fix) — silently does nothing only if the file
-                            // has genuinely since been deleted/moved.
-                            track.isLocal -> base.clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = {
-                                    scope.launch {
-                                        val id = track.localTrackId
-                                        val found = (id?.let { LocalMusicLibrary.trackById(context, it) })
-                                            ?: LocalMusicLibrary.findByTitleArtist(context, track.title, track.artist)
-                                        if (found != null) LocalMusicPlayer.playQueue(context, listOf(found), 0)
-                                    }
-                                },
-                            )
-                            else -> base.clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = {
-                                    // Resumes the app's own still-live session
-                                    // when one exists (the common case: the
-                                    // user paused/switched away, didn't fully
-                                    // stop it) — previously this always just
-                                    // opened the app with no attempt to play
-                                    // anything, which read as "not playing"
-                                    // (user-reported). Falls back to plain
-                                    // app-open once that session's genuinely
-                                    // gone, since there's no cross-app API to
-                                    // start a specific past track from
-                                    // scratch in an arbitrary third-party app.
-                                    if (!MediaCenter.play(track.packageName)) openApp(context, track.packageName)
-                                },
-                            )
-                        }
-                    }
-                    .padding(vertical = 9.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (track.isLocal) {
@@ -584,21 +580,55 @@ private fun HistoryPage(context: Context, accent: Color, tokens: ColorTokens) {
                     Box(Modifier.size(28.dp).background(accent), contentAlignment = Alignment.Center) {
                         Icon(TileIcons["music"], contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                     }
-                    Spacer(Modifier.width(12.dp))
                 } else {
                     val icon = rememberAppIconBitmap(track.packageName, sizePx = 64)
                     if (icon != null) {
                         androidx.compose.foundation.Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(28.dp))
-                        Spacer(Modifier.width(12.dp))
                     }
                 }
+                Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(track.title, color = tokens.fg, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     if (track.artist.isNotEmpty()) {
                         Text(track.artist, color = tokens.fgDim, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
-                Text(feedAgo(track.playedAtMillis), color = tokens.fgDim, fontSize = 11.sp)
+                Spacer(Modifier.width(8.dp))
+                LocalPlaybackButton(
+                    iconKey = if (playing) "pause" else "play",
+                    description = if (playing) "pause" else "play",
+                    tint = tokens.fg,
+                ) {
+                    if (track.isLocal) {
+                        // Re-plays the actual file via the same local player
+                        // the library page uses. Tries the recorded id
+                        // first, falling back to an exact title+artist match
+                        // for an entry recorded before localTrackId existed
+                        // — silently does nothing only if the file's
+                        // genuinely since been deleted/moved.
+                        if (playing) {
+                            LocalMusicPlayer.togglePlayPause()
+                        } else {
+                            scope.launch {
+                                val id = track.localTrackId
+                                val found = (id?.let { LocalMusicLibrary.trackById(context, it) })
+                                    ?: LocalMusicLibrary.findByTitleArtist(context, track.title, track.artist)
+                                if (found != null) LocalMusicPlayer.playQueue(context, listOf(found), 0)
+                            }
+                        }
+                    } else if (media.containsKey(track.packageName)) {
+                        // A live session for this app: this always controls
+                        // its own actual current track, never a stale one —
+                        // the whole point of collapsing history to one row
+                        // per source (see MusicHistory's own doc comment).
+                        MediaCenter.togglePlayPause(track.packageName)
+                    } else {
+                        // That app's session has genuinely ended since — there's
+                        // no cross-app API to restart a specific past track from
+                        // scratch, so the closest we can do is just open the app.
+                        openApp(context, track.packageName)
+                    }
+                }
             }
             if (index < history.lastIndex) {
                 Box(Modifier.fillMaxWidth().height(1.dp).background(tokens.sheetLine))

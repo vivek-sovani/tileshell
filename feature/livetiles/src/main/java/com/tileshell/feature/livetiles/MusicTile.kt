@@ -242,21 +242,6 @@ object MediaCenter {
     fun skipToPrevious(packageName: String?) {
         runCatching { controllerFor(packageName)?.transportControls?.skipToPrevious() }
     }
-
-    /**
-     * Explicitly resumes (never toggles/pauses) [packageName]'s own still-live
-     * session, if one exists — used by the music hub's "history" page to
-     * resume an app's playback from a past entry rather than only ever
-     * opening the app with no attempt to actually play anything. Returns
-     * whether a live session was actually commanded, so the caller can fall
-     * back to just opening the app once its session has genuinely ended
-     * (there's no cross-app API to start a specific *past* track from
-     * scratch in an arbitrary third-party player).
-     */
-    fun play(packageName: String): Boolean {
-        val controller = controllers[packageName] ?: return false
-        return runCatching { controller.transportControls.play() }.isSuccess
-    }
 }
 
 /**
