@@ -65,6 +65,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.AppCatalogRepository
@@ -270,10 +271,17 @@ fun MusicHubScreen(
 }
 
 @Composable
-private fun LocalPlaybackButton(iconKey: String, description: String, tint: Color, onClick: () -> Unit) {
+private fun LocalPlaybackButton(
+    iconKey: String,
+    description: String,
+    tint: Color,
+    size: Dp = 34.dp,
+    iconSize: Dp = 20.dp,
+    onClick: () -> Unit,
+) {
     Box(
         modifier = Modifier
-            .size(34.dp)
+            .size(size)
             .clip(CircleShape)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -282,7 +290,7 @@ private fun LocalPlaybackButton(iconKey: String, description: String, tint: Colo
             ),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(TileIcons[iconKey], contentDescription = description, tint = tint, modifier = Modifier.size(20.dp))
+        Icon(TileIcons[iconKey], contentDescription = description, tint = tint, modifier = Modifier.size(iconSize))
     }
 }
 
@@ -379,7 +387,18 @@ private fun ExternalNowPlaying(
             Text(text = np.artist, color = tokens.fgDim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.height(16.dp))
-        MediaTransportControls(playing = np.playing, packageName = packageName, tint = tokens.fg, enabled = true)
+        // Bigger than the shared default (34dp/22dp) — this page's transport
+        // row is its own main interactive element, not a secondary control on
+        // a small tile/card, and read as too small at the shared size
+        // (user-requested).
+        MediaTransportControls(
+            playing = np.playing,
+            packageName = packageName,
+            tint = tokens.fg,
+            enabled = true,
+            buttonSize = 56.dp,
+            iconSize = 28.dp,
+        )
         Spacer(Modifier.height(20.dp))
         val label = remember(packageName) { appLabelOrNull(context, packageName) } ?: packageName
         Row(
@@ -420,12 +439,25 @@ private fun LocalNowPlaying(track: LocalTrack, playing: Boolean, accent: Color, 
             Text(text = track.artist, color = tokens.fgDim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.height(16.dp))
+        // Bigger than the shared default (34dp/20dp), matching
+        // ExternalNowPlaying's own bump — this page's transport row is its
+        // own main interactive element (user-requested).
         Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            LocalPlaybackButton("prev", "previous", tokens.fg) { LocalMusicPlayer.previous(context) }
-            LocalPlaybackButton(if (playing) "pause" else "play", "play/pause", tokens.fg) {
+            LocalPlaybackButton("prev", "previous", tokens.fg, size = 56.dp, iconSize = 28.dp) {
+                LocalMusicPlayer.previous(context)
+            }
+            LocalPlaybackButton(
+                if (playing) "pause" else "play",
+                "play/pause",
+                tokens.fg,
+                size = 56.dp,
+                iconSize = 28.dp,
+            ) {
                 LocalMusicPlayer.togglePlayPause()
             }
-            LocalPlaybackButton("next", "next", tokens.fg) { LocalMusicPlayer.next(context) }
+            LocalPlaybackButton("next", "next", tokens.fg, size = 56.dp, iconSize = 28.dp) {
+                LocalMusicPlayer.next(context)
+            }
         }
         Spacer(Modifier.height(20.dp))
         Text("playing from your library", color = tokens.fgDim, fontSize = 12.sp)

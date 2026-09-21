@@ -53,6 +53,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -584,21 +585,28 @@ fun MediaTransportControls(
     // BANNER music tile) — every other caller (the ordinary music tile, the
     // feed's now-playing card) keeps the normal, larger touch target.
     compact: Boolean = false,
+    // Explicit overrides for a caller that wants a size other than the
+    // compact/normal default — e.g. the music hub's own "now playing" page,
+    // whose buttons are the page's main interactive element and read as too
+    // small at the shared default (user-requested).
+    buttonSize: Dp = if (compact) 26.dp else 34.dp,
+    iconSize: Dp = if (compact) 16.dp else 22.dp,
 ) {
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 8.dp),
     ) {
-        ControlButton("prev", "previous", enabled, tint, compact) { MediaCenter.skipToPrevious(packageName) }
+        ControlButton("prev", "previous", enabled, tint, buttonSize, iconSize) { MediaCenter.skipToPrevious(packageName) }
         ControlButton(
             iconKey = if (playing) "pause" else "play",
             description = if (playing) "pause" else "play",
             enabled = enabled,
             tint = tint,
-            compact = compact,
+            buttonSize = buttonSize,
+            iconSize = iconSize,
         ) { MediaCenter.togglePlayPause(packageName) }
-        ControlButton("next", "next", enabled, tint, compact) { MediaCenter.skipToNext(packageName) }
+        ControlButton("next", "next", enabled, tint, buttonSize, iconSize) { MediaCenter.skipToNext(packageName) }
     }
 }
 
@@ -608,12 +616,13 @@ private fun ControlButton(
     description: String,
     enabled: Boolean,
     tint: Color,
-    compact: Boolean = false,
+    buttonSize: Dp,
+    iconSize: Dp,
     onClick: () -> Unit,
 ) {
     Box(
         modifier = Modifier
-            .size(if (compact) 26.dp else 34.dp)
+            .size(buttonSize)
             .clip(CircleShape)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -622,7 +631,7 @@ private fun ControlButton(
             imageVector = TileIcons[iconKey],
             contentDescription = description,
             tint = tint,
-            modifier = Modifier.size(if (compact) 16.dp else 22.dp),
+            modifier = Modifier.size(iconSize),
         )
     }
 }
