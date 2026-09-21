@@ -515,18 +515,32 @@ private fun HistoryPage(context: Context, tokens: ColorTokens) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { openApp(context, track.packageName) },
-                    )
+                    .let { base ->
+                        // A locally-played track has no real app to open.
+                        if (track.isLocal) {
+                            base
+                        } else {
+                            base.clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { openApp(context, track.packageName) },
+                            )
+                        }
+                    }
                     .padding(vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                val icon = rememberAppIconBitmap(track.packageName, sizePx = 64)
-                if (icon != null) {
-                    androidx.compose.foundation.Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(28.dp))
+                if (track.isLocal) {
+                    Box(Modifier.size(28.dp).background(tokens.fgDim), contentAlignment = Alignment.Center) {
+                        Icon(TileIcons["music"], contentDescription = null, tint = tokens.bg, modifier = Modifier.size(16.dp))
+                    }
                     Spacer(Modifier.width(12.dp))
+                } else {
+                    val icon = rememberAppIconBitmap(track.packageName, sizePx = 64)
+                    if (icon != null) {
+                        androidx.compose.foundation.Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(28.dp))
+                        Spacer(Modifier.width(12.dp))
+                    }
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(track.title, color = tokens.fg, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

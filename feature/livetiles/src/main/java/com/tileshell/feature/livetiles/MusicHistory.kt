@@ -5,7 +5,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
@@ -24,7 +26,21 @@ data class PlayedTrack(
     val artist: String,
     val packageName: String,
     val playedAtMillis: Long,
-)
+) {
+    /** True for a track played through the hub's own local library, not an external app. */
+    val isLocal: Boolean get() = packageName == LOCAL_LIBRARY_MARKER
+
+    companion object {
+        /**
+         * [packageName] sentinel for a locally-played track — there's no real
+         * app package to record (and nothing to "open" from a history row for
+         * one), so this marks it distinctly rather than reusing TileShell's
+         * own package or an empty string, either of which could collide with
+         * a real value or read as "unknown".
+         */
+        const val LOCAL_LIBRARY_MARKER = "tileshell.local"
+    }
+}
 
 /**
  * Locally-recorded play history for the music hub (there's no system "recently
@@ -63,12 +79,16 @@ private fun PlayedTrack.isSameTrack(other: PlayedTrack): Boolean =
     title == other.title && artist == other.artist && packageName == other.packageName
 
 /**
- * Watches [MediaCenter.nowPlaying] for the whole app session (call once, e.g.
- * alongside [MediaSessionsEffect]) and records each package's track into
- * [MusicHistory] the moment it starts *playing* (not merely present/paused —
- * a session that never plays, e.g. one the OS restored on boot, shouldn't
- * count as "played"). Tracked per-package so two apps playing in quick
- * succession both get recorded, not just the last one published.
+ * Watches both playback sources for the whole app session (call once, e.g.
+ * alongside [MediaSessionsEffect]) and records into [MusicHistory] the
+ * moment each starts *playing* (not merely present/paused — a session that
+ * never plays, e.g. one the OS restored on boot, shouldn't count as
+ * "played"): [MediaCenter.nowPlaying] for other apps' own sessions, tracked
+ * per-package so two apps playing in quick succession both get recorded, not
+ * just the last one published; and [LocalMusicPlayer.state] for the music
+ * hub's own in-hub library playback — a real gap, once, since these are two
+ * entirely separate mechanisms with no overlap otherwise (user-reported:
+ * "songs played through music hub not added in history").
  */
 @Composable
 fun MusicHistoryEffect() {
@@ -89,6 +109,24 @@ fun MusicHistoryEffect() {
                     ),
                 )
             }
+        }
+    }
+
+    val localPlayback by LocalMusicPlayer.state.collectAsState()
+    var lastLocalTrackId by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(localPlayback) {
+        val track = localPlayback.track
+        if (localPlayback.playing && track != null && lastLocalTrackId != track.id) {
+            lastLocalTrackId = track.id
+            MusicHistory.record(
+                context,
+                PlayedTrack(
+                    title = track.title,
+                    artist = track.artist,
+                    packageName = PlayedTrack.LOCAL_LIBRARY_MARKER,
+                    playedAtMillis = System.currentTimeMillis(),
+                ),
+            )
         }
     }
 }
