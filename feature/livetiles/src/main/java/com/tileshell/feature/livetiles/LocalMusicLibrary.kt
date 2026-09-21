@@ -2,8 +2,17 @@ package com.tileshell.feature.livetiles
 
 import android.content.ContentUris
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Build
 import android.provider.MediaStore
+import android.util.Size
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -173,4 +182,45 @@ object LocalMusicLibrary {
             }
             out
         }
+
+    /**
+     * An album's cover art, decoded off the main thread. Unlike an external
+     * app's now-playing artwork, this needs no cross-app URI grant — it's our
+     * own [READ_MEDIA_AUDIO]-covered query against MediaStore. API 29+ uses
+     * the generic thumbnail loader (works directly on the album's own
+     * content URI); below that, the legacy `ALBUM_ART` file-path column.
+     * Null when the album genuinely has no art, not just on any failure the
+     * caller can't distinguish.
+     */
+    suspend fun loadAlbumArt(context: Context, albumId: Long, sizePx: Int): Bitmap? = withContext(Dispatchers.IO) {
+        runCatching {
+            if (Build.VERSION.SDK_INT >= 29) {
+                val albumUri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, albumId)
+                context.contentResolver.loadThumbnail(albumUri, Size(sizePx, sizePx), null)
+            } else {
+                @Suppress("DEPRECATION")
+                val projection = arrayOf(MediaStore.Audio.Albums.ALBUM_ART)
+                val path = context.contentResolver.query(
+                    ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, albumId),
+                    projection,
+                    null,
+                    null,
+                    null,
+                )?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+                path?.let { BitmapFactory.decodeFile(it) }
+            }
+        }.getOrNull()
+    }
+}
+
+/**
+ * An album's cover art as an [ImageBitmap], cached per (albumId, sizePx) for
+ * the composition's lifetime. Null while loading or when the album has none.
+ */
+@Composable
+fun rememberLocalAlbumArt(context: Context, albumId: Long, sizePx: Int = 200): ImageBitmap? {
+    val bitmap by produceState<Bitmap?>(initialValue = null, albumId, sizePx) {
+        value = if (albumId <= 0) null else LocalMusicLibrary.loadAlbumArt(context, albumId, sizePx)
+    }
+    return bitmap?.asImageBitmap()
 }

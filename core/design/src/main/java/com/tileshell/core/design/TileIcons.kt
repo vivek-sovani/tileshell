@@ -494,6 +494,16 @@ object TileIcons {
             p("M20 6v4h-4"),
         ))
 
+        // Same circular-arrow shape as "rotate" (Quick Panel's rotation-lock
+        // glyph) — a distinct key since this one means "refresh"/"reload",
+        // not rotation, even though the two read identically as a glyph.
+        put("refresh", vector("refresh",
+            p("M4 12a8 8 0 0 1 8-8c2 0 4 1 5.5 2.5"),
+            p("M20 6v4h-4"),
+            p("M20 12a8 8 0 0 1-8 8c-2 0-4-1-5.5-2.5"),
+            p("M4 18v-4h4"),
+        ))
+
         put("brightness", vector("brightness",
             p(circle(12.0, 12.0, 4.0)),
             p("M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"),

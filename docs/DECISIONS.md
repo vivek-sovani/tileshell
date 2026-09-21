@@ -8858,33 +8858,63 @@ setting exists, this redirect becomes its "tileshell hub" branch and gets the
 get then, just built in the opposite order here because the setting doesn't
 exist yet.
 
-## Hub screens: grounded header chrome in the actual design prototype, not external references
+## Hub screens: back navigation moved into a bottom app bar (superseded an earlier, wrong revert)
 
-User correction, direct and explicit ("check design proto, do exact copy... this should be
-norm"): the weather/music hub headers had been built from external Windows Phone screenshots
-researched earlier in the same session, not from this project's own bundled prototype
-(`design/windows-mobile-launcher-for-android/project/launcher/`) — a real violation of this
-project's own standing rule ("do NOT guess values... read the relevant JS/CSS file").
+An earlier pass ("check design proto, do exact copy") misread that instruction as "go find
+the closest CSS class in the old Start-only prototype" — it rewrote the weather hub's title
+to `styles.css`'s `.group-ov .gtitle` scale (centered 30px, plain fg) and both hubs' dismiss
+control to `.group-ov .gclose` (top-right close "X"). The user then corrected this twice more
+directly: "there is music hub design also why referring weather hub" and "weather app
+completely changed. i had approved earlier one" — the actual authoritative reference for
+these new hub screens (which the bundled prototype doesn't cover at all — it has no Panorama-
+hub concept) is whatever mockup was approved live in conversation, not a fresh grep of the old
+prototype. Weather's title was reverted back to its originally-approved 42sp/accent-colored/
+left-aligned form with a top-left back icon; music kept its own separately-approved two-tone
+"music"+"apps" title throughout, unaffected by any of this. See this session's corrected memory
+(`feedback_design_proto_authoritative.md`) for the standing rule this produced.
 
-Checked `styles.css`'s own full-screen overlay conventions (`.recents-ov .rtitle`,
-`.group-ov .gtitle`/`.gclose` — the closest existing analogs, since the prototype has no
-Panorama-hub concept at all) and found two concrete deviations: (1) the dismiss control was
-an invented top-left back-chevron; the prototype's actual overlay convention is a top-right
-close ("X"), 34px box / 22px icon. (2) The title was an invented 42-64sp/accent-colored/
-left-aligned scale; the prototype's own overlay title is 26-30px, `font-weight:200`
-(Compose `FontWeight.ExtraLight`), `-1px` letter-spacing, centered, plain `var(--fg)` — not
-accent-tinted. Applied both fixes to the weather hub exactly.
+**Then a real, separate correction landed**: "also there was a different back navigation
+style" — confirmed via `AskUserQuestion` as a **bottom app bar** (a translucent pill of
+circular icon buttons, matching the mockup's own `.ts-appbar`/`.ts-btn` convention), not a
+top-corner icon at all — neither the reverted top-left back nor the previously-added top-right
+close was right. New shared `HubAppBar` composable (`feature/livetiles/HubAppBar.kt`): back
+lives there now for both hubs (weather adds a real "refresh" action alongside it — manual
+re-fetch, not just the automatic on-open one); music's app bar is just "back", since its real
+transport/search actions already live inline (the persistent `LocalPlaybackBar`, the library
+page's own search field) and adding non-functional lookalike buttons purely for visual
+completeness was rejected in favour of only shipping controls with real actions behind them.
+Added a genuine "refresh" glyph to `TileIcons` (no prior entry existed; "rotate" is a visually
+similar but semantically different rotation-lock icon, kept separate rather than reused under
+the wrong name).
 
-**Music hub is the deliberate exception**, not a miss: its two-tone "music"+"apps" title
-(plain fg + accent, left-aligned, clipped at the screen edge rather than wrapping, 44sp/
-ExtraLight) was already separately designed and approved with the user via the visualize
-tool earlier in the same session, explicitly modeled on the real WP7/8 Zune hub's own
-historically two-tone title — which was itself visually distinct from every other WP hub, so
-this asymmetry between TileShell's own hubs is WP-faithful, not an inconsistency introduced
-by skipping the proto-grounding pass. Only its dismiss control (top-right close, matching the
-prototype) was brought in line with weather's.
+## Music hub "now playing" unifies two separate playback sources; local library gets real album art; keep-screen-on while playing
 
-New standing rule recorded in this session's memory
-(`feedback_design_proto_authoritative.md`): future TileShell UI work checks the bundled
-prototype's closest analog first, before reaching for external references — and when no
-analog exists, says so explicitly rather than silently inventing one.
+Root-caused a real "album art not visible" report that looked at first like a `MediaSession`
+metadata bug (several rounds of on-device diagnostic logging, `dumpsys media_session`
+checks, etc.) but turned out to be a wrong premise entirely: the user was playing through the
+music hub's own **local library player** (`LocalMusicPlayer`, built earlier this session), not
+an external app — `MediaCenter`/`NowPlayingPage` only ever watched *other* apps' sessions via
+the notification-listener grant, a completely separate mechanism with no awareness of
+TileShell's own in-hub playback. The "now playing" tab showed "nothing playing" for exactly
+that reason whenever nothing external happened to be active, regardless of local playback.
+
+Fixed by unifying: `NowPlayingPage` now reads both sources and shows whichever is actually
+active, an external session breaking the tie (a real app's own now-playing takes precedence
+over TileShell's own library browsing, matching how `MediaCenter`'s own `controllerFor` already
+prioritises a playing session). Extracted `ExternalNowPlaying`/`LocalNowPlaying` composables
+sharing one `NowPlayingHero` — the hero art is now a full-width **square** (`aspectRatio(1f)`)
+instead of a fixed 220dp strip, per direct user request ("show big size now playing... as in
+proto") echoing the originally-approved mockup's own large hero treatment.
+
+Local library art was a separate, genuinely simpler fix: unlike an external app's `content://`
+URI (which needs a cross-app read grant a passive `NotificationListenerService` doesn't
+reliably get), the local library is TileShell's own `READ_MEDIA_AUDIO`-covered MediaStore
+query — `LocalMusicLibrary.loadAlbumArt` uses `ContentResolver.loadThumbnail` (API 29+) or the
+legacy `ALBUM_ART` file-path column (API 26-28), wired into the tracks list, the album grid,
+the persistent bottom playback bar, and the new local "now playing" hero — per direct request
+("album art should also be shown in track and album list").
+
+Also added, same round: the display stays on (`WindowManager.LayoutParams
+.FLAG_KEEP_SCREEN_ON`) while either playback source is actually playing, cleared the moment
+playback stops or the hub closes — user-requested, since the screen timing out mid-browse/
+mid-playback was annoying even though audio itself keeps running regardless of screen state.

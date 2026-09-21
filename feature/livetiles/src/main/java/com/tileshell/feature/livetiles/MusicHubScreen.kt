@@ -2,6 +2,7 @@ package com.tileshell.feature.livetiles
 
 import android.Manifest
 import android.content.Context
+import android.graphics.Bitmap
 import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -52,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -129,6 +132,21 @@ fun MusicHubScreen(
     val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { HUB_PIVOTS.size })
     val pagerScope = rememberCoroutineScope()
     val localPlayback by LocalMusicPlayer.state.collectAsState()
+    val externalMedia by MediaCenter.nowPlaying.collectAsState()
+    val anyPlaying = localPlayback.playing || externalMedia.values.any { it.playing }
+
+    // Keeps the display on while something is actively playing — user-
+    // requested, since the screen timing out mid-playback/mid-browse is
+    // annoying even though playback itself (audio) keeps running regardless.
+    // Cleared automatically the moment playback stops or this screen closes
+    // (DisposableEffect's onDispose fires on either).
+    DisposableEffect(anyPlaying) {
+        val activity = context.findActivity()
+        if (anyPlaying) activity?.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose {
+            activity?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
 
     SheetStage(rightHalf = rightHalf, modifier = modifier) {
         Column(
@@ -140,33 +158,7 @@ fun MusicHubScreen(
                 .navigationBarsPadding(),
         ) {
             Column(modifier = Modifier.padding(horizontal = 18.dp).fillMaxWidth()) {
-                Spacer(Modifier.height(6.dp))
-                // Dismiss control: top-right close ("X"), matching the
-                // prototype's own full-screen overlay convention (styles.css
-                // `.group-ov .gclose`).
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .size(34.dp)
-                            .clip(CircleShape)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = onDismiss,
-                            ),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = TileIcons["close"],
-                            contentDescription = "close",
-                            tint = tokens.fg,
-                            modifier = Modifier.size(22.dp),
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(22.dp))
                 // Two-tone Zune-hub title ("music" + "apps"), matching the
                 // approved mockup exactly — left-aligned, clipped at the
                 // edge rather than wrapping, distinct from the other hubs'
@@ -224,6 +216,10 @@ fun MusicHubScreen(
             localPlayback.track?.let { track ->
                 LocalPlaybackBar(track, localPlayback.playing, context, tokens, accent)
             }
+
+            // Bottom app bar (mockup's own convention) — back lives here, not
+            // as a standalone top-corner button.
+            HubAppBar(tokens = tokens, actions = listOf(HubAppBarAction("back", "back", onDismiss)))
         }
     }
 }
@@ -243,6 +239,16 @@ private fun LocalPlaybackBar(
             .padding(horizontal = 18.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val art = rememberLocalAlbumArt(context, track.albumId, sizePx = 96)
+        if (art != null) {
+            androidx.compose.foundation.Image(
+                bitmap = art,
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.size(36.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp)),
+            )
+            Spacer(Modifier.width(10.dp))
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(track.title, color = tokens.fg, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (track.artist.isNotEmpty()) {
@@ -276,46 +282,72 @@ private fun LocalPlaybackButton(iconKey: String, description: String, tint: Colo
     }
 }
 
+/**
+ * "Now playing" — reads *two* separate playback sources and shows whichever
+ * is actually active: [MediaCenter] (another app's own session) and
+ * [LocalMusicPlayer] (a track/album/playlist played in-hub from the
+ * "library" page). These are genuinely different mechanisms — MediaCenter
+ * needs no player of its own, LocalMusicPlayer needs no external app — so
+ * there is no single "current track" to read; whichever is playing wins, an
+ * external session breaking the tie since a real app's own now-playing takes
+ * precedence over TileShell's own library browsing.
+ */
 @Composable
 private fun NowPlayingPage(accent: Color, tokens: ColorTokens) {
     val media by MediaCenter.nowPlaying.collectAsState()
     val artworkMap by MediaCenter.artwork.collectAsState()
-    val entry = media.entries.firstOrNull { it.value.playing } ?: media.entries.firstOrNull()
+    val externalEntry = media.entries.firstOrNull { it.value.playing } ?: media.entries.firstOrNull()
+    val localPlayback by LocalMusicPlayer.state.collectAsState()
+    val localTrack = localPlayback.track
     val context = LocalContext.current
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp)
             .padding(bottom = 32.dp),
     ) {
-        if (entry == null) {
-            Text("nothing playing", color = tokens.fgDim, fontSize = 14.sp)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "start something in one of your music apps",
-                color = tokens.fgDim,
-                fontSize = 12.sp,
-            )
-            return@Column
-        }
-        val (packageName, np) = entry
-        TileImageBackground(
-            image = artworkMap[packageName]?.asImageBitmap(),
-            modifier = Modifier.fillMaxWidth().height(220.dp),
-        ) {
-            if (artworkMap[packageName] == null) {
-                Box(Modifier.fillMaxSize().background(accent), contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = TileIcons["music"],
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(64.dp),
-                    )
-                }
+        when {
+            externalEntry != null && (externalEntry.value.playing || localTrack == null) ->
+                ExternalNowPlaying(externalEntry, artworkMap, accent, tokens, context)
+            localTrack != null -> LocalNowPlaying(localTrack, localPlayback.playing, accent, tokens, context)
+            else -> Column(modifier = Modifier.padding(horizontal = 18.dp)) {
+                Text("nothing playing", color = tokens.fgDim, fontSize = 14.sp)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "start something in one of your music apps, or play a track from the library",
+                    color = tokens.fgDim,
+                    fontSize = 12.sp,
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun NowPlayingHero(art: ImageBitmap?, accent: Color) {
+    // "Big size, as in the mockup" — a full-width square hero instead of a
+    // fixed short strip, matching the approved now-playing page treatment.
+    TileImageBackground(image = art, modifier = Modifier.fillMaxWidth().aspectRatio(1f)) {
+        if (art == null) {
+            Box(Modifier.fillMaxSize().background(accent), contentAlignment = Alignment.Center) {
+                Icon(TileIcons["music"], contentDescription = null, tint = Color.White, modifier = Modifier.size(72.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExternalNowPlaying(
+    entry: Map.Entry<String, NowPlaying>,
+    artworkMap: Map<String, Bitmap>,
+    accent: Color,
+    tokens: ColorTokens,
+    context: Context,
+) {
+    val (packageName, np) = entry
+    Column(modifier = Modifier.padding(horizontal = 18.dp)) {
+        NowPlayingHero(artworkMap[packageName]?.asImageBitmap(), accent)
         Spacer(Modifier.height(14.dp))
         Text(text = np.title, color = tokens.fg, fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (np.artist.isNotEmpty()) {
@@ -323,12 +355,7 @@ private fun NowPlayingPage(accent: Color, tokens: ColorTokens) {
             Text(text = np.artist, color = tokens.fgDim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.height(16.dp))
-        MediaTransportControls(
-            playing = np.playing,
-            packageName = packageName,
-            tint = tokens.fg,
-            enabled = true,
-        )
+        MediaTransportControls(playing = np.playing, packageName = packageName, tint = tokens.fg, enabled = true)
         Spacer(Modifier.height(20.dp))
         val label = remember(packageName) { appLabelOrNull(context, packageName) } ?: packageName
         Row(
@@ -344,15 +371,35 @@ private fun NowPlayingPage(accent: Color, tokens: ColorTokens) {
         ) {
             val icon = rememberAppIconBitmap(packageName, sizePx = 64)
             if (icon != null) {
-                androidx.compose.foundation.Image(
-                    bitmap = icon,
-                    contentDescription = null,
-                    modifier = Modifier.size(28.dp),
-                )
+                androidx.compose.foundation.Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(28.dp))
                 Spacer(Modifier.width(10.dp))
             }
             Text("playing from $label", color = tokens.fgDim, fontSize = 12.sp)
         }
+    }
+}
+
+@Composable
+private fun LocalNowPlaying(track: LocalTrack, playing: Boolean, accent: Color, tokens: ColorTokens, context: Context) {
+    val art = rememberLocalAlbumArt(context, track.albumId, sizePx = 600)
+    Column(modifier = Modifier.padding(horizontal = 18.dp)) {
+        NowPlayingHero(art, accent)
+        Spacer(Modifier.height(14.dp))
+        Text(text = track.title, color = tokens.fg, fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (track.artist.isNotEmpty()) {
+            Spacer(Modifier.height(2.dp))
+            Text(text = track.artist, color = tokens.fgDim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            LocalPlaybackButton("prev", "previous", tokens.fg) { LocalMusicPlayer.previous(context) }
+            LocalPlaybackButton(if (playing) "pause" else "play", "play/pause", tokens.fg) {
+                LocalMusicPlayer.togglePlayPause()
+            }
+            LocalPlaybackButton("next", "next", tokens.fg) { LocalMusicPlayer.next(context) }
+        }
+        Spacer(Modifier.height(20.dp))
+        Text("playing from your library", color = tokens.fgDim, fontSize = 12.sp)
     }
 }
 
@@ -772,6 +819,7 @@ private fun TracksList(context: Context, tokens: ColorTokens, query: String) {
 
 @Composable
 private fun TrackRow(track: LocalTrack, tokens: ColorTokens, onClick: () -> Unit) {
+    val context = LocalContext.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -783,6 +831,16 @@ private fun TrackRow(track: LocalTrack, tokens: ColorTokens, onClick: () -> Unit
             .padding(vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val art = rememberLocalAlbumArt(context, track.albumId, sizePx = 96)
+        if (art != null) {
+            androidx.compose.foundation.Image(
+                bitmap = art,
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.size(40.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp)),
+            )
+            Spacer(Modifier.width(12.dp))
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(track.title, color = tokens.fg, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val sub = listOfNotNull(track.artist.ifEmpty { null }, track.album.ifEmpty { null }).joinToString(" · ")
@@ -825,6 +883,8 @@ private fun AlbumsGrid(
 
 @Composable
 private fun AlbumCell(album: LocalAlbum, accent: Color, tokens: ColorTokens, onClick: () -> Unit) {
+    val context = LocalContext.current
+    val art = rememberLocalAlbumArt(context, album.id)
     Column(
         modifier = Modifier
             .padding(4.dp)
@@ -836,8 +896,20 @@ private fun AlbumCell(album: LocalAlbum, accent: Color, tokens: ColorTokens, onC
             .padding(vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(Modifier.size(64.dp).background(accent), contentAlignment = Alignment.Center) {
-            Icon(TileIcons["music"], contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
+        if (art != null) {
+            androidx.compose.foundation.Image(
+                bitmap = art,
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.size(64.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp)),
+            )
+        } else {
+            Box(
+                Modifier.size(64.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp)).background(accent),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(TileIcons["music"], contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
+            }
         }
         Spacer(Modifier.height(6.dp))
         Text(album.title, color = tokens.fg, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
