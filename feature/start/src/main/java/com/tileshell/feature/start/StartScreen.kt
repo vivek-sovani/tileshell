@@ -241,6 +241,8 @@ import com.tileshell.feature.livetiles.LayoutAutoBackupWorker
 import com.tileshell.feature.livetiles.LiveFace
 import com.tileshell.feature.livetiles.MediaSessionsEffect
 import com.tileshell.feature.livetiles.MoonPhaseTileFace
+import com.tileshell.feature.livetiles.MusicHistoryEffect
+import com.tileshell.feature.livetiles.MusicHubScreen
 import com.tileshell.feature.livetiles.MusicTileFace
 import com.tileshell.feature.livetiles.NotesTileFace
 import com.tileshell.feature.livetiles.NotificationAccess
@@ -374,6 +376,7 @@ fun StartScreen(
     val calendarSystemEditTileId by viewModel.calendarSystemEditTileId.collectAsStateWithLifecycle()
     val weatherLocationTarget by viewModel.weatherLocationTarget.collectAsStateWithLifecycle()
     val weatherHubTarget by viewModel.weatherHubTarget.collectAsStateWithLifecycle()
+    val musicHubOpen by viewModel.musicHubOpen.collectAsStateWithLifecycle()
     val permissionsOpen by viewModel.permissionsOpen.collectAsStateWithLifecycle()
     val newsRegionOpen by viewModel.newsRegionOpen.collectAsStateWithLifecycle()
     val edgeStripOpen by viewModel.edgeStripOpen.collectAsStateWithLifecycle()
@@ -932,7 +935,7 @@ fun StartScreen(
     val anySheetOpen = personalizeOpen || aboutOpen || historyOpen || backupOpen ||
         foldersOpen || hiddenAppsOpen || addWidgetsOpen || (tasksOpen != null) || notesOpen ||
         (stickyNoteEditTileId != null) || (countdownEditTileId != null) || (sportsEditTileId != null) || (stockEditTileId != null) ||
-        (commodityEditTileId != null) || (calendarSystemEditTileId != null) || (weatherHubTarget != null)
+        (commodityEditTileId != null) || (calendarSystemEditTileId != null) || (weatherHubTarget != null) || musicHubOpen
     val quickSearchEnabled = swipeEnabled && restingAtStart && !searchOpen && !quickPanelOpen && !anySheetOpen
     val quickPanelEnabled = swipeEnabled && restingAtStart && !searchOpen && !quickPanelOpen && !anySheetOpen
     // Runs in the Initial pass like the pager, but keys off pointer *count* (2)
@@ -1365,6 +1368,18 @@ fun StartScreen(
                                     // "follow the device's location", same as
                                     // resolveWeatherQuery's own fallback.
                                     viewModel.openWeatherHub(WeatherTile.decode(tile.activityName))
+                                } else if (tile.iconKey == "music") {
+                                    // Unlike weather/calendar, the music tile is not
+                                    // blank-package — DefaultLayout bakes in whichever
+                                    // app resolves the OS music role (often nothing,
+                                    // or inconsistently, since few apps declare
+                                    // CATEGORY_APP_MUSIC), so it used to launch that
+                                    // one app directly. Redirected to the hub
+                                    // unconditionally, same as weather/calendar,
+                                    // regardless of packageName — see DECISIONS.md
+                                    // "Music hub tap redirect" for why this doesn't
+                                    // wait on the not-yet-built per-hub setting.
+                                    viewModel.openMusicHub()
                                 } else {
                                     onTileClick(context, tile)
                                 }
@@ -1389,6 +1404,8 @@ fun StartScreen(
                             // "weather" case, which still opens the old
                             // google.com search fallback.
                             viewModel.openWeatherHub(WeatherTile.decode(child.activityName))
+                        } else if (child.iconKey == "music") {
+                            viewModel.openMusicHub()
                         } else {
                             launchFolderChild(context, child)
                         }
@@ -2023,6 +2040,14 @@ fun StartScreen(
             accentId = settings.accentId,
             location = weatherHubTarget?.location,
             onDismiss = viewModel::closeWeatherHub,
+            rightHalf = isLandscape,
+        )
+
+        MusicHubScreen(
+            visible = musicHubOpen,
+            dark = dark,
+            accentId = settings.accentId,
+            onDismiss = viewModel::closeMusicHub,
             rightHalf = isLandscape,
         )
 
@@ -3058,6 +3083,10 @@ private fun StartPage(
     // Publish active media sessions into MediaCenter so the music tile and any
     // music-app tile (Apple Music, YT Music, …) can show their now-playing track.
     MediaSessionsEffect(active = liveActive)
+    // Records the music hub's local play history — runs for the whole Start
+    // screen session (not gated on the hub being open) so a track played
+    // earlier still shows up in "history" once the hub is opened later.
+    MusicHistoryEffect()
     val liveIds = remember(displaySpecs, byId) {
         displaySpecs.mapNotNull { spec ->
             val model = byId[spec.id] as? TileModel.App ?: return@mapNotNull null

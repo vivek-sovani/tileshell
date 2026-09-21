@@ -217,8 +217,11 @@ private fun CurrentConditionsPage(snapshot: WeatherSnapshot, accent: Color, toke
     // "Updated Xm ago" — matches the real weather app's ordering: place is the
     // header's own line (see WeatherHubScreen), this timestamp sits with the
     // reading it actually describes, not crowding the place name above.
+    // feedAgo returns the bare word "now" for a just-fetched snapshot, which
+    // reads as "updated now ago" if "ago" is appended unconditionally.
+    val ago = feedAgo(snapshot.fetchedAtMillis)
     Text(
-        text = "updated ${feedAgo(snapshot.fetchedAtMillis)} ago",
+        text = if (ago == "now") "updated just now" else "updated $ago ago",
         color = tokens.fgDim,
         fontSize = 12.sp,
     )

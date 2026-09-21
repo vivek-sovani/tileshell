@@ -250,6 +250,23 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * The music hub full-screen page (Start's music tile → hub). Unlike the
+     * weather hub, the music tile carries no per-tile configuration to show —
+     * one hub, one now-playing session — so this is a plain flag, not a
+     * target holder.
+     */
+    private val _musicHubOpen = MutableStateFlow(false)
+    val musicHubOpen: StateFlow<Boolean> = _musicHubOpen.asStateFlow()
+
+    fun openMusicHub() {
+        _musicHubOpen.value = true
+    }
+
+    fun closeMusicHub() {
+        _musicHubOpen.value = false
+    }
+
+    /**
      * An image [Uri] shared into TileShell from another app (e.g. "share" from Gallery/Photos),
      * awaiting import + the crop overlay so the user can position it before it becomes the
      * wallpaper — mirrors the existing wallpaper-picker flow in [StartScreen]. Set by
@@ -1773,6 +1790,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         closeCalendarSystemEditor()
         closeBackup()
         closeWeatherHub()
+        closeMusicHub()
         closePermissions()
         closeNewsRegion()
         closeEdgeStrip()

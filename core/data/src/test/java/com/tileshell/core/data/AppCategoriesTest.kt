@@ -195,4 +195,22 @@ class AppCategoriesTest {
         assertFalse(AppCategories.requiresTallTile("weather"))
         assertFalse(AppCategories.requiresTallTile(null))
     }
+
+    // ---- music hub "apps" page filter --------------------------------------
+
+    @Test
+    fun `an app declaring the music role is a music app`() {
+        assertTrue(AppCategories.isMusicApp(app("x.spotify", role = AppCategories.ROLE_MUSIC)))
+    }
+
+    @Test
+    fun `an app declaring CATEGORY_AUDIO is a music app even without the role`() {
+        assertTrue(AppCategories.isMusicApp(app("x.player", category = ApplicationInfo.CATEGORY_AUDIO)))
+    }
+
+    @Test
+    fun `an app with neither signal is not a music app`() {
+        assertFalse(AppCategories.isMusicApp(app("x.notes", category = ApplicationInfo.CATEGORY_PRODUCTIVITY)))
+        assertFalse(AppCategories.isMusicApp(app("x.mystery")))
+    }
 }

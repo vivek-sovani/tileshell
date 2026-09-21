@@ -8832,3 +8832,28 @@ app" tile, distinct from the "this opens the tileshell hub" tile.
 
 Applies to every hub, People included — recorded here rather than duplicated in
 each hub's own entry.
+
+## Music hub tap redirect applies even though the music tile isn't blank-package
+
+Direct follow-up while building the music hub. Weather/calendar's hub redirect
+only needed to intercept a *blank-package* tile (`packageName.isBlank()`) — both
+are genuinely self-contained `liveOnly` tiles with nothing baked in. The default
+music tile (`DefaultTile("t-music", ...)`, `DefaultLayout.kt`) is different: it's
+seeded through the normal role-resolution path (`roleFor("music")` →
+`Intent.CATEGORY_APP_MUSIC`), so on any device where that role resolves, the tile
+gets a real `packageName` baked in and its tap has always launched that one app
+directly — the exact "role baked into the tile at seed time" pattern already
+flagged as needing the not-yet-built per-hub default-app-vs-hub setting (see
+"Hub apps... independent app pinning" above).
+
+Redirected anyway, unconditionally on `iconKey == "music"` regardless of
+`packageName`, rather than waiting for that setting. Reasoning: `CATEGORY_APP_MUSIC`
+resolves inconsistently across real devices (few apps declare it at all, and
+several devices resolve to nothing), so in practice a meaningful share of
+installs already behave like the blank-package case; and the hub's own "apps"
+page still lists whatever app *would* have been launched, so redirecting to the
+hub is a superset of the old behaviour, not a loss of one. Once the per-hub
+setting exists, this redirect becomes its "tileshell hub" branch and gets the
+"default app" branch as an alternative — same shape as weather/calendar will
+get then, just built in the opposite order here because the setting doesn't
+exist yet.

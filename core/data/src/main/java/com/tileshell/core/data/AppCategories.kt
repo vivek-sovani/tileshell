@@ -189,4 +189,12 @@ object AppCategories {
         val grouped = apps.groupBy { classify(it) }
         return ALL.associate { cat -> cat.id to (grouped[cat.id] ?: emptyList()) }
     }
+
+    /**
+     * Whether [app] is a music/audio player, for the music hub's "apps" page —
+     * the union of both signals [classify] itself weighs (role first, category
+     * second), since an app can decline one and still declare the other.
+     */
+    fun isMusicApp(app: AppEntry): Boolean =
+        app.role == ROLE_MUSIC || app.category == ApplicationInfo.CATEGORY_AUDIO
 }
