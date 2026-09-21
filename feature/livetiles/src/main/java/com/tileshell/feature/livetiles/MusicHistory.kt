@@ -80,10 +80,21 @@ object MusicHistory {
      * list is already most-recent-first) so already-persisted duplicates
      * collapse immediately too, not only once each source happens to play
      * again (user-reported: "it is still showing list in history" after the
-     * one-row-per-source redesign, for exactly this reason). */
-    fun history(context: Context): Flow<List<PlayedTrack>> =
-        context.applicationContext.musicHistoryStore.data
-            .map { list -> list.distinctBy { it.packageName } }
+     * one-row-per-source redesign, for exactly this reason). Also drops any
+     * row keyed by [Context.getPackageName] itself: before the
+     * `buildMediaState` fix in `MusicTile.kt`, TileShell's own
+     * `LocalMusicPlaybackService` session was briefly indistinguishable from
+     * a real external app's, so a local play could get double-recorded once
+     * under [PlayedTrack.LOCAL_LIBRARY_MARKER] and once under this app's own
+     * package (user-reported: "music tiles song is listed two times in
+     * history") — filtered here too since that stray row, once persisted,
+     * would otherwise never get replaced (nothing records under this app's
+     * own package going forward). */
+    fun history(context: Context): Flow<List<PlayedTrack>> {
+        val ownPackage = context.applicationContext.packageName
+        return context.applicationContext.musicHistoryStore.data
+            .map { list -> list.filterNot { it.packageName == ownPackage }.distinctBy { it.packageName } }
+    }
 
     /** Records [track] as the given source's latest play, replacing any earlier
      * entry for that same source (fire-and-forget). */

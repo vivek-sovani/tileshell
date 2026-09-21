@@ -117,6 +117,7 @@ fun nowPlayingFrom(title: String?, artist: String?, state: Int): NowPlaying? {
 private fun buildMediaState(
     manager: MediaSessionManager,
     component: ComponentName,
+    ownPackage: String,
 ): MediaState {
     val controllers = runCatching { manager.getActiveSessions(component) }.getOrNull().orEmpty()
     val np = LinkedHashMap<String, NowPlaying>()
@@ -125,6 +126,15 @@ private fun buildMediaState(
     val artUri = LinkedHashMap<String, Uri>()
     for (controller in controllers) {
         val pkg = controller.packageName ?: continue
+        // TileShell's own session — LocalMusicPlaybackService creates a real
+        // MediaSession so local-library playback gets lock-screen/notification
+        // controls, which means it now shows up in this same active-sessions
+        // list like any other app's. It's already tracked separately via
+        // LocalMusicPlayer, so publishing it here too would double it into
+        // MediaCenter (and, via MusicHistoryEffect, into "history" a second
+        // time under this app's own package — user-reported: "music tiles
+        // song is listed two times in history").
+        if (pkg == ownPackage) continue
         if (np.containsKey(pkg)) continue // keep the highest-priority session per app
         val md = controller.metadata
         val title = md?.getString(MediaMetadata.METADATA_KEY_TITLE)
@@ -293,7 +303,7 @@ fun MediaSessionsEffect(active: Boolean) {
 
         // Republish the snapshot without re-binding callbacks (playback/metadata tick).
         val publishNow = {
-            val state = buildMediaState(manager, component)
+            val state = buildMediaState(manager, component, context.packageName)
             MediaCenter.publish(state.now, state.controllers, state.artwork)
             resolveArtworkAsync(state.artworkUri)
         }
@@ -303,7 +313,7 @@ fun MediaSessionsEffect(active: Boolean) {
         rebind = {
             perController.forEach { (c, cb) -> runCatching { c.unregisterCallback(cb) } }
             perController.clear()
-            val state = buildMediaState(manager, component)
+            val state = buildMediaState(manager, component, context.packageName)
             MediaCenter.publish(state.now, state.controllers, state.artwork)
             resolveArtworkAsync(state.artworkUri)
             state.controllers.values.forEach { controller ->
@@ -333,7 +343,7 @@ fun MediaSessionsEffect(active: Boolean) {
             as? MediaSessionManager ?: return@LaunchedEffect
         val component = ComponentName(context, TileNotificationListenerService::class.java)
         while (true) {
-            val state = buildMediaState(manager, component)
+            val state = buildMediaState(manager, component, context.packageName)
             MediaCenter.publish(state.now, state.controllers, state.artwork)
             resolveArtworkAsync(state.artworkUri)
             // This poll exists only to catch in-session track/position changes
@@ -361,7 +371,7 @@ fun refreshMediaSessions(context: Context) {
         as? MediaSessionManager ?: return
     val component = ComponentName(context, TileNotificationListenerService::class.java)
     runCatching {
-        val state = buildMediaState(manager, component)
+        val state = buildMediaState(manager, component, context.packageName)
         MediaCenter.publish(state.now, state.controllers, state.artwork)
     }
 }

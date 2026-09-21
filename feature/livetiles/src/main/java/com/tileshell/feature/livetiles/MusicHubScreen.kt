@@ -234,6 +234,19 @@ fun MusicHubScreen(
             LaunchedEffect(localPlayback.track?.id) {
                 if (localPlayback.track != null) pagerState.animateScrollToPage(0)
             }
+            // Same jump for an external app's own playback — this only ever
+            // covered the local library before (user-reported: "when device
+            // songs are played it jumps to now playing view not when playing
+            // other app songs"). Keyed on the currently-playing entry's own
+            // identity (package + title/artist, not just "something is
+            // playing") so it re-fires on a genuinely different track the
+            // same way the local jump does, not on every unrelated republish
+            // of the same still-playing track.
+            val activeExternalKey = externalMedia.entries.firstOrNull { it.value.playing }
+                ?.let { (pkg, np) -> "$pkg|${np.title}|${np.artist}" }
+            LaunchedEffect(activeExternalKey) {
+                if (activeExternalKey != null) pagerState.animateScrollToPage(0)
+            }
 
             androidx.compose.foundation.pager.HorizontalPager(
                 state = pagerState,
