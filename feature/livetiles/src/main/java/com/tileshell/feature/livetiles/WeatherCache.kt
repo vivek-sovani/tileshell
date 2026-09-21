@@ -49,18 +49,32 @@ object WeatherCacheCodec {
             append("fetchedAt=").append(s.fetchedAtMillis).append('\n')
             append("place=").append(s.place).append('\n')
             append("detail=").append(s.detail).append('\n')
-            // condition last: it is the presence marker for a valid snapshot.
+            append("feelsLike=").append(s.feelsLikeC?.toString().orEmpty()).append('\n')
+            append("wind=").append(s.windKph?.toString().orEmpty()).append('\n')
+            append("humidity=").append(s.humidityPct?.toString().orEmpty()).append('\n')
+            // condition last among the single-value keys: it is the presence
+            // marker for a valid snapshot.
             append("condition=").append(s.condition)
             // 7-day outlook (user-requested), one `forecastN=` line per day —
             // `|`-joined since none of these fields can contain a `|`
             // (day labels are "today"/"tomorrow"/a lowercase weekday name,
-            // conditions come from the fixed weatherCodeToCondition phrases).
+            // conditions come from the fixed weatherCodeToCondition phrases,
+            // isoDate is `YYYY-MM-DD`).
             s.forecast.forEachIndexed { i, day ->
                 append('\n').append("forecast").append(i).append('=')
                     .append(day.dayLabel).append('|')
                     .append(day.highC).append('|')
                     .append(day.lowC).append('|')
-                    .append(day.condition)
+                    .append(day.condition).append('|')
+                    .append(day.isoDate).append('|')
+                    .append(day.precipProbabilityMax?.toString().orEmpty())
+            }
+            // Weather hub's next-24h row, one `hourlyN=` line per hour.
+            s.hourly.forEachIndexed { i, hour ->
+                append('\n').append("hourly").append(i).append('=')
+                    .append(hour.hourLabel).append('|')
+                    .append(hour.tempC).append('|')
+                    .append(hour.condition)
             }
         }
         // One `loc=` line per user-picked fixed location, each self-contained
@@ -82,7 +96,20 @@ object WeatherCacheCodec {
                 .append(clean(s.detail)).append('~')
                 .append(
                     s.forecast.joinToString(";") { day ->
-                        "${clean(day.dayLabel)}|${day.highC}|${day.lowC}|${clean(day.condition)}"
+                        "${clean(day.dayLabel)}|${day.highC}|${day.lowC}|${clean(day.condition)}" +
+                            "|${day.isoDate}|${day.precipProbabilityMax ?: ""}"
+                    },
+                ).append('~')
+                // Appended after the original 9 fields (index 0-8) so a file
+                // written by an older build — which stops at the forecast
+                // field — still decodes: decodePlaceLine reads these via
+                // getOrNull and defaults to null/empty when absent.
+                .append(s.feelsLikeC?.toString().orEmpty()).append('~')
+                .append(s.windKph?.toString().orEmpty()).append('~')
+                .append(s.humidityPct?.toString().orEmpty()).append('~')
+                .append(
+                    s.hourly.joinToString(";") { hour ->
+                        "${clean(hour.hourLabel)}|${hour.tempC}|${clean(hour.condition)}"
                     },
                 )
         }
@@ -101,7 +128,11 @@ object WeatherCacheCodec {
         var place = ""
         var detail = ""
         var condition: String? = null
+        var feelsLike: Int? = null
+        var wind: Int? = null
+        var humidity: Int? = null
         val forecastByIndex = sortedMapOf<Int, DailyForecast>()
+        val hourlyByIndex = sortedMapOf<Int, HourlyForecast>()
         val places = LinkedHashMap<String, WeatherSnapshot>()
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
@@ -117,24 +148,19 @@ object WeatherCacheCodec {
                 key == "place" -> place = value
                 key == "detail" -> detail = value
                 key == "condition" -> condition = value.ifEmpty { null }
+                key == "feelsLike" -> feelsLike = value.trim().toIntOrNull()
+                key == "wind" -> wind = value.trim().toIntOrNull()
+                key == "humidity" -> humidity = value.trim().toIntOrNull()
                 key == "loc" -> decodePlaceLine(value)?.let { (placeKey, snapshot) ->
                     places[placeKey] = snapshot
                 }
                 key.startsWith("forecast") -> {
                     val index = key.removePrefix("forecast").toIntOrNull() ?: return@forEach
-                    val parts = value.split('|')
-                    if (parts.size == 4) {
-                        val dHigh = parts[1].toIntOrNull()
-                        val dLow = parts[2].toIntOrNull()
-                        if (dHigh != null && dLow != null) {
-                            forecastByIndex[index] = DailyForecast(
-                                dayLabel = parts[0],
-                                highC = dHigh,
-                                lowC = dLow,
-                                condition = parts[3],
-                            )
-                        }
-                    }
+                    parseDailyForecastField(value)?.let { forecastByIndex[index] = it }
+                }
+                key.startsWith("hourly") -> {
+                    val index = key.removePrefix("hourly").toIntOrNull() ?: return@forEach
+                    parseHourlyForecastField(value)?.let { hourlyByIndex[index] = it }
                 }
             }
         }
@@ -149,11 +175,44 @@ object WeatherCacheCodec {
                 place = place,
                 fetchedAtMillis = fetchedAt,
                 forecast = forecastByIndex.values.toList(),
+                hourly = hourlyByIndex.values.toList(),
+                feelsLikeC = feelsLike,
+                windKph = wind,
+                humidityPct = humidity,
             )
         } else {
             null
         }
         return WeatherCacheData(snapshot = snapshot, manualCity = manualCity, places = places)
+    }
+
+    /**
+     * One `forecastN=`/`loc=`-embedded day field → a [DailyForecast]; null when
+     * malformed. Accepts both the original 4-field form (`label|high|low|cond`)
+     * and the current 6-field form with `isoDate`/`precip` appended, so a cache
+     * file written before those fields existed still decodes.
+     */
+    private fun parseDailyForecastField(value: String): DailyForecast? {
+        val parts = value.split('|')
+        if (parts.size < 4) return null
+        val dHigh = parts[1].toIntOrNull() ?: return null
+        val dLow = parts[2].toIntOrNull() ?: return null
+        return DailyForecast(
+            dayLabel = parts[0],
+            highC = dHigh,
+            lowC = dLow,
+            condition = parts[3],
+            isoDate = parts.getOrNull(4).orEmpty(),
+            precipProbabilityMax = parts.getOrNull(5)?.toIntOrNull(),
+        )
+    }
+
+    /** One `hourlyN=`/`loc=`-embedded hour field → an [HourlyForecast]; null when malformed. */
+    private fun parseHourlyForecastField(value: String): HourlyForecast? {
+        val parts = value.split('|')
+        if (parts.size != 3) return null
+        val temp = parts[1].toIntOrNull() ?: return null
+        return HourlyForecast(hourLabel = parts[0], tempC = temp, condition = parts[2])
     }
 
     /** One `loc=` line → its cache key + snapshot; null when malformed. */
@@ -167,13 +226,16 @@ object WeatherCacheCodec {
         val condition = f[5].ifEmpty { return null }
         val forecast = f.getOrNull(8).orEmpty()
             .split(';')
-            .mapNotNull { day ->
-                val parts = day.split('|')
-                if (parts.size != 4) return@mapNotNull null
-                val dHigh = parts[1].toIntOrNull() ?: return@mapNotNull null
-                val dLow = parts[2].toIntOrNull() ?: return@mapNotNull null
-                DailyForecast(dayLabel = parts[0], highC = dHigh, lowC = dLow, condition = parts[3])
-            }
+            .mapNotNull { parseDailyForecastField(it) }
+        // Fields 9-12 are absent in a file written before the weather hub
+        // existed — getOrNull/toIntOrNull default them to null/empty, exactly
+        // like a snapshot that genuinely has no hourly/detail data.
+        val feelsLike = f.getOrNull(9)?.toIntOrNull()
+        val wind = f.getOrNull(10)?.toIntOrNull()
+        val humidity = f.getOrNull(11)?.toIntOrNull()
+        val hourly = f.getOrNull(12).orEmpty()
+            .split(';')
+            .mapNotNull { parseHourlyForecastField(it) }
         return key to WeatherSnapshot(
             tempC = temp,
             condition = condition,
@@ -183,6 +245,10 @@ object WeatherCacheCodec {
             place = f[6],
             fetchedAtMillis = f[4].trim().toLongOrNull() ?: 0L,
             forecast = forecast,
+            hourly = hourly,
+            feelsLikeC = feelsLike,
+            windKph = wind,
+            humidityPct = humidity,
         )
     }
 }

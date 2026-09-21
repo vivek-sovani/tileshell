@@ -261,6 +261,7 @@ import com.tileshell.feature.livetiles.StickyNoteTileFace
 import com.tileshell.feature.livetiles.StockSmallFace
 import com.tileshell.feature.livetiles.StockTileFace
 import com.tileshell.feature.livetiles.TasksTileFace
+import com.tileshell.feature.livetiles.WeatherHubScreen
 import com.tileshell.feature.livetiles.WeatherRefreshWorker
 import com.tileshell.feature.livetiles.WeatherSmallFace
 import com.tileshell.feature.livetiles.WeatherTileFace
@@ -372,6 +373,7 @@ fun StartScreen(
     val commodityEditTileId by viewModel.commodityEditTileId.collectAsStateWithLifecycle()
     val calendarSystemEditTileId by viewModel.calendarSystemEditTileId.collectAsStateWithLifecycle()
     val weatherLocationTarget by viewModel.weatherLocationTarget.collectAsStateWithLifecycle()
+    val weatherHubTarget by viewModel.weatherHubTarget.collectAsStateWithLifecycle()
     val permissionsOpen by viewModel.permissionsOpen.collectAsStateWithLifecycle()
     val newsRegionOpen by viewModel.newsRegionOpen.collectAsStateWithLifecycle()
     val edgeStripOpen by viewModel.edgeStripOpen.collectAsStateWithLifecycle()
@@ -930,7 +932,7 @@ fun StartScreen(
     val anySheetOpen = personalizeOpen || aboutOpen || historyOpen || backupOpen ||
         foldersOpen || hiddenAppsOpen || addWidgetsOpen || (tasksOpen != null) || notesOpen ||
         (stickyNoteEditTileId != null) || (countdownEditTileId != null) || (sportsEditTileId != null) || (stockEditTileId != null) ||
-        (commodityEditTileId != null) || (calendarSystemEditTileId != null)
+        (commodityEditTileId != null) || (calendarSystemEditTileId != null) || (weatherHubTarget != null)
     val quickSearchEnabled = swipeEnabled && restingAtStart && !searchOpen && !quickPanelOpen && !anySheetOpen
     val quickPanelEnabled = swipeEnabled && restingAtStart && !searchOpen && !quickPanelOpen && !anySheetOpen
     // Runs in the Initial pass like the pager, but keys off pointer *count* (2)
@@ -1354,28 +1356,15 @@ fun StartScreen(
                                     }
                                 } else if (tile.packageName.isBlank() && tile.iconKey == "weather") {
                                     // Same "open the real page" pattern as calendar
-                                    // systems/stock/commodity/sports above (user-
-                                    // requested: this tile used to always reopen
-                                    // the location editor instead) — a weather
-                                    // web search, matching the home-screen
-                                    // widget's own tap behaviour (see
-                                    // weatherAppPendingIntent).
-                                    val query = when (val location = WeatherTile.decode(tile.activityName)) {
-                                        is WeatherTile.Location.Fixed -> "weather in ${location.name}".trim()
-                                        // A blank/un-encoded activityName (a tile
-                                        // seeded before the location-picker flow
-                                        // existed) still means "follow the
-                                        // device's location" via the same
-                                        // fallback resolveWeatherQuery already
-                                        // uses — not "still needs setup" — so
-                                        // there's no case left where tapping
-                                        // should reopen the picker instead.
-                                        WeatherTile.Location.Current, null -> "weather"
-                                    }
-                                    runCatching {
-                                        val url = "https://www.google.com/search?q=" + Uri.encode(query)
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                    }
+                                    // systems/stock/commodity/sports above — opens
+                                    // the in-app weather hub (current/hourly/daily
+                                    // for this tile's own location) instead of the
+                                    // old "google.com search" fallback. A blank/
+                                    // un-encoded activityName (a tile seeded before
+                                    // the location-picker flow existed) still means
+                                    // "follow the device's location", same as
+                                    // resolveWeatherQuery's own fallback.
+                                    viewModel.openWeatherHub(WeatherTile.decode(tile.activityName))
                                 } else {
                                     onTileClick(context, tile)
                                 }
@@ -1393,6 +1382,13 @@ fun StartScreen(
                             viewModel.openTasks(folderChildTileId(expandedFolderId.orEmpty(), child.rowId))
                         } else if (child.packageName.isBlank() && child.iconKey == "notepad") {
                             viewModel.openNotes()
+                        } else if (child.packageName.isBlank() && child.iconKey == "weather") {
+                            // Same hub redirect as the top-level weather tile
+                            // above — a weather tile pulled into a folder/stack
+                            // must not fall through to launchFolderChild's own
+                            // "weather" case, which still opens the old
+                            // google.com search fallback.
+                            viewModel.openWeatherHub(WeatherTile.decode(child.activityName))
                         } else {
                             launchFolderChild(context, child)
                         }
@@ -2018,6 +2014,15 @@ fun StartScreen(
             autoBackupIntervalHours = settings.autoBackupIntervalHours,
             onAutoBackupEnabled = viewModel::setAutoBackupEnabled,
             onAutoBackupInterval = viewModel::setAutoBackupInterval,
+            rightHalf = isLandscape,
+        )
+
+        WeatherHubScreen(
+            visible = weatherHubTarget != null,
+            dark = dark,
+            accentId = settings.accentId,
+            location = weatherHubTarget?.location,
+            onDismiss = viewModel::closeWeatherHub,
             rightHalf = isLandscape,
         )
 
@@ -8218,10 +8223,10 @@ private fun onTileClick(context: Context, tile: TileModel) {
 /**
  * Opens the system app behind a self-contained live tile that seeded without a
  * resolved launch component. Calendar maps to the calendar provider's VIEW intent
- * (the default calendar app); weather has no standard launcher intent, so it opens
- * a weather web search (handled in-app by the Google app where present, else the
- * browser). Other live tiles have no target and stay inert. Best-effort — a missing
- * handler is swallowed rather than toasted.
+ * (the default calendar app); weather is intercepted before it ever reaches this
+ * fallback (see the `openWeatherHub` branches above — the weather hub is the
+ * destination now, not a web search). Other live tiles have no target and stay
+ * inert. Best-effort — a missing handler is swallowed rather than toasted.
  */
 /**
  * Launch a folder/widget-stack child, mirroring [onTileClick]'s App branch: a
@@ -8265,8 +8270,6 @@ private fun launchLiveTileFallback(context: Context, iconKey: String?) {
     val intent = when (iconKey) {
         "calendar" -> Intent(Intent.ACTION_VIEW)
             .setData(Uri.parse("content://com.android.calendar/time"))
-        "weather" -> Intent(Intent.ACTION_VIEW)
-            .setData(Uri.parse("https://www.google.com/search?q=weather"))
         // Battery usage screen — standard, app-agnostic (works even on OEM
         // skins whose Settings app has no fixed package name to launch by).
         "battery" -> Intent(Intent.ACTION_POWER_USAGE_SUMMARY)

@@ -20,6 +20,11 @@ sealed interface WeatherQuery {
  * @property detail the prototype's back-face line ("rain by 6pm · 40%"); may be ""
  * @property place resolved place label (for diagnostics / future header use)
  * @property fetchedAtMillis when this snapshot was produced (staleness checks)
+ * @property feelsLikeC / [windKph] / [humidityPct] the weather hub's detail line;
+ *   null when the response doesn't carry that field. Not shown on the tile faces.
+ * @property hourly the next ~24h outlook (weather hub only); empty on the tile
+ *   faces' own fetches would be wasteful, but the provider always requests it
+ *   now, so this is populated whenever [forecast] is.
  */
 data class WeatherSnapshot(
     val tempC: Int,
@@ -30,6 +35,10 @@ data class WeatherSnapshot(
     val place: String = "",
     val fetchedAtMillis: Long = 0L,
     val forecast: List<DailyForecast> = emptyList(),
+    val hourly: List<HourlyForecast> = emptyList(),
+    val feelsLikeC: Int? = null,
+    val windKph: Int? = null,
+    val humidityPct: Int? = null,
 )
 
 /**
@@ -39,11 +48,29 @@ data class WeatherSnapshot(
  * uses for its own date labelling. Defaults to an empty list on
  * [WeatherSnapshot] so every existing caller/cache-file compiles/decodes
  * unchanged — only call sites that actually want the outlook need to read it.
+ *
+ * @property isoDate the day's own `YYYY-MM-DD` (weather hub header use); ""
+ *   for a snapshot decoded from a cache file written before this field existed.
+ * @property precipProbabilityMax that day's max chance of rain, 0-100; null when
+ *   the response didn't carry it (or an old cache file predates this field).
  */
 data class DailyForecast(
     val dayLabel: String,
     val highC: Int,
     val lowC: Int,
+    val condition: String,
+    val isoDate: String = "",
+    val precipProbabilityMax: Int? = null,
+)
+
+/**
+ * One hour of the near-term outlook (weather hub only — the tile faces never
+ * read this). [hourLabel] is "now" for the first entry (the one nearest
+ * `current.time`), else a 12-hour clock label like "3pm".
+ */
+data class HourlyForecast(
+    val hourLabel: String,
+    val tempC: Int,
     val condition: String,
 )
 

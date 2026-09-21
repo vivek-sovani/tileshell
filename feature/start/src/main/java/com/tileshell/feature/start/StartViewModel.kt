@@ -233,6 +233,23 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val backupOpen: StateFlow<Boolean> = _backupOpen.asStateFlow()
 
     /**
+     * The weather hub full-screen page (Start's weather tile → hub, replacing the
+     * old "open a google.com search" fallback). Null = closed; a non-null
+     * [WeatherHubTarget] carries the tapped tile's own location (device-follow or
+     * a fixed place) so the hub shows that tile's forecast specifically.
+     */
+    private val _weatherHubTarget = MutableStateFlow<WeatherHubTarget?>(null)
+    val weatherHubTarget: StateFlow<WeatherHubTarget?> = _weatherHubTarget.asStateFlow()
+
+    fun openWeatherHub(location: WeatherTile.Location?) {
+        _weatherHubTarget.value = WeatherHubTarget(location)
+    }
+
+    fun closeWeatherHub() {
+        _weatherHubTarget.value = null
+    }
+
+    /**
      * An image [Uri] shared into TileShell from another app (e.g. "share" from Gallery/Photos),
      * awaiting import + the crop overlay so the user can position it before it becomes the
      * wallpaper — mirrors the existing wallpaper-picker flow in [StartScreen]. Set by
@@ -1755,6 +1772,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         closeCommodityEditor()
         closeCalendarSystemEditor()
         closeBackup()
+        closeWeatherHub()
         closePermissions()
         closeNewsRegion()
         closeEdgeStrip()
@@ -2306,3 +2324,6 @@ sealed interface WeatherLocationTarget {
     data class NewTile(val sectionId: String? = null) : WeatherLocationTarget
     data class ExistingTile(val id: String) : WeatherLocationTarget
 }
+
+/** Which location the weather hub is showing — see [StartViewModel.weatherHubTarget]. */
+data class WeatherHubTarget(val location: WeatherTile.Location?)

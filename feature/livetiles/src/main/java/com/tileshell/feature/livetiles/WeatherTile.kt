@@ -52,7 +52,7 @@ private fun resolvedLocation(location: WeatherTile.Location?): WeatherTile.Locat
     location ?: WeatherTile.Location.Current
 
 /** The cached snapshot for [location] — [WeatherCacheData.snapshot] for Current, [WeatherCacheData.places] for a Fixed place. */
-private fun WeatherCacheData.snapshotFor(location: WeatherTile.Location): WeatherSnapshot? = when (location) {
+internal fun WeatherCacheData.snapshotFor(location: WeatherTile.Location): WeatherSnapshot? = when (location) {
     WeatherTile.Location.Current -> snapshot
     is WeatherTile.Location.Fixed -> places[WeatherTile.key(location)]
 }

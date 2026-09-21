@@ -149,6 +149,66 @@ class WeatherCacheCodecTest {
         val decoded = WeatherCacheCodec.decode("loc=incomplete~30")
         assertEquals(emptyMap<String, WeatherSnapshot>(), decoded.places)
     }
+
+    @Test
+    fun `hourly and detail-line fields round-trip on the device snapshot`() {
+        val data = WeatherCacheData(
+            snapshot = WeatherSnapshot(
+                tempC = 23,
+                condition = "clear",
+                highC = 26,
+                lowC = 17,
+                place = "Pune",
+                feelsLikeC = 25,
+                windKph = 14,
+                humidityPct = 54,
+                hourly = listOf(
+                    HourlyForecast("now", 23, "clear"),
+                    HourlyForecast("3pm", 24, "partly cloudy"),
+                ),
+                forecast = listOf(DailyForecast("today", 26, 17, "clear", isoDate = "2026-03-05", precipProbabilityMax = 20)),
+            ),
+        )
+        assertEquals(data, WeatherCacheCodec.decode(WeatherCacheCodec.encode(data)))
+    }
+
+    @Test
+    fun `hourly and detail-line fields round-trip on a fixed place`() {
+        val data = WeatherCacheData(
+            places = mapOf(
+                "18.52,73.86" to WeatherSnapshot(
+                    tempC = 30,
+                    condition = "hot",
+                    highC = 33,
+                    lowC = 24,
+                    place = "Pune",
+                    feelsLikeC = 34,
+                    windKph = 8,
+                    humidityPct = 40,
+                    hourly = listOf(HourlyForecast("now", 30, "hot")),
+                    forecast = listOf(DailyForecast("today", 33, 24, "hot", isoDate = "2026-03-05", precipProbabilityMax = 5)),
+                ),
+            ),
+        )
+        assertEquals(data, WeatherCacheCodec.decode(WeatherCacheCodec.encode(data)))
+    }
+
+    @Test
+    fun `a cache file written before the weather hub existed still decodes`() {
+        // Original 4-field forecast, no feelsLike/wind/humidity/hourly lines,
+        // and an 8-field loc= line (no trailing hub fields at all).
+        val text = "temp=23\nhigh=26\nlow=17\nplace=Pune\ncondition=clear\n" +
+            "forecast0=today|26|17|clear\n" +
+            "loc=18.52,73.86~30~33~24~0~hot~Pune~\n"
+        val decoded = WeatherCacheCodec.decode(text)
+        assertEquals(DailyForecast("today", 26, 17, "clear"), decoded.snapshot?.forecast?.single())
+        assertNull(decoded.snapshot?.feelsLikeC)
+        assertEquals(emptyList<HourlyForecast>(), decoded.snapshot?.hourly)
+        val place = decoded.places.getValue("18.52,73.86")
+        assertEquals(30, place.tempC)
+        assertNull(place.feelsLikeC)
+        assertEquals(emptyList<HourlyForecast>(), place.hourly)
+    }
 }
 
 class OpenMeteoTest {
@@ -225,9 +285,86 @@ class OpenMeteoTest {
         """.trimIndent()
         val snap = parseOpenMeteoForecast(json, place = "Pune", nowMillis = 123L)!!
         assertEquals(3, snap.forecast.size)
-        assertEquals(DailyForecast("today", 26, 17, "partly cloudy"), snap.forecast[0])
-        assertEquals(DailyForecast("tomorrow", 25, 16, "rain"), snap.forecast[1])
-        assertEquals(DailyForecast("saturday", 24, 15, "clear"), snap.forecast[2])
+        assertEquals(DailyForecast("today", 26, 17, "partly cloudy", isoDate = "2026-03-05"), snap.forecast[0])
+        assertEquals(DailyForecast("tomorrow", 25, 16, "rain", isoDate = "2026-03-06"), snap.forecast[1])
+        assertEquals(DailyForecast("saturday", 24, 15, "clear", isoDate = "2026-03-07"), snap.forecast[2])
+    }
+
+    @Test
+    fun `per-day precipitation probability is kept, not just today's`() {
+        val json = """
+            {
+              "current": { "temperature_2m": 22.6, "weather_code": 2 },
+              "daily": {
+                "time": ["2026-03-05", "2026-03-06"],
+                "temperature_2m_max": [26.4, 25.0],
+                "temperature_2m_min": [16.5, 16.0],
+                "weather_code": [2, 61],
+                "precipitation_probability_max": [40, 90]
+              }
+            }
+        """.trimIndent()
+        val snap = parseOpenMeteoForecast(json, place = "Pune", nowMillis = 123L)!!
+        assertEquals(40, snap.forecast[0].precipProbabilityMax)
+        assertEquals(90, snap.forecast[1].precipProbabilityMax)
+    }
+
+    @Test
+    fun `current's feels-like, wind and humidity are parsed when present`() {
+        val json = """
+            {
+              "current": {
+                "temperature_2m": 22.6, "weather_code": 2,
+                "apparent_temperature": 24.8, "wind_speed_10m": 13.6, "relative_humidity_2m": 54
+              }
+            }
+        """.trimIndent()
+        val snap = parseOpenMeteoForecast(json, place = "Pune", nowMillis = 123L)!!
+        assertEquals(25, snap.feelsLikeC)
+        assertEquals(14, snap.windKph)
+        assertEquals(54, snap.humidityPct)
+    }
+
+    @Test
+    fun `missing feels-like, wind and humidity are null, not zero`() {
+        val json = """{"current": {"temperature_2m": 20, "weather_code": 0}}"""
+        val snap = parseOpenMeteoForecast(json, "x", 0L)!!
+        assertNull(snap.feelsLikeC)
+        assertNull(snap.windKph)
+        assertNull(snap.humidityPct)
+    }
+
+    @Test
+    fun `hourly outlook starts from the entry nearest current time`() {
+        val json = """
+            {
+              "current": { "temperature_2m": 20, "weather_code": 0, "time": "2026-03-05T14:00" },
+              "hourly": {
+                "time": ["2026-03-05T12:00", "2026-03-05T13:00", "2026-03-05T14:00", "2026-03-05T15:00"],
+                "temperature_2m": [18, 19, 20, 21],
+                "weather_code": [0, 1, 2, 61]
+              }
+            }
+        """.trimIndent()
+        val snap = parseOpenMeteoForecast(json, "x", 0L)!!
+        assertEquals(2, snap.hourly.size)
+        assertEquals(HourlyForecast("now", 20, "partly cloudy"), snap.hourly[0])
+        assertEquals(HourlyForecast("3pm", 21, "rain"), snap.hourly[1])
+    }
+
+    @Test
+    fun `missing hourly data yields an empty list, not a crash`() {
+        val json = """{"current": {"temperature_2m": 20, "weather_code": 0}}"""
+        assertEquals(emptyList<HourlyForecast>(), parseOpenMeteoForecast(json, "x", 0L)!!.hourly)
+    }
+
+    @Test
+    fun `hourly time label is a 12-hour clock, noon and midnight included`() {
+        assertEquals("now", hourlyForecastTimeLabel("2026-03-05T14:00", isNow = true))
+        assertEquals("2pm", hourlyForecastTimeLabel("2026-03-05T14:00", isNow = false))
+        assertEquals("12pm", hourlyForecastTimeLabel("2026-03-05T12:00", isNow = false))
+        assertEquals("12am", hourlyForecastTimeLabel("2026-03-05T00:00", isNow = false))
+        assertEquals("1am", hourlyForecastTimeLabel("2026-03-05T01:00", isNow = false))
     }
 
     @Test

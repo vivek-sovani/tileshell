@@ -64,10 +64,10 @@ fun dailyForecastDayLabel(index: Int, isoDate: String): String = when (index) {
 
 /**
  * Parses the `daily.time`/`temperature_2m_max`/`temperature_2m_min`/
- * `weather_code` arrays into a [DailyForecast] list — as many days as the
- * response actually carries (up to the `forecast_days` requested), skipping
- * any index missing a usable high/low/date rather than failing the whole
- * list. Pure.
+ * `weather_code`/`precipitation_probability_max` arrays into a [DailyForecast]
+ * list — as many days as the response actually carries (up to the
+ * `forecast_days` requested), skipping any index missing a usable high/low/date
+ * rather than failing the whole list. Pure.
  */
 private fun parseDailyForecastList(daily: JSONObject?): List<DailyForecast> {
     if (daily == null) return emptyList()
@@ -75,6 +75,7 @@ private fun parseDailyForecastList(daily: JSONObject?): List<DailyForecast> {
     val highs = daily.optJSONArray("temperature_2m_max") ?: return emptyList()
     val lows = daily.optJSONArray("temperature_2m_min") ?: return emptyList()
     val codes = daily.optJSONArray("weather_code")
+    val precips = daily.optJSONArray("precipitation_probability_max")
     return (0 until times.length()).mapNotNull { i ->
         val isoDate = times.optString(i, "")
         val high = highs.optDoubleOrNull(i)?.roundToInt() ?: return@mapNotNull null
@@ -83,6 +84,50 @@ private fun parseDailyForecastList(daily: JSONObject?): List<DailyForecast> {
             dayLabel = dailyForecastDayLabel(i, isoDate),
             highC = high,
             lowC = low,
+            condition = weatherCodeToCondition(codes?.optInt(i, -1) ?: -1),
+            isoDate = isoDate,
+            precipProbabilityMax = precips?.optIntOrNull(i),
+        )
+    }
+}
+
+/**
+ * "now" for [isNow], else a 12-hour clock label ("3pm"/"12am") parsed from an
+ * hourly `time` entry (`YYYY-MM-DDTHH:mm`). Pure; an unparseable string (should
+ * never happen against a real response) falls back to "".
+ */
+fun hourlyForecastTimeLabel(isoDateTime: String, isNow: Boolean): String {
+    if (isNow) return "now"
+    return runCatching {
+        val hour = java.time.LocalDateTime.parse(isoDateTime).hour
+        val h12 = if (hour % 12 == 0) 12 else hour % 12
+        val suffix = if (hour < 12) "am" else "pm"
+        "$h12$suffix"
+    }.getOrElse { "" }
+}
+
+/**
+ * Parses the `hourly.time`/`temperature_2m`/`weather_code` arrays into a
+ * [HourlyForecast] list, starting from the entry nearest [currentIsoTime] (ISO
+ * strings sort lexicographically, so a plain string comparison finds it — no
+ * date parsing needed) and taking up to [maxEntries] from there. Pure.
+ */
+private fun parseHourlyForecastList(
+    hourly: JSONObject?,
+    currentIsoTime: String,
+    maxEntries: Int = 24,
+): List<HourlyForecast> {
+    if (hourly == null) return emptyList()
+    val times = hourly.optJSONArray("time") ?: return emptyList()
+    val temps = hourly.optJSONArray("temperature_2m") ?: return emptyList()
+    val codes = hourly.optJSONArray("weather_code")
+    val startIndex = (0 until times.length()).firstOrNull { times.optString(it, "") >= currentIsoTime } ?: 0
+    val endIndex = minOf(times.length(), startIndex + maxEntries)
+    return (startIndex until endIndex).mapNotNull { i ->
+        val temp = temps.optDoubleOrNull(i)?.roundToInt() ?: return@mapNotNull null
+        HourlyForecast(
+            hourLabel = hourlyForecastTimeLabel(times.optString(i, ""), isNow = i == startIndex),
+            tempC = temp,
             condition = weatherCodeToCondition(codes?.optInt(i, -1) ?: -1),
         )
     }
@@ -99,6 +144,10 @@ fun parseOpenMeteoForecast(json: String, place: String, nowMillis: Long): Weathe
     val temp = current.optDouble("temperature_2m", Double.NaN)
     if (temp.isNaN()) return null
     val code = current.optInt("weather_code", -1)
+    val feelsLike = current.optDoubleOrNull("apparent_temperature")?.roundToInt()
+    val windKph = current.optDoubleOrNull("wind_speed_10m")?.roundToInt()
+    val humidity = current.optIntOrNull("relative_humidity_2m")
+    val currentIsoTime = current.optString("time", "")
 
     val daily = root.optJSONObject("daily")
     val high = daily?.optJSONArray("temperature_2m_max")?.optDoubleOrNull(0)?.roundToInt()
@@ -116,6 +165,10 @@ fun parseOpenMeteoForecast(json: String, place: String, nowMillis: Long): Weathe
         place = place,
         fetchedAtMillis = nowMillis,
         forecast = parseDailyForecastList(daily),
+        hourly = parseHourlyForecastList(root.optJSONObject("hourly"), currentIsoTime),
+        feelsLikeC = feelsLike,
+        windKph = windKph,
+        humidityPct = humidity,
     )
 }
 
@@ -140,11 +193,22 @@ private fun org.json.JSONArray.optDoubleOrNull(index: Int): Double? =
 private fun org.json.JSONArray.optIntOrNull(index: Int): Int? =
     if (isNull(index)) null else optInt(index, Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
 
-/** Open-Meteo forecast endpoint for [lat]/[lon] (current + a 7-day outlook). */
+private fun JSONObject.optDoubleOrNull(key: String): Double? =
+    optDouble(key, Double.NaN).takeIf { !it.isNaN() }
+
+private fun JSONObject.optIntOrNull(key: String): Int? =
+    if (!has(key) || isNull(key)) null else optInt(key)
+
+/**
+ * Open-Meteo forecast endpoint for [lat]/[lon]: current conditions (including
+ * the weather hub's feels-like/wind/humidity line), an hourly outlook (the
+ * hub's scrollable next-24h row), and a 7-day daily outlook.
+ */
 fun openMeteoForecastUrl(lat: Double, lon: Double): String =
     "https://api.open-meteo.com/v1/forecast" +
         "?latitude=$lat&longitude=$lon" +
-        "&current=temperature_2m,weather_code" +
+        "&current=temperature_2m,weather_code,apparent_temperature,wind_speed_10m,relative_humidity_2m" +
+        "&hourly=temperature_2m,weather_code" +
         "&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code" +
         // 7 days (user-requested outlook), not just today — daily.time
         // comes back automatically alongside any other daily field.

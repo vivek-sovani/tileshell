@@ -8793,3 +8793,42 @@ plate at all; they tint the glyph straight to `LocalTileFaceColor`, since they a
 tile's own accent-filled face, so there was nothing to make "neutral" there. Build + full unit test
 suite green; installed and verified on the physical device with no crash — visually confirmed
 `NEUTRAL` rendering a clean white-plate/black-glyph app list on-device.
+
+## Hub apps (people/calendar/weather/notes&tasks/music): independent app pinning, per-hub default-app-vs-tileshell-hub choice, real icon on independently pinned apps
+
+Planning ahead of building the first hub screen (weather). Two decisions made in
+conversation, to apply consistently across every hub as it's built — not yet
+implemented, recorded so they aren't relitigated per-hub.
+
+**1. Settings gets a per-hub choice between "tileshell hub" and "default app"** for
+each of people/calendar/weather/music (notes & tasks has no default-app equivalent
+to bind to). Tapping the tile opens whichever the setting picks. Fresh installs can
+default to the hub; existing installs default to "default app" (today's behaviour)
+so an update never silently changes what a tile does — this is why it's a setting
+and not just a straight replacement.
+
+**2. Real apps can be pinned to Start independently of the built-in role tiles,
+and an independently-pinned app shows its own real icon, not the WP glyph.**
+Currently blocked: `DefaultLayout` seeds the resolved role's package straight into
+the weather/calendar/people/etc. tile (`app` field, `DefaultLayout.kt`), and
+`LayoutRepository.pinApp` dedups on `(packageName, activityName)` — so on a device
+where e.g. the calendar role resolves, pinning Google Calendar from the app list
+returns `ALREADY_ON_START` instead of adding a second tile. Fix (not yet built):
+make the built-in role tiles genuinely blank-package `liveOnly` rows (same pattern
+`ContactTile`/`WeatherTile.Location` already use to encode identity into
+`activityName` with no packageName) and resolve the launch target at *tap* time
+from the new per-hub setting via `DefaultLayout.roleFor(...)`, instead of baking
+the package into the row at seed time. Once the row has no package, `pinApp`'s
+dedup stops colliding and the real app becomes independently pinnable. Needs a
+one-shot migration for existing installs (blank the baked-in package on the
+built-in tiles, default the new setting to "default app") so upgrade behaviour is
+byte-identical to before, mirroring `SettingsAppMigration`'s existing shape.
+
+The icon distinction matters because `pinApp` currently assigns `iconKey` from
+`roleIconKeyMap` regardless — so a second, independently-pinned Google Calendar
+tile would get the same WP glyph and live face as the hub tile, reading as a
+near-duplicate. A real-icon pinned app is visually the "this opens the actual
+app" tile, distinct from the "this opens the tileshell hub" tile.
+
+Applies to every hub, People included — recorded here rather than duplicated in
+each hub's own entry.
