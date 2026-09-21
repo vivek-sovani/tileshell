@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.io.InputStream
 import java.io.OutputStream
@@ -72,8 +73,17 @@ object MusicHistory {
 
     private val writeScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /** [record]'s one-per-source rule only applies going forward on write — a
+     * file saved before that redesign (or by an older build) can still hold
+     * several rows for the same source on disk. Deduped again here at read
+     * time (keeping each source's first/most-recent occurrence — the stored
+     * list is already most-recent-first) so already-persisted duplicates
+     * collapse immediately too, not only once each source happens to play
+     * again (user-reported: "it is still showing list in history" after the
+     * one-row-per-source redesign, for exactly this reason). */
     fun history(context: Context): Flow<List<PlayedTrack>> =
         context.applicationContext.musicHistoryStore.data
+            .map { list -> list.distinctBy { it.packageName } }
 
     /** Records [track] as the given source's latest play, replacing any earlier
      * entry for that same source (fire-and-forget). */
