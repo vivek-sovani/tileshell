@@ -210,6 +210,15 @@ fun MusicHubScreen(
                 Spacer(Modifier.height(20.dp))
             }
 
+            // Jumps to "now playing" the moment a track actually starts —
+            // covers both a fresh tap in the library and an auto-advance to
+            // the next queued track. User-requested; replaces the persistent
+            // bottom playback bar that used to show across every page (now
+            // redundant — "now playing" itself shows this prominently).
+            LaunchedEffect(localPlayback.track?.id) {
+                if (localPlayback.track != null) pagerState.animateScrollToPage(0)
+            }
+
             androidx.compose.foundation.pager.HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.weight(1f),
@@ -222,57 +231,9 @@ fun MusicHubScreen(
                 }
             }
 
-            // Local-library playback survives navigating between pivot pages
-            // (it's a single shared player, not page-scoped), so its controls
-            // stay visible here regardless of which page is showing.
-            localPlayback.track?.let { track ->
-                LocalPlaybackBar(track, localPlayback.playing, context, tokens, accent)
-            }
-
             // Bottom app bar (mockup's own convention) — back lives here, not
             // as a standalone top-corner button.
             HubAppBar(tokens = tokens, actions = listOf(HubAppBarAction("back", "back", onDismiss)))
-        }
-    }
-}
-
-@Composable
-private fun LocalPlaybackBar(
-    track: LocalTrack,
-    playing: Boolean,
-    context: Context,
-    tokens: ColorTokens,
-    accent: Color,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(tokens.sheet)
-            .padding(horizontal = 18.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        val art = rememberLocalAlbumArt(context, track.albumId, sizePx = 96)
-        if (art != null) {
-            androidx.compose.foundation.Image(
-                bitmap = art,
-                contentDescription = null,
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                modifier = Modifier.size(36.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp)),
-            )
-            Spacer(Modifier.width(10.dp))
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(track.title, color = tokens.fg, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (track.artist.isNotEmpty()) {
-                Text(track.artist, color = tokens.fgDim, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            LocalPlaybackButton("prev", "previous", tokens.fg) { LocalMusicPlayer.previous(context) }
-            LocalPlaybackButton(if (playing) "pause" else "play", "play/pause", tokens.fg) {
-                LocalMusicPlayer.togglePlayPause()
-            }
-            LocalPlaybackButton("next", "next", tokens.fg) { LocalMusicPlayer.next(context) }
         }
     }
 }
