@@ -227,7 +227,7 @@ fun MusicHubScreen(
                     0 -> NowPlayingPage(accent, tokens)
                     1 -> LibraryPage(context, accent, tokens)
                     2 -> MusicAppsPage(context, accent, tokens)
-                    else -> HistoryPage(context, tokens)
+                    else -> HistoryPage(context, accent, tokens)
                 }
             }
 
@@ -493,7 +493,7 @@ private fun MusicAppCell(app: AppEntry, accent: Color, tokens: ColorTokens, onCl
 }
 
 @Composable
-private fun HistoryPage(context: Context, tokens: ColorTokens) {
+private fun HistoryPage(context: Context, accent: Color, tokens: ColorTokens) {
     val history by MusicHistory.history(context).collectAsState(initial = emptyList())
     if (history.isEmpty()) {
         Text(
@@ -531,8 +531,11 @@ private fun HistoryPage(context: Context, tokens: ColorTokens) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (track.isLocal) {
-                    Box(Modifier.size(28.dp).background(tokens.fgDim), contentAlignment = Alignment.Center) {
-                        Icon(TileIcons["music"], contentDescription = null, tint = tokens.bg, modifier = Modifier.size(16.dp))
+                    // High-contrast accent plate, matching MusicAppCell's own
+                    // no-icon fallback — the earlier muted fgDim/bg combo read
+                    // as blank next to other rows' real app icons (user-reported).
+                    Box(Modifier.size(28.dp).background(accent), contentAlignment = Alignment.Center) {
+                        Icon(TileIcons["music"], contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                     }
                     Spacer(Modifier.width(12.dp))
                 } else {
