@@ -510,6 +510,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
                 seedStickySlots(initialSettings.columns)
             }
             migrateSettingsTile()
+            migrateMusicTile()
             if (!HomeStyleWizardPrefs.shown(getApplication())) {
                 _homeStyleWizardOpen.value = true
             } else if (WhatsNewPrefs.shouldShow(getApplication(), WHATS_NEW_VERSION_CODE)) {
@@ -1437,6 +1438,24 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         if (!SettingsAppMigration.hasUnhideRun(context)) {
             settingsPkg?.let { pkg -> HiddenApps.unhide(context, pkg) }
             SettingsAppMigration.markUnhideRun(context)
+        }
+    }
+
+    /**
+     * One-time backfill for installs that predate the music tile becoming
+     * `liveOnly` (user-reported: no music tile at all on a device where no
+     * installed app resolves `CATEGORY_APP_MUSIC` — the exact gap this fixes;
+     * see DECISIONS.md). Fresh installs already get it from
+     * [LayoutRepository.seedIfEmpty] / [DefaultLayout] directly, same as
+     * [migrateSettingsTile] for the personalize tile; idempotent, so it's
+     * cheap to re-check on every launch rather than needing its own
+     * persisted one-shot flag.
+     */
+    private suspend fun migrateMusicTile() {
+        val current = repository.tiles.first()
+        val hasMusicTile = current.filterIsInstance<TileModel.App>().any { it.iconKey == "music" }
+        if (!hasMusicTile) {
+            repository.addDefaultTile("music")
         }
     }
 

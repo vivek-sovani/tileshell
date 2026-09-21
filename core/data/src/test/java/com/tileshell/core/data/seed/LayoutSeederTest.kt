@@ -21,15 +21,17 @@ class LayoutSeederTest {
     fun `resolvable and live-only app tiles are seeded, in order, with contiguous positions`() {
         val seeded = seeder.seed(resolver = resolverFor("clock", "phone"))
 
-        // clock/phone resolve; weather/calendar/personalize seed as liveOnly (personalize
-        // has no role at all — it's the in-app Personalize sheet, not a real app); the
-        // rest (camera, people, mail, …) drop out. Declared order is preserved.
+        // clock/phone resolve; weather/calendar/music/personalize seed as liveOnly
+        // (personalize has no role at all — it's the in-app Personalize sheet, not
+        // a real app; music is liveOnly because CATEGORY_APP_MUSIC resolves on
+        // few/no devices — see DefaultLayout's t-music comment); the rest (camera,
+        // people, mail, …) drop out. Declared order is preserved.
         val apps = seeded.filterIsInstance<SeededTile.App>()
         assertEquals(
-            listOf("t-clock", "t-phone", "t-weather", "t-cal", "t-personalize"),
+            listOf("t-clock", "t-phone", "t-weather", "t-cal", "t-music", "t-personalize"),
             apps.map { it.id },
         )
-        assertEquals(listOf(0, 1, 2, 3, 4), seeded.map { it.position })
+        assertEquals(listOf(0, 1, 2, 3, 4, 5), seeded.map { it.position })
     }
 
     @Test
@@ -50,18 +52,22 @@ class LayoutSeederTest {
 
     @Test
     fun `self-contained live tiles seed even when no app resolves`() {
-        // Nothing resolves. clock, weather and calendar are liveOnly, so all three
-        // seed with a blank, inert launch target and keep their live glyph key.
+        // Nothing resolves. clock, weather, calendar and music are liveOnly, so
+        // all four seed with a blank, inert launch target and keep their live
+        // glyph key.
         val seeded = seeder.seed(resolver = RoleResolver { null })
         val apps = seeded.filterIsInstance<SeededTile.App>().associateBy { it.id }
 
         assertTrue("clock seeded", "t-clock" in apps.keys)
         assertTrue("weather seeded", "t-weather" in apps.keys)
         assertTrue("calendar seeded", "t-cal" in apps.keys)
+        assertTrue("music seeded", "t-music" in apps.keys)
         assertEquals("", apps.getValue("t-clock").component.packageName)
         assertEquals("clock", apps.getValue("t-clock").iconKey)
         assertEquals("weather", apps.getValue("t-weather").iconKey)
         assertEquals("calendar", apps.getValue("t-cal").iconKey)
+        assertEquals("", apps.getValue("t-music").component.packageName)
+        assertEquals("music", apps.getValue("t-music").iconKey)
     }
 
     @Test

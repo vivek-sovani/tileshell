@@ -116,7 +116,14 @@ object DefaultLayout {
         DefaultTile("t-msg", TileSize.MEDIUM, "amber", app = "messages"),
         DefaultTile("t-cal", TileSize.WIDE, "magenta", app = "calendar", liveOnly = true),
         DefaultTile("t-photos", TileSize.WIDE, "cyan", app = "photos"),
-        DefaultTile("t-music", TileSize.WIDE, "orange", app = "music"),
+        // liveOnly (user-reported: the tile silently never appeared at all on a
+        // device where no installed app resolves CATEGORY_APP_MUSIC — the same
+        // role-resolution gap clock/weather/calendar/personalize are already
+        // liveOnly to route around). The tile still shows real now-playing
+        // content — MediaCenter, not this role — so a resolved role was only
+        // ever needed to pick a *tap* target, which the music hub now owns
+        // instead (see DECISIONS.md "Music hub tap redirect").
+        DefaultTile("t-music", TileSize.WIDE, "orange", app = "music", liveOnly = true),
         DefaultTile(
             "g-social", TileSize.MEDIUM, "magenta", isGroup = true, name = "social",
             children = listOf("contacts", "mail", "messages", "people"),
