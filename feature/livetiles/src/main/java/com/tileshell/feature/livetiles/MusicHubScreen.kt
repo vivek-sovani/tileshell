@@ -536,22 +536,24 @@ private fun HistoryPage(context: Context, accent: Color, tokens: ColorTokens) {
                             // player the library page uses — this is what was
                             // missing entirely (user-reported: "when song
                             // selected from history it is not playing").
-                            // Silently does nothing if the track's since been
-                            // deleted/moved and an old entry has no id at all
-                            // (recorded before localTrackId existed).
-                            track.isLocal && track.localTrackId != null -> base.clickable(
+                            // Tries the recorded id first, falling back to an
+                            // exact title+artist match for an entry recorded
+                            // before localTrackId existed (every entry already
+                            // on a device that had used the hub before this
+                            // fix) — silently does nothing only if the file
+                            // has genuinely since been deleted/moved.
+                            track.isLocal -> base.clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                                 onClick = {
-                                    val id = track.localTrackId
                                     scope.launch {
-                                        val found = LocalMusicLibrary.trackById(context, id)
+                                        val id = track.localTrackId
+                                        val found = (id?.let { LocalMusicLibrary.trackById(context, it) })
+                                            ?: LocalMusicLibrary.findByTitleArtist(context, track.title, track.artist)
                                         if (found != null) LocalMusicPlayer.playQueue(context, listOf(found), 0)
                                     }
                                 },
                             )
-                            // A locally-played track has no real app to open.
-                            track.isLocal -> base
                             else -> base.clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,

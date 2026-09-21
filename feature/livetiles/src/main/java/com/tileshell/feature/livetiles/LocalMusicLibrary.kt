@@ -119,6 +119,40 @@ object LocalMusicLibrary {
         }.getOrNull()
     }
 
+    /** A single track by exact title+artist — the fallback for a "history" entry
+     * recorded before [PlayedTrack.localTrackId] existed, so those older rows
+     * stay replayable too instead of going permanently dead. */
+    suspend fun findByTitleArtist(context: Context, title: String, artist: String): LocalTrack? =
+        withContext(Dispatchers.IO) {
+            val projection = arrayOf(
+                MediaStore.Audio.Media._ID,
+                MediaStore.Audio.Media.TITLE,
+                MediaStore.Audio.Media.ARTIST,
+                MediaStore.Audio.Media.ALBUM,
+                MediaStore.Audio.Media.ALBUM_ID,
+                MediaStore.Audio.Media.DURATION,
+            )
+            runCatching {
+                context.contentResolver.query(
+                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                    projection,
+                    "${MediaStore.Audio.Media.TITLE} = ? AND ${MediaStore.Audio.Media.ARTIST} = ?",
+                    arrayOf(title, artist),
+                    null,
+                )?.use { cursor ->
+                    if (!cursor.moveToFirst()) return@use null
+                    LocalTrack(
+                        id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)),
+                        title = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)) ?: "untitled",
+                        artist = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)) ?: "",
+                        album = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)) ?: "",
+                        albumId = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)),
+                        durationMs = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)),
+                    )
+                }
+            }.getOrNull()
+        }
+
     suspend fun albums(context: Context): List<LocalAlbum> = withContext(Dispatchers.IO) {
         val out = mutableListOf<LocalAlbum>()
         val projection = arrayOf(
