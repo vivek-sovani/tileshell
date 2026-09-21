@@ -26,6 +26,10 @@ data class PlayedTrack(
     val artist: String,
     val packageName: String,
     val playedAtMillis: Long,
+    /** [LocalTrack.id] for a local-library entry, so tapping it can replay the
+     * actual file — null for an external-app entry (nothing to replay) and for
+     * a local entry recorded before this field existed. */
+    val localTrackId: Long? = null,
 ) {
     /** True for a track played through the hub's own local library, not an external app. */
     val isLocal: Boolean get() = packageName == LOCAL_LIBRARY_MARKER
@@ -125,6 +129,7 @@ fun MusicHistoryEffect() {
                     artist = track.artist,
                     packageName = PlayedTrack.LOCAL_LIBRARY_MARKER,
                     playedAtMillis = System.currentTimeMillis(),
+                    localTrackId = track.id,
                 ),
             )
         }
@@ -134,21 +139,30 @@ fun MusicHistoryEffect() {
 /**
  * Pipe-delimited codec, one line per [PlayedTrack] (tolerant of malformed
  * lines) — pure, so it round-trips in a plain JUnit test without a real
- * DataStore.
+ * DataStore. The trailing [PlayedTrack.localTrackId] field is optional on
+ * decode (blank or altogether missing → null) so a history file written
+ * before that field existed still loads fine.
  */
 object PlayedTrackCodec {
 
     fun encode(tracks: List<PlayedTrack>): String = tracks.joinToString("\n") { track ->
-        "${clean(track.title)}|${clean(track.artist)}|${clean(track.packageName)}|${track.playedAtMillis}"
+        "${clean(track.title)}|${clean(track.artist)}|${clean(track.packageName)}|${track.playedAtMillis}|${track.localTrackId ?: ""}"
     }
 
     fun decode(text: String): List<PlayedTrack> = text
         .lineSequence()
         .mapNotNull { line ->
             val parts = line.split('|')
-            if (parts.size != 4) return@mapNotNull null
+            if (parts.size < 4) return@mapNotNull null
             val playedAt = parts[3].toLongOrNull() ?: return@mapNotNull null
-            PlayedTrack(title = parts[0], artist = parts[1], packageName = parts[2], playedAtMillis = playedAt)
+            val localTrackId = parts.getOrNull(4)?.takeIf { it.isNotEmpty() }?.toLongOrNull()
+            PlayedTrack(
+                title = parts[0],
+                artist = parts[1],
+                packageName = parts[2],
+                playedAtMillis = playedAt,
+                localTrackId = localTrackId,
+            )
         }
         .toList()
 

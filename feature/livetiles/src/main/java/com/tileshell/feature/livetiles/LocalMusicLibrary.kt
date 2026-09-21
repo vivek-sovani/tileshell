@@ -87,6 +87,38 @@ object LocalMusicLibrary {
         out
     }
 
+    /** A single track by its [MediaStore] id, or null if it no longer exists — used to
+     * replay a "history" entry (the file may since have been deleted/moved). */
+    suspend fun trackById(context: Context, id: Long): LocalTrack? = withContext(Dispatchers.IO) {
+        val projection = arrayOf(
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.TITLE,
+            MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.ALBUM,
+            MediaStore.Audio.Media.ALBUM_ID,
+            MediaStore.Audio.Media.DURATION,
+        )
+        runCatching {
+            context.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                "${MediaStore.Audio.Media._ID} = ?",
+                arrayOf(id.toString()),
+                null,
+            )?.use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                LocalTrack(
+                    id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)),
+                    title = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)) ?: "untitled",
+                    artist = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)) ?: "",
+                    album = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)) ?: "",
+                    albumId = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)),
+                    durationMs = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)),
+                )
+            }
+        }.getOrNull()
+    }
+
     suspend fun albums(context: Context): List<LocalAlbum> = withContext(Dispatchers.IO) {
         val out = mutableListOf<LocalAlbum>()
         val projection = arrayOf(

@@ -41,6 +41,32 @@ class PlayedTrackCodecTest {
     fun `a malformed line is skipped, not thrown`() {
         assertEquals(emptyList<PlayedTrack>(), PlayedTrackCodec.decode("not|enough|fields"))
     }
+
+    @Test
+    fun `localTrackId round-trips for a local-library entry`() {
+        val list = listOf(
+            PlayedTrack(
+                title = "saawan aaya hai",
+                artist = "an artist",
+                packageName = PlayedTrack.LOCAL_LIBRARY_MARKER,
+                playedAtMillis = 1_700_000_000_000L,
+                localTrackId = 42L,
+            ),
+        )
+        val decoded = PlayedTrackCodec.decode(PlayedTrackCodec.encode(list))
+        assertEquals(list, decoded)
+        assertTrue(decoded[0].isLocal)
+    }
+
+    @Test
+    fun `a pre-existing 4-field history line decodes with a null localTrackId`() {
+        // The exact shape a history file written before localTrackId existed
+        // would have on disk.
+        val decoded = PlayedTrackCodec.decode("saawan aaya hai|an artist|tileshell.local|1700000000000")
+        assertEquals(1, decoded.size)
+        assertEquals(null, decoded[0].localTrackId)
+        assertTrue(decoded[0].isLocal)
+    }
 }
 
 class TrackDurationTest {

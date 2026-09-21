@@ -518,6 +518,7 @@ private fun HistoryPage(context: Context, accent: Color, tokens: ColorTokens) {
         )
         return
     }
+    val scope = rememberCoroutineScope()
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -530,11 +531,28 @@ private fun HistoryPage(context: Context, accent: Color, tokens: ColorTokens) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .let { base ->
-                        // A locally-played track has no real app to open.
-                        if (track.isLocal) {
-                            base
-                        } else {
-                            base.clickable(
+                        when {
+                            // Re-plays the actual file via the same local
+                            // player the library page uses — this is what was
+                            // missing entirely (user-reported: "when song
+                            // selected from history it is not playing").
+                            // Silently does nothing if the track's since been
+                            // deleted/moved and an old entry has no id at all
+                            // (recorded before localTrackId existed).
+                            track.isLocal && track.localTrackId != null -> base.clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = {
+                                    val id = track.localTrackId
+                                    scope.launch {
+                                        val found = LocalMusicLibrary.trackById(context, id)
+                                        if (found != null) LocalMusicPlayer.playQueue(context, listOf(found), 0)
+                                    }
+                                },
+                            )
+                            // A locally-played track has no real app to open.
+                            track.isLocal -> base
+                            else -> base.clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                                 onClick = { openApp(context, track.packageName) },
