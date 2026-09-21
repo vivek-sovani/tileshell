@@ -112,6 +112,19 @@ fun WeatherHubScreen(
                 .fillMaxSize()
                 .graphicsLayer { translationY = size.height * (1f - progress) }
                 .background(tokens.bg)
+                // Swallows every tap on this screen, same as every other
+                // sheet's own content column (see AboutSheet) — without
+                // this, a tap that misses a specific button falls through
+                // to whatever Start tile sits at that same screen position
+                // underneath, since a plain background() doesn't consume
+                // touches on its own. Real user-reported bug: tapping near
+                // "daily"/"hourly" sometimes opened a Start calendar tile's
+                // own google-search fallback instead.
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {},
+                )
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {

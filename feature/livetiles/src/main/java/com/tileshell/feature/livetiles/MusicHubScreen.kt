@@ -154,6 +154,18 @@ fun MusicHubScreen(
                 .fillMaxSize()
                 .graphicsLayer { translationY = size.height * (1f - progress) }
                 .background(tokens.bg)
+                // Swallows every tap on this screen, same as every other
+                // sheet's own content column (see AboutSheet) — without
+                // this, a tap that misses a specific button falls through
+                // to whatever Start tile sits at that same screen position
+                // underneath. Real user-reported bug: tapping near the
+                // "library" pivot label sometimes opened a Start calendar
+                // tile's own google-search fallback instead.
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {},
+                )
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
@@ -381,7 +393,12 @@ private fun ExternalNowPlaying(
 
 @Composable
 private fun LocalNowPlaying(track: LocalTrack, playing: Boolean, accent: Color, tokens: ColorTokens, context: Context) {
-    val art = rememberLocalAlbumArt(context, track.albumId, sizePx = 600)
+    // A full-width square hero needs a much larger request than a list
+    // thumbnail — 600px upscaled across a ~1080px-wide screen was visibly
+    // blurry. 1024 is generous enough to not be our own bottleneck; the
+    // actual sharpness ceiling beyond that is whatever resolution the
+    // track's embedded art actually has.
+    val art = rememberLocalAlbumArt(context, track.albumId, sizePx = 1024)
     Column(modifier = Modifier.padding(horizontal = 18.dp)) {
         NowPlayingHero(art, accent)
         Spacer(Modifier.height(14.dp))
@@ -869,8 +886,10 @@ private fun AlbumsGrid(
     when {
         list == null -> LibraryEmptyState("loading your library…", tokens)
         list.isEmpty() -> LibraryEmptyState(if (query.isBlank()) "no albums found" else "no matches", tokens)
+        // 2 columns, not 3 — user-requested bigger album art; each cell's art
+        // fills the cell width as a square instead of a small fixed thumbnail.
         else -> LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
+            columns = GridCells.Fixed(2),
             modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
             contentPadding = PaddingValues(bottom = 32.dp),
         ) {
@@ -884,16 +903,16 @@ private fun AlbumsGrid(
 @Composable
 private fun AlbumCell(album: LocalAlbum, accent: Color, tokens: ColorTokens, onClick: () -> Unit) {
     val context = LocalContext.current
-    val art = rememberLocalAlbumArt(context, album.id)
+    val art = rememberLocalAlbumArt(context, album.id, sizePx = 500)
     Column(
         modifier = Modifier
-            .padding(4.dp)
+            .padding(6.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick,
             )
-            .padding(vertical = 10.dp),
+            .padding(bottom = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (art != null) {
@@ -901,19 +920,26 @@ private fun AlbumCell(album: LocalAlbum, accent: Color, tokens: ColorTokens, onC
                 bitmap = art,
                 contentDescription = null,
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                modifier = Modifier.size(64.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp)),
             )
         } else {
             Box(
-                Modifier.size(64.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp)).background(accent),
+                Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
+                    .background(accent),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(TileIcons["music"], contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
+                Icon(TileIcons["music"], contentDescription = null, tint = Color.White, modifier = Modifier.size(40.dp))
             }
         }
-        Spacer(Modifier.height(6.dp))
-        Text(album.title, color = tokens.fg, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text("${album.trackCount} tracks", color = tokens.fgDim, fontSize = 9.sp, maxLines = 1)
+        Spacer(Modifier.height(8.dp))
+        Text(album.title, color = tokens.fg, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text("${album.trackCount} tracks", color = tokens.fgDim, fontSize = 11.sp, maxLines = 1)
     }
 }
 

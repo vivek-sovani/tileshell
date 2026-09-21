@@ -8918,3 +8918,20 @@ Also added, same round: the display stays on (`WindowManager.LayoutParams
 .FLAG_KEEP_SCREEN_ON`) while either playback source is actually playing, cleared the moment
 playback stops or the hub closes — user-requested, since the screen timing out mid-browse/
 mid-playback was annoying even though audio itself keeps running regardless of screen state.
+
+## Real bug: hub screens let taps fall through to the Start tile underneath
+
+User-reported: "many times when i click library menu it goes to google search.. shows
+calendar search" — tapping near the music hub's "library" pivot label sometimes opened a
+Start calendar tile's own web-search fallback instead of switching pivot pages.
+
+Root cause: `WeatherHubScreen`/`MusicHubScreen`'s main content `Column` had a plain
+`.background(tokens.bg)` with no gesture-consuming modifier on it, unlike every other
+full-screen sheet in the app (`AboutSheet` et al., which all add a no-op
+`.clickable(onClick = {})` to their own content column specifically for this reason,
+documented in their own code). A `background()` modifier paints a surface but does not
+consume touch events on its own — a tap landing in "empty" space between the pivot labels
+(not directly on a `Text`'s own `.clickable` hit area) fell straight through Compose's z-stack
+to whatever Start tile sat at that same screen position, since these hub screens are
+composed as siblings inside `StartScreen`, not a separate Activity/Window. Fixed by adding the
+same no-op `.clickable {}` both hubs were missing.
