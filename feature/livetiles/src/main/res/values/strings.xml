@@ -2,6 +2,8 @@
 <resources>
     <!-- Shown in the system "Notification access" list for the listener service. -->
     <string name="notification_listener_label">TileShell live tiles</string>
+    <!-- LocalMusicPlaybackService's notification channel name (system notification settings). -->
+    <string name="music_playback_channel_name">music hub playback</string>
     <!-- Shown in the system widget picker for each home-screen widget (S32/S33). -->
     <string name="weather_widget_label">weather</string>
     <string name="battery_widget_label">battery</string>

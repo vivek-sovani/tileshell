@@ -8935,3 +8935,56 @@ consume touch events on its own — a tap landing in "empty" space between the p
 to whatever Start tile sat at that same screen position, since these hub screens are
 composed as siblings inside `StartScreen`, not a separate Activity/Window. Fixed by adding the
 same no-op `.clickable {}` both hubs were missing.
+
+## Music hub local-library playback: reversed "in-hub only" to real background playback
+
+Earlier in the music hub's build, an `AskUserQuestion` scoped local-library playback to
+**in-hub only**: no foreground service, no notification, no `MediaSession` — playback stopped
+the moment the hub screen closed (`LocalMusicPlayer.release()` called from `MusicHubScreen`'s
+own `DisposableEffect(Unit) { onDispose { ... } }`), with "full background playback with
+lock-screen controls" explicitly noted as a larger follow-up, not built then. User later asked
+directly: "the music play should work in background" — reversing that scoping decision.
+
+Rebuilt as real background playback, the standard Android shape for it: `LocalMusicPlayer`
+(the single, app-process-wide `MediaPlayer` instance) now requests audio focus
+(`AudioFocusRequest`, pausing on transient loss and resuming on regain, stopping outright on a
+genuine loss to another app) and starts a new foreground service,
+`LocalMusicPlaybackService` (`android:foregroundServiceType="mediaPlayback"`, declared in the
+`:feature:livetiles` module manifest alongside `TileNotificationListenerService`, same
+"travels with the module" convention), the moment a track starts playing.
+`LocalMusicPlaybackService` deliberately does **not** own the `MediaPlayer` itself — it stays
+the same single `LocalMusicPlayer` instance regardless of whether the service happens to be
+alive, so the hub's UI (which already reads `LocalMusicPlayer.state` directly) needed no
+rewrite. The service is purely the OS-visible face of that state: it collects `state` and
+keeps a real platform `MediaSession` (metadata + `PlaybackState`, previous/play-pause/next/
+stop actions) and a `Notification.MediaStyle` notification (four transport actions, tap opens
+the app, `setOngoing(true)` only while actually playing so it becomes swipe-dismissable —
+routed to a "stop" action via `setDeleteIntent` — once paused) in sync, and stops itself the
+instant `LocalPlayback.track` goes null.
+
+`MusicHubScreen`'s dispose-triggered `LocalMusicPlayer.release()` was removed outright — that
+was the entire mechanism tying playback's lifetime to the hub screen being open, and removing
+it is the actual fix; `release()` is now called only by the notification's own stop path or a
+real audio-focus loss, never by the hub screen closing. The existing "keep screen on while
+playing" `DisposableEffect` is unaffected — it only ever applied while the hub itself was
+visible (screen-timeout convenience while actively browsing), never played a role in whether
+audio itself continued, so it needed no change.
+
+New manifest permissions (`app/src/main/AndroidManifest.xml`): `FOREGROUND_SERVICE` +
+`FOREGROUND_SERVICE_MEDIA_PLAYBACK` (the latter required alongside the former for a
+`mediaPlayback`-typed foreground service on API 34+), `WAKE_LOCK` (backs
+`MediaPlayer.setWakeMode(PARTIAL_WAKE_LOCK)`, added so playback survives the CPU sleeping with
+the screen off — genuinely needed now that this is meant to outlive the screen being on at
+all), and `POST_NOTIFICATIONS`. Notification permission is requested **contextually** — the
+first time a local track actually starts playing, from `MusicHubScreen` itself — rather than
+bundled into `MainActivity`'s upfront ask, matching this project's own established convention
+for a permission whose need isn't obvious before the feature is actually used (see the steps
+tile's own contextual `ACTIVITY_RECOGNITION` ask). Declining it doesn't block playback, only
+the notification/lock-screen controls.
+
+Five new notification icon drawables (`ic_notification_{music,play,pause,prev,next,stop}.xml`,
+`:feature:livetiles` module `res/drawable`) are hand-ports of the existing `TileIcons["music"/
+"play"/"pause"/"prev"/"next"/"close"]` Compose glyphs to real Android vector-drawable resources
+— `Notification.Action`/`setSmallIcon` need a drawable resource, not a Compose `ImageVector` —
+following the exact same "same monoline glyph as TileIcons[...], hand-ported" convention
+already established by the home-screen-widget icons (`ic_widget_settings.xml` etc.).

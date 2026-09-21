@@ -59,6 +59,20 @@
          auto-granted at install, not on Play Console's restricted-permissions
          list, no Data Safety disclosure. -->
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
+    <!-- Music hub background playback: LocalMusicPlaybackService keeps the
+         hub's own local-library playback (and its lock-screen/notification
+         controls) alive once the hub screen closes. FOREGROUND_SERVICE_MEDIA_PLAYBACK
+         is required alongside FOREGROUND_SERVICE for a mediaPlayback-typed
+         foreground service on API 34+. WAKE_LOCK backs MediaPlayer's own
+         setWakeMode so playback survives the CPU sleeping with the screen
+         off. POST_NOTIFICATIONS (API 33+) is requested contextually, the
+         first time a local track actually starts playing — see
+         MusicHubScreen's own permission ask, matching this project's existing
+         "ask in context, not upfront" convention (e.g. the steps tile). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <queries>
         <intent>

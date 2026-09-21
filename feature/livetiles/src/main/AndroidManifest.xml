@@ -21,6 +21,20 @@
         </service>
 
         <!--
+            Music hub local-library background playback: a real foreground
+            service so a track keeps playing (and stays controllable from the
+            lock screen / notification shade) after the hub screen itself is
+            closed. Declared here so it travels with the module, same as the
+            notification listener above. Started on-demand by LocalMusicPlayer
+            the moment a track starts playing; stops itself the moment
+            playback ends.
+        -->
+        <service
+            android:name=".LocalMusicPlaybackService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <!--
             Home-screen widgets (S32 pilot + S33 rollout, plain RemoteViews —
             no Compose rendering). Each receiver must be exported=true: the
             update broadcast comes from the system/host launcher, a different

@@ -94,8 +94,10 @@ private val LOCAL_AUDIO_PERMISSION: String =
  * already surfaced by [AppCatalogRepository] with no extra permission) so the
  * hub covers every player on the device, not just whichever one last had an
  * active session. "library" browses on-device tracks/albums/playlists
- * ([LocalMusicLibrary]) and plays them in-hub only ([LocalMusicPlayer] — no
- * background playback, released when this screen closes). "history" is
+ * ([LocalMusicLibrary]) and plays them via [LocalMusicPlayer], which keeps
+ * playing in the background (a real foreground service + lock-screen/
+ * notification controls, [LocalMusicPlaybackService]) after this screen
+ * closes. "history" is
  * [MusicHistory] — tracks TileShell itself has seen play; there's no system
  * "recently played" API to read instead. "now playing" reads the same
  * [MediaCenter] the music tile already reads (its transport buttons dispatch
@@ -118,11 +120,6 @@ fun MusicHubScreen(
     )
     if (!visible && progress == 0f) return
 
-    // Stops in-hub local playback the moment this screen actually leaves
-    // composition (not merely `visible = false` — it stays mounted through
-    // the exit animation above, same as every other sheet here).
-    DisposableEffect(Unit) { onDispose { LocalMusicPlayer.release() } }
-
     val tokens = colorTokens(dark)
     val accent = TileAccents.forId(accentId)
     val context = LocalContext.current
@@ -134,6 +131,23 @@ fun MusicHubScreen(
     val localPlayback by LocalMusicPlayer.state.collectAsState()
     val externalMedia by MediaCenter.nowPlaying.collectAsState()
     val anyPlaying = localPlayback.playing || externalMedia.values.any { it.playing }
+
+    // POST_NOTIFICATIONS (API 33+) gates whether LocalMusicPlaybackService's
+    // foreground-service notification actually shows — asked contextually,
+    // the first time a local track actually starts playing (not bundled into
+    // the app's upfront ask), matching this project's existing "ask in
+    // context" convention (e.g. the steps tile). Playback itself works either
+    // way; declining just means no notification/lock-screen controls.
+    var notificationsAsked by remember { mutableStateOf(false) }
+    val notificationsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) {}
+    LaunchedEffect(localPlayback.track?.id) {
+        if (Build.VERSION.SDK_INT >= 33 && !notificationsAsked && localPlayback.track != null) {
+            notificationsAsked = true
+            notificationsLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     // Keeps the display on while something is actively playing — user-
     // requested, since the screen timing out mid-playback/mid-browse is
