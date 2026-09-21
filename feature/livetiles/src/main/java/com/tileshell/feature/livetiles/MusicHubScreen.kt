@@ -468,7 +468,12 @@ private fun LocalNowPlaying(track: LocalTrack, playing: Boolean, accent: Color, 
 private fun MusicAppsPage(context: Context, accent: Color, tokens: ColorTokens) {
     val repository = remember(context) { AppCatalogRepository(context) }
     val apps by repository.apps.collectAsState(initial = emptyList())
-    val musicApps = remember(apps) { apps.filter { AppCategories.isMusicApp(it) } }
+    // AppCatalogRepository enumerates every launcher activity, not every
+    // distinct app — an app that declares more than one (Amazon Music does)
+    // would otherwise list itself twice here (user-reported: "amazon music is
+    // appearing two times in apps"). One row per package instead, same
+    // dedup EdgeStripSheet already applies for the same reason.
+    val musicApps = remember(apps) { apps.filter { AppCategories.isMusicApp(it) }.distinctBy { it.packageName } }
     var query by remember { mutableStateOf("") }
     val shown = remember(musicApps, query) {
         if (query.isBlank()) musicApps else musicApps.filter { it.label.contains(query, ignoreCase = true) }
