@@ -8857,3 +8857,34 @@ setting exists, this redirect becomes its "tileshell hub" branch and gets the
 "default app" branch as an alternative — same shape as weather/calendar will
 get then, just built in the opposite order here because the setting doesn't
 exist yet.
+
+## Hub screens: grounded header chrome in the actual design prototype, not external references
+
+User correction, direct and explicit ("check design proto, do exact copy... this should be
+norm"): the weather/music hub headers had been built from external Windows Phone screenshots
+researched earlier in the same session, not from this project's own bundled prototype
+(`design/windows-mobile-launcher-for-android/project/launcher/`) — a real violation of this
+project's own standing rule ("do NOT guess values... read the relevant JS/CSS file").
+
+Checked `styles.css`'s own full-screen overlay conventions (`.recents-ov .rtitle`,
+`.group-ov .gtitle`/`.gclose` — the closest existing analogs, since the prototype has no
+Panorama-hub concept at all) and found two concrete deviations: (1) the dismiss control was
+an invented top-left back-chevron; the prototype's actual overlay convention is a top-right
+close ("X"), 34px box / 22px icon. (2) The title was an invented 42-64sp/accent-colored/
+left-aligned scale; the prototype's own overlay title is 26-30px, `font-weight:200`
+(Compose `FontWeight.ExtraLight`), `-1px` letter-spacing, centered, plain `var(--fg)` — not
+accent-tinted. Applied both fixes to the weather hub exactly.
+
+**Music hub is the deliberate exception**, not a miss: its two-tone "music"+"apps" title
+(plain fg + accent, left-aligned, clipped at the screen edge rather than wrapping, 44sp/
+ExtraLight) was already separately designed and approved with the user via the visualize
+tool earlier in the same session, explicitly modeled on the real WP7/8 Zune hub's own
+historically two-tone title — which was itself visually distinct from every other WP hub, so
+this asymmetry between TileShell's own hubs is WP-faithful, not an inconsistency introduced
+by skipping the proto-grounding pass. Only its dismiss control (top-right close, matching the
+prototype) was brought in line with weather's.
+
+New standing rule recorded in this session's memory
+(`feedback_design_proto_authoritative.md`): future TileShell UI work checks the bundled
+prototype's closest analog first, before reaching for external references — and when no
+analog exists, says so explicitly rather than silently inventing one.

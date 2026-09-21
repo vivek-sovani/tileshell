@@ -193,6 +193,17 @@ object TileIcons {
             p(line(16.0, 7.0, 16.0, 17.0)),
         ))
 
+        // Not in the prototype's icons.js (shuffle has no WP hub equivalent
+        // there) — hand-authored in the same monoline stroke style, the
+        // well-known crossed-arrows shuffle shape.
+        put("shuffle", vector("shuffle",
+            p("M17 3h4v4"),
+            p(line(3.0, 21.0, 21.0, 3.0)),
+            p("M21 17v4h-4"),
+            p(line(14.0, 14.0, 21.0, 21.0)),
+            p(line(3.0, 3.0, 9.0, 9.0)),
+        ))
+
         put("photos", vector("photos",
             p(rect(3.0, 5.0, 18.0, 14.0, 1.5)),
             p(circle(8.0, 10.0, 1.6)),

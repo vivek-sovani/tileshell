@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -115,58 +116,80 @@ fun WeatherHubScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-            Column(modifier = Modifier.padding(horizontal = 18.dp)) {
-                Spacer(Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onDismiss,
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = TileIcons["back"],
-                        contentDescription = "back",
-                        tint = tokens.fg,
-                        modifier = Modifier.size(18.dp),
-                    )
+            Column(modifier = Modifier.padding(horizontal = 18.dp).fillMaxWidth()) {
+                Spacer(Modifier.height(6.dp))
+                // Dismiss control: top-right close ("X"), matching the
+                // prototype's own full-screen overlay convention exactly
+                // (styles.css `.group-ov .gclose` — 34px box, 22px stroke
+                // icon) rather than an invented top-left back-chevron.
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = onDismiss,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = TileIcons["close"],
+                            contentDescription = "close",
+                            tint = tokens.fg,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
                 }
 
-                Spacer(Modifier.height(4.dp))
-                Text(text = "tileshell", color = tokens.fgDim, fontSize = 12.sp)
+                Spacer(Modifier.height(18.dp))
+                // Title styling matches the prototype's own overlay title
+                // convention exactly (styles.css `.group-ov .gtitle`): 30px,
+                // weight 200, -1px letter-spacing, centered, plain fg — not
+                // accent-tinted, not the much larger invented scale this
+                // screen originally shipped with.
                 Text(
                     text = "weather",
-                    color = accent,
-                    fontSize = 42.sp,
-                    fontWeight = FontWeight.Light,
+                    color = tokens.fg,
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.ExtraLight,
+                    letterSpacing = (-1).sp,
+                    textAlign = TextAlign.Center,
                     maxLines = 1,
                     overflow = TextOverflow.Clip,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 // The location itself, not a caption — real WP weather apps
                 // give the place its own prominent line right under the hub
-                // title (foreground weight, well above caption size), with
-                // "updated" folded into the today page instead of crowding it.
+                // title, with "updated" folded into the today page instead of
+                // crowding it.
                 snapshot?.place?.ifBlank { null }?.let { place ->
                     Spacer(Modifier.height(2.dp))
                     Text(
                         text = place,
                         color = tokens.fg,
-                        fontSize = 22.sp,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Light,
+                        textAlign = TextAlign.Center,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
                 Spacer(Modifier.height(16.dp))
 
                 // The pivot row — tap a label to jump there, same destination
-                // a swipe on the pager below reaches.
-                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                // a swipe on the pager below reaches. No prototype equivalent
+                // (a Panorama pivot doesn't exist in the Start-only prototype),
+                // so centered to balance the now-centered title above it.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
                     HUB_PIVOTS.forEachIndexed { index, label ->
+                        if (index > 0) Spacer(Modifier.width(18.dp))
                         val selected = pagerState.currentPage == index
                         Text(
                             text = label,

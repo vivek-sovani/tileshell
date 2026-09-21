@@ -33,6 +33,8 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -50,11 +52,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.AppCatalogRepository
@@ -132,35 +139,50 @@ fun MusicHubScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-            Column(modifier = Modifier.padding(horizontal = 18.dp)) {
-                Spacer(Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onDismiss,
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = TileIcons["back"],
-                        contentDescription = "back",
-                        tint = tokens.fg,
-                        modifier = Modifier.size(18.dp),
-                    )
+            Column(modifier = Modifier.padding(horizontal = 18.dp).fillMaxWidth()) {
+                Spacer(Modifier.height(6.dp))
+                // Dismiss control: top-right close ("X"), matching the
+                // prototype's own full-screen overlay convention (styles.css
+                // `.group-ov .gclose`).
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = onDismiss,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = TileIcons["close"],
+                            contentDescription = "close",
+                            tint = tokens.fg,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
                 }
 
-                Spacer(Modifier.height(4.dp))
-                Text(text = "tileshell", color = tokens.fgDim, fontSize = 12.sp)
+                Spacer(Modifier.height(12.dp))
+                // Two-tone Zune-hub title ("music" + "apps"), matching the
+                // approved mockup exactly — left-aligned, clipped at the
+                // edge rather than wrapping, distinct from the other hubs'
+                // plain centered title (the real Zune hub's own title was
+                // itself two-tone/unique among WP's hubs, so this asymmetry
+                // is WP-faithful, not an inconsistency).
                 Text(
-                    text = "music",
-                    color = accent,
-                    fontSize = 42.sp,
-                    fontWeight = FontWeight.Light,
+                    text = buildAnnotatedString {
+                        withStyle(SpanStyle(color = tokens.fg)) { append("music") }
+                        withStyle(SpanStyle(color = accent)) { append("+apps") }
+                    },
+                    fontSize = 44.sp,
+                    fontWeight = FontWeight.ExtraLight,
+                    letterSpacing = (-1).sp,
                     maxLines = 1,
+                    softWrap = false,
                     overflow = TextOverflow.Clip,
                 )
                 Spacer(Modifier.height(16.dp))
@@ -339,23 +361,76 @@ private fun MusicAppsPage(context: Context, accent: Color, tokens: ColorTokens) 
     val repository = remember(context) { AppCatalogRepository(context) }
     val apps by repository.apps.collectAsState(initial = emptyList())
     val musicApps = remember(apps) { apps.filter { AppCategories.isMusicApp(it) } }
-
-    if (musicApps.isEmpty()) {
-        Text(
-            "no music apps found",
-            color = tokens.fgDim,
-            fontSize = 14.sp,
-            modifier = Modifier.padding(horizontal = 18.dp),
-        )
-        return
+    var query by remember { mutableStateOf("") }
+    val shown = remember(musicApps, query) {
+        if (query.isBlank()) musicApps else musicApps.filter { it.label.contains(query, ignoreCase = true) }
     }
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(3),
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 32.dp),
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        LibrarySearchField(query, { query = it }, "search apps", tokens)
+        if (musicApps.isEmpty()) {
+            LibraryEmptyState("no music apps found", tokens)
+        } else if (shown.isEmpty()) {
+            LibraryEmptyState("no matches", tokens)
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                contentPadding = PaddingValues(bottom = 32.dp),
+            ) {
+                items(shown, key = { it.key }) { app ->
+                    MusicAppCell(app, accent, tokens) { AppLauncher.launch(context, app.packageName, app.activityName) }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Search box matching the app's existing convention exactly (see
+ * QuickSearchOverlay's own search field: `tokens.chip` background, 4dp
+ * corners, 44dp height, leading search icon, a "clear" close icon once
+ * there's text) — live-filters the caller's list on every keystroke, no
+ * submit action needed.
+ */
+@Composable
+private fun LibrarySearchField(query: String, onQueryChange: (String) -> Unit, placeholder: String, tokens: ColorTokens) {
+    Row(
+        modifier = Modifier
+            .padding(horizontal = 18.dp)
+            .padding(bottom = 12.dp)
+            .fillMaxWidth()
+            .height(44.dp)
+            .background(tokens.chip, shape = RoundedCornerShape(4.dp))
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        items(musicApps, key = { it.key }) { app ->
-            MusicAppCell(app, accent, tokens) { AppLauncher.launch(context, app.packageName, app.activityName) }
+        Icon(TileIcons["search"], contentDescription = null, tint = tokens.fgDim, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(10.dp))
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            if (query.isEmpty()) {
+                Text(placeholder, color = tokens.fgDim, fontSize = 14.sp)
+            }
+            BasicTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                singleLine = true,
+                textStyle = TextStyle(color = tokens.fg, fontSize = 14.sp),
+                cursorBrush = SolidColor(tokens.fg),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (query.isNotEmpty()) {
+            Icon(
+                TileIcons["close"],
+                contentDescription = "clear",
+                tint = tokens.fgDim,
+                modifier = Modifier.size(16.dp).clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { onQueryChange("") },
+                ),
+            )
         }
     }
 }
@@ -456,6 +531,12 @@ private fun openApp(context: Context, packageName: String) {
 
 private enum class LibraryMode { TRACKS, ALBUMS, PLAYLISTS }
 
+/** Which album/playlist the library is currently drilled into — see [TrackListDetailPage]. */
+private sealed interface LibrarySelection {
+    data class Album(val album: LocalAlbum) : LibrarySelection
+    data class Playlist(val playlist: LocalPlaylist) : LibrarySelection
+}
+
 @Composable
 private fun LibraryPage(context: Context, accent: Color, tokens: ColorTokens) {
     val granted = rememberPermissionGranted(LOCAL_AUDIO_PERMISSION)
@@ -464,6 +545,43 @@ private fun LibraryPage(context: Context, accent: Color, tokens: ColorTokens) {
         return
     }
     var mode by remember { mutableStateOf(LibraryMode.TRACKS) }
+    var query by remember { mutableStateOf("") }
+    var selection by remember { mutableStateOf<LibrarySelection?>(null) }
+
+    when (val sel = selection) {
+        is LibrarySelection.Album -> {
+            val tracks by produceState<List<LocalTrack>?>(initialValue = null, sel.album.id) {
+                value = LocalMusicLibrary.tracksForAlbum(context, sel.album.id)
+            }
+            TrackListDetailPage(
+                title = sel.album.title,
+                subtitle = "${sel.album.trackCount} tracks",
+                tracks = tracks,
+                context = context,
+                tokens = tokens,
+                accent = accent,
+                onBack = { selection = null },
+            )
+            return
+        }
+        is LibrarySelection.Playlist -> {
+            val tracks by produceState<List<LocalTrack>?>(initialValue = null, sel.playlist.id) {
+                value = LocalMusicLibrary.tracksForPlaylist(context, sel.playlist.id)
+            }
+            TrackListDetailPage(
+                title = sel.playlist.name,
+                subtitle = tracks?.size?.let { "$it tracks" } ?: "",
+                tracks = tracks,
+                context = context,
+                tokens = tokens,
+                accent = accent,
+                onBack = { selection = null },
+            )
+            return
+        }
+        null -> Unit
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier.padding(horizontal = 18.dp).padding(bottom = 12.dp),
@@ -473,11 +591,91 @@ private fun LibraryPage(context: Context, accent: Color, tokens: ColorTokens) {
             LibraryModeLabel("albums", mode == LibraryMode.ALBUMS, tokens) { mode = LibraryMode.ALBUMS }
             LibraryModeLabel("playlists", mode == LibraryMode.PLAYLISTS, tokens) { mode = LibraryMode.PLAYLISTS }
         }
+        LibrarySearchField(query, { query = it }, "search $mode", tokens)
         when (mode) {
-            LibraryMode.TRACKS -> TracksList(context, tokens)
-            LibraryMode.ALBUMS -> AlbumsGrid(context, accent, tokens)
-            LibraryMode.PLAYLISTS -> PlaylistsList(context, tokens)
+            LibraryMode.TRACKS -> TracksList(context, tokens, query)
+            LibraryMode.ALBUMS -> AlbumsGrid(context, accent, tokens, query) { selection = LibrarySelection.Album(it) }
+            LibraryMode.PLAYLISTS -> PlaylistsList(context, tokens, query) { selection = LibrarySelection.Playlist(it) }
         }
+    }
+}
+
+/**
+ * An album/playlist's own track list (user-requested: tapping one should show
+ * its songs with play/shuffle, not start playing immediately). "play" queues
+ * in album/playlist order from the top; "shuffle" queues the same tracks in a
+ * freshly randomized order (a new shuffle each time, not a repeating one);
+ * tapping an individual track starts the (unshuffled) queue there.
+ */
+@Composable
+private fun TrackListDetailPage(
+    title: String,
+    subtitle: String,
+    tracks: List<LocalTrack>?,
+    context: Context,
+    tokens: ColorTokens,
+    accent: Color,
+    onBack: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp).padding(bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                TileIcons["back"],
+                contentDescription = "back",
+                tint = tokens.fg,
+                modifier = Modifier.size(18.dp).clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onBack,
+                ),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(title, color = tokens.fg, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (subtitle.isNotEmpty()) Text(subtitle, color = tokens.fgDim, fontSize = 11.sp)
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        when {
+            tracks == null -> LibraryEmptyState("loading…", tokens)
+            tracks.isEmpty() -> LibraryEmptyState("no tracks in here", tokens)
+            else -> {
+                Row(modifier = Modifier.padding(horizontal = 18.dp).padding(bottom = 8.dp)) {
+                    DetailAction("play", "play", accent) { LocalMusicPlayer.playQueue(context, tracks, 0) }
+                    Spacer(Modifier.width(20.dp))
+                    DetailAction("shuffle", "shuffle", accent) {
+                        LocalMusicPlayer.playQueue(context, tracks.shuffled(), 0)
+                    }
+                }
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
+                    contentPadding = PaddingValues(bottom = 32.dp),
+                ) {
+                    itemsIndexed(tracks, key = { _, track -> track.id }) { index, track ->
+                        TrackRow(track, tokens) { LocalMusicPlayer.playQueue(context, tracks, index) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailAction(iconKey: String, label: String, accent: Color, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = onClick,
+        ),
+    ) {
+        Icon(TileIcons[iconKey], contentDescription = null, tint = accent, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(label, color = accent, fontSize = 13.sp)
     }
 }
 
@@ -551,14 +749,16 @@ private fun LibraryEmptyState(text: String, tokens: ColorTokens) {
 }
 
 @Composable
-private fun TracksList(context: Context, tokens: ColorTokens) {
+private fun TracksList(context: Context, tokens: ColorTokens, query: String) {
     val tracks by produceState<List<LocalTrack>?>(initialValue = null, context) {
         value = LocalMusicLibrary.tracks(context)
     }
-    val list = tracks
+    val list = remember(tracks, query) {
+        tracks?.let { all -> if (query.isBlank()) all else all.filter { it.title.contains(query, ignoreCase = true) } }
+    }
     when {
         list == null -> LibraryEmptyState("loading your library…", tokens)
-        list.isEmpty() -> LibraryEmptyState("no tracks found", tokens)
+        list.isEmpty() -> LibraryEmptyState(if (query.isBlank()) "no tracks found" else "no matches", tokens)
         else -> LazyColumn(
             modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
             contentPadding = PaddingValues(bottom = 32.dp),
@@ -595,27 +795,29 @@ private fun TrackRow(track: LocalTrack, tokens: ColorTokens, onClick: () -> Unit
 }
 
 @Composable
-private fun AlbumsGrid(context: Context, accent: Color, tokens: ColorTokens) {
+private fun AlbumsGrid(
+    context: Context,
+    accent: Color,
+    tokens: ColorTokens,
+    query: String,
+    onSelect: (LocalAlbum) -> Unit,
+) {
     val albums by produceState<List<LocalAlbum>?>(initialValue = null, context) {
         value = LocalMusicLibrary.albums(context)
     }
-    val list = albums
-    val scope = rememberCoroutineScope()
+    val list = remember(albums, query) {
+        albums?.let { all -> if (query.isBlank()) all else all.filter { it.title.contains(query, ignoreCase = true) } }
+    }
     when {
         list == null -> LibraryEmptyState("loading your library…", tokens)
-        list.isEmpty() -> LibraryEmptyState("no albums found", tokens)
+        list.isEmpty() -> LibraryEmptyState(if (query.isBlank()) "no albums found" else "no matches", tokens)
         else -> LazyVerticalGrid(
             columns = GridCells.Fixed(3),
             modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
             contentPadding = PaddingValues(bottom = 32.dp),
         ) {
             items(list, key = { it.id }) { album ->
-                AlbumCell(album, accent, tokens) {
-                    scope.launch {
-                        val tracks = LocalMusicLibrary.tracksForAlbum(context, album.id)
-                        if (tracks.isNotEmpty()) LocalMusicPlayer.playQueue(context, tracks, 0)
-                    }
-                }
+                AlbumCell(album, accent, tokens) { onSelect(album) }
             }
         }
     }
@@ -644,18 +846,27 @@ private fun AlbumCell(album: LocalAlbum, accent: Color, tokens: ColorTokens, onC
 }
 
 @Composable
-private fun PlaylistsList(context: Context, tokens: ColorTokens) {
+private fun PlaylistsList(
+    context: Context,
+    tokens: ColorTokens,
+    query: String,
+    onSelect: (LocalPlaylist) -> Unit,
+) {
     val playlists by produceState<List<LocalPlaylist>?>(initialValue = null, context) {
         value = LocalMusicLibrary.playlists(context)
     }
-    val list = playlists
-    val scope = rememberCoroutineScope()
+    val list = remember(playlists, query) {
+        playlists?.let { all -> if (query.isBlank()) all else all.filter { it.name.contains(query, ignoreCase = true) } }
+    }
     when {
         list == null -> LibraryEmptyState("loading your library…", tokens)
         // Genuinely common, not a bug: most apps stopped writing playlists
         // through this legacy provider once scoped storage landed, so an
         // empty result here just means none of this device's apps used it.
-        list.isEmpty() -> LibraryEmptyState("no playlists found on this device", tokens)
+        list.isEmpty() -> LibraryEmptyState(
+            if (query.isBlank()) "no playlists found on this device" else "no matches",
+            tokens,
+        )
         else -> Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -670,12 +881,7 @@ private fun PlaylistsList(context: Context, tokens: ColorTokens) {
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
-                            onClick = {
-                                scope.launch {
-                                    val tracks = LocalMusicLibrary.tracksForPlaylist(context, playlist.id)
-                                    if (tracks.isNotEmpty()) LocalMusicPlayer.playQueue(context, tracks, 0)
-                                }
-                            },
+                            onClick = { onSelect(playlist) },
                         )
                         .padding(vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,

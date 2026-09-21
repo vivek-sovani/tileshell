@@ -61,6 +61,7 @@ private val WIDGET_CATALOG = listOf(
     WidgetCatalogEntry("weather", "weather", "live forecast for your location", "weather", "cyan"),
     WidgetCatalogEntry("calendar", "calendar", "today's date, flips to your next event", "calendar", "magenta"),
     WidgetCatalogEntry("clock", "clock", "time, weekday and date", "clock", "cobalt"),
+    WidgetCatalogEntry("music", "music", "now playing, plus the music hub — library, apps and history", "music", "orange"),
     WidgetCatalogEntry("battery", "battery", "charge level and time remaining", "battery", "green"),
     WidgetCatalogEntry("alarm", "alarm", "next alarm time and active days", "alarm", "purple"),
     WidgetCatalogEntry("moonphase", "moon phase", "tonight's phase and illumination", "moonphase", "slate"),

@@ -3,10 +3,12 @@ package com.tileshell.feature.livetiles
 import android.content.ComponentName
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import androidx.compose.animation.core.animateFloatAsState
@@ -40,6 +42,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,10 +55,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlin.random.Random
 
 private val FaceText: Color
@@ -117,6 +122,7 @@ private fun buildMediaState(
     val np = LinkedHashMap<String, NowPlaying>()
     val ctrls = LinkedHashMap<String, MediaController>()
     val art = LinkedHashMap<String, Bitmap>()
+    val artUri = LinkedHashMap<String, Uri>()
     for (controller in controllers) {
         val pkg = controller.packageName ?: continue
         if (np.containsKey(pkg)) continue // keep the highest-priority session per app
@@ -133,16 +139,28 @@ private fun buildMediaState(
         val cover = md?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
             ?: md?.getBitmap(MediaMetadata.METADATA_KEY_ART)
             ?: md?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
-        if (cover != null) art[pkg] = cover
+        if (cover != null) {
+            art[pkg] = cover
+        } else {
+            // Several real players (Spotify notably) never embed a Bitmap at
+            // all — only a content:// URI, for memory efficiency. Resolved
+            // asynchronously by MediaSessionsEffect (this function must stay
+            // synchronous/main-thread-safe, so no I/O here).
+            val uriString = md?.getString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI)
+                ?: md?.getString(MediaMetadata.METADATA_KEY_ART_URI)
+                ?: md?.getString(MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI)
+            uriString?.let { runCatching { Uri.parse(it) }.getOrNull() }?.let { artUri[pkg] = it }
+        }
     }
-    return MediaState(np, ctrls, art)
+    return MediaState(np, ctrls, art, artUri)
 }
 
-/** Per-package now-playing, live controllers and album art from the sessions. */
+/** Per-package now-playing, live controllers, embedded album art and (when no embedded art exists) its URI. */
 private data class MediaState(
     val now: Map<String, NowPlaying>,
     val controllers: Map<String, MediaController>,
     val artwork: Map<String, Bitmap>,
+    val artworkUri: Map<String, Uri> = emptyMap(),
 )
 
 /**
@@ -173,7 +191,25 @@ object MediaCenter {
     ) {
         _nowPlaying.value = map
         this.controllers = controllers
-        _artwork.value = artwork
+        // Merge, don't replace: a package's art may already have been
+        // resolved asynchronously from a URI (see updateArtwork /
+        // MediaSessionsEffect) since the last publish, and this call's own
+        // [artwork] only ever carries freshly-read *embedded* bitmaps for the
+        // current session set — replacing wholesale would wipe that out and
+        // flash the art in and out on every poll tick. An embedded bitmap
+        // still wins when present. Packages no longer playing are dropped so
+        // art doesn't leak forever.
+        _artwork.value = _artwork.value.filterKeys { it in map.keys } + artwork
+    }
+
+    /**
+     * Patches in one package's art once resolved asynchronously from a URI
+     * (see [MediaSessionsEffect] — `buildMediaState` never does I/O itself).
+     * No-ops if that session already ended by the time decoding finished.
+     */
+    fun updateArtwork(packageName: String, bitmap: Bitmap) {
+        if (packageName !in _nowPlaying.value.keys) return
+        _artwork.value = _artwork.value + (packageName to bitmap)
     }
 
     fun clear() {
@@ -218,6 +254,29 @@ object MediaCenter {
 @Composable
 fun MediaSessionsEffect(active: Boolean) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // Which "package|uri" art lookups have already been attempted this
+    // session — a URI-only session republishes its identical metadata on
+    // every poll tick, and without this a slow/failed decode would be
+    // retried every few seconds forever.
+    val attemptedArtUris = remember { mutableSetOf<String>() }
+
+    // Resolves any artwork this build() pass could only find as a URI, off
+    // the main thread, patching each one into MediaCenter as it completes —
+    // buildMediaState itself must stay synchronous/allocation-only so it's
+    // safe to call from a MediaController.Callback on the main thread.
+    fun resolveArtworkAsync(artUri: Map<String, Uri>) {
+        artUri.forEach { (pkg, uri) ->
+            if (!attemptedArtUris.add("$pkg|$uri")) return@forEach
+            scope.launch(Dispatchers.IO) {
+                val bitmap = runCatching {
+                    context.contentResolver.openInputStream(uri)?.use(BitmapFactory::decodeStream)
+                }.getOrNull()
+                if (bitmap != null) MediaCenter.updateArtwork(pkg, bitmap)
+            }
+        }
+    }
+
     DisposableEffect(context) {
         val manager = context.getSystemService(Context.MEDIA_SESSION_SERVICE)
             as? MediaSessionManager
@@ -236,6 +295,7 @@ fun MediaSessionsEffect(active: Boolean) {
         val publishNow = {
             val state = buildMediaState(manager, component)
             MediaCenter.publish(state.now, state.controllers, state.artwork)
+            resolveArtworkAsync(state.artworkUri)
         }
         // Re-read the session set, publish, and (re)register a callback on each
         // controller. Called on first run and whenever the session set changes.
@@ -245,6 +305,7 @@ fun MediaSessionsEffect(active: Boolean) {
             perController.clear()
             val state = buildMediaState(manager, component)
             MediaCenter.publish(state.now, state.controllers, state.artwork)
+            resolveArtworkAsync(state.artworkUri)
             state.controllers.values.forEach { controller ->
                 val cb = object : MediaController.Callback() {
                     override fun onPlaybackStateChanged(s: PlaybackState?) = publishNow()
@@ -274,6 +335,7 @@ fun MediaSessionsEffect(active: Boolean) {
         while (true) {
             val state = buildMediaState(manager, component)
             MediaCenter.publish(state.now, state.controllers, state.artwork)
+            resolveArtworkAsync(state.artworkUri)
             // This poll exists only to catch in-session track/position changes
             // that some players never report through MediaController.Callback.
             // With no session at all there is nothing to miss — a session
