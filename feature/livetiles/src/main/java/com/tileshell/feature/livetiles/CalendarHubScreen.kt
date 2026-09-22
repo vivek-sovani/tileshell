@@ -1,6 +1,7 @@
 package com.tileshell.feature.livetiles
 
 import android.Manifest
+import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -270,8 +271,15 @@ private fun AgendaDayCard(dayStartMillis: Long, dayEvents: List<AgendaEvent>, to
 
 @Composable
 private fun AgendaEventRow(event: AgendaEvent, barColor: Color, tokens: ColorTokens) {
+    val context = LocalContext.current
     val eventCal = remember(event.startMillis) { Calendar.getInstance().apply { timeInMillis = event.startMillis } }
-    Row {
+    Row(
+        modifier = Modifier.clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = { openCalendarEvent(context, event) },
+        ),
+    ) {
         Box(
             modifier = Modifier
                 .width(3.dp)
@@ -356,6 +364,20 @@ private fun openCalendarApp(context: Context) {
     val viewIntent = Intent(Intent.ACTION_VIEW).setData(Uri.parse("content://com.android.calendar/time"))
     if (runCatching { context.startActivity(viewIntent) }.isSuccess) return
     launchAddCalendarEvent(context)
+}
+
+/** Opens a specific event (user-requested: "when event is tapped open
+ * event") in the system calendar app — the standard `content://…/events/<id>`
+ * `ACTION_VIEW` pattern, with the instance's own begin/end as extras so a
+ * recurring event opens showing *this* occurrence, not just the series. */
+private fun openCalendarEvent(context: Context, event: AgendaEvent) {
+    val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, event.eventId)
+    val intent = Intent(Intent.ACTION_VIEW, uri)
+        .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, event.startMillis)
+        .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, event.endMillis)
+    if (runCatching { context.startActivity(intent) }.isFailure) {
+        Toast.makeText(context, "no calendar app to open this event", Toast.LENGTH_SHORT).show()
+    }
 }
 
 private val CALENDAR_MONTHS_FULL = listOf(

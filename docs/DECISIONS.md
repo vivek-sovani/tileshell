@@ -9241,3 +9241,34 @@ rather than promoted to a shared helper since both existing copies, `StartScreen
 `launchAddEvent` and `FeedPage.kt`'s `openCalendar`, already live in `:feature:start` and are each
 `private`/small enough that a three-way consolidation felt like more churn than the ~10 duplicated
 lines justified), and "today" (jumps the pager back to the "this week" page).
+
+## Calendar hub: real all-day-event day-grouping bug, tap to open the real event
+
+Same-day follow-ups. User reported a specific event ("Indranil", an all-day birthday-style entry)
+showing under the 22nd when it's actually on the 21st — diagnosed directly against the live
+provider on-device (`adb shell content query --uri content://com.android.calendar/instances/when/…`)
+rather than guessed: its real row was `begin=…21st 00:00 UTC, end=…22nd 00:00 UTC, allDay=1`. This
+is Android's well-documented all-day-event storage convention — `ALL_DAY` instances store
+begin/end as **UTC midnight** boundaries of the event's actual date, not real device-local
+instants. In IST (+5:30, a positive offset), that UTC-midnight end lands at **05:30 local on the
+next day** — so the 21st's all-day event visibly "bleeds" into the first 5.5 hours of the 22nd. A
+"this week starting today (the 22nd)" query genuinely overlaps that bleed and returns the
+instance; `groupEventsByDay`'s old fallback (`indexOfLast{...}.coerceAtLeast(0)`) then dumped any
+event whose raw start fell before every queried day boundary straight into the **first** bucket
+(today) instead of recognizing it belongs to a day outside the window — exactly the reported
+symptom. Fixed two ways: a new `effectiveDayStartMillis` normalizes an all-day event's start by
+reading its Y/M/D via a **UTC** `Calendar` (matching how it was written) and reconstructing local
+midnight of that same date, so it never crosses a local-day boundary it shouldn't; and
+`groupEventsByDay` now **drops** an event whose effective day falls before every entry in the
+queried range instead of clamping it into the first bucket — it genuinely isn't on any day this
+call is showing. A timed event is unaffected either way (its `startMillis` is already a real
+instant). Added a unit test reproducing the exact real-world case (a 2026-09-21 UTC-midnight
+all-day event, checked both against a "not in window" range and an "is in window" range) alongside
+the existing bucketing tests, one of which changed its own expected behaviour to match (an event
+before the window is now dropped, not clamped).
+
+**Tap an event to open it** (user-requested): `AgendaEvent` gained the underlying `eventId`
+(`CalendarContract.Instances.EVENT_ID`, added to the existing query projection) so a row can be
+opened via the standard `content://…/events/<id>` `ACTION_VIEW` pattern, with the instance's own
+begin/end passed as extras (`EXTRA_EVENT_BEGIN_TIME`/`EXTRA_EVENT_END_TIME`) so a recurring event
+opens showing *this* occurrence, not just an ambiguous series view.
