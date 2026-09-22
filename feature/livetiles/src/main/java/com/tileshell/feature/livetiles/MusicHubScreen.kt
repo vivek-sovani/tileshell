@@ -232,8 +232,16 @@ fun MusicHubScreen(
             // the next queued track. User-requested; replaces the persistent
             // bottom playback bar that used to show across every page (now
             // redundant — "now playing" itself shows this prominently).
-            LaunchedEffect(localPlayback.track?.id) {
-                if (localPlayback.track != null) pagerState.animateScrollToPage(0)
+            // Keyed on the *transition* into playing, not just the track id:
+            // replaying the same already-loaded-but-paused track (e.g. from
+            // "history", when it happens to be the current track) never
+            // changes localPlayback.track?.id, so keying on id alone never
+            // re-fired for that case — user-reported: "when i play from
+            // history after playing need to jump to now playing".
+            var wasLocalPlaying by remember { mutableStateOf(localPlayback.playing) }
+            LaunchedEffect(localPlayback.track?.id, localPlayback.playing) {
+                if (localPlayback.playing && !wasLocalPlaying) pagerState.animateScrollToPage(0)
+                wasLocalPlaying = localPlayback.playing
             }
             // Same jump for an external app's own playback — this only ever
             // covered the local library before (user-reported: "when device
