@@ -9503,3 +9503,13 @@ Two separate render paths needed the same page-aware lookup, both keyed off the 
 
 Verified on-device (screenshot, no crash): both corner glyphs render legibly — the bell on "what's
 new" (caught mid-back-face, showing a real message) and the plain square on "recent".
+
+## "recent" tile icon: swapped the plain square for a real clock face
+
+User: "recent icon not looking appropriate" — the previous choice, `TileIcons["recents"]` (a plain
+rounded square, no hands/markings), read as a generic placeholder rather than anything evoking
+"recent". Swapped to `"clock"` (an actual circle+hands clock face, already used by the clock tile
+elsewhere) in both the fallback-glyph resolver (`StartScreen.kt`'s `StaticTileGlyph`) and the live
+face's `PageIconCorner` — a plain semantic fit for "recency", and a real recognizable shape rather
+than an ambiguous square. Verified on-device (screenshot, no crash): the tile now shows a proper
+clock face, both as its own icon and in its live corner badge.

@@ -82,7 +82,7 @@ private fun RecentPeopleTileFace(size: TileSize, fallback: @Composable () -> Uni
     if (list.isEmpty()) return fallback()
     Box(modifier = modifier.fillMaxSize()) {
         PeopleHubPageLines("recent", list.map { it.name.lowercase() }, Modifier.fillMaxSize())
-        PageIconCorner("recents")
+        PageIconCorner("clock")
     }
 }
 
