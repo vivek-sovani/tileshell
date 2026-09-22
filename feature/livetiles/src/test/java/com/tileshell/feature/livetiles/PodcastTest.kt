@@ -49,6 +49,30 @@ class PodcastSearchResultParsingTest {
     }
 }
 
+class PodcastChartParsingTest {
+
+    @Test
+    fun `extracts collection ids from a top-podcasts chart response`() {
+        val json = """
+            {"feed":{"entry":[
+                {"id":{"label":"https://x","attributes":{"im:id":"111"}}},
+                {"id":{"label":"https://x","attributes":{"im:id":"222"}}}
+            ]}}
+        """.trimIndent()
+        assertEquals(listOf("111", "222"), parseChartTrackIds(json))
+    }
+
+    @Test
+    fun `malformed chart json degrades to an empty list`() {
+        assertEquals(emptyList<String>(), parseChartTrackIds("not json"))
+    }
+
+    @Test
+    fun `an empty entry array yields an empty list`() {
+        assertEquals(emptyList<String>(), parseChartTrackIds("""{"feed":{"entry":[]}}"""))
+    }
+}
+
 class PodcastFeedParsingTest {
 
     @Test

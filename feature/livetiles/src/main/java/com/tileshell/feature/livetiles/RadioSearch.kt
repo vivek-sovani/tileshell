@@ -58,6 +58,29 @@ fun parseRadioStations(json: String): List<RadioStation> = runCatching {
     }
 }.getOrElse { emptyList() }
 
+/** Fixed, curated genre/language chips for the "radio" tab's category
+ * browsing (user-requested: "can we show categories like genre, language
+ * etc."). Radio-Browser's own tag/language vocabulary is free-form and
+ * enormous — these are simply the common, recognizable ones, not an
+ * exhaustive or live-fetched list. */
+val RADIO_GENRES = listOf("pop", "rock", "jazz", "classical", "news", "talk", "electronic", "sports", "chill")
+val RADIO_LANGUAGES = listOf("english", "hindi", "spanish", "french", "german", "arabic", "chinese", "japanese")
+
+/** Stations tagged with [tag] (a genre chip) — same result shape as
+ * [searchRadioStations], so [parseRadioStations] is reused as-is. */
+suspend fun stationsByTag(tag: String): List<RadioStation> {
+    val encoded = runCatching { URLEncoder.encode(tag, "UTF-8") }.getOrNull() ?: return emptyList()
+    val url = "https://all.api.radio-browser.info/json/stations/bytag/$encoded?limit=25&hidebroken=true"
+    return parseRadioStations(httpGetText(url) ?: return emptyList())
+}
+
+/** Stations broadcasting in [language] (a language chip). */
+suspend fun stationsByLanguage(language: String): List<RadioStation> {
+    val encoded = runCatching { URLEncoder.encode(language, "UTF-8") }.getOrNull() ?: return emptyList()
+    val url = "https://all.api.radio-browser.info/json/stations/bylanguage/$encoded?limit=25&hidebroken=true"
+    return parseRadioStations(httpGetText(url) ?: return emptyList())
+}
+
 private suspend fun httpGetText(url: String): String? = withContext(Dispatchers.IO) {
     runCatching {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {

@@ -9048,3 +9048,49 @@ external app's package identity or the single shared local-library player natura
 a podcast episode nor a radio station has an equivalently stable "source" identity for that model
 — that's what the podcasts/radio tabs' own subscription/favorites lists are for instead. Revisit
 if a "recently played episodes/stations" list turns out to be wanted later.
+
+## Music hub pivot menu: overflow fix, apps/history folded under "now playing", vertical stack, genre/language categories
+
+Direct follow-up to the podcasts/radio session, four user reports/asks in one message: "horizontal
+menu not showing correctly. bring apps section to now playing. podcast and radio section are
+blank. can we show categories like genre, language etc.", then a same-session correction
+("display menus vertically as shown in prototype").
+
+**Overflow, real bug**: `HUB_PIVOTS` grew from 4 to 6 labels ("now playing"/"library"/"podcasts"/
+"radio"/"apps"/"history") when podcasts/radio were added, but the header `Row` rendering them had
+no scroll/wrap — six labels at 20sp plus spacing comfortably exceed a phone-width screen, so the
+later tabs were genuinely unreachable (not just visually cramped). Fixed two ways, per the two
+user messages: first made the row `horizontalScroll`-able (a pure robustness fix, kept regardless
+of label count), then — "display menus vertically as shown in prototype" — replaced the row with
+a vertical `Column` of stacked, still-tappable labels, sidestepping the overflow question
+structurally rather than only visually.
+
+**Apps/history folded under "now playing"** ("bring apps section to now playing"; "if not fitting
+history can also be brought under now playing"): `HUB_PIVOTS` (all six real pager pages, used for
+routing/count) split from a new `VISIBLE_HUB_TABS` (just the four shown as clickable pivot
+labels: now playing/library/podcasts/radio). "apps" and "history" are still full pager pages,
+reached instead via "apps ›"/"history ›" links on "now playing" — the same link mechanism
+"history ›" already used on its own, just extended to a second target.
+
+**"podcast and radio section are blank"**: most likely explained by the overflow bug itself —
+with the header row not scrolling, tapping a partially/fully off-screen "podcasts"/"radio" label
+could easily land on the wrong page or fail to register, reading as "nothing there." The fix
+below (genre/language category chips, visible immediately with no typed search and no existing
+subscriptions/favorites) also makes a freshly-opened tab visibly non-empty regardless.
+
+**Categories** ("can we show categories like genre, language etc."): podcasts get a genre chip
+row (`PODCAST_GENRES` — 10 fixed Apple genre IDs: news/comedy/true crime/technology/business/
+health & fitness/society & culture/sports/education/arts); tapping one calls `topPodcasts(genreId)`,
+a two-step free/no-key fetch — Apple's "RSS Generator" charts endpoint
+(`itunes.apple.com/us/rss/toppodcasts/limit=25/genre={id}/json`) lists a genre's current top shows
+by collection id only (no feed URL), so each id is then resolved through the plain Lookup API
+(`itunes.apple.com/lookup?id=…`), which returns the **exact same JSON shape** as the Search API's
+own results — `parsePodcastSearchResults` is reused as-is for that second step, no new parser
+needed. Radio gets two chip rows, genre/tag (`RADIO_GENRES`) and language (`RADIO_LANGUAGES`),
+both fixed curated lists (Radio-Browser's own tag/language vocabulary is enormous and free-form,
+not meant to be exhaustively surfaced as chips) — `stationsByTag`/`stationsByLanguage` hit
+Radio-Browser's own `/bytag/{tag}`/`/bylanguage/{language}` endpoints, which return the same
+station shape `searchRadioStations` does, so `parseRadioStations` is reused unchanged too. Both
+verified live via `curl` against the real endpoints before wiring them in. A shared
+`CategoryChipRow` composable (horizontally-scrollable pill row, tap-to-select/tap-again-to-clear)
+backs both pages' chip rows.

@@ -54,6 +54,57 @@ fun parsePodcastSearchResults(json: String): List<PodcastSearchResult> = runCatc
     }
 }.getOrElse { emptyList() }
 
+/** A browsable top-level Apple Podcasts genre — user-requested category
+ * browsing ("can we show categories like genre, language etc."). IDs are
+ * Apple's own stable genre identifiers. */
+data class PodcastGenre(val id: Int, val label: String)
+
+val PODCAST_GENRES = listOf(
+    PodcastGenre(1489, "news"),
+    PodcastGenre(1303, "comedy"),
+    PodcastGenre(1488, "true crime"),
+    PodcastGenre(1318, "technology"),
+    PodcastGenre(1321, "business"),
+    PodcastGenre(1512, "health & fitness"),
+    PodcastGenre(1324, "society & culture"),
+    PodcastGenre(1545, "sports"),
+    PodcastGenre(1304, "education"),
+    PodcastGenre(1301, "arts"),
+)
+
+/**
+ * The current top podcasts in [genreId] — browsing by category rather than
+ * typing a search term. Two iTunes calls, both free/no-key: its "RSS
+ * Generator" charts endpoint lists the genre's current top shows by
+ * collection id only (no feed URL), so each id is then resolved through the
+ * plain Lookup API, which returns the exact same shape as [searchPodcasts]'s
+ * own results — [parsePodcastSearchResults] is reused as-is for the second
+ * step.
+ */
+suspend fun topPodcasts(genreId: Int): List<PodcastSearchResult> {
+    val chartUrl = "https://itunes.apple.com/us/rss/toppodcasts/limit=25/genre=$genreId/json"
+    val chartJson = httpGetText(chartUrl) ?: return emptyList()
+    val ids = parseChartTrackIds(chartJson)
+    if (ids.isEmpty()) return emptyList()
+    val lookupUrl = "https://itunes.apple.com/lookup?id=${ids.joinToString(",")}"
+    val lookupJson = httpGetText(lookupUrl) ?: return emptyList()
+    return parsePodcastSearchResults(lookupJson)
+}
+
+/** Pure JSON parsing of the charts endpoint's own response shape
+ * (`feed.entry[].id.attributes["im:id"]`) — unit-testable without a network
+ * call. */
+fun parseChartTrackIds(json: String): List<String> = runCatching {
+    val entries = JSONObject(json).optJSONObject("feed")?.optJSONArray("entry") ?: JSONArray()
+    (0 until entries.length()).mapNotNull { i ->
+        entries.optJSONObject(i)
+            ?.optJSONObject("id")
+            ?.optJSONObject("attributes")
+            ?.optString("im:id")
+            ?.takeIf { it.isNotBlank() }
+    }
+}.getOrElse { emptyList() }
+
 private suspend fun httpGetText(url: String): String? = withContext(Dispatchers.IO) {
     runCatching {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
