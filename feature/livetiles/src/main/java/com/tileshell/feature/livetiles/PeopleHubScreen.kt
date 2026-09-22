@@ -11,9 +11,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -40,6 +38,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -599,18 +598,18 @@ private fun ContactActionButton(iconKey: String, label: String, tint: Color, tok
     ) {
         Box(
             modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                // A little more fill + a matching border than the original
-                // flat 18%-alpha wash — user-reported "icon display should be
-                // improved": at low alpha the plate read as barely-there,
-                // especially in light theme, leaving the button looking
-                // undefined rather than like a clear tappable chip.
-                .background(tint.copy(alpha = 0.24f))
-                .border(BorderStroke(1.dp, tint.copy(alpha = 0.45f)), CircleShape),
+                .size(40.dp)
+                .clip(RoundedCornerShape(14.dp))
+                // Solid tonal fill (user picked this over a bordered
+                // translucent-circle option and a bare-icon-no-plate option,
+                // shown side by side after "icon display should be improved"
+                // → "looks dated") — a bolder, more modern filled square
+                // reads as a clearer button than a faint tinted outline ever
+                // did, in both themes.
+                .background(tint),
             contentAlignment = Alignment.Center,
         ) {
-            androidx.compose.material3.Icon(TileIcons[iconKey], null, tint = tint, modifier = Modifier.size(19.dp))
+            androidx.compose.material3.Icon(TileIcons[iconKey], null, tint = Color.White, modifier = Modifier.size(19.dp))
         }
         Spacer(Modifier.height(4.dp))
         // The label's own colour is deliberately NOT the icon's tint (accent

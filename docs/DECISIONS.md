@@ -9641,3 +9641,16 @@ each action's own colour identity instead of a neutral border. Icon size nudged 
 the slightly bolder plate.
 
 Verified on-device, dark theme: the five action icons now read as clearly defined circular buttons.
+
+## Contact action icons: solid tonal squares, chosen from three visual options
+
+Direct continuation: "looks dated" on the previous bordered-translucent-circle attempt. Rather than
+guess a third time, presented three options side by side (a `visualize` mockup: A = the just-shipped
+bordered tinted circle, B = a solid tonal filled rounded square, C = a bare icon with no plate at
+all) — user picked B. `ContactActionButton`'s icon plate is now a `RoundedCornerShape(14.dp)` square
+at full opacity `tint` (accent, or WhatsApp green), with a plain white icon on top — no border, no
+translucency. Reads as a bolder, more current "filled tonal button" rather than a faint outlined
+circle. The label below is unchanged (`tokens.fg`, from the earlier contrast fix).
+
+Verified on-device (no crash, via a wired USB connection after the wireless adb link kept dropping
+all session): the buttons now render exactly as the chosen mockup, legible in light theme.
