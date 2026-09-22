@@ -9582,3 +9582,16 @@ real pinned SMALL mail/message tile no longer jumps to a message — wasn't exer
 device (no such tile was pinned there); the logic mirrors the tile's own existing, already-verified
 "is this actually a shaped icon" rendering condition, so risk is low, but this specific interaction
 still warrants the user's own hands-on check.
+
+## Contact rows regain a "view" action alongside call/message/whatsapp/pin
+
+User: "now in contact list there is no view option when i tap contact line of phone sms whatsapp
+pin opens but no view" — the earlier redesign that turned a plain tap into an inline call/message/
+whatsapp/pin action row (replacing the original "tap opens the device's Contacts app" behaviour)
+left no way to actually view the full contact card anymore. Added a fifth action, "view"
+(`TileIcons["contacts"]`, a person silhouette), reusing the pre-existing `openContactCard` — the
+exact function the very first People Hub pass used for its original tap-to-view behaviour, now
+just wired to its own explicit button instead of the whole row's tap.
+
+Verified on-device (no crash): the "view" button renders correctly, in the same style and position
+as the other four actions.

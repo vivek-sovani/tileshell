@@ -579,6 +579,7 @@ private fun ContactRow(
                     }
                 }
                 ContactActionButton("pin", "pin", accent) { PeopleHubNavigation.requestPin(person) }
+                ContactActionButton("contacts", "view", accent) { openContactCard(context, person.contactId, person.lookupKey) }
             }
         }
     }
