@@ -253,12 +253,19 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      * The music hub full-screen page (Start's music tile → hub). Unlike the
      * weather hub, the music tile carries no per-tile configuration to show —
      * one hub, one now-playing session — so this is a plain flag, not a
-     * target holder.
+     * target holder. [musicHubInitialPage] is separate rather than folded
+     * into a combined target type, since it's an optional one-shot "open
+     * straight to this page" request (the dedicated music tile's back-face
+     * quick-nav menu, via `MusicHubNavigation`) — every other caller keeps
+     * passing no page at all, landing wherever the hub was last left.
      */
     private val _musicHubOpen = MutableStateFlow(false)
     val musicHubOpen: StateFlow<Boolean> = _musicHubOpen.asStateFlow()
+    private val _musicHubInitialPage = MutableStateFlow<String?>(null)
+    val musicHubInitialPage: StateFlow<String?> = _musicHubInitialPage.asStateFlow()
 
-    fun openMusicHub() {
+    fun openMusicHub(page: String? = null) {
+        _musicHubInitialPage.value = page
         _musicHubOpen.value = true
     }
 

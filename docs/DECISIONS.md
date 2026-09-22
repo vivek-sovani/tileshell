@@ -9149,3 +9149,39 @@ existed at all — only inside the episode page), and the episode page's own "su
 **"apps" search removed**: the installed-music-apps grid is short enough (a device's own player
 apps, not a large catalog like the library/podcasts/radio pages) that a filter field added
 friction without real benefit.
+
+## Music hub: page titles, hero shrunk, history repositioned, music tile's back face becomes a quick-nav menu
+
+Same-day follow-ups after the "now playing is the menu" restructure. Three on the hub screen
+itself: (1) **"tabs should have titles"** — with the persistent pivot-label header gone, no page
+said which section it was; added a shared `HubPageTitle` composable, shown at the top of every
+page (library/podcasts/radio/apps/history; the drill-down pages — album/playlist track lists,
+episode lists — already had their own back+title header, unchanged). (2) **hero shrunk** — the
+full-width square album-art hero, now sitting *below* the menu list rather than at the very top
+of the page, pushed the transport controls below the fold, needing a scroll to reach them
+(user-reported). Shrunk to ~60% width (still square, centered) via `NowPlayingHero`. (3)
+**"history" repositioned** — pulled out of the main menu list into its own small "history ›" link
+next to the "now playing" section heading itself, since it's more closely related to current/past
+playback than to the other sections; the main menu is now library/podcasts/radio/apps only.
+
+**The dedicated music live tile's back face is now a quick-nav menu** (user-requested: "live tile
+of music hub flip side should have menus like library apps podcast and radio") — tapping "library"/
+"podcasts"/"radio"/"apps" opens the hub straight to that page. Two real design problems this
+surfaced: first, `MusicTileFace` only ever flips to its back face when something is currently
+*paused* (`np != null && !np.playing`) — with nothing playing at all it falls straight to the
+static fallback glyph, no flip capability at all — so the tile's likely more common resting state
+(idle) could never show a back face to put a menu on. Fixed by special-casing the dedicated hub
+tile (`packageName == null`, as opposed to a tile bound to a specific app like Apple Music/YT
+Music, which is unaffected): with nothing playing, it now flips between the static glyph and the
+new `MusicHubMenuBack`, instead of skipping the flip mechanism entirely. Second, getting a tap
+from deep inside a live tile face (`MusicTileFace` → `MusicBack`, `:feature:livetiles`) to a real
+`StartViewModel.openMusicHub(page)` call (`:feature:start`) can't go through a normal callback
+parameter without threading it down through `TileView`/`AppTileContent`, which are called from
+many places (the top-level grid, folder mini-grids, widget stacks) just for this one tap target —
+so `MusicHubNavigation` is a small process-wide `MutableStateFlow<String?>` signal instead, the
+same cross-module-bridging shape `MediaCenter` itself already uses: the tile posts a page name to
+it, and `StartScreen` (which already holds the real `StartViewModel`) observes it once at its own
+top level and turns it into a real `openMusicHub(page)` call. `MusicHubScreen` gained a matching
+`initialPage: String?` parameter (default null, every pre-existing call site unaffected) that
+`scrollToPage`s (not animated — meant to land exactly where tapped, not visibly travel through
+the pages between) the moment the hub opens with a page requested.

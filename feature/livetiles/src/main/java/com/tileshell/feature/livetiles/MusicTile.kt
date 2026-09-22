@@ -15,6 +15,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -256,6 +257,31 @@ object MediaCenter {
 }
 
 /**
+ * A pending "open the music hub at this page" request from the dedicated
+ * music tile's own back-face menu (user-requested: "live tile of music hub
+ * flip side should have menus like library apps podcast and radio"). A
+ * lightweight, process-wide signal — the same cross-module-bridging shape
+ * [MediaCenter] itself already uses — rather than threading a callback all
+ * the way down through `TileView`/`AppTileContent` (used from many call
+ * sites: the top-level grid, folder mini-grids, widget stacks) just for this
+ * one tap target. `StartScreen` observes [pendingPage] once, at its own top
+ * level, and calls the real `StartViewModel.openMusicHub(page)`.
+ */
+object MusicHubNavigation {
+    private val _pendingPage = MutableStateFlow<String?>(null)
+    val pendingPage: StateFlow<String?> = _pendingPage.asStateFlow()
+
+    fun requestPage(page: String) {
+        _pendingPage.value = page
+    }
+
+    /** Called once the request has been acted on, so it isn't replayed. */
+    fun consume() {
+        _pendingPage.value = null
+    }
+}
+
+/**
  * Binds the active media sessions into [MediaCenter] for the whole Start screen
  * (call once). A single [MediaSessionManager] listener catches session add/remove;
  * a light poll while [active] catches in-session track/playback changes that don't
@@ -409,6 +435,12 @@ fun MusicTileFace(
 ) {
     val media by MediaCenter.nowPlaying.collectAsState()
     val artworkMap by MediaCenter.artwork.collectAsState()
+    // The dedicated hub tile — never bound to a specific app — gets a
+    // quick-nav menu on its back face regardless of whether anything is
+    // currently playing (see below); a tile bound to a specific app
+    // (Apple Music / YT Music) never does, since that menu is TileShell's
+    // own hub, not that app's.
+    val isHubTile = packageName == null
     // The package whose now-playing this tile shows: the bound app for a music-app
     // tile (Apple Music / YT Music), else the source of the playing session for the
     // generic music tile — so its launcher icon can sit in the corner either way.
@@ -422,16 +454,31 @@ fun MusicTileFace(
         iconPackage = entry?.key
         np = entry?.value
     }
-    np ?: return fallback()
     val art = iconPackage?.let { artworkMap[it] }?.asImageBitmap()
 
+    if (np == null) {
+        if (!isHubTile) return fallback()
+        // The dedicated music tile still flips to its quick-nav menu with
+        // nothing currently playing — user-requested ("live tile of music
+        // hub flip side should have menus like library apps podcast and
+        // radio"), arguably the tile's more common resting state.
+        FlipTile(
+            flipped = flipped,
+            modifier = modifier.fillMaxSize(),
+            front = { fallback() },
+            back = { MusicHubMenuBack(size) },
+        )
+        return
+    }
+
     FlipTile(
-        // Unlike the other live faces' back sides, MusicBack makes an actual
-        // playback-state claim ("paused / tap to resume") rather than just more
-        // content — so it must never show while np.playing is true, even though
-        // the shared flip scheduler ticks this tile on a blind timer with no idea
-        // what it's currently displaying.
-        flipped = flipped && !np.playing,
+        // Unlike the other live faces' back sides, a bound-app MusicBack makes
+        // an actual playback-state claim ("paused / tap to resume") rather
+        // than just more content — so it must never show while np.playing is
+        // true, even though the shared flip scheduler ticks this tile on a
+        // blind timer with no idea what it's currently displaying. The hub
+        // tile's own menu back has no such claim, so it's exempt.
+        flipped = flipped && (isHubTile || !np.playing),
         modifier = modifier.fillMaxSize(),
         front = {
             MusicFront(
@@ -447,15 +494,82 @@ fun MusicTileFace(
             )
         },
         back = {
-            MusicBack(
-                packageName = iconPackage,
-                art = art,
-                homeStyle = homeStyle,
-                iconShape = iconShape,
-                themedIcons = themedIcons,
-            )
+            if (isHubTile) {
+                MusicHubMenuBack(size)
+            } else {
+                MusicBack(
+                    packageName = iconPackage,
+                    art = art,
+                    homeStyle = homeStyle,
+                    iconShape = iconShape,
+                    themedIcons = themedIcons,
+                )
+            }
         },
     )
+}
+
+private val MUSIC_HUB_MENU_ITEMS = listOf("library", "podcasts", "radio", "apps")
+
+/**
+ * The dedicated music tile's back face — a compact quick-nav menu into the
+ * hub's own sections (user-requested: "live tile of music hub flip side
+ * should have menus like library apps podcast and radio"). Tapping a label
+ * posts to [MusicHubNavigation], which `StartScreen` turns into a real
+ * `StartViewModel.openMusicHub(page)` call — see that object's own doc
+ * comment for why this is a process-wide signal rather than a threaded
+ * callback.
+ */
+@Composable
+private fun MusicHubMenuBack(size: TileSize) {
+    TileImageBackground(image = null, modifier = Modifier.fillMaxSize()) {
+        if (size.rows == 1 && size.cols > 1) {
+            // One grid row tall (WIDE_SMALL/BANNER) — matches MusicFront's own
+            // layout switch for the same shapes.
+            Row(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 11.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                MUSIC_HUB_MENU_ITEMS.forEach { label ->
+                    Text(
+                        text = label,
+                        color = FaceText,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { MusicHubNavigation.requestPage(label) },
+                        ),
+                    )
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(11.dp),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                MUSIC_HUB_MENU_ITEMS.forEachIndexed { index, label ->
+                    Text(
+                        text = label,
+                        color = FaceText,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { MusicHubNavigation.requestPage(label) },
+                        ),
+                    )
+                    if (index < MUSIC_HUB_MENU_ITEMS.lastIndex) Spacer(Modifier.height(6.dp))
+                }
+            }
+        }
+    }
 }
 
 @Composable

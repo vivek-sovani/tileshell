@@ -133,6 +133,11 @@ fun MusicHubScreen(
     onDismiss: () -> Unit,
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
+    // Jumps straight to this page (a [HUB_PIVOTS] label) the moment the hub
+    // opens — e.g. the dedicated music tile's back-face quick-nav menu
+    // ([MusicHubNavigation]). Null (the default, every existing call site)
+    // just opens wherever the pager was last left, unchanged.
+    initialPage: String? = null,
 ) {
     val progress by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
@@ -149,6 +154,16 @@ fun MusicHubScreen(
 
     val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { HUB_PIVOTS.size })
     val pagerScope = rememberCoroutineScope()
+    // Jumps to the requested page the moment the hub opens (or the request
+    // changes while it's already open) — immediate, not animated, since this
+    // is meant to land exactly where the tap asked for, not visibly travel
+    // through the pages in between.
+    LaunchedEffect(visible, initialPage) {
+        if (visible && initialPage != null) {
+            val index = HUB_PIVOTS.indexOf(initialPage)
+            if (index >= 0) pagerState.scrollToPage(index)
+        }
+    }
     val localPlayback by LocalMusicPlayer.state.collectAsState()
     val externalMedia by MediaCenter.nowPlaying.collectAsState()
     val anyPlaying = localPlayback.playing || externalMedia.values.any { it.playing }
@@ -323,7 +338,11 @@ private fun NowPlayingPage(accent: Color, tokens: ColorTokens, onOpenPage: (Stri
     val localPlayback by LocalMusicPlayer.state.collectAsState()
     val localItem = localPlayback.item
     val context = LocalContext.current
-    val menuItems = HUB_PIVOTS.filterNot { it == "now playing" }
+    // "history" gets its own small link next to "now playing" itself instead
+    // of sitting in the main menu list — user-requested ("history can be a
+    // small menu in now playing at suitable position"), since it's more
+    // closely related to current/past playback than to the other sections.
+    val menuItems = HUB_PIVOTS.filterNot { it == "now playing" || it == "history" }
 
     Column(
         modifier = Modifier
@@ -366,7 +385,23 @@ private fun NowPlayingPage(accent: Color, tokens: ColorTokens, onOpenPage: (Stri
         Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp).height(1.dp).background(tokens.sheetLine))
         Spacer(Modifier.height(10.dp))
 
-        HubPageTitle("now playing", tokens)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(top = 4.dp, bottom = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Text("now playing", color = tokens.fg, fontSize = 26.sp, fontWeight = FontWeight.Light)
+            Text(
+                "history ›",
+                color = accent,
+                fontSize = 13.sp,
+                modifier = Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { onOpenPage("history") },
+                ),
+            )
+        }
         when {
             externalEntry != null && (externalEntry.value.playing || localItem == null) ->
                 ExternalNowPlaying(externalEntry, artworkMap, accent, tokens, context)
@@ -386,12 +421,16 @@ private fun NowPlayingPage(accent: Color, tokens: ColorTokens, onOpenPage: (Stri
 
 @Composable
 private fun NowPlayingHero(art: ImageBitmap?, accent: Color) {
-    // "Big size, as in the mockup" — a full-width square hero instead of a
-    // fixed short strip, matching the approved now-playing page treatment.
-    TileImageBackground(image = art, modifier = Modifier.fillMaxWidth().aspectRatio(1f)) {
-        if (art == null) {
-            Box(Modifier.fillMaxSize().background(accent), contentAlignment = Alignment.Center) {
-                Icon(TileIcons["music"], contentDescription = null, tint = Color.White, modifier = Modifier.size(72.dp))
+    // Shrunk from a full-width square — with the menu now sitting above this
+    // page's playback content, a full-width hero pushed the transport
+    // controls below the fold, needing a scroll to reach them
+    // (user-reported). ~60% width, still square, centered.
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        TileImageBackground(image = art, modifier = Modifier.fillMaxWidth(0.6f).aspectRatio(1f)) {
+            if (art == null) {
+                Box(Modifier.fillMaxSize().background(accent), contentAlignment = Alignment.Center) {
+                    Icon(TileIcons["music"], contentDescription = null, tint = Color.White, modifier = Modifier.size(56.dp))
+                }
             }
         }
     }

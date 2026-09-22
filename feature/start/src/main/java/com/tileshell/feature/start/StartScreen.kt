@@ -242,6 +242,7 @@ import com.tileshell.feature.livetiles.LiveFace
 import com.tileshell.feature.livetiles.MediaSessionsEffect
 import com.tileshell.feature.livetiles.MoonPhaseTileFace
 import com.tileshell.feature.livetiles.MusicHistoryEffect
+import com.tileshell.feature.livetiles.MusicHubNavigation
 import com.tileshell.feature.livetiles.MusicHubScreen
 import com.tileshell.feature.livetiles.MusicTileFace
 import com.tileshell.feature.livetiles.NotesTileFace
@@ -377,6 +378,17 @@ fun StartScreen(
     val weatherLocationTarget by viewModel.weatherLocationTarget.collectAsStateWithLifecycle()
     val weatherHubTarget by viewModel.weatherHubTarget.collectAsStateWithLifecycle()
     val musicHubOpen by viewModel.musicHubOpen.collectAsStateWithLifecycle()
+    val musicHubInitialPage by viewModel.musicHubInitialPage.collectAsStateWithLifecycle()
+    // The dedicated music tile's back-face quick-nav menu posts here rather
+    // than through a callback threaded down the whole TileView/AppTileContent
+    // rendering tree — see MusicHubNavigation's own doc comment. Observed
+    // once, at this top level, where the real ViewModel is in scope.
+    val pendingMusicHubPage by MusicHubNavigation.pendingPage.collectAsStateWithLifecycle()
+    LaunchedEffect(pendingMusicHubPage) {
+        val page = pendingMusicHubPage ?: return@LaunchedEffect
+        viewModel.openMusicHub(page)
+        MusicHubNavigation.consume()
+    }
     val permissionsOpen by viewModel.permissionsOpen.collectAsStateWithLifecycle()
     val newsRegionOpen by viewModel.newsRegionOpen.collectAsStateWithLifecycle()
     val edgeStripOpen by viewModel.edgeStripOpen.collectAsStateWithLifecycle()
@@ -2049,6 +2061,7 @@ fun StartScreen(
             accentId = settings.accentId,
             onDismiss = viewModel::closeMusicHub,
             rightHalf = isLandscape,
+            initialPage = musicHubInitialPage,
         )
 
         // Build a name→packageNames map from the current tile list so CategoryFolderSheet
