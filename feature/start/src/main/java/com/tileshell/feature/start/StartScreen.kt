@@ -255,6 +255,7 @@ import com.tileshell.feature.livetiles.NotificationTileFace
 import com.tileshell.feature.livetiles.OemBatteryGuard
 import com.tileshell.feature.livetiles.PeopleHubNavigation
 import com.tileshell.feature.livetiles.PeopleHubPageTileFace
+import com.tileshell.feature.livetiles.recentActivity
 import com.tileshell.feature.livetiles.PeopleHubScreen
 import com.tileshell.feature.livetiles.PeopleTileFace
 import com.tileshell.feature.livetiles.PhotosData
@@ -1447,7 +1448,7 @@ fun StartScreen(
                                         viewModel.openPeopleHub(hubPage)
                                     }
                                 } else {
-                                    onTileClick(context, tile)
+                                    onTileClick(context, tile, settings.homeStyle)
                                 }
                             }
                             is TileModel.Folder -> viewModel.toggleFolder(tile.id)
@@ -3025,9 +3026,16 @@ private fun StartPage(
         val block = blocks.firstOrNull { it.sectionId == sectionId } ?: return 0
         return block.ids.sumOf { id ->
             when (val m = byId[id]) {
-                is TileModel.App -> notifications.badgeFor(m.packageName)
-                is TileModel.Folder -> m.children.map { it.packageName }.distinct()
-                    .sumOf { notifications.badgeFor(it) }
+                is TileModel.App -> tileBadgeCount(m.packageName, m.activityName, notifications)
+                // Dedup by package for a real app (two activities of the same
+                // app count once, as before); a blank-package child (weather/
+                // calendar/a People Hub page tile) has no package to dedup by,
+                // so each is kept distinct via its own activityName encoding
+                // instead — otherwise every blank-package child would collapse
+                // into one "" entry and only contribute a single count.
+                is TileModel.Folder -> m.children
+                    .distinctBy { if (it.packageName.isBlank()) "blank:${it.activityName}" else it.packageName }
+                    .sumOf { tileBadgeCount(it.packageName, it.activityName, notifications) }
                 null -> 0
             }
         }
@@ -3633,14 +3641,15 @@ private fun StartPage(
                     // extracted once so the icons-mode branch can't drift from
                     // tile mode's own wiring for the same gestures.
                     val badgeCount = when (model) {
-                        is TileModel.App -> notifications.badgeFor(model.packageName)
+                        is TileModel.App -> tileBadgeCount(model.packageName, model.activityName, notifications)
                         // A folder aggregates the unread counts of its children,
                         // so a folder of mail/chat apps surfaces a single summed
                         // badge (de-duped by package — multiple activities of one
-                        // app count once).
+                        // app count once; a blank-package child is kept distinct
+                        // by its own activityName instead, see tileBadgeCount).
                         is TileModel.Folder -> model.children
-                            .map { it.packageName }.distinct()
-                            .sumOf { notifications.badgeFor(it) }
+                            .distinctBy { if (it.packageName.isBlank()) "blank:${it.activityName}" else it.packageName }
+                            .sumOf { tileBadgeCount(it.packageName, it.activityName, notifications) }
                     }
                     // "Move back/forward" (TalkBack custom actions) reorder the
                     // list-backed order — meaningless once a sticky-mode tile sits
@@ -8307,6 +8316,21 @@ internal fun launchSearchEngine(context: Context, engine: SearchEngine, query: S
  * so the user can add a schedule straight from the feed. Best-effort: toasts when
  * no calendar app handles it.
  */
+/**
+ * A tile's own pending-notification badge count. For a real single-package
+ * tile this is just [NotificationSnapshot.badgeFor]; a People Hub "what's
+ * new" page tile ([PeopleHubTile]) has a blank `packageName` (no single app
+ * to look up), so its aggregate [recentActivity] count stands in instead —
+ * user-reported: at SMALL size (or shown as a plain icon), the tile's own
+ * live face never renders "N new" as text, so without this its pending count
+ * had no visible indicator at all, unlike every other notification-driven
+ * tile (which still shows a small badge pill at any size).
+ */
+private fun tileBadgeCount(packageName: String, activityName: String, notifications: NotificationSnapshot): Int {
+    val hubPage = PeopleHubTile.decode(activityName)
+    return if (hubPage == "what's new") recentActivity(notifications).size else notifications.badgeFor(packageName)
+}
+
 /** Opens an article [url] in the browser. Best-effort; toasts when no handler. */
 private fun launchUrl(context: Context, url: String) {
     if (url.isBlank()) return
@@ -8323,7 +8347,7 @@ private fun launchAddEvent(context: Context) {
     Toast.makeText(context, "no calendar app to add an event", Toast.LENGTH_SHORT).show()
 }
 
-private fun onTileClick(context: Context, tile: TileModel) {
+private fun onTileClick(context: Context, tile: TileModel, homeStyle: HomeStyle = HomeStyle.TILES) {
     when (tile) {
         is TileModel.App -> {
             // A pinned contact (quick search → "pin to start"): reopen its
@@ -8343,12 +8367,23 @@ private fun onTileClick(context: Context, tile: TileModel) {
             // separate "alarm app" to launch, and this is exactly what the tile's
             // own face is showing.
             if (tile.iconKey == "alarm" && openClock(context)) return
+            // A SMALL tile (or one stretched to show as a plain icon, per-app —
+            // see AppTileContent's own "no small face for this iconKey" +
+            // IconCellView's rendering gate) never displays a notification's
+            // message content in the first place, so a tap here must never
+            // secretly jump into a specific message either — user-reported:
+            // "flip side message line are not shown [at this size]... but when
+            // tile is clicked last message is shown[,] this should not
+            // happen... only app should be opened." Same condition as the
+            // "is this tile actually a shaped icon" check used for rendering.
+            val showsLiveMessageContent = tile.size != TileSize.SMALL &&
+                !(homeStyle == HomeStyle.ICONS && tile.displayAsIcon && tile.packageName.isNotBlank())
             if (tile.packageName.isNotBlank()) {
                 // If the tile is currently showing a notification (badge / live
                 // face), tapping opens that notification inside the app and clears
                 // the app's notifications. Falls through to a normal launch when the
                 // app has nothing pending or the notification had no content intent.
-                if (NotificationCenter.openAndClear(context, tile.packageName)) return
+                if (showsLiveMessageContent && NotificationCenter.openAndClear(context, tile.packageName)) return
                 if (!AppLauncher.launch(context, tile.packageName, tile.activityName)) {
                     Toast.makeText(
                         context,
@@ -8394,7 +8429,11 @@ private fun launchFolderChild(context: Context, child: FolderChild) {
     if (child.iconKey == "clock" && openClock(context)) return
     if (child.iconKey == "alarm" && openClock(context)) return
     if (child.packageName.isNotBlank()) {
-        if (NotificationCenter.openAndClear(context, child.packageName)) return
+        // Same "never jump to a specific message a SMALL tile never showed"
+        // gate as onTileClick — a folder child never gets the separate
+        // displayAsIcon override (always false; see FolderChild.asTileModel's
+        // own doc comment), so only its own size matters here.
+        if (child.size != TileSize.SMALL && NotificationCenter.openAndClear(context, child.packageName)) return
         if (!AppLauncher.launch(context, child.packageName, child.activityName)) {
             Toast.makeText(context, "couldn't open ${child.label ?: "app"}", Toast.LENGTH_SHORT).show()
         }

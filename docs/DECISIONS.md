@@ -9544,3 +9544,41 @@ toggle itself.
 
 Verified on-device (screenshots, no crash) across every round: a real photo now shows on the tile's
 back face next to a real sender name, and the corner icons/build remain intact.
+
+## SMALL/icon-mode tiles never secretly jump to a message on tap; badge count for "what's new"
+
+Two related reports. First, general to every notification-driven tile (mail, messages, and now
+"what's new"): "when tile size is small or app is shown as icon. flip side message line are not
+shown. but when tile is clicked last message is shown this should not happen. in this case only app
+should be opened and should not be jumped to message." Root cause: `onTileClick`/`launchFolderChild`
+called `NotificationCenter.openAndClear(context, tile.packageName)` unconditionally whenever the
+package had a pending notification, with no check for whether the tile was actually capable of
+*showing* that content — a SMALL tile (no small face exists for mail/messages/people iconKeys, so it
+always renders the plain static glyph) or a tile explicitly stretched to show as a plain icon
+(`displayAsIcon` + `HomeStyle.ICONS`, "can't also show live content" per its own doc comment) never
+displays a message preview, so jumping straight into one on tap is a surprising, unexplained
+shortcut. Both call sites now gate `openAndClear` on the exact same condition already used to decide
+*rendering* (`tile.size != TileSize.SMALL && !(homeStyle == ICONS && tile.displayAsIcon &&
+packageName.isNotBlank())` for a top-level tile; `child.size != TileSize.SMALL` for a folder child,
+which never gets the separate `displayAsIcon` override) — when it's false, a tap is just a plain app
+launch, same as if nothing were pending.
+
+Second, specific to the new "what's new" tile: "when tile is small notification count not
+displayed." A real mail/messages tile still shows *something* at SMALL size — a small `NotificationBadge`
+pill, computed from `NotificationSnapshot.badgeFor(packageName)` — independent of the live face itself
+being suppressed. "what's new" has a blank `packageName` (no single app to look up), so that lookup
+always returned 0 and the badge silently never appeared, at any size, not just SMALL. New shared
+`tileBadgeCount(packageName, activityName, notifications)` special-cases a decoded "what's new"
+`PeopleHubTile` to use its own aggregate `recentActivity(...).size` instead, and both places that
+compute a tile/folder's badge count now call it (with a corrected dedup key for blank-package folder
+children, which previously collapsed under one shared `""` bucket — harmless before since
+`badgeFor("")` was always 0, but not once a blank-package tile can have a real non-zero count).
+"recent" has no natural "count of new things" concept, so it intentionally gets no badge — only its
+own icon, unchanged.
+
+Verified on-device (no crash): the "what's new" tile's front-face count and its corner badge pill
+now agree (both read "3" in the same session). The SMALL-size tap-gating fix itself — confirming a
+real pinned SMALL mail/message tile no longer jumps to a message — wasn't exercised on this test
+device (no such tile was pinned there); the logic mirrors the tile's own existing, already-verified
+"is this actually a shaped icon" rendering condition, so risk is low, but this specific interaction
+still warrants the user's own hands-on check.
