@@ -63,6 +63,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tileshell.core.design.ColorTokens
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
@@ -186,7 +187,8 @@ fun PeopleHubScreen(
                 HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
                     when (page) {
                         0 -> AllPeoplePage(context, tokens, accent, query)
-                        else -> ComingSoonPage(tokens, HUB_PIVOTS[page])
+                        1 -> WhatsNewPage(context, tokens, accent)
+                        else -> RecentPeoplePage(context, tokens, accent)
                     }
                 }
             }
@@ -255,6 +257,9 @@ private fun AllPeoplePage(context: android.content.Context, tokens: ColorTokens,
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var jumpOpen by remember { mutableStateOf(false) }
+    // Only one row's call/message/whatsapp/pin line is ever open at a time —
+    // user-requested: "when i tap another first should collapse".
+    var expandedId by remember { mutableStateOf<Long?>(null) }
 
     val trimmedQuery = query.trim()
     if (trimmedQuery.isNotEmpty()) {
@@ -268,7 +273,11 @@ private fun AllPeoplePage(context: android.content.Context, tokens: ColorTokens,
                 }
             } else {
                 items(matches, key = { "match-${it.contactId}" }) { person ->
-                    ContactRow(context, person, tokens, accent)
+                    ContactRow(
+                        context, person, tokens, accent,
+                        expanded = expandedId == person.contactId,
+                        onToggleExpand = { expandedId = if (expandedId == person.contactId) null else person.contactId },
+                    )
                 }
             }
         }
@@ -339,7 +348,11 @@ private fun AllPeoplePage(context: android.content.Context, tokens: ColorTokens,
                         )
                     }
                     items(people, key = { "row-${it.contactId}" }) { person ->
-                        ContactRow(context, person, tokens, accent)
+                        ContactRow(
+                            context, person, tokens, accent,
+                            expanded = expandedId == person.contactId,
+                            onToggleExpand = { expandedId = if (expandedId == person.contactId) null else person.contactId },
+                        )
                     }
                 }
             }
@@ -491,8 +504,14 @@ private fun FrequentAvatar(person: PersonSummary, onClick: () -> Unit) {
  * — see [whatsAppContact]'s own doc for why no equivalent deep link exists.
  */
 @Composable
-private fun ContactRow(context: android.content.Context, person: PersonSummary, tokens: ColorTokens, accent: Color) {
-    var expanded by remember { mutableStateOf(false) }
+private fun ContactRow(
+    context: android.content.Context,
+    person: PersonSummary,
+    tokens: ColorTokens,
+    accent: Color,
+    expanded: Boolean,
+    onToggleExpand: () -> Unit,
+) {
     var phone by remember(person.contactId) { mutableStateOf<String?>(null) }
     LaunchedEffect(expanded, person.contactId) {
         if (expanded && phone == null) {
@@ -507,7 +526,7 @@ private fun ContactRow(context: android.content.Context, person: PersonSummary, 
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
-                    onClick = { expanded = !expanded },
+                    onClick = onToggleExpand,
                 )
                 .padding(vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -532,7 +551,7 @@ private fun ContactRow(context: android.content.Context, person: PersonSummary, 
                     ContactActionButton("phone", "call", accent) { callContact(context, number) }
                     ContactActionButton("messages", "message", accent) { messageContact(context, number) }
                     if (isWhatsAppInstalled(context)) {
-                        ContactActionButton("messages", "whatsapp", Color(0xFF25D366)) { whatsAppContact(context, number) }
+                        ContactActionButton("whatsapp", "whatsapp", Color(0xFF25D366)) { whatsAppContact(context, number) }
                     }
                 }
                 ContactActionButton("pin", "pin", accent) { PeopleHubNavigation.requestPin(person) }
@@ -583,12 +602,163 @@ private fun PinContactMenu(expanded: Boolean, person: PersonSummary, onDismiss: 
 }
 
 @Composable
-private fun ComingSoonPage(tokens: ColorTokens, label: String) {
+private fun RecentPeoplePage(context: android.content.Context, tokens: ColorTokens, accent: Color) {
+    val recent by produceState<List<PersonSummary>?>(initialValue = null) {
+        value = withContext(Dispatchers.IO) { queryRecentContacts(context) }
+    }
+    var expandedId by remember { mutableStateOf<Long?>(null) }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
+    ) {
+        val list = recent
+        if (list == null) {
+            item { Spacer(Modifier.height(1.dp)) }
+        } else if (list.isEmpty()) {
+            item {
+                Text(
+                    "no recently contacted people",
+                    color = tokens.fgDim,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(vertical = 24.dp),
+                )
+            }
+        } else {
+            items(list, key = { "recent-${it.contactId}" }) { person ->
+                ContactRow(
+                    context, person, tokens, accent,
+                    expanded = expandedId == person.contactId,
+                    onToggleExpand = { expandedId = if (expandedId == person.contactId) null else person.contactId },
+                )
+            }
+        }
+        item { Spacer(Modifier.height(24.dp)) }
+    }
+}
+
+/**
+ * "what's new" — recent messaging/social notifications for people, reusing
+ * [NotificationCenter] (already tracked for badges/mail-and-messages tile
+ * faces) rather than a parallel data source. Gated on notification-listener
+ * access, a separate opt-in from READ_CONTACTS (the same permission the
+ * "notifications" row in Personalize already asks for).
+ */
+@Composable
+private fun WhatsNewPage(context: android.content.Context, tokens: ColorTokens, accent: Color) {
+    val granted = rememberNotificationAccess()
+    if (!granted) {
+        NotificationAccessGate(tokens, accent)
+        return
+    }
+    val snapshot by NotificationCenter.snapshot.collectAsStateWithLifecycle()
+    val entries = remember(snapshot) { recentActivity(snapshot) }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
+    ) {
+        if (entries.isEmpty()) {
+            item {
+                Text(
+                    "nothing new right now",
+                    color = tokens.fgDim,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(vertical = 24.dp),
+                )
+            }
+        } else {
+            item {
+                Text(
+                    "from your notifications",
+                    color = tokens.fgDim,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(bottom = 10.dp),
+                )
+            }
+            items(entries, key = { "activity-${it.notificationKey.ifBlank { it.packageName + it.postTime }}" }) { entry ->
+                ActivityRow(entry) {
+                    NotificationCenter.reportDisplayedKey(entry.packageName, entry.notificationKey)
+                    NotificationCenter.openAndClear(context, entry.packageName)
+                }
+            }
+        }
+        item { Spacer(Modifier.height(24.dp)) }
+    }
+}
+
+@Composable
+private fun ActivityRow(entry: ActivityEntry, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(modifier = Modifier.size(44.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(colorFor(entry.sender)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(initialsFor(entry.sender), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            }
+            val appIcon = rememberAppIconBitmap(entry.packageName, sizePx = 64)
+            if (appIcon != null) {
+                Image(
+                    bitmap = appIcon,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(18.dp)
+                        .align(Alignment.BottomEnd)
+                        .clip(CircleShape),
+                )
+            }
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(entry.sender.lowercase(), color = Color.White, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(entry.snippet, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(activityAgo(entry.postTime), color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+    }
+}
+
+@Composable
+private fun NotificationAccessGate(tokens: ColorTokens, accent: Color) {
+    val context = LocalContext.current
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("$label is coming soon", color = tokens.fgDim, fontSize = 15.sp)
+        Text("see what's new", color = tokens.fg, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "shows recent messages and social notifications from people. stays on your device — nothing is sent anywhere.",
+            color = tokens.fgDim,
+            fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(14.dp))
+        Text(
+            text = "allow notification access",
+            color = accent,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = { runCatching { context.startActivity(NotificationAccess.settingsIntent()) } },
+            ),
+        )
     }
 }
 

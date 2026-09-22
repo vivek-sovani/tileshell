@@ -169,6 +169,21 @@ object TileIcons {
 
         put("messages", vector("messages", p("M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z")))
 
+        // A rounder bubble + tail (distinct from "messages"'s squared-off one)
+        // with a small handset squiggle inside — original monoline silhouette
+        // evoking WhatsApp's own shape without reproducing its actual asset.
+        put(
+            "whatsapp",
+            vector(
+                "whatsapp",
+                p(rect(3.5, 3.0, 17.0, 15.0, 7.5)),
+                p("M9 18l-2 3.5 5-3.5"),
+                p("M9.2 9.8c0 3.6 2.3 5.9 5.9 5.9"),
+                p(circle(9.2, 9.8, 0.9)),
+                p(circle(15.1, 15.7, 0.9)),
+            ),
+        )
+
         put("music", vector("music",
             p("M9 18V6l10-2v12"),
             p(circle(6.5, 18.0, 2.5)),

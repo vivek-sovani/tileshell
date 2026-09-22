@@ -35,11 +35,14 @@ data class NotificationItem(
     val notificationKey: String = "",
 )
 
-/** One pending notification's sender + snippet, used for cycling on the back face. */
+/** One pending notification's sender + snippet, used for cycling on the back
+ * face — [postTime] additionally lets the People Hub's "what's new" page sort
+ * and time-label entries flattened across every package. */
 data class ConversationItem(
     val sender: String,
     val snippet: String,
     val notificationKey: String = "",
+    val postTime: Long = 0L,
 )
 
 /**
@@ -131,6 +134,7 @@ fun summarizeNotifications(items: List<NotificationItem>): NotificationSnapshot 
                     sender = it.title.orEmpty().trim(),
                     snippet = it.text.orEmpty().trim(),
                     notificationKey = it.notificationKey,
+                    postTime = it.postTime,
                 )
             },
         )

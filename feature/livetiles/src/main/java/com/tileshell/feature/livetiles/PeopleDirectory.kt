@@ -227,3 +227,88 @@ object PeopleHubNavigation {
         _pendingPin.value = null
     }
 }
+
+/** One row on the People Hub's "what's new" page — a single pending
+ * messaging/social notification, flattened out of [NotificationSnapshot]
+ * (already tracked for badges/mail-and-messages faces) and tagged with which
+ * app it came from so the row can show that app's own icon as a small
+ * corner badge. */
+data class ActivityEntry(
+    val packageName: String,
+    val sender: String,
+    val snippet: String,
+    val postTime: Long,
+    val notificationKey: String,
+)
+
+/**
+ * Packages whose notifications are inherently person-to-person (a message, a
+ * call, a DM/comment) — user-requested: "whats new should be only related
+ * with contacts". [NotificationSnapshot] carries *every* app's notifications
+ * (it's shared with badges/mail-and-messages faces), including plain content/
+ * promo ones (Play Store, a news feed, a streaming app's "new release") that
+ * have nothing to do with a person — this allowlist is what keeps those off
+ * the "what's new" page. Not exhaustive (regional apps vary), but covers the
+ * major messaging/calling/social apps; extend when a specific gap is
+ * reported, same convention as [NOTIFICATION_PACKAGE_ALIASES].
+ */
+private val PEOPLE_NOTIFICATION_PACKAGES = setOf(
+    "com.whatsapp", "com.whatsapp.w4b",
+    "com.facebook.orca", "com.facebook.katana",
+    "com.instagram.android",
+    "com.instagram.barcelona", // Threads
+    "org.telegram.messenger", "org.telegram.messenger.web",
+    "org.thoughtcrime.securesms",
+    "com.snapchat.android",
+    "com.twitter.android",
+    "com.google.android.apps.messaging",
+    "com.samsung.android.messaging",
+    "com.android.mms",
+    "com.android.dialer", "com.samsung.android.dialer", "com.google.android.dialer",
+    "com.skype.raider",
+    "com.viber.voip",
+    "com.linkedin.android",
+    "com.Slack",
+    "com.microsoft.teams",
+    "com.discord",
+    "com.tencent.mm",
+    "jp.naver.line.android",
+    "com.kakao.talk",
+)
+
+/**
+ * Flattens every people-related package's pending [ConversationItem]s
+ * (already capped at [MAX_CONVERSATION_ITEMS] per package) into one
+ * newest-first list, capped at [limit]. Pure — the hub reads
+ * [NotificationCenter.snapshot] itself and passes it in.
+ */
+fun recentActivity(snapshot: NotificationSnapshot, limit: Int = 40): List<ActivityEntry> =
+    snapshot.conversations.entries
+        .filter { (packageName, _) -> packageName in PEOPLE_NOTIFICATION_PACKAGES }
+        .flatMap { (packageName, preview) ->
+            preview.items.map { item ->
+                ActivityEntry(
+                    packageName = packageName,
+                    sender = item.sender,
+                    snippet = item.snippet,
+                    postTime = item.postTime,
+                    notificationKey = item.notificationKey,
+                )
+            }
+        }
+        .sortedByDescending { it.postTime }
+        .take(limit)
+
+/** "2 min ago" / "18 min ago" / "1 hr ago" / "3 days ago" — the "what's new"
+ * page's own relative-time label (a distinct wording style from the feed's
+ * compact `feedAgo`, e.g. "2m"/"3h"). Pure. */
+fun activityAgo(postTimeMillis: Long, nowMillis: Long = System.currentTimeMillis()): String {
+    if (postTimeMillis <= 0L) return ""
+    val deltaMinutes = ((nowMillis - postTimeMillis).coerceAtLeast(0L)) / 60_000L
+    return when {
+        deltaMinutes < 1 -> "just now"
+        deltaMinutes < 60 -> "$deltaMinutes min ago"
+        deltaMinutes < 1_440 -> "${deltaMinutes / 60} hr ago"
+        else -> "${deltaMinutes / 1_440} day${if (deltaMinutes / 1_440 == 1L) "" else "s"} ago"
+    }
+}

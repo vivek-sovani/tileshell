@@ -9349,3 +9349,47 @@ phone number, so there is no reliable way to jump to a specific contact's Messen
 from just the number `ContactsContract` gives us. `FrequentAvatar`'s own long-press "pin to start"
 menu is unchanged — it's a different (horizontal, unlabeled) row shape where an inline expand
 doesn't fit, so it keeps the `DropdownMenu` pattern.
+
+## People Hub: "what's new" + "recent" pages, original WhatsApp glyph, accordion rows
+
+Direct continuation of the same session — "now build whats new and recent" — completing the two
+pages held back from the first pass.
+
+**"recent"**: a plain flat list from the already-existing `queryRecentContacts` (sorted by
+`LAST_TIME_CONTACTED DESC`), reusing `ContactRow` as-is.
+
+**"what's new"**: reuses `NotificationCenter.snapshot` (already tracked for badges/mail-and-messages
+faces) rather than a parallel data source — new `recentActivity(snapshot)` flattens every package's
+pending `ConversationItem`s (which gained a `postTime: Long` field for this, populated from the
+already-tracked `NotificationItem.postTime`) into one newest-first list. Gated on notification-
+listener access (`rememberNotificationAccess`), a separate opt-in from READ_CONTACTS. **User
+correction, twice**: "whats new should be only related with contacts" — the raw snapshot carries
+every app's notifications (Play Store promos, a news feed, a streaming app's "new release" are
+common real examples seen on-device), so a `PEOPLE_NOTIFICATION_PACKAGES` allowlist (WhatsApp,
+Messenger, Facebook, Instagram, Threads, Telegram, Signal, Snapchat, X, SMS/dialer apps, LinkedIn,
+Slack, Teams, Discord, WeChat, LINE, KakaoTalk, Skype, Viber) now filters `recentActivity` before
+flattening — same hardcoded-table convention as `NOTIFICATION_PACKAGE_ALIASES`, extend on a specific
+reported gap rather than trying to be exhaustive. Threads (`com.instagram.barcelona`) was missing
+from the first cut of this list and added after the user reported real Threads posts not
+appearing; a separate "X notifications not shown" report turned out not to be a bug —
+`adb shell dumpsys notification` confirmed no active Twitter/X notification existed on the device
+at that moment (the user was likely recalling ones already read/dismissed, which drop out of
+`getActiveNotifications()` the same way any other cleared notification does).
+
+**Original WhatsApp-evoking icon**: the "whatsapp" quick action first reused the generic "messages"
+bubble glyph tinted green — user: "whatsapp logo not correct". Added a genuinely distinct icon to
+`TileIcons` (`"whatsapp"`): a rounder bubble-plus-tail with a small handset squiggle inside, in the
+same monoline stroke-only style as every other icon — an original silhouette that reads as
+WhatsApp's shape without reproducing Meta's actual asset (this project never embeds third-party
+brand assets).
+
+**Single-row accordion**: each `ContactRow`'s call/message/whatsapp/pin line used to be independent
+per-row state, so multiple rows could stay expanded at once — user: "when i tap another first
+should collapse". `expanded`/`onToggleExpand` are now hoisted to a single `expandedId: Long?` per
+page (`AllPeoplePage`'s "all" list, its search-results branch, and `RecentPeoplePage` each keep
+their own), so opening a different row always closes whichever one was open.
+
+New tests: `RecentActivityTest` (flattening/sorting/limit/package-filtering), `ActivityAgoTest`.
+Verified on-device (screenshots + `adb logcat`) at every round: the WhatsApp glyph zoomed in
+legibly, "recent"'s empty state, "what's new" correctly excluding non-people notifications and
+showing real Threads posts with the app's own icon badge once added, and no crash throughout.
