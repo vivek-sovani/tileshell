@@ -274,6 +274,23 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * The calendar hub full-screen page (Start's calendar tile → hub),
+     * replacing the old "open the system calendar app" tap fallback. A plain
+     * flag like the music hub's own — the calendar tile carries no
+     * per-tile configuration to show.
+     */
+    private val _calendarHubOpen = MutableStateFlow(false)
+    val calendarHubOpen: StateFlow<Boolean> = _calendarHubOpen.asStateFlow()
+
+    fun openCalendarHub() {
+        _calendarHubOpen.value = true
+    }
+
+    fun closeCalendarHub() {
+        _calendarHubOpen.value = false
+    }
+
+    /**
      * An image [Uri] shared into TileShell from another app (e.g. "share" from Gallery/Photos),
      * awaiting import + the crop overlay so the user can position it before it becomes the
      * wallpaper — mirrors the existing wallpaper-picker flow in [StartScreen]. Set by
@@ -1817,6 +1834,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         closeBackup()
         closeWeatherHub()
         closeMusicHub()
+        closeCalendarHub()
         closePermissions()
         closeNewsRegion()
         closeEdgeStrip()

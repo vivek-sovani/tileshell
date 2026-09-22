@@ -9185,3 +9185,59 @@ top level and turns it into a real `openMusicHub(page)` call. `MusicHubScreen` g
 `initialPage: String?` parameter (default null, every pre-existing call site unaffected) that
 `scrollToPage`s (not animated — meant to land exactly where tapped, not visibly travel through
 the pages between) the moment the hub opens with a page requested.
+
+## Calendar hub, built from an approved mockup image (this week / next / month)
+
+User supplied a mockup screenshot directly and asked to build the calendar hub to match it —
+the same Panorama/Pivot shell as the weather/music hubs (`SheetStage`, a fixed header, a pivot
+row, a `HorizontalPager`, a bottom `HubAppBar`), reusing `HubAppBar`/`HubAppBarAction` as-is.
+Tap redirect follows the exact same pattern weather/music already established: the real events
+calendar tile (`tile.packageName.isBlank() && tile.iconKey == "calendar"`) now opens
+`CalendarHubScreen` instead of the old `onTileClick` fallback (`ACTION_VIEW content://com
+.android.calendar/time`) — a plain `Boolean` flag in `StartViewModel` (`calendarHubOpen`/
+`openCalendarHub`/`closeCalendarHub`), no target holder needed, same as the music hub's own
+shape (one hub, no per-tile configuration to carry). The pre-existing `calsys` branch (alternate
+calendar *systems* — Hindu Panchang etc., a completely different tile) is untouched; this only
+redirects the real events-calendar tile.
+
+**Data layer** (`CalendarAgenda.kt`, new file) is deliberately separate from the existing
+`CalendarSource.kt`/`queryUpcomingEvents` (which stays exactly as-is, still powering the live
+tile's own "next 1-2 events" face) — that function's shape (title + one pre-formatted 24-hour
+time line, capped at 2 events, `BEGIN >= now` only) doesn't fit a day/week/month agenda view at
+all. New `AgendaEvent` carries the raw start/end millis and an all-day flag; `queryAgendaEvents`
+queries an arbitrary `[start, end)` range against the same `CalendarContract.Instances` table
+(a plain, non-suspend function — same convention as `queryUpcomingEvents`, caller dispatches to
+IO itself). New pure, unit-tested helpers: `startOfDayMillis`/`currentMonthDayStarts` (day-boundary
+math), `groupEventsByDay` (buckets a flat query result per day card — the first/last bucket
+absorb anything before/after the queried range, so it can never silently drop an event),
+`agendaDayLabel`/`agendaTimeLabel` (this hub's own "wed 17"/"9:30a" formatting — a different,
+more compact style from the tile's 24-hour `eventTimeLine`, not reused, since the mockup's own
+agenda-card format is meaningfully different from a single-line tile face).
+
+**"this week"/"next"** both query a plain 7-day window via `queryAgendaEvents`
+(`startOfDayMillis(0)`..`+7` and `+7`..`+14` respectively) rendered as a two-column day-card grid,
+one column per day, a coloured bar + time + title per event (or "no events" in muted text) —
+matching the mockup exactly. **"month"** has no mockup of its own to match, so rather than invent
+a new visual language it reuses the identical day-card grid, just with every day in the current
+calendar month (`currentMonthDayStarts`) instead of a 7-day window — a deliberate, WP-faithful
+"don't invent, extend the existing pattern" choice per this project's own ambiguity-resolution
+convention. Event bar colours cycle through `TileAccents.all` (all 14 palette accents) by index
+within each day, since the query doesn't fetch (and `CalendarContract` doesn't reliably expose) a
+real per-calendar colour worth trusting — decorative variety instead of fabricated-looking real
+data. The big "calendar" title is a fixed blue→purple gradient (`TileAccents.Blue`→`TileAccents
+.Purple`, via `TextStyle(brush = Brush.horizontalGradient(...))`) matching the mockup exactly,
+deliberately *not* the user's own global accent color the way the weather hub's plain-colour
+title is — the mockup's gradient reads as this hub's own fixed identity, not a themable one.
+
+The bottom `HubAppBar` gets four actions matching the mockup's icon count exactly: back (every
+hub has this, for on-screen dismissal consistency, even though the mockup's own bottom row reads
+ambiguously as raw phone-mockup chrome for two of its four icons), "add event"
+(`Intent.ACTION_INSERT` on `CalendarContract.Events.CONTENT_URI` — TileShell only ever reads the
+calendar, so creating an event is left to whichever real calendar app handles that intent, the
+same pattern every launcher widget/shortcut "add event" affordance uses), "open calendar app"
+(`ACTION_VIEW content://com.android.calendar/time`, falling back to the add-event intent — mirrors
+`FeedPage.kt`'s own existing `openCalendar` fallback chain, duplicated here in `:feature:livetiles`
+rather than promoted to a shared helper since both existing copies, `StartScreen.kt`'s
+`launchAddEvent` and `FeedPage.kt`'s `openCalendar`, already live in `:feature:start` and are each
+`private`/small enough that a three-way consolidation felt like more churn than the ~10 duplicated
+lines justified), and "today" (jumps the pager back to the "this week" page).

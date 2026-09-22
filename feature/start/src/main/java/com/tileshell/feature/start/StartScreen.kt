@@ -222,6 +222,7 @@ import com.tileshell.feature.applist.AppListScreen
 import com.tileshell.feature.livetiles.AlarmTileFace
 import com.tileshell.feature.livetiles.BatterySmallFace
 import com.tileshell.feature.livetiles.BatteryTileFace
+import com.tileshell.feature.livetiles.CalendarHubScreen
 import com.tileshell.feature.livetiles.CalendarSmallFace
 import com.tileshell.feature.livetiles.CalendarSystemSmallFace
 import com.tileshell.feature.livetiles.CalendarSystemTileFace
@@ -379,6 +380,7 @@ fun StartScreen(
     val weatherHubTarget by viewModel.weatherHubTarget.collectAsStateWithLifecycle()
     val musicHubOpen by viewModel.musicHubOpen.collectAsStateWithLifecycle()
     val musicHubInitialPage by viewModel.musicHubInitialPage.collectAsStateWithLifecycle()
+    val calendarHubOpen by viewModel.calendarHubOpen.collectAsStateWithLifecycle()
     // The dedicated music tile's back-face quick-nav menu posts here rather
     // than through a callback threaded down the whole TileView/AppTileContent
     // rendering tree — see MusicHubNavigation's own doc comment. Observed
@@ -1392,6 +1394,12 @@ fun StartScreen(
                                     // "Music hub tap redirect" for why this doesn't
                                     // wait on the not-yet-built per-hub setting.
                                     viewModel.openMusicHub()
+                                } else if (tile.packageName.isBlank() && tile.iconKey == "calendar") {
+                                    // Same "open the real hub" redirect as weather/
+                                    // music above — replaces the old "open the
+                                    // system calendar app" fallback onTileClick
+                                    // used to fall through to for this tile.
+                                    viewModel.openCalendarHub()
                                 } else {
                                     onTileClick(context, tile)
                                 }
@@ -1418,6 +1426,8 @@ fun StartScreen(
                             viewModel.openWeatherHub(WeatherTile.decode(child.activityName))
                         } else if (child.iconKey == "music") {
                             viewModel.openMusicHub()
+                        } else if (child.packageName.isBlank() && child.iconKey == "calendar") {
+                            viewModel.openCalendarHub()
                         } else {
                             launchFolderChild(context, child)
                         }
@@ -2062,6 +2072,13 @@ fun StartScreen(
             onDismiss = viewModel::closeMusicHub,
             rightHalf = isLandscape,
             initialPage = musicHubInitialPage,
+        )
+
+        CalendarHubScreen(
+            visible = calendarHubOpen,
+            dark = dark,
+            onDismiss = viewModel::closeCalendarHub,
+            rightHalf = isLandscape,
         )
 
         // Build a name→packageNames map from the current tile list so CategoryFolderSheet
