@@ -368,11 +368,11 @@ private fun NowPlayingPage(accent: Color, tokens: ColorTokens, onOpenPage: (Stri
                             indication = null,
                             onClick = { onOpenPage(label) },
                         )
-                        .padding(horizontal = 18.dp, vertical = 9.dp),
+                        .padding(horizontal = 18.dp, vertical = 14.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(label, color = tokens.fg, fontSize = 17.sp, fontWeight = FontWeight.Light)
+                    Text(label, color = tokens.fg, fontSize = 18.sp, fontWeight = FontWeight.Light)
                     Icon(TileIcons["chevron"], contentDescription = null, tint = tokens.fgDim, modifier = Modifier.size(16.dp))
                 }
                 if (index < menuItems.lastIndex) {
@@ -381,16 +381,16 @@ private fun NowPlayingPage(accent: Color, tokens: ColorTokens, onOpenPage: (Stri
             }
         }
 
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(24.dp))
         Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp).height(1.dp).background(tokens.sheetLine))
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(10.dp))
 
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(top = 2.dp, bottom = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(top = 4.dp, bottom = 14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Bottom,
         ) {
-            Text("now playing", color = tokens.fg, fontSize = 22.sp, fontWeight = FontWeight.Light)
+            Text("now playing", color = tokens.fg, fontSize = 26.sp, fontWeight = FontWeight.Light)
             Text(
                 "history ›",
                 color = accent,
@@ -424,13 +424,12 @@ private fun NowPlayingHero(art: ImageBitmap?, accent: Color) {
     // Shrunk from a full-width square — with the menu now sitting above this
     // page's playback content, a full-width hero pushed the transport
     // controls below the fold, needing a scroll to reach them
-    // (user-reported, then tightened further — "compact"). ~46% width, still
-    // square, centered.
+    // (user-reported). ~60% width, still square, centered.
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        TileImageBackground(image = art, modifier = Modifier.fillMaxWidth(0.46f).aspectRatio(1f)) {
+        TileImageBackground(image = art, modifier = Modifier.fillMaxWidth(0.6f).aspectRatio(1f)) {
             if (art == null) {
                 Box(Modifier.fillMaxSize().background(accent), contentAlignment = Alignment.Center) {
-                    Icon(TileIcons["music"], contentDescription = null, tint = Color.White, modifier = Modifier.size(40.dp))
+                    Icon(TileIcons["music"], contentDescription = null, tint = Color.White, modifier = Modifier.size(56.dp))
                 }
             }
         }
@@ -514,40 +513,38 @@ private fun PlayerNowPlaying(item: PlayableAudio, playing: Boolean, accent: Colo
         is PlayableAudio.Episode -> "podcast · ${item.show.title}"
         is PlayableAudio.RadioStream -> "live radio"
     }
-    // Spacing tightened throughout — user-requested ("compact") after the
-    // menu-above-playback layout needed a scroll to reach the transport row.
     Column(modifier = Modifier.padding(horizontal = 18.dp)) {
         NowPlayingHero(art, accent)
-        Spacer(Modifier.height(10.dp))
-        Text(text = item.title, color = tokens.fg, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(14.dp))
+        Text(text = item.title, color = tokens.fg, fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (item.subtitle.isNotEmpty() && item !is PlayableAudio.RadioStream) {
             Spacer(Modifier.height(2.dp))
-            Text(text = item.subtitle, color = tokens.fgDim, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(text = item.subtitle, color = tokens.fgDim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(16.dp))
         // Bigger than the shared default (34dp/20dp), matching
         // ExternalNowPlaying's own bump — this page's transport row is its
         // own main interactive element (user-requested). Previous/next are
         // meaningless for a lone radio stream (a queue of one) but harmless
         // no-ops, same as at the end/start of any single-item queue.
         Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            LocalPlaybackButton("prev", "previous", tokens.fg, size = 48.dp, iconSize = 24.dp) {
+            LocalPlaybackButton("prev", "previous", tokens.fg, size = 56.dp, iconSize = 28.dp) {
                 LocalMusicPlayer.previous(context)
             }
             LocalPlaybackButton(
                 if (playing) "pause" else "play",
                 "play/pause",
                 tokens.fg,
-                size = 48.dp,
-                iconSize = 24.dp,
+                size = 56.dp,
+                iconSize = 28.dp,
             ) {
                 LocalMusicPlayer.togglePlayPause()
             }
-            LocalPlaybackButton("next", "next", tokens.fg, size = 48.dp, iconSize = 24.dp) {
+            LocalPlaybackButton("next", "next", tokens.fg, size = 56.dp, iconSize = 28.dp) {
                 LocalMusicPlayer.next(context)
             }
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(20.dp))
         Text(caption, color = tokens.fgDim, fontSize = 12.sp)
     }
 }
@@ -1027,17 +1024,14 @@ private fun LibraryEmptyState(text: String, tokens: ColorTokens) {
  * 18dp side padding to itself, so the title doesn't get it twice. */
 @Composable
 private fun HubPageTitle(title: String, tokens: ColorTokens, applyHorizontalPadding: Boolean = true) {
-    // Trimmed from 26sp/14dp bottom — user-requested ("compact") after the
-    // fuller "now playing" page (menu + playback) needed a scroll to reach
-    // its own transport controls.
     Text(
         text = title,
         color = tokens.fg,
-        fontSize = 22.sp,
+        fontSize = 26.sp,
         fontWeight = FontWeight.Light,
         modifier = Modifier
             .let { if (applyHorizontalPadding) it.padding(horizontal = 18.dp) else it }
-            .padding(top = 2.dp, bottom = 8.dp),
+            .padding(top = 4.dp, bottom = 14.dp),
     )
 }
 
