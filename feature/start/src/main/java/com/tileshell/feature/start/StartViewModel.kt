@@ -290,13 +290,17 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         _calendarHubOpen.value = false
     }
 
-    /** The people hub full-screen page (Start's people tile → hub), same
-     * plain-flag shape as [calendarHubOpen] — the people tile carries no
-     * per-tile configuration to show either. */
+    /** The people hub full-screen page (Start's people tile → hub). A pinned
+     * "what's new"/"recent" page tile (see [PeopleHubTile]) opens straight to
+     * that page via [peopleHubInitialPage], same shape as the music hub's own
+     * `musicHubInitialPage`. */
     private val _peopleHubOpen = MutableStateFlow(false)
     val peopleHubOpen: StateFlow<Boolean> = _peopleHubOpen.asStateFlow()
+    private val _peopleHubInitialPage = MutableStateFlow<String?>(null)
+    val peopleHubInitialPage: StateFlow<String?> = _peopleHubInitialPage.asStateFlow()
 
-    fun openPeopleHub() {
+    fun openPeopleHub(page: String? = null) {
+        _peopleHubInitialPage.value = page
         _peopleHubOpen.value = true
     }
 
@@ -2148,6 +2152,20 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             _pinMessage.tryEmit(
                 when (result) {
                     PinResult.PINNED -> "pinned $name to start"
+                    PinResult.ALREADY_ON_START -> "already on start"
+                },
+            )
+        }
+    }
+
+    /** Pin a People Hub page ("what's new" / "recent") to Start as its own
+     * tile, from the hub's own "pin this page" action. */
+    fun pinPeopleHubPage(page: String, label: String) {
+        viewModelScope.launch(writeContext) {
+            val result = repository.pinPeopleHubPage(page, label)
+            _pinMessage.tryEmit(
+                when (result) {
+                    PinResult.PINNED -> "pinned $label to start"
                     PinResult.ALREADY_ON_START -> "already on start"
                 },
             )

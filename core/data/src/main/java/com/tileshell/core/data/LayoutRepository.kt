@@ -411,6 +411,34 @@ class LayoutRepository(
     }
 
     /**
+     * Pin a People Hub page ("what's new" / "recent") to Start as its own
+     * tile — see [PeopleHubTile]'s own doc for why. Same shape as
+     * [pinContact]: blank `packageName`, the page encoded into `activityName`,
+     * appended to the end of the grid. No-op (returns
+     * [PinResult.ALREADY_ON_START]) if that exact page is already pinned.
+     */
+    suspend fun pinPeopleHubPage(page: String, label: String): PinResult {
+        val activityName = PeopleHubTile.encode(page)
+        if (dao.activityTileCount(activityName) > 0) return PinResult.ALREADY_ON_START
+        dao.insertTiles(
+            listOf(
+                TileEntity(
+                    id = "pin-peoplehub-$page-${System.currentTimeMillis()}",
+                    position = dao.maxPosition() + 1,
+                    size = TileSize.MEDIUM,
+                    colorId = TileColors.defaultIdFor(page),
+                    type = TileEntity.TYPE_APP,
+                    packageName = null,
+                    activityName = activityName,
+                    label = label,
+                    iconKey = "people",
+                ),
+            ),
+        )
+        return PinResult.PINNED
+    }
+
+    /**
      * Upsert a folder from a set of installed [apps] (the personalize "category
      * folders" feature). Children are de-duplicated by component, in the given
      * order, and pick up a designed WP icon key when the package resolves to a

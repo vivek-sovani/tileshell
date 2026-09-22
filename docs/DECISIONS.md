@@ -9393,3 +9393,54 @@ New tests: `RecentActivityTest` (flattening/sorting/limit/package-filtering), `A
 Verified on-device (screenshots + `adb logcat`) at every round: the WhatsApp glyph zoomed in
 legibly, "recent"'s empty state, "what's new" correctly excluding non-people notifications and
 showing real Threads posts with the app's own icon badge once added, and no crash throughout.
+
+## People Hub: pin "what's new"/"recent" as their own Start tile, with a real content preview face
+
+User: "pin facility for whats new and recents should be available. this will pin recent and whats
+new as tile" — clarified twice ("i want to pin the full page not a particular line", "the full
+tab") that this is pinning the *page*, not an individual contact (that pin already existed via the
+per-row long-press/expand menu). Modeled directly on `WeatherTile`/`ContactTile`'s existing
+activityName-encoding pattern and `MusicHubScreen`'s existing `initialPage` mechanism, both already
+established in this codebase:
+
+- New `PeopleHubTile` (`:core:data`, mirrors `ContactTile` exactly): `encode(page)`/`decode
+  (activityName)`, prefix-guarded so it safely returns null for the *default* seeded "people" tile
+  (which resolves to a real Contacts-app component, not a blank/encoded activityName) as well as
+  any other real app's activityName.
+- `LayoutRepository.pinPeopleHubPage(page, label): PinResult` — copies `pinContact`'s exact insert
+  shape (blank packageName, `iconKey = "people"` so it still resolves through the existing tap-
+  redirect chain, appended to the end of the grid, dedup via `activityTileCount`).
+- `StartViewModel`: `openPeopleHub(page: String? = null)` replaces the old no-arg version (same
+  shape as `openMusicHub`); a new `peopleHubInitialPage` StateFlow; `pinPeopleHubPage(page, label)`
+  wrapper reusing the existing `_pinMessage` toast flow.
+- `PeopleHubScreen` gained `initialPage`/`onPinPage` params — the pager-seeding `LaunchedEffect` is
+  copied verbatim from `MusicHubScreen`'s own (`scrollToPage`, keyed on `visible`/`initialPage`).
+  `onPinPage` is a **plain callback**, not a cross-module `StateFlow` bridge like
+  `PeopleHubNavigation` — unlike a live-tile's back-face menu (which lives in an unrelated part of
+  the composition tree), `PeopleHubScreen` is composed directly by `StartScreen` with the ViewModel
+  already in scope, so a bridge object would have been unnecessary indirection here.
+- The `HubAppBar`'s actions are now contextual per page: "all" keeps its original four (back/add
+  contact/search/open contacts app); "what's new"/"recent" swap "add contact"/"search" (meaningless
+  there) for a single "pin this page to start" action.
+- Tap redirect (`StartScreen.kt`, both the top-level-tile and folder-child "people" branches) now
+  decodes `PeopleHubTile.decode(tile.activityName)` first and passes it to `openPeopleHub`, falling
+  back to the default "all" page (`null`) for the ordinary seeded tile.
+
+**Live tile face, two rounds of direct correction.** The first cut left `iconKey = "people"`
+resolving through the *same* `LiveFace.PEOPLE` → `PeopleTileFace` (the photo-mosaic bubbles) as the
+plain people tile — user: "what new and rcent should not show contact photos on live tile. instead
+if possible show few lines", then "it should have a proper tile title also". New
+`PeopleHubPageTileFace` (`PeopleHubPageTile.kt`) — the `LiveFace.PEOPLE` dispatch in `StartScreen.kt`
+now checks `PeopleHubTile.decode(tile.activityName)` before falling through to the mosaic; a
+non-null page renders this instead: a bold page title ("what's new" / "recent") plus a handful of
+real content lines — recently-contacted names for "recent" (`queryRecentContacts`), or
+`sender: snippet` lines for "what's new" (the same `recentActivity`/`NotificationCenter.snapshot`
+the hub page itself already reads) — sized to the tile's own row count, degrading to the static
+glyph fallback when there's nothing to show (e.g. this device's "recent" tile, which has no
+recently-contacted people at all).
+
+New test: `PeopleHubTileTest`. Verified on-device (screenshots + `adb logcat`, no crash): pinning
+from the hub's bottom bar produces a real "pinned recent to start" toast, the new tile appears on
+Start, and — after the two follow-up corrections — "what's new" renders its title plus a real
+message-preview line while "recent" correctly falls back to the plain glyph on a device with no
+recent contacts.

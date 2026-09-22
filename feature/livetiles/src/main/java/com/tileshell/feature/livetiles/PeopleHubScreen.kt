@@ -91,9 +91,12 @@ private val JUMP_LETTERS = listOf("#") + ('A'..'Z').map { it.toString() }
  * which already owns that data and its own call/message/email/address
  * actions.
  *
- * This first pass builds the "all" page fully; "what's new" and "recent"
- * are follow-up work (deliberately held back, per direct user instruction)
- * and show a lightweight placeholder for now.
+ * "what's new" and "recent" can each be pinned to Start as their own tile
+ * (user-requested: "pin facility for whats new and recents... this will pin
+ * recent and whats new as tile" / "i want to pin the full page not a
+ * particular line" / "the full tab") — [onPinPage] creates that tile;
+ * [initialPage] is how such a tile reopens straight to its own page, same
+ * mechanism as `MusicHubScreen`'s own `initialPage`.
  */
 @Composable
 fun PeopleHubScreen(
@@ -103,6 +106,8 @@ fun PeopleHubScreen(
     onDismiss: () -> Unit,
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
+    initialPage: String? = null,
+    onPinPage: (page: String, label: String) -> Unit = { _, _ -> },
 ) {
     val progress by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
@@ -122,6 +127,13 @@ fun PeopleHubScreen(
     val pagerScope = rememberCoroutineScope()
     var searchOpen by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
+
+    LaunchedEffect(visible, initialPage) {
+        if (visible && initialPage != null) {
+            val index = HUB_PIVOTS.indexOf(initialPage)
+            if (index >= 0) pagerState.scrollToPage(index)
+        }
+    }
 
     SheetStage(rightHalf = rightHalf, modifier = modifier) {
         Column(
@@ -195,12 +207,22 @@ fun PeopleHubScreen(
 
             HubAppBar(
                 tokens = tokens,
-                actions = listOf(
-                    HubAppBarAction("back", "back", onDismiss),
-                    HubAppBarAction("plus", "add contact") { openAddContact(context) },
-                    HubAppBarAction("search", "search") { searchOpen = !searchOpen },
-                    HubAppBarAction("people", "open contacts app") { openContactsApp(context) },
-                ),
+                actions = when (pagerState.currentPage) {
+                    0 -> listOf(
+                        HubAppBarAction("back", "back", onDismiss),
+                        HubAppBarAction("plus", "add contact") { openAddContact(context) },
+                        HubAppBarAction("search", "search") { searchOpen = !searchOpen },
+                        HubAppBarAction("people", "open contacts app") { openContactsApp(context) },
+                    )
+                    else -> {
+                        val page = HUB_PIVOTS[pagerState.currentPage]
+                        listOf(
+                            HubAppBarAction("back", "back", onDismiss),
+                            HubAppBarAction("pin", "pin this page to start") { onPinPage(page, page) },
+                            HubAppBarAction("people", "open contacts app") { openContactsApp(context) },
+                        )
+                    }
+                },
             )
         }
     }

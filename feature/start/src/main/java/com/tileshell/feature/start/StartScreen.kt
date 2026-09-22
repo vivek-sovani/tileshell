@@ -179,6 +179,7 @@ import com.tileshell.core.data.StepsPrefs
 import com.tileshell.core.data.StockTile
 import com.tileshell.core.data.TileColors
 import com.tileshell.core.data.Section
+import com.tileshell.core.data.PeopleHubTile
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.UNSECTIONED_LABEL
 import com.tileshell.core.data.TileSize
@@ -253,6 +254,7 @@ import com.tileshell.feature.livetiles.NotificationSnapshot
 import com.tileshell.feature.livetiles.NotificationTileFace
 import com.tileshell.feature.livetiles.OemBatteryGuard
 import com.tileshell.feature.livetiles.PeopleHubNavigation
+import com.tileshell.feature.livetiles.PeopleHubPageTileFace
 import com.tileshell.feature.livetiles.PeopleHubScreen
 import com.tileshell.feature.livetiles.PeopleTileFace
 import com.tileshell.feature.livetiles.PhotosData
@@ -384,6 +386,7 @@ fun StartScreen(
     val musicHubInitialPage by viewModel.musicHubInitialPage.collectAsStateWithLifecycle()
     val calendarHubOpen by viewModel.calendarHubOpen.collectAsStateWithLifecycle()
     val peopleHubOpen by viewModel.peopleHubOpen.collectAsStateWithLifecycle()
+    val peopleHubInitialPage by viewModel.peopleHubInitialPage.collectAsStateWithLifecycle()
     // The dedicated music tile's back-face quick-nav menu posts here rather
     // than through a callback threaded down the whole TileView/AppTileContent
     // rendering tree — see MusicHubNavigation's own doc comment. Observed
@@ -1424,8 +1427,13 @@ fun StartScreen(
                                     // Same pattern as music/calendar just above —
                                     // not blank-package-gated, since the contacts
                                     // role frequently resolves to a real installed
-                                    // app too.
-                                    viewModel.openPeopleHub()
+                                    // app too. A tile pinned via the hub's own
+                                    // "pin this page" action (PeopleHubTile) opens
+                                    // straight to that page; the default seeded
+                                    // tile's activityName is a real Contacts-app
+                                    // component, which decode() safely returns
+                                    // null for, falling back to "all".
+                                    viewModel.openPeopleHub(PeopleHubTile.decode(tile.activityName))
                                 } else {
                                     onTileClick(context, tile)
                                 }
@@ -1457,7 +1465,7 @@ fun StartScreen(
                             // tile branch above.
                             viewModel.openCalendarHub()
                         } else if (child.iconKey == "people") {
-                            viewModel.openPeopleHub()
+                            viewModel.openPeopleHub(PeopleHubTile.decode(child.activityName))
                         } else {
                             launchFolderChild(context, child)
                         }
@@ -2118,6 +2126,8 @@ fun StartScreen(
             accentId = settings.accentId,
             onDismiss = viewModel::closePeopleHub,
             rightHalf = isLandscape,
+            initialPage = peopleHubInitialPage,
+            onPinPage = viewModel::pinPeopleHubPage,
         )
 
         // Build a name→packageNames map from the current tile list so CategoryFolderSheet
@@ -6974,12 +6984,26 @@ private fun AppTileContent(
             return
         }
         LiveFace.PEOPLE -> {
-            PeopleTileFace(
-                size = tile.size,
-                active = liveActive,
-                fallback = staticGlyph,
-                modifier = Modifier.fillMaxSize(),
-            )
+            val hubPage = PeopleHubTile.decode(tile.activityName)
+            if (hubPage != null) {
+                // A "what's new"/"recent" page pinned to Start (user-
+                // requested) must not look like the main people tile's photo
+                // mosaic — shows a title + a few lines of real content
+                // instead.
+                PeopleHubPageTileFace(
+                    page = hubPage,
+                    size = tile.size,
+                    fallback = staticGlyph,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                PeopleTileFace(
+                    size = tile.size,
+                    active = liveActive,
+                    fallback = staticGlyph,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
             return
         }
         LiveFace.PHOTOS -> {
