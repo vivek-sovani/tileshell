@@ -775,7 +775,7 @@ private fun LibraryPage(context: Context, accent: Color, tokens: ColorTokens) {
         }
         LibrarySearchField(query, { query = it }, "search $mode", tokens)
         when (mode) {
-            LibraryMode.TRACKS -> TracksList(context, tokens, query)
+            LibraryMode.TRACKS -> TracksList(context, accent, tokens, query)
             LibraryMode.ALBUMS -> AlbumsGrid(context, accent, tokens, query) { selection = LibrarySelection.Album(it) }
             LibraryMode.PLAYLISTS -> PlaylistsList(context, tokens, query) { selection = LibrarySelection.Playlist(it) }
         }
@@ -931,7 +931,7 @@ private fun LibraryEmptyState(text: String, tokens: ColorTokens) {
 }
 
 @Composable
-private fun TracksList(context: Context, tokens: ColorTokens, query: String) {
+private fun TracksList(context: Context, accent: Color, tokens: ColorTokens, query: String) {
     val tracks by produceState<List<LocalTrack>?>(initialValue = null, context) {
         value = LocalMusicLibrary.tracks(context)
     }
@@ -941,14 +941,43 @@ private fun TracksList(context: Context, tokens: ColorTokens, query: String) {
     when {
         list == null -> LibraryEmptyState("loading your library…", tokens)
         list.isEmpty() -> LibraryEmptyState(if (query.isBlank()) "no tracks found" else "no matches", tokens)
-        else -> LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
-            contentPadding = PaddingValues(bottom = 32.dp),
-        ) {
-            itemsIndexed(list, key = { _, track -> track.id }) { index, track ->
-                TrackRow(track, tokens) { LocalMusicPlayer.playQueue(context, list, index) }
+        else -> Box(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
+                // Extra bottom room so the last row isn't hidden under the
+                // floating random-play button below.
+                contentPadding = PaddingValues(bottom = 96.dp),
+            ) {
+                itemsIndexed(list, key = { _, track -> track.id }) { index, track ->
+                    TrackRow(track, tokens) { LocalMusicPlayer.playQueue(context, list, index) }
+                }
             }
+            // Random-play FAB, user-requested: shuffles whatever's currently
+            // shown (respects the search filter) instead of requiring the
+            // user to tap into a specific track first.
+            RandomPlayButton(
+                accent = accent,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
+            ) { LocalMusicPlayer.playQueue(context, list.shuffled(), 0) }
         }
+    }
+}
+
+@Composable
+private fun RandomPlayButton(accent: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier = modifier
+            .size(56.dp)
+            .clip(CircleShape)
+            .background(accent)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(TileIcons["shuffle"], contentDescription = "random play", tint = Color.White, modifier = Modifier.size(24.dp))
     }
 }
 
