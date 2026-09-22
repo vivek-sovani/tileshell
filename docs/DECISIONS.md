@@ -9595,3 +9595,36 @@ just wired to its own explicit button instead of the whole row's tap.
 
 Verified on-device (no crash): the "view" button renders correctly, in the same style and position
 as the other four actions.
+
+## People Hub text hardcoded to white — invisible in light theme
+
+User: "in light mode contact name is shown in whit[e]" (also checked "what's new"/"recent" per
+follow-up). The hub page's contact names and notification sender/snippet/time text were all
+hardcoded to `Color.White` instead of the theme-aware `tokens.fg`/`tokens.fgDim` every other label
+on this same page (e.g. "frequent", "no matches") already used — invisible against the light
+theme's pale background. Fixed in `FrequentAvatar`, `ContactRow`, and `ActivityRow` (all three
+gained/already had a `tokens: ColorTokens` param threaded through). The initials drawn *inside* a
+contact's own colored avatar plate are deliberately left white — that text sits on an opaque
+saturated color, not the page background, so it stays readable in both themes regardless (same
+convention as every other initials avatar in this app).
+
+The pinned Start tiles (`PeopleHubPageTile.kt`, "what's new"/"recent" as live tile faces) were
+already correct — they use `LocalTileFaceColor`, the same theme/tile-background-aware mechanism
+every other live tile face in the app already relies on, so no change was needed there.
+
+Verified on-device, actually in light theme at the time (not simulated): contact names on "all",
+and a real WhatsApp notification's sender/snippet on "what's new", both render in legible dark
+text against the light background.
+
+## Contact action row: label text no longer tinted by the (possibly low-contrast) accent
+
+Same-session direct follow-up: "second line of action visibiity should be improved in light as
+well as in dark mide" — each expanded contact row's call/message/whatsapp/pin/view action had a
+two-line shape (icon, then a text label below it); the label previously took the same colour as
+the icon (the global accent, or WhatsApp green), and some of the 14 possible accents read poorly
+as small 11sp text against one theme or the other. `ContactActionButton` now takes the hub's
+`tokens: ColorTokens` and always renders the label in `tokens.fg` (the same guaranteed-contrast
+neutral every other label on this page uses) while the icon above it keeps its own colour identity
+— readability no longer depends on which of the 14 accents happens to be active.
+
+Verified on-device, in light theme: labels now render in solid dark text, clearly legible.

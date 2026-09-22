@@ -340,7 +340,7 @@ private fun AllPeoplePage(context: android.content.Context, tokens: ColorTokens,
                     )
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         items(freq, key = { "freq-${it.contactId}" }) { person ->
-                            FrequentAvatar(person) { openContactCard(context, person.contactId, person.lookupKey) }
+                            FrequentAvatar(person, tokens) { openContactCard(context, person.contactId, person.lookupKey) }
                         }
                     }
                     Spacer(Modifier.height(22.dp))
@@ -488,7 +488,7 @@ internal fun ContactAvatar(person: PersonSummary, size: androidx.compose.ui.unit
 }
 
 @Composable
-private fun FrequentAvatar(person: PersonSummary, onClick: () -> Unit) {
+private fun FrequentAvatar(person: PersonSummary, tokens: ColorTokens, onClick: () -> Unit) {
     var menuOpen by remember { mutableStateOf(false) }
     Box {
         Column(
@@ -506,7 +506,7 @@ private fun FrequentAvatar(person: PersonSummary, onClick: () -> Unit) {
             Spacer(Modifier.height(6.dp))
             Text(
                 person.name.lowercase(),
-                color = Color.White,
+                color = tokens.fg,
                 fontSize = 11.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -559,7 +559,7 @@ private fun ContactRow(
             Spacer(Modifier.width(14.dp))
             Text(
                 person.name.lowercase(),
-                color = Color.White,
+                color = tokens.fg,
                 fontSize = 16.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -572,21 +572,21 @@ private fun ContactRow(
             ) {
                 val number = phone
                 if (number != null) {
-                    ContactActionButton("phone", "call", accent) { callContact(context, number) }
-                    ContactActionButton("messages", "message", accent) { messageContact(context, number) }
+                    ContactActionButton("phone", "call", accent, tokens) { callContact(context, number) }
+                    ContactActionButton("messages", "message", accent, tokens) { messageContact(context, number) }
                     if (isWhatsAppInstalled(context)) {
-                        ContactActionButton("whatsapp", "whatsapp", Color(0xFF25D366)) { whatsAppContact(context, number) }
+                        ContactActionButton("whatsapp", "whatsapp", Color(0xFF25D366), tokens) { whatsAppContact(context, number) }
                     }
                 }
-                ContactActionButton("pin", "pin", accent) { PeopleHubNavigation.requestPin(person) }
-                ContactActionButton("contacts", "view", accent) { openContactCard(context, person.contactId, person.lookupKey) }
+                ContactActionButton("pin", "pin", accent, tokens) { PeopleHubNavigation.requestPin(person) }
+                ContactActionButton("contacts", "view", accent, tokens) { openContactCard(context, person.contactId, person.lookupKey) }
             }
         }
     }
 }
 
 @Composable
-private fun ContactActionButton(iconKey: String, label: String, tint: Color, onClick: () -> Unit) {
+private fun ContactActionButton(iconKey: String, label: String, tint: Color, tokens: ColorTokens, onClick: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.clickable(
@@ -605,7 +605,13 @@ private fun ContactActionButton(iconKey: String, label: String, tint: Color, onC
             androidx.compose.material3.Icon(TileIcons[iconKey], null, tint = tint, modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.height(4.dp))
-        Text(label, color = tint, fontSize = 11.sp)
+        // The label's own colour is deliberately NOT the icon's tint (accent
+        // or WhatsApp green) — user-reported: "second line of action
+        // visibiity should be improved in light as well as in dark mode".
+        // Some accents read poorly as small 11sp text against either theme's
+        // background; the icon above still carries the colour identity, so
+        // the label uses the guaranteed-readable theme foreground instead.
+        Text(label, color = tokens.fg, fontSize = 11.sp)
     }
 }
 
@@ -702,7 +708,7 @@ private fun WhatsNewPage(context: android.content.Context, tokens: ColorTokens, 
                 )
             }
             items(entries, key = { "activity-${it.notificationKey.ifBlank { it.packageName + it.postTime }}" }) { entry ->
-                ActivityRow(entry) {
+                ActivityRow(entry, tokens) {
                     NotificationCenter.reportDisplayedKey(entry.packageName, entry.notificationKey)
                     NotificationCenter.openAndClear(context, entry.packageName)
                 }
@@ -713,7 +719,7 @@ private fun WhatsNewPage(context: android.content.Context, tokens: ColorTokens, 
 }
 
 @Composable
-private fun ActivityRow(entry: ActivityEntry, onClick: () -> Unit) {
+private fun ActivityRow(entry: ActivityEntry, tokens: ColorTokens, onClick: () -> Unit) {
     // Real sender/message photo when the notification carried one (user-
     // requested: "in hub also the same thing photo of sender") — same
     // per-notification-key lookup, falling back to the per-package image,
@@ -768,11 +774,11 @@ private fun ActivityRow(entry: ActivityEntry, onClick: () -> Unit) {
         }
         Spacer(Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(entry.sender.lowercase(), color = Color.White, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(entry.snippet, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(entry.sender.lowercase(), color = tokens.fg, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(entry.snippet, color = tokens.fgDim, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.width(8.dp))
-        Text(activityAgo(entry.postTime), color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+        Text(activityAgo(entry.postTime), color = tokens.fgDim, fontSize = 11.sp)
     }
 }
 
