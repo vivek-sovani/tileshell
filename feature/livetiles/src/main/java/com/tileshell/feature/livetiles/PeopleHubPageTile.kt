@@ -4,11 +4,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -35,8 +38,20 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
-// Matches ConversationTileFace's own back-face cycle cadence.
-private const val WHATS_NEW_CYCLE_MS = 2_600L
+// Matches ConversationTileFace's own item-cycling cadence (which item shows
+// while the back face is up) — that part really does tick every 2.6s.
+private const val WHATS_NEW_ITEM_CYCLE_MS = 2_600L
+
+// How long this tile dwells on each face before flipping. A real mail/
+// messages tile does NOT flip itself every 2.6s — that interval belongs to
+// the shared *scheduler* (rememberFlipState in FlipTile.kt), which ticks
+// every 2.6s but only flips one RANDOMLY-CHOSEN tile among every flippable
+// one on screen, so any single tile flips far less often than that in
+// practice. This tile isn't part of that scheduler (see the class doc), so
+// it drives its own dwell time instead — user-reported the original 2.6s
+// flip felt "very fast" compared to a real mail tile; this longer dwell
+// approximates the shared scheduler's real per-tile cadence.
+private const val WHATS_NEW_FLIP_MS = 15_000L
 
 /**
  * The live face for a People Hub page pinned to Start ([PeopleHubTile] in
@@ -80,8 +95,34 @@ private fun RecentPeopleTileFace(size: TileSize, fallback: @Composable () -> Uni
     val list = recent
     if (list == null) return
     if (list.isEmpty()) return fallback()
+    val color = LocalTileFaceColor.current
     Box(modifier = modifier.fillMaxSize()) {
-        PeopleHubPageLines("recent", list.map { it.name.lowercase() }, Modifier.fillMaxSize())
+        Column(
+            modifier = Modifier.fillMaxSize().padding(10.dp),
+            verticalArrangement = Arrangement.Top,
+        ) {
+            Text("recent", color = color, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(6.dp))
+            // Real contact photos (user-requested: "recent... same thing" as
+            // what's new's real sender photos), same ContactAvatar the hub's
+            // own contact rows use — photo when present, else initials.
+            list.forEach { person ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(vertical = 2.dp),
+                ) {
+                    ContactAvatar(person, size = 22.dp, fontSize = 9.sp)
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        person.name.lowercase(),
+                        color = color,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
         PageIconCorner("clock")
     }
 }
@@ -100,23 +141,9 @@ private fun BoxScope.PageIconCorner(iconKey: String) {
     )
 }
 
-/** More lines fit on a taller tile; a 1-row tile still gets its title plus one line. */
+/** More rows/lines fit on a taller tile; a 1-row tile still gets its title
+ * plus one entry. */
 private fun linesFor(size: TileSize): Int = (size.rows * 2).coerceIn(1, 6)
-
-@Composable
-private fun PeopleHubPageLines(title: String, lines: List<String>, modifier: Modifier) {
-    val color = LocalTileFaceColor.current
-    Column(
-        modifier = modifier.fillMaxSize().padding(10.dp),
-        verticalArrangement = Arrangement.Top,
-    ) {
-        Text(title, color = color, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Spacer(Modifier.height(4.dp))
-        lines.forEach { line ->
-            Text(line, color = color, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
 
 @Composable
 private fun WhatsNewTileFace(size: TileSize, active: Boolean, fallback: @Composable () -> Unit, modifier: Modifier) {
@@ -130,7 +157,8 @@ private fun WhatsNewTileFace(size: TileSize, active: Boolean, fallback: @Composa
     }
 
     // Flip the whole tile between the front count face and the back
-    // cycling-message face, same cadence as the shared scheduler.
+    // cycling-message face — see WHATS_NEW_FLIP_MS's own doc for why this is
+    // a much longer dwell than the item-cycling interval below.
     var flipped by remember { mutableStateOf(false) }
     LaunchedEffect(active) {
         if (!active) {
@@ -138,7 +166,7 @@ private fun WhatsNewTileFace(size: TileSize, active: Boolean, fallback: @Composa
             return@LaunchedEffect
         }
         while (true) {
-            delay(WHATS_NEW_CYCLE_MS)
+            delay(WHATS_NEW_FLIP_MS)
             flipped = !flipped
         }
     }
@@ -150,7 +178,7 @@ private fun WhatsNewTileFace(size: TileSize, active: Boolean, fallback: @Composa
         itemIndex.intValue = 0
         if (!active || entries.size <= 1) return@LaunchedEffect
         while (true) {
-            delay(WHATS_NEW_CYCLE_MS)
+            delay(WHATS_NEW_ITEM_CYCLE_MS)
             itemIndex.intValue = (itemIndex.intValue + 1) % entries.size
         }
     }
@@ -165,6 +193,13 @@ private fun WhatsNewTileFace(size: TileSize, active: Boolean, fallback: @Composa
         )
     }
 
+    // Real sender/picture images (user-requested: shown "like as we show in
+    // other live tiles") — same per-notification-key lookup, falling back to
+    // the per-package image, that ConversationTileFace itself uses.
+    val itemImages by NotificationCenter.itemImages.collectAsStateWithLifecycle()
+    val fallbackImages by NotificationCenter.images.collectAsStateWithLifecycle()
+    val imgs = itemImages[current.notificationKey] ?: fallbackImages[current.packageName]
+
     Box(modifier = modifier.fillMaxSize()) {
         FlipTile(
             flipped = flipped,
@@ -177,8 +212,8 @@ private fun WhatsNewTileFace(size: TileSize, active: Boolean, fallback: @Composa
                         snippet = current.snippet,
                         notificationKey = current.notificationKey,
                     ),
-                    avatar = null,
-                    picture = null,
+                    avatar = imgs?.avatar?.asImageBitmap(),
+                    picture = imgs?.picture?.asImageBitmap(),
                     size = size,
                 )
             },

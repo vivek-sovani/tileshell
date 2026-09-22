@@ -9513,3 +9513,34 @@ elsewhere) in both the fallback-glyph resolver (`StartScreen.kt`'s `StaticTileGl
 face's `PageIconCorner` — a plain semantic fit for "recency", and a real recognizable shape rather
 than an ambiguous square. Verified on-device (screenshot, no crash): the tile now shows a proper
 clock face, both as its own icon and in its live corner badge.
+
+## Real sender/message photos on "what's new" (tile + hub page), and a slower flip cadence
+
+Two direct follow-ups. First: "if notification has sender or message photo, can that be shown like
+as we show in other live tiles. similarly in whats new the photo of sender" — the pinned "what's
+new" tile's back face, and the hub's own "what's new" page rows, both only ever showed a colored
+initials circle, never the real notification image. Both now resolve the same
+`NotificationCenter.itemImages[notificationKey] ?: NotificationCenter.images[packageName]` lookup
+`ConversationTileFace` already uses for mail/messages tiles: the tile passes the resolved
+avatar/picture into `NotificationFaceContent` (already renders one when present); the hub's
+`ActivityRow` shows the real photo cropped to a circle when present, falling back to initials
+otherwise — same `ContactAvatar`-style fallback pattern used everywhere else in this hub. "recent"
+got the same treatment on its own follow-up ("in hub also the same thing photo of sender" plus "i
+have not yet checked recent. but there also the same thing") — its tile face now reuses
+`ContactAvatar` (widened to `internal` so both files can share it) instead of plain name-only text
+lines, one real small avatar row per recently-contacted person.
+
+Second: "flip time is very fast match it with email tile" — the tile's flip cadence was hardcoded to
+the same 2.6s as its item-cycling timer, but a *real* mail/messages tile does not flip itself every
+2.6s — that interval belongs to the shared `rememberFlipState` scheduler (`FlipTile.kt`), which ticks
+every 2.6s but only flips one *randomly chosen* tile among every flippable tile on screen each time,
+so any single tile flips far less often in practice. Since this tile isn't part of that scheduler
+(explained in its own class doc — the scheduler is keyed off `LiveFace.forIconKey("people")`, which
+must stay non-flipping for the unrelated plain people-mosaic tile), it needs its own approximation
+of that real-world cadence rather than the scheduler's own tick interval. Split into two constants:
+`WHATS_NEW_ITEM_CYCLE_MS` (2.6s, unchanged — matches `ConversationTileFace`'s own item-cycling timer,
+which really does run every 2.6s) and a new, much longer `WHATS_NEW_FLIP_MS` (15s) for the front/back
+toggle itself.
+
+Verified on-device (screenshots, no crash) across every round: a real photo now shows on the tile's
+back face next to a real sender name, and the corner icons/build remain intact.

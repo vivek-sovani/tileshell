@@ -55,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -466,9 +467,10 @@ private fun PeopleJumpGrid(
 }
 
 /** A contact's avatar: the real profile photo, cropped to a circle, or a
- * circular initials plate tinted by [colorFor] when there is none. */
+ * circular initials plate tinted by [colorFor] when there is none. Also
+ * reused by [PeopleHubPageTileFace]'s "recent" live tile face. */
 @Composable
-private fun ContactAvatar(person: PersonSummary, size: androidx.compose.ui.unit.Dp, fontSize: androidx.compose.ui.unit.TextUnit) {
+internal fun ContactAvatar(person: PersonSummary, size: androidx.compose.ui.unit.Dp, fontSize: androidx.compose.ui.unit.TextUnit) {
     val bitmap = person.photoUri?.let { rememberTileBitmap(it, targetPx = (size.value * 2).toInt()) }
     Box(
         modifier = Modifier
@@ -711,6 +713,15 @@ private fun WhatsNewPage(context: android.content.Context, tokens: ColorTokens, 
 
 @Composable
 private fun ActivityRow(entry: ActivityEntry, onClick: () -> Unit) {
+    // Real sender/message photo when the notification carried one (user-
+    // requested: "in hub also the same thing photo of sender") — same
+    // per-notification-key lookup, falling back to the per-package image,
+    // that the pinned Start tile's own face uses.
+    val itemImages by NotificationCenter.itemImages.collectAsStateWithLifecycle()
+    val fallbackImages by NotificationCenter.images.collectAsStateWithLifecycle()
+    val avatarBitmap = (itemImages[entry.notificationKey] ?: fallbackImages[entry.packageName])
+        ?.avatar?.asImageBitmap()
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -727,10 +738,19 @@ private fun ActivityRow(entry: ActivityEntry, onClick: () -> Unit) {
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(colorFor(entry.sender)),
+                    .background(if (avatarBitmap == null) colorFor(entry.sender) else Color.Transparent),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(initialsFor(entry.sender), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                if (avatarBitmap != null) {
+                    Image(
+                        bitmap = avatarBitmap,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Text(initialsFor(entry.sender), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
             }
             val appIcon = rememberAppIconBitmap(entry.packageName, sizePx = 64)
             if (appIcon != null) {
