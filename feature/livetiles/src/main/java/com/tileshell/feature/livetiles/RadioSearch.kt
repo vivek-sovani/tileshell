@@ -58,26 +58,50 @@ fun parseRadioStations(json: String): List<RadioStation> = runCatching {
     }
 }.getOrElse { emptyList() }
 
-/** Fixed, curated genre/language chips for the "radio" tab's category
- * browsing (user-requested: "can we show categories like genre, language
- * etc."). Radio-Browser's own tag/language vocabulary is free-form and
- * enormous — these are simply the common, recognizable ones, not an
- * exhaustive or live-fetched list. */
+/** Fixed, curated genre/language/country chips for the "radio" tab's
+ * category browsing (user-requested: "can we show categories like genre,
+ * language etc."; "country/region should be also welcome"). Radio-Browser's
+ * own tag/language/country vocabulary is free-form and enormous — these are
+ * simply the common, recognizable ones, not an exhaustive or live-fetched
+ * list. Country uses the ISO 3166-1 alpha-2 `countrycode` field (more
+ * reliable to filter on than the directory's own free-text country names,
+ * which can be verbose/non-standard, e.g. "The United Kingdom Of Great
+ * Britain And Northern Ireland"). */
 val RADIO_GENRES = listOf("pop", "rock", "jazz", "classical", "news", "talk", "electronic", "sports", "chill")
 val RADIO_LANGUAGES = listOf("english", "hindi", "spanish", "french", "german", "arabic", "chinese", "japanese")
 
-/** Stations tagged with [tag] (a genre chip) — same result shape as
- * [searchRadioStations], so [parseRadioStations] is reused as-is. */
-suspend fun stationsByTag(tag: String): List<RadioStation> {
-    val encoded = runCatching { URLEncoder.encode(tag, "UTF-8") }.getOrNull() ?: return emptyList()
-    val url = "https://all.api.radio-browser.info/json/stations/bytag/$encoded?limit=25&hidebroken=true"
-    return parseRadioStations(httpGetText(url) ?: return emptyList())
-}
+data class RadioCountry(val code: String, val label: String)
 
-/** Stations broadcasting in [language] (a language chip). */
-suspend fun stationsByLanguage(language: String): List<RadioStation> {
-    val encoded = runCatching { URLEncoder.encode(language, "UTF-8") }.getOrNull() ?: return emptyList()
-    val url = "https://all.api.radio-browser.info/json/stations/bylanguage/$encoded?limit=25&hidebroken=true"
+val RADIO_COUNTRIES = listOf(
+    RadioCountry("IN", "india"),
+    RadioCountry("US", "united states"),
+    RadioCountry("GB", "united kingdom"),
+    RadioCountry("AU", "australia"),
+    RadioCountry("CA", "canada"),
+    RadioCountry("DE", "germany"),
+    RadioCountry("FR", "france"),
+    RadioCountry("JP", "japan"),
+    RadioCountry("BR", "brazil"),
+)
+
+/**
+ * Stations matching any combination of [tag] (genre)/[language]/
+ * [countryCode] — all three are independently selectable chips that combine
+ * into one query, rather than mutually-exclusive single-category browsing
+ * (user-requested: "genre and language should be combindly selectable").
+ * Same result shape as [searchRadioStations], so [parseRadioStations] is
+ * reused as-is. Returns empty when none are set — there is nothing to browse.
+ */
+suspend fun stationsByFilters(tag: String?, language: String?, countryCode: String?): List<RadioStation> {
+    if (tag == null && language == null && countryCode == null) return emptyList()
+    val params = buildList {
+        tag?.let { add("tag=" + URLEncoder.encode(it, "UTF-8")) }
+        language?.let { add("language=" + URLEncoder.encode(it, "UTF-8")) }
+        countryCode?.let { add("countrycode=" + URLEncoder.encode(it, "UTF-8")) }
+        add("limit=25")
+        add("hidebroken=true")
+    }
+    val url = "https://all.api.radio-browser.info/json/stations/search?" + params.joinToString("&")
     return parseRadioStations(httpGetText(url) ?: return emptyList())
 }
 

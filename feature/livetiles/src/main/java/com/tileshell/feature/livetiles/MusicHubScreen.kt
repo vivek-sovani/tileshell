@@ -81,47 +81,45 @@ import com.tileshell.core.design.colorTokens
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-// All six real pages the pager holds (used for page routing/count) — "apps"
-// and "history" are still fully reachable pages, just not shown as their own
-// pivot label any more (see VISIBLE_HUB_TABS): with six labels this row
-// overflowed a phone-width screen with no way to scroll to the rest
-// (user-reported: "horizontal menu not showing correctly"). Reached instead
-// via the "apps ›"/"history ›" links on "now playing", the same pattern
-// "history ›" already used on its own.
+// All six real pages the pager holds. There is no longer a persistent
+// pivot-label row at all (see the header below) — "now playing" IS the
+// hub's menu page (user-requested: "check proto first tab is only for menu.
+// you can merge now playing in that and then all tabs" — its own content
+// shows first, then a plain vertical menu listing every other page, which
+// also sidesteps the "horizontal menu not showing correctly" overflow bug
+// entirely, since there's no longer a header row to overflow).
 private val HUB_PIVOTS = listOf("now playing", "library", "podcasts", "radio", "apps", "history")
-
-// The pivot labels actually shown in the header row.
-private val VISIBLE_HUB_TABS = listOf("now playing", "library", "podcasts", "radio")
 
 private val LOCAL_AUDIO_PERMISSION: String =
     if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
 
 /**
  * Full-screen music hub — same Panorama/Pivot shell as [WeatherHubScreen]:
- * fixed header, a tappable/swipeable pivot row, six independently-scrolling
- * pages ("now playing" / "library" / "podcasts" / "radio" / "apps" /
- * "history") — only the first four show up as their own pivot label
- * ([VISIBLE_HUB_TABS]; "apps"/"history" are reached via links on "now
- * playing" instead, see below). The destination for tapping the music tile.
+ * fixed title header, six independently-scrolling pages ("now playing" /
+ * "library" / "podcasts" / "radio" / "apps" / "history"). "now playing"
+ * doubles as the hub's menu — its own playback content first, then a plain
+ * vertical list linking every other page (see [HUB_PIVOTS]'s own doc
+ * comment) — reached by swiping there or, from any other page, swiping
+ * back to it. The destination for tapping the music tile.
  *
  * "apps" lists every installed music/audio player ([AppCategories.isMusicApp]
  * — the OS-resolved music role plus the declared `CATEGORY_AUDIO`, both
  * already surfaced by [AppCatalogRepository] with no extra permission) so the
  * hub covers every player on the device, not just whichever one last had an
  * active session. "library" browses on-device tracks/albums/playlists
- * ([LocalMusicLibrary]); "podcasts" searches/subscribes/browses-by-genre via
- * the free iTunes Search + charts APIs ([searchPodcasts], [topPodcasts]) and
- * browses a subscribed show's episodes ([fetchPodcastFeed]); "radio" searches/
- * favorites/browses-by-genre-or-language live internet radio stations via the
- * free Radio-Browser directory ([searchRadioStations], [stationsByTag],
- * [stationsByLanguage]). All three play through the same [LocalMusicPlayer]
+ * ([LocalMusicLibrary]); "podcasts" searches/subscribes/browses-by-genre-or-
+ * country via the free iTunes Search + charts APIs ([searchPodcasts],
+ * [topPodcasts]) and browses a subscribed show's episodes
+ * ([fetchPodcastFeed]); "radio" searches/favorites/browses-by-genre-and/or-
+ * language-and/or-country (freely combinable) live internet radio stations
+ * via the free Radio-Browser directory ([searchRadioStations],
+ * [stationsByFilters]). All three play through the same [LocalMusicPlayer]
  * ([PlayableAudio] is the shared abstraction), which keeps playing in the
  * background (a real foreground service + lock-screen/notification controls,
  * [LocalMusicPlaybackService]) after this screen closes. "history" is
  * [MusicHistory] — the last song played on each source (one row per app plus
  * one for the local library, each with its own play/pause control), since
- * there's no system "recently played" API to read instead; reachable via a
- * "history ›" link on "now playing" itself (same for "apps ›"). "now playing"
+ * there's no system "recently played" API to read instead. "now playing"
  * reads the same
  * [MediaCenter] the music tile already reads (its transport buttons dispatch
  * through the exact same session), so play/pause/skip here and on the tile
@@ -226,29 +224,6 @@ fun MusicHubScreen(
                     softWrap = false,
                     overflow = TextOverflow.Clip,
                 )
-                Spacer(Modifier.height(16.dp))
-
-                // Stacked vertically, not the horizontal row this session
-                // started with — user-requested ("display menus vertically
-                // as shown in prototype"), and it sidesteps the overflow
-                // problem entirely regardless of how many pivots there are.
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    VISIBLE_HUB_TABS.forEach { label ->
-                        val index = HUB_PIVOTS.indexOf(label)
-                        val selected = pagerState.currentPage == index
-                        Text(
-                            text = label,
-                            color = if (selected) tokens.fg else tokens.fgDim,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Light,
-                            modifier = Modifier.clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = { pagerScope.launch { pagerState.animateScrollToPage(index) } },
-                            ),
-                        )
-                    }
-                }
                 Spacer(Modifier.height(20.dp))
             }
 
@@ -288,12 +263,9 @@ fun MusicHubScreen(
                 modifier = Modifier.weight(1f),
             ) { page ->
                 when (page) {
-                    0 -> NowPlayingPage(
-                        accent = accent,
-                        tokens = tokens,
-                        onOpenApps = { pagerScope.launch { pagerState.animateScrollToPage(HUB_PIVOTS.indexOf("apps")) } },
-                        onOpenHistory = { pagerScope.launch { pagerState.animateScrollToPage(HUB_PIVOTS.indexOf("history")) } },
-                    )
+                    0 -> NowPlayingPage(accent = accent, tokens = tokens) { label ->
+                        pagerScope.launch { pagerState.animateScrollToPage(HUB_PIVOTS.indexOf(label)) }
+                    }
                     1 -> LibraryPage(context, accent, tokens)
                     2 -> PodcastsPage(context, accent, tokens)
                     3 -> RadioPage(context, accent, tokens)
@@ -344,7 +316,7 @@ private fun LocalPlaybackButton(
  * precedence over TileShell's own library browsing.
  */
 @Composable
-private fun NowPlayingPage(accent: Color, tokens: ColorTokens, onOpenApps: () -> Unit, onOpenHistory: () -> Unit) {
+private fun NowPlayingPage(accent: Color, tokens: ColorTokens, onOpenPage: (String) -> Unit) {
     val media by MediaCenter.nowPlaying.collectAsState()
     val artworkMap by MediaCenter.artwork.collectAsState()
     val externalEntry = media.entries.firstOrNull { it.value.playing } ?: media.entries.firstOrNull()
@@ -358,38 +330,6 @@ private fun NowPlayingPage(accent: Color, tokens: ColorTokens, onOpenApps: () ->
             .verticalScroll(rememberScrollState())
             .padding(bottom = 32.dp),
     ) {
-        // User-requested links straight from "now playing" to the "apps" and
-        // "history" pages, rather than making people swipe/tap over to them
-        // — both moved off the crowded pivot row (see VISIBLE_HUB_TABS).
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp)
-                .padding(top = 2.dp, bottom = 10.dp),
-            horizontalArrangement = Arrangement.End,
-        ) {
-            Text(
-                "apps ›",
-                color = accent,
-                fontSize = 13.sp,
-                modifier = Modifier.clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onOpenApps,
-                ),
-            )
-            Spacer(Modifier.width(16.dp))
-            Text(
-                "history ›",
-                color = accent,
-                fontSize = 13.sp,
-                modifier = Modifier.clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onOpenHistory,
-                ),
-            )
-        }
         when {
             externalEntry != null && (externalEntry.value.playing || localItem == null) ->
                 ExternalNowPlaying(externalEntry, artworkMap, accent, tokens, context)
@@ -401,6 +341,32 @@ private fun NowPlayingPage(accent: Color, tokens: ColorTokens, onOpenApps: () ->
                     "start something in one of your music apps, or play a track from the library, a podcast, or a radio station",
                     color = tokens.fgDim,
                     fontSize = 12.sp,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(28.dp))
+        Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp).height(1.dp).background(tokens.sheetLine))
+        // "now playing" doubles as the hub's own menu (user-requested:
+        // "check proto first tab is only for menu. you can merge now
+        // playing in that and then all tabs") — every other page, listed
+        // vertically below it, replacing both the old horizontal pivot row
+        // and the smaller "apps ›"/"history ›" text links that preceded this.
+        Column {
+            HUB_PIVOTS.filterNot { it == "now playing" }.forEach { label ->
+                Text(
+                    text = label,
+                    color = tokens.fg,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Light,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { onOpenPage(label) },
+                        )
+                        .padding(horizontal = 18.dp, vertical = 14.dp),
                 )
             }
         }
@@ -556,24 +522,20 @@ private fun MusicAppsPage(context: Context, accent: Color, tokens: ColorTokens) 
             .distinctBy { it.packageName }
             .distinctBy { it.label.trim().lowercase() }
     }
-    var query by remember { mutableStateOf("") }
-    val shown = remember(musicApps, query) {
-        if (query.isBlank()) musicApps else musicApps.filter { it.label.contains(query, ignoreCase = true) }
-    }
 
+    // No search field, per direct request — this list is short enough (the
+    // device's own installed music/audio players) that filtering isn't
+    // needed, unlike the library/podcasts/radio pages' much larger catalogs.
     Column(modifier = Modifier.fillMaxSize()) {
-        LibrarySearchField(query, { query = it }, "search apps", tokens)
         if (musicApps.isEmpty()) {
             LibraryEmptyState("no music apps found", tokens)
-        } else if (shown.isEmpty()) {
-            LibraryEmptyState("no matches", tokens)
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
                 modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
                 contentPadding = PaddingValues(bottom = 32.dp),
             ) {
-                items(shown, key = { it.key }) { app ->
+                items(musicApps, key = { it.key }) { app ->
                     MusicAppCell(app, accent, tokens) { AppLauncher.launch(context, app.packageName, app.activityName) }
                 }
             }
@@ -1224,11 +1186,14 @@ fun formatTrackDuration(durationMs: Long): String {
 
 /**
  * Search (via the free iTunes Search API, [searchPodcasts]), browse by genre
- * ([PODCAST_GENRES]/[topPodcasts] — user-requested: "can we show categories
- * like genre, language etc."), and subscribed shows ([PodcastStore]).
- * Browsing a show's episodes ([PodcastEpisodesPage]) never auto-subscribes —
- * subscribing is its own explicit action there, the same way opening a show
- * in a real podcast app doesn't silently follow it.
+ * and/or country ([PODCAST_GENRES]/[PODCAST_COUNTRIES]/[topPodcasts] — both
+ * freely combinable, user-requested: "can we show categories like genre,
+ * language etc."; "genre and language should be combindly selectable";
+ * "country/region should be also welcome"), and subscribed shows
+ * ([PodcastStore]). Browsing a show's episodes ([PodcastEpisodesPage]) never
+ * auto-subscribes — subscribing is its own explicit action (the heart on
+ * each row, or inside the episode page), the same way opening a show in a
+ * real podcast app doesn't silently follow it.
  */
 @Composable
 private fun PodcastsPage(context: Context, accent: Color, tokens: ColorTokens) {
@@ -1237,9 +1202,11 @@ private fun PodcastsPage(context: Context, accent: Color, tokens: ColorTokens) {
     var results by remember { mutableStateOf<List<PodcastSearchResult>>(emptyList()) }
     var searching by remember { mutableStateOf(false) }
     var selectedGenre by remember { mutableStateOf<PodcastGenre?>(null) }
-    var genreResults by remember { mutableStateOf<List<PodcastSearchResult>>(emptyList()) }
-    var loadingGenre by remember { mutableStateOf(false) }
+    var selectedCountry by remember { mutableStateOf<PodcastCountry?>(null) }
+    var categoryResults by remember { mutableStateOf<List<PodcastSearchResult>>(emptyList()) }
+    var loadingCategory by remember { mutableStateOf(false) }
     var openFeedUrl by remember { mutableStateOf<String?>(null) }
+    val categoryActive = selectedGenre != null || selectedCountry != null
 
     LaunchedEffect(query) {
         if (query.isBlank()) {
@@ -1247,28 +1214,29 @@ private fun PodcastsPage(context: Context, accent: Color, tokens: ColorTokens) {
             searching = false
             return@LaunchedEffect
         }
-        selectedGenre = null // a typed search takes over from a genre browse
+        // A typed search takes over from a genre/country browse.
+        selectedGenre = null
+        selectedCountry = null
         searching = true
         delay(450) // debounce — avoids a network search per keystroke
         results = searchPodcasts(query)
         searching = false
     }
 
-    LaunchedEffect(selectedGenre) {
-        val genre = selectedGenre
-        if (genre == null) {
-            genreResults = emptyList()
+    LaunchedEffect(selectedGenre, selectedCountry) {
+        if (!categoryActive) {
+            categoryResults = emptyList()
             return@LaunchedEffect
         }
-        loadingGenre = true
-        genreResults = topPodcasts(genre.id)
-        loadingGenre = false
+        loadingCategory = true
+        categoryResults = topPodcasts(selectedGenre?.id, selectedCountry?.code ?: "us")
+        loadingCategory = false
     }
 
     val feedUrl = openFeedUrl
     if (feedUrl != null) {
         val show = subscriptions.firstOrNull { it.feedUrl == feedUrl }
-            ?: (results + genreResults).firstOrNull { it.feedUrl == feedUrl }?.let {
+            ?: (results + categoryResults).firstOrNull { it.feedUrl == feedUrl }?.let {
                 PodcastSubscription(it.feedUrl, it.title, it.artworkUrl, 0L)
             }
         if (show != null) {
@@ -1291,6 +1259,17 @@ private fun PodcastsPage(context: Context, accent: Color, tokens: ColorTokens) {
         }
     }
 
+    fun toggleSubscribe(show: PodcastShowEntry) {
+        if (subscriptions.any { it.feedUrl == show.feedUrl }) {
+            PodcastStore.unsubscribe(context, show.feedUrl)
+        } else {
+            PodcastStore.subscribe(
+                context,
+                PodcastSubscription(show.feedUrl, show.title, show.artworkUrl, System.currentTimeMillis()),
+            )
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         LibrarySearchField(query, { query = it }, "search podcasts", tokens)
         if (query.isBlank()) {
@@ -1298,25 +1277,41 @@ private fun PodcastsPage(context: Context, accent: Color, tokens: ColorTokens) {
                 val genre = PODCAST_GENRES.first { it.label == label }
                 selectedGenre = if (selectedGenre == genre) null else genre
             }
+            CategoryChipRow(PODCAST_COUNTRIES.map { it.label }, selectedCountry?.label, accent, tokens) { label ->
+                val country = PODCAST_COUNTRIES.first { it.label == label }
+                selectedCountry = if (selectedCountry == country) null else country
+            }
         }
         when {
             query.isNotBlank() && searching && results.isEmpty() -> LibraryEmptyState("searching…", tokens)
             query.isNotBlank() && results.isEmpty() -> LibraryEmptyState("no matches", tokens)
             query.isNotBlank() -> PodcastShowList(
                 results.map { PodcastShowEntry(it.feedUrl, it.title, it.artworkUrl) },
+                subscriptions,
+                accent,
                 tokens,
-            ) { openFeedUrl = it }
-            selectedGenre != null && loadingGenre && genreResults.isEmpty() -> LibraryEmptyState("loading…", tokens)
-            selectedGenre != null && genreResults.isEmpty() -> LibraryEmptyState("no matches", tokens)
-            selectedGenre != null -> PodcastShowList(
-                genreResults.map { PodcastShowEntry(it.feedUrl, it.title, it.artworkUrl) },
+                onSelect = { openFeedUrl = it },
+                onToggleSubscribe = ::toggleSubscribe,
+            )
+            categoryActive && loadingCategory && categoryResults.isEmpty() -> LibraryEmptyState("loading…", tokens)
+            categoryActive && categoryResults.isEmpty() -> LibraryEmptyState("no matches", tokens)
+            categoryActive -> PodcastShowList(
+                categoryResults.map { PodcastShowEntry(it.feedUrl, it.title, it.artworkUrl) },
+                subscriptions,
+                accent,
                 tokens,
-            ) { openFeedUrl = it }
+                onSelect = { openFeedUrl = it },
+                onToggleSubscribe = ::toggleSubscribe,
+            )
             subscriptions.isEmpty() -> LibraryEmptyState("search, or pick a category above, to find podcasts", tokens)
             else -> PodcastShowList(
                 subscriptions.map { PodcastShowEntry(it.feedUrl, it.title, it.artworkUrl) },
+                subscriptions,
+                accent,
                 tokens,
-            ) { openFeedUrl = it }
+                onSelect = { openFeedUrl = it },
+                onToggleSubscribe = ::toggleSubscribe,
+            )
         }
     }
 }
@@ -1364,7 +1359,14 @@ private fun CategoryChipRow(
 private data class PodcastShowEntry(val feedUrl: String, val title: String, val artworkUrl: String?)
 
 @Composable
-private fun PodcastShowList(shows: List<PodcastShowEntry>, tokens: ColorTokens, onSelect: (String) -> Unit) {
+private fun PodcastShowList(
+    shows: List<PodcastShowEntry>,
+    subscriptions: List<PodcastSubscription>,
+    accent: Color,
+    tokens: ColorTokens,
+    onSelect: (String) -> Unit,
+    onToggleSubscribe: (PodcastShowEntry) -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1373,14 +1375,31 @@ private fun PodcastShowList(shows: List<PodcastShowEntry>, tokens: ColorTokens, 
             .padding(bottom = 32.dp),
     ) {
         shows.forEachIndexed { index, show ->
-            PodcastShowRow(show.title, show.artworkUrl, tokens) { onSelect(show.feedUrl) }
+            val isSubscribed = subscriptions.any { it.feedUrl == show.feedUrl }
+            PodcastShowRow(
+                title = show.title,
+                artworkUrl = show.artworkUrl,
+                isSubscribed = isSubscribed,
+                accent = accent,
+                tokens = tokens,
+                onClick = { onSelect(show.feedUrl) },
+                onToggleSubscribe = { onToggleSubscribe(show) },
+            )
             if (index < shows.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(tokens.sheetLine))
         }
     }
 }
 
 @Composable
-private fun PodcastShowRow(title: String, artworkUrl: String?, tokens: ColorTokens, onClick: () -> Unit) {
+private fun PodcastShowRow(
+    title: String,
+    artworkUrl: String?,
+    isSubscribed: Boolean,
+    accent: Color,
+    tokens: ColorTokens,
+    onClick: () -> Unit,
+    onToggleSubscribe: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1407,6 +1426,17 @@ private fun PodcastShowRow(title: String, artworkUrl: String?, tokens: ColorToke
         }
         Spacer(Modifier.width(12.dp))
         Text(title, color = tokens.fg, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Spacer(Modifier.width(8.dp))
+        Icon(
+            TileIcons["heart"],
+            contentDescription = if (isSubscribed) "unsubscribe" else "subscribe",
+            tint = if (isSubscribed) accent else tokens.fgDim,
+            modifier = Modifier.size(20.dp).clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onToggleSubscribe,
+            ),
+        )
     }
 }
 
@@ -1452,11 +1482,11 @@ private fun PodcastEpisodesPage(
                     fontSize = 11.sp,
                 )
             }
-            Text(
-                if (isSubscribed) "subscribed" else "subscribe",
-                color = accent,
-                fontSize = 13.sp,
-                modifier = Modifier.clickable(
+            Icon(
+                TileIcons["heart"],
+                contentDescription = if (isSubscribed) "unsubscribe" else "subscribe",
+                tint = if (isSubscribed) accent else tokens.fgDim,
+                modifier = Modifier.size(22.dp).clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = { onSubscribeToggle(!isSubscribed) },
@@ -1521,13 +1551,15 @@ private fun PodcastEpisodeRow(episode: PodcastEpisode, tokens: ColorTokens, onCl
 
 /**
  * Search (via the free, no-key Radio-Browser directory,
- * [searchRadioStations]), browse by genre or language ([RADIO_GENRES]/
- * [RADIO_LANGUAGES], [stationsByTag]/[stationsByLanguage] — user-requested:
- * "can we show categories like genre, language etc."), and favorited
- * stations ([RadioFavoritesStore]) — the same shape as podcasts' search+
- * genre-browse+subscriptions, one level flatter since a station has no
- * episode list: tapping any row starts it playing immediately (a live
- * stream has nothing to "browse into" first).
+ * [searchRadioStations]), browse by genre and/or language and/or country
+ * ([RADIO_GENRES]/[RADIO_LANGUAGES]/[RADIO_COUNTRIES], [stationsByFilters] —
+ * all three independently selectable and freely combinable, user-requested:
+ * "can we show categories like genre, language etc."; "genre and language
+ * should be combindly selectable"; "country/region should be also
+ * welcome"), and favorited stations ([RadioFavoritesStore]) — the same
+ * shape as podcasts' search+category-browse+subscriptions, one level
+ * flatter since a station has no episode list: tapping any row starts it
+ * playing immediately (a live stream has nothing to "browse into" first).
  */
 @Composable
 private fun RadioPage(context: Context, accent: Color, tokens: ColorTokens) {
@@ -1535,9 +1567,12 @@ private fun RadioPage(context: Context, accent: Color, tokens: ColorTokens) {
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<RadioStation>>(emptyList()) }
     var searching by remember { mutableStateOf(false) }
-    var activeFilter by remember { mutableStateOf<RadioCategoryFilter?>(null) }
-    var filterResults by remember { mutableStateOf<List<RadioStation>>(emptyList()) }
-    var loadingFilter by remember { mutableStateOf(false) }
+    var selectedGenre by remember { mutableStateOf<String?>(null) }
+    var selectedLanguage by remember { mutableStateOf<String?>(null) }
+    var selectedCountry by remember { mutableStateOf<RadioCountry?>(null) }
+    var categoryResults by remember { mutableStateOf<List<RadioStation>>(emptyList()) }
+    var loadingCategory by remember { mutableStateOf(false) }
+    val categoryActive = selectedGenre != null || selectedLanguage != null || selectedCountry != null
 
     LaunchedEffect(query) {
         if (query.isBlank()) {
@@ -1545,53 +1580,51 @@ private fun RadioPage(context: Context, accent: Color, tokens: ColorTokens) {
             searching = false
             return@LaunchedEffect
         }
-        activeFilter = null // a typed search takes over from a category browse
+        // A typed search takes over from a category browse.
+        selectedGenre = null
+        selectedLanguage = null
+        selectedCountry = null
         searching = true
         delay(450)
         results = searchRadioStations(query)
         searching = false
     }
 
-    LaunchedEffect(activeFilter) {
-        val filter = activeFilter
-        if (filter == null) {
-            filterResults = emptyList()
+    LaunchedEffect(selectedGenre, selectedLanguage, selectedCountry) {
+        if (!categoryActive) {
+            categoryResults = emptyList()
             return@LaunchedEffect
         }
-        loadingFilter = true
-        filterResults = when (filter) {
-            is RadioCategoryFilter.Genre -> stationsByTag(filter.tag)
-            is RadioCategoryFilter.Language -> stationsByLanguage(filter.language)
-        }
-        loadingFilter = false
+        loadingCategory = true
+        categoryResults = stationsByFilters(selectedGenre, selectedLanguage, selectedCountry?.code)
+        loadingCategory = false
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
         LibrarySearchField(query, { query = it }, "search radio stations", tokens)
         if (query.isBlank()) {
-            CategoryChipRow(RADIO_GENRES, (activeFilter as? RadioCategoryFilter.Genre)?.tag, accent, tokens) { tag ->
-                activeFilter = (RadioCategoryFilter.Genre(tag) as RadioCategoryFilter?).takeUnless { it == activeFilter }
+            CategoryChipRow(RADIO_GENRES, selectedGenre, accent, tokens) { tag ->
+                selectedGenre = tag.takeUnless { it == selectedGenre }
             }
-            CategoryChipRow(RADIO_LANGUAGES, (activeFilter as? RadioCategoryFilter.Language)?.language, accent, tokens) { lang ->
-                activeFilter = (RadioCategoryFilter.Language(lang) as RadioCategoryFilter?).takeUnless { it == activeFilter }
+            CategoryChipRow(RADIO_LANGUAGES, selectedLanguage, accent, tokens) { lang ->
+                selectedLanguage = lang.takeUnless { it == selectedLanguage }
+            }
+            CategoryChipRow(RADIO_COUNTRIES.map { it.label }, selectedCountry?.label, accent, tokens) { label ->
+                val country = RADIO_COUNTRIES.first { it.label == label }
+                selectedCountry = if (selectedCountry == country) null else country
             }
         }
         when {
             query.isNotBlank() && searching && results.isEmpty() -> LibraryEmptyState("searching…", tokens)
             query.isNotBlank() && results.isEmpty() -> LibraryEmptyState("no matches", tokens)
             query.isNotBlank() -> RadioStationList(results, favorites, context, accent, tokens)
-            activeFilter != null && loadingFilter && filterResults.isEmpty() -> LibraryEmptyState("loading…", tokens)
-            activeFilter != null && filterResults.isEmpty() -> LibraryEmptyState("no matches", tokens)
-            activeFilter != null -> RadioStationList(filterResults, favorites, context, accent, tokens)
+            categoryActive && loadingCategory && categoryResults.isEmpty() -> LibraryEmptyState("loading…", tokens)
+            categoryActive && categoryResults.isEmpty() -> LibraryEmptyState("no matches", tokens)
+            categoryActive -> RadioStationList(categoryResults, favorites, context, accent, tokens)
             favorites.isEmpty() -> LibraryEmptyState("search, or pick a category above, to find radio stations", tokens)
             else -> RadioStationList(favorites.map { it.toRadioStation() }, favorites, context, accent, tokens)
         }
     }
-}
-
-private sealed interface RadioCategoryFilter {
-    data class Genre(val tag: String) : RadioCategoryFilter
-    data class Language(val language: String) : RadioCategoryFilter
 }
 
 private fun FavoriteStation.toRadioStation() =
@@ -1690,7 +1723,7 @@ private fun RadioStationRow(
             }
         }
         Icon(
-            TileIcons[if (isFavorite) "check" else "plus"],
+            TileIcons["heart"],
             contentDescription = if (isFavorite) "unfavorite" else "favorite",
             tint = if (isFavorite) accent else tokens.fgDim,
             modifier = Modifier.size(20.dp).clickable(

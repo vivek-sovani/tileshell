@@ -70,19 +70,42 @@ val PODCAST_GENRES = listOf(
     PodcastGenre(1545, "sports"),
     PodcastGenre(1304, "education"),
     PodcastGenre(1301, "arts"),
+    PodcastGenre(1314, "spiritual"),
+)
+
+/** A browsable Apple Podcasts storefront country — user-requested
+ * ("country/region should be also welcome in podcast and radio search"). */
+data class PodcastCountry(val code: String, val label: String)
+
+val PODCAST_COUNTRIES = listOf(
+    PodcastCountry("us", "united states"),
+    PodcastCountry("gb", "united kingdom"),
+    PodcastCountry("in", "india"),
+    PodcastCountry("au", "australia"),
+    PodcastCountry("ca", "canada"),
+    PodcastCountry("de", "germany"),
+    PodcastCountry("fr", "france"),
+    PodcastCountry("jp", "japan"),
+    PodcastCountry("br", "brazil"),
 )
 
 /**
- * The current top podcasts in [genreId] — browsing by category rather than
- * typing a search term. Two iTunes calls, both free/no-key: its "RSS
- * Generator" charts endpoint lists the genre's current top shows by
+ * The current top podcasts in [genreId] (any genre when null) and
+ * [countryCode]'s own storefront — browsing by category rather than typing a
+ * search term; genre and country combine freely (both are just separate
+ * path segments on the same chart URL). Two iTunes calls, both free/no-key:
+ * its "RSS Generator" charts endpoint lists the chart's current top shows by
  * collection id only (no feed URL), so each id is then resolved through the
  * plain Lookup API, which returns the exact same shape as [searchPodcasts]'s
  * own results — [parsePodcastSearchResults] is reused as-is for the second
  * step.
  */
-suspend fun topPodcasts(genreId: Int): List<PodcastSearchResult> {
-    val chartUrl = "https://itunes.apple.com/us/rss/toppodcasts/limit=25/genre=$genreId/json"
+suspend fun topPodcasts(genreId: Int?, countryCode: String = "us"): List<PodcastSearchResult> {
+    val chartUrl = buildString {
+        append("https://itunes.apple.com/$countryCode/rss/toppodcasts/limit=25/")
+        if (genreId != null) append("genre=$genreId/")
+        append("json")
+    }
     val chartJson = httpGetText(chartUrl) ?: return emptyList()
     val ids = parseChartTrackIds(chartJson)
     if (ids.isEmpty()) return emptyList()

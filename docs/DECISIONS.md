@@ -9094,3 +9094,58 @@ station shape `searchRadioStations` does, so `parseRadioStations` is reused unch
 verified live via `curl` against the real endpoints before wiring them in. A shared
 `CategoryChipRow` composable (horizontally-scrollable pill row, tap-to-select/tap-again-to-clear)
 backs both pages' chip rows.
+
+## Music hub: "now playing" is the menu, combinable genre/language/country, heart favorites
+
+Direct same-day follow-up, six items in one user message: "check proto first tab is only for
+menu. you can merge now playing in that and then all tabs. health & fitness and spiritual
+category not found in podcast. similarly genre and language should be combindly selectable. in
+radio instead of plus show heart icon for favorite. simiarly for podcast." Plus a follow-up:
+"country/region should be also welcome in podcast and radio search"; "in apps page remove
+search".
+
+**"now playing" is the menu**: the vertical pivot-label list added the previous round (itself a
+fix for the horizontal row's real overflow bug) is removed from the shared header entirely.
+"now playing" now shows its own playback content first, then a plain vertical list of every
+other page (library/podcasts/radio/apps/history) below a divider — reached by swiping to it or,
+from any other page, swiping back. This is a real WP pattern (a hub's first pivot page doubling
+as its own menu/entry-point page) and sidesteps the header-overflow question structurally rather
+than by trimming/relocating labels piecemeal, which is what the previous two rounds had been
+doing. `NowPlayingPage` takes one `onOpenPage: (String) -> Unit` instead of separate `onOpenApps`/
+`onOpenHistory` callbacks.
+
+**Missing podcast genre**: "health & fitness" (id 1512) was verified working end-to-end via
+`curl` (chart → lookup → parse, all three steps individually) — likely a false alarm, possibly
+downstream of the same-message menu-navigation issue rather than a real fetch bug. "spiritual"
+(Apple's genre id 1314, "Religion & Spirituality") was genuinely just missing from `PODCAST_GENRES`
+and is now added, confirmed live via the same chart endpoint.
+
+**Combinable categories**: previously genre/language (radio) and, implicitly, genre (podcasts)
+were mutually-exclusive single-choice selections. Both directory APIs turn out to support
+combining filters in one request — Radio-Browser's `/stations/search` accepts `tag`+`language`+
+`countrycode` together (verified live), and Apple's chart endpoint's genre and country are just
+independent URL path segments (`/{cc}/rss/toppodcasts/limit=25/genre={id}/json`, also verified
+live, including a genre+country combination). So each category dimension is now its own
+independent nullable selection state (radio: genre/language/country; podcasts: genre/country),
+combined into a single fetch (`stationsByFilters`/`topPodcasts`) whenever any is set — replacing
+the earlier single `RadioCategoryFilter` sealed-choice design entirely (that type is deleted).
+
+**Country/region**: added as a third dimension to both — `PODCAST_COUNTRIES`/`RADIO_COUNTRIES`,
+both small curated lists (9 common countries) rather than the full set either directory actually
+supports, matching the existing genre/language chip lists' own "common and recognizable, not
+exhaustive" scoping. Radio filters on `countrycode` (ISO 3166-1 alpha-2) rather than the
+directory's own free-text `country` field, which can be verbose/non-standard (e.g. one BBC
+station's own record spells the UK out in full).
+
+**Heart icon for favorite/subscribe**: replaced radio's plus/check icon pair with a single new
+hand-authored `TileIcons["heart"]` glyph (no favoriting concept in the original prototype to
+port), tint-differentiated (accent when favorited, dim when not) rather than shape-differentiated
+— consistent with how `TileIcons`'s shared vector builder only supports stroke icons, no fill, so
+there's no "filled heart" variant to swap to. Extended to podcasts too, in two places: a new heart
+toggle directly on every `PodcastShowRow` in a list (previously no per-row subscribe affordance
+existed at all — only inside the episode page), and the episode page's own "subscribe"/
+"subscribed" text swapped for the same heart icon.
+
+**"apps" search removed**: the installed-music-apps grid is short enough (a device's own player
+apps, not a large catalog like the library/podcasts/radio pages) that a filter field added
+friction without real benefit.
