@@ -9479,3 +9479,27 @@ wireless adb link dropped before a live tap-to-open-message test could run; that
 interaction (along with the two-package-tap-isolation guard) still needs the user's own hands-on
 confirmation, per this project's established ADB limitation for interaction-level (not just visual)
 verification.
+
+## People Hub page tiles get their own corner/fallback icon
+
+Direct follow-up: "can we have icons for recent and what new" — both pinned page tiles previously
+inherited the generic "people" glyph (needed on `iconKey` for the live-face dispatch to resolve at
+all), so the *fallback* static glyph and the live face itself had nothing visually distinguishing
+one page tile from another beyond its title text. Reused two glyphs already sitting unused in
+`TileIcons` outside of decorative Personalize-guide mockups: `"bell"` for "what's new",
+`"recents"` (a plain rounded square, literally named for this concept) for "recent" — no new icon
+paths needed.
+
+Two separate render paths needed the same page-aware lookup, both keyed off the same
+`PeopleHubTile.decode(activityName)` check already used for the live-face dispatch:
+- `StartScreen.kt`'s `StaticTileGlyph` (the shared fallback-glyph renderer every tile type uses)
+  now resolves an `effectiveIconKey` — "recents"/"bell" for a decoded page tile, `tile.iconKey`
+  otherwise — before both its `TileIcons.hasIcon`/`TileIcons[...]` lookups.
+- `PeopleHubPageTileFace` itself (the *live* face, shown whenever there's real content) gained a
+  small `PageIconCorner` — same top-start position/size convention as `AppIconCorner` on the mail/
+  messages tiles — drawn as a sibling to the content in both `RecentPeopleTileFace`'s lines and
+  `WhatsNewTileFace`'s `FlipTile` (outside the flip itself, so it stays put across both faces,
+  mirroring exactly how `ConversationTileFace` draws its own `AppIconCorner`).
+
+Verified on-device (screenshot, no crash): both corner glyphs render legibly — the bell on "what's
+new" (caught mid-back-face, showing a real message) and the plain square on "recent".

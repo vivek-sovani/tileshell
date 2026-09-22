@@ -7220,7 +7220,17 @@ private fun StaticTileGlyph(
     // generic category-glyph fallback below already renders on this exact face.
     themedIcons: Boolean = false,
 ) {
-    val useAppIcon = !TileIcons.hasIcon(tile.iconKey)
+    // A "what's new"/"recent" People Hub page tile shares iconKey "people"
+    // with the plain contacts tile (needed for the live-face dispatch) but
+    // user-requested its own distinct glyph rather than the generic people
+    // icon — resolved the same way the live-face dispatch already decodes
+    // which page a tile is pinned to.
+    val effectiveIconKey = when (PeopleHubTile.decode(tile.activityName)) {
+        "recent" -> "recents"
+        "what's new" -> "bell"
+        else -> tile.iconKey
+    }
+    val useAppIcon = !TileIcons.hasIcon(effectiveIconKey)
     val composeShape = if (homeStyle == HomeStyle.ICONS) iconShape.toComposeShape() else null
     // Decode at (roughly) the actual dp this glyph will render at — mirrors
     // the size TileIconContent below picks by tile.size — rather than a
@@ -7300,7 +7310,7 @@ private fun StaticTileGlyph(
             )
         } else {
             Icon(
-                imageVector = TileIcons[tile.iconKey],
+                imageVector = TileIcons[effectiveIconKey],
                 contentDescription = tile.label,
                 tint = LocalTileFaceColor.current,
                 modifier = Modifier.size(monolineSize.dp),
