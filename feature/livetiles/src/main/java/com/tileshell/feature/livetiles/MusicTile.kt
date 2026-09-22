@@ -512,9 +512,11 @@ fun MusicTileFace(
 // label to TileIcons key — user-requested ("instead of labels can we also
 // show icons for individual menu item"). "radio" has no dedicated glyph in
 // TileIcons; "wifi" (concentric signal arcs) is the closest visual match to
-// a broadcast/radio-wave concept already in the set.
+// a broadcast/radio-wave concept already in the set. Must match MusicHubScreen
+// .kt's own HUB_PIVOTS entries exactly — these labels double as the page
+// identity MusicHubNavigation/MusicHubScreen route on, not just display text.
 private val MUSIC_HUB_MENU_ITEMS = listOf(
-    "library" to "music",
+    "music library" to "music",
     "podcasts" to "podcast",
     "radio" to "wifi",
     "apps" to "app",
@@ -527,73 +529,64 @@ private val MUSIC_HUB_MENU_ITEMS = listOf(
  * posts to [MusicHubNavigation], which `StartScreen` turns into a real
  * `StartViewModel.openMusicHub(page)` call — see that object's own doc
  * comment for why this is a process-wide signal rather than a threaded
- * callback. A small "music" glyph in the top-left corner (matching the
- * front face's own `AppIconCorner` slot) marks this as the music tile even
- * with no app icon of its own to show there (user-requested: "music icon
- * should also be displayed on flip side of music tile").
+ * callback. No separate "music" corner glyph any more — briefly added, then
+ * removed once every menu item got its own icon (user-requested: "tile
+ * music icon not needed now as each label has icons").
  */
 @Composable
 private fun MusicHubMenuBack(size: TileSize) {
     TileImageBackground(image = null, modifier = Modifier.fillMaxSize()) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            if (size.rows == 1 && size.cols > 1) {
-                // One grid row tall (WIDE_SMALL/BANNER) — matches MusicFront's
-                // own layout switch for the same shapes.
-                Row(
-                    modifier = Modifier.fillMaxSize().padding(horizontal = 11.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    MUSIC_HUB_MENU_ITEMS.forEach { (label, iconKey) ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = { MusicHubNavigation.requestPage(label) },
-                            ),
-                        ) {
-                            Icon(TileIcons[iconKey], contentDescription = null, tint = FaceText, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text(text = label, color = FaceText, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                }
-            } else {
-                Column(
-                    modifier = Modifier.fillMaxSize().padding(11.dp),
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    MUSIC_HUB_MENU_ITEMS.forEachIndexed { index, (label, iconKey) ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = { MusicHubNavigation.requestPage(label) },
-                            ),
-                        ) {
-                            Icon(TileIcons[iconKey], contentDescription = null, tint = FaceText, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = label,
-                                color = FaceText,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        if (index < MUSIC_HUB_MENU_ITEMS.lastIndex) Spacer(Modifier.height(6.dp))
+        if (size.rows == 1 && size.cols > 1) {
+            // One grid row tall (WIDE_SMALL/BANNER) — matches MusicFront's
+            // own layout switch for the same shapes.
+            Row(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 11.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                MUSIC_HUB_MENU_ITEMS.forEach { (label, iconKey) ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { MusicHubNavigation.requestPage(label) },
+                        ),
+                    ) {
+                        Icon(TileIcons[iconKey], contentDescription = null, tint = FaceText, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(text = label, color = FaceText, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
-            Icon(
-                TileIcons["music"],
-                contentDescription = null,
-                tint = FaceText.copy(alpha = 0.82f),
-                modifier = Modifier.align(Alignment.TopStart).padding(8.dp).size(16.dp),
-            )
+        } else {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(11.dp),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                MUSIC_HUB_MENU_ITEMS.forEachIndexed { index, (label, iconKey) ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { MusicHubNavigation.requestPage(label) },
+                        ),
+                    ) {
+                        Icon(TileIcons[iconKey], contentDescription = null, tint = FaceText, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = label,
+                            color = FaceText,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (index < MUSIC_HUB_MENU_ITEMS.lastIndex) Spacer(Modifier.height(6.dp))
+                }
+            }
         }
     }
 }

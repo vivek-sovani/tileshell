@@ -88,7 +88,7 @@ import kotlinx.coroutines.launch
 // shows first, then a plain vertical menu listing every other page, which
 // also sidesteps the "horizontal menu not showing correctly" overflow bug
 // entirely, since there's no longer a header row to overflow).
-private val HUB_PIVOTS = listOf("now playing", "library", "podcasts", "radio", "apps", "history")
+private val HUB_PIVOTS = listOf("now playing", "music library", "podcasts", "radio", "apps", "history")
 
 private val LOCAL_AUDIO_PERMISSION: String =
     if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
@@ -851,7 +851,7 @@ private fun LibraryPage(context: Context, accent: Color, tokens: ColorTokens) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        HubPageTitle("library", tokens)
+        HubPageTitle("music library", tokens)
         Row(
             modifier = Modifier.padding(horizontal = 18.dp).padding(bottom = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
