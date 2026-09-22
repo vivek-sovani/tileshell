@@ -2087,6 +2087,7 @@ fun StartScreen(
         CalendarHubScreen(
             visible = calendarHubOpen,
             dark = dark,
+            accentId = settings.accentId,
             onDismiss = viewModel::closeCalendarHub,
             rightHalf = isLandscape,
         )

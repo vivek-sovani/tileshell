@@ -44,11 +44,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -83,6 +81,7 @@ private val HUB_PIVOTS = listOf("this week", "next", "month")
 fun CalendarHubScreen(
     visible: Boolean,
     dark: Boolean,
+    accentId: String,
     onDismiss: () -> Unit,
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
@@ -95,6 +94,7 @@ fun CalendarHubScreen(
     if (!visible && progress == 0f) return
 
     val tokens = colorTokens(dark)
+    val accent = TileAccents.forId(accentId)
     val context = LocalContext.current
     val granted = rememberPermissionGranted(Manifest.permission.READ_CALENDAR)
 
@@ -130,13 +130,14 @@ fun CalendarHubScreen(
             Column(modifier = Modifier.padding(horizontal = 18.dp)) {
                 Spacer(Modifier.height(20.dp))
                 Text(text = monthYearCaption, color = tokens.fgDim, fontSize = 14.sp)
+                // Was a fixed blue→purple gradient matching the mockup
+                // exactly — user-reported it should track the user's own
+                // chosen accent instead, same as the weather hub's own title.
                 Text(
                     text = "calendar",
-                    style = TextStyle(
-                        brush = Brush.horizontalGradient(listOf(TileAccents.Blue, TileAccents.Purple)),
-                        fontSize = 52.sp,
-                        fontWeight = FontWeight.Bold,
-                    ),
+                    color = accent,
+                    fontSize = 52.sp,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Clip,
                 )
@@ -162,7 +163,7 @@ fun CalendarHubScreen(
             }
 
             if (!granted) {
-                CalendarPermissionGate(tokens)
+                CalendarPermissionGate(tokens, accent)
             } else {
                 HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
                     Column(
@@ -306,7 +307,7 @@ private fun AgendaEventRow(event: AgendaEvent, barColor: Color, tokens: ColorTok
 }
 
 @Composable
-private fun CalendarPermissionGate(tokens: ColorTokens) {
+private fun CalendarPermissionGate(tokens: ColorTokens, accent: Color) {
     val context = LocalContext.current
     var blocked by remember { mutableStateOf(false) }
     val requestPermission = rememberLauncherForActivityResult(
@@ -330,7 +331,7 @@ private fun CalendarPermissionGate(tokens: ColorTokens) {
         Spacer(Modifier.height(14.dp))
         Text(
             text = if (blocked) "open settings to allow" else "allow calendar access",
-            color = TileAccents.Blue,
+            color = accent,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.clickable(
