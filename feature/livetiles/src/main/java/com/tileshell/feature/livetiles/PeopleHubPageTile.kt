@@ -1,6 +1,7 @@
 package com.tileshell.feature.livetiles
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -8,9 +9,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -21,28 +27,40 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tileshell.core.data.TileSize
 import com.tileshell.core.design.LocalTileFaceColor
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+
+// Matches ConversationTileFace's own back-face cycle cadence.
+private const val WHATS_NEW_CYCLE_MS = 2_600L
 
 /**
  * The live face for a People Hub page pinned to Start ([PeopleHubTile] in
  * `:core:data`) — user-requested: a "what's new"/"recent" tile must **not**
  * look like the main "people" tile's photo mosaic ("what new and rcent
  * should not show contact photos on live tile. instead if possible show few
- * lines"), and needs "a proper tile title" of its own. Shows a bold page
- * title plus a few lines of real content (recently-contacted names, or
- * notification sender+snippet lines) instead — degrades to [fallback] when
- * there's nothing to show (no permission, or genuinely empty).
+ * lines"), and needs "a proper tile title" of its own. "what's new" then
+ * became "built like email showing rotating clickable messages on flip
+ * side. and no.of new on front face" — so it now shares the exact same
+ * front/back shape as the mail/messages tile ([ConversationCountFace] /
+ * [NotificationFaceContent]), just aggregated across every people-related
+ * app instead of pinned to one. It isn't part of the shared random-flip
+ * scheduler (that's keyed off `LiveFace.forIconKey("people")`, which the
+ * plain photo-mosaic people tile needs to stay `flips = false`), so it
+ * drives its own flip/cycle timer instead, the same way `MusicTileFace`/
+ * `PhotosTileFace` self-drive theirs. "recent" stays a simple few-lines
+ * face — degrades to [fallback] when there's nothing to show.
  */
 @Composable
 fun PeopleHubPageTileFace(
     page: String,
     size: TileSize,
+    active: Boolean,
     fallback: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when (page) {
         "recent" -> RecentPeopleTileFace(size, fallback, modifier)
-        "what's new" -> WhatsNewTileFace(size, fallback, modifier)
+        "what's new" -> WhatsNewTileFace(size, active, fallback, modifier)
         else -> fallback()
     }
 }
@@ -60,15 +78,6 @@ private fun RecentPeopleTileFace(size: TileSize, fallback: @Composable () -> Uni
     PeopleHubPageLines("recent", list.map { it.name.lowercase() }, modifier)
 }
 
-@Composable
-private fun WhatsNewTileFace(size: TileSize, fallback: @Composable () -> Unit, modifier: Modifier) {
-    val maxLines = linesFor(size)
-    val snapshot by NotificationCenter.snapshot.collectAsStateWithLifecycle()
-    val entries = remember(snapshot, maxLines) { recentActivity(snapshot, limit = maxLines) }
-    if (entries.isEmpty()) return fallback()
-    PeopleHubPageLines("what's new", entries.map { "${it.sender.lowercase()}: ${it.snippet}" }, modifier)
-}
-
 /** More lines fit on a taller tile; a 1-row tile still gets its title plus one line. */
 private fun linesFor(size: TileSize): Int = (size.rows * 2).coerceIn(1, 6)
 
@@ -84,5 +93,73 @@ private fun PeopleHubPageLines(title: String, lines: List<String>, modifier: Mod
         lines.forEach { line ->
             Text(line, color = color, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+    }
+}
+
+@Composable
+private fun WhatsNewTileFace(size: TileSize, active: Boolean, fallback: @Composable () -> Unit, modifier: Modifier) {
+    val snapshot by NotificationCenter.snapshot.collectAsStateWithLifecycle()
+    val entries = remember(snapshot) { recentActivity(snapshot) }
+    if (entries.isEmpty()) {
+        // Nothing pending — no back face to show, so this tile never claims
+        // to have "displayed" anything for a tap to open.
+        SideEffect { NotificationCenter.reportWhatsNewDisplayed(null, null) }
+        return fallback()
+    }
+
+    // Flip the whole tile between the front count face and the back
+    // cycling-message face, same cadence as the shared scheduler.
+    var flipped by remember { mutableStateOf(false) }
+    LaunchedEffect(active) {
+        if (!active) {
+            flipped = false
+            return@LaunchedEffect
+        }
+        while (true) {
+            delay(WHATS_NEW_CYCLE_MS)
+            flipped = !flipped
+        }
+    }
+
+    // While flipped (back face showing), also cycle through each pending
+    // entry in turn, same as ConversationTileFace's own item cycling.
+    val itemIndex = remember { mutableIntStateOf(0) }
+    LaunchedEffect(active, entries.size) {
+        itemIndex.intValue = 0
+        if (!active || entries.size <= 1) return@LaunchedEffect
+        while (true) {
+            delay(WHATS_NEW_CYCLE_MS)
+            itemIndex.intValue = (itemIndex.intValue + 1) % entries.size
+        }
+    }
+    val current = entries.getOrElse(itemIndex.intValue) { entries.first() }
+
+    // Only claim a tap while the back face (a specific message) is actually
+    // showing — the front/count face's tap should still open the hub.
+    SideEffect {
+        NotificationCenter.reportWhatsNewDisplayed(
+            if (flipped) current.packageName else null,
+            if (flipped) current.notificationKey.ifEmpty { null } else null,
+        )
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        FlipTile(
+            flipped = flipped,
+            modifier = Modifier.fillMaxSize(),
+            front = { ConversationCountFace(entries.size, "new", size) },
+            back = {
+                NotificationFaceContent(
+                    item = ConversationItem(
+                        sender = current.sender,
+                        snippet = current.snippet,
+                        notificationKey = current.notificationKey,
+                    ),
+                    avatar = null,
+                    picture = null,
+                    size = size,
+                )
+            },
+        )
     }
 }

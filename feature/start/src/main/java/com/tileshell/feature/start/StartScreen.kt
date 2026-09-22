@@ -1432,8 +1432,20 @@ fun StartScreen(
                                     // straight to that page; the default seeded
                                     // tile's activityName is a real Contacts-app
                                     // component, which decode() safely returns
-                                    // null for, falling back to "all".
-                                    viewModel.openPeopleHub(PeopleHubTile.decode(tile.activityName))
+                                    // null for, falling back to "all". A "what's
+                                    // new" tile showing a specific message on its
+                                    // back face (user-requested: "rotating
+                                    // clickable messages") opens that message
+                                    // instead of the hub, same as any other
+                                    // notification-driven tile's tap — only for
+                                    // that specific tile, since NotificationCenter's
+                                    // "currently displayed" pointer is global and
+                                    // must not hijack a tap on a different people
+                                    // tile (the plain mosaic or "recent").
+                                    val hubPage = PeopleHubTile.decode(tile.activityName)
+                                    if (hubPage != "what's new" || !NotificationCenter.openWhatsNewDisplayed(context)) {
+                                        viewModel.openPeopleHub(hubPage)
+                                    }
                                 } else {
                                     onTileClick(context, tile)
                                 }
@@ -1465,7 +1477,10 @@ fun StartScreen(
                             // tile branch above.
                             viewModel.openCalendarHub()
                         } else if (child.iconKey == "people") {
-                            viewModel.openPeopleHub(PeopleHubTile.decode(child.activityName))
+                            val hubPage = PeopleHubTile.decode(child.activityName)
+                            if (hubPage != "what's new" || !NotificationCenter.openWhatsNewDisplayed(context)) {
+                                viewModel.openPeopleHub(hubPage)
+                            }
                         } else {
                             launchFolderChild(context, child)
                         }
@@ -6993,6 +7008,7 @@ private fun AppTileContent(
                 PeopleHubPageTileFace(
                     page = hubPage,
                     size = tile.size,
+                    active = liveActive,
                     fallback = staticGlyph,
                     modifier = Modifier.fillMaxSize(),
                 )

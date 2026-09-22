@@ -9444,3 +9444,38 @@ from the hub's bottom bar produces a real "pinned recent to start" toast, the ne
 Start, and — after the two follow-up corrections — "what's new" renders its title plus a real
 message-preview line while "recent" correctly falls back to the plain glyph on a device with no
 recent contacts.
+
+## "what's new" tile: built like the mail tile (count front face, rotating clickable back face)
+
+Direct follow-up: "can it be built like email showing rotating clickable messages on flip side.
+and no.of new on front face" — the previous round's plain title+lines face wasn't what was wanted;
+this reshapes it to share the *exact* front/back structure the mail/messages tile already has
+(`ConversationTileFace`, `ConversationTile.kt`): front = `ConversationCountFace(count, "new", size)`
+(the same big-number-plus-word face mail/messages/generic-notification tiles already use); back =
+`NotificationFaceContent(item, avatar, picture, size)` (the same per-size layout family, fed a
+`ConversationItem` built on the fly from the aggregated `ActivityEntry`), cycling through pending
+entries every 2.6s while flipped — identical cadence to `ConversationTileFace`'s own item cycling.
+
+**Not part of the shared random-flip scheduler.** That scheduler is driven by `LiveFace.forIconKey
+("people")`, which must stay `flips = false` for the plain photo-mosaic people tile (unrelated
+tile, same iconKey) — so this tile drives its own flip timer instead, the same self-contained
+pattern `MusicTileFace`/`PhotosTileFace` already use for their own independent animations.
+
+**Tap-to-open a specific message** required generalizing the existing `NotificationCenter.
+displayedKeys`/`openAndClear` mechanism, which is keyed by a single package — this tile aggregates
+across many. New `NotificationCenter.reportWhatsNewDisplayed`/`openWhatsNewDisplayed`: the face
+reports (package, key) only while its back face is actually showing a specific entry (mirroring
+`ConversationTileFace`'s own `SideEffect`), and the Start tile's tap handler tries
+`openWhatsNewDisplayed` first, falling back to opening the hub. **Scoped defensively**: the check is
+`hubPage != "what's new" || !openWhatsNewDisplayed(...)` — since the "currently displayed" pointer
+is process-wide, not per-tile, a tap on a *different* people tile (the plain mosaic, or "recent")
+must never be hijacked by whatever the "what's new" tile happens to be showing elsewhere on screen
+at that moment.
+
+Verified on-device (screenshots, no crash): the front face renders "1 new" in the exact
+`ConversationCountFace` style, and the back face was independently confirmed showing a real
+sender+snippet a few seconds later — both faces exist and the flip drives between them. The
+wireless adb link dropped before a live tap-to-open-message test could run; that specific
+interaction (along with the two-package-tap-isolation guard) still needs the user's own hands-on
+confirmation, per this project's established ADB limitation for interaction-level (not just visual)
+verification.

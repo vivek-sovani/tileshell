@@ -188,6 +188,31 @@ object NotificationCenter {
         displayedKeys = if (key == null) displayedKeys - packageName else displayedKeys + (packageName to key)
     }
 
+    // Which (package, notification key) the People Hub "what's new" tile's own
+    // back face is currently showing — that tile aggregates across many
+    // packages (unlike every other conversation-style tile, which is pinned to
+    // one), so a tap can't be routed by the tile's own packageName the way
+    // [openAndClear] is; it needs its own pointer instead. Same imperative,
+    // non-StateFlow pattern as [displayedKeys], for the same reason.
+    @Volatile private var whatsNewDisplayed: Pair<String, String>? = null
+
+    /** Records which notification the "what's new" tile's back face is
+     * currently showing, or clears it (pass null) once its front/count face
+     * is showing instead — called from [PeopleHubPageTileFace], not user code. */
+    fun reportWhatsNewDisplayed(packageName: String?, key: String?) {
+        whatsNewDisplayed = if (packageName != null && key != null) packageName to key else null
+    }
+
+    /** Tapping the "what's new" tile while its back face shows a specific
+     * notification opens that one and clears it, the same as [openAndClear]
+     * for a single-package tile. Returns false (front/count face showing, or
+     * nothing pending) so the caller falls back to opening the People Hub. */
+    fun openWhatsNewDisplayed(context: Context): Boolean {
+        val (packageName, key) = whatsNewDisplayed ?: return false
+        reportDisplayedKey(packageName, key)
+        return openAndClear(context, packageName)
+    }
+
     fun publish(snapshot: NotificationSnapshot) {
         _snapshot.value = snapshot
     }
