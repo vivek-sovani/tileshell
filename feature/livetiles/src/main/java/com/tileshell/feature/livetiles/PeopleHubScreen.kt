@@ -11,7 +11,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -599,10 +601,16 @@ private fun ContactActionButton(iconKey: String, label: String, tint: Color, tok
             modifier = Modifier
                 .size(36.dp)
                 .clip(CircleShape)
-                .background(tint.copy(alpha = 0.18f)),
+                // A little more fill + a matching border than the original
+                // flat 18%-alpha wash — user-reported "icon display should be
+                // improved": at low alpha the plate read as barely-there,
+                // especially in light theme, leaving the button looking
+                // undefined rather than like a clear tappable chip.
+                .background(tint.copy(alpha = 0.24f))
+                .border(BorderStroke(1.dp, tint.copy(alpha = 0.45f)), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            androidx.compose.material3.Icon(TileIcons[iconKey], null, tint = tint, modifier = Modifier.size(18.dp))
+            androidx.compose.material3.Icon(TileIcons[iconKey], null, tint = tint, modifier = Modifier.size(19.dp))
         }
         Spacer(Modifier.height(4.dp))
         // The label's own colour is deliberately NOT the icon's tint (accent

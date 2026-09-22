@@ -9628,3 +9628,16 @@ neutral every other label on this page uses) while the icon above it keeps its o
 — readability no longer depends on which of the 14 accents happens to be active.
 
 Verified on-device, in light theme: labels now render in solid dark text, clearly legible.
+
+## Contact action icons: more defined plate (fill + border), both themes
+
+Same-session direct follow-up: "icon display should be improved" — the call/message/whatsapp/pin/
+view icon circles were a flat 18%-alpha tint wash with no border, reading as barely-there/undefined
+rather than a clear tappable chip (most noticeable once the label text below them was fixed to a
+guaranteed-contrast colour, making the icon plate's own weaker definition stand out by comparison).
+Bumped the fill to 24% alpha and added a `1dp` border at 45% alpha in the same tint colour (accent,
+or WhatsApp green) — mirrors `HubAppBar`'s own bordered-circle icon-button convention, just keeping
+each action's own colour identity instead of a neutral border. Icon size nudged 18dp → 19dp to match
+the slightly bolder plate.
+
+Verified on-device, dark theme: the five action icons now read as clearly defined circular buttons.
