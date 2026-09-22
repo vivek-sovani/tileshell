@@ -1394,11 +1394,19 @@ fun StartScreen(
                                     // "Music hub tap redirect" for why this doesn't
                                     // wait on the not-yet-built per-hub setting.
                                     viewModel.openMusicHub()
-                                } else if (tile.packageName.isBlank() && tile.iconKey == "calendar") {
-                                    // Same "open the real hub" redirect as weather/
-                                    // music above — replaces the old "open the
-                                    // system calendar app" fallback onTileClick
-                                    // used to fall through to for this tile.
+                                } else if (tile.iconKey == "calendar") {
+                                    // Like music (see its own comment just above),
+                                    // NOT gated on a blank package: the calendar
+                                    // role frequently does resolve to a real
+                                    // installed app (e.g. Samsung Calendar), unlike
+                                    // weather, which never does. A blank-package
+                                    // gate here meant this redirect never actually
+                                    // fired on a device with a real calendar app —
+                                    // the tile just launched that app directly,
+                                    // exactly the old fallback this was meant to
+                                    // replace (user-reported, confirmed by pulling
+                                    // the real tile row off-device: packageName was
+                                    // "com.samsung.android.calendar", not blank).
                                     viewModel.openCalendarHub()
                                 } else {
                                     onTileClick(context, tile)
@@ -1426,7 +1434,9 @@ fun StartScreen(
                             viewModel.openWeatherHub(WeatherTile.decode(child.activityName))
                         } else if (child.iconKey == "music") {
                             viewModel.openMusicHub()
-                        } else if (child.packageName.isBlank() && child.iconKey == "calendar") {
+                        } else if (child.iconKey == "calendar") {
+                            // Not blank-package-gated, same fix as the top-level
+                            // tile branch above.
                             viewModel.openCalendarHub()
                         } else {
                             launchFolderChild(context, child)
