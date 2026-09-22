@@ -127,6 +127,16 @@ fun MusicHistoryEffect() {
     val lastRecorded = remember { HashMap<String, NowPlaying>() }
     LaunchedEffect(media) {
         media.forEach { (pkg, np) ->
+            // TileShell's own session (local library/podcasts/radio, all
+            // sharing LocalMusicPlaybackService) is excluded here, not from
+            // MediaCenter itself anymore (see buildMediaState's own updated
+            // doc comment) — local-library plays are already recorded below
+            // from LocalMusicPlayer.state directly, and podcasts/radio
+            // deliberately aren't recorded into this "one row per source"
+            // history at all (see the comment on that second block) — either
+            // way, this package's own now-playing must never fall into this
+            // generic per-package loop, or it would double- or wrongly-record.
+            if (pkg == context.packageName) return@forEach
             if (np.playing && lastRecorded[pkg] != np) {
                 lastRecorded[pkg] = np
                 MusicHistory.record(

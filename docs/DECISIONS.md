@@ -9674,3 +9674,34 @@ permission requiring a Console declaration, with real rejection risk for any app
 default phone/assistant — not worth it for this one screen. Kept the existing approach and instead
 made the empty state say so explicitly, so it reads as an explained platform limitation rather than
 a silent, unexplained bug.
+
+## Radio/podcast playback never showed on the music tile or feed's now-playing card
+
+User: "when i play radio or podcast in music hub it is not showing on tile face, neither it is
+showing in feed/glance now playing." Root-caused to `MusicTile.kt`'s `buildMediaState`, which fed
+both `MusicTileFace` (the Start tile) and the feed's `NowPlayingCard` (both read `MediaCenter.
+nowPlaying`/`artwork` directly) — it unconditionally skipped **any** session whose package matched
+TileShell's own (`if (pkg == ownPackage) continue`), added earlier to fix a real "song listed twice
+in history" bug. `LocalMusicPlaybackService` — the single shared playback service behind local
+library tracks, podcast episodes, *and* radio stations — publishes one real `MediaSession` for all
+three, so that blanket exclusion blinded every one of them to both surfaces at once, not just radio/
+podcasts specifically; it only ever looked like local-library tracks worked because `MusicHistory
+Effect` already had its own direct, separate `LocalMusicPlayer.state`-based recording path for those
+(episodes/stations were never recorded into history at all, by earlier design — no "single stable
+source" identity the way an app package is).
+
+The original double-history bug wasn't actually about `MediaCenter` — it was that `MusicHistoryEffect`
+processed **both** `MediaCenter.nowPlaying` (which included TileShell's own session) *and*
+`LocalMusicPlayer.state` for the same currently-playing local track, recording it twice under two
+different `packageName`s. Fixed by moving the exclusion to where the actual conflict lives:
+`buildMediaState` no longer excludes `ownPackage` at all (so the tile/feed now show local/podcast/
+radio playback like any other app's session), and `MusicHistoryEffect`'s `MediaCenter`-driven loop
+now skips `pkg == context.packageName` instead — local-library history still comes from its own
+already-correct `LocalMusicPlayer.state` path, and podcasts/radio still aren't recorded into history
+(unchanged, deliberate scope).
+
+Verified: build + full unit test suite green; installed on the physical device (USB, after the
+wireless adb link proved unreliable most of this session) with no crash, and the Music Hub's radio
+tab was reached and a station selected to begin exercising the fix — the user asked to stop
+checking mid-verification, so the actual "does it now show on the tile/feed" observation still
+needs the user's own confirmation.
