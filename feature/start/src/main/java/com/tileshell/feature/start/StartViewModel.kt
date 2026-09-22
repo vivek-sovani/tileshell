@@ -290,6 +290,20 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         _calendarHubOpen.value = false
     }
 
+    /** The people hub full-screen page (Start's people tile → hub), same
+     * plain-flag shape as [calendarHubOpen] — the people tile carries no
+     * per-tile configuration to show either. */
+    private val _peopleHubOpen = MutableStateFlow(false)
+    val peopleHubOpen: StateFlow<Boolean> = _peopleHubOpen.asStateFlow()
+
+    fun openPeopleHub() {
+        _peopleHubOpen.value = true
+    }
+
+    fun closePeopleHub() {
+        _peopleHubOpen.value = false
+    }
+
     /**
      * An image [Uri] shared into TileShell from another app (e.g. "share" from Gallery/Photos),
      * awaiting import + the crop overlay so the user can position it before it becomes the
@@ -1835,6 +1849,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         closeWeatherHub()
         closeMusicHub()
         closeCalendarHub()
+        closePeopleHub()
         closePermissions()
         closeNewsRegion()
         closeEdgeStrip()

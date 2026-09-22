@@ -252,6 +252,8 @@ import com.tileshell.feature.livetiles.NotificationCenter
 import com.tileshell.feature.livetiles.NotificationSnapshot
 import com.tileshell.feature.livetiles.NotificationTileFace
 import com.tileshell.feature.livetiles.OemBatteryGuard
+import com.tileshell.feature.livetiles.PeopleHubNavigation
+import com.tileshell.feature.livetiles.PeopleHubScreen
 import com.tileshell.feature.livetiles.PeopleTileFace
 import com.tileshell.feature.livetiles.PhotosData
 import com.tileshell.feature.livetiles.PhotosStore
@@ -381,6 +383,7 @@ fun StartScreen(
     val musicHubOpen by viewModel.musicHubOpen.collectAsStateWithLifecycle()
     val musicHubInitialPage by viewModel.musicHubInitialPage.collectAsStateWithLifecycle()
     val calendarHubOpen by viewModel.calendarHubOpen.collectAsStateWithLifecycle()
+    val peopleHubOpen by viewModel.peopleHubOpen.collectAsStateWithLifecycle()
     // The dedicated music tile's back-face quick-nav menu posts here rather
     // than through a callback threaded down the whole TileView/AppTileContent
     // rendering tree — see MusicHubNavigation's own doc comment. Observed
@@ -390,6 +393,15 @@ fun StartScreen(
         val page = pendingMusicHubPage ?: return@LaunchedEffect
         viewModel.openMusicHub(page)
         MusicHubNavigation.consume()
+    }
+    // The People Hub's own long-press "pin to start" menu posts here — same
+    // cross-module bridge as MusicHubNavigation just above, since
+    // `StartViewModel.pinContact` isn't visible from `:feature:livetiles`.
+    val pendingContactPin by PeopleHubNavigation.pendingPin.collectAsStateWithLifecycle()
+    LaunchedEffect(pendingContactPin) {
+        val person = pendingContactPin ?: return@LaunchedEffect
+        viewModel.pinContact(person.contactId, person.lookupKey, person.name)
+        PeopleHubNavigation.consume()
     }
     val permissionsOpen by viewModel.permissionsOpen.collectAsStateWithLifecycle()
     val newsRegionOpen by viewModel.newsRegionOpen.collectAsStateWithLifecycle()
@@ -1408,6 +1420,12 @@ fun StartScreen(
                                     // the real tile row off-device: packageName was
                                     // "com.samsung.android.calendar", not blank).
                                     viewModel.openCalendarHub()
+                                } else if (tile.iconKey == "people") {
+                                    // Same pattern as music/calendar just above —
+                                    // not blank-package-gated, since the contacts
+                                    // role frequently resolves to a real installed
+                                    // app too.
+                                    viewModel.openPeopleHub()
                                 } else {
                                     onTileClick(context, tile)
                                 }
@@ -1438,6 +1456,8 @@ fun StartScreen(
                             // Not blank-package-gated, same fix as the top-level
                             // tile branch above.
                             viewModel.openCalendarHub()
+                        } else if (child.iconKey == "people") {
+                            viewModel.openPeopleHub()
                         } else {
                             launchFolderChild(context, child)
                         }
@@ -2089,6 +2109,14 @@ fun StartScreen(
             dark = dark,
             accentId = settings.accentId,
             onDismiss = viewModel::closeCalendarHub,
+            rightHalf = isLandscape,
+        )
+
+        PeopleHubScreen(
+            visible = peopleHubOpen,
+            dark = dark,
+            accentId = settings.accentId,
+            onDismiss = viewModel::closePeopleHub,
             rightHalf = isLandscape,
         )
 

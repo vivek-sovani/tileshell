@@ -9272,3 +9272,80 @@ before the window is now dropped, not clamped).
 opened via the standard `content://…/events/<id>` `ACTION_VIEW` pattern, with the instance's own
 begin/end passed as extras (`EXTRA_EVENT_BEGIN_TIME`/`EXTRA_EVENT_END_TIME`) so a recurring event
 opens showing *this* occurrence, not just an ambiguous series view.
+
+## People Hub, first pass: "all" page + shell, per three approved mockups
+
+User attached three mockup images ("all" list with a frequent strip and alphabetical grouping, a
+contact profile page, a "what's new" notifications tab) and asked to build the People Hub from
+them, the same way the calendar hub was built from its own single mockup. Explicitly scoped down
+mid-build via direct instruction ("go one by one", "lets hold 2 at this stage", "do first one
+properly"): this pass builds the hub shell (title/pivot row/`HubAppBar`, same shape as
+`WeatherHubScreen`/`MusicHubScreen`/`CalendarHubScreen`) and the "all" page fully; "what's new" and
+"recent" show a plain placeholder for now and are explicit follow-up work.
+
+**No custom profile page** — a real scope change from the second mockup. User: "contact should be
+opened in view mode and pin functionality should be available here" / "add and edit will be used
+from default contact app" / "contact can be opened from default app". So the hub never rebuilds a
+profile screen; tapping any contact opens the device's own Contacts app via a plain `ACTION_VIEW`
+on `contactLookupUri` (already view-mode by construction — there is no edit extra on the intent),
+and "add"/"edit" are left entirely to that app (`openAddContact` → `ACTION_INSERT`). "Pin to start"
+still needed its own affordance in the hub itself (the mockup's profile-page pin icon has nowhere
+else to live now) — added as a long-press menu on a contact row/avatar
+(`combinedClickable`+`DropdownMenu`, mirroring `QuickSearchOverlay`'s own contact long-press menu
+almost exactly, minus call/message since those are now the default app's job). `:feature:livetiles`
+has no visibility into `StartViewModel.pinContact` (`:feature:start` depends on `:feature:livetiles`,
+not the reverse), so a new `PeopleHubNavigation` object bridges it — the exact same
+process-wide-`StateFlow` shape as the existing `MusicHubNavigation`, observed once at `StartScreen`'s
+top level.
+
+**Avatars**: initially built as the mockup's own flat colored *squares* with initials only, no
+photos — a deliberate "match the mockup exactly" choice. User on-device testing reversed both
+halves of that: "profile photos not shown" and "profile photo/placeholder should be round in
+shape". `PersonSummary` gained `photoUri` (from the same `PHOTO_THUMBNAIL_URI` column
+`ContactsSource.kt`'s own `queryContacts`/`searchContacts` already read), and every avatar is now a
+circle (`Modifier.clip(CircleShape)`) — the real photo cropped to it via the existing
+`rememberTileBitmap` decoder, or a `colorFor(name)`-tinted plate with initials when there's none.
+
+**Search**: shipped in the first pass as a visible toggle with no real filtering wired up yet — user
+confirmed "search not working" on-device. Now a real, live, case-insensitive substring filter over
+`queryAllContacts`'s result, shown as a flat list (no frequent strip/section headers) whenever the
+query is non-blank.
+
+**"letter based search like app list"**: added `PeopleJumpGrid`, a full-screen A-Z picker opened by
+tapping any section header, reimplemented locally rather than reused from `:feature:applist`'s own
+`JumpGrid` (the dependency graph runs the other way — `:feature:applist` doesn't depend on
+`:feature:livetiles` and vice versa isn't allowed either). Tapping an available letter scrolls the
+`LazyColumn` straight to that section via a precomputed `sectionItemStart` item-index map (one item
+per header + one per row, with a leading "frequent" block counted as a single item when present).
+
+**"all contacts are not shown"**: `queryAllContacts`'s original default cap of 1000 was a plain
+guess with no real basis — this device alone has 2,307 real contacts (confirmed via `adb shell
+content query --uri content://com.android.contacts/contacts`), well past it, so the "all" list
+looked silently truncated. Raised to 10,000 (a safety cap, not a deliberate scope limit) — no other
+list (frequent/recent) needed the same fix, since those are deliberately short by design (the
+provider's own strequent list, and a plain top-30 "most recent" cutoff).
+
+Tested end-to-end on the physical device after every round (screenshots + `adb logcat` crash
+checks, no crash at any point): real photos rendering circularly, search filtering live, jump grid
+highlighting only letters with real contacts and scrolling correctly on tap, and (via `content
+query`) the contact-count fix's root cause. Long-press-to-pin could not be verified this way — this
+codebase's own established ADB-synthesized-gesture limitation (documented repeatedly elsewhere in
+this log) applies here too; it needs the user's own hands-on confirmation.
+
+## People Hub follow-up: tap-to-expand call/message/whatsapp/pin, replacing the long-press pin menu
+
+Same-session direct follow-up: "when i click on name.. then show three options call, message and
+pin on the line below", then "also if possible whatsapp, facebook messengere etc". Replaces
+`ContactRow`'s previous tap behaviour (open the device's Contacts app) and its long-press
+`DropdownMenu` pin action with a single interaction: tapping a row toggles an inline action line
+directly below it. The contact's phone number is resolved lazily (`primaryPhoneNumber`, off the
+main thread) only once a row is actually expanded, not eagerly for the whole list — call/message
+only render once it resolves; a contact with no phone number at all just shows "pin" alone.
+WhatsApp joins the row (real `https://wa.me/<digits>` deep link, tinted WhatsApp green) whenever
+`com.whatsapp` is installed (`isWhatsAppInstalled`), so it never appears as a dead action on a
+device without it. **Facebook Messenger is deliberately not included**: unlike WhatsApp, Messenger
+has no public phone-number-based deep link — its threads are addressed by Facebook identity, not a
+phone number, so there is no reliable way to jump to a specific contact's Messenger conversation
+from just the number `ContactsContract` gives us. `FrequentAvatar`'s own long-press "pin to start"
+menu is unchanged — it's a different (horizontal, unlabeled) row shape where an inline expand
+doesn't fit, so it keeps the `DropdownMenu` pattern.
