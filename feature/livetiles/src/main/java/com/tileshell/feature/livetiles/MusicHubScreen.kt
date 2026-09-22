@@ -77,9 +77,10 @@ import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.colorTokens
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private val HUB_PIVOTS = listOf("now playing", "library", "apps", "history")
+private val HUB_PIVOTS = listOf("now playing", "library", "podcasts", "radio", "apps", "history")
 
 private val LOCAL_AUDIO_PERMISSION: String =
     if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
@@ -95,10 +96,14 @@ private val LOCAL_AUDIO_PERMISSION: String =
  * already surfaced by [AppCatalogRepository] with no extra permission) so the
  * hub covers every player on the device, not just whichever one last had an
  * active session. "library" browses on-device tracks/albums/playlists
- * ([LocalMusicLibrary]) and plays them via [LocalMusicPlayer], which keeps
- * playing in the background (a real foreground service + lock-screen/
- * notification controls, [LocalMusicPlaybackService]) after this screen
- * closes. "history" is
+ * ([LocalMusicLibrary]); "podcasts" searches/subscribes via the free iTunes
+ * Search API ([searchPodcasts]) and browses a subscribed show's episodes
+ * ([fetchPodcastFeed]); "radio" searches/favorites live internet radio
+ * stations via the free Radio-Browser directory ([searchRadioStations]). All
+ * three play through the same [LocalMusicPlayer] ([PlayableAudio] is the
+ * shared abstraction), which keeps playing in the background (a real
+ * foreground service + lock-screen/notification controls,
+ * [LocalMusicPlaybackService]) after this screen closes. "history" is
  * [MusicHistory] — the last song played on each source (one row per app plus
  * one for the local library, each with its own play/pause control), since
  * there's no system "recently played" API to read instead; also reachable via
@@ -145,8 +150,8 @@ fun MusicHubScreen(
     val notificationsLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) {}
-    LaunchedEffect(localPlayback.track?.id) {
-        if (Build.VERSION.SDK_INT >= 33 && !notificationsAsked && localPlayback.track != null) {
+    LaunchedEffect(localPlayback.item?.id) {
+        if (Build.VERSION.SDK_INT >= 33 && !notificationsAsked && localPlayback.item != null) {
             notificationsAsked = true
             notificationsLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
@@ -232,14 +237,15 @@ fun MusicHubScreen(
             // the next queued track. User-requested; replaces the persistent
             // bottom playback bar that used to show across every page (now
             // redundant — "now playing" itself shows this prominently).
-            // Keyed on the *transition* into playing, not just the track id:
-            // replaying the same already-loaded-but-paused track (e.g. from
+            // Keyed on the *transition* into playing, not just the item id:
+            // replaying the same already-loaded-but-paused item (e.g. from
             // "history", when it happens to be the current track) never
-            // changes localPlayback.track?.id, so keying on id alone never
+            // changes localPlayback.item?.id, so keying on id alone never
             // re-fired for that case — user-reported: "when i play from
-            // history after playing need to jump to now playing".
+            // history after playing need to jump to now playing". Covers
+            // podcast episodes and radio stations too, not just local tracks.
             var wasLocalPlaying by remember { mutableStateOf(localPlayback.playing) }
-            LaunchedEffect(localPlayback.track?.id, localPlayback.playing) {
+            LaunchedEffect(localPlayback.item?.id, localPlayback.playing) {
                 if (localPlayback.playing && !wasLocalPlaying) pagerState.animateScrollToPage(0)
                 wasLocalPlaying = localPlayback.playing
             }
@@ -266,7 +272,9 @@ fun MusicHubScreen(
                         pagerScope.launch { pagerState.animateScrollToPage(HUB_PIVOTS.indexOf("history")) }
                     }
                     1 -> LibraryPage(context, accent, tokens)
-                    2 -> MusicAppsPage(context, accent, tokens)
+                    2 -> PodcastsPage(context, accent, tokens)
+                    3 -> RadioPage(context, accent, tokens)
+                    4 -> MusicAppsPage(context, accent, tokens)
                     else -> HistoryPage(context, accent, tokens)
                 }
             }
@@ -318,7 +326,7 @@ private fun NowPlayingPage(accent: Color, tokens: ColorTokens, onOpenHistory: ()
     val artworkMap by MediaCenter.artwork.collectAsState()
     val externalEntry = media.entries.firstOrNull { it.value.playing } ?: media.entries.firstOrNull()
     val localPlayback by LocalMusicPlayer.state.collectAsState()
-    val localTrack = localPlayback.track
+    val localItem = localPlayback.item
     val context = LocalContext.current
 
     Column(
@@ -348,14 +356,14 @@ private fun NowPlayingPage(accent: Color, tokens: ColorTokens, onOpenHistory: ()
             )
         }
         when {
-            externalEntry != null && (externalEntry.value.playing || localTrack == null) ->
+            externalEntry != null && (externalEntry.value.playing || localItem == null) ->
                 ExternalNowPlaying(externalEntry, artworkMap, accent, tokens, context)
-            localTrack != null -> LocalNowPlaying(localTrack, localPlayback.playing, accent, tokens, context)
+            localItem != null -> PlayerNowPlaying(localItem, localPlayback.playing, accent, tokens, context)
             else -> Column(modifier = Modifier.padding(horizontal = 18.dp)) {
                 Text("nothing playing", color = tokens.fgDim, fontSize = 14.sp)
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "start something in one of your music apps, or play a track from the library",
+                    "start something in one of your music apps, or play a track from the library, a podcast, or a radio station",
                     color = tokens.fgDim,
                     fontSize = 12.sp,
                 )
@@ -430,26 +438,44 @@ private fun ExternalNowPlaying(
     }
 }
 
+/**
+ * "Now playing" for anything [LocalMusicPlayer] itself is streaming — a
+ * local track, a podcast episode, or a radio station — sharing one hero/
+ * transport-controls layout ([PlayableAudio] is exactly the abstraction that
+ * makes this possible; only art loading and the "playing from…" caption
+ * differ per kind).
+ */
 @Composable
-private fun LocalNowPlaying(track: LocalTrack, playing: Boolean, accent: Color, tokens: ColorTokens, context: Context) {
+private fun PlayerNowPlaying(item: PlayableAudio, playing: Boolean, accent: Color, tokens: ColorTokens, context: Context) {
     // A full-width square hero needs a much larger request than a list
     // thumbnail — 600px upscaled across a ~1080px-wide screen was visibly
-    // blurry. 1024 is generous enough to not be our own bottleneck; the
-    // actual sharpness ceiling beyond that is whatever resolution the
-    // track's embedded art actually has.
-    val art = rememberLocalAlbumArt(context, track.albumId, sizePx = 1024)
+    // blurry. 1024 is generous enough to not be our own bottleneck for a
+    // local track; podcast/radio art loads at whatever resolution its host
+    // actually serves.
+    val art = when (item) {
+        is PlayableAudio.Local -> rememberLocalAlbumArt(context, item.track.albumId, sizePx = 1024)
+        is PlayableAudio.Episode -> rememberRemoteArt(item.episode.imageUrl ?: item.show.artworkUrl)
+        is PlayableAudio.RadioStream -> rememberRemoteArt(item.station.faviconUrl)
+    }
+    val caption = when (item) {
+        is PlayableAudio.Local -> "playing from your library"
+        is PlayableAudio.Episode -> "podcast · ${item.show.title}"
+        is PlayableAudio.RadioStream -> "live radio"
+    }
     Column(modifier = Modifier.padding(horizontal = 18.dp)) {
         NowPlayingHero(art, accent)
         Spacer(Modifier.height(14.dp))
-        Text(text = track.title, color = tokens.fg, fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (track.artist.isNotEmpty()) {
+        Text(text = item.title, color = tokens.fg, fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (item.subtitle.isNotEmpty() && item !is PlayableAudio.RadioStream) {
             Spacer(Modifier.height(2.dp))
-            Text(text = track.artist, color = tokens.fgDim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(text = item.subtitle, color = tokens.fgDim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.height(16.dp))
         // Bigger than the shared default (34dp/20dp), matching
         // ExternalNowPlaying's own bump — this page's transport row is its
-        // own main interactive element (user-requested).
+        // own main interactive element (user-requested). Previous/next are
+        // meaningless for a lone radio stream (a queue of one) but harmless
+        // no-ops, same as at the end/start of any single-item queue.
         Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             LocalPlaybackButton("prev", "previous", tokens.fg, size = 56.dp, iconSize = 28.dp) {
                 LocalMusicPlayer.previous(context)
@@ -468,7 +494,7 @@ private fun LocalNowPlaying(track: LocalTrack, playing: Boolean, accent: Color, 
             }
         }
         Spacer(Modifier.height(20.dp))
-        Text("playing from your library", color = tokens.fgDim, fontSize = 12.sp)
+        Text(caption, color = tokens.fgDim, fontSize = 12.sp)
     }
 }
 
@@ -631,7 +657,7 @@ private fun HistoryPage(context: Context, accent: Color, tokens: ColorTokens) {
             .padding(bottom = 32.dp),
     ) {
         history.forEachIndexed { index, track ->
-            val activeLocal = localPlayback.track
+            val activeLocal = (localPlayback.item as? PlayableAudio.Local)?.track
             val playing = if (track.isLocal) {
                 localPlayback.playing && activeLocal != null && (
                     (track.localTrackId != null && activeLocal.id == track.localTrackId) ||
@@ -1157,4 +1183,388 @@ fun formatTrackDuration(durationMs: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return "$minutes:${seconds.toString().padStart(2, '0')}"
+}
+
+// ---- Podcasts -----------------------------------------------------------
+
+/**
+ * Search (via the free iTunes Search API, [searchPodcasts]) and subscribed
+ * shows ([PodcastStore]). Browsing a show's episodes ([PodcastEpisodesPage])
+ * never auto-subscribes — subscribing is its own explicit action there, the
+ * same way opening a show in a real podcast app doesn't silently follow it.
+ */
+@Composable
+private fun PodcastsPage(context: Context, accent: Color, tokens: ColorTokens) {
+    val subscriptions by PodcastStore.subscriptions(context).collectAsState(initial = emptyList())
+    var query by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<PodcastSearchResult>>(emptyList()) }
+    var searching by remember { mutableStateOf(false) }
+    var openFeedUrl by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(query) {
+        if (query.isBlank()) {
+            results = emptyList()
+            searching = false
+            return@LaunchedEffect
+        }
+        searching = true
+        delay(450) // debounce — avoids a network search per keystroke
+        results = searchPodcasts(query)
+        searching = false
+    }
+
+    val feedUrl = openFeedUrl
+    if (feedUrl != null) {
+        val show = subscriptions.firstOrNull { it.feedUrl == feedUrl }
+            ?: results.firstOrNull { it.feedUrl == feedUrl }?.let {
+                PodcastSubscription(it.feedUrl, it.title, it.artworkUrl, 0L)
+            }
+        if (show != null) {
+            PodcastEpisodesPage(
+                context = context,
+                accent = accent,
+                tokens = tokens,
+                show = show,
+                isSubscribed = subscriptions.any { it.feedUrl == show.feedUrl },
+                onSubscribeToggle = { subscribe ->
+                    if (subscribe) {
+                        PodcastStore.subscribe(context, show.copy(subscribedAtMillis = System.currentTimeMillis()))
+                    } else {
+                        PodcastStore.unsubscribe(context, show.feedUrl)
+                    }
+                },
+                onBack = { openFeedUrl = null },
+            )
+            return
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        LibrarySearchField(query, { query = it }, "search podcasts", tokens)
+        when {
+            query.isBlank() && subscriptions.isEmpty() ->
+                LibraryEmptyState("search above to find and subscribe to podcasts", tokens)
+            query.isBlank() -> PodcastShowList(
+                subscriptions.map { PodcastShowEntry(it.feedUrl, it.title, it.artworkUrl) },
+                tokens,
+            ) { openFeedUrl = it }
+            searching && results.isEmpty() -> LibraryEmptyState("searching…", tokens)
+            results.isEmpty() -> LibraryEmptyState("no matches", tokens)
+            else -> PodcastShowList(
+                results.map { PodcastShowEntry(it.feedUrl, it.title, it.artworkUrl) },
+                tokens,
+            ) { openFeedUrl = it }
+        }
+    }
+}
+
+private data class PodcastShowEntry(val feedUrl: String, val title: String, val artworkUrl: String?)
+
+@Composable
+private fun PodcastShowList(shows: List<PodcastShowEntry>, tokens: ColorTokens, onSelect: (String) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 18.dp)
+            .padding(bottom = 32.dp),
+    ) {
+        shows.forEachIndexed { index, show ->
+            PodcastShowRow(show.title, show.artworkUrl, tokens) { onSelect(show.feedUrl) }
+            if (index < shows.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(tokens.sheetLine))
+        }
+    }
+}
+
+@Composable
+private fun PodcastShowRow(title: String, artworkUrl: String?, tokens: ColorTokens, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val art = rememberRemoteArt(artworkUrl)
+        if (art != null) {
+            androidx.compose.foundation.Image(
+                bitmap = art,
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.size(44.dp).clip(RoundedCornerShape(4.dp)),
+            )
+        } else {
+            Box(Modifier.size(44.dp).clip(RoundedCornerShape(4.dp)).background(tokens.chip), contentAlignment = Alignment.Center) {
+                Icon(TileIcons["music"], contentDescription = null, tint = tokens.fgDim, modifier = Modifier.size(20.dp))
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Text(title, color = tokens.fg, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+    }
+}
+
+/** A subscribed (or merely being-browsed) show's episode list, freshly
+ * fetched every time it's opened ([fetchPodcastFeed]) — a subscription only
+ * ever persists the show's own identity, never a cached episode list, so
+ * this can never go stale. */
+@Composable
+private fun PodcastEpisodesPage(
+    context: Context,
+    accent: Color,
+    tokens: ColorTokens,
+    show: PodcastSubscription,
+    isSubscribed: Boolean,
+    onSubscribeToggle: (Boolean) -> Unit,
+    onBack: () -> Unit,
+) {
+    val feed by produceState<PodcastShow?>(initialValue = null, show.feedUrl) {
+        value = fetchPodcastFeed(show.feedUrl)
+    }
+    val currentFeed = feed
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp).padding(bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                TileIcons["back"],
+                contentDescription = "back",
+                tint = tokens.fg,
+                modifier = Modifier.size(18.dp).clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onBack,
+                ),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(show.title, color = tokens.fg, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    currentFeed?.episodes?.size?.let { "$it episodes" } ?: "",
+                    color = tokens.fgDim,
+                    fontSize = 11.sp,
+                )
+            }
+            Text(
+                if (isSubscribed) "subscribed" else "subscribe",
+                color = accent,
+                fontSize = 13.sp,
+                modifier = Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { onSubscribeToggle(!isSubscribed) },
+                ),
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        when {
+            currentFeed == null -> LibraryEmptyState("loading episodes…", tokens)
+            currentFeed.episodes.isEmpty() -> LibraryEmptyState("no episodes found", tokens)
+            else -> {
+                val episodes = currentFeed.episodes
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
+                    contentPadding = PaddingValues(bottom = 32.dp),
+                ) {
+                    itemsIndexed(episodes, key = { _, ep -> ep.guid }) { index, episode ->
+                        Column {
+                            PodcastEpisodeRow(episode, tokens) {
+                                LocalMusicPlayer.playEpisodes(context, show, episodes, index)
+                            }
+                            if (index < episodes.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(tokens.sheetLine))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PodcastEpisodeRow(episode: PodcastEpisode, tokens: ColorTokens, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(vertical = 10.dp),
+    ) {
+        Text(episode.title, color = tokens.fg, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(3.dp))
+        Row {
+            if (episode.publishedMillis > 0) {
+                Text(feedAgo(episode.publishedMillis), color = tokens.fgDim, fontSize = 11.sp)
+            }
+            val duration = episode.durationMs
+            if (duration != null && duration > 0) {
+                Text(
+                    (if (episode.publishedMillis > 0) " · " else "") + formatTrackDuration(duration),
+                    color = tokens.fgDim,
+                    fontSize = 11.sp,
+                )
+            }
+        }
+    }
+}
+
+// ---- Radio ---------------------------------------------------------------
+
+/**
+ * Search (via the free, no-key Radio-Browser directory,
+ * [searchRadioStations]) and favorited stations ([RadioFavoritesStore]) —
+ * the same shape as podcasts' search+subscriptions, one level flatter since
+ * a station has no episode list: tapping any row starts it playing
+ * immediately (a live stream has nothing to "browse into" first).
+ */
+@Composable
+private fun RadioPage(context: Context, accent: Color, tokens: ColorTokens) {
+    val favorites by RadioFavoritesStore.favorites(context).collectAsState(initial = emptyList())
+    var query by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<RadioStation>>(emptyList()) }
+    var searching by remember { mutableStateOf(false) }
+
+    LaunchedEffect(query) {
+        if (query.isBlank()) {
+            results = emptyList()
+            searching = false
+            return@LaunchedEffect
+        }
+        searching = true
+        delay(450)
+        results = searchRadioStations(query)
+        searching = false
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        LibrarySearchField(query, { query = it }, "search radio stations", tokens)
+        when {
+            query.isBlank() && favorites.isEmpty() ->
+                LibraryEmptyState("search above to find and favorite radio stations", tokens)
+            query.isBlank() -> Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 18.dp)
+                    .padding(bottom = 32.dp),
+            ) {
+                favorites.forEachIndexed { index, station ->
+                    RadioStationRow(
+                        name = station.name,
+                        faviconUrl = station.faviconUrl,
+                        subtitle = null,
+                        isFavorite = true,
+                        tokens = tokens,
+                        accent = accent,
+                        onClick = { LocalMusicPlayer.playStation(context, RadioStationRef(station)) },
+                        onToggleFavorite = { RadioFavoritesStore.removeFavorite(context, station.stationId) },
+                    )
+                    if (index < favorites.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(tokens.sheetLine))
+                }
+            }
+            searching && results.isEmpty() -> LibraryEmptyState("searching…", tokens)
+            results.isEmpty() -> LibraryEmptyState("no matches", tokens)
+            else -> Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 18.dp)
+                    .padding(bottom = 32.dp),
+            ) {
+                results.forEachIndexed { index, station ->
+                    val isFav = RadioFavoritesStore.isFavorite(favorites, station.stationId)
+                    RadioStationRow(
+                        name = station.name,
+                        faviconUrl = station.faviconUrl,
+                        subtitle = listOfNotNull(
+                            station.country.takeIf { it.isNotBlank() },
+                            station.tags.takeIf { it.isNotBlank() },
+                        ).joinToString(" · "),
+                        isFavorite = isFav,
+                        tokens = tokens,
+                        accent = accent,
+                        onClick = { LocalMusicPlayer.playStation(context, RadioStationRef(station)) },
+                        onToggleFavorite = {
+                            if (isFav) {
+                                RadioFavoritesStore.removeFavorite(context, station.stationId)
+                            } else {
+                                RadioFavoritesStore.addFavorite(
+                                    context,
+                                    FavoriteStation(
+                                        stationId = station.stationId,
+                                        name = station.name,
+                                        streamUrl = station.streamUrl,
+                                        faviconUrl = station.faviconUrl,
+                                        favoritedAtMillis = System.currentTimeMillis(),
+                                    ),
+                                )
+                            }
+                        },
+                    )
+                    if (index < results.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(tokens.sheetLine))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RadioStationRow(
+    name: String,
+    faviconUrl: String?,
+    subtitle: String?,
+    isFavorite: Boolean,
+    tokens: ColorTokens,
+    accent: Color,
+    onClick: () -> Unit,
+    onToggleFavorite: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val art = rememberRemoteArt(faviconUrl)
+        if (art != null) {
+            androidx.compose.foundation.Image(
+                bitmap = art,
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.size(40.dp).clip(CircleShape),
+            )
+        } else {
+            Box(Modifier.size(40.dp).clip(CircleShape).background(tokens.chip), contentAlignment = Alignment.Center) {
+                Icon(TileIcons["music"], contentDescription = null, tint = tokens.fgDim, modifier = Modifier.size(18.dp))
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(name, color = tokens.fg, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (!subtitle.isNullOrEmpty()) {
+                Text(subtitle, color = tokens.fgDim, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Icon(
+            TileIcons[if (isFavorite) "check" else "plus"],
+            contentDescription = if (isFavorite) "unfavorite" else "favorite",
+            tint = if (isFavorite) accent else tokens.fgDim,
+            modifier = Modifier.size(20.dp).clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onToggleFavorite,
+            ),
+        )
+    }
 }

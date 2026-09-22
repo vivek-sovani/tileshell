@@ -142,10 +142,15 @@ fun MusicHistoryEffect() {
         }
     }
 
+    // Only a genuine local-library track is recorded here — a podcast
+    // episode or radio station isn't a good fit for this "one row per
+    // source" model (there's no single stable "source" identity the way an
+    // app package is, and resuming a specific past episode/station belongs
+    // in the podcasts/radio tabs' own subscription/favorites lists instead).
     val localPlayback by LocalMusicPlayer.state.collectAsState()
     var lastLocalTrackId by remember { mutableStateOf<Long?>(null) }
     LaunchedEffect(localPlayback) {
-        val track = localPlayback.track
+        val track = (localPlayback.item as? PlayableAudio.Local)?.track
         if (localPlayback.playing && track != null && lastLocalTrackId != track.id) {
             lastLocalTrackId = track.id
             MusicHistory.record(

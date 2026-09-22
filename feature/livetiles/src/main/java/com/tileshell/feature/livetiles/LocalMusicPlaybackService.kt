@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.media.MediaMetadata
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
@@ -18,15 +19,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.net.URL
 
 /**
- * Foreground service that keeps the music hub's local-library playback
- * ([LocalMusicPlayer]) alive and controllable once the hub screen itself is
- * closed: a lock-screen/notification-visible [MediaSession] with previous/
- * play-pause/next/stop actions, mirroring a real music app. Started
- * on-demand by [LocalMusicPlayer.playQueue] the moment a track begins
+ * Foreground service that keeps the music hub's playback ([LocalMusicPlayer]
+ * — a local track, a podcast episode, or a radio stream) alive and
+ * controllable once the hub screen itself is closed: a lock-screen/
+ * notification-visible [MediaSession] with previous/play-pause/next/stop
+ * actions, mirroring a real music app. Started on-demand by
+ * [LocalMusicPlayer]'s own `play*` methods the moment something begins
  * playing; stops itself the instant playback truly ends ([LocalPlayback
- * .track] goes null — the user's own "stop", the notification being swiped
+ * .item] goes null — the user's own "stop", the notification being swiped
  * away, or a genuine audio-focus loss) — it never sits running with nothing
  * to show.
  *
@@ -60,23 +64,20 @@ class LocalMusicPlaybackService : Service() {
 
         scope.launch {
             LocalMusicPlayer.state.collect { playback ->
-                val track = playback.track
-                if (track == null) {
+                val item = playback.item
+                if (item == null) {
                     stopForegroundCompat()
                     stopSelf()
                     return@collect
                 }
 
-                val art = runCatching {
-                    LocalMusicLibrary.loadAlbumArt(this@LocalMusicPlaybackService, track.albumId, 512)
-                }.getOrNull()
+                val art = loadArt(item)
 
                 mediaSession.setMetadata(
                     MediaMetadata.Builder()
-                        .putString(MediaMetadata.METADATA_KEY_TITLE, track.title)
-                        .putString(MediaMetadata.METADATA_KEY_ARTIST, track.artist)
-                        .putString(MediaMetadata.METADATA_KEY_ALBUM, track.album)
-                        .putLong(MediaMetadata.METADATA_KEY_DURATION, track.durationMs)
+                        .putString(MediaMetadata.METADATA_KEY_TITLE, item.title)
+                        .putString(MediaMetadata.METADATA_KEY_ARTIST, item.subtitle)
+                        .putLong(MediaMetadata.METADATA_KEY_DURATION, item.durationMs)
                         .apply { if (art != null) putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, art) }
                         .build(),
                 )
@@ -96,9 +97,22 @@ class LocalMusicPlaybackService : Service() {
                         .build(),
                 )
 
-                startForeground(NOTIFICATION_ID, buildNotification(track, playback.playing, mediaSession, art))
+                startForeground(NOTIFICATION_ID, buildNotification(item, playback.playing, mediaSession, art))
             }
         }
+    }
+
+    /** Local art comes from MediaStore; a podcast episode/show or radio
+     * station's art is a plain remote image URL. Null (no artwork) is a
+     * perfectly normal outcome, not a failure — plenty of feeds/stations
+     * simply don't declare one. */
+    private suspend fun loadArt(item: PlayableAudio): Bitmap? = when (item) {
+        is PlayableAudio.Local ->
+            runCatching { LocalMusicLibrary.loadAlbumArt(this, item.track.albumId, 512) }.getOrNull()
+        is PlayableAudio.Episode ->
+            loadRemoteBitmap(item.episode.imageUrl ?: item.show.artworkUrl)
+        is PlayableAudio.RadioStream ->
+            loadRemoteBitmap(item.station.faviconUrl)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -126,7 +140,7 @@ class LocalMusicPlaybackService : Service() {
     }
 
     private fun buildNotification(
-        track: LocalTrack,
+        item: PlayableAudio,
         playing: Boolean,
         mediaSession: MediaSession,
         art: Bitmap?,
@@ -141,8 +155,8 @@ class LocalMusicPlaybackService : Service() {
         }
         return Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification_music)
-            .setContentTitle(track.title)
-            .setContentText(track.artist)
+            .setContentTitle(item.title)
+            .setContentText(item.subtitle)
             .setLargeIcon(art)
             .setContentIntent(contentIntent)
             .setOngoing(playing)
@@ -218,5 +232,15 @@ class LocalMusicPlaybackService : Service() {
         const val ACTION_NEXT = "com.tileshell.music.NEXT"
         const val ACTION_PREVIOUS = "com.tileshell.music.PREVIOUS"
         const val ACTION_STOP = "com.tileshell.music.STOP"
+    }
+}
+
+/** Plain `HttpURLConnection`-free remote image fetch (a podcast/show/station's
+ * own artwork URL) for the notification/lock-screen art — null on any failure
+ * (unreachable, not an image, etc.), which just means no artwork shows. */
+private suspend fun loadRemoteBitmap(url: String?): Bitmap? {
+    if (url.isNullOrBlank()) return null
+    return withContext(Dispatchers.IO) {
+        runCatching { URL(url).openStream().use(BitmapFactory::decodeStream) }.getOrNull()
     }
 }

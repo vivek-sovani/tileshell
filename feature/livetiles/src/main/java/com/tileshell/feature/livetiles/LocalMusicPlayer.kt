@@ -6,6 +6,7 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
+import android.net.Uri
 import android.os.PowerManager
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,28 +14,78 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * What the music hub's local-library playback is currently doing. [track]/
- * [queue]/[queueIndex] describe the playlist/album/track selection that
- * started this playback (e.g. tapping an album queues its tracks in order).
- * `track == null` means nothing is playing.
+ * Anything [LocalMusicPlayer] can stream: an on-device library file, a remote
+ * podcast episode, or a live internet radio stream. All three funnel through
+ * the same [MediaPlayer]/audio-focus/foreground-service machinery — this only
+ * abstracts the handful of fields playback actually needs, so the player
+ * itself doesn't need to know which kind it's holding. [durationMs] is `0`
+ * for [RadioStream] (a live stream has no fixed length; the UI treats `0` as
+ * "don't show a duration").
+ */
+sealed interface PlayableAudio {
+    val id: String
+    val title: String
+    val subtitle: String
+    val durationMs: Long
+    val contentUri: Uri
+
+    data class Local(val track: LocalTrack) : PlayableAudio {
+        override val id get() = "local:${track.id}"
+        override val title get() = track.title
+        override val subtitle get() = track.artist
+        override val durationMs get() = track.durationMs
+        override val contentUri: Uri get() = track.contentUri
+    }
+
+    data class Episode(val show: PodcastSubscription, val episode: PodcastEpisode) : PlayableAudio {
+        override val id get() = "podcast:${episode.guid}"
+        override val title get() = episode.title
+        override val subtitle get() = show.title
+        override val durationMs get() = episode.durationMs ?: 0L
+        override val contentUri: Uri get() = Uri.parse(episode.audioUrl)
+    }
+
+    data class RadioStream(val station: RadioStationRef) : PlayableAudio {
+        override val id get() = "radio:${station.stationId}"
+        override val title get() = station.name
+        override val subtitle get() = "radio"
+        override val durationMs get() = 0L
+        override val contentUri: Uri get() = Uri.parse(station.streamUrl)
+    }
+}
+
+/** The handful of fields [PlayableAudio.RadioStream] needs — accepts either a
+ * fresh [RadioStation] search result or an already-[FavoriteStation]. */
+data class RadioStationRef(val stationId: String, val name: String, val streamUrl: String, val faviconUrl: String?) {
+    constructor(station: RadioStation) : this(station.stationId, station.name, station.streamUrl, station.faviconUrl)
+    constructor(station: FavoriteStation) : this(station.stationId, station.name, station.streamUrl, station.faviconUrl)
+}
+
+/**
+ * What the music hub is currently playing. [item]/[queue]/[queueIndex]
+ * describe the selection that started this playback (e.g. tapping an album
+ * queues its tracks in order; a podcast episode or radio station always
+ * queues alone). `item == null` means nothing is playing.
  */
 data class LocalPlayback(
-    val track: LocalTrack? = null,
+    val item: PlayableAudio? = null,
     val playing: Boolean = false,
-    val queue: List<LocalTrack> = emptyList(),
+    val queue: List<PlayableAudio> = emptyList(),
     val queueIndex: Int = -1,
 )
 
 /**
- * A single, in-process [MediaPlayer] for the music hub's "library" page.
- * Plays **in the background**: starting a track brings up
+ * A single, in-process [MediaPlayer] for the music hub's "library"/"podcasts"/
+ * "radio" pages — local files and remote (podcast/radio) URLs are both valid
+ * [MediaPlayer] data sources, so one player instance covers all three. Plays
+ * **in the background**: starting anything brings up
  * [LocalMusicPlaybackService] (a real foreground service with its own
  * [android.media.session.MediaSession]), so playback, lock-screen/
  * notification controls, and audio-focus handling all survive leaving the
  * hub screen — the hub itself only ever reflects [state], it doesn't own
  * playback's lifetime. [release] fully stops playback (used by the
- * notification's stop action / swipe-to-dismiss, and when a queue genuinely
- * has nothing left to play); merely closing the hub screen does not call it.
+ * notification's stop action / swipe-to-dismiss, and a genuine audio-focus
+ * loss); merely closing the hub screen does not call it.
  *
  * One shared instance (not per-composable) so playback survives the hub's own
  * pivot-page navigation and the service's independent lifecycle.
@@ -69,8 +120,23 @@ object LocalMusicPlayer {
         }
     }
 
-    /** Starts playing [queue] from [startIndex], replacing whatever was playing. */
+    /** Starts playing a local-library queue from [startIndex]. */
     fun playQueue(context: Context, queue: List<LocalTrack>, startIndex: Int) {
+        playItems(context, queue.map { PlayableAudio.Local(it) }, startIndex)
+    }
+
+    /** Starts playing a podcast show's episode queue from [startIndex]. */
+    fun playEpisodes(context: Context, show: PodcastSubscription, episodes: List<PodcastEpisode>, startIndex: Int) {
+        playItems(context, episodes.map { PlayableAudio.Episode(show, it) }, startIndex)
+    }
+
+    /** Starts a single live radio station — there's no meaningful "queue" for
+     * a live stream, so next/previous are simply unavailable (a queue of one). */
+    fun playStation(context: Context, station: RadioStationRef) {
+        playItems(context, listOf(PlayableAudio.RadioStream(station)), 0)
+    }
+
+    private fun playItems(context: Context, queue: List<PlayableAudio>, startIndex: Int) {
         if (startIndex !in queue.indices) return
         if (!requestAudioFocus(context)) return
         ContextCompat.startForegroundService(
@@ -80,10 +146,10 @@ object LocalMusicPlayer {
         playAt(context, queue, startIndex)
     }
 
-    private fun playAt(context: Context, queue: List<LocalTrack>, index: Int) {
+    private fun playAt(context: Context, queue: List<PlayableAudio>, index: Int) {
         releasePlayerOnly()
-        val track = queue[index]
-        _state.value = LocalPlayback(track = track, playing = false, queue = queue, queueIndex = index)
+        val item = queue[index]
+        _state.value = LocalPlayback(item = item, playing = false, queue = queue, queueIndex = index)
         val mp = MediaPlayer()
         val ok = runCatching {
             mp.setAudioAttributes(
@@ -93,10 +159,13 @@ object LocalMusicPlayer {
                     .build(),
             )
             // Keeps decoding/output alive while the CPU would otherwise sleep
-            // with the screen off — needed now that playback is expected to
+            // with the screen off — needed since playback is expected to
             // outlive the hub screen and Start being on-screen at all.
             mp.setWakeMode(context.applicationContext, PowerManager.PARTIAL_WAKE_LOCK)
-            mp.setDataSource(context, track.contentUri)
+            // A plain content:// URI (local track) and an https:// URI (podcast
+            // episode / radio stream) both work through this same overload —
+            // MediaPlayer resolves either directly.
+            mp.setDataSource(context, item.contentUri)
             mp.setOnPreparedListener {
                 runCatching { it.start() }
                 _state.value = _state.value.copy(playing = true)

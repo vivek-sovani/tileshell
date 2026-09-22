@@ -8988,3 +8988,63 @@ Five new notification icon drawables (`ic_notification_{music,play,pause,prev,ne
 — `Notification.Action`/`setSmallIcon` need a drawable resource, not a Compose `ImageVector` —
 following the exact same "same monoline glyph as TileIcons[...], hand-ported" convention
 already established by the home-screen-widget icons (`ic_widget_settings.xml` etc.).
+
+## Music hub: podcasts + radio tabs, `PlayableAudio` generalizes the player/background service
+
+User asked for a podcasts section ("can we source free podcasts"), then in the same
+conversation for a radio section built "similarly." Scoped via `AskUserQuestion`: discovery via
+the free, no-key **iTunes Search API** for podcasts (recommended over a curated shortlist or
+manual-URL-only, since it covers virtually any public show with no directory of our own to
+maintain); playback **shares `LocalMusicPlayer` and its background foreground service**
+(recommended over a simpler in-hub-only v1, since the background-playback infrastructure already
+existed from the local-library work and duplicating a second player/service pair for podcasts
+would have meant maintaining two nearly-identical foreground services). Radio followed the same
+shape, sourced from the free, no-key **Radio-Browser directory** (`all.api.radio-browser.info`,
+which round-robins across the project's own community mirror servers).
+
+**`PlayableAudio`** (`LocalMusicPlayer.kt`) is the abstraction that makes sharing the player
+possible: a sealed interface (`Local`/`Episode`/`RadioStream`) exposing just the fields playback
+actually needs (title/subtitle/durationMs/contentUri) — `LocalPlayback.track: LocalTrack?` became
+`LocalPlayback.item: PlayableAudio?` throughout `LocalMusicPlayer`/`LocalMusicPlaybackService`/
+`MusicHubScreen`/`MusicHistory`. `MediaPlayer.setDataSource(Context, Uri)` already handles a
+`content://` local file and an `https://` remote URL identically, so `playAt` needed no
+branching for the data source itself — only art loading and notification/lock-screen text differ
+per kind, both handled with a `when (item) { is PlayableAudio.Local -> …; is PlayableAudio.Episode
+-> …; is PlayableAudio.RadioStream -> … }` at the two spots that actually need it
+(`LocalMusicPlaybackService.loadArt`, `MusicHubScreen`'s `PlayerNowPlaying`, which replaces the
+old local-only `LocalNowPlaying`). `RadioStationRef` is the tiny bridge type letting a fresh
+`RadioStation` search result and an already-`FavoriteStation` both become a `PlayableAudio
+.RadioStream` without either data class depending on the other.
+
+**Data layer**, three new files mirroring `RssFeed.kt`'s own established shape (a plain
+`HttpURLConnection` + `org.json`/hardened `DocumentBuilderFactory`, no third-party library, pure
+parsers split out from the network call for unit-testability): `PodcastSearch.kt` (iTunes JSON →
+`PodcastSearchResult`), `PodcastFeed.kt` (a show's RSS feed → `PodcastShow`/`PodcastEpisode`,
+identifying an episode by its audio `<enclosure>` rather than `RssFeed.kt`'s own image
+`<enclosure>`; reuses `RssFeed.kt`'s already-public `parseFeedDate`/`stripHtml` rather than
+duplicating them), `RadioSearch.kt` (Radio-Browser JSON → `RadioStation`, preferring the
+directory's own already-redirect-resolved `url_resolved` over the raw `url`). `PodcastStore.kt`/
+`RadioFavoritesStore.kt` persist only the show/station's own identity (feed URL / stream URL +
+display metadata) via the same pipe-delimited DataStore codec shape as `MusicHistory` — a
+subscription never caches episodes itself, so it can never go stale; episodes are always
+re-fetched live the moment a show is opened.
+
+**Hub UI**: two new pivot pages, "podcasts" and "radio" (`HUB_PIVOTS` grew from 4 to 6:
+now playing / library / podcasts / radio / apps / history). Podcasts: search-or-browse-
+subscriptions → drill into a show's live episode list (`PodcastEpisodesPage`) → tap an episode to
+play the whole list queued from that point; subscribing is its own explicit toggle inside the
+episode page, never automatic on a search tap (browsing a show shouldn't silently follow it, the
+same restraint a real podcast app takes). Radio has no drill-down (a station has nothing to browse
+into before playing) — search-or-browse-favorites, tap any row to start it immediately, with a
+separate ✚/✓ favorite toggle. `RemoteArt.kt` is a small new shared `rememberRemoteArt(url)`
+composable (in-memory LRU cache only, no disk cache — a much smaller/rarer image volume than the
+news feed's own `rememberRemoteImage`, which also isn't reachable from `:feature:livetiles`
+regardless, being one-directional the other way) for a show's artwork / a station's favicon.
+
+**History** (`MusicHistoryEffect`) deliberately does **not** cover podcast episodes or radio
+stations in this pass — only `PlayableAudio.Local` is recorded, gated by an explicit `is`-check.
+Reasoning: history's "one row per source, always the source's current session" model fits an
+external app's package identity or the single shared local-library player naturally, but neither
+a podcast episode nor a radio station has an equivalently stable "source" identity for that model
+— that's what the podcasts/radio tabs' own subscription/favorites lists are for instead. Revisit
+if a "recently played episodes/stations" list turns out to be wanted later.
