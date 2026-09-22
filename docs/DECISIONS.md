@@ -9654,3 +9654,23 @@ circle. The label below is unchanged (`tokens.fg`, from the earlier contrast fix
 
 Verified on-device (no crash, via a wired USB connection after the wireless adb link kept dropping
 all session): the buttons now render exactly as the chosen mockup, legible in light theme.
+
+## Contact action row spread across full width; "recent" explains why it can stay empty
+
+Two more direct follow-ups. First: "not proportionally placed and sized" — the call/message/
+whatsapp/pin/view row used a fixed 22dp gap indented 54dp (to sit under the avatar), leaving the
+buttons clumped on the left with a large empty gap on the right rather than using the row's actual
+width. Now `Modifier.fillMaxWidth()` + `Arrangement.SpaceEvenly`, spreading the buttons across the
+full row.
+
+Second: "nothing appearing in recents despite i making few calls" — real-world confirmation that
+`LAST_TIME_CONTACTED` (this feature's data source) is unreliable on modern Android: since Android 9,
+most phones — Samsung's own dialer included, per the user's own device — stopped calling the API
+that updates this field automatically, so it silently stays at 0 even with genuine recent call
+activity, with no way for this app to detect or distinguish "genuinely never contacted" from "your
+phone just doesn't track this." The real fix would be reading the Call Log instead
+(`READ_CALL_LOG`), which was discussed directly and declined: it's a Google Play restricted
+permission requiring a Console declaration, with real rejection risk for any app that isn't the
+default phone/assistant — not worth it for this one screen. Kept the existing approach and instead
+made the empty state say so explicitly, so it reads as an explained platform limitation rather than
+a silent, unexplained bug.

@@ -567,9 +567,13 @@ private fun ContactRow(
             )
         }
         if (expanded) {
+            // Spread evenly across the row's full width — user-reported "not
+            // proportionally placed and sized" when this was a fixed-gap row
+            // indented to sit under the avatar, which left the 3-5 buttons
+            // clumped on the left with a large empty gap on the right.
             Row(
-                horizontalArrangement = Arrangement.spacedBy(22.dp),
-                modifier = Modifier.padding(start = 54.dp, bottom = 12.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
             ) {
                 val number = phone
                 if (number != null) {
@@ -654,12 +658,24 @@ private fun RecentPeoplePage(context: android.content.Context, tokens: ColorToke
             item { Spacer(Modifier.height(1.dp)) }
         } else if (list.isEmpty()) {
             item {
-                Text(
-                    "no recently contacted people",
-                    color = tokens.fgDim,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(vertical = 24.dp),
-                )
+                Column(modifier = Modifier.padding(vertical = 24.dp)) {
+                    Text("no recently contacted people", color = tokens.fgDim, fontSize = 14.sp)
+                    Spacer(Modifier.height(6.dp))
+                    // User-reported: made real calls, "recent" still stayed
+                    // empty. Root cause: this reads Android's own
+                    // LAST_TIME_CONTACTED field, which most phones (Samsung's
+                    // own dialer included) stopped updating automatically
+                    // since Android 9 — not something this app can detect or
+                    // work around without the Call Log permission, which
+                    // carries real Play Store rejection risk for an app
+                    // that isn't the default phone app (declined per direct
+                    // discussion, kept as a known limitation instead).
+                    Text(
+                        "some phones don't keep track of this for calls made through their own dialer",
+                        color = tokens.fgDim,
+                        fontSize = 12.sp,
+                    )
+                }
             }
         } else {
             items(list, key = { "recent-${it.contactId}" }) { person ->
