@@ -323,6 +323,7 @@ private fun NowPlayingPage(accent: Color, tokens: ColorTokens, onOpenPage: (Stri
     val localPlayback by LocalMusicPlayer.state.collectAsState()
     val localItem = localPlayback.item
     val context = LocalContext.current
+    val menuItems = HUB_PIVOTS.filterNot { it == "now playing" }
 
     Column(
         modifier = Modifier
@@ -330,6 +331,42 @@ private fun NowPlayingPage(accent: Color, tokens: ColorTokens, onOpenPage: (Stri
             .verticalScroll(rememberScrollState())
             .padding(bottom = 32.dp),
     ) {
+        // "now playing" doubles as the hub's own menu (user-requested: "check
+        // proto first tab is only for menu. you can merge now playing in
+        // that and then all tabs"), listed *above* the playback content
+        // itself — a direct follow-up correction ("now playing screen at
+        // bottom and menus above"), replacing both the old horizontal pivot
+        // row and the smaller "apps ›"/"history ›" text links that preceded
+        // this design.
+        HubPageTitle("menu", tokens)
+        Column {
+            menuItems.forEachIndexed { index, label ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { onOpenPage(label) },
+                        )
+                        .padding(horizontal = 18.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(label, color = tokens.fg, fontSize = 18.sp, fontWeight = FontWeight.Light)
+                    Icon(TileIcons["chevron"], contentDescription = null, tint = tokens.fgDim, modifier = Modifier.size(16.dp))
+                }
+                if (index < menuItems.lastIndex) {
+                    Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp).height(1.dp).background(tokens.sheetLine))
+                }
+            }
+        }
+
+        Spacer(Modifier.height(24.dp))
+        Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp).height(1.dp).background(tokens.sheetLine))
+        Spacer(Modifier.height(10.dp))
+
+        HubPageTitle("now playing", tokens)
         when {
             externalEntry != null && (externalEntry.value.playing || localItem == null) ->
                 ExternalNowPlaying(externalEntry, artworkMap, accent, tokens, context)
@@ -341,32 +378,6 @@ private fun NowPlayingPage(accent: Color, tokens: ColorTokens, onOpenPage: (Stri
                     "start something in one of your music apps, or play a track from the library, a podcast, or a radio station",
                     color = tokens.fgDim,
                     fontSize = 12.sp,
-                )
-            }
-        }
-
-        Spacer(Modifier.height(28.dp))
-        Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp).height(1.dp).background(tokens.sheetLine))
-        // "now playing" doubles as the hub's own menu (user-requested:
-        // "check proto first tab is only for menu. you can merge now
-        // playing in that and then all tabs") — every other page, listed
-        // vertically below it, replacing both the old horizontal pivot row
-        // and the smaller "apps ›"/"history ›" text links that preceded this.
-        Column {
-            HUB_PIVOTS.filterNot { it == "now playing" }.forEach { label ->
-                Text(
-                    text = label,
-                    color = tokens.fg,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Light,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { onOpenPage(label) },
-                        )
-                        .padding(horizontal = 18.dp, vertical = 14.dp),
                 )
             }
         }
@@ -527,6 +538,7 @@ private fun MusicAppsPage(context: Context, accent: Color, tokens: ColorTokens) 
     // device's own installed music/audio players) that filtering isn't
     // needed, unlike the library/podcasts/radio pages' much larger catalogs.
     Column(modifier = Modifier.fillMaxSize()) {
+        HubPageTitle("apps", tokens)
         if (musicApps.isEmpty()) {
             LibraryEmptyState("no music apps found", tokens)
         } else {
@@ -635,12 +647,15 @@ private fun MusicAppCell(app: AppEntry, accent: Color, tokens: ColorTokens, onCl
 private fun HistoryPage(context: Context, accent: Color, tokens: ColorTokens) {
     val history by MusicHistory.history(context).collectAsState(initial = emptyList())
     if (history.isEmpty()) {
-        Text(
-            "nothing played yet",
-            color = tokens.fgDim,
-            fontSize = 14.sp,
-            modifier = Modifier.padding(horizontal = 18.dp),
-        )
+        Column(modifier = Modifier.fillMaxSize()) {
+            HubPageTitle("history", tokens)
+            Text(
+                "nothing played yet",
+                color = tokens.fgDim,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(horizontal = 18.dp),
+            )
+        }
         return
     }
     val scope = rememberCoroutineScope()
@@ -653,6 +668,7 @@ private fun HistoryPage(context: Context, accent: Color, tokens: ColorTokens) {
             .padding(horizontal = 18.dp)
             .padding(bottom = 32.dp),
     ) {
+        HubPageTitle("history", tokens, applyHorizontalPadding = false)
         history.forEachIndexed { index, track ->
             val activeLocal = (localPlayback.item as? PlayableAudio.Local)?.track
             val playing = if (track.isLocal) {
@@ -796,6 +812,7 @@ private fun LibraryPage(context: Context, accent: Color, tokens: ColorTokens) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        HubPageTitle("library", tokens)
         Row(
             modifier = Modifier.padding(horizontal = 18.dp).padding(bottom = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -959,6 +976,24 @@ private fun LibraryPermissionGate(tokens: ColorTokens, accent: Color) {
 @Composable
 private fun LibraryEmptyState(text: String, tokens: ColorTokens) {
     Text(text, color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp))
+}
+
+/** Each pivot page's own on-screen title — user-requested ("tabs should have
+ * titles") once the shared header stopped showing a persistent pivot-label
+ * row (see "now playing"'s own doc comment). [applyHorizontalPadding] is
+ * false for a page whose own content column already applies the standard
+ * 18dp side padding to itself, so the title doesn't get it twice. */
+@Composable
+private fun HubPageTitle(title: String, tokens: ColorTokens, applyHorizontalPadding: Boolean = true) {
+    Text(
+        text = title,
+        color = tokens.fg,
+        fontSize = 26.sp,
+        fontWeight = FontWeight.Light,
+        modifier = Modifier
+            .let { if (applyHorizontalPadding) it.padding(horizontal = 18.dp) else it }
+            .padding(top = 4.dp, bottom = 14.dp),
+    )
 }
 
 @Composable
@@ -1271,6 +1306,7 @@ private fun PodcastsPage(context: Context, accent: Color, tokens: ColorTokens) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        HubPageTitle("podcasts", tokens)
         LibrarySearchField(query, { query = it }, "search podcasts", tokens)
         if (query.isBlank()) {
             CategoryChipRow(PODCAST_GENRES.map { it.label }, selectedGenre?.label, accent, tokens) { label ->
@@ -1601,6 +1637,7 @@ private fun RadioPage(context: Context, accent: Color, tokens: ColorTokens) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        HubPageTitle("radio", tokens)
         LibrarySearchField(query, { query = it }, "search radio stations", tokens)
         if (query.isBlank()) {
             CategoryChipRow(RADIO_GENRES, selectedGenre, accent, tokens) { tag ->
