@@ -1,6 +1,8 @@
 package com.tileshell.feature.livetiles
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import java.net.HttpURLConnection
@@ -27,11 +29,54 @@ data class RadioStation(
  * hardcoded/kept up to date here.
  */
 suspend fun searchRadioStations(query: String): List<RadioStation> {
-    if (query.isBlank()) return emptyList()
-    val encoded = runCatching { URLEncoder.encode(query, "UTF-8") }.getOrNull() ?: return emptyList()
+    val trimmed = query.trim()
+    if (trimmed.isBlank()) return emptyList()
+    val direct = searchStationsByName(trimmed)
+    if (direct.isNotEmpty()) return direct
+
+    // Radio-Browser's `name` filter is a literal substring match, not a
+    // word search — a multi-word query like "hindi desi bollywood" or
+    // "bollywood hits" comes back empty whenever no single station's name
+    // contains that exact phrase, even though stations matching the
+    // individual words are right there in the directory (confirmed live:
+    // "bollywood" alone returns 25 matches, "hindi desi bollywood" returns
+    // none). Fall back to searching each significant word on its own and
+    // merging/ranking by how many of the typed words a station matches.
+    val words = significantQueryWords(trimmed)
+    if (words.size <= 1) return direct
+    val perWord = coroutineScope {
+        words.map { async { searchStationsByName(it) } }.map { it.await() }
+    }
+    return rankMergedStations(perWord, words)
+}
+
+private suspend fun searchStationsByName(name: String): List<RadioStation> {
+    val encoded = runCatching { URLEncoder.encode(name, "UTF-8") }.getOrNull() ?: return emptyList()
     val url = "https://all.api.radio-browser.info/json/stations/search?name=$encoded&limit=25&hidebroken=true"
     val json = httpGetText(url) ?: return emptyList()
     return parseRadioStations(json)
+}
+
+/** Query words worth searching individually as the multi-word fallback —
+ * short filler words ("of", "fm", "the"…) are dropped so they don't flood
+ * the per-word search with noise unrelated to what the user actually typed. */
+fun significantQueryWords(query: String): List<String> =
+    query.trim().split(Regex("\\s+")).filter { it.length >= 3 }.distinct()
+
+/**
+ * Merges several per-word search result lists (deduped by station id, first
+ * occurrence wins) and ranks by how many of [words] each station's name or
+ * tags actually contain — a station matching every typed word sorts above
+ * one matching only one, so "hindi desi bollywood" surfaces a station like
+ * "Desi Hits Bollywood Radio" (if any) ahead of a plain "Hindi FM" that only
+ * matches one word. Ties keep first-seen order (stable sort).
+ */
+fun rankMergedStations(resultSets: List<List<RadioStation>>, words: List<String>): List<RadioStation> {
+    val merged = LinkedHashMap<String, RadioStation>()
+    resultSets.forEach { set -> set.forEach { merged.putIfAbsent(it.stationId, it) } }
+    return merged.values.sortedByDescending { station ->
+        words.count { w -> station.name.contains(w, ignoreCase = true) || station.tags.contains(w, ignoreCase = true) }
+    }
 }
 
 /** Pure JSON parsing, split out from the network call so it's unit-testable
@@ -82,6 +127,7 @@ val RADIO_COUNTRIES = listOf(
     RadioCountry("FR", "france"),
     RadioCountry("JP", "japan"),
     RadioCountry("BR", "brazil"),
+    RadioCountry("AE", "uae"),
 )
 
 /**

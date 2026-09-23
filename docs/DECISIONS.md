@@ -9705,3 +9705,38 @@ wireless adb link proved unreliable most of this session) with no crash, and the
 tab was reached and a station selected to begin exercising the fix — the user asked to stop
 checking mid-verification, so the actual "does it now show on the tile/feed" observation still
 needs the user's own confirmation.
+
+## Radio search: multi-word queries returned nothing, even for stations that exist
+
+User: "many radio station like hindi desi bollywood, hits of bollywood and radio stations like aaj
+tak are missing. please check if you are using right feed for radio." Verified the underlying
+source (radio-browser.info, `RadioSearch.kt`'s `searchRadioStations`) is the right one and does
+carry these stations — a direct query confirmed "Aaj Tak News Radio Live" (India, hindi) and 25+
+"bollywood" stations exist in the directory. The real bug: Radio-Browser's `name` search parameter
+is a literal **substring** match against the station's name, not a word search — `hindi desi
+bollywood` and `bollywood hits` both come back with zero results because no single station's name
+contains that exact phrase verbatim, even though `bollywood` alone matches 25 stations and `desi`
+alone matches 19. So a feed/source problem was suspected, but it was really a query-shape problem:
+any query of unrelated/reordered words that doesn't appear as one contiguous phrase in a station's
+name silently returned nothing, indistinguishable from "the source doesn't have it."
+
+Fixed in `searchRadioStations`: try the full phrase first (unchanged, fast path for the common
+single-word/short-phrase case); if that comes back empty and the query has more than one
+significant word (≥3 letters, so filler words like "of"/"fm" don't add noise), fan out to a
+per-word search (parallel via `coroutineScope`/`async`), merge the results deduped by station id,
+and rank by how many of the typed words each station's name/tags actually contain — a station
+matching every word sorts above one matching only one. New pure `significantQueryWords`/
+`rankMergedStations` (unit-tested, `RadioTest.kt`) split out from the network call so the ranking
+logic itself needs no HTTP.
+
+Also added UAE (`RadioCountry("AE", "uae")`) to `RADIO_COUNTRIES`, the radio tab's country-chip
+list — confirmed live (25 real stations for `countrycode=AE`). The news feed's own country picker
+(`SELECTABLE_COUNTRIES`, `RssFeed.kt`) already had UAE from an earlier session; this was specifically
+the separate radio-browsing chip list, which didn't.
+
+Build + full unit test suite green (6 new `RadioMultiWordFallbackTest` cases). Verified live against
+the real radio-browser.info API via curl during development (not just unit tests): "aaj tak",
+"bollywood", "hits of bollywood", and `countrycode=AE` all return real stations; "hindi desi
+bollywood" and "bollywood hits" confirmed to return zero on a literal phrase search, which is exactly
+the case the fallback now covers. Not yet confirmed on-device — the actual in-app search UI still
+needs the user's own hands-on check.

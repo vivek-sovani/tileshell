@@ -56,6 +56,54 @@ class RadioStationParsingTest {
     }
 }
 
+class RadioMultiWordFallbackTest {
+
+    private fun station(id: String, name: String, tags: String = "") =
+        RadioStation(stationId = id, name = name, streamUrl = "https://x/$id", faviconUrl = null, country = "", tags = tags)
+
+    @Test
+    fun `short filler words are dropped from the fallback word list`() {
+        assertEquals(listOf("hindi", "desi", "bollywood"), significantQueryWords("hindi desi bollywood"))
+        assertEquals(listOf("bollywood", "hits"), significantQueryWords("of bollywood hits"))
+    }
+
+    @Test
+    fun `duplicate words are only searched once`() {
+        assertEquals(listOf("desi"), significantQueryWords("desi desi"))
+    }
+
+    @Test
+    fun `a single-word query has no multi-word fallback`() {
+        assertEquals(listOf("bollywood"), significantQueryWords("bollywood"))
+    }
+
+    @Test
+    fun `merged results are deduped by station id, first occurrence wins`() {
+        val a = station("1", "Desi Hits Radio")
+        val dup = station("1", "duplicate name should be ignored")
+        val b = station("2", "Bollywood FM")
+        val merged = rankMergedStations(listOf(listOf(a), listOf(dup, b)), listOf("desi", "bollywood"))
+        assertEquals(2, merged.size)
+        assertEquals("Desi Hits Radio", merged.first { it.stationId == "1" }.name)
+    }
+
+    @Test
+    fun `a station matching every query word ranks above one matching only one`() {
+        val allWords = station("both", "Hindi Desi Bollywood Hits")
+        val oneWord = station("one", "Hindi FM")
+        val ranked = rankMergedStations(listOf(listOf(oneWord, allWords)), listOf("hindi", "desi", "bollywood"))
+        assertEquals(listOf("both", "one"), ranked.map { it.stationId })
+    }
+
+    @Test
+    fun `a tag match counts the same as a name match`() {
+        val byTag = station("tag", "Generic FM", tags = "bollywood,desi")
+        val byNameOnly = station("name", "Bollywood Radio")
+        val ranked = rankMergedStations(listOf(listOf(byNameOnly, byTag)), listOf("bollywood", "desi"))
+        assertEquals("tag", ranked.first().stationId)
+    }
+}
+
 class FavoriteStationCodecTest {
 
     private fun station(id: String = "s1", favicon: String? = "https://x/icon.png") = FavoriteStation(
