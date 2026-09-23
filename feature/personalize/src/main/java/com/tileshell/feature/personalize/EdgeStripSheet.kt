@@ -32,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -49,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.tileshell.core.data.AppEntry
+import com.tileshell.core.data.AppIconCache
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.Wallpapers
@@ -484,7 +486,11 @@ private fun EdgeStripAppRow(
 @Composable
 private fun rememberEdgeStripAppIcon(packageName: String, activityName: String): ImageBitmap? {
     val context = LocalContext.current
-    return produceState<ImageBitmap?>(null, packageName, activityName) {
+    // See :feature:start's rememberTileAppIcon (StartScreen.kt) — retries an
+    // icon that lost the boot-time resolution race instead of being stuck on
+    // no icon at all until the process restarts.
+    val retryEpoch by AppIconCache.retryEpoch.collectAsState()
+    return produceState<ImageBitmap?>(null, packageName, activityName, retryEpoch) {
         value = withContext(Dispatchers.IO) {
             runCatching {
                 context.packageManager

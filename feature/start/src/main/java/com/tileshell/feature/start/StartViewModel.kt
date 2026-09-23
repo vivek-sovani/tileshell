@@ -496,9 +496,19 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      * mean uninstalled — it fires when the apps are temporarily out of reach,
      * most commonly because external/adopted storage was unmounted or a
      * profile was paused. Treating it as an uninstall deleted tiles for apps
-     * that were about to come straight back, and nothing restored them:
-     * [onPackagesAvailable] is intentionally a no-op. A real uninstall always
-     * arrives via [onPackageRemoved], so nothing is missed by ignoring it.
+     * that were about to come straight back, and nothing restored them: for
+     * *tile pruning* purposes [onPackagesAvailable] is a no-op. A real
+     * uninstall always arrives via [onPackageRemoved], so nothing is missed
+     * by ignoring it here.
+     *
+     * [onPackagesAvailable] still matters for the icon cache, though — it's
+     * the documented signal for "the user just unlocked FBE-protected
+     * storage" as well as adopted-storage remount, i.e. exactly the boot-time
+     * race where some apps aren't yet resolvable when Start first composes
+     * its tiles. Without clearing here, a tile that lost that race stayed on
+     * the generic fallback glyph until the process restarted (a second
+     * reboot), even though the app became available moments later. See
+     * [AppIconCache.clear]'s doc comment.
      */
     private val packageCallback = object : LauncherApps.Callback() {
         override fun onPackageRemoved(packageName: String?, user: UserHandle?) {
@@ -529,7 +539,9 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             packageNames: Array<out String>?,
             user: UserHandle?,
             replacing: Boolean,
-        ) = Unit
+        ) {
+            AppIconCache.clear()
+        }
     }
 
     @OptIn(kotlinx.coroutines.FlowPreview::class)

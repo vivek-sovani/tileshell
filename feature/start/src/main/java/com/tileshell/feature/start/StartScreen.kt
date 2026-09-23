@@ -90,6 +90,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -7409,7 +7410,12 @@ private fun ContactTileFace(contactId: Long, name: String, size: TileSize, modif
 @Composable
 internal fun rememberTileAppIcon(packageName: String, activityName: String, sizePx: Int = 96): ImageBitmap? {
     val context = LocalContext.current
-    return produceState<ImageBitmap?>(null, packageName, activityName, sizePx) {
+    // Retried whenever AppIconCache.clear() bumps this — otherwise a tile
+    // whose icon load lost the boot-time "app not resolvable yet" race would
+    // stay on the fallback glyph forever, since package/activity/sizePx never
+    // change for a given tile. See AppIconCache.retryEpoch's doc comment.
+    val retryEpoch by AppIconCache.retryEpoch.collectAsState()
+    return produceState<ImageBitmap?>(null, packageName, activityName, sizePx, retryEpoch) {
         value = withContext(Dispatchers.IO) {
             // A pinned app shortcut publishes its own icon and has no resolvable
             // ComponentName (see shortcutIconDrawable) — without this the tile

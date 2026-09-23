@@ -9875,3 +9875,45 @@ Build + full unit test suite green after every change; installed and launched on
 with no crash after each round. The layout/position changes and the apps-tab speed-up are code-review-
 level verified (traced the actual composition-lifetime reasoning for why hoisting helps) rather than
 separately re-measured on-device — the user's own hands-on check is still pending for this round.
+
+**After a device reboot, Start tiles and the app list showed the generic fallback icon for some apps
+("like apps are not there"), self-healing only after a *second* reboot.** User-reported, reproducible
+only across a real reboot (not something this environment can trigger). Root-caused to a real bug, not
+a fidelity/perf issue: every icon loader in the app (`rememberTileAppIcon`/`StartScreen.kt`,
+`rememberMaskableIcon`/`IconCellView.kt`, `rememberMaskableAppIcon`/`AppListIcon.kt` and its
+`:feature:livetiles` `AppIcon.kt` near-duplicate, `rememberAppIconBitmap`/`AppIcon.kt`,
+`rememberEdgeStripAppIcon`/`EdgeStripSheet.kt`, `rememberAppIcon`/`HiddenAppsSheet.kt`) is a Compose
+`produceState` keyed only on the component (package/activity/size) it's loading — keys that never
+change for a given tile once composed. On the very first cold start right after a reboot, some apps
+aren't yet resolvable via `PackageManager`/`LauncherApps` — the well-documented FBE-unlock race
+(`LauncherApps.Callback.onPackagesAvailable` exists specifically for "the user is now unlocked and
+package data can be accessed"), or `PackageManagerService` simply still mid-scan — so those specific
+icon loads fail once and, since `produceState`'s keys never change afterward, are **permanently** stuck
+on the fallback glyph for the rest of that process's life; nothing ever asks them to retry. Compounding
+it: `StartViewModel`'s own separate `LauncherApps.Callback` (used for tile-pruning + icon-cache
+invalidation on install/update/uninstall) explicitly no-op'd `onPackagesAvailable` — a deliberate,
+correct choice for the *pruning* half of that callback (an "unavailable → available" cycle must never
+delete tiles), but it meant the icon cache was never told about the one signal that would have let it
+recover. A second reboot only "fixed" it by chance — a fresh process happens to lose the race less often
+at a different point in the scan; nothing about the second boot was actually more reliable.
+
+Fixed in two layers: **(1)** `AppIconCache` (`core/data`) gained a `retryEpoch: StateFlow<Int>`, bumped
+every time `clear()` runs (folding the fix into the existing invalidation entry point rather than a new
+one). Every icon loader listed above now reads `retryEpoch` via `collectAsState()` and adds it as an
+extra `produceState` key, so a tile that lost the race retries live the moment the cache is invalidated,
+instead of needing the process to restart. `StartViewModel.packageCallback.onPackagesAvailable` now
+calls `AppIconCache.clear()` (previously a no-op) — it still does nothing for tile-pruning, only for the
+icon cache, so the "never treat unavailable-then-available as an uninstall" invariant is untouched.
+**(2)** Defense in depth for the possibility that a given OEM's `LauncherApps.Callback` delivery is
+itself unreliable in that exact post-boot window (the user's device is a Samsung; OneUI has a history of
+launcher-callback quirks) — `AppCatalogRepository.apps`'s `callbackFlow`, only when
+`SystemClock.elapsedRealtime()` shows the process started within 2 minutes of boot, also fires a short,
+self-limiting timer burst (re-`query()` + `AppIconCache.clear()` at +3s/+5s/+7s/+10s after the flow
+starts) independent of whether any OS callback fires at all. Never runs this far from boot (e.g.
+reopening the app list mid-day), so it costs nothing in the steady state. This also hedges the app list
+itself, not just icons, in case the catalog's own callback-driven refresh is what's actually flaky on
+this OEM.
+
+Build + full unit test suite green; installed on the physical device, launched with no crash in `adb
+logcat`. The actual "does it now recover without a second reboot" check needs a real reboot on the
+user's device to confirm — not something reproducible from this environment.

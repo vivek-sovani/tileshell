@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
@@ -84,7 +85,11 @@ internal data class MaskableAppIcon(
 @Composable
 internal fun rememberMaskableAppIcon(packageName: String, activityName: String): MaskableAppIcon? {
     val context = LocalContext.current
-    return produceState<MaskableAppIcon?>(null, packageName, activityName) {
+    // See :feature:start's rememberTileAppIcon (StartScreen.kt) — retries a
+    // row that lost the boot-time icon-resolution race instead of being
+    // stuck on the fallback glyph until the process restarts.
+    val retryEpoch by AppIconCache.retryEpoch.collectAsState()
+    return produceState<MaskableAppIcon?>(null, packageName, activityName, retryEpoch) {
         value = withContext(Dispatchers.IO) {
             fun load(drawable: Drawable): MaskableAppIcon {
                 val isAdaptive = drawable is AdaptiveIconDrawable

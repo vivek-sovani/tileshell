@@ -2,6 +2,9 @@ package com.tileshell.core.data
 
 import android.graphics.Bitmap
 import android.util.LruCache
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * One process-wide cache of decoded app-icon bitmaps, shared by every icon
@@ -65,10 +68,31 @@ object AppIconCache {
         get(key) ?: compute()?.also { put(key, it) }
 
     /**
-     * Drops everything. Called when packages change, since an app update can
-     * legitimately change its icon and a stale entry would outlive it.
+     * Bumped every time [clear] runs. Every `remember*Icon` loader in the app
+     * reads this as an extra `produceState` key (alongside the component it's
+     * loading) so a tile that failed to resolve its real icon retries the
+     * moment the cache is invalidated, instead of being stuck on the generic
+     * fallback glyph for the rest of the process's life — `produceState`
+     * never reruns on its own when only its *other* keys (package/activity/
+     * size, which don't change for a given tile) stay the same. This is what
+     * makes a package becoming newly resolvable (see [clear]'s doc comment)
+     * actually repaint every already-composed tile that failed against it
+     * earlier, not just future ones.
+     */
+    private val _retryEpoch = MutableStateFlow(0)
+    val retryEpoch: StateFlow<Int> = _retryEpoch.asStateFlow()
+
+    /**
+     * Drops everything and bumps [retryEpoch]. Called when packages change
+     * (an app update can legitimately change its icon, a stale entry would
+     * outlive it) **and** when packages become newly available — most
+     * commonly the user unlocking FBE-protected storage right after a
+     * reboot, mid-way through `PackageManager` re-registering every app:
+     * a tile whose icon load lost that race needs exactly this signal to
+     * retry, since nothing else ever asks it to.
      */
     fun clear() {
         cache.evictAll()
+        _retryEpoch.value += 1
     }
 }

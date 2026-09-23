@@ -6,14 +6,17 @@ import android.content.pm.LauncherApps
 import android.os.Handler
 import android.os.Looper
 import android.os.Process
+import android.os.SystemClock
 import android.os.UserHandle
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
 
 /**
  * Source of truth for the set of launchable apps on the device.
@@ -66,6 +69,31 @@ class AppCatalogRepository(context: Context) {
 
         trySend(query())
         launcherApps.registerCallback(callback, Handler(Looper.getMainLooper()))
+        // Defense in depth for a real, on-device-reported bug: right after a
+        // cold boot, PackageManagerService can still be mid-scan (or the user
+        // has only just unlocked FBE-protected storage) at the exact moment
+        // this flow's very first query() above runs, so that snapshot can be
+        // missing apps that become resolvable moments later. onPackagesAvailable
+        // is the documented signal for exactly that ("the user is now
+        // unlocked and package data can be accessed") and the callback above
+        // already re-queries on it — but it's cheap insurance to also just
+        // retry a few times on a plain timer close to boot, in case a given
+        // OEM's LauncherApps callback delivery is itself delayed or dropped
+        // in that same post-boot window. Never runs this far from boot (e.g.
+        // reopening the app list mid-day), so it costs nothing in the common
+        // case.
+        if (SystemClock.elapsedRealtime() < BOOT_RETRY_WINDOW_MS) {
+            launch {
+                for (delayMs in BOOT_RETRY_DELAYS_MS) {
+                    delay(delayMs)
+                    // Also covers the icon side of the same race (see
+                    // AppIconCache.retryEpoch) in case the OEM's own
+                    // onPackagesAvailable delivery is what's unreliable here.
+                    AppIconCache.clear()
+                    trySend(query())
+                }
+            }
+        }
         awaitClose { launcherApps.unregisterCallback(callback) }
     }
         .conflate()
@@ -168,5 +196,11 @@ class AppCatalogRepository(context: Context) {
         tag(Intent.CATEGORY_APP_WEATHER, AppCategories.ROLE_WEATHER)
         tag(Intent.CATEGORY_APP_FITNESS, AppCategories.ROLE_FITNESS)
         return map
+    }
+
+    private companion object {
+        /** Only retry-on-a-timer within this long of boot; see the comment above. */
+        const val BOOT_RETRY_WINDOW_MS = 2 * 60 * 1000L
+        val BOOT_RETRY_DELAYS_MS = listOf(3_000L, 5_000L, 7_000L, 10_000L)
     }
 }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
@@ -24,6 +25,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
+import com.tileshell.core.data.AppIconCache
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.design.LocalTileFaceColor
@@ -47,7 +49,11 @@ fun rememberAppIconBitmap(packageName: String, sizePx: Int = 96): ImageBitmap? {
     // caller that changed only the requested size kept the previously decoded
     // bitmap at the old resolution (blurry when scaled up). rememberMaskableAppIcon
     // below already keys on both.
-    val image by produceState<ImageBitmap?>(initialValue = null, packageName, sizePx) {
+    // See :feature:start's rememberTileAppIcon (StartScreen.kt) — retries a
+    // corner badge that lost the boot-time icon-resolution race instead of
+    // being stuck on no icon at all until the process restarts.
+    val retryEpoch by AppIconCache.retryEpoch.collectAsState()
+    val image by produceState<ImageBitmap?>(initialValue = null, packageName, sizePx, retryEpoch) {
         value = if (packageName.isBlank()) {
             null
         } else {
@@ -85,7 +91,8 @@ private data class MaskableAppIcon(
 @Composable
 private fun rememberMaskableAppIcon(packageName: String, sizePx: Int = 96): MaskableAppIcon? {
     val context = LocalContext.current
-    return produceState<MaskableAppIcon?>(null, packageName, sizePx) {
+    val retryEpoch by AppIconCache.retryEpoch.collectAsState()
+    return produceState<MaskableAppIcon?>(null, packageName, sizePx, retryEpoch) {
         value = if (packageName.isBlank()) {
             null
         } else {
