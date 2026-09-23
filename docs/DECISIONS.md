@@ -9945,3 +9945,25 @@ possible (not treated as a removal) and already had its own recovery path via `p
 
 Build + full unit test suite green (one missed import caught by the build, fixed before proceeding);
 installed on the physical device, launched with no crash in `adb logcat`.
+
+**Same-day follow-up: the unpin lock above showed its "can't remove" toast but the tile still
+disappeared from Start, and re-pinning from the App List said "already on start" without bringing it
+back.** User-reported immediately after trying it. Root cause: `StartViewModel.unpin(id)`'s guard was
+correct and *did* block the real DB write the whole time (confirmed by the App List's `pinPersonalize()`
+correctly reporting `ALREADY_ON_START` — the persisted tile was never actually deleted) — but
+`StartPage`'s corner-control/edit-drag-gesture handlers (`StartScreen.kt`) each did an **optimistic,
+unconditional `order.remove(id)`** on the local in-memory working-order list *before* calling the
+(correctly guarded) `onUnpin(id)` callback, to make an ordinary unpin feel instant instead of waiting on
+the write. For the personalize tile specifically, that local removal was never undone: since the real DB
+row never changed, the `specs`/`byId` Flow this composable reconciles `order` against on every change
+(`LaunchedEffect(specs) { ... mergeOrder(...) }`) never re-fired either — nothing about the underlying
+data had changed, so there was nothing to react to — leaving the tile permanently absent from the
+on-screen grid for the rest of that composition's life, even though it was still sitting in Room the
+whole time. Fixed by gating both optimistic-removal sites (`editDragGesture`'s `onUnpin` lambda and the
+separate `onUnpinAction` used by the corner-control tap path) on the same `TileModel.isPersonalizeTile()`
+check the ViewModel guard uses — the outer `onUnpin(id)` callback (and its toast) still fires
+unconditionally either way, only the local list mutation is skipped for this one tile. A fresh app
+relaunch after installing the fix restores visibility on its own (the DB row was intact all along;
+`order` just needed to be rebuilt from a fresh composition), which is what re-installing and
+force-stopping the app before the next launch confirmed. Build + full unit test suite green; installed
+on the physical device, launched with no crash in `adb logcat`.

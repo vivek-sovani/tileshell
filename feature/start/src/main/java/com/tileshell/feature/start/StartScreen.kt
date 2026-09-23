@@ -175,6 +175,7 @@ import com.tileshell.core.data.CommodityTile
 import com.tileshell.core.data.ContactTile
 import com.tileshell.core.data.CountdownTile
 import com.tileshell.core.data.FolderChild
+import com.tileshell.core.data.isPersonalizeTile
 import com.tileshell.core.data.SportsTile
 import com.tileshell.core.data.StepsPrefs
 import com.tileshell.core.data.StockTile
@@ -3424,7 +3425,15 @@ private fun StartPage(
                     if (ref != null) {
                         onPullOutFolderChild(ref.first, ref.second)
                     } else {
-                        order.remove(id)
+                        // The real removal is blocked ViewModel-side for the
+                        // personalize tile (see StartViewModel.unpin), but this
+                        // optimistic local removal ran unconditionally before —
+                        // the tile vanished from the grid immediately even
+                        // though nothing was actually persisted, and stayed
+                        // gone until something else happened to resync `order`
+                        // with the (unchanged) DB state. Must not remove it
+                        // here either.
+                        if (augmentedById[id]?.isPersonalizeTile() != true) order.remove(id)
                         onUnpin(id)
                     }
                 },
@@ -3677,7 +3686,9 @@ private fun StartPage(
                         if (ref != null) {
                             onPullOutFolderChild(ref.first, ref.second)
                         } else {
-                            order.remove(model.id)
+                            // See the matching guard on editDragGesture's own
+                            // onUnpin above — same optimistic-local-removal bug.
+                            if (!model.isPersonalizeTile()) order.remove(model.id)
                             onUnpin(model.id)
                         }
                     }
