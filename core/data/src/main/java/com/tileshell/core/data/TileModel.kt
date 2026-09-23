@@ -30,6 +30,17 @@ fun List<TileModel>.hasPersonalizeTile(): Boolean = any {
 }
 
 /**
+ * True if [this] is that same personalize tile — the single-tile counterpart
+ * of [hasPersonalizeTile]. Used to block unpinning it directly off Start
+ * (user-reported: people didn't know where their launcher's own settings
+ * were, and losing the one discoverable entry point made that worse) while
+ * leaving every other tile action (resize, move, recolor, merge into a
+ * folder) untouched.
+ */
+fun TileModel.isPersonalizeTile(): Boolean =
+    this is TileModel.App && packageName.isBlank() && label == "personalize"
+
+/**
  * True if [this] already contains the shared-notepad live tile ("notes" in the
  * widget catalog, iconKey `"notepad"`). Notes has exactly one repository-backed
  * list behind every pinned tile (see `NoteRepository`), so a second pin would

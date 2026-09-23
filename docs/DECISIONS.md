@@ -9917,3 +9917,31 @@ this OEM.
 Build + full unit test suite green; installed on the physical device, launched with no crash in `adb
 logcat`. The actual "does it now recover without a second reboot" check needs a real reboot on the
 user's device to confirm — not something reproducible from this environment.
+
+**"personalize" renamed to "home settings" on the two surfaces users actually see (edit-mode bottom
+bar, App List), and the tile can no longer be unpinned off Start.** User feedback: people using the
+launcher as-is don't recognize the word "personalize"/"personalization" as "this launcher's settings."
+Scoped down deliberately (per explicit user direction) to just the edit-mode bottom bar's button
+(`EditBarButton("settings", ...)`, `StartScreen.kt`) and the App List's synthetic entry
+(`PERSONALIZE_APP_ENTRY`, `AppListViewModel.kt`, plus its "pinned ..."/pin-back toast) — not the sheet's
+own title, the guide/about text, or the Start tile's own on-screen caption, all of which still say
+"personalize" internally and are a separate follow-up if wanted. The underlying identity is untouched:
+the pinned Start tile and the App List entry are both still persisted/matched internally by the literal
+string `"personalize"` (`TileModel.hasPersonalizeTile()`, `DefaultLayout`'s `app = "personalize"` role,
+`PERSONALIZE_APP_ENTRY.activityName`) — only their *displayed* label changed, so no migration was needed
+and every existing identity check (which tile is "the" personalize tile, App List's blank-package
+special-casing) still works unmodified for installs upgrading from an older version.
+
+Same session, separately requested: **the personalize/home-settings tile can no longer be unpinned from
+Start.** Reasoning volunteered directly: if people don't already know where their launcher's settings
+are, losing the one discoverable tile that opens it (a single accidental tap on the small SMALL-sized
+tile's unpin control) made the underlying confusion strictly worse, with no in-UI way back except the
+App List's `pinPersonalize()` recovery action. New `TileModel.isPersonalizeTile()` (single-tile
+counterpart of the existing `hasPersonalizeTile()` list check) guards `StartViewModel.unpin(id)` — the
+one write-path every unpin gesture (corner-control tap, accessibility "unpin" custom action) already
+funnels through — with a short explanatory toast instead of silently doing nothing. Every other tile
+action (move, resize, recolor, merge into a folder) stays untouched; merging it into a folder is still
+possible (not treated as a removal) and already had its own recovery path via `pinPersonalize()`.
+
+Build + full unit test suite green (one missed import caught by the build, fixed before proceeding);
+installed on the physical device, launched with no crash in `adb logcat`.

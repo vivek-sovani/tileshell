@@ -44,7 +44,7 @@ data class PinOutcome(val result: PinResult, val label: String)
  * non-installed entry (pin's dedup counts *all* blank-package tiles together,
  * and uninstall has no package to act on).
  */
-internal val PERSONALIZE_APP_ENTRY = AppEntry(packageName = "", activityName = "personalize", label = "personalize")
+internal val PERSONALIZE_APP_ENTRY = AppEntry(packageName = "", activityName = "personalize", label = "home settings")
 
 /**
  * Exposes the live app catalogue plus a search query, surfacing the filtered
@@ -247,7 +247,7 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
                 layout.addDefaultTile("personalize")
                 PinResult.PINNED
             }
-            _pinned.emit(PinOutcome(result, "personalize"))
+            _pinned.emit(PinOutcome(result, "home settings"))
         }
     }
 

@@ -36,6 +36,7 @@ import com.tileshell.core.data.CommodityTile
 import com.tileshell.core.data.SportsTile
 import com.tileshell.core.data.StockTile
 import com.tileshell.core.data.TileModel
+import com.tileshell.core.data.isPersonalizeTile
 import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.WeatherTile
 import com.tileshell.core.data.settings.LauncherSettings
@@ -2063,8 +2064,22 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) { repository.setTileDisplayAsIcon(id, displayAsIcon) }
     }
 
-    /** Unpin (remove) a tile from the Start grid (FR-3.5). */
+    /**
+     * Unpin (remove) a tile from the Start grid (FR-3.5).
+     *
+     * The personalize tile is exempt — user-reported feedback was that people
+     * using the launcher as-is didn't know a settings/personalization area
+     * existed at all; losing the one tile that opens it (a single accidental
+     * tap on the unpin control, easy to do since it's SMALL and looks like
+     * any other tile) made that strictly worse, with no in-UI way back short
+     * of the App List's own recovery action. Every other tile action on it —
+     * move, resize, recolor, merge into a folder — is untouched.
+     */
     fun unpin(id: String) {
+        if (tiles.value.firstOrNull { it.id == id }?.isPersonalizeTile() == true) {
+            _pinMessage.tryEmit("can't remove — this opens home settings")
+            return
+        }
         // A full row gap is never allowed: removing a tile can leave its row
         // fully empty, so close it before the removal lands.
         val collapse = collapseEmptyRowsAfterRemoval(id)

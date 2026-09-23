@@ -5758,7 +5758,7 @@ private fun EditBar(
         Spacer(Modifier.size(34.dp))
         EditBarButton("widgets", "add live tiles", enabled = true, onClick = onAddWidgets)
         Spacer(Modifier.size(34.dp))
-        EditBarButton("settings", "personalize", enabled = true, onClick = onPersonalize)
+        EditBarButton("settings", "home settings", enabled = true, onClick = onPersonalize)
         Spacer(Modifier.size(34.dp))
         EditBarButton("check", "done", enabled = true, onClick = onDone)
     }
