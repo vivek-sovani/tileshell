@@ -1,6 +1,7 @@
 package com.tileshell.feature.livetiles
 
 import android.content.ContentUris
+import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -32,19 +33,34 @@ data class LocalAlbum(val id: Long, val title: String, val artist: String, val t
 
 data class LocalPlaylist(val id: Long, val name: String)
 
+/** Result of [LocalMusicLibrary.addTrackToPlaylist] — lets the caller tell a
+ * fresh add apart from a no-op repeat and word its own confirmation off it. */
+enum class AddTrackResult { ADDED, ALREADY_PRESENT, FAILED }
+
 /**
- * Read-only [MediaStore] browsing for the music hub's "library" page — tracks,
- * albums and playlists already on the device, no network. Needs
- * `READ_MEDIA_AUDIO` (API 33+) or `READ_EXTERNAL_STORAGE` (below it), asked
- * contextually by the library page itself, not upfront at app start (there's
- * no justification for the ask before the user has ever opened it — same
- * reasoning `StepsTile`'s `ACTIVITY_RECOGNITION` ask already follows).
+ * [MediaStore] browsing for the music hub's "library" page — tracks, albums
+ * and playlists already on the device, no network. Needs `READ_MEDIA_AUDIO`
+ * (API 33+) or `READ_EXTERNAL_STORAGE` (below it), asked contextually by the
+ * library page itself, not upfront at app start (there's no justification for
+ * the ask before the user has ever opened it — same reasoning `StepsTile`'s
+ * `ACTIVITY_RECOGNITION` ask already follows).
  *
- * [playlists] is best-effort: `MediaStore.Audio.Playlists` is a legacy
- * provider most apps have stopped writing to since scoped storage, so on many
- * modern devices/OEM skins this simply comes back empty — that's a real
- * absence of data, not a bug, and the library page shows an empty state for it
- * rather than an error.
+ * [playlists] can come back empty on a device that has never had one created
+ * through any app — `MediaStore.Audio.Playlists` is a legacy provider most
+ * apps stopped *reading themselves back from* after scoped storage landed
+ * (they moved to their own private playlist stores instead), so it's
+ * genuinely quiet on a lot of devices until something writes to it. It does
+ * still work for both reading and writing on current Android (verified
+ * end-to-end — create/rename/delete/add-member/remove-member — against a
+ * real API 36 device), which is why [createPlaylist] and friends below write
+ * through this same table rather than a separate TileShell-only store: a
+ * playlist created here is a real device playlist, visible to any other app
+ * that still reads this table too. Create/rename/delete operate on the
+ * playlist's own item `Uri` (`.../playlists/<id>`, not the bulk collection
+ * `Uri` with a `WHERE` clause) — confirmed live that update/delete throws
+ * `IllegalArgumentException: ... isn't part of well-defined collection` under
+ * scoped storage when aimed at the collection `Uri` instead, even though
+ * insert and the members sub-collection tolerate it fine.
  */
 object LocalMusicLibrary {
 
@@ -247,6 +263,88 @@ object LocalMusicLibrary {
                 }
             }
             out
+        }
+
+    /** Creates a new, empty playlist named [name] (trimmed; a blank name is
+     * rejected — returns null without writing anything). Returns the new
+     * playlist's id, so the caller can navigate straight into it. */
+    @Suppress("DEPRECATION")
+    suspend fun createPlaylist(context: Context, name: String): Long? = withContext(Dispatchers.IO) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return@withContext null
+        runCatching {
+            val nowSeconds = System.currentTimeMillis() / 1000
+            val values = ContentValues().apply {
+                put(MediaStore.Audio.Playlists.NAME, trimmed)
+                put(MediaStore.Audio.Playlists.DATE_ADDED, nowSeconds)
+                put(MediaStore.Audio.Playlists.DATE_MODIFIED, nowSeconds)
+            }
+            val uri = context.contentResolver.insert(MediaStore.Audio.Playlists.EXTERNAL_CONTENT_URI, values)
+            uri?.lastPathSegment?.toLongOrNull()
+        }.getOrNull()
+    }
+
+    /** Renames playlist [playlistId] to [name] (trimmed; blank is rejected).
+     * True if a row was actually updated. */
+    @Suppress("DEPRECATION")
+    suspend fun renamePlaylist(context: Context, playlistId: Long, name: String): Boolean = withContext(Dispatchers.IO) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return@withContext false
+        runCatching {
+            val values = ContentValues().apply { put(MediaStore.Audio.Playlists.NAME, trimmed) }
+            val itemUri = ContentUris.withAppendedId(MediaStore.Audio.Playlists.EXTERNAL_CONTENT_URI, playlistId)
+            context.contentResolver.update(itemUri, values, null, null) > 0
+        }.getOrElse { false }
+    }
+
+    /** Deletes playlist [playlistId] itself (not the tracks in it — just the
+     * playlist and its membership rows, same as deleting it in any other
+     * music app). True if a row was actually deleted. */
+    @Suppress("DEPRECATION")
+    suspend fun deletePlaylist(context: Context, playlistId: Long): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            val itemUri = ContentUris.withAppendedId(MediaStore.Audio.Playlists.EXTERNAL_CONTENT_URI, playlistId)
+            context.contentResolver.delete(itemUri, null, null) > 0
+        }.getOrElse { false }
+    }
+
+    /** Appends [trackId] to the end of playlist [playlistId] — a no-op
+     * ([AddTrackResult.ALREADY_PRESENT]) if it's already in there. Nothing in
+     * this app's playlist UI shows whether a track is already in a given
+     * playlist before you tap "add," so silently inserting a second copy
+     * would just look like the tap did nothing new; the caller words its
+     * confirmation off this result instead. */
+    @Suppress("DEPRECATION")
+    suspend fun addTrackToPlaylist(context: Context, playlistId: Long, trackId: Long): AddTrackResult =
+        withContext(Dispatchers.IO) {
+            val existing = tracksForPlaylist(context, playlistId)
+            if (existing.any { it.id == trackId }) return@withContext AddTrackResult.ALREADY_PRESENT
+            runCatching {
+                val membersUri = MediaStore.Audio.Playlists.Members.getContentUri("external", playlistId)
+                val values = ContentValues().apply {
+                    put(MediaStore.Audio.Playlists.Members.AUDIO_ID, trackId)
+                    put(MediaStore.Audio.Playlists.Members.PLAY_ORDER, existing.size)
+                }
+                if (context.contentResolver.insert(membersUri, values) != null) {
+                    AddTrackResult.ADDED
+                } else {
+                    AddTrackResult.FAILED
+                }
+            }.getOrElse { AddTrackResult.FAILED }
+        }
+
+    /** Removes every membership row matching [trackId] from playlist
+     * [playlistId] — if the same track was added twice, both occurrences go
+     * (this legacy provider has no per-row delete). True if at least one row
+     * was deleted. */
+    @Suppress("DEPRECATION")
+    suspend fun removeTrackFromPlaylist(context: Context, playlistId: Long, trackId: Long): Boolean =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val membersUri = MediaStore.Audio.Playlists.Members.getContentUri("external", playlistId)
+                val selection = "${MediaStore.Audio.Playlists.Members.AUDIO_ID} = ?"
+                context.contentResolver.delete(membersUri, selection, arrayOf(trackId.toString())) > 0
+            }.getOrElse { false }
         }
 
     /**

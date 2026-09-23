@@ -9740,3 +9740,138 @@ the real radio-browser.info API via curl during development (not just unit tests
 bollywood" and "bollywood hits" confirmed to return zero on a literal phrase search, which is exactly
 the case the fallback now covers. Not yet confirmed on-device — the actual in-app search UI still
 needs the user's own hands-on check.
+
+## Music library: create/update playlists, using real device playlists — plus four on-device bug fixes
+
+User: "provide create and update playlist facility." The existing "playlists" tab
+(`LocalMusicLibrary.playlists()`/`tracksForPlaylist()`) only ever read the legacy
+`MediaStore.Audio.Playlists` table, with no write path — most apps stopped writing to it after
+scoped storage, so it usually showed "no playlists found" and offered no way to create one. Rather
+than build a separate TileShell-only playlist store, the user asked to "use that" — i.e. make the
+existing MediaStore table the real, writable source, so a playlist created here is a genuine device
+playlist visible to other apps too. Verified this is actually still writable on modern Android
+(confirmed live via `adb shell content insert/update/delete` against the real physical device,
+Android 16/API 36) before writing any Kotlin: insert/query both for the playlist row and its
+`members` sub-collection work fine; update/delete only work against the item's own URI
+(`.../playlists/<id>`), not the bulk collection URI with a `WHERE` clause (that throws
+`IllegalArgumentException: ... isn't part of well-defined collection` under scoped storage) — a real,
+non-obvious constraint that would have silently failed if guessed instead of tested.
+
+`LocalMusicLibrary.kt` gained `createPlaylist`/`renamePlaylist`/`deletePlaylist`/
+`addTrackToPlaylist`/`removeTrackFromPlaylist`, all using the item-URI pattern above. UI: the
+"playlists" tab now shows real playlists with a "+ new playlist" action; opening one shows a
+`PlaylistDetailPage` (rename/delete/remove-track); every track row (tracks tab, albums, and — added
+per a same-session follow-up — the "now playing" page for a genuine `PlayableAudio.Local`) gets a
+small "+" opening an `AddToPlaylistSheet` (pick an existing playlist, or create one on the spot). The
+"add to playlist" flow's state + both dialogs were factored into one shared `rememberAddToPlaylist`
+composable (`AddToPlaylistFlow`) reused by both `LibraryPage` and `NowPlayingPage`, rather than
+duplicated — deliberate, since a bug found in it (below) needed fixing in exactly one place instead of
+two independently-drifting copies.
+
+**Four real bugs found via the user's own on-device testing, same session:**
+
+1. **Tapping "+ new playlist" (and a track's "+") did nothing.** Root-caused by adding temporary
+   `Log.d` calls at every step (query, dispatch, recomposition) rather than guessing: the click *did*
+   fire, `creatingPlaylist` *did* flip to `true`, and `PlaylistNamePrompt` *did* get composed — but a
+   tap aimed at the now-visible dialog kept landing on the "+ new playlist" button underneath instead
+   (confirmed directly: the button's own `onCreateNew` log line fired a second time while the dialog
+   was supposedly showing on top of it). Cause: `LibraryPage` emitted the dialog/sheet overlays as
+   further top-level composables alongside the page's main `Column`, directly into
+   `HorizontalPager`'s per-page content slot — which only correctly stacks/hit-tests a single root
+   layout node per page. Fixed by wrapping the whole page (main content + both overlays) in one
+   `Box(Modifier.fillMaxSize())`; applied the same pattern when `NowPlayingPage` gained the same
+   flow. See DECISIONS' own note left inline in the code at the fix site for the mechanism, since
+   this is exactly the kind of thing likely to be reintroduced by a future edit that adds "just one
+   more" top-level composable to either page.
+2. **The same track could be added to a playlist twice with no warning** (originally shipped as
+   intentional, "matches any real playlist app") — user re-reported after noticing a track appeared
+   twice in a playlist they'd built while testing ("track duplicated" → confirmed "track was already
+   part of playlist" → "dont allow duplicates in playlist"). Since nothing in the "add to playlist"
+   picker shows whether a track is already in a given playlist, a silent duplicate insert reads as a
+   no-op bug, not an intentional feature. `LocalMusicLibrary.addTrackToPlaylist` now checks
+   membership first and returns a 3-way `AddTrackResult` (`ADDED`/`ALREADY_PRESENT`/`FAILED`) instead
+   of a bare `Boolean`, so the confirmation toast can say "already in X" instead of silently
+   re-adding.
+3. **"add to playlist" showed for the first track played, then disappeared for the next one.**
+   Root cause: `MediaCenter.nowPlaying` deliberately includes TileShell's own
+   `LocalMusicPlaybackService` session too (an earlier, separate fix — see "Radio/podcast playback
+   never showed on tile face or feed's now-playing" above — so the Start tile/feed can show local/
+   podcast/radio playback like any other app's session). `NowPlayingPage`'s own branch selection
+   between `ExternalNowPlaying` and `PlayerNowPlaying` never excluded that self-entry, so whenever it
+   happened to read as "playing," it could win the branch — falling back to the generic
+   `ExternalNowPlaying` view (no "add to playlist," captioned "playing from tileshell") instead of
+   `PlayerNowPlaying`, even though `LocalMusicPlayer.state` (the richer, correct source) was right
+   there. Fixed by filtering `it.key == context.packageName` out of the external-entry candidates
+   *on this page specifically* — `MediaCenter`/`buildMediaState` themselves are untouched, since
+   other features still need TileShell's own session included there.
+4. **The playlist detail page's move-up/move-down reorder buttons didn't respond to taps** —
+   user-reported ("manage sequence in playlist buttons not working"), asked to remove rather than
+   debug further this session. Removed outright rather than leaving a half-working affordance:
+   `PlaylistTrackRow`'s two chevron icons and their `onMoveUp`/`onMoveDown` wiring,
+   `PlaylistDetailPage`'s `onMoveTrack` param, `LocalMusicLibrary.setPlaylistTracks` (the
+   full-membership-rewrite the reorder used, now with no caller), and the pure `movePlaylistTrack`
+   helper + its whole test file (`LocalMusicLibraryTest.kt`) — all genuinely dead once the UI path
+   was gone, not left as unused code. Reordering may be revisited in a future session; worth checking
+   whether it's the same "multiple top-level composables" class of bug as (1) or something specific
+   to the reorder write path before re-adding it.
+
+Build + full unit test suite green after every round; installed and launched on the physical device
+with no crash after each fix. The create/rename/delete/add/remove flows and bug fixes (1)-(3) were
+confirmed working via the user's own on-device testing (a real "vivek top 100" playlist with several
+tracks, rename/delete icons, and the "add to playlist" toast all observed working); (4)'s removal has
+not yet been re-verified on-device (nothing left to verify — the buttons are simply gone).
+
+## Playlist feature follow-ups: now-playing layout, on-device duplicate cleanup, apps-tab performance
+
+Same session as the playlist create/update facility above, continuing directly from the user's own
+on-device testing.
+
+**Existing on-device duplicates**: the "vivek top 100" playlist built up 128 membership rows for only
+3 distinct tracks while testing the feature across this session's many rounds (each real, working tap
+during testing added a genuine row — this predates the `AddTrackResult.ALREADY_PRESENT` dedup fix, not
+a new bug). Cleaned directly via `adb shell content delete`/`insert` against the playlist's real
+`members` MediaStore rows (with the user's explicit "CLEAN THAT"), down to one row per distinct track
+in original first-seen order — a one-time data fix, not a code change (the dedup fix already prevents
+new duplicates going forward).
+
+**"add to playlist" position, 3 rounds of on-device-driven adjustment** — user kept finding it below
+the fold: (1) moved from below the caption into its own row directly under the transport controls
+(still visible without needing the caption). (2) Tried inline in the transport row next to prev/play/
+next as an icon-only button — reverted in favor of its own labeled row below the transport row once
+asked to "show label add to playlist along with +" (icon+text wouldn't have fit cleanly alongside three
+56dp buttons on a WP-reference-width screen). (3) Tried shrinking `NowPlayingHero` 60%→42% width to
+free vertical space — reverted ("too small now") in favor of tightening the `menu`-list-to-"now
+playing"-title gap instead (24dp/10dp spacers → 12dp/6dp, each menu row's own vertical padding 14dp→
+10dp) per direct instruction ("you can actually use gap between menu and now playing title").
+
+**A real, separate bug found while chasing the "disappears on the next track" report**: `MediaCenter
+.nowPlaying` deliberately includes TileShell's own `LocalMusicPlaybackService` session (an earlier fix,
+so the Start tile/feed can show local/podcast/radio playback like any other app's — see "Radio/podcast
+playback never showed on tile face or feed's now-playing" above). `NowPlayingPage`'s own branch
+selection between `ExternalNowPlaying` and `PlayerNowPlaying` never excluded that self-entry, so
+whenever it happened to read `playing = true` it could win the branch ahead of `PlayerNowPlaying` (the
+one with "add to playlist"), falling back to the generic view captioned "playing from tileshell"
+instead. Fixed by filtering `it.key == context.packageName` out of `NowPlayingPage`'s own external-
+entry candidates specifically — `MediaCenter`/`buildMediaState` themselves are untouched, since other
+features still need TileShell's own session included there.
+
+**"apps" tab (music hub) taking noticeably long to show its grid, every time it was visited.**
+Root cause: `MusicAppsPage` created its own `AppCatalogRepository(context)` via `remember(context)`
+directly inside that page's composable — but `MusicAppsPage` is one of `MusicHubScreen`'s
+`HorizontalPager` pages, disposed and recomposed on every visit, so a fresh repository (and the query
+it immediately kicks off) ran `AppCatalogRepository.query()`'s full cost — 13 separate
+`PackageManager.queryIntentActivities` role-resolution calls (`resolveRoles()`) plus enumerating every
+launcher activity on the device — from scratch, every single time the "apps" tab was swiped to, not
+just once. Fixed by hoisting the repository + its collected `apps` list up to `MusicHubScreen` itself,
+which stays mounted for the whole time the hub sheet is open (it early-returns rather than being
+conditionally uncomposed when hidden, so its `remember`ed state — and this repository — survives across
+hub open/close too, not just across in-hub tab navigation) — the expensive scan now runs once per hub
+session, or effectively once per app session given how rarely the installed-app set actually changes,
+instead of once per tab visit. `MusicAppsPage` now takes the already-collected `apps: List<AppEntry>`
+as a plain parameter and only does its own (cheap, in-memory, no `PackageManager` calls) filter/dedup
+pass locally.
+
+Build + full unit test suite green after every change; installed and launched on the physical device
+with no crash after each round. The layout/position changes and the apps-tab speed-up are code-review-
+level verified (traced the actual composition-lifetime reasoning for why hoisting helps) rather than
+separately re-measured on-device — the user's own hands-on check is still pending for this round.

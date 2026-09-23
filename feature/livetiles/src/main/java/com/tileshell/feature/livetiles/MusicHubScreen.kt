@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.graphics.Bitmap
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -168,6 +169,19 @@ fun MusicHubScreen(
     val externalMedia by MediaCenter.nowPlaying.collectAsState()
     val anyPlaying = localPlayback.playing || externalMedia.values.any { it.playing }
 
+    // Hoisted here, not inside MusicAppsPage itself — that page is one of
+    // several HorizontalPager pages, disposed/recomposed on every visit, so
+    // a repository (and the query it kicks off) created there re-ran
+    // AppCatalogRepository's full scan — 13 separate PackageManager role
+    // queries plus enumerating every launcher activity — every single time
+    // the "apps" tab was swiped to (user-reported: "showing apps takes
+    // time"). This composable itself stays mounted for the whole time the
+    // hub is open (it early-returns rather than being conditionally
+    // uncomposed when hidden), so hoisting the query here means it runs once
+    // per hub session instead of once per tab visit.
+    val musicAppsRepository = remember(context) { AppCatalogRepository(context) }
+    val musicAppsCatalog by musicAppsRepository.apps.collectAsState(initial = emptyList())
+
     // POST_NOTIFICATIONS (API 33+) gates whether LocalMusicPlaybackService's
     // foreground-service notification actually shows — asked contextually,
     // the first time a local track actually starts playing (not bundled into
@@ -284,7 +298,7 @@ fun MusicHubScreen(
                     1 -> LibraryPage(context, accent, tokens)
                     2 -> PodcastsPage(context, accent, tokens)
                     3 -> RadioPage(context, accent, tokens)
-                    4 -> MusicAppsPage(context, accent, tokens)
+                    4 -> MusicAppsPage(context, accent, tokens, musicAppsCatalog)
                     else -> HistoryPage(context, accent, tokens)
                 }
             }
@@ -334,16 +348,37 @@ private fun LocalPlaybackButton(
 private fun NowPlayingPage(accent: Color, tokens: ColorTokens, onOpenPage: (String) -> Unit) {
     val media by MediaCenter.nowPlaying.collectAsState()
     val artworkMap by MediaCenter.artwork.collectAsState()
-    val externalEntry = media.entries.firstOrNull { it.value.playing } ?: media.entries.firstOrNull()
     val localPlayback by LocalMusicPlayer.state.collectAsState()
     val localItem = localPlayback.item
     val context = LocalContext.current
+    // TileShell's own session (local library/podcasts/radio, all playing
+    // through the shared LocalMusicPlaybackService) is deliberately included
+    // in MediaCenter.nowPlaying too — that's what lets the Start tile/feed
+    // show it like any other app's now-playing (see MusicTile.kt's
+    // buildMediaState doc comment). Here on this page specifically, it must
+    // be excluded from "external" candidates: local playback already has
+    // its own richer view below (PlayerNowPlaying — transport controls,
+    // "add to playlist" for a real LocalTrack), and without this exclusion
+    // that entry could win the branch below whenever it happened to be
+    // "playing," silently falling back to the generic ExternalNowPlaying
+    // view instead (user-reported: it showed once for the first track, then
+    // stopped showing "add to playlist" for the next one — exactly this).
+    val externalCandidates = media.entries.filterNot { it.key == context.packageName }
+    val externalEntry = externalCandidates.firstOrNull { it.value.playing } ?: externalCandidates.firstOrNull()
     // "history" gets its own small link next to "now playing" itself instead
     // of sitting in the main menu list — user-requested ("history can be a
     // small menu in now playing at suitable position"), since it's more
     // closely related to current/past playback than to the other sections.
     val menuItems = HUB_PIVOTS.filterNot { it == "now playing" || it == "history" }
+    // No destination to navigate to from here (unlike LibraryPage's own
+    // playlists tab) — a new, still-empty playlist created from this page
+    // just stays put, guided by the confirmation toast's own instructions.
+    val addToPlaylist = rememberAddToPlaylist(context, tokens, accent)
 
+    // One Box, not several top-level composables — see LibraryPage's own
+    // note on why (the pager's per-page slot needs a single root to
+    // correctly stack/hit-test these overlays).
+    Box(modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -368,7 +403,7 @@ private fun NowPlayingPage(accent: Color, tokens: ColorTokens, onOpenPage: (Stri
                             indication = null,
                             onClick = { onOpenPage(label) },
                         )
-                        .padding(horizontal = 18.dp, vertical = 14.dp),
+                        .padding(horizontal = 18.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -381,12 +416,16 @@ private fun NowPlayingPage(accent: Color, tokens: ColorTokens, onOpenPage: (Stri
             }
         }
 
-        Spacer(Modifier.height(24.dp))
+        // Tightened (24dp/10dp → 12dp/6dp) to reclaim vertical space for
+        // "add to playlist" below the transport controls further down,
+        // without shrinking the hero image (tried and reverted — read too
+        // small; user asked for this gap to absorb it instead).
+        Spacer(Modifier.height(12.dp))
         Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp).height(1.dp).background(tokens.sheetLine))
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(6.dp))
 
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(top = 4.dp, bottom = 14.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Bottom,
         ) {
@@ -405,7 +444,14 @@ private fun NowPlayingPage(accent: Color, tokens: ColorTokens, onOpenPage: (Stri
         when {
             externalEntry != null && (externalEntry.value.playing || localItem == null) ->
                 ExternalNowPlaying(externalEntry, artworkMap, accent, tokens, context)
-            localItem != null -> PlayerNowPlaying(localItem, localPlayback.playing, accent, tokens, context)
+            localItem != null -> PlayerNowPlaying(
+                localItem,
+                localPlayback.playing,
+                accent,
+                tokens,
+                context,
+                onAddToPlaylist = addToPlaylist.open,
+            )
             else -> Column(modifier = Modifier.padding(horizontal = 18.dp)) {
                 Text("nothing playing", color = tokens.fgDim, fontSize = 14.sp)
                 Spacer(Modifier.height(6.dp))
@@ -417,6 +463,8 @@ private fun NowPlayingPage(accent: Color, tokens: ColorTokens, onOpenPage: (Stri
             }
         }
     }
+    addToPlaylist.overlays()
+    }
 }
 
 @Composable
@@ -424,7 +472,10 @@ private fun NowPlayingHero(art: ImageBitmap?, accent: Color) {
     // Shrunk from a full-width square — with the menu now sitting above this
     // page's playback content, a full-width hero pushed the transport
     // controls below the fold, needing a scroll to reach them
-    // (user-reported). ~60% width, still square, centered.
+    // (user-reported). ~60% width, still square, centered. (Shrinking this
+    // further to make room for "add to playlist" was tried and reverted —
+    // read too small; the menu/title gap was tightened instead, see
+    // NowPlayingPage.)
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         TileImageBackground(image = art, modifier = Modifier.fillMaxWidth(0.6f).aspectRatio(1f)) {
             if (art == null) {
@@ -497,7 +548,14 @@ private fun ExternalNowPlaying(
  * differ per kind).
  */
 @Composable
-private fun PlayerNowPlaying(item: PlayableAudio, playing: Boolean, accent: Color, tokens: ColorTokens, context: Context) {
+private fun PlayerNowPlaying(
+    item: PlayableAudio,
+    playing: Boolean,
+    accent: Color,
+    tokens: ColorTokens,
+    context: Context,
+    onAddToPlaylist: (LocalTrack) -> Unit,
+) {
     // A full-width square hero needs a much larger request than a list
     // thumbnail — 600px upscaled across a ~1080px-wide screen was visibly
     // blurry. 1024 is generous enough to not be our own bottleneck for a
@@ -544,15 +602,36 @@ private fun PlayerNowPlaying(item: PlayableAudio, playing: Boolean, accent: Colo
                 LocalMusicPlayer.next(context)
             }
         }
+        // Only a genuine local-library track has a MediaStore id a playlist
+        // can actually reference — a podcast episode or radio stream has
+        // nowhere to be added to (see LocalMusicLibrary's own doc comment on
+        // why playlists are real device playlists, keyed by MediaStore id).
+        // Placed right below the transport row (not below the caption
+        // further down) — user-reported the caption position needed a
+        // scroll to reach; here it's visible at the same time as transport
+        // controls, no scrolling needed.
+        if (item is PlayableAudio.Local) {
+            Spacer(Modifier.height(14.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { onAddToPlaylist(item.track) },
+                ),
+            ) {
+                Icon(TileIcons["plus"], contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("add to playlist", color = accent, fontSize = 14.sp)
+            }
+        }
         Spacer(Modifier.height(20.dp))
         Text(caption, color = tokens.fgDim, fontSize = 12.sp)
     }
 }
 
 @Composable
-private fun MusicAppsPage(context: Context, accent: Color, tokens: ColorTokens) {
-    val repository = remember(context) { AppCatalogRepository(context) }
-    val apps by repository.apps.collectAsState(initial = emptyList())
+private fun MusicAppsPage(context: Context, accent: Color, tokens: ColorTokens, apps: List<AppEntry>) {
     // AppCatalogRepository enumerates every launcher activity, not every
     // distinct app — an app that declares more than one would otherwise list
     // itself twice here. One row per package, same dedup EdgeStripSheet
@@ -805,6 +884,128 @@ private sealed interface LibrarySelection {
     data class Playlist(val playlist: LocalPlaylist) : LibrarySelection
 }
 
+/**
+ * The "add to playlist" flow's state and overlays, in one reusable unit —
+ * [open] triggers the picker for a given track. Shared by [LibraryPage] and
+ * [NowPlayingPage], the two places a local library track can be added to a
+ * playlist from, so the flow (and its one real bug so far — see the note
+ * on why the caller must render [overlays] inside a single enclosing `Box`)
+ * only needs fixing/changing in one place. [playlists]/[refresh] are also
+ * exposed so a caller with its own playlist list to show (just [LibraryPage],
+ * today) reads/invalidates the *same* underlying list rather than keeping a
+ * second copy that could fall out of sync with one this flow just wrote to
+ * (e.g. a playlist created from a track's own picker, inside this flow,
+ * wouldn't otherwise show up in [LibraryPage]'s "playlists" tab until
+ * something else happened to refresh its independent copy).
+ */
+private class AddToPlaylistFlow(
+    val playlists: List<LocalPlaylist>?,
+    val refresh: () -> Unit,
+    val open: (LocalTrack) -> Unit,
+    val createNew: () -> Unit,
+    val overlays: @Composable () -> Unit,
+)
+
+/**
+ * [onPlaylistCreated] fires only when a brand-new, still-empty playlist is
+ * created directly (not via a track's own "add to playlist" picker, which
+ * adds that track immediately instead) — [LibraryPage] uses it to navigate
+ * straight into the new playlist; [NowPlayingPage] has nowhere to navigate
+ * to and leaves it at the default no-op, relying on the confirmation toast's
+ * own guidance instead.
+ */
+@Composable
+private fun rememberAddToPlaylist(
+    context: Context,
+    tokens: ColorTokens,
+    accent: Color,
+    onPlaylistCreated: (LocalPlaylist) -> Unit = {},
+): AddToPlaylistFlow {
+    val scope = rememberCoroutineScope()
+    var playlistsRefresh by remember { mutableStateOf(0) }
+    val playlists by produceState<List<LocalPlaylist>?>(initialValue = null, context, playlistsRefresh) {
+        value = LocalMusicLibrary.playlists(context)
+    }
+    var creatingPlaylist by remember { mutableStateOf(false) }
+    // Set only when "new playlist" was reached from a track's own "add to
+    // playlist" picker — once the name is confirmed, that track is added to
+    // the freshly created playlist instead of just navigating into it empty.
+    var pendingTrackForNewPlaylist by remember { mutableStateOf<LocalTrack?>(null) }
+    var addToPlaylistTrack by remember { mutableStateOf<LocalTrack?>(null) }
+
+    return AddToPlaylistFlow(
+        playlists = playlists,
+        refresh = { playlistsRefresh++ },
+        open = { addToPlaylistTrack = it },
+        createNew = { creatingPlaylist = true },
+        overlays = {
+            if (creatingPlaylist) {
+                PlaylistNamePrompt(
+                    initialName = "",
+                    confirmLabel = "create",
+                    title = "new playlist",
+                    hint = "you can add tracks afterward — look for + next to any track",
+                    tokens = tokens,
+                    accent = accent,
+                    onDismiss = {
+                        creatingPlaylist = false
+                        pendingTrackForNewPlaylist = null
+                    },
+                    onConfirm = { newName ->
+                        creatingPlaylist = false
+                        val trackToAdd = pendingTrackForNewPlaylist
+                        pendingTrackForNewPlaylist = null
+                        scope.launch {
+                            val id = LocalMusicLibrary.createPlaylist(context, newName) ?: return@launch
+                            playlistsRefresh++
+                            if (trackToAdd != null) {
+                                // A brand-new playlist can't already contain
+                                // this track — ADDED or FAILED are the only
+                                // real outcomes here.
+                                val result = LocalMusicLibrary.addTrackToPlaylist(context, id, trackToAdd.id)
+                                val message = if (result == AddTrackResult.FAILED) "couldn't add to $newName" else "added to $newName"
+                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    "\"$newName\" created — tap + next to any track to add it here",
+                                    Toast.LENGTH_LONG,
+                                ).show()
+                                onPlaylistCreated(LocalPlaylist(id, newName))
+                            }
+                        }
+                    },
+                )
+            }
+            val pendingTrack = addToPlaylistTrack
+            if (pendingTrack != null) {
+                AddToPlaylistSheet(
+                    playlists = playlists.orEmpty(),
+                    tokens = tokens,
+                    accent = accent,
+                    onDismiss = { addToPlaylistTrack = null },
+                    onPickPlaylist = { playlist ->
+                        addToPlaylistTrack = null
+                        scope.launch {
+                            val message = when (LocalMusicLibrary.addTrackToPlaylist(context, playlist.id, pendingTrack.id)) {
+                                AddTrackResult.ADDED -> "added to ${playlist.name}"
+                                AddTrackResult.ALREADY_PRESENT -> "already in ${playlist.name}"
+                                AddTrackResult.FAILED -> "couldn't add to ${playlist.name}"
+                            }
+                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    onCreateNew = {
+                        addToPlaylistTrack = null
+                        pendingTrackForNewPlaylist = pendingTrack
+                        creatingPlaylist = true
+                    },
+                )
+            }
+        },
+    )
+}
+
 @Composable
 private fun LibraryPage(context: Context, accent: Color, tokens: ColorTokens) {
     val granted = rememberPermissionGranted(LOCAL_AUDIO_PERMISSION)
@@ -812,10 +1013,24 @@ private fun LibraryPage(context: Context, accent: Color, tokens: ColorTokens) {
         LibraryPermissionGate(tokens, accent)
         return
     }
+    val scope = rememberCoroutineScope()
     var mode by remember { mutableStateOf(LibraryMode.TRACKS) }
     var query by remember { mutableStateOf("") }
     var selection by remember { mutableStateOf<LibrarySelection?>(null) }
+    val addToPlaylist = rememberAddToPlaylist(context, tokens, accent) { created ->
+        selection = LibrarySelection.Playlist(created)
+    }
+    val playlists = addToPlaylist.playlists
 
+    // A single Box, not several sibling composables emitted directly from
+    // this function — the pager's own per-page slot only properly stacks
+    // (and hit-tests) a lone root layout node per page. Emitting the dialog/
+    // sheet overlays as further top-level siblings alongside the page's main
+    // content left them drawn but not actually intercepting touches: a tap
+    // meant for the visible "new playlist" dialog kept landing on the
+    // "+ new playlist" button underneath instead (confirmed via logging —
+    // the button's own click fired again while the dialog was showing).
+    Box(modifier = Modifier.fillMaxSize()) {
     when (val sel = selection) {
         is LibrarySelection.Album -> {
             val tracks by produceState<List<LocalTrack>?>(initialValue = null, sel.album.id) {
@@ -829,43 +1044,91 @@ private fun LibraryPage(context: Context, accent: Color, tokens: ColorTokens) {
                 tokens = tokens,
                 accent = accent,
                 onBack = { selection = null },
+                onAddToPlaylist = addToPlaylist.open,
             )
-            return
         }
         is LibrarySelection.Playlist -> {
-            val tracks by produceState<List<LocalTrack>?>(initialValue = null, sel.playlist.id) {
+            var name by remember(sel.playlist.id) { mutableStateOf(sel.playlist.name) }
+            var renaming by remember(sel.playlist.id) { mutableStateOf(false) }
+            var tracksRefresh by remember(sel.playlist.id) { mutableStateOf(0) }
+            val tracks by produceState<List<LocalTrack>?>(initialValue = null, sel.playlist.id, tracksRefresh) {
                 value = LocalMusicLibrary.tracksForPlaylist(context, sel.playlist.id)
             }
-            TrackListDetailPage(
-                title = sel.playlist.name,
-                subtitle = tracks?.size?.let { "$it tracks" } ?: "",
+            PlaylistDetailPage(
+                name = name,
                 tracks = tracks,
                 context = context,
                 tokens = tokens,
                 accent = accent,
                 onBack = { selection = null },
+                onRename = { renaming = true },
+                onDelete = {
+                    scope.launch {
+                        if (LocalMusicLibrary.deletePlaylist(context, sel.playlist.id)) {
+                            addToPlaylist.refresh()
+                            selection = null
+                        }
+                    }
+                },
+                onRemoveTrackAt = { index ->
+                    val trackId = tracks?.getOrNull(index)?.id ?: return@PlaylistDetailPage
+                    scope.launch {
+                        if (LocalMusicLibrary.removeTrackFromPlaylist(context, sel.playlist.id, trackId)) {
+                            tracksRefresh++
+                        }
+                    }
+                },
             )
-            return
+            if (renaming) {
+                PlaylistNamePrompt(
+                    initialName = name,
+                    confirmLabel = "rename",
+                    title = "rename playlist",
+                    tokens = tokens,
+                    accent = accent,
+                    onDismiss = { renaming = false },
+                    onConfirm = { newName ->
+                        renaming = false
+                        scope.launch {
+                            if (LocalMusicLibrary.renamePlaylist(context, sel.playlist.id, newName)) {
+                                name = newName
+                                addToPlaylist.refresh()
+                            }
+                        }
+                    },
+                )
+            }
         }
-        null -> Unit
+        null -> {
+            Column(modifier = Modifier.fillMaxSize()) {
+                HubPageTitle("music library", tokens)
+                Row(
+                    modifier = Modifier.padding(horizontal = 18.dp).padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    LibraryModeLabel("tracks", mode == LibraryMode.TRACKS, tokens) { mode = LibraryMode.TRACKS }
+                    LibraryModeLabel("albums", mode == LibraryMode.ALBUMS, tokens) { mode = LibraryMode.ALBUMS }
+                    LibraryModeLabel("playlists", mode == LibraryMode.PLAYLISTS, tokens) { mode = LibraryMode.PLAYLISTS }
+                }
+                if (mode != LibraryMode.PLAYLISTS) {
+                    LibrarySearchField(query, { query = it }, "search $mode", tokens)
+                }
+                when (mode) {
+                    LibraryMode.TRACKS -> TracksList(context, accent, tokens, query, onAddToPlaylist = addToPlaylist.open)
+                    LibraryMode.ALBUMS -> AlbumsGrid(context, accent, tokens, query) { selection = LibrarySelection.Album(it) }
+                    LibraryMode.PLAYLISTS -> PlaylistsList(
+                        playlists = playlists,
+                        tokens = tokens,
+                        accent = accent,
+                        onSelect = { selection = LibrarySelection.Playlist(it) },
+                        onCreateNew = addToPlaylist.createNew,
+                    )
+                }
+            }
+        }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        HubPageTitle("music library", tokens)
-        Row(
-            modifier = Modifier.padding(horizontal = 18.dp).padding(bottom = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            LibraryModeLabel("tracks", mode == LibraryMode.TRACKS, tokens) { mode = LibraryMode.TRACKS }
-            LibraryModeLabel("albums", mode == LibraryMode.ALBUMS, tokens) { mode = LibraryMode.ALBUMS }
-            LibraryModeLabel("playlists", mode == LibraryMode.PLAYLISTS, tokens) { mode = LibraryMode.PLAYLISTS }
-        }
-        LibrarySearchField(query, { query = it }, "search $mode", tokens)
-        when (mode) {
-            LibraryMode.TRACKS -> TracksList(context, accent, tokens, query)
-            LibraryMode.ALBUMS -> AlbumsGrid(context, accent, tokens, query) { selection = LibrarySelection.Album(it) }
-            LibraryMode.PLAYLISTS -> PlaylistsList(context, tokens, query) { selection = LibrarySelection.Playlist(it) }
-        }
+    addToPlaylist.overlays()
     }
 }
 
@@ -885,6 +1148,7 @@ private fun TrackListDetailPage(
     tokens: ColorTokens,
     accent: Color,
     onBack: () -> Unit,
+    onAddToPlaylist: ((LocalTrack) -> Unit)? = null,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -924,7 +1188,11 @@ private fun TrackListDetailPage(
                     contentPadding = PaddingValues(bottom = 32.dp),
                 ) {
                     itemsIndexed(tracks, key = { _, track -> track.id }) { index, track ->
-                        TrackRow(track, tokens) { LocalMusicPlayer.playQueue(context, tracks, index) }
+                        TrackRow(
+                            track,
+                            tokens,
+                            onAddToPlaylist = onAddToPlaylist?.let { { it(track) } },
+                        ) { LocalMusicPlayer.playQueue(context, tracks, index) }
                     }
                 }
             }
@@ -1036,7 +1304,13 @@ private fun HubPageTitle(title: String, tokens: ColorTokens, applyHorizontalPadd
 }
 
 @Composable
-private fun TracksList(context: Context, accent: Color, tokens: ColorTokens, query: String) {
+private fun TracksList(
+    context: Context,
+    accent: Color,
+    tokens: ColorTokens,
+    query: String,
+    onAddToPlaylist: (LocalTrack) -> Unit,
+) {
     val tracks by produceState<List<LocalTrack>?>(initialValue = null, context) {
         value = LocalMusicLibrary.tracks(context)
     }
@@ -1054,7 +1328,9 @@ private fun TracksList(context: Context, accent: Color, tokens: ColorTokens, que
                 contentPadding = PaddingValues(bottom = 96.dp),
             ) {
                 itemsIndexed(list, key = { _, track -> track.id }) { index, track ->
-                    TrackRow(track, tokens) { LocalMusicPlayer.playQueue(context, list, index) }
+                    TrackRow(track, tokens, onAddToPlaylist = { onAddToPlaylist(track) }) {
+                        LocalMusicPlayer.playQueue(context, list, index)
+                    }
                 }
             }
             // Random-play FAB, user-requested: shuffles whatever's currently
@@ -1087,7 +1363,12 @@ private fun RandomPlayButton(accent: Color, modifier: Modifier = Modifier, onCli
 }
 
 @Composable
-private fun TrackRow(track: LocalTrack, tokens: ColorTokens, onClick: () -> Unit) {
+private fun TrackRow(
+    track: LocalTrack,
+    tokens: ColorTokens,
+    onAddToPlaylist: (() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
     val context = LocalContext.current
     Row(
         modifier = Modifier
@@ -1118,6 +1399,19 @@ private fun TrackRow(track: LocalTrack, tokens: ColorTokens, onClick: () -> Unit
             }
         }
         Text(formatTrackDuration(track.durationMs), color = tokens.fgDim, fontSize = 11.sp)
+        if (onAddToPlaylist != null) {
+            Spacer(Modifier.width(10.dp))
+            Icon(
+                TileIcons["plus"],
+                contentDescription = "add to playlist",
+                tint = tokens.fgDim,
+                modifier = Modifier.size(16.dp).clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onAddToPlaylist,
+                ),
+            )
+        }
     }
 }
 
@@ -1195,43 +1489,375 @@ private fun AlbumCell(album: LocalAlbum, accent: Color, tokens: ColorTokens, onC
     }
 }
 
+/**
+ * The music library's own playlists — real device playlists
+ * ([LocalMusicLibrary.playlists], the same [MediaStore] table other apps can
+ * see too), not a TileShell-only list. "new playlist" is always reachable at
+ * the top, even while empty.
+ */
 @Composable
 private fun PlaylistsList(
+    playlists: List<LocalPlaylist>?,
+    tokens: ColorTokens,
+    accent: Color,
+    onSelect: (LocalPlaylist) -> Unit,
+    onCreateNew: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onCreateNew,
+                )
+                .padding(horizontal = 18.dp)
+                .padding(vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(TileIcons["plus"], contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(10.dp))
+            Text("new playlist", color = accent, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        }
+        when {
+            playlists == null -> LibraryEmptyState("loading your library…", tokens)
+            playlists.isEmpty() -> LibraryEmptyState("no playlists yet — tap \"new playlist\" to make one", tokens)
+            else -> Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 18.dp)
+                    .padding(bottom = 32.dp),
+            ) {
+                playlists.forEachIndexed { index, playlist ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { onSelect(playlist) },
+                            )
+                            .padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(TileIcons["music"], contentDescription = null, tint = tokens.fgDim, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Text(playlist.name, color = tokens.fg, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (index < playlists.lastIndex) {
+                        Box(Modifier.fillMaxWidth().height(1.dp).background(tokens.sheetLine))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A playlist's own track list, mirroring [TrackListDetailPage] (play/shuffle/
+ * tap-to-play-from-here) plus the editing this one specifically supports:
+ * rename/delete in the header, and per-row move-up/move-down/remove.
+ */
+@Composable
+private fun PlaylistDetailPage(
+    name: String,
+    tracks: List<LocalTrack>?,
     context: Context,
     tokens: ColorTokens,
-    query: String,
-    onSelect: (LocalPlaylist) -> Unit,
+    accent: Color,
+    onBack: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+    onRemoveTrackAt: (Int) -> Unit,
 ) {
-    val playlists by produceState<List<LocalPlaylist>?>(initialValue = null, context) {
-        value = LocalMusicLibrary.playlists(context)
-    }
-    val list = remember(playlists, query) {
-        playlists?.let { all -> if (query.isBlank()) all else all.filter { it.name.contains(query, ignoreCase = true) } }
-    }
-    when {
-        list == null -> LibraryEmptyState("loading your library…", tokens)
-        // Genuinely common, not a bug: most apps stopped writing playlists
-        // through this legacy provider once scoped storage landed, so an
-        // empty result here just means none of this device's apps used it.
-        list.isEmpty() -> LibraryEmptyState(
-            if (query.isBlank()) "no playlists found on this device" else "no matches",
-            tokens,
-        )
-        else -> Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 18.dp)
-                .padding(bottom = 32.dp),
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp).padding(bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            list.forEachIndexed { index, playlist ->
+            Icon(
+                TileIcons["back"],
+                contentDescription = "back",
+                tint = tokens.fg,
+                modifier = Modifier.size(18.dp).clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onBack,
+                ),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(name, color = tokens.fg, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(tracks?.size?.let { "$it tracks" } ?: "", color = tokens.fgDim, fontSize = 11.sp)
+            }
+            Icon(
+                TileIcons["edit"],
+                contentDescription = "rename playlist",
+                tint = tokens.fgDim,
+                modifier = Modifier.size(18.dp).clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onRename,
+                ),
+            )
+            Spacer(Modifier.width(16.dp))
+            Icon(
+                TileIcons["close"],
+                contentDescription = "delete playlist",
+                tint = tokens.fgDim,
+                modifier = Modifier.size(18.dp).clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDelete,
+                ),
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        when {
+            tracks == null -> LibraryEmptyState("loading…", tokens)
+            tracks.isEmpty() -> LibraryEmptyState(
+                "no tracks yet — tap the + next to any track (in tracks, albums, or now playing) to add it here",
+                tokens,
+            )
+            else -> {
+                Row(modifier = Modifier.padding(horizontal = 18.dp).padding(bottom = 8.dp)) {
+                    DetailAction("play", "play", accent) { LocalMusicPlayer.playQueue(context, tracks, 0) }
+                    Spacer(Modifier.width(20.dp))
+                    DetailAction("shuffle", "shuffle", accent) {
+                        LocalMusicPlayer.playQueue(context, tracks.shuffled(), 0)
+                    }
+                }
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
+                    contentPadding = PaddingValues(bottom = 32.dp),
+                ) {
+                    // Keyed by position, not just the track id — the same
+                    // track can legitimately appear twice in one playlist.
+                    itemsIndexed(tracks, key = { index, track -> "$index-${track.id}" }) { index, track ->
+                        PlaylistTrackRow(
+                            track = track,
+                            tokens = tokens,
+                            onClick = { LocalMusicPlayer.playQueue(context, tracks, index) },
+                            onRemove = { onRemoveTrackAt(index) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaylistTrackRow(
+    track: LocalTrack,
+    tokens: ColorTokens,
+    onClick: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    val context = LocalContext.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val art = rememberLocalAlbumArt(context, track.albumId, sizePx = 96)
+        if (art != null) {
+            androidx.compose.foundation.Image(
+                bitmap = art,
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.size(36.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp)),
+            )
+            Spacer(Modifier.width(10.dp))
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(track.title, color = tokens.fg, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val sub = listOfNotNull(track.artist.ifEmpty { null }, track.album.ifEmpty { null }).joinToString(" · ")
+            if (sub.isNotEmpty()) {
+                Text(sub, color = tokens.fgDim, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Icon(
+            TileIcons["close"],
+            contentDescription = "remove from playlist",
+            tint = tokens.fgDim,
+            modifier = Modifier.size(16.dp).clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onRemove,
+            ),
+        )
+    }
+}
+
+/** A small centered card prompting for a playlist name — used for both
+ * "create" (blank [initialName]) and "rename". Tapping outside the card
+ * dismisses, same as the scrim on [AddToPlaylistSheet]. */
+@Composable
+private fun PlaylistNamePrompt(
+    initialName: String,
+    confirmLabel: String,
+    title: String,
+    tokens: ColorTokens,
+    accent: Color,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+    hint: String? = null,
+) {
+    var name by remember { mutableStateOf(initialName) }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.5f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onDismiss,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(32.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(tokens.sheet)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {},
+                )
+                .padding(18.dp),
+        ) {
+            Text(title, color = tokens.fg, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(14.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .background(tokens.chip, shape = RoundedCornerShape(4.dp))
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                if (name.isEmpty()) Text("playlist name", color = tokens.fgDim, fontSize = 14.sp)
+                BasicTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    singleLine = true,
+                    textStyle = TextStyle(color = tokens.fg, fontSize = 14.sp),
+                    cursorBrush = SolidColor(tokens.fg),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (hint != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(hint, color = tokens.fgDim, fontSize = 11.sp)
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Text(
+                    "cancel",
+                    color = tokens.fgDim,
+                    fontSize = 14.sp,
+                    modifier = Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onDismiss,
+                    ),
+                )
+                Spacer(Modifier.width(24.dp))
+                val canConfirm = name.isNotBlank()
+                Text(
+                    confirmLabel,
+                    color = if (canConfirm) accent else tokens.fgDim,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clickable(
+                        enabled = canConfirm,
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { onConfirm(name.trim()) },
+                    ),
+                )
+            }
+        }
+    }
+}
+
+/** Bottom-anchored picker of existing playlists for "add to playlist," plus a
+ * "new playlist" row that hands off to [PlaylistNamePrompt] (via
+ * [onCreateNew]) instead of creating one itself, so the same track can be
+ * added the moment the new playlist's name is confirmed. */
+@Composable
+private fun AddToPlaylistSheet(
+    playlists: List<LocalPlaylist>,
+    tokens: ColorTokens,
+    accent: Color,
+    onDismiss: () -> Unit,
+    onPickPlaylist: (LocalPlaylist) -> Unit,
+    onCreateNew: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.5f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onDismiss,
+            ),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
+                .background(tokens.sheet)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {},
+                )
+                .navigationBarsPadding()
+                .padding(18.dp),
+        ) {
+            Text("add to playlist", color = tokens.fg, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onCreateNew,
+                    )
+                    .padding(vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(TileIcons["plus"], contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(12.dp))
+                Text("new playlist", color = accent, fontSize = 14.sp)
+            }
+            if (playlists.isNotEmpty()) {
+                Box(Modifier.fillMaxWidth().height(1.dp).background(tokens.sheetLine))
+            }
+            playlists.forEach { playlist ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
-                            onClick = { onSelect(playlist) },
+                            onClick = { onPickPlaylist(playlist) },
                         )
                         .padding(vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -1239,9 +1865,6 @@ private fun PlaylistsList(
                     Icon(TileIcons["music"], contentDescription = null, tint = tokens.fgDim, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(12.dp))
                     Text(playlist.name, color = tokens.fg, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                if (index < list.lastIndex) {
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(tokens.sheetLine))
                 }
             }
         }
