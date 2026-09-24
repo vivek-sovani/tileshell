@@ -8833,6 +8833,21 @@ app" tile, distinct from the "this opens the tileshell hub" tile.
 Applies to every hub, People included — recorded here rather than duplicated in
 each hub's own entry.
 
+**Revised (2026-09-24): the "existing installs default to default app" rule is
+obsolete.** The hubs shipped before this setting did, and the tap redirect was
+built at tap time, not stored in the tile: `StartScreen.kt` routes calendar,
+people and music by `iconKey` alone (no matter what package the tile stores), and
+weather by blank package (which is always the case, since no weather app is ever
+seeded into that tile). So every existing install already got the weather/
+calendar/people/music hubs on the update that introduced each one, with no data
+migration. Defaulting existing installs to "default app" now would *reverse*
+what users already have. When the setting is built: default to **"tileshell hub"
+for everyone**, and make "default app" an opt-out. Side effect of the current
+routing, which decision 2 above fixes: a Contacts/Calendar app pinned by hand from
+the app list gets the role `iconKey` from `roleIconKeyMap`, so it opens the hub
+too, and nothing on Start launches the real app. Pinning a real app should give it
+its real icon and a plain launch, so it opens the app, not the hub.
+
 ## Music hub tap redirect applies even though the music tile isn't blank-package
 
 Direct follow-up while building the music hub. Weather/calendar's hub redirect
