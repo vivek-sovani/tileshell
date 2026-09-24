@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!--
         TileShell enumerates launchable apps. Per CLAUDE.md we deliberately
@@ -52,6 +53,14 @@
          — confirmed absent from Play Console's restricted-permissions list, so it
          needs no Permissions Declaration Form / extended review. -->
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+    <!-- People Hub apps page/tile: sorts chat/mail/social apps by how often they
+         were opened in the last 30 days (UsageStatsManager.queryEvents). A
+         special app-op the user grants once in Settings → Usage access, not a
+         runtime permission; not on Play's sensitive-permissions list, so no
+         declaration form. The data never leaves the device. -->
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
     <!-- Personalize → wallpaper "also update system wallpaper" prompt: pushes
          TileShell's own gradient/photo wallpaper to the real Android
          WallpaperManager (home and/or lock screen), since this app otherwise

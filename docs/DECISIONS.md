@@ -10370,3 +10370,22 @@ now appears for any selected app, not just mail. "Compose" shows when the
 selected app is a mail app, and opens that app's compose screen (falling back to
 any `mailto:` handler). Apps page made compact: 4 columns, 40dp icons, tighter
 padding and group headers.
+
+## People Hub apps page/tile sorted by most used, via usage access
+
+User-requested ("apps arranged on frequently used basis"), with usage access
+chosen over counting only opens made through TileShell. That alternative would
+miss opens from the notification shade, which is how chat apps are mostly
+opened. Checked first: `PACKAGE_USAGE_STATS` isn't on Play's
+sensitive-permissions list (Play Console "Permissions and APIs that Access
+Sensitive Information"), so no declaration form. It's a special app-op the user
+grants once in Settings → Usage access (`UsageAccess.openSettings` deep-links to
+TileShell's own entry, falling back to the list), and the data stays on the
+device. `AppOpenCounts` scans the last 30 days of `UsageEvents`, counting
+`ACTIVITY_RESUMED` (the same value as the older `MOVE_TO_FOREGROUND`). It counts
+consecutive resumes of one package as one open (`countAppOpens`, pure, tested),
+and caches the result for 10 minutes, shared by the page and the tile.
+`peopleApps` sorts by opens, then pending notifications, then name. Without
+access, opens are empty, so the order is unchanged. The apps page shows a
+one-line "sort by most used · allow usage access" prompt until access is
+granted. Worth adding a line to the privacy policy on the next release.

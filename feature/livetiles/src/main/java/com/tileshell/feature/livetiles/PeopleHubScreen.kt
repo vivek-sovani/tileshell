@@ -1143,7 +1143,8 @@ private fun openMailCompose(context: android.content.Context, packageName: Strin
 
 /**
  * "apps" — the installed chat, messaging, mail and social apps, grouped, each
- * with its pending-notification count, like the music hub's apps page.
+ * with its pending-notification count, like the music hub's apps page. Most
+ * used first once usage access is granted (a one-line prompt offers it).
  * Tapping one opens the app's home screen (not the latest message — user-
  * requested). Pinnable to Start from the app bar, as the apps tile.
  */
@@ -1155,7 +1156,9 @@ private fun PeopleAppsPage(
     snapshot: NotificationSnapshot,
 ) {
     val installed = rememberInstalledPeopleApps() ?: return
-    val groups = remember(installed, snapshot) { groupPeopleApps(peopleApps(installed, snapshot.badges)) }
+    val usageGranted = rememberUsageAccess()
+    val opens = rememberAppOpenCounts()
+    val groups = remember(installed, snapshot, opens) { groupPeopleApps(peopleApps(installed, snapshot.badges, opens)) }
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(4),
@@ -1169,6 +1172,23 @@ private fun PeopleAppsPage(
                     color = tokens.fgDim,
                     fontSize = 14.sp,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 24.dp),
+                )
+            }
+        }
+        if (!usageGranted && groups.isNotEmpty()) {
+            item(key = "usage-access", span = { GridItemSpan(maxLineSpan) }) {
+                Text(
+                    text = "sort by most used · allow usage access",
+                    color = accent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { UsageAccess.openSettings(context) },
+                        )
+                        .padding(start = 6.dp, top = 4.dp, bottom = 4.dp),
                 )
             }
         }

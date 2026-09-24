@@ -336,15 +336,24 @@ val PEOPLE_APP_GROUPS = listOf(PeopleCategory.CHAT, PeopleCategory.MESSAGES, Peo
 
 /**
  * Turns the installed people apps ([installed], package to label) into
- * [PeopleApp]s with their pending [badges], sorted by most notifications
- * first, then by label. Non-people packages and calling apps are dropped.
- * Pure.
+ * [PeopleApp]s with their pending [badges], sorted by how often each was
+ * opened ([opens], times opened in the last 30 days; empty without usage
+ * access), then by most notifications, then by label. Non-people packages and
+ * calling apps are dropped. Pure.
  */
-fun peopleApps(installed: Map<String, String>, badges: Map<String, Int>): List<PeopleApp> =
+fun peopleApps(
+    installed: Map<String, String>,
+    badges: Map<String, Int>,
+    opens: Map<String, Int> = emptyMap(),
+): List<PeopleApp> =
     installed.mapNotNull { (packageName, label) ->
         val category = peopleCategoryFor(packageName)?.takeIf { it in PEOPLE_APP_GROUPS } ?: return@mapNotNull null
         PeopleApp(packageName, label, category, badges[packageName] ?: 0)
-    }.sortedWith(compareByDescending<PeopleApp> { it.badge }.thenBy { it.label.lowercase() })
+    }.sortedWith(
+        compareByDescending<PeopleApp> { opens[it.packageName] ?: 0 }
+            .thenByDescending { it.badge }
+            .thenBy { it.label.lowercase() },
+    )
 
 /** [apps] grouped for the apps page, in [PEOPLE_APP_GROUPS] order, empty
  * groups dropped. Keeps [peopleApps]'s order within each group. Pure. */

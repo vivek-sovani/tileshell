@@ -236,7 +236,8 @@ private fun WhatsNewTileFace(size: TileSize, active: Boolean, fallback: @Composa
 /**
  * The "apps" page pinned to Start: the front face shows the chat, messages and
  * mail apps and the back face the social apps (user-requested), each sorted by
- * most pending notifications first and badged with its count. One icon per
+ * most used (with usage access), then most pending notifications, and badged
+ * with its count. One icon per
  * grid cell of the tile (4 on medium, 8 on wide, 9 on large). Tapping an icon
  * opens that app's home screen, not the latest message (user-requested); a tap
  * anywhere else opens the People Hub's apps page. Flips on the same slow dwell
@@ -246,7 +247,8 @@ private fun WhatsNewTileFace(size: TileSize, active: Boolean, fallback: @Composa
 private fun PeopleAppsTileFace(size: TileSize, active: Boolean, fallback: @Composable () -> Unit, modifier: Modifier) {
     val installed = rememberInstalledPeopleApps() ?: return
     val snapshot by NotificationCenter.snapshot.collectAsStateWithLifecycle()
-    val apps = remember(installed, snapshot) { peopleApps(installed, snapshot.badges) }
+    val opens = rememberAppOpenCounts()
+    val apps = remember(installed, snapshot, opens) { peopleApps(installed, snapshot.badges, opens) }
     val (inbox, social) = remember(apps) { apps.partition { it.category != PeopleCategory.SOCIAL } }
     if (apps.isEmpty()) return fallback()
 

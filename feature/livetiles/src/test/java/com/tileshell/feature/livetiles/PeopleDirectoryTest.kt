@@ -206,6 +206,19 @@ class PeopleAppsTest {
     }
 
     @Test
+    fun `most opened comes first, ahead of notification count`() {
+        val apps = peopleApps(
+            installed,
+            badges = mapOf("com.whatsapp" to 5),
+            opens = mapOf("org.telegram.messenger" to 40, "com.google.android.gm" to 12, "com.whatsapp" to 12),
+        )
+        assertEquals(
+            listOf("org.telegram.messenger", "com.whatsapp", "com.google.android.gm", "com.instagram.android"),
+            apps.map { it.packageName },
+        )
+    }
+
+    @Test
     fun `grouped in chat, messages, mail, social order with empty groups dropped`() {
         val groups = groupPeopleApps(peopleApps(installed, emptyMap()))
         assertEquals(listOf(PeopleCategory.CHAT, PeopleCategory.MAIL, PeopleCategory.SOCIAL), groups.map { it.first })

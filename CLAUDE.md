@@ -37,6 +37,15 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — People Hub follow-ups: app-wise filter chips, compact apps grid,
+  dismiss, attached photos, and most-used ordering via usage access.**
+  User-requested. What's new chips are "all" plus one per app with pending
+  notifications (`whatsNewApps`). Expanded rows gain "dismiss" and show the
+  notification's attached photo. The apps page is a 4-column grid. The apps
+  page and apps tile sort by 30-day open count (`AppOpenCounts`, new
+  `PACKAGE_USAGE_STATS` special access, prompted on the apps page; not a Play
+  restricted permission). Build + full unit test suite green; installed on the
+  physical device. Usage access isn't granted there yet.
 - **`main` — People Hub gains mail, filters, inline reply, an apps page and a
   pinnable apps tile (instead of separate mail/messaging hubs).** User-requested,
   designed first with mockups. (1) "what's new" now includes mail apps and has
