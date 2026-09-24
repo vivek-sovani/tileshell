@@ -245,4 +245,70 @@ class MonochromeTest {
         assertEquals(0xFFFFFF, rgbOf(mask[99]))
         assertEquals(0, alphaOf(mask[0]))
     }
+
+    private fun canvas(width: Int, height: Int, opaque: (x: Int, y: Int) -> Boolean): IntArray =
+        IntArray(width * height) { i -> if (opaque(i % width, i / width)) argb(255, 255, 255, 255) else argb(0, 0, 0, 0) }
+
+    @Test
+    fun `opaqueBounds is null for a fully transparent canvas`() {
+        val pixels = canvas(10, 10) { _, _ -> false }
+        assertEquals(null, opaqueBounds(pixels, 10, 10))
+    }
+
+    @Test
+    fun `opaqueBounds finds a small inked square inside a much larger canvas`() {
+        // The real-world shape of the bug: a small logo mark (here 4x4)
+        // centred in a much bigger canvas (40x40), everything else transparent
+        // (the fill colour synthesizeMonochromeMask discarded).
+        val pixels = canvas(40, 40) { x, y -> x in 18..21 && y in 18..21 }
+        val bounds = opaqueBounds(pixels, 40, 40)
+        assertEquals(listOf(18, 18, 22, 22), bounds?.toList())
+    }
+
+    @Test
+    fun `paddedSquareCrop tightens a sparse silhouette instead of leaving it at full canvas size`() {
+        val bounds = intArrayOf(18, 18, 22, 22) // 4x4 ink in a 40x40 canvas
+        val crop = paddedSquareCrop(bounds, 40, 40)
+        val cropSide = crop[2] - crop[0]
+        assertEquals(crop[3] - crop[1], cropSide) // square
+        assertTrue("crop ($cropSide) should be much smaller than the full canvas (40)", cropSide < 20)
+        assertTrue("crop should still fully contain the original bounds", crop[0] <= 18 && crop[2] >= 22)
+    }
+
+    @Test
+    fun `paddedSquareCrop on a silhouette that already fills the canvas stays close to the full size`() {
+        val bounds = intArrayOf(1, 1, 39, 39) // near-full 40x40 canvas
+        val crop = paddedSquareCrop(bounds, 40, 40)
+        val cropSide = crop[2] - crop[0]
+        assertTrue("crop ($cropSide) should stay close to the full canvas (40)", cropSide >= 36)
+    }
+
+    @Test
+    fun `paddedSquareCrop never exceeds the canvas bounds`() {
+        val bounds = intArrayOf(0, 0, 40, 40) // exactly the full canvas
+        val crop = paddedSquareCrop(bounds, 40, 40)
+        assertTrue(crop[0] >= 0 && crop[1] >= 0 && crop[2] <= 40 && crop[3] <= 40)
+    }
+
+    @Test
+    fun `end to end - a small logo on a big discarded fill crops to a small tight square`() {
+        // Reproduces the actual reported bug: WhatsApp-shaped icon (a small
+        // white "ink" mark on a solid-colour fill that gets discarded as
+        // "field") ends up occupying only a small corner of its own canvas
+        // once masked — opaqueBounds + paddedSquareCrop is what lets a caller
+        // crop that down so ContentScale.Fit can scale it back up to fill the
+        // tile's icon box the same way the plain full-colour icon already does.
+        val size = 32
+        val pixels = IntArray(size * size) { i ->
+            val x = i % size
+            val y = i / size
+            if (x in 13..18 && y in 13..18) argb(255, 255, 255, 255) else argb(255, 20, 140, 60)
+        }
+        val mask = synthesizeMonochromeMask(pixels)
+        val bounds = opaqueBounds(mask, size, size)
+        assertTrue(bounds != null)
+        val crop = paddedSquareCrop(bounds!!, size, size)
+        val cropSide = crop[2] - crop[0]
+        assertTrue("crop ($cropSide) should be meaningfully smaller than the full canvas ($size)", cropSide < size - 8)
+    }
 }

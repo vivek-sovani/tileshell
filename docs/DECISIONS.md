@@ -10095,3 +10095,42 @@ Build + full unit test suite green after the final round; installed on the physi
 with no crash in `adb logcat`, and verified with two on-device screenshots taken back-to-back (plain vs.
 monochrome toggled on) showing whatsapp/gmail/chrome/camera at the identical small size and position in
 both.
+
+**Same-day follow-up: the "matching size" fix above wasn't actually fixed — the real bug was inside the
+synthesized monochrome bitmap's own content, not the tile's `Modifier.size`.** User-supplied back-to-back
+screenshots (same tile layout, plain vs. monochrome) made this unambiguous in a way static analysis
+hadn't caught: whatsapp/chrome/gpay/google's monochrome glyphs were visibly smaller *and* off-centre
+(not flush in the same corner) compared to their plain full-colour counterparts, even though the
+previous fix had already made both branches render through an identical `Modifier.size(monolineSize.dp)`
+— confirmed by re-reading the code, which really was symmetric by then. Root cause: `synthesizeMonochromeMask`
+(`core/design/Monochrome.kt`) emits an alpha-only mask at the *source icon's own resolution and position*,
+discarding whatever it classified as "fill." For an icon whose recognizable mark is small relative to its
+full canvas — WhatsApp's phone handset inside its full green circle, Chrome's ring inside its own
+circular fill, gpay's mark, Google's "G" — the resulting silhouette only occupies a small, often
+off-centre fraction of the bitmap, with a wide transparent margin around it where the discarded colour
+fill used to be. Rendered through `Image(contentScale = ContentScale.Fit)` at the *same* box size as a
+plain icon (which fills its own canvas edge-to-edge, having no such margin), the sparse silhouette
+necessarily reads smaller and shifted — exactly "monochrome icon has become small now," "the position is
+also different," "monochrome not in corner."
+Fixed with two new pure, unit-tested functions in `Monochrome.kt`: `opaqueBounds(pixels, width, height)`
+(the tight bounding box of the mask's actual non-transparent content) and `paddedSquareCrop(bounds,
+width, height, marginFraction)` (that box expanded by a small margin, grown to a centred square, clamped
+to the canvas). All three duplicate `monochromeIconBitmap()` implementations (`IconCellView.kt`/
+`AppListIcon.kt`/`feature/livetiles/AppIcon.kt` — this app's established pattern for small icon-processing
+helpers that can't share a dependency across modules) now crop the synthesized bitmap down to this rect
+before returning it; `Image`'s own existing `ContentScale.Fit` then scales that tighter crop back up to
+fill the tile's real icon box — letting Compose do the upscale at render resolution rather than
+resampling pixels by hand. **Applied to both monochrome sources** (a shared `cropToContent` helper in each
+file): the first pass cropped only the *synthesized* fallback, on the wrong assumption that an app's own
+native Android 13+ monochrome layer (`AdaptiveIconDrawable.getMonochrome()`) "needs no correction." It's the
+opposite — a native layer is drawn inside the adaptive-icon safe zone (roughly the inner two-thirds of the
+canvas), so it carries the same wide transparent margin. WhatsApp/Chrome/GPay/Google all ship one, so they
+took that uncropped early-return branch and showed *zero* change after the first pass (user: "not done"),
+while apps without a native layer (chatgpt, claude) did improve — which is what pinpointed it. 23 unit tests
+in `MonochromeTest.kt` (bounding-box detection including the null-for-fully-transparent case, crop
+expansion/squaring/clamping, and an end-to-end case reproducing the exact reported shape: a small
+"ink" mark on a large discarded fill colour, confirming the final crop is meaningfully tighter than the
+full canvas). Build + full unit test suite green; installed on the physical device (another wireless-adb
+port rotations mid-session), launched with no crash in `adb logcat`, and confirmed on-device by the user
+("now done"): WhatsApp/Chrome/camera/Google monochrome glyphs now fill the same top-left-anchored space the
+plain colour icons use, instead of reading as tiny centred glyphs.

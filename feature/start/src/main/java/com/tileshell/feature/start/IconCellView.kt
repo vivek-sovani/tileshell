@@ -67,6 +67,8 @@ import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.colorTokens
 import com.tileshell.core.design.isLightBackground
 import com.tileshell.core.design.isUniformAlpha
+import com.tileshell.core.design.opaqueBounds
+import com.tileshell.core.design.paddedSquareCrop
 import com.tileshell.core.design.synthesizeMonochromeMask
 import com.tileshell.feature.livetiles.BatterySmallFace
 import com.tileshell.feature.livetiles.CalendarSmallFace
@@ -715,14 +717,32 @@ private fun monochromeIconBitmap(drawable: android.graphics.drawable.Drawable, s
         native.draw(canvas)
         val nativePixels = IntArray(sizePx * sizePx)
         bitmap.getPixels(nativePixels, 0, sizePx, 0, 0, sizePx, sizePx)
-        if (!isUniformAlpha(nativePixels)) return bitmap.asImageBitmap()
+        if (!isUniformAlpha(nativePixels)) return cropToContent(bitmap, nativePixels, sizePx)
     }
     val pixels = IntArray(sizePx * sizePx)
     rawBitmap.asAndroidBitmap().getPixels(pixels, 0, sizePx, 0, 0, sizePx, sizePx)
     val masked = synthesizeMonochromeMask(pixels)
     val result = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
     result.setPixels(masked, 0, sizePx, 0, 0, sizePx, sizePx)
-    return result.asImageBitmap()
+    return cropToContent(result, masked, sizePx)
+}
+
+/**
+ * [bitmap] cropped to its own opaque content ([opaqueBounds] +
+ * [paddedSquareCrop]) so a monochrome glyph fills its render box the same way
+ * a plain full-colour icon does, instead of reading smaller and off-centre
+ * inside a transparent margin. Applies to *both* monochrome sources, not just
+ * the synthesized one — an app's own native Android 13+ monochrome layer is
+ * drawn inside the adaptive-icon safe zone (roughly the inner two-thirds of
+ * the canvas), so it carries exactly the same wide transparent margin; the
+ * first pass of this fix skipped it on the wrong assumption that a native
+ * layer "needs no correction," which left WhatsApp/Chrome/GPay/Google (all of
+ * which ship one) completely unchanged — user-reported "not done."
+ */
+private fun cropToContent(bitmap: Bitmap, pixels: IntArray, sizePx: Int): ImageBitmap {
+    val bounds = opaqueBounds(pixels, sizePx, sizePx) ?: return bitmap.asImageBitmap()
+    val crop = paddedSquareCrop(bounds, sizePx, sizePx)
+    return Bitmap.createBitmap(bitmap, crop[0], crop[1], crop[2] - crop[0], crop[3] - crop[1]).asImageBitmap()
 }
 
 /**

@@ -41,6 +41,8 @@ import com.tileshell.core.design.LocalColorTokens
 import com.tileshell.core.design.SquircleShape
 import com.tileshell.core.design.isLightBackground
 import com.tileshell.core.design.isUniformAlpha
+import com.tileshell.core.design.opaqueBounds
+import com.tileshell.core.design.paddedSquareCrop
 import com.tileshell.core.design.synthesizeMonochromeMask
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -173,14 +175,22 @@ private fun monochromeIconBitmap(drawable: Drawable, rawBitmap: ImageBitmap): Im
         native.draw(canvas)
         val nativePixels = IntArray(96 * 96)
         bitmap.getPixels(nativePixels, 0, 96, 0, 0, 96, 96)
-        if (!isUniformAlpha(nativePixels)) return bitmap.asImageBitmap()
+        if (!isUniformAlpha(nativePixels)) return cropToContent(bitmap, nativePixels)
     }
     val pixels = IntArray(96 * 96)
     rawBitmap.asAndroidBitmap().getPixels(pixels, 0, 96, 0, 0, 96, 96)
     val masked = synthesizeMonochromeMask(pixels)
     val result = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
     result.setPixels(masked, 0, 96, 0, 0, 96, 96)
-    return result.asImageBitmap()
+    return cropToContent(result, masked)
+}
+
+/** See `:feature:start`'s `IconCellView.kt#cropToContent` — applied to both the
+ *  native and the synthesized monochrome source. */
+private fun cropToContent(bitmap: Bitmap, pixels: IntArray): ImageBitmap {
+    val bounds = opaqueBounds(pixels, 96, 96) ?: return bitmap.asImageBitmap()
+    val crop = paddedSquareCrop(bounds, 96, 96)
+    return Bitmap.createBitmap(bitmap, crop[0], crop[1], crop[2] - crop[0], crop[3] - crop[1]).asImageBitmap()
 }
 
 private fun IconShape.toShape(): Shape? = when (this) {

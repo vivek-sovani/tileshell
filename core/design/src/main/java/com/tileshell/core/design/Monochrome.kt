@@ -212,6 +212,76 @@ internal fun otsuThreshold(lumas: IntArray): Int {
 }
 
 /**
+ * The tight bounding box of [pixels]' non-transparent content (row-major,
+ * [width]x[height], alpha > 10 to allow for [synthesizeMonochromeMask]'s own
+ * contrast-stretched partial-alpha edge pixels) — `[left, top, right,
+ * bottom]` with right/bottom exclusive, or null if every pixel is fully
+ * transparent.
+ *
+ * [synthesizeMonochromeMask] emits alpha-only pixels at the source icon's own
+ * resolution and position, discarding whatever it classified as "fill" — for
+ * many real icons (a small logo mark centred on a much bigger flat-coloured
+ * background, e.g. WhatsApp's phone handset inside its full green circle,
+ * Chrome's ring inside its own circular fill) that leaves a small "ink"
+ * silhouette surrounded by a wide transparent margin where the discarded fill
+ * used to be. Rendered at the exact same box size as a plain full-colour icon
+ * (which fills that box edge-to-edge, having no such margin), the mask reads
+ * as visibly smaller and off-centre — user-reported "monochrome icons
+ * placement on tiles is not as per non monochrome icon placement," "monochrome
+ * icon has become small now," "the position is also different," "monochrome
+ * not in corner." This finds how much of the canvas the real content actually
+ * occupies, so a caller can crop to it — see [paddedSquareCrop].
+ */
+fun opaqueBounds(pixels: IntArray, width: Int, height: Int): IntArray? {
+    var left = width
+    var top = height
+    var right = -1
+    var bottom = -1
+    for (y in 0 until height) {
+        val row = y * width
+        for (x in 0 until width) {
+            val a = (pixels[row + x] ushr 24) and 0xFF
+            if (a > 10) {
+                if (x < left) left = x
+                if (x > right) right = x
+                if (y < top) top = y
+                if (y > bottom) bottom = y
+            }
+        }
+    }
+    if (right < 0) return null
+    return intArrayOf(left, top, right + 1, bottom + 1)
+}
+
+/**
+ * [bounds] (from [opaqueBounds], within a [width]x[height] canvas) expanded
+ * by [marginFraction] of its own larger dimension, then grown to a centred
+ * square and clamped to the canvas — the crop rect that makes a sparse
+ * monochrome silhouette fill its canvas the same way a plain full-colour icon
+ * already does edge-to-edge, once the caller's own `Image(contentScale =
+ * ContentScale.Fit)` scales this tighter crop back up to the tile's actual
+ * icon box (letting Compose do the upscale, at render resolution, rather than
+ * resampling pixels here). A silhouette that already fills most of the canvas
+ * is returned close to unchanged — this only meaningfully tightens a
+ * genuinely sparse one.
+ */
+fun paddedSquareCrop(bounds: IntArray, width: Int, height: Int, marginFraction: Float = 0.10f): IntArray {
+    val boxW = bounds[2] - bounds[0]
+    val boxH = bounds[3] - bounds[1]
+    val margin = (maxOf(boxW, boxH) * marginFraction).toInt()
+    val left = (bounds[0] - margin).coerceAtLeast(0)
+    val top = (bounds[1] - margin).coerceAtLeast(0)
+    val right = (bounds[2] + margin).coerceAtMost(width)
+    val bottom = (bounds[3] + margin).coerceAtMost(height)
+    val side = maxOf(right - left, bottom - top).coerceAtMost(minOf(width, height))
+    val cx = (left + right) / 2
+    val cy = (top + bottom) / 2
+    val squareLeft = (cx - side / 2).coerceIn(0, width - side)
+    val squareTop = (cy - side / 2).coerceIn(0, height - side)
+    return intArrayOf(squareLeft, squareTop, squareLeft + side, squareTop + side)
+}
+
+/**
  * True when [pixels]' transparency pattern itself looks like a meaningful
  * glyph silhouette — a genuinely transparent *majority* with an opaque
  * minority sitting on it (a small icon comfortably inset on a mostly-empty
