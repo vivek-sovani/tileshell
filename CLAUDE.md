@@ -67,7 +67,30 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   facing up-right. The first try faced down-left, into the cloud, and only its
   tips showed. Shared visual, so the hub, feed card and widget match. Checked
   on the physical device with a temporary always-night build, which was then
-  reverted; the real build is now installed with no crash. Not yet checked on a device, since none was
+  reverted; the real build is now installed with no crash. **Third follow-up,
+  user-requested:** (a) the home-screen weather widget now repaints at each
+  sunrise/sunset (`WeatherSunAlarm`, `widget/WeatherSunAlarm.kt`): a
+  **non-wakeup** `AlarmManager.RTC` `setWindow` alarm (10-min window, no
+  exact-alarm permission) for the next transition across every placed widget's
+  snapshot (pure, unit-tested `nextSunTransition`). It is re-armed at the end
+  of every `pushAll` and cancelled in `onDisabled` or when no widget is placed.
+  The `exported="false"` `WeatherSunAlarmReceiver` repaints inside the
+  broadcast via `pushDateRollover`. Non-wakeup is deliberate: it never wakes
+  the device for an unseen widget, and a transition missed while asleep is
+  delivered on the next wake, which is when the widget becomes visible. This
+  closes the gap where the 30-min periodic push (also skipped while the
+  screen is off) left the sun showing after dark. Not seen on-device: no
+  weather widget was placed. (b) Sunrise/sunset on the Start tile's back face,
+  as its bottom line, and on the glance weather card, via a shared
+  `SunTimesRow` (`SunTimes.kt`): an amber half-sun on a horizon line with an
+  up/down arrow, then the time, in the place's own local time
+  (`todaySunTimes`). Skipped on the 1-column/1-row tile sizes. (c) The glance
+  weather card dropped its 7-day row; the rest is scaled up (temp 34→40sp,
+  icon 28→34dp, condition 12→14sp, high/low 11→13sp, sun row 11→12sp — the
+  most a half-width card fits on one line) and split into top/bottom blocks
+  that spread over the card's height. Glance card screenshot-verified on the
+  physical device; build + full unit test suite green (`WeatherSunAlarmTest`
+  new). Not yet checked on a device, since none was
   connected over adb.
 - **`main` — music hub no longer keeps the display on while playing.**
   User-requested: now that all playback runs in `LocalMusicPlaybackService`

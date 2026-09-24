@@ -165,4 +165,10 @@ class WeatherNightTest {
             .forEach { assertTrue(it, isCloudCondition(it)) }
         listOf("clear", "mostly clear", "partly cloudy", "—").forEach { assertFalse(it, isCloudCondition(it)) }
     }
+
+    @Test
+    fun `today's sun times are the first day's, in the place's offset`() {
+        assertEquals("6:00 am" to "6:00 pm", todaySunTimes(snap().copy(utcOffsetSeconds = 0)))
+        assertNull(todaySunTimes(snap(withSun = false)))
+    }
 }

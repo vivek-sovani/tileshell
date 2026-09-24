@@ -187,6 +187,10 @@
             android:exported="false" />
 
         <receiver
+            android:name=".widget.WeatherSunAlarmReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".widget.FlashlightAppWidgetProvider"
             android:exported="true"
             android:label="@string/flashlight_widget_label">

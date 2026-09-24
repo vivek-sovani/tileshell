@@ -883,65 +883,58 @@ internal fun WeatherCard(
                 )
                 return@Column
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top,
+            // No 7-day row any more (user-requested — the weather hub has the
+            // full outlook); the freed height goes to proportionally larger
+            // text, split into a top block (now) and a bottom block (today's
+            // range + sun times) that spread across whatever height the card
+            // has.
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text("${snapshot.tempC}°", color = onAccent, fontSize = 34.sp, fontWeight = FontWeight.Thin)
-                // A richer multi-element illustration (user-requested, matching
-                // the home-screen widget's own WeatherConditionVisual) instead
-                // of the flat monoline glyph — same fixed-amber-sun exception
-                // to the tint rule as the widget.
-                com.tileshell.feature.livetiles.WeatherConditionVisual(
-                    condition = snapshot.condition,
-                    tint = onAccent,
-                    night = com.tileshell.feature.livetiles.rememberWeatherNight(snapshot),
-                    modifier = Modifier.size(28.dp),
-                )
-            }
-            Text(
-                snapshot.condition,
-                color = onAccentDim,
-                fontSize = 12.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 2.dp),
-            )
-            Text(
-                "h ${snapshot.highC}° · l ${snapshot.lowC}°",
-                color = onAccentDim,
-                fontSize = 11.sp,
-                modifier = Modifier.padding(top = 6.dp),
-            )
-            // The 7-day outlook (user-requested, matching the home-screen
-            // widget's back face) — a fixed-height horizontal scroll so a
-            // long list can't blow out this card's height, which is shared
-            // with whatever it's paired next to in the feed row.
-            if (snapshot.forecast.isNotEmpty()) {
-                LazyRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp)
-                        .height(40.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    items(snapshot.forecast) { day ->
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                day.dayLabel.take(3),
-                                color = onAccentDim,
-                                fontSize = 10.sp,
-                                maxLines = 1,
-                            )
-                            Text(
-                                com.tileshell.feature.livetiles.highLowLabel(day.highC, day.lowC),
-                                color = onAccent,
-                                fontSize = 11.sp,
-                                maxLines = 1,
-                            )
-                        }
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        Text("${snapshot.tempC}°", color = onAccent, fontSize = 40.sp, fontWeight = FontWeight.Thin)
+                        // A richer multi-element illustration (user-requested, matching
+                        // the home-screen widget's own WeatherConditionVisual) instead
+                        // of the flat monoline glyph — same fixed-amber-sun exception
+                        // to the tint rule as the widget.
+                        com.tileshell.feature.livetiles.WeatherConditionVisual(
+                            condition = snapshot.condition,
+                            tint = onAccent,
+                            night = com.tileshell.feature.livetiles.rememberWeatherNight(snapshot),
+                            modifier = Modifier.size(34.dp),
+                        )
                     }
+                    Text(
+                        snapshot.condition,
+                        color = onAccentDim,
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                Column(modifier = Modifier.padding(top = 8.dp)) {
+                    Text(
+                        "h ${snapshot.highC}° · l ${snapshot.lowC}°",
+                        color = onAccentDim,
+                        fontSize = 13.sp,
+                    )
+                    // Today's sunrise/sunset (user-requested), same row as the
+                    // Start tile. 12sp is the most a half-width card fits on
+                    // one line.
+                    com.tileshell.feature.livetiles.SunTimesRow(
+                        snapshot = snapshot,
+                        color = onAccentDim,
+                        fontSize = 12.sp,
+                        glyphSize = 14.dp,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
                 }
             }
         }

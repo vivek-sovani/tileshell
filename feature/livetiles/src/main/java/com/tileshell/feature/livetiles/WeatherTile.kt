@@ -320,8 +320,9 @@ private fun WeatherBack(snapshot: WeatherSnapshot, size: TileSize) {
             overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
             textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
         )
+        // Pushes the detail line + sun times down to the tile's bottom edge.
+        if (!narrow && !short) Spacer(Modifier.weight(1f))
         if (snapshot.detail.isNotEmpty()) {
-            if (!narrow && !short) Spacer(Modifier.weight(1f))
             Text(
                 text = snapshot.detail,
                 color = FaceText.copy(alpha = 0.82f),
@@ -347,6 +348,11 @@ private fun WeatherBack(snapshot: WeatherSnapshot, size: TileSize) {
                     }
                 }
             }
+        }
+        // Today's sunrise/sunset as the bottom line (user-requested) — skipped
+        // on the 1-column and 1-row sizes, which have no room for it.
+        if (!narrow && !short) {
+            SunTimesRow(snapshot = snapshot, color = FaceText, modifier = Modifier.padding(top = 6.dp))
         }
     }
 }

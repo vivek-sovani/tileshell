@@ -103,14 +103,16 @@ class WeatherWidgetRefreshWorker(
         suspend fun pushAll(context: Context) {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, WeatherAppWidgetProvider::class.java))
-            if (ids.isEmpty()) return
+            if (ids.isEmpty()) return WeatherSunAlarm.cancel(context)
 
             val cacheData = WeatherCache.create(context).read()
+            val shown = mutableListOf<WeatherSnapshot>()
 
             ids.forEach { id ->
                 val location = WeatherTile.decode(WidgetConfigStore.weatherLocation(context, id))
                     ?: WeatherTile.Location.Current
                 val snapshot = cacheData.snapshotFor(location)
+                snapshot?.let(shown::add)
                 val minWidthDp = manager.getAppWidgetOptions(id)
                     .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 110)
                 val (accent, onAccent) = resolveWidgetAccent(context, id)
@@ -124,6 +126,8 @@ class WeatherWidgetRefreshWorker(
                 )
                 manager.updateAppWidget(id, views)
             }
+            // Re-arm the sunrise/sunset repaint for whatever these widgets now show.
+            WeatherSunAlarm.schedule(context, shown)
         }
 
         /** Same lookup [com.tileshell.feature.livetiles.WeatherTileFace] uses — Current reads the shared snapshot, a Fixed place reads its own cached entry. */

@@ -87,6 +87,7 @@ class WeatherAppWidgetProvider : AppWidgetProvider() {
     override fun onDisabled(context: Context) {
         // Last instance removed — the OS only calls this when none remain.
         WeatherWidgetRefreshWorker.cancel(context)
+        WeatherSunAlarm.cancel(context)
         // onEnabled also started the *network* forecast poll, which this used to
         // leave running forever: place a weather widget, remove it, and
         // WeatherRefreshWorker kept fetching every 30 minutes for the life of
