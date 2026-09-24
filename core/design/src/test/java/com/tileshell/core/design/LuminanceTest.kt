@@ -50,45 +50,6 @@ class LuminanceTest {
     }
 
     @Test
-    fun `ensureContrast leaves an already-legible colour untouched`() {
-        // White already clears any reasonable minRatio against black.
-        assertEquals(Color.White, ensureContrast(Color.White, Color.Black))
-    }
-
-    @Test
-    fun `ensureContrast lightens a dark colour that fails contrast against a dark background`() {
-        // The reported bug: a dark, desaturated blue accent drawn on Quick
-        // Panel's own dark widget-card background (approximated here by
-        // near-black) was returned completely unchanged, well under any
-        // legible contrast ratio.
-        val darkBlue = Color(0xFF14247A)
-        val against = Color.Black
-        assertTrue(contrastRatio(darkBlue, against) < 4.5f)
-        val fixed = ensureContrast(darkBlue, against)
-        assertTrue(contrastRatio(fixed, against) >= 4.5f)
-        // Nudged toward white (the higher-contrast direction against black),
-        // not toward black itself.
-        assertTrue(fixed.red >= darkBlue.red && fixed.green >= darkBlue.green && fixed.blue >= darkBlue.blue)
-    }
-
-    @Test
-    fun `ensureContrast darkens a light colour that fails contrast against a light background`() {
-        val paleBlue = Color(0xFFAFC8F5)
-        val against = Color.White
-        assertTrue(contrastRatio(paleBlue, against) < 4.5f)
-        val fixed = ensureContrast(paleBlue, against)
-        assertTrue(contrastRatio(fixed, against) >= 4.5f)
-    }
-
-    @Test
-    fun `ensureContrast never overshoots past pure black or white`() {
-        // An against-colour with no legible pick at all (mid-grey) still
-        // terminates at one of the two extremes rather than looping forever.
-        val fixed = ensureContrast(Color.Black, Color.Gray, minRatio = 100f)
-        assertTrue(fixed == Color.White || fixed == Color.Black)
-    }
-
-    @Test
     fun `prefersDarkText picks black on a light background`() {
         assertTrue(prefersDarkText(Color.White))
     }

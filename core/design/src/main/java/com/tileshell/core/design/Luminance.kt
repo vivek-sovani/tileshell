@@ -1,7 +1,6 @@
 package com.tileshell.core.design
 
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -43,30 +42,6 @@ fun contrastRatio(a: Color, b: Color): Float {
     val l1 = relativeLuminance(a) + 0.05f
     val l2 = relativeLuminance(b) + 0.05f
     return max(l1, l2) / min(l1, l2)
-}
-
-/**
- * [color] nudged toward whichever of pure black/white contrasts better against
- * [against], only as far as needed to reach [minRatio] (WCAG AA for normal
- * text is 4.5:1, the default here) — unchanged if it already clears the bar.
- * For a UI element whose own colour is user-chosen (an accent) and sits
- * directly on a background that colour was never picked with in mind — see
- * [com.tileshell.core.design.Glass.accentOnCard]'s doc comment for the real
- * bug this fixed: a dark accent drawn at full strength on an already-dark
- * card was picking "technically the original colour" over "actually legible."
- */
-fun ensureContrast(color: Color, against: Color, minRatio: Float = 4.5f): Color {
-    if (contrastRatio(color, against) >= minRatio) return color
-    val target = if (contrastRatio(Color.White, against) >= contrastRatio(Color.Black, against)) {
-        Color.White
-    } else {
-        Color.Black
-    }
-    for (step in 1..20) {
-        val candidate = lerp(color, target, step / 20f)
-        if (contrastRatio(candidate, against) >= minRatio) return candidate
-    }
-    return target
 }
 
 /**

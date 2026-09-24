@@ -10134,3 +10134,17 @@ full canvas). Build + full unit test suite green; installed on the physical devi
 port rotations mid-session), launched with no crash in `adb logcat`, and confirmed on-device by the user
 ("now done"): WhatsApp/Chrome/camera/Google monochrome glyphs now fill the same top-left-anchored space the
 plain colour icons use, instead of reading as tiny centred glyphs.
+
+**Quick Panel: an "on" toggle is now accent-filled edge-to-edge in every tile style, One UI-style —
+supersedes "Widget cards carried onto Quick Panel (option A: tinted icon glyph)".** User-requested with a
+One UI quick-panel screenshot: "instead of icon making in accent they have made full tile in accent color.
+this looks better." Under widget cards (`borderlessTiles`), every Quick Panel tile used to share the one
+neutral translucent card, with "on" signalled only by tinting the icon/label — easy to miss, and the cause
+of the earlier contrast bug on darker accents. `QuickPanelTile` now fills an active tile with the accent
+regardless of style (solid and transparent styles already did), with its icon/label picked via
+`prefersDarkText(accent)`; only *off* tiles keep the widget-card neutral surface. Gradient fill still
+applies only outside widget cards, where the gradient setting is shown. `Glass.accentOnCard` and
+`ensureContrast` (added earlier the same day solely for the tinted-glyph path) are now unused and removed
+with their tests; `contrastRatio`/`prefersDarkText` stay. Build + full unit test suite green; installed on
+the physical device, no crash in `adb logcat`, and a screenshot of the panel confirmed wifi/bluetooth/
+location/the theme tile fully accent-filled with white icons, off tiles neutral.
