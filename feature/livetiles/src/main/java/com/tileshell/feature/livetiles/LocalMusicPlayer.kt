@@ -198,6 +198,24 @@ object LocalMusicPlayer {
         }
     }
 
+    /**
+     * Pauses if playing, and never resumes — unlike [togglePlayPause]. For the
+     * headphones/Bluetooth-disconnected case ([android.media.AudioManager
+     * .ACTION_AUDIO_BECOMING_NOISY]), where a toggle could wrongly *start*
+     * playback that was already paused. Also clears a pending focus-regain
+     * resume, so a later focus gain doesn't restart it through the speaker.
+     */
+    fun pause() {
+        val mp = player ?: return
+        resumeOnFocusGain = false
+        runCatching {
+            if (mp.isPlaying) {
+                mp.pause()
+                _state.value = _state.value.copy(playing = false)
+            }
+        }
+    }
+
     fun next(context: Context) {
         val s = _state.value
         if (s.queue.isEmpty()) return

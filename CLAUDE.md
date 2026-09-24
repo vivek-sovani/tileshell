@@ -37,6 +37,15 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — music hub pauses when Bluetooth/headphones disconnect.**
+  User-requested. `LocalMusicPlaybackService` registers for
+  `AudioManager.ACTION_AUDIO_BECOMING_NOISY` for its whole lifetime (i.e.
+  while anything is loaded; this broadcast can't be declared in the
+  manifest) and calls a new `LocalMusicPlayer.pause()`. That only pauses, never
+  toggles, so an already-paused player can't be started by it, and it clears
+  `resumeOnFocusGain` so a later focus regain doesn't restart through the
+  speaker. Paused, not released: the notification stays for a one-tap resume.
+  Build + tests green; not yet installed (the wireless adb connection dropped).
 - **`main` — Panchang (calendar system) tile + widget: moonrise/moonset and a
   big tithi number.** User-requested. New `core/data/MoonTimes.kt`:
   `nextMoonriseMoonset(now, lat, lon)` samples the Moon's altitude every 10 min

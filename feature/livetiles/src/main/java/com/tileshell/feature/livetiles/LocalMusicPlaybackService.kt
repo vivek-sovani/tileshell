@@ -5,7 +5,11 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.media.AudioManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadata
@@ -46,6 +50,21 @@ class LocalMusicPlaybackService : Service() {
     private var session: MediaSession? = null
     private val scope = CoroutineScope(Dispatchers.Main + Job())
 
+    /**
+     * Pauses when the audio output goes away — Bluetooth headset/speaker
+     * disconnecting, or wired headphones unplugged (user-requested) — so
+     * playback doesn't carry on out of the phone's loudspeaker. Android's
+     * standard signal for exactly this; it can't be declared in the manifest,
+     * so it lives for as long as this service does, i.e. while something is
+     * loaded. Paused, not stopped: the notification stays so it resumes with
+     * one tap.
+     */
+    private val noisyReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) LocalMusicPlayer.pause()
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         ensureChannel()
@@ -61,6 +80,13 @@ class LocalMusicPlaybackService : Service() {
             isActive = true
         }
         session = mediaSession
+        // A system broadcast, so NOT_EXPORTED is correct and still receives it.
+        androidx.core.content.ContextCompat.registerReceiver(
+            this,
+            noisyReceiver,
+            IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY),
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
 
         scope.launch {
             LocalMusicPlayer.state.collect { playback ->
@@ -126,6 +152,7 @@ class LocalMusicPlaybackService : Service() {
     }
 
     override fun onDestroy() {
+        runCatching { unregisterReceiver(noisyReceiver) }
         scope.cancel()
         session?.release()
         session = null
