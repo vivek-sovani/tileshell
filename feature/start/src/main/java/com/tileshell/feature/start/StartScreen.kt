@@ -7296,18 +7296,7 @@ private fun StaticTileGlyph(
         tile.size == TileSize.LARGE -> 46
         else -> 34
     }
-    // A themed icon renders far bigger than the tiny WP monoline glyph (see
-    // TileIconContent below) — decode at that larger size too, or the
-    // upscaled result reads visibly blurry (user-reported at the small size).
-    val themedDp = when {
-        tile.size == TileSize.SMALL -> 60
-        tile.size.rows == 1 && tile.size.cols > 1 -> 48
-        tile.size == TileSize.LARGE -> 120
-        else -> 78
-    }
-    val sizePx = with(LocalDensity.current) {
-        (if (themedIcons) themedDp else monolineDp).dp.roundToPx()
-    }.coerceAtLeast(96)
+    val sizePx = with(LocalDensity.current) { monolineDp.dp.roundToPx() }.coerceAtLeast(96)
     val maskable = if (useAppIcon && (composeShape != null || themedIcons)) {
         rememberMaskableIcon(tile.packageName, tile.activityName, sizePx)
     } else {
@@ -7322,20 +7311,22 @@ private fun StaticTileGlyph(
 
     @Composable
     fun TileIconContent(monolineSize: Int) {
+        // Every branch here — the generic monoline glyph and every real-app-
+        // icon variant, monochrome or plain full-colour — renders at the same
+        // monolineSize, so toggling "monochrome icons" only ever changes an
+        // icon's colour, never its size or position (user-reported: it used
+        // to blow the icon up far bigger than the plain version, "monochrome
+        // icons placement on tiles is not as per non monochrome icon
+        // placement" — briefly tried making the *plain* icon match that
+        // bigger size instead, which was the wrong direction per direct
+        // follow-up, "instead original icon size increased").
         if (useAppIcon && themedIcons && mono != null) {
-            // A real app icon reads as noticeably bigger than the tiny WP
-            // monoline glyph every other branch here uses ([monolineSize] is a
-            // deliberate stylized-glyph convention, not an icon size) — uses
-            // its own [themedDp] table instead, so the themed icon matches how
-            // a normal launcher would show the app's own icon, rather than
-            // looking like a shrunken glyph (user-reported still too small at
-            // an earlier 1.8x-of-glyph-size attempt).
             Image(
                 bitmap = mono,
                 contentDescription = tile.label,
                 contentScale = ContentScale.Fit,
                 colorFilter = ColorFilter.tint(LocalTileFaceColor.current),
-                modifier = Modifier.size(themedDp.dp),
+                modifier = Modifier.size(monolineSize.dp),
             )
         } else if (useAppIcon && maskable != null && composeShape != null) {
             Image(

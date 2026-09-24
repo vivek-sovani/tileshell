@@ -10070,3 +10070,28 @@ time), launched with no crash in `adb logcat`, and confirmed directly against th
 state: a fresh screenshot shows wifi/bluetooth/location and the theme tile's icon+label now rendering in
 a clearly legible bright blue against their card (previously a barely-visible dark navy), and the new
 "home settings" tile present in the grid next to "dark."
+
+**Start tile faces: monochrome ("themed") icons rendered far bigger than the plain full-colour icon for
+the same app, and two rounds of correction before landing on the actual fix.** User-reported: "monochrome
+icons placement on tiles is not as per non monochrome icon placement." Root cause in `StaticTileGlyph`/
+`TileIconContent` (`StartScreen.kt`): a real app icon (the common case for most pinned third-party apps —
+`useAppIcon` is true whenever the app has no WP-recognized category glyph, regardless of the themedIcons
+setting) rendered at `monolineDp` (small, e.g. 34dp for a MEDIUM tile) when plain, but at a separate,
+much bigger `themedDp` table (e.g. 78dp) whenever themedIcons converted it to monochrome — so toggling
+the setting silently resized the icon, not just recoloured it, exactly as reported. **Round 1** (wrong
+direction, self-corrected on user follow-up before it could ship): made the *plain* icon match the
+bigger themed size instead, reasoning from a stale code comment claiming "every other branch shows the
+tiny WP monoline glyph" — false for the actual common case, where the "other branch" is also a real app
+icon, just smaller. User: "issue not resolved. instead original icons size increased" — the size grew
+for icons that were never the problem. **Round 2**, confirmed with a user screenshot and a direct
+question before touching code again (after two wrong guesses in a row, verified rather than guessed a
+third time): the fix is the other direction — monochrome should shrink to match the plain icon's
+original, smaller size, not the reverse. Removed the separate bigger-size table entirely; every real-icon
+branch (monochrome or plain) and the generic monoline-glyph fallback now share one `monolineSize`, so the
+setting only ever changes colour. The panchang calendar tile's moon-phase circle, initially suspected as
+a possible third, unrelated regression from the same screenshot, was confirmed by the user as unrelated
+and left untouched (it's a completely different live-face code path, never touched by this change).
+Build + full unit test suite green after the final round; installed on the physical device, launched
+with no crash in `adb logcat`, and verified with two on-device screenshots taken back-to-back (plain vs.
+monochrome toggled on) showing whatsapp/gmail/chrome/camera at the identical small size and position in
+both.
