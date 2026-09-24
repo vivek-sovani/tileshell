@@ -3951,7 +3951,33 @@ private fun StartPage(
             // apps label visible" after only checking their first page).
             // Reuses the exact same onChevron target (and chevronVisible's
             // gating) as the fixed button.
+            //
+            // The quick-panel icon (user-requested: "quick setting indicator
+            // should also travel like all apps place it above all apps") sits
+            // directly above it, same treatment — was previously the one
+            // remaining icon in the now-removed fixed bottom-right column
+            // (see the chevronVisible block below StartPage, which used to
+            // also hold this); moved here so it scrolls away with the tile
+            // content on every page instead of staying pinned to the screen.
             if (chevronVisible && !editMode) {
+                Row(
+                    horizontalArrangement = Arrangement.End,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clickable(onClick = onQuickPanel),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = TileIcons["panel"],
+                            contentDescription = "quick panel",
+                            tint = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.72f),
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                }
                 Row(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically,
@@ -4167,47 +4193,12 @@ private fun StartPage(
             )
         }
 
-        // Fixed settings/quick-panel button column, bottom-right; hidden in edit
-        // mode (personalize is on the edit bar there). This used to also hold a
-        // fixed "open app list" icon (a literal 3-dot "more" glyph) above the
-        // quick-panel one — removed per direct request, now that every Start
-        // page's own scrolling "all apps ->" row (see StartPage) covers that
-        // same job without a second, redundant, always-on affordance
-        // ("jump to app list should had been removed"). Bottom offset animates
-        // up to clear the edge strip's full expanded height only while it's
-        // actually visible, and eases back down to the original resting
-        // position once it isn't.
-        if (chevronVisible) {
-            val iconsBottomOffset by animateDpAsState(
-                targetValue = if (edgeStripVisible) STRIP_THICK + 8.dp else 26.dp,
-                animationSpec = spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMediumLow),
-                label = "startIconsBottomOffset",
-            )
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .navigationBarsPadding()
-                    .padding(end = 14.dp, bottom = iconsBottomOffset),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                // 48dp min touch target (a11y) — icon stays smaller inside.
-                // Tap affordance for the quick panel (two-finger swipe-up is the
-                // primary gesture; this is the discoverable fallback for users who
-                // don't find it — see docs/QUICK-PANEL-SPEC.md §4).
-                Box(
-                    modifier = Modifier.size(48.dp).clickable(onClick = onQuickPanel),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = TileIcons["panel"],
-                        contentDescription = "quick panel",
-                        tint = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.72f),
-                        modifier = Modifier.size(24.dp),
-                    )
-                }
-            }
-        }
+        // The fixed bottom-right settings/quick-panel icon column that used to
+        // live here is gone — both the "open app list" (dots) icon and the
+        // quick-panel icon it sat beside now scroll away with each page's own
+        // tile content instead (see the two rows just above StartPage's
+        // "all apps ->" text), per direct request ("quick setting indicator
+        // should also travel like all apps").
 
         // Bottom edit bar (prototype .edit-bar): slides up while editing.
         EditBar(

@@ -10009,3 +10009,17 @@ affordance now that every Start page's own scrolling "all apps →" row does the
 unit test suite green; installed on the physical device over wireless adb, launched with no crash in
 `adb logcat`, and the corrected end state (dots back, all-apps row present, no floating 3-dot icon,
 quick-panel icon still there) confirmed via an on-device screenshot.
+
+**Same-session follow-up: the quick-panel icon moved into the scrolling content too, directly above
+"all apps →".** Direct request: "quick setting indicator should also travel like all apps place it
+above all apps" — the fixed bottom-right icon it used to share a column with the (now-removed) 3-dot
+button was itself still pinned to the screen rather than scrolling away with the tile content. Moved
+into `StartPage`'s per-page scrolling Column as its own right-aligned icon-only row, stacked directly
+above the existing "all apps →" row (same `chevronVisible && !editMode` gating, same `onQuickPanel`
+target), on every page. The fixed bottom-right `Column` in `StartScreen`'s own body — which by this
+point held only this one icon, the "more" 3-dot button already having been removed in the round above
+— is now empty and deleted outright rather than left as a dead wrapper. Build + full unit test suite
+green; installed on the physical device (another wireless-adb reconnect mid-session — the pairing port
+rotated, `adb connect <device-ip>:<new-port>`), launched with no crash in `adb logcat`, and the moved
+icon's new position (scrolling, right-aligned, directly above "all apps →", page dots still present)
+confirmed via an on-device screenshot.
