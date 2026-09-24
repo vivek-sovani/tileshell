@@ -7307,7 +7307,7 @@ private fun StaticTileGlyph(
     } else {
         null
     }
-    val mono = maskable?.monochromeBitmap
+    val mono = maskable?.monochromeFillBitmap
 
     @Composable
     fun TileIconContent(monolineSize: Int) {
@@ -7655,7 +7655,7 @@ private fun FolderChildIcon(
     // OS's own native-shaped bitmap (user-reported inconsistency).
     val composeShape = if (homeStyle == HomeStyle.ICONS) iconShape.toComposeShape() else null
     val maskable = if (useAppIcon && (composeShape != null || themedIcons)) rememberMaskableIcon(pkg, act) else null
-    val mono = maskable?.monochromeBitmap
+    val mono = maskable?.monochromeFillBitmap
     when {
         useAppIcon && themedIcons && mono != null -> {
             Image(

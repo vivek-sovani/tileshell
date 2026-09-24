@@ -10156,3 +10156,13 @@ tighter; a medium/wide folder's cells are now far roomier than 18dp, leaving the
 the icon rather than overflowing. ICONS mode's separate SMALL-folder cell (`IconFolderCell`, a fixed 40dp
 box of four 18dp glyphs) is unchanged — it's already fully packed and mirrors the plain app-icon size.
 Verified on the physical device (social and music folders), no crash in `adb logcat`.
+
+**Monochrome crop-to-content scoped to plate-less renders only.** The crop added above (so Start tile-face
+glyphs fill their box like plain icons) also cropped every *plated* monochrome render, so App List icons read
+too big (user-reported: "icon size change for monochrome also has affected app list icons, they have become
+bigger now"). On an accent plate — App List's `MaskedAppIcon`, and ICONS-mode Start cells (`maskedOrGlyphIcon`)
+— the glyph's built-in transparent margin *is* the plate's padding. `MaskableIcon` (`IconCellView.kt`) now
+carries both an uncropped `monochromeBitmap` (plated renders) and a cropped `monochromeFillBitmap` (plate-less:
+`StaticTileGlyph` tile faces and `FolderChildIcon` mini-grids); `AppListIcon.kt` reverts to uncropped outright,
+since its only renderer is plated. `:feature:livetiles`' corner badge (plate-less) keeps its crop. Verified on
+the physical device: App List glyphs back inside their plates with padding, Start tile faces still filled.

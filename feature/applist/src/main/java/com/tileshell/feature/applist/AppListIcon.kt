@@ -41,8 +41,6 @@ import com.tileshell.core.design.LocalColorTokens
 import com.tileshell.core.design.SquircleShape
 import com.tileshell.core.design.isLightBackground
 import com.tileshell.core.design.isUniformAlpha
-import com.tileshell.core.design.opaqueBounds
-import com.tileshell.core.design.paddedSquareCrop
 import com.tileshell.core.design.synthesizeMonochromeMask
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -175,22 +173,20 @@ private fun monochromeIconBitmap(drawable: Drawable, rawBitmap: ImageBitmap): Im
         native.draw(canvas)
         val nativePixels = IntArray(96 * 96)
         bitmap.getPixels(nativePixels, 0, 96, 0, 0, 96, 96)
-        if (!isUniformAlpha(nativePixels)) return cropToContent(bitmap, nativePixels)
+        if (!isUniformAlpha(nativePixels)) return bitmap.asImageBitmap()
     }
     val pixels = IntArray(96 * 96)
     rawBitmap.asAndroidBitmap().getPixels(pixels, 0, 96, 0, 0, 96, 96)
     val masked = synthesizeMonochromeMask(pixels)
     val result = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
     result.setPixels(masked, 0, 96, 0, 0, 96, 96)
-    return cropToContent(result, masked)
-}
-
-/** See `:feature:start`'s `IconCellView.kt#cropToContent` — applied to both the
- *  native and the synthesized monochrome source. */
-private fun cropToContent(bitmap: Bitmap, pixels: IntArray): ImageBitmap {
-    val bounds = opaqueBounds(pixels, 96, 96) ?: return bitmap.asImageBitmap()
-    val crop = paddedSquareCrop(bounds, 96, 96)
-    return Bitmap.createBitmap(bitmap, crop[0], crop[1], crop[2] - crop[0], crop[3] - crop[1]).asImageBitmap()
+    // Deliberately *not* cropped to content, unlike Start's plate-less tile
+    // faces (IconCellView.kt#cropToContent): every App List monochrome glyph
+    // sits on its own accent plate (MaskedAppIcon), and the glyph's built-in
+    // transparent margin is that plate's padding — cropping it made the glyph
+    // fill the plate edge-to-edge (user-reported "app list icons have become
+    // bigger").
+    return result.asImageBitmap()
 }
 
 private fun IconShape.toShape(): Shape? = when (this) {

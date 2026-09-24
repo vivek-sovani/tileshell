@@ -580,7 +580,14 @@ internal data class MaskableIcon(
     val bitmap: ImageBitmap,
     val unmaskedBitmap: ImageBitmap,
     val isAdaptive: Boolean,
+    /** Uncropped monochrome glyph, for renders that sit it on an accent plate
+     *  (ICONS-mode icon cells): its built-in transparent margin *is* the
+     *  padding inside that plate. */
     val monochromeBitmap: ImageBitmap,
+    /** The same glyph cropped to its own content (see [cropToContent]), for
+     *  plate-less renders — Start tile faces and folder mini-grids — where it
+     *  has to fill its box the way a plain full-colour icon does. */
+    val monochromeFillBitmap: ImageBitmap,
     /**
      * Backing-plate colour for the legacy-icon branch, extracted once here on
      * the IO dispatcher rather than at render time.
@@ -620,11 +627,13 @@ internal fun rememberMaskableIcon(packageName: String, activityName: String, siz
                 val isAdaptive = drawable is AdaptiveIconDrawable
                 val osBitmap = drawable.toBitmap(width = sizePx, height = sizePx).asImageBitmap()
                 val rawBitmap = if (isAdaptive) unmaskedIconBitmap(drawable, sizePx) else osBitmap
+                val (mono, monoPixels) = monochromeIconBitmap(drawable, sizePx, rawBitmap)
                 return MaskableIcon(
                     osBitmap,
                     rawBitmap,
                     isAdaptive,
-                    monochromeIconBitmap(drawable, sizePx, rawBitmap),
+                    monochromeBitmap = mono.asImageBitmap(),
+                    monochromeFillBitmap = cropToContent(mono, monoPixels, sizePx),
                     // Only the legacy branch renders a plate, so don't pay for
                     // the scan on an adaptive icon. See MaskableIcon.plateColor.
                     plateColor = if (isAdaptive) null else dominantIconColor(osBitmap),
@@ -704,7 +713,11 @@ private fun unmaskedIconBitmap(drawable: android.graphics.drawable.Drawable, siz
  * the ordinary icon pixels in that case instead. Never null: some silhouette
  * is always producible from ordinary icon pixels.
  */
-private fun monochromeIconBitmap(drawable: android.graphics.drawable.Drawable, sizePx: Int, rawBitmap: ImageBitmap): ImageBitmap {
+private fun monochromeIconBitmap(
+    drawable: android.graphics.drawable.Drawable,
+    sizePx: Int,
+    rawBitmap: ImageBitmap,
+): Pair<Bitmap, IntArray> {
     val native = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         (drawable as? AdaptiveIconDrawable)?.monochrome
     } else {
@@ -717,27 +730,27 @@ private fun monochromeIconBitmap(drawable: android.graphics.drawable.Drawable, s
         native.draw(canvas)
         val nativePixels = IntArray(sizePx * sizePx)
         bitmap.getPixels(nativePixels, 0, sizePx, 0, 0, sizePx, sizePx)
-        if (!isUniformAlpha(nativePixels)) return cropToContent(bitmap, nativePixels, sizePx)
+        if (!isUniformAlpha(nativePixels)) return bitmap to nativePixels
     }
     val pixels = IntArray(sizePx * sizePx)
     rawBitmap.asAndroidBitmap().getPixels(pixels, 0, sizePx, 0, 0, sizePx, sizePx)
     val masked = synthesizeMonochromeMask(pixels)
     val result = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
     result.setPixels(masked, 0, sizePx, 0, 0, sizePx, sizePx)
-    return cropToContent(result, masked, sizePx)
+    return result to masked
 }
 
 /**
  * [bitmap] cropped to its own opaque content ([opaqueBounds] +
  * [paddedSquareCrop]) so a monochrome glyph fills its render box the same way
  * a plain full-colour icon does, instead of reading smaller and off-centre
- * inside a transparent margin. Applies to *both* monochrome sources, not just
- * the synthesized one — an app's own native Android 13+ monochrome layer is
- * drawn inside the adaptive-icon safe zone (roughly the inner two-thirds of
- * the canvas), so it carries exactly the same wide transparent margin; the
- * first pass of this fix skipped it on the wrong assumption that a native
- * layer "needs no correction," which left WhatsApp/Chrome/GPay/Google (all of
- * which ship one) completely unchanged — user-reported "not done."
+ * inside a transparent margin. Both monochrome sources carry that margin: the
+ * synthesized mask keeps the source icon's own layout minus the discarded
+ * fill, and an app's native Android 13+ layer is drawn inside the
+ * adaptive-icon safe zone. Only for plate-less renders
+ * ([MaskableIcon.monochromeFillBitmap]) — on an accent plate that same margin
+ * is the plate's padding, and cropping it made plated App List icons read too
+ * big (user-reported).
  */
 private fun cropToContent(bitmap: Bitmap, pixels: IntArray, sizePx: Int): ImageBitmap {
     val bounds = opaqueBounds(pixels, sizePx, sizePx) ?: return bitmap.asImageBitmap()
