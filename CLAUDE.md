@@ -90,7 +90,9 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   most a half-width card fits on one line) and split into top/bottom blocks
   that spread over the card's height. Then, per a follow-up, the high/low line
   moved up directly under the current temperature, with only the sun times left
-  at the bottom. Glance card screenshot-verified on the
+  at the bottom; likewise the Start tile's "chance of rain" line moved up
+  under its high/low, leaving only the sun times on the bottom line. Glance card
+  screenshot-verified on the
   physical device; build + full unit test suite green (`WeatherSunAlarmTest`
   new). Not yet checked on a device, since none was
   connected over adb.

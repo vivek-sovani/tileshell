@@ -320,9 +320,10 @@ private fun WeatherBack(snapshot: WeatherSnapshot, size: TileSize) {
             overflow = if (narrow) TextOverflow.Ellipsis else TextOverflow.Clip,
             textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
         )
-        // Pushes the detail line + sun times down to the tile's bottom edge.
-        if (!narrow && !short) Spacer(Modifier.weight(1f))
+        // Chance of rain right under today's range (user-requested), with
+        // only the sun times pushed down to the bottom edge.
         if (snapshot.detail.isNotEmpty()) {
+            if (!narrow && !short) Spacer(Modifier.height(4.dp))
             Text(
                 text = snapshot.detail,
                 color = FaceText.copy(alpha = 0.82f),
@@ -332,6 +333,7 @@ private fun WeatherBack(snapshot: WeatherSnapshot, size: TileSize) {
                 textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
             )
         }
+        if (!narrow && !short) Spacer(Modifier.weight(1f))
         // The 7-day outlook (user-requested, matching the home-screen
         // widget's back face) — only at LARGE, the one size with room for it
         // beyond today's own high/low + detail.
