@@ -10166,3 +10166,15 @@ carries both an uncropped `monochromeBitmap` (plated renders) and a cropped `mon
 `StaticTileGlyph` tile faces and `FolderChildIcon` mini-grids); `AppListIcon.kt` reverts to uncropped outright,
 since its only renderer is plated. `:feature:livetiles`' corner badge (plate-less) keeps its crop. Verified on
 the physical device: App List glyphs back inside their plates with padding, Start tile faces still filled.
+
+## Music hub: podcast/radio recents + favorite from now playing
+
+- **A podcast's "favorite" is its show, not the episode.** The podcasts tab's existing hearts already mean
+  "subscribed show," so the now-playing heart favorites `item.show` too — one meaning of the heart across the
+  hub. Radio favorites the station itself.
+- **Recent podcasts are episodes, not shows** — "continue where I was" is what a recents list is for, and
+  favorites already covers shows. Each entry embeds the show's feed/title/art so replaying needs no feed fetch;
+  a recent episode replays alone (queue of one), since the rest of the show's queue isn't stored.
+- **Recorded in `LocalMusicPlayer.onPrepared`**, not a composable effect: background auto-advance still records,
+  and a stream that never prepares (dead station) doesn't pollute the list.
+- **Separate from `MusicHistory`**, which is deliberately "one row per source app" (see its doc comment).

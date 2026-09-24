@@ -624,9 +624,70 @@ private fun PlayerNowPlaying(
                 Spacer(Modifier.width(8.dp))
                 Text("add to playlist", color = accent, fontSize = 14.sp)
             }
+        } else {
+            // Same spot as "add to playlist": a podcast's favorite is its
+            // show (the podcasts tab's favorites are subscribed shows), a
+            // radio stream's is the station itself.
+            Spacer(Modifier.height(14.dp))
+            NowPlayingFavoriteToggle(item, accent, tokens, context)
         }
         Spacer(Modifier.height(20.dp))
         Text(caption, color = tokens.fgDim, fontSize = 12.sp)
+    }
+}
+
+/** Heart toggle under the transport row for a podcast episode (favorites its
+ * show) or a radio station — writes the same stores the podcasts/radio tabs'
+ * own hearts do, so the two always agree. */
+@Composable
+private fun NowPlayingFavoriteToggle(item: PlayableAudio, accent: Color, tokens: ColorTokens, context: Context) {
+    val subscriptions by PodcastStore.subscriptions(context).collectAsState(initial = emptyList())
+    val stations by RadioFavoritesStore.favorites(context).collectAsState(initial = emptyList())
+    val (isFavorite, noun) = when (item) {
+        is PlayableAudio.Episode -> PodcastStore.isSubscribed(subscriptions, item.show.feedUrl) to "show"
+        is PlayableAudio.RadioStream -> RadioFavoritesStore.isFavorite(stations, item.station.stationId) to "station"
+        is PlayableAudio.Local -> return
+    }
+    val toggle = {
+        val now = System.currentTimeMillis()
+        when (item) {
+            is PlayableAudio.Episode ->
+                if (isFavorite) {
+                    PodcastStore.unsubscribe(context, item.show.feedUrl)
+                } else {
+                    PodcastStore.subscribe(context, item.show.copy(subscribedAtMillis = now))
+                }
+            is PlayableAudio.RadioStream -> {
+                val s = item.station
+                if (isFavorite) {
+                    RadioFavoritesStore.removeFavorite(context, s.stationId)
+                } else {
+                    RadioFavoritesStore.addFavorite(context, FavoriteStation(s.stationId, s.name, s.streamUrl, s.faviconUrl, now))
+                }
+            }
+            is PlayableAudio.Local -> Unit
+        }
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = toggle,
+        ),
+    ) {
+        Icon(
+            TileIcons["heart"],
+            contentDescription = null,
+            tint = if (isFavorite) accent else tokens.fgDim,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            if (isFavorite) "$noun in favorites" else "add $noun to favorites",
+            color = accent,
+            fontSize = 14.sp,
+        )
     }
 }
 
@@ -1895,6 +1956,7 @@ fun formatTrackDuration(durationMs: Long): String {
 @Composable
 private fun PodcastsPage(context: Context, accent: Color, tokens: ColorTokens) {
     val subscriptions by PodcastStore.subscriptions(context).collectAsState(initial = emptyList())
+    val recents by MusicRecents.episodes(context).collectAsState(initial = emptyList())
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<PodcastSearchResult>>(emptyList()) }
     var searching by remember { mutableStateOf(false) }
@@ -2001,15 +2063,40 @@ private fun PodcastsPage(context: Context, accent: Color, tokens: ColorTokens) {
                 onSelect = { openFeedUrl = it },
                 onToggleSubscribe = ::toggleSubscribe,
             )
-            subscriptions.isEmpty() -> LibraryEmptyState("search, or pick a category above, to find podcasts", tokens)
-            else -> PodcastShowList(
-                subscriptions.map { PodcastShowEntry(it.feedUrl, it.title, it.artworkUrl) },
-                subscriptions,
-                accent,
-                tokens,
-                onSelect = { openFeedUrl = it },
-                onToggleSubscribe = ::toggleSubscribe,
-            )
+            subscriptions.isEmpty() && recents.isEmpty() ->
+                LibraryEmptyState("search, or pick a category above, to find podcasts", tokens)
+            else -> Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 18.dp)
+                    .padding(bottom = 32.dp),
+            ) {
+                if (subscriptions.isNotEmpty()) {
+                    HubSectionHeader("favorites", tokens)
+                    subscriptions.forEachIndexed { index, sub ->
+                        PodcastShowRow(
+                            title = sub.title,
+                            artworkUrl = sub.artworkUrl,
+                            isSubscribed = true,
+                            accent = accent,
+                            tokens = tokens,
+                            onClick = { openFeedUrl = sub.feedUrl },
+                            onToggleSubscribe = { toggleSubscribe(PodcastShowEntry(sub.feedUrl, sub.title, sub.artworkUrl)) },
+                        )
+                        if (index < subscriptions.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(tokens.sheetLine))
+                    }
+                }
+                if (recents.isNotEmpty()) {
+                    HubSectionHeader("recent", tokens)
+                    recents.forEachIndexed { index, recent ->
+                        RecentEpisodeRow(recent, tokens) {
+                            LocalMusicPlayer.playEpisodes(context, recent.show, listOf(recent.episode), 0)
+                        }
+                        if (index < recents.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(tokens.sheetLine))
+                    }
+                }
+            }
         }
     }
 }
@@ -2245,6 +2332,54 @@ private fun PodcastEpisodeRow(episode: PodcastEpisode, tokens: ColorTokens, onCl
     }
 }
 
+/** "favorites" / "recent" heading on the podcasts and radio tabs' home list. */
+@Composable
+private fun HubSectionHeader(title: String, tokens: ColorTokens) {
+    Text(
+        title,
+        color = tokens.fg,
+        fontSize = 18.sp,
+        fontWeight = FontWeight.Light,
+        modifier = Modifier.padding(top = 6.dp, bottom = 4.dp),
+    )
+}
+
+/** A recently-played episode: its (or its show's) art, title, and the show it
+ * came from. Tapping replays just that episode. */
+@Composable
+private fun RecentEpisodeRow(recent: RecentEpisode, tokens: ColorTokens, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val art = rememberRemoteArt(recent.episode.imageUrl ?: recent.show.artworkUrl)
+        if (art != null) {
+            androidx.compose.foundation.Image(
+                bitmap = art,
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.size(44.dp).clip(RoundedCornerShape(4.dp)),
+            )
+        } else {
+            Box(Modifier.size(44.dp).clip(RoundedCornerShape(4.dp)).background(tokens.chip), contentAlignment = Alignment.Center) {
+                Icon(TileIcons["music"], contentDescription = null, tint = tokens.fgDim, modifier = Modifier.size(20.dp))
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(recent.episode.title, color = tokens.fg, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(recent.show.title, color = tokens.fgDim, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
 // ---- Radio ---------------------------------------------------------------
 
 /**
@@ -2262,6 +2397,7 @@ private fun PodcastEpisodeRow(episode: PodcastEpisode, tokens: ColorTokens, onCl
 @Composable
 private fun RadioPage(context: Context, accent: Color, tokens: ColorTokens) {
     val favorites by RadioFavoritesStore.favorites(context).collectAsState(initial = emptyList())
+    val recents by MusicRecents.stations(context).collectAsState(initial = emptyList())
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<RadioStation>>(emptyList()) }
     var searching by remember { mutableStateOf(false) }
@@ -2320,8 +2456,16 @@ private fun RadioPage(context: Context, accent: Color, tokens: ColorTokens) {
             categoryActive && loadingCategory && categoryResults.isEmpty() -> LibraryEmptyState("loading…", tokens)
             categoryActive && categoryResults.isEmpty() -> LibraryEmptyState("no matches", tokens)
             categoryActive -> RadioStationList(categoryResults, favorites, context, accent, tokens)
-            favorites.isEmpty() -> LibraryEmptyState("search, or pick a category above, to find radio stations", tokens)
-            else -> RadioStationList(favorites.map { it.toRadioStation() }, favorites, context, accent, tokens)
+            favorites.isEmpty() && recents.isEmpty() ->
+                LibraryEmptyState("search, or pick a category above, to find radio stations", tokens)
+            else -> RadioStationList(
+                favorites.map { it.toRadioStation() },
+                favorites,
+                context,
+                accent,
+                tokens,
+                recents = recents.map { it.toRadioStation() },
+            )
         }
     }
 }
@@ -2336,6 +2480,9 @@ private fun RadioStationList(
     context: Context,
     accent: Color,
     tokens: ColorTokens,
+    // Non-null only for the tab's home list: [stations] are then the
+    // favorites, shown under a "favorites" header with these below them.
+    recents: List<RadioStation>? = null,
 ) {
     Column(
         modifier = Modifier
@@ -2344,38 +2491,60 @@ private fun RadioStationList(
             .padding(horizontal = 18.dp)
             .padding(bottom = 32.dp),
     ) {
-        stations.forEachIndexed { index, station ->
-            val isFav = RadioFavoritesStore.isFavorite(favorites, station.stationId)
-            RadioStationRow(
-                name = station.name,
-                faviconUrl = station.faviconUrl,
-                subtitle = listOfNotNull(
-                    station.country.takeIf { it.isNotBlank() },
-                    station.tags.takeIf { it.isNotBlank() },
-                ).takeIf { it.isNotEmpty() }?.joinToString(" · "),
-                isFavorite = isFav,
-                tokens = tokens,
-                accent = accent,
-                onClick = { LocalMusicPlayer.playStation(context, RadioStationRef(station)) },
-                onToggleFavorite = {
-                    if (isFav) {
-                        RadioFavoritesStore.removeFavorite(context, station.stationId)
-                    } else {
-                        RadioFavoritesStore.addFavorite(
-                            context,
-                            FavoriteStation(
-                                stationId = station.stationId,
-                                name = station.name,
-                                streamUrl = station.streamUrl,
-                                faviconUrl = station.faviconUrl,
-                                favoritedAtMillis = System.currentTimeMillis(),
-                            ),
-                        )
-                    }
-                },
-            )
-            if (index < stations.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(tokens.sheetLine))
+        if (recents == null) {
+            RadioStationRows(stations, favorites, context, accent, tokens)
+        } else {
+            if (stations.isNotEmpty()) {
+                HubSectionHeader("favorites", tokens)
+                RadioStationRows(stations, favorites, context, accent, tokens)
+            }
+            if (recents.isNotEmpty()) {
+                HubSectionHeader("recent", tokens)
+                RadioStationRows(recents, favorites, context, accent, tokens)
+            }
         }
+    }
+}
+
+@Composable
+private fun RadioStationRows(
+    stations: List<RadioStation>,
+    favorites: List<FavoriteStation>,
+    context: Context,
+    accent: Color,
+    tokens: ColorTokens,
+) {
+    stations.forEachIndexed { index, station ->
+        val isFav = RadioFavoritesStore.isFavorite(favorites, station.stationId)
+        RadioStationRow(
+            name = station.name,
+            faviconUrl = station.faviconUrl,
+            subtitle = listOfNotNull(
+                station.country.takeIf { it.isNotBlank() },
+                station.tags.takeIf { it.isNotBlank() },
+            ).takeIf { it.isNotEmpty() }?.joinToString(" · "),
+            isFavorite = isFav,
+            tokens = tokens,
+            accent = accent,
+            onClick = { LocalMusicPlayer.playStation(context, RadioStationRef(station)) },
+            onToggleFavorite = {
+                if (isFav) {
+                    RadioFavoritesStore.removeFavorite(context, station.stationId)
+                } else {
+                    RadioFavoritesStore.addFavorite(
+                        context,
+                        FavoriteStation(
+                            stationId = station.stationId,
+                            name = station.name,
+                            streamUrl = station.streamUrl,
+                            faviconUrl = station.faviconUrl,
+                            favoritedAtMillis = System.currentTimeMillis(),
+                        ),
+                    )
+                }
+            },
+        )
+        if (index < stations.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(tokens.sheetLine))
     }
 }
 

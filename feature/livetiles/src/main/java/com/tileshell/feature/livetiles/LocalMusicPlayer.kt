@@ -169,6 +169,9 @@ object LocalMusicPlayer {
             mp.setOnPreparedListener {
                 runCatching { it.start() }
                 _state.value = _state.value.copy(playing = true)
+                // Here rather than in a UI effect so an episode auto-advanced
+                // to in the background still lands in the podcasts tab's recents.
+                MusicRecents.record(context, item)
             }
             mp.setOnCompletionListener { next(context) }
             mp.setOnErrorListener { _, _, _ -> next(context); true }

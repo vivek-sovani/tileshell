@@ -37,6 +37,30 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — music hub: podcasts/radio tabs show favorites + 10 recents, and
+  now playing can favorite the show/station.** User-requested. New
+  `MusicRecents.kt` (`:feature:livetiles`): two DataStores
+  (`podcast_recents.pb` — episodes, with the show's identity embedded so a
+  recent entry replays without re-fetching the feed; `radio_recents.pb` —
+  stations, reusing `FavoriteStation`/`FavoriteStationCodec` as-is), capped at
+  `MusicRecents.MAX` = 10, one entry per episode guid / station id,
+  most-recent first (pure, unit-tested `pushRecent` + `RecentEpisodeCodec`,
+  `MusicRecentsTest.kt`). Recorded from `LocalMusicPlayer`'s `onPrepared`, not
+  a UI effect, so a podcast episode auto-advanced to in the background still
+  lands there and a stream that fails to load never does. Kept separate from
+  `MusicHistory` on purpose (that one is "one row per source app," no
+  identity for an episode/station). The two tabs' home state (no query, no
+  category chip) is now a "favorites" section (subscribed shows / favorited
+  stations — unchanged hearts) above a "recent" section; tapping a recent
+  episode replays just that episode, a recent station plays with the same
+  heart as everywhere else. The empty-state hint only shows when both are
+  empty. Now playing gains `NowPlayingFavoriteToggle` in the same spot "add
+  to playlist" occupies for a local track: "add show to favorites" (podcast —
+  a podcast's favorite is its show, matching the tab) / "add station to
+  favorites" (radio), heart accent-filled once favorited; it writes the same
+  `PodcastStore`/`RadioFavoritesStore` the tabs' own hearts do, so the two
+  always agree. Build + full unit test suite green. **Not verified
+  on-device** — no device or emulator was attached this session.
 - **`main` — the date-rollover widget fix from the day before didn't work; both
   layers of its design had failed independently.** User-reported the next
   morning ("today also it is showing Shanivar at 5.30 today"), with the key
