@@ -10269,3 +10269,40 @@ static-glyph default tiles (phone, camera, maps, store, browser, calc, …) aren
 in the list: pinning the app from the app list is the way back for those, now with
 the real icon. The default "social" folder can't be restored either (recreate it
 by merging tiles).
+
+## People Hub "what's new": mail, filter chips, tap-to-expand inline reply (part 1 of 3)
+
+User-requested, instead of separate mail/messaging hubs: include mail in the
+existing "what's new", add filters, and allow inline reply wherever the app
+allows it. Designed first with mockups and agreed in conversation.
+- **Categories** (`PeopleDirectory.kt`): the old flat `PEOPLE_NOTIFICATION_PACKAGES`
+  allowlist is now `PEOPLE_APP_CATEGORIES`, mapping each package to a
+  `PeopleCategory`: CHAT, MESSAGES (SMS/RCS), MAIL (new: Gmail, Outlook, Samsung
+  Email, Yahoo, Proton, Zoho, Spark, K-9/Thunderbird, Rediff, AOSP Email),
+  SOCIAL, CALLS. Social stays in what's new, as before (user: "maintain that").
+  Calls have no chip and show under "all" only.
+- **Chips**: all / chat / messages / mail / social, each with its pending count
+  (`whatsNewCounts`, from badge counts, so bundled mail still counts). The last
+  chip picked is remembered in `tileshell.prefs`. Under mail, a
+  "N more in gmail · open gmail ›" footer (`hiddenActivityCounts`) covers
+  notifications beyond the 5 rows kept per package.
+- **Tap expands, not opens** (user chose this over tap-opens/long-press-expands):
+  one row open at a time, showing a reply box, "mark read", "archive" and
+  "open <app>". Each button shows only when the posting app put that button on
+  its notification. `classifyQuickActions` (pure, tested) prefers the declared
+  `semanticAction` (API 28+), then falls back to the button title, since
+  WhatsApp and Gmail don't declare one. A reply needs a free-form `RemoteInput`.
+  The listener publishes the matched `Notification.Action`s per key
+  (`NotificationCenter.publishQuickActions`), and `performQuickAction` fills the
+  `RemoteInput` and sends the app's own action intent. If a button has gone (the
+  notification was updated) or the send fails, the row opens the app instead, so
+  a tap always does something.
+- **App bar** on what's new: back, pin, "clear these" (`clearKeys`, clears only
+  the rows listed under the current filter), then "compose" (mailto:) under
+  the mail filter, else "open contacts app".
+- The pinned "what's new" Start tile uses the same `recentActivity`, so it now
+  includes mail too.
+Limits: everything is still limited to notifications currently in the shade.
+Replying from the hub depends on each app accepting its reply intent from another
+app. WhatsApp's buttons were confirmed present via `dumpsys notification`, but
+the actual send wasn't exercised on the device (it was locked).

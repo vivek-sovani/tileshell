@@ -101,6 +101,9 @@ class TileNotificationListenerService : NotificationListenerService() {
         NotificationCenter.publish(summarizeNotifications(active.mapNotNull { it.toItem() }))
         // Parallel tap-action map: how each package's tile opens + clears on tap.
         NotificationCenter.publishActions(tileNotificationActions(active.map { it.toActionRow() }))
+        // Reply / mark read / archive buttons per notification, for the People
+        // Hub's "what's new" (pressed there on the user's behalf).
+        NotificationCenter.publishQuickActions(quickActionButtons(active))
         // Per-package newest image (used by non-cycling faces like PhotosTileFace).
         NotificationCenter.publishImages(notificationImages(active))
         // Per-notification-key images for the cycling back face — each group/sender
@@ -212,8 +215,28 @@ private fun Bitmap.downscaleIfNeeded(maxPx: Int): Bitmap {
     return runCatching { Bitmap.createScaledBitmap(this, w, h, true) }.getOrDefault(this)
 }
 
+/** Every dismissable notification's classified quick-action buttons, by key. */
+private fun quickActionButtons(
+    active: Array<out StatusBarNotification>,
+): Map<String, Map<QuickAction, Notification.Action>> =
+    active.mapNotNull { sbn ->
+        if (!sbn.isClearable) return@mapNotNull null
+        val buttons = sbn.notification?.actions?.toList().orEmpty()
+        if (buttons.isEmpty()) return@mapNotNull null
+        val classified = classifyQuickActions(buttons.map { it.toInfo() })
+        if (classified.isEmpty()) null else sbn.key to classified.mapValues { (_, index) -> buttons[index] }
+    }.toMap()
+
+private fun Notification.Action.toInfo(): QuickActionInfo = QuickActionInfo(
+    title = title?.toString().orEmpty(),
+    semanticAction = if (android.os.Build.VERSION.SDK_INT >= 28) semanticAction else 0,
+    acceptsFreeText = remoteInputs?.any { it.allowFreeFormInput } == true,
+)
+
 private fun StatusBarNotification.toItem(): NotificationItem? {
     val extras = notification?.extras ?: return null
+    val quickActions = notification.actions?.toList().orEmpty()
+        .let { buttons -> classifyQuickActions(buttons.map { it.toInfo() }).keys }
     return NotificationItem(
         packageName = tilePackageName(),
         title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString(),
@@ -222,6 +245,7 @@ private fun StatusBarNotification.toItem(): NotificationItem? {
         isGroupSummary = (notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0,
         postTime = postTime,
         notificationKey = key,
+        quickActions = quickActions,
     )
 }
 

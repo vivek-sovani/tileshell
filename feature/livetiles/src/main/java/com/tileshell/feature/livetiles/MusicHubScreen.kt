@@ -911,12 +911,12 @@ private fun HistoryPage(context: Context, accent: Color, tokens: ColorTokens) {
     }
 }
 
-private fun appLabelOrNull(context: Context, packageName: String): String? = runCatching {
+internal fun appLabelOrNull(context: Context, packageName: String): String? = runCatching {
     val pm = context.packageManager
     pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
 }.getOrNull()
 
-private fun openApp(context: Context, packageName: String) {
+internal fun openApp(context: Context, packageName: String) {
     runCatching {
         context.packageManager.getLaunchIntentForPackage(packageName)?.let { context.startActivity(it) }
     }

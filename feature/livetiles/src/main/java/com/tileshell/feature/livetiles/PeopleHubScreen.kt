@@ -129,6 +129,8 @@ fun PeopleHubScreen(
     val pagerScope = rememberCoroutineScope()
     var searchOpen by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
+    var whatsNewFilter by remember { mutableStateOf(loadWhatsNewFilter(context)) }
+    val snapshot by NotificationCenter.snapshot.collectAsStateWithLifecycle()
 
     LaunchedEffect(visible, initialPage) {
         if (visible && initialPage != null) {
@@ -201,7 +203,10 @@ fun PeopleHubScreen(
                 HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
                     when (page) {
                         0 -> AllPeoplePage(context, tokens, accent, query)
-                        1 -> WhatsNewPage(context, tokens, accent)
+                        1 -> WhatsNewPage(context, tokens, accent, whatsNewFilter) {
+                            whatsNewFilter = it
+                            saveWhatsNewFilter(context, it)
+                        }
                         else -> RecentPeoplePage(context, tokens, accent)
                     }
                 }
@@ -216,6 +221,25 @@ fun PeopleHubScreen(
                         HubAppBarAction("search", "search") { searchOpen = !searchOpen },
                         HubAppBarAction("people", "open contacts app") { openContactsApp(context) },
                     )
+                    1 -> buildList {
+                        add(HubAppBarAction("back", "back", onDismiss))
+                        add(HubAppBarAction("pin", "pin this page to start") { onPinPage("what's new", "what's new") })
+                        // Clears just the notifications listed under the current filter.
+                        add(
+                            HubAppBarAction("check", "clear these") {
+                                NotificationCenter.clearKeys(
+                                    recentActivity(snapshot, category = whatsNewFilter)
+                                        .map { it.notificationKey }
+                                        .filter { it.isNotEmpty() },
+                                )
+                            },
+                        )
+                        if (whatsNewFilter == PeopleCategory.MAIL) {
+                            add(HubAppBarAction("edit", "compose") { openMailCompose(context) })
+                        } else {
+                            add(HubAppBarAction("people", "open contacts app") { openContactsApp(context) })
+                        }
+                    }
                     else -> {
                         val page = HUB_PIVOTS[pagerState.currentPage]
                         listOf(
@@ -691,58 +715,147 @@ private fun RecentPeoplePage(context: android.content.Context, tokens: ColorToke
 }
 
 /**
- * "what's new" — recent messaging/social notifications for people, reusing
- * [NotificationCenter] (already tracked for badges/mail-and-messages tile
- * faces) rather than a parallel data source. Gated on notification-listener
- * access, a separate opt-in from READ_CONTACTS (the same permission the
- * "notifications" row in Personalize already asks for).
+ * "what's new" — recent notifications from people, reusing [NotificationCenter]
+ * (already tracked for badges/mail-and-messages tile faces) rather than a
+ * parallel data source. Gated on notification-listener access, a separate
+ * opt-in from READ_CONTACTS (the same permission the "notifications" row in
+ * Personalize already asks for).
+ *
+ * Filter chips narrow it to chat / messages / mail / social ([filter], hoisted
+ * so the app bar's "compose" can follow it). Tapping a row expands it in place
+ * (only one at a time) to reply inline, mark read or archive — whichever
+ * buttons the posting app put on its notification — or open the app; tapping
+ * the row again collapses it.
  */
 @Composable
-private fun WhatsNewPage(context: android.content.Context, tokens: ColorTokens, accent: Color) {
+private fun WhatsNewPage(
+    context: android.content.Context,
+    tokens: ColorTokens,
+    accent: Color,
+    filter: PeopleCategory?,
+    onFilterChange: (PeopleCategory?) -> Unit,
+) {
     val granted = rememberNotificationAccess()
     if (!granted) {
         NotificationAccessGate(tokens, accent)
         return
     }
     val snapshot by NotificationCenter.snapshot.collectAsStateWithLifecycle()
-    val entries = remember(snapshot) { recentActivity(snapshot) }
+    val entries = remember(snapshot, filter) { recentActivity(snapshot, category = filter) }
+    val counts = remember(snapshot) { whatsNewCounts(snapshot) }
+    val hidden = remember(snapshot, filter) {
+        if (filter == PeopleCategory.MAIL) hiddenActivityCounts(snapshot, PeopleCategory.MAIL) else emptyMap()
+    }
+    var expandedKey by remember { mutableStateOf<String?>(null) }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
-    ) {
-        if (entries.isEmpty()) {
-            item {
-                Text(
-                    "nothing new right now",
-                    color = tokens.fgDim,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(vertical = 24.dp),
-                )
-            }
-        } else {
-            item {
-                Text(
-                    "from your notifications",
-                    color = tokens.fgDim,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(bottom = 10.dp),
-                )
-            }
-            items(entries, key = { "activity-${it.notificationKey.ifBlank { it.packageName + it.postTime }}" }) { entry ->
-                ActivityRow(entry, tokens) {
-                    NotificationCenter.reportDisplayedKey(entry.packageName, entry.notificationKey)
-                    NotificationCenter.openAndClear(context, entry.packageName)
+    Column(modifier = Modifier.fillMaxSize()) {
+        WhatsNewFilterChips(tokens, accent, filter, counts) {
+            expandedKey = null
+            onFilterChange(it)
+        }
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
+        ) {
+            if (entries.isEmpty()) {
+                item {
+                    Text(
+                        if (filter == null) "nothing new right now" else "nothing new in ${filter.label}",
+                        color = tokens.fgDim,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(vertical = 24.dp),
+                    )
+                }
+            } else {
+                items(entries, key = { "activity-${it.notificationKey.ifBlank { it.packageName + it.postTime }}" }) { entry ->
+                    val key = entry.notificationKey
+                    ActivityRow(
+                        entry = entry,
+                        tokens = tokens,
+                        accent = accent,
+                        expanded = key.isNotEmpty() && expandedKey == key,
+                        onToggle = { expandedKey = if (expandedKey == key || key.isEmpty()) null else key },
+                        onOpenApp = {
+                            expandedKey = null
+                            NotificationCenter.reportDisplayedKey(entry.packageName, key)
+                            if (!NotificationCenter.openAndClear(context, entry.packageName)) {
+                                openApp(context, entry.packageName)
+                            }
+                        },
+                        onDone = { expandedKey = null },
+                    )
                 }
             }
+            hidden.forEach { (packageName, count) ->
+                item(key = "more-$packageName") {
+                    val label = remember(packageName) { appLabelOrNull(context, packageName) ?: "the app" }.lowercase()
+                    Text(
+                        text = "$count more in $label · open $label ›",
+                        color = tokens.fgDim,
+                        fontSize = 13.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { openApp(context, packageName) },
+                            )
+                            .padding(start = 58.dp, top = 10.dp, bottom = 10.dp),
+                    )
+                }
+            }
+            item { Spacer(Modifier.height(24.dp)) }
         }
-        item { Spacer(Modifier.height(24.dp)) }
+    }
+}
+
+/** The all / chat / messages / mail / social chip row, each with its pending count. */
+@Composable
+private fun WhatsNewFilterChips(
+    tokens: ColorTokens,
+    accent: Color,
+    selected: PeopleCategory?,
+    counts: Map<PeopleCategory?, Int>,
+    onSelect: (PeopleCategory?) -> Unit,
+) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 18.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.padding(bottom = 8.dp),
+    ) {
+        items(WHATS_NEW_FILTERS, key = { it?.name ?: "all" }) { category ->
+            val on = category == selected
+            val count = counts[category] ?: 0
+            val label = (category?.label ?: "all") + if (count > 0) " $count" else ""
+            Text(
+                text = label,
+                color = if (on) Color.White else tokens.fg,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (on) accent else tokens.fg.copy(alpha = 0.08f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { onSelect(category) },
+                    )
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            )
+        }
     }
 }
 
 @Composable
-private fun ActivityRow(entry: ActivityEntry, tokens: ColorTokens, onClick: () -> Unit) {
+private fun ActivityRow(
+    entry: ActivityEntry,
+    tokens: ColorTokens,
+    accent: Color,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onOpenApp: () -> Unit,
+    onDone: () -> Unit,
+) {
+    val context = LocalContext.current
     // Real sender/message photo when the notification carried one (user-
     // requested: "in hub also the same thing photo of sender") — same
     // per-notification-key lookup, falling back to the per-package image,
@@ -751,58 +864,210 @@ private fun ActivityRow(entry: ActivityEntry, tokens: ColorTokens, onClick: () -
     val fallbackImages by NotificationCenter.images.collectAsStateWithLifecycle()
     val avatarBitmap = (itemImages[entry.notificationKey] ?: fallbackImages[entry.packageName])
         ?.avatar?.asImageBitmap()
+    val appLabel = remember(entry.packageName) {
+        appLabelOrNull(context, entry.packageName)?.lowercase() ?: "app"
+    }
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (expanded) tokens.fg.copy(alpha = 0.06f) else Color.Transparent),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onToggle,
+                )
+                .padding(vertical = 9.dp, horizontal = if (expanded) 8.dp else 0.dp),
+            verticalAlignment = if (expanded) Alignment.Top else Alignment.CenterVertically,
+        ) {
+            Box(modifier = Modifier.size(44.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(if (avatarBitmap == null) colorFor(entry.sender) else Color.Transparent),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (avatarBitmap != null) {
+                        Image(
+                            bitmap = avatarBitmap,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else {
+                        Text(initialsFor(entry.sender), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                val appIcon = rememberAppIconBitmap(entry.packageName, sizePx = 64)
+                if (appIcon != null) {
+                    Image(
+                        bitmap = appIcon,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(18.dp)
+                            .align(Alignment.BottomEnd)
+                            .clip(CircleShape),
+                    )
+                }
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(entry.sender.lowercase(), color = tokens.fg, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    entry.snippet,
+                    color = tokens.fgDim,
+                    fontSize = 13.sp,
+                    maxLines = if (expanded) 4 else 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(activityAgo(entry.postTime), color = tokens.fgDim, fontSize = 11.sp)
+        }
+
+        if (expanded) {
+            Column(modifier = Modifier.padding(start = 66.dp, end = 10.dp, bottom = 10.dp)) {
+                if (QuickAction.REPLY in entry.quickActions) {
+                    InlineReplyField(tokens, accent, entry.sender) { text ->
+                        val sent = NotificationCenter.performQuickAction(context, entry.notificationKey, QuickAction.REPLY, text)
+                        if (sent) {
+                            showToast(context, "sent")
+                            onDone()
+                        } else {
+                            showToast(context, "couldn't reply here, opening $appLabel")
+                            onOpenApp()
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                    if (QuickAction.MARK_READ in entry.quickActions) {
+                        RowAction("mark read", accent) {
+                            pressOrFallBack(context, entry, QuickAction.MARK_READ, appLabel, onDone, onOpenApp)
+                        }
+                    }
+                    if (QuickAction.ARCHIVE in entry.quickActions) {
+                        RowAction("archive", accent) {
+                            pressOrFallBack(context, entry, QuickAction.ARCHIVE, appLabel, onDone, onOpenApp)
+                        }
+                    }
+                    RowAction("open $appLabel", accent, onOpenApp)
+                }
+            }
+        }
+    }
+}
+
+/** Presses [action] on [entry]'s notification; if the app no longer offers it,
+ * opens the app instead so the tap still does something. */
+private fun pressOrFallBack(
+    context: android.content.Context,
+    entry: ActivityEntry,
+    action: QuickAction,
+    appLabel: String,
+    onDone: () -> Unit,
+    onOpenApp: () -> Unit,
+) {
+    if (NotificationCenter.performQuickAction(context, entry.notificationKey, action)) {
+        onDone()
+    } else {
+        showToast(context, "couldn't do that here, opening $appLabel")
+        onOpenApp()
+    }
+}
+
+@Composable
+private fun InlineReplyField(tokens: ColorTokens, accent: Color, sender: String, onSend: (String) -> Unit) {
+    var text by remember { mutableStateOf("") }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        BasicTextField(
+            value = text,
+            onValueChange = { text = it },
+            textStyle = TextStyle(color = tokens.fg, fontSize = 14.sp),
+            cursorBrush = SolidColor(accent),
+            maxLines = 4,
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(16.dp))
+                .background(tokens.fg.copy(alpha = 0.08f))
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            decorationBox = { inner ->
+                if (text.isEmpty()) {
+                    Text("reply to ${sender.lowercase()}", color = tokens.fgDim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                inner()
+            },
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = "send",
+            color = if (text.isBlank()) tokens.fgDim else accent,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                enabled = text.isNotBlank(),
+                onClick = { onSend(text.trim()) },
+            ),
+        )
+    }
+}
+
+@Composable
+private fun RowAction(label: String, accent: Color, onClick: () -> Unit) {
+    Text(
+        text = label,
+        color = accent,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Medium,
+        modifier = Modifier
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick,
             )
-            .padding(vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(modifier = Modifier.size(44.dp)) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(if (avatarBitmap == null) colorFor(entry.sender) else Color.Transparent),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (avatarBitmap != null) {
-                    Image(
-                        bitmap = avatarBitmap,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    Text(initialsFor(entry.sender), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-            val appIcon = rememberAppIconBitmap(entry.packageName, sizePx = 64)
-            if (appIcon != null) {
-                Image(
-                    bitmap = appIcon,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(18.dp)
-                        .align(Alignment.BottomEnd)
-                        .clip(CircleShape),
-                )
-            }
-        }
-        Spacer(Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(entry.sender.lowercase(), color = tokens.fg, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(entry.snippet, color = tokens.fgDim, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        Spacer(Modifier.width(8.dp))
-        Text(activityAgo(entry.postTime), color = tokens.fgDim, fontSize = 11.sp)
+            .padding(vertical = 4.dp),
+    )
+}
+
+private fun showToast(context: android.content.Context, message: String) {
+    android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+}
+
+private const val PEOPLE_PREFS = "tileshell.prefs"
+private const val WHATS_NEW_FILTER_KEY = "people_whats_new_filter"
+
+/** The filter chip last picked on "what's new", remembered across hub opens. */
+private fun loadWhatsNewFilter(context: android.content.Context): PeopleCategory? = runCatching {
+    context.getSharedPreferences(PEOPLE_PREFS, android.content.Context.MODE_PRIVATE)
+        .getString(WHATS_NEW_FILTER_KEY, null)
+        ?.let { PeopleCategory.valueOf(it) }
+        ?.takeIf { it in WHATS_NEW_FILTERS }
+}.getOrNull()
+
+private fun saveWhatsNewFilter(context: android.content.Context, filter: PeopleCategory?) {
+    runCatching {
+        context.getSharedPreferences(PEOPLE_PREFS, android.content.Context.MODE_PRIVATE)
+            .edit().putString(WHATS_NEW_FILTER_KEY, filter?.name).apply()
     }
+}
+
+/** Opens the default mail app's compose screen (the mail filter's "compose"). */
+private fun openMailCompose(context: android.content.Context) {
+    runCatching {
+        context.startActivity(
+            android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:"))
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    }.onFailure { showToast(context, "no mail app found") }
 }
 
 @Composable
@@ -815,7 +1080,7 @@ private fun NotificationAccessGate(tokens: ColorTokens, accent: Color) {
         Text("see what's new", color = tokens.fg, fontSize = 16.sp, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(6.dp))
         Text(
-            "shows recent messages and social notifications from people. stays on your device — nothing is sent anywhere.",
+            "shows recent chats, messages, mail and social notifications from people. stays on your device — nothing is sent anywhere.",
             color = tokens.fgDim,
             fontSize = 13.sp,
         )

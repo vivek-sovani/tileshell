@@ -104,6 +104,69 @@ class RecentActivityTest {
     }
 }
 
+class WhatsNewFilterTest {
+
+    private fun preview(sender: String, postTime: Long, count: Int = 1, key: String = sender) =
+        ConversationPreview(sender, "hi", count, listOf(ConversationItem(sender, "hi", key, postTime)))
+
+    private val snapshot = NotificationSnapshot(
+        badges = mapOf(
+            "com.whatsapp" to 2,
+            "com.google.android.gm" to 7,
+            "com.google.android.apps.messaging" to 1,
+            "com.instagram.android" to 1,
+            "com.google.android.dialer" to 1,
+            "com.android.vending" to 3,
+        ),
+        conversations = mapOf(
+            "com.whatsapp" to preview("priya", 5000),
+            "com.google.android.gm" to preview("anand", 4000),
+            "com.google.android.apps.messaging" to preview("airtel", 3000),
+            "com.instagram.android" to preview("insta", 2000),
+            "com.google.android.dialer" to preview("missed", 1000),
+            "com.android.vending" to preview("promo", 9000),
+        ),
+    )
+
+    @Test
+    fun `mail is included under all, and every row carries its category`() {
+        val entries = recentActivity(snapshot)
+        assertEquals(listOf("priya", "anand", "airtel", "insta", "missed"), entries.map { it.sender })
+        assertEquals(
+            listOf(PeopleCategory.CHAT, PeopleCategory.MAIL, PeopleCategory.MESSAGES, PeopleCategory.SOCIAL, PeopleCategory.CALLS),
+            entries.map { it.category },
+        )
+    }
+
+    @Test
+    fun `a category filter keeps only that category`() {
+        assertEquals(listOf("anand"), recentActivity(snapshot, category = PeopleCategory.MAIL).map { it.sender })
+        assertEquals(listOf("insta"), recentActivity(snapshot, category = PeopleCategory.SOCIAL).map { it.sender })
+    }
+
+    @Test
+    fun `chip counts sum badges per category, all includes calls, non-people apps excluded`() {
+        val counts = whatsNewCounts(snapshot)
+        assertEquals(2, counts[PeopleCategory.CHAT])
+        assertEquals(7, counts[PeopleCategory.MAIL])
+        assertEquals(1, counts[PeopleCategory.MESSAGES])
+        assertEquals(1, counts[PeopleCategory.SOCIAL])
+        assertEquals(12, counts[null])
+    }
+
+    @Test
+    fun `hidden counts report notifications beyond the rows shown`() {
+        assertEquals(mapOf("com.google.android.gm" to 6), hiddenActivityCounts(snapshot, PeopleCategory.MAIL))
+        assertEquals(emptyMap<String, Int>(), hiddenActivityCounts(snapshot, PeopleCategory.MESSAGES))
+    }
+
+    @Test
+    fun `calls have no chip of their own`() {
+        assertEquals(false, PeopleCategory.CALLS in WHATS_NEW_FILTERS)
+        assertEquals(null, WHATS_NEW_FILTERS.first())
+    }
+}
+
 class ActivityAgoTest {
 
     @Test

@@ -1,10 +1,14 @@
 package com.tileshell.feature.livetiles
 
 import android.app.ActivityOptions
+import android.app.Notification
 import android.app.PendingIntent
+import android.app.RemoteInput
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.os.Build
+import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,7 +37,59 @@ data class NotificationItem(
     val isGroupSummary: Boolean,
     val postTime: Long,
     val notificationKey: String = "",
+    val quickActions: Set<QuickAction> = emptySet(),
 )
+
+/**
+ * A notification button the People Hub's "what's new" can press on the user's
+ * behalf without opening the app. Only offered when the posting app itself put
+ * that button on the notification (see [classifyQuickActions]).
+ */
+enum class QuickAction { REPLY, MARK_READ, ARCHIVE }
+
+/**
+ * One notification button reduced to what [classifyQuickActions] needs.
+ * [semanticAction] is `Notification.Action.getSemanticAction()` (API 28+, 0 when
+ * unknown); [acceptsFreeText] is true when the button carries a free-form
+ * `RemoteInput` (a reply box).
+ */
+data class QuickActionInfo(
+    val title: String,
+    val semanticAction: Int,
+    val acceptsFreeText: Boolean,
+)
+
+/**
+ * Maps each [QuickAction] to the index of the notification button that performs
+ * it. Prefers the app's declared semantic action, then falls back to the
+ * button's title, since many apps (WhatsApp, Gmail) don't declare one. A reply
+ * must carry a free-form text input, or there's nothing to type into. The first
+ * matching button wins. Pure for unit testing.
+ */
+fun classifyQuickActions(actions: List<QuickActionInfo>): Map<QuickAction, Int> {
+    val result = mutableMapOf<QuickAction, Int>()
+    actions.forEachIndexed { index, action ->
+        val title = action.title.trim().lowercase()
+        val kind = when {
+            action.acceptsFreeText &&
+                (action.semanticAction == SEMANTIC_REPLY || action.semanticAction == 0) -> QuickAction.REPLY
+            action.semanticAction == SEMANTIC_MARK_AS_READ -> QuickAction.MARK_READ
+            action.semanticAction == SEMANTIC_ARCHIVE -> QuickAction.ARCHIVE
+            action.semanticAction != 0 -> null
+            title == "mark as read" || title == "mark read" || title == "read" -> QuickAction.MARK_READ
+            title == "archive" -> QuickAction.ARCHIVE
+            else -> null
+        }
+        if (kind != null) result.putIfAbsent(kind, index)
+    }
+    return result
+}
+
+// Notification.Action.SEMANTIC_ACTION_* values (API 28+), inlined so the pure
+// classifier doesn't need the framework class.
+internal const val SEMANTIC_REPLY = 1
+internal const val SEMANTIC_MARK_AS_READ = 2
+internal const val SEMANTIC_ARCHIVE = 5
 
 /** One pending notification's sender + snippet, used for cycling on the back
  * face — [postTime] additionally lets the People Hub's "what's new" page sort
@@ -43,6 +99,7 @@ data class ConversationItem(
     val snippet: String,
     val notificationKey: String = "",
     val postTime: Long = 0L,
+    val quickActions: Set<QuickAction> = emptySet(),
 )
 
 /**
@@ -135,6 +192,7 @@ fun summarizeNotifications(items: List<NotificationItem>): NotificationSnapshot 
                     snippet = it.text.orEmpty().trim(),
                     notificationKey = it.notificationKey,
                     postTime = it.postTime,
+                    quickActions = it.quickActions,
                 )
             },
         )
@@ -171,6 +229,10 @@ object NotificationCenter {
     // StateFlow — these carry framework objects and must not drive recomposition.
     // @Volatile so the listener thread's writes are visible to the UI thread's reads.
     @Volatile private var actions: Map<String, TileNotificationAction> = emptyMap()
+
+    // Per-notification-key buttons the People Hub can press for the user (reply,
+    // mark read, archive) — framework objects, so held imperatively like [actions].
+    @Volatile private var quickActions: Map<String, Map<QuickAction, Notification.Action>> = emptyMap()
     @Volatile private var listener: NotificationListenerService? = null
 
     // The notification key each cycling back face is CURRENTLY showing per package,
@@ -220,6 +282,44 @@ object NotificationCenter {
     /** Publishes the latest per-package tap actions (called alongside [publish]). */
     fun publishActions(actions: Map<String, TileNotificationAction>) {
         this.actions = actions
+    }
+
+    /** Publishes the per-notification-key quick-action buttons (alongside [publish]). */
+    fun publishQuickActions(actions: Map<String, Map<QuickAction, Notification.Action>>) {
+        quickActions = actions
+    }
+
+    /**
+     * Presses [action]'s button on the notification [key], as if the user had
+     * tapped it in the notification shade. For [QuickAction.REPLY], [replyText]
+     * fills the button's free-form text input. Returns false when the button is
+     * gone (the notification was updated or cleared meanwhile) or the app
+     * rejected the intent, so the caller can fall back to opening the app.
+     */
+    fun performQuickAction(context: Context, key: String, action: QuickAction, replyText: String? = null): Boolean {
+        val button = quickActions[key]?.get(action) ?: return false
+        val intent = button.actionIntent ?: return false
+        return runCatching {
+            if (action == QuickAction.REPLY) {
+                val inputs = button.remoteInputs?.takeIf { it.isNotEmpty() } ?: return false
+                val fillIn = Intent()
+                val results = Bundle()
+                inputs.filter { it.allowFreeFormInput }.forEach { results.putCharSequence(it.resultKey, replyText.orEmpty()) }
+                RemoteInput.addResultsToIntent(inputs, fillIn, results)
+                if (Build.VERSION.SDK_INT >= 28) RemoteInput.setResultsSource(fillIn, RemoteInput.SOURCE_FREE_FORM_INPUT)
+                intent.send(context, 0, fillIn)
+            } else {
+                intent.send()
+            }
+            true
+        }.getOrDefault(false)
+    }
+
+    /** Clears just these notifications (the hub's "clear" button), leaving the
+     * rest of each app's notifications in place. */
+    fun clearKeys(keys: Collection<String>) {
+        if (keys.isEmpty()) return
+        listener?.let { service -> runCatching { service.cancelNotifications(keys.toTypedArray()) } }
     }
 
     /** Publishes the latest per-package notification images (alongside [publish]). */
@@ -294,6 +394,7 @@ object NotificationCenter {
     fun clear() {
         _snapshot.value = NotificationSnapshot.EMPTY
         actions = emptyMap()
+        quickActions = emptyMap()
         _images.value = emptyMap()
         _itemImages.value = emptyMap()
         displayedKeys = emptyMap()
