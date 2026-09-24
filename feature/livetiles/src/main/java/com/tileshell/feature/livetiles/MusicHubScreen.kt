@@ -43,7 +43,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -167,7 +166,6 @@ fun MusicHubScreen(
     }
     val localPlayback by LocalMusicPlayer.state.collectAsState()
     val externalMedia by MediaCenter.nowPlaying.collectAsState()
-    val anyPlaying = localPlayback.playing || externalMedia.values.any { it.playing }
 
     // Hoisted here, not inside MusicAppsPage itself — that page is one of
     // several HorizontalPager pages, disposed/recomposed on every visit, so
@@ -196,19 +194,6 @@ fun MusicHubScreen(
         if (Build.VERSION.SDK_INT >= 33 && !notificationsAsked && localPlayback.item != null) {
             notificationsAsked = true
             notificationsLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-    }
-
-    // Keeps the display on while something is actively playing — user-
-    // requested, since the screen timing out mid-playback/mid-browse is
-    // annoying even though playback itself (audio) keeps running regardless.
-    // Cleared automatically the moment playback stops or this screen closes
-    // (DisposableEffect's onDispose fires on either).
-    DisposableEffect(anyPlaying) {
-        val activity = context.findActivity()
-        if (anyPlaying) activity?.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        onDispose {
-            activity?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
 

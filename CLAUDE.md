@@ -37,6 +37,13 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — music hub no longer keeps the display on while playing.**
+  User-requested: now that all playback runs in `LocalMusicPlaybackService`
+  in the background, the hub's `FLAG_KEEP_SCREEN_ON` (added before that, so
+  the screen timing out didn't feel like it stopped playback) is no longer
+  needed — removed along with its now-unused `anyPlaying`. Screen times out
+  normally; audio keeps playing. Build + tests green; installed on the
+  physical device, no crash.
 - **`main` — playlist "remove track" fixed by rebuilding the playlist.** On
   Android 16 a normal app's delete against `MediaStore.Audio.Playlists.Members`
   (bulk `audio_id = ?` *and* per-row item URI) silently returns 0 even on an
