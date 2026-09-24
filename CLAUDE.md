@@ -59,8 +59,13 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   a podcast's favorite is its show, matching the tab) / "add station to
   favorites" (radio), heart accent-filled once favorited; it writes the same
   `PodcastStore`/`RadioFavoritesStore` the tabs' own hearts do, so the two
-  always agree. Build + full unit test suite green. **Not verified
-  on-device** — no device or emulator was attached this session.
+  always agree. **Follow-ups (user-reported on-device)**: podcast recent rows
+  now carry the same heart (favorites the episode's show) — only radio's had
+  one; and the "heart" glyph (`TileIcons`) is now solid-filled instead of
+  outlined everywhere, favorited vs. not shown by tint alone (accent vs.
+  dim). Build + full unit test suite green; installed on the physical device
+  (wireless adb), no crash, radio tab screenshot-verified showing favorites
+  + recent with solid hearts.
 - **`main` — the date-rollover widget fix from the day before didn't work; both
   layers of its design had failed independently.** User-reported the next
   morning ("today also it is showing Shanivar at 5.30 today"), with the key

@@ -69,6 +69,9 @@ object TileIcons {
 
     private val strokeColor = SolidColor(Color(0xFF101014))
 
+    private const val HEART_PATH =
+        "M12 20.5c-.3 0-.6-.1-.8-.3C7 16.7 3 13 3 9.2 3 6.3 5.2 4 8 4c1.7 0 3.2.8 4 2.1C12.8 4.8 14.3 4 16 4c2.8 0 5 2.3 5 5.2 0 3.8-4 7.5-8.2 11-.2.2-.5.3-.8.3z"
+
     /** Build an icon from one or more sub-paths, each optionally alpha-scaled. */
     private fun vector(name: String, vararg paths: Pair<String, Float>): ImageVector {
         val builder = ImageVector.Builder(
@@ -333,11 +336,26 @@ object TileIcons {
         ))
 
         // Not in the prototype's icons.js (no favoriting concept there) —
-        // hand-authored in the same monoline stroke style, for the music
-        // hub's podcast/radio favorite toggle.
-        put("heart", vector("heart",
-            p("M12 20.5c-.3 0-.6-.1-.8-.3C7 16.7 3 13 3 9.2 3 6.3 5.2 4 8 4c1.7 0 3.2.8 4 2.1C12.8 4.8 14.3 4 16 4c2.8 0 5 2.3 5 5.2 0 3.8-4 7.5-8.2 11-.2.2-.5.3-.8.3z"),
-        ))
+        // hand-authored for the music hub's podcast/radio favorite toggle.
+        // Solid, not stroked like the rest of the set (user-requested) — so,
+        // like "more", it has its own builder rather than `vector()`.
+        // Favorited vs. not is carried by the tint alone (accent vs. dim).
+        put("heart", ImageVector.Builder(
+            name = "heart",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+        ).apply {
+            addPath(
+                pathData = addPathNodes(HEART_PATH),
+                fill = strokeColor,
+                stroke = strokeColor,
+                strokeLineWidth = 1.6f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            )
+        }.build())
 
         put("palette", vector("palette",
             p("M12 3a9 9 0 1 0 0 18c1.5 0 2-1 2-2 0-1.5 1-2 2-2h2a3 3 0 0 0 3-3c0-5-4-9-9-9z"),

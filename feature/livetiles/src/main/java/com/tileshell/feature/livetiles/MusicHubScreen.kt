@@ -2090,9 +2090,15 @@ private fun PodcastsPage(context: Context, accent: Color, tokens: ColorTokens) {
                 if (recents.isNotEmpty()) {
                     HubSectionHeader("recent", tokens)
                     recents.forEachIndexed { index, recent ->
-                        RecentEpisodeRow(recent, tokens) {
-                            LocalMusicPlayer.playEpisodes(context, recent.show, listOf(recent.episode), 0)
-                        }
+                        val show = recent.show
+                        RecentEpisodeRow(
+                            recent = recent,
+                            isSubscribed = PodcastStore.isSubscribed(subscriptions, show.feedUrl),
+                            accent = accent,
+                            tokens = tokens,
+                            onClick = { LocalMusicPlayer.playEpisodes(context, show, listOf(recent.episode), 0) },
+                            onToggleSubscribe = { toggleSubscribe(PodcastShowEntry(show.feedUrl, show.title, show.artworkUrl)) },
+                        )
                         if (index < recents.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(tokens.sheetLine))
                     }
                 }
@@ -2347,7 +2353,14 @@ private fun HubSectionHeader(title: String, tokens: ColorTokens) {
 /** A recently-played episode: its (or its show's) art, title, and the show it
  * came from. Tapping replays just that episode. */
 @Composable
-private fun RecentEpisodeRow(recent: RecentEpisode, tokens: ColorTokens, onClick: () -> Unit) {
+private fun RecentEpisodeRow(
+    recent: RecentEpisode,
+    isSubscribed: Boolean,
+    accent: Color,
+    tokens: ColorTokens,
+    onClick: () -> Unit,
+    onToggleSubscribe: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -2377,6 +2390,19 @@ private fun RecentEpisodeRow(recent: RecentEpisode, tokens: ColorTokens, onClick
             Text(recent.episode.title, color = tokens.fg, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(recent.show.title, color = tokens.fgDim, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+        Spacer(Modifier.width(8.dp))
+        // Favorites the episode's show — a podcast favorite is always the
+        // show, same as the now-playing heart.
+        Icon(
+            TileIcons["heart"],
+            contentDescription = if (isSubscribed) "unsubscribe" else "subscribe",
+            tint = if (isSubscribed) accent else tokens.fgDim,
+            modifier = Modifier.size(20.dp).clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onToggleSubscribe,
+            ),
+        )
     }
 }
 
