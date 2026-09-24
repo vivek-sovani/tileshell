@@ -21,17 +21,17 @@ class LayoutSeederTest {
     fun `resolvable and live-only app tiles are seeded, in order, with contiguous positions`() {
         val seeded = seeder.seed(resolver = resolverFor("clock", "phone"))
 
-        // clock/phone resolve; weather/calendar/music/personalize seed as liveOnly
+        // clock/phone resolve; people/weather/calendar/music/personalize seed as liveOnly
         // (personalize has no role at all — it's the in-app Personalize sheet, not
         // a real app; music is liveOnly because CATEGORY_APP_MUSIC resolves on
-        // few/no devices — see DefaultLayout's t-music comment); the rest (camera,
-        // people, mail, …) drop out. Declared order is preserved.
+        // few/no devices — see DefaultLayout's t-music comment; people opens the
+        // people hub either way); the rest (camera, mail, …) drop out. Declared order is preserved.
         val apps = seeded.filterIsInstance<SeededTile.App>()
         assertEquals(
-            listOf("t-clock", "t-phone", "t-weather", "t-cal", "t-music", "t-personalize"),
+            listOf("t-clock", "t-phone", "t-people", "t-weather", "t-cal", "t-music", "t-personalize"),
             apps.map { it.id },
         )
-        assertEquals(listOf(0, 1, 2, 3, 4, 5), seeded.map { it.position })
+        assertEquals(listOf(0, 1, 2, 3, 4, 5, 6), seeded.map { it.position })
     }
 
     @Test

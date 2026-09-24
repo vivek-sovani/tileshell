@@ -51,7 +51,10 @@ private data class WidgetCatalogEntry(
 )
 
 /**
- * Every widget pinnable from this sheet. The first three (weather/calendar/
+ * Every widget pinnable from this sheet. People/photos/mail/messages re-add
+ * the built-in tiles with a live face (or, for people, the hub) after they've
+ * been unpinned. Pinning the app from the app list gives a plain real-icon
+ * tile instead. The first three (weather/calendar/
  * clock) moved here from `CategoryFolderSheet`'s old "+ weather/+ calendar/
  * + clock" row now that there's a dedicated catalog for this — one place to
  * add a widget, not two. The rest are new, opt-in-only widgets backed by
@@ -61,6 +64,10 @@ private val WIDGET_CATALOG = listOf(
     WidgetCatalogEntry("weather", "weather", "live forecast for your location", "weather", "cyan"),
     WidgetCatalogEntry("calendar", "calendar", "today's date, flips to your next event", "calendar", "magenta"),
     WidgetCatalogEntry("clock", "clock", "time, weekday and date", "clock", "cobalt"),
+    WidgetCatalogEntry("people", "people", "contact photos, plus the people hub — all, what's new and recent", "people", "teal"),
+    WidgetCatalogEntry("photos", "photos", "a slideshow of photos you pick", "photos", "cyan"),
+    WidgetCatalogEntry("mail", "mail", "your newest email, from your mail app", "mail", "purple"),
+    WidgetCatalogEntry("messages", "messages", "your newest message, from your messaging app", "messages", "amber"),
     WidgetCatalogEntry("music", "music", "now playing, plus the music hub — library, apps and history", "music", "orange"),
     WidgetCatalogEntry("battery", "battery", "charge level and time remaining", "battery", "green"),
     WidgetCatalogEntry("alarm", "alarm", "next alarm time and active days", "alarm", "purple"),

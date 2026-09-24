@@ -1629,13 +1629,20 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Re-add a deleted default live tile (clock/weather/calendar) to the
+     * Re-add a deleted default live tile (clock/weather/calendar/people/…) to the
      * grid. [sectionId] is the currently active section tab (user-requested:
      * a newly pinned live tile should land in whichever section is showing,
      * not always unsectioned/main).
      */
     fun addLiveTile(appId: String, sectionId: String? = null) {
-        viewModelScope.launch(writeContext) { repository.addDefaultTile(appId, sectionId) }
+        viewModelScope.launch(writeContext) {
+            // photos/mail/messages need a real app for their role (their live
+            // face reads that app's notifications or opens it on tap), so this
+            // fails when none is installed. Say so rather than doing nothing.
+            if (!repository.addDefaultTile(appId, sectionId)) {
+                _pinMessage.tryEmit("no $appId app found on this phone")
+            }
+        }
     }
 
     /** Force a manual news refresh (the feed's refresh action). */

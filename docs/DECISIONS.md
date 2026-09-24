@@ -10249,3 +10249,23 @@ role tiles keep their WP glyph and still open the hub, because they can't be tol
 apart from a folder child pulled back out onto Start (both use a `pin-` id and keep
 the role `iconKey`). Pinning the app again now adds the real-icon tile beside them.
 Folder creation from the category picker still assigns role glyphs (unchanged).
+
+## "Add live tiles" can restore the built-in people/photos/mail/messages tiles
+
+User-reported: after unpinning the default people tile there was no way to get it
+back. Pinning Contacts from the app list now gives a plain real-icon tile (see the
+entry above), and "add live tiles" (`WidgetListSheet`) only offered
+weather/calendar/clock/music and opt-in widgets. When asked to check the other
+default tiles too, the ones with something beyond a static glyph were photos
+(slideshow), mail and messages (sender/snippet face): all three had the same gap.
+Added all four to `WIDGET_CATALOG`. They go through the existing
+`addDefaultTile` path, so they get the same role glyph, live face and (for people)
+hub redirect as the seeded tile. `t-people` is now `liveOnly`, so it restores (and
+seeds on a fresh install) even when no app declares the contacts role, since the
+people hub doesn't need one. Photos/mail/messages stay role-bound, because their
+faces and taps need a real app. `addLiveTile` now shows "no <x> app found on this
+phone" when the role doesn't resolve, instead of silently doing nothing. Plain
+static-glyph default tiles (phone, camera, maps, store, browser, calc, …) aren't
+in the list: pinning the app from the app list is the way back for those, now with
+the real icon. The default "social" folder can't be restored either (recreate it
+by merging tiles).

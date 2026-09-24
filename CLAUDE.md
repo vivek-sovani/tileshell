@@ -37,6 +37,12 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — "add live tiles" restores the built-in people, photos, mail and
+  messages tiles after unpinning.** User-requested. They're new `WidgetListSheet`
+  rows through the existing `addDefaultTile`. `t-people` is now `liveOnly` (the
+  hub needs no contacts app). `addLiveTile` shows a "no <x> app found" message
+  when a role doesn't resolve. Build + full unit test suite green; installed on
+  the physical device, no crash.
 - **`main` — default-role apps (calendar, contacts, music, phone, mail…) can be
   pinned from the app list with their real icon, beside the built-in tile.**
   User-requested. `pinApp` always uses `iconKey = null` (real icon, launches the

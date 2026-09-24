@@ -110,7 +110,9 @@ object DefaultLayout {
         DefaultTile("t-clock", TileSize.WIDE, "cobalt", app = "clock", liveOnly = true),
         DefaultTile("t-phone", TileSize.MEDIUM, "green", app = "phone"),
         DefaultTile("t-camera", TileSize.MEDIUM, "slate", app = "camera"),
-        DefaultTile("t-people", TileSize.MEDIUM, "teal", app = "people"),
+        // liveOnly so re-adding it from "add live tiles" works even when no app
+        // declares the contacts role: the tile opens the people hub either way.
+        DefaultTile("t-people", TileSize.MEDIUM, "teal", app = "people", liveOnly = true),
         DefaultTile("t-weather", TileSize.MEDIUM, "cyan", app = "weather", liveOnly = true),
         DefaultTile("t-mail", TileSize.MEDIUM, "purple", app = "mail"),
         DefaultTile("t-msg", TileSize.MEDIUM, "amber", app = "messages"),
