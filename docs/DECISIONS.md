@@ -10178,3 +10178,19 @@ the physical device: App List glyphs back inside their plates with padding, Star
 - **Recorded in `LocalMusicPlayer.onPrepared`**, not a composable effect: background auto-advance still records,
   and a stream that never prepares (dead station) doesn't pollute the list.
 - **Separate from `MusicHistory`**, which is deliberately "one row per source app" (see its doc comment).
+
+## Playlist "remove track" rebuilds the playlist (member delete is a silent no-op for apps)
+
+User-reported: the ✕ on a playlist track did nothing. Root-caused on the physical device (Android 16) with
+temporary logging: `removeTrackFromPlaylist` never threw — `ContentResolver.delete` on `Playlists.Members`
+simply returned **0**, both for the bulk `audio_id = ?` form and for the per-row `.../members/<_id>` item URI,
+even on a playlist `owner_package_name=com.tileshell` owns. The same deletes succeed from `adb shell`, which
+is privileged — an easy false negative (a first test against a shell-created playlist also misled, since an
+app can't write a playlist it doesn't own at all). Inserting members and deleting the playlist row both still
+work for an app, so `rebuildPlaylistWithout` removes a track by deleting the playlist, recreating it under the
+same name, and re-inserting the remaining tracks in order. Cost: the playlist gets a **new id** on every
+removal — `LibraryPage` re-points its selection at the returned `LocalPlaylist` — and its `date_added` resets.
+Verified on-device: removal reflects immediately, remaining order preserved in both MediaStore and the `.m3u`.
+
+Also fixed while there: `PLAY_ORDER` is **1-based** — the provider inserts at position `PLAY_ORDER − 1` — so
+`addTrackToPlaylist`'s `existing.size` put each new track *before* the current last one. Now `existing.size + 1`.

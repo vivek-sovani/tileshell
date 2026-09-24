@@ -1111,8 +1111,7 @@ private fun LibraryPage(context: Context, accent: Color, tokens: ColorTokens) {
         is LibrarySelection.Playlist -> {
             var name by remember(sel.playlist.id) { mutableStateOf(sel.playlist.name) }
             var renaming by remember(sel.playlist.id) { mutableStateOf(false) }
-            var tracksRefresh by remember(sel.playlist.id) { mutableStateOf(0) }
-            val tracks by produceState<List<LocalTrack>?>(initialValue = null, sel.playlist.id, tracksRefresh) {
+            val tracks by produceState<List<LocalTrack>?>(initialValue = null, sel.playlist.id) {
                 value = LocalMusicLibrary.tracksForPlaylist(context, sel.playlist.id)
             }
             PlaylistDetailPage(
@@ -1134,8 +1133,17 @@ private fun LibraryPage(context: Context, accent: Color, tokens: ColorTokens) {
                 onRemoveTrackAt = { index ->
                     val trackId = tracks?.getOrNull(index)?.id ?: return@PlaylistDetailPage
                     scope.launch {
-                        if (LocalMusicLibrary.removeTrackFromPlaylist(context, sel.playlist.id, trackId)) {
-                            tracksRefresh++
+                        val rebuilt = LocalMusicLibrary.rebuildPlaylistWithout(
+                            context,
+                            sel.playlist.copy(name = name),
+                            trackId,
+                        )
+                        if (rebuilt != null) {
+                            // Removal recreates the playlist under a new id
+                            // (see rebuildPlaylistWithout), so point the page
+                            // at it — re-keys this page's state and reloads.
+                            addToPlaylist.refresh()
+                            selection = LibrarySelection.Playlist(rebuilt)
                         }
                     }
                 },

@@ -323,7 +323,10 @@ object LocalMusicLibrary {
                 val membersUri = MediaStore.Audio.Playlists.Members.getContentUri("external", playlistId)
                 val values = ContentValues().apply {
                     put(MediaStore.Audio.Playlists.Members.AUDIO_ID, trackId)
-                    put(MediaStore.Audio.Playlists.Members.PLAY_ORDER, existing.size)
+                    // 1-based: the provider inserts a member at position
+                    // PLAY_ORDER − 1, so `existing.size` (0-based) landed the
+                    // new track *before* the current last one (seen on-device).
+                    put(MediaStore.Audio.Playlists.Members.PLAY_ORDER, existing.size + 1)
                 }
                 if (context.contentResolver.insert(membersUri, values) != null) {
                     AddTrackResult.ADDED
@@ -333,18 +336,39 @@ object LocalMusicLibrary {
             }.getOrElse { AddTrackResult.FAILED }
         }
 
-    /** Removes every membership row matching [trackId] from playlist
-     * [playlistId] — if the same track was added twice, both occurrences go
-     * (this legacy provider has no per-row delete). True if at least one row
-     * was deleted. */
+    /**
+     * Removes every occurrence of [trackId] from [playlist] and returns the
+     * playlist as it now exists — **under a new id**, since this rebuilds it:
+     * deletes the playlist row, recreates it with the same name, and re-adds
+     * every remaining track in order. Null if nothing changed or a step failed.
+     *
+     * Why not just delete the member row: on this device (Android 16, API 36)
+     * a normal app's delete against `Playlists.Members` — the bulk
+     * `audio_id = ?` form *and* the per-row `.../members/<_id>` item URI —
+     * always matches zero rows and throws nothing, even on a playlist this
+     * app owns (confirmed on-device via logging; only privileged `adb shell`
+     * can delete members). Inserting members and deleting the whole playlist
+     * both still work for an app, so removal is built from those two.
+     */
     @Suppress("DEPRECATION")
-    suspend fun removeTrackFromPlaylist(context: Context, playlistId: Long, trackId: Long): Boolean =
+    suspend fun rebuildPlaylistWithout(context: Context, playlist: LocalPlaylist, trackId: Long): LocalPlaylist? =
         withContext(Dispatchers.IO) {
+            val current = tracksForPlaylist(context, playlist.id)
+            val remaining = current.filterNot { it.id == trackId }
+            if (remaining.size == current.size) return@withContext null
+            if (!deletePlaylist(context, playlist.id)) return@withContext null
+            val newId = createPlaylist(context, playlist.name) ?: return@withContext null
             runCatching {
-                val membersUri = MediaStore.Audio.Playlists.Members.getContentUri("external", playlistId)
-                val selection = "${MediaStore.Audio.Playlists.Members.AUDIO_ID} = ?"
-                context.contentResolver.delete(membersUri, selection, arrayOf(trackId.toString())) > 0
-            }.getOrElse { false }
+                val membersUri = MediaStore.Audio.Playlists.Members.getContentUri("external", newId)
+                remaining.forEachIndexed { index, track ->
+                    val values = ContentValues().apply {
+                        put(MediaStore.Audio.Playlists.Members.AUDIO_ID, track.id)
+                        put(MediaStore.Audio.Playlists.Members.PLAY_ORDER, index + 1)
+                    }
+                    context.contentResolver.insert(membersUri, values)
+                }
+            }
+            LocalPlaylist(newId, playlist.name)
         }
 
     /**

@@ -37,6 +37,16 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — playlist "remove track" fixed by rebuilding the playlist.** On
+  Android 16 a normal app's delete against `MediaStore.Audio.Playlists.Members`
+  (bulk `audio_id = ?` *and* per-row item URI) silently returns 0 even on an
+  app-owned playlist — only privileged `adb shell` can do it. `LocalMusicLibrary
+  .rebuildPlaylistWithout` deletes + recreates the playlist (same name) and
+  re-inserts the remaining tracks; the playlist gets a new id each time, and
+  `LibraryPage` re-points its selection at it. Also fixed `addTrackToPlaylist`'s
+  off-by-one (`PLAY_ORDER` is 1-based; new tracks landed second-to-last).
+  Verified on the physical device (removal + order in MediaStore and the
+  `.m3u`); build + tests green. See DECISIONS.
 - **`main` — music hub: podcasts/radio tabs show favorites + 10 recents, and
   now playing can favorite the show/station.** User-requested. New
   `MusicRecents.kt` (`:feature:livetiles`): two DataStores
