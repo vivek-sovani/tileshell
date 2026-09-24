@@ -88,7 +88,9 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   weather card dropped its 7-day row; the rest is scaled up (temp 34→40sp,
   icon 28→34dp, condition 12→14sp, high/low 11→13sp, sun row 11→12sp — the
   most a half-width card fits on one line) and split into top/bottom blocks
-  that spread over the card's height. Glance card screenshot-verified on the
+  that spread over the card's height. Then, per a follow-up, the high/low line
+  moved up directly under the current temperature, with only the sun times left
+  at the bottom. Glance card screenshot-verified on the
   physical device; build + full unit test suite green (`WeatherSunAlarmTest`
   new). Not yet checked on a device, since none was
   connected over adb.

@@ -885,9 +885,8 @@ internal fun WeatherCard(
             }
             // No 7-day row any more (user-requested — the weather hub has the
             // full outlook); the freed height goes to proportionally larger
-            // text, split into a top block (now) and a bottom block (today's
-            // range + sun times) that spread across whatever height the card
-            // has.
+            // text, split into a top block (now + today's range) and the sun
+            // times at the bottom, spread across whatever height the card has.
             Column(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.SpaceBetween,
@@ -910,32 +909,32 @@ internal fun WeatherCard(
                             modifier = Modifier.size(34.dp),
                         )
                     }
+                    // Today's range right under the current temperature
+                    // (user-requested), not down with the sun times.
+                    Text(
+                        "h ${snapshot.highC}° · l ${snapshot.lowC}°",
+                        color = onAccentDim,
+                        fontSize = 13.sp,
+                    )
                     Text(
                         snapshot.condition,
                         color = onAccentDim,
                         fontSize = 14.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 2.dp),
+                        modifier = Modifier.padding(top = 4.dp),
                     )
                 }
-                Column(modifier = Modifier.padding(top = 8.dp)) {
-                    Text(
-                        "h ${snapshot.highC}° · l ${snapshot.lowC}°",
-                        color = onAccentDim,
-                        fontSize = 13.sp,
-                    )
-                    // Today's sunrise/sunset (user-requested), same row as the
-                    // Start tile. 12sp is the most a half-width card fits on
-                    // one line.
-                    com.tileshell.feature.livetiles.SunTimesRow(
-                        snapshot = snapshot,
-                        color = onAccentDim,
-                        fontSize = 12.sp,
-                        glyphSize = 14.dp,
-                        modifier = Modifier.padding(top = 6.dp),
-                    )
-                }
+                // Today's sunrise/sunset (user-requested), same row as the
+                // Start tile. 12sp is the most a half-width card fits on one
+                // line.
+                com.tileshell.feature.livetiles.SunTimesRow(
+                    snapshot = snapshot,
+                    color = onAccentDim,
+                    fontSize = 12.sp,
+                    glyphSize = 14.dp,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
             }
         }
     }
