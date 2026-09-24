@@ -58,7 +58,16 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   Sunrise/sunset are shown in the forecast place's own local time, using the
   newly stored `utcOffsetSeconds`, and in the device's zone for an older cache
   file. Pure `weatherHubStats`/`uvIndexCategory`/`sunTimeLabel`. Build + full
-  unit test suite green (`WeatherNightTest`, 15 cases). Not yet checked on a device, since none was
+  unit test suite green (`WeatherNightTest`, 15 cases). **Second follow-up,
+  user-requested ("show moon on the start screen tile too"):** the tile
+  already followed day/night, but tonight's drizzle and overcast icons have no
+  sun, so nothing changed at night. At night, every sunless condition
+  (overcast/rain/drizzle/snow/storm/fog, pure `isCloudCondition`) now gets a
+  small crescent peeking out behind the cloud or above the fog, lit edge
+  facing up-right. The first try faced down-left, into the cloud, and only its
+  tips showed. Shared visual, so the hub, feed card and widget match. Checked
+  on the physical device with a temporary always-night build, which was then
+  reverted; the real build is now installed with no crash. Not yet checked on a device, since none was
   connected over adb.
 - **`main` — music hub no longer keeps the display on while playing.**
   User-requested: now that all playback runs in `LocalMusicPlaybackService`

@@ -30,9 +30,20 @@ private val MoonColor = Color(0xFFF4E9C6)
  * fix/tweak to one should get mirrored to the other.
  *
  * [night] swaps the sun for a crescent moon (user-requested) wherever the sun
- * would show — "clear"/"mostly clear" and "partly cloudy"; every other
- * condition (cloud, rain, snow, fog, storm) has no sun and draws the same.
+ * would show — "clear"/"mostly clear" and "partly cloudy" — and adds a small
+ * crescent peeking out behind the cloud (or above the fog) for every other
+ * condition, so a night reading is always recognisable (user-requested for the
+ * Start tile, where overcast/rain would otherwise look identical day and night).
  */
+/**
+ * The conditions whose illustration has no sun of its own (cloud/rain/snow/
+ * storm/fog) — at night these get a small moon behind them instead of
+ * replacing a sun. Shared with the widget bitmap so the two stay in lockstep.
+ */
+internal fun isCloudCondition(condition: String): Boolean =
+    !condition.contains("clear") &&
+        listOf("thunderstorm", "snow", "rain", "drizzle", "fog", "overcast").any { condition.contains(it) }
+
 @Composable
 fun WeatherConditionVisual(condition: String, tint: Color, modifier: Modifier = Modifier, night: Boolean = false) {
     Canvas(modifier = modifier) {
@@ -58,15 +69,18 @@ fun WeatherConditionVisual(condition: String, tint: Color, modifier: Modifier = 
         }
 
         // A crescent: the disc minus the same disc shifted up-right, so the lit
-        // limb faces down-left.
-        fun drawMoon(radius: Float, moonCx: Float, moonCy: Float) {
+        // limb faces down-left — or, with [litUpRight], the bite goes down-left
+        // so the lit limb faces up-right (the behind-the-cloud moon, whose
+        // lower-left is hidden by the cloud anyway).
+        fun drawMoon(radius: Float, moonCx: Float, moonCy: Float, litUpRight: Boolean = false) {
+            val dir = if (litUpRight) -1f else 1f
             val disc = Path().apply {
                 addOval(androidx.compose.ui.geometry.Rect(center = Offset(moonCx, moonCy), radius = radius))
             }
             val bite = Path().apply {
                 addOval(
                     androidx.compose.ui.geometry.Rect(
-                        center = Offset(moonCx + radius * 0.55f, moonCy - radius * 0.35f),
+                        center = Offset(moonCx + dir * radius * 0.55f, moonCy - dir * radius * 0.35f),
                         radius = radius * 0.85f,
                     ),
                 )
@@ -104,6 +118,9 @@ fun WeatherConditionVisual(condition: String, tint: Color, modifier: Modifier = 
         }
 
         val accentStroke = Stroke(width = s / 26f, cap = StrokeCap.Round)
+
+        // Drawn first so the cloud overlaps its lower-left edge.
+        if (night && isCloudCondition(condition)) drawMoon(s * 0.17f, cx + s * 0.27f, cy - s * 0.3f, litUpRight = true)
 
         when {
             condition.contains("clear") || condition.contains("mostly clear") ->

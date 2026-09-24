@@ -158,4 +158,11 @@ class WeatherNightTest {
         assertEquals(7, back.places["k"]!!.uvIndexMax)
         assertEquals(19800, back.places["k"]!!.utcOffsetSeconds)
     }
+
+    @Test
+    fun `sunless conditions get a moon behind the cloud, sun conditions don't`() {
+        listOf("overcast", "rain", "drizzle", "rain showers", "snow", "thunderstorm", "fog", "freezing rain")
+            .forEach { assertTrue(it, isCloudCondition(it)) }
+        listOf("clear", "mostly clear", "partly cloudy", "—").forEach { assertFalse(it, isCloudCondition(it)) }
+    }
 }

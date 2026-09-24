@@ -25,8 +25,8 @@ import android.graphics.RectF
  * batch, because a grey/white sun reads as "not a sun" the way a tinted cloud
  * still reads as a cloud.
  *
- * [night] swaps the sun for a crescent moon (fixed pale cream, same exception),
- * mirroring [com.tileshell.feature.livetiles.WeatherConditionVisual].
+ * [night] swaps the sun for a crescent moon (fixed pale cream, same exception)
+ * and adds a small one behind the cloud for sunless conditions, mirroring [com.tileshell.feature.livetiles.WeatherConditionVisual].
  */
 fun weatherConditionBitmap(condition: String, onAccent: Int, sizePx: Int = 160, night: Boolean = false): Bitmap {
     val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
@@ -71,10 +71,11 @@ fun weatherConditionBitmap(condition: String, onAccent: Int, sizePx: Int = 160, 
         }
     }
 
-    fun drawMoon(radius: Float, moonCx: Float, moonCy: Float) {
+    fun drawMoon(radius: Float, moonCx: Float, moonCy: Float, litUpRight: Boolean = false) {
+        val dir = if (litUpRight) -1f else 1f
         val disc = Path().apply { addCircle(moonCx, moonCy, radius, Path.Direction.CW) }
         val bite = Path().apply {
-            addCircle(moonCx + radius * 0.55f, moonCy - radius * 0.35f, radius * 0.85f, Path.Direction.CW)
+            addCircle(moonCx + dir * radius * 0.55f, moonCy - dir * radius * 0.35f, radius * 0.85f, Path.Direction.CW)
         }
         disc.op(bite, Path.Op.DIFFERENCE)
         canvas.drawPath(disc, moonPaint)
@@ -89,6 +90,11 @@ fun weatherConditionBitmap(condition: String, onAccent: Int, sizePx: Int = 160, 
             addCircle(rect.left + w * 0.32f, rect.top + h * 0.35f, h * 0.4f, Path.Direction.CW)
             addCircle(rect.left + w * 0.62f, rect.top + h * 0.22f, h * 0.5f, Path.Direction.CW)
         }
+    }
+
+    // Behind the cloud / above the fog at night, mirroring WeatherConditionVisual.
+    if (night && com.tileshell.feature.livetiles.isCloudCondition(condition)) {
+        drawMoon(sizePx * 0.17f, cx + sizePx * 0.27f, cy - sizePx * 0.3f, litUpRight = true)
     }
 
     when {
