@@ -10023,3 +10023,50 @@ green; installed on the physical device (another wireless-adb reconnect mid-sess
 rotated, `adb connect <device-ip>:<new-port>`), launched with no crash in `adb logcat`, and the moved
 icon's new position (scrolling, right-aligned, directly above "all apps →", page dots still present)
 confirmed via an on-device screenshot.
+
+**Quick Panel: a second "home settings" tile in the main grid, and a real contrast-ratio fix for "on"
+toggle tiles (wifi/bluetooth/etc.) blending into their own card.** Two related discoverability/legibility
+asks. (1) The header's own small "personalize" gear icon wasn't enough — user-requested "make one more
+home settings tile so that users dont miss that." Added a genuine `QuickPanelTileSpec` (`quickPanelTiles()`,
+`QuickPanelOverlay.kt`) right after the theme tile: `icon = "settings"`, `label = "home settings"`,
+`active = false` (a value tile, not a toggle — matches "screen timeout"'s own pattern), `onClick` reusing
+the exact same dismiss-then-open closure the header icon already uses. (2) The real bug, confirmed with a
+user-supplied on-device screenshot rather than guessed at: under "widget cards" (`borderlessTiles`) style
+— every tile, on or off, shares one neutral translucent gray card, with the "on" signal living purely in
+the icon/label colour — `Glass.accentOnCard(dark: Boolean, accent: Color)` returned the **raw accent with
+zero adjustment in dark theme** (`if (dark) accent else lerp(accent, Color.Black, 0.18f)`), on the
+unverified assumption that "the same accent already has enough contrast against the darker card." For any
+accent on the darker/more-muted side of this app's palette (or a wallpaper-derived one, which can land
+anywhere), that assumption is simply false — wifi/bluetooth/location/the theme tile's icon+label all read
+as barely distinguishable from their own card, exactly matching the report ("mixes with tile color, most
+of the time").
+Root-cause fixed, not hand-tuned for one colour: added real WCAG 2.1 contrast-ratio machinery to
+`core/design/Luminance.kt` — `contrastRatio(a, b)` (gamma-corrected relative luminance, unlike the
+existing `perceivedLuminance`/`isLightBackground`, which are explicitly documented as a cheap non-gamma
+heuristic for coarse "is this a light or dark screen" calls, not a legibility guarantee) and
+`ensureContrast(color, against, minRatio = 4.5f)`, which nudges `color` toward whichever of pure black/
+white contrasts better against `against`, only as far as actually needed to clear `minRatio` — an
+already-legible accent (most of them) is returned completely untouched, preserving its full saturation.
+`accentOnCard` now runs its existing per-theme base colour through `ensureContrast` against an
+approximate near-black/near-white stand-in for the card (the card itself is a translucent white overlay —
+see `raisedCardFill` — so its true composited pixel varies with whatever wallpaper/background is behind
+it; a fixed black/white proxy per theme is the same "good enough, not pixel-exact" trade `faceTextColor`'s
+own `useDarkText: Boolean` param already makes elsewhere). Also added `prefersDarkText(background)` — a
+real-contrast-ratio replacement for `isLightBackground` specifically where a colour sits *directly* on an
+arbitrary saturated background (an accent fill) rather than a whole-screen backdrop — and swapped it into
+`QuickPanelTile`'s non-borderless active-tile text/handle-colour picks too, for the same robustness in
+that style even though the reported bug was specifically in the borderless/widget-cards path. Confirmed
+with a concrete example this fix actually matters for, not just in theory: this app's own "lime" accent
+(`#7CB518`) sits at perceived luminance 0.573, just under `isLightBackground`'s 0.6 cutoff, so the old
+code picked white text there — but white's real contrast ratio against it is only ~2.5:1 (under WCAG's
+own 3:1 minimum for large text/icons) while black's is ~8.5:1; `prefersDarkText` picks correctly,
+`isLightBackground` doesn't (new regression test, `LuminanceTest.kt`). 14 new pure unit tests
+(`LuminanceTest.kt`/`GlassTest.kt` — contrast-ratio symmetry/extremes, `ensureContrast` leaving legible
+colours alone vs. correctly lightening/darkening illegible ones vs. never overshooting past pure black/
+white, `accentOnCard`'s dark-theme fix verified against a synthetic dark accent, its pre-existing
+light-theme behaviour re-verified unchanged). Build + full unit test suite green (196 tests across
+`core:design` now); installed on the physical device (another wireless-adb reconnect — port rotates each
+time), launched with no crash in `adb logcat`, and confirmed directly against the user's own reported
+state: a fresh screenshot shows wifi/bluetooth/location and the theme tile's icon+label now rendering in
+a clearly legible bright blue against their card (previously a barely-visible dark navy), and the new
+"home settings" tile present in the grid next to "dark."

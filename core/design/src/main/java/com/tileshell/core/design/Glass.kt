@@ -97,18 +97,34 @@ object Glass {
     /**
      * [accent] tinted for use directly as an icon/label colour on a widget
      * card (Quick Panel's own "on" glyph under `borderlessTiles` — see
-     * DECISIONS.md "Widget cards carried onto Quick Panel"), user-reported as
-     * needing to read "a little darker" against a light-theme card: the
+     * DECISIONS.md "Widget cards carried onto Quick Panel"). Two separate
+     * problems, fixed in two passes: light theme first (user-reported as
+     * needing to read "a little darker" against a light-theme card — the
      * accent's own saturated brightness, fine against a saturated accent
      * *fill*, reads washed-out as a thin glyph sitting on the pale, near-white
-     * card [raisedCardFill] paints in light theme. Left untouched in dark
-     * theme, where the same accent already has enough contrast against the
-     * darker card. A flat 18% blend toward black rather than a per-colour
-     * luminance calculation — simple, and "a little darker" is what was
-     * asked for, not "as dark as it can go."
+     * card [raisedCardFill] paints there), fixed with a flat 18% blend toward
+     * black. Dark theme was left as the raw [accent] on the (wrong)
+     * assumption that it "already has enough contrast against the darker
+     * card" — user-reported with a screenshot, real bug: a darker accent
+     * (this app has several deliberately muted ones in its palette, and any
+     * wallpaper-derived accent can land anywhere) drawn at full strength on
+     * [raisedCardFill]'s own dark-theme card is barely distinguishable from
+     * it — wifi/bluetooth/the theme tile's icon+label all read as "mixed
+     * into the tile." [ensureContrast] now guarantees a real WCAG contrast
+     * ratio against an approximate near-black/near-white stand-in for the
+     * card in each theme (the card itself is a translucent white overlay —
+     * see [raisedCardFill] — so its true composited colour varies with
+     * whatever's behind it; a fixed black/white proxy per theme is the same
+     * "good enough, not pixel-exact" approach [faceTextColor]'s own
+     * `useDarkText: Boolean` parameter already takes) — nudging the colour
+     * only as far as actually needed, so an already-legible accent (most of
+     * them) is untouched and keeps its full saturation.
      */
-    fun accentOnCard(dark: Boolean, accent: Color): Color =
-        if (dark) accent else lerp(accent, Color.Black, 0.18f)
+    fun accentOnCard(dark: Boolean, accent: Color): Color {
+        val base = if (dark) accent else lerp(accent, Color.Black, 0.18f)
+        val against = if (dark) Color.Black else Color.White
+        return ensureContrast(base, against)
+    }
 
     /**
      * Fill for a section's tinted panel background (Start "sections"): a

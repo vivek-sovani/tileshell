@@ -78,6 +78,7 @@ import androidx.core.graphics.drawable.toBitmap
 import com.tileshell.core.design.ColorTokens
 import com.tileshell.core.design.Glass
 import com.tileshell.core.design.isLightBackground
+import com.tileshell.core.design.prefersDarkText
 import com.tileshell.core.design.LocalTileGradient
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
@@ -332,6 +333,10 @@ fun QuickPanelOverlay(
                 followSystemTheme = followSystemTheme,
                 onThemeChange = onThemeChange,
                 onFollowSystemThemeChange = onFollowSystemThemeChange,
+                // Dismiss the panel first, same as the header's own gear icon —
+                // otherwise Personalize would open underneath/behind the still-
+                // showing panel instead of over a normal Start backdrop.
+                onOpenPersonalize = { onDismiss(); onOpenPersonalize() },
             )
             // Persisted order/size (see quickPanelTileOrder/quickPanelTileSizes)
             // applied over the live, device-state-derived tile list; packed into
@@ -1014,6 +1019,7 @@ private fun quickPanelTiles(
     followSystemTheme: Boolean,
     onThemeChange: (Boolean) -> Unit,
     onFollowSystemThemeChange: (Boolean) -> Unit,
+    onOpenPersonalize: () -> Unit,
 ): List<QuickPanelTileSpec> = buildList {
     // Connectivity toggles.
     add(QuickPanelTileSpec(id = "wifi", icon = "wifi", label = "wifi", active = wifiOn, onClick = { openWifiSettings(context) }))
@@ -1097,6 +1103,17 @@ private fun quickPanelTiles(
                     ThemeChoice.AUTO -> onFollowSystemThemeChange(true)
                 }
             },
+        ),
+    )
+    // Also reachable via the small header gear icon above (QuickPanelHeader's
+    // "personalize" QuickPanelHeaderIcon) — added here too, as a full tile in
+    // the main grid, per direct user feedback that the header icon alone
+    // wasn't being noticed ("make one more home settings tile so that users
+    // dont miss that"). Value tile, not a toggle (matches "screen timeout").
+    add(
+        QuickPanelTileSpec(
+            id = "home_settings", icon = "settings", label = "home settings", active = false,
+            onClick = onOpenPersonalize,
         ),
     )
 }
@@ -1189,10 +1206,20 @@ private fun QuickPanelTile(
     // wallpaper-derived accent can be light even on a dark panel. Under
     // borderless there's no accent fill to adapt to any more, so an active
     // tile's icon/label reads in the accent colour directly instead.
+    //
+    // prefersDarkText (not isLightBackground) here and below: user-reported,
+    // with a screenshot, that an "on" tile's icon/label was hard to tell
+    // apart from its own fill — isLightBackground's single fixed threshold
+    // (tuned for "is this a whole screen light or dark") doesn't guarantee an
+    // actually-legible pick for an arbitrary saturated accent; prefersDarkText
+    // picks whichever of black/white has strictly higher real contrast
+    // against that exact colour. See Glass.accentOnCard's doc comment for the
+    // matching (and more severe, since it was applying no adaptation at all)
+    // bug in the borderless branch above.
     val fg = when {
         borderless && tile.active -> Glass.accentOnCard(dark, accent)
         borderless -> panelFgDim
-        tile.active -> Glass.faceTextColor(useDarkText = isLightBackground(accent))
+        tile.active -> Glass.faceTextColor(useDarkText = prefersDarkText(accent))
         else -> tokens.fgDim
     }
     // Edit-mode handles always need to read against this tile's own fill,
@@ -1200,7 +1227,7 @@ private fun QuickPanelTile(
     // borderless every tile shares the one neutral card fill, so the panel's
     // own already-computed contrast colour applies uniformly instead of
     // re-deriving it per tile.
-    val handleColor = if (borderless) panelFg else Glass.faceTextColor(useDarkText = isLightBackground(bg))
+    val handleColor = if (borderless) panelFg else Glass.faceTextColor(useDarkText = prefersDarkText(bg))
     val haptics = LocalHapticFeedback.current
     val resizing = resizeScaleX != 1f
     Box(
