@@ -10148,3 +10148,11 @@ applies only outside widget cards, where the gradient setting is shown. `Glass.a
 with their tests; `contrastRatio`/`prefersDarkText` stay. Build + full unit test suite green; installed on
 the physical device, no crash in `adb logcat`, and a screenshot of the panel confirmed wifi/bluetooth/
 location/the theme tile fully accent-filled with white icons, off tiles neutral.
+
+**Folder mini-grid app icons bumped up (18→24dp tiles mode, 26→32dp icons mode).** User-requested:
+"app icons in folder should be slightly bigger." `FolderChildIcon`'s fixed size was tuned when cells were
+tighter; a medium/wide folder's cells are now far roomier than 18dp, leaving the icons looking lost.
+`Modifier.size` stays within each cell's own constraints, so a small folder's tighter 2×2 cells simply cap
+the icon rather than overflowing. ICONS mode's separate SMALL-folder cell (`IconFolderCell`, a fixed 40dp
+box of four 18dp glyphs) is unchanged — it's already fully packed and mirrors the plain app-icon size.
+Verified on the physical device (social and music folders), no crash in `adb logcat`.

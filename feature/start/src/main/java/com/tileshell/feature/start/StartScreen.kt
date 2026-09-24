@@ -7643,11 +7643,13 @@ private fun FolderChildIcon(
 
     if (child == null) return
     // ICONS mode dropped this cell's background plate (see FolderTileContent's
-    // cellFill), so the icon itself needs to be bigger to still fill the cell
-    // — user-reported after that fix: "icon size should be bigger... as there
-    // is no square around." TILES mode keeps the original 18dp, tuned for
-    // sitting on its own tinted-square backdrop.
-    val iconSize = if (homeStyle == HomeStyle.ICONS) 26.dp else 18.dp
+    // cellFill), so its icon runs bigger to still fill the cell — user-reported
+    // after that fix: "icon size should be bigger... as there is no square
+    // around." Both bumped once more (18→24dp tiles, 26→32dp icons) per a
+    // later "app icons in folder should be slightly bigger" — a medium folder's
+    // cells are far roomier than 18dp. Modifier.size stays within the cell's
+    // own constraints, so a small folder's tighter cells just cap it.
+    val iconSize = if (homeStyle == HomeStyle.ICONS) 32.dp else 24.dp
     // ICONS mode masks this child's icon to the chosen shape too — matching the
     // top-level SMALL icon cell (IconCellView) — instead of always drawing the
     // OS's own native-shaped bitmap (user-reported inconsistency).
