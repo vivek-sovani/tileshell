@@ -9967,3 +9967,28 @@ relaunch after installing the fix restores visibility on its own (the DB row was
 `order` just needed to be rebuilt from a fresh composition), which is what re-installing and
 force-stopping the app before the next launch confirmed. Build + full unit test suite green; installed
 on the physical device, launched with no crash in `adb logcat`.
+
+**Real Windows Phone's own "all apps →" Start-screen affordance, added to close the App List
+discoverability gap this whole thread started from.** User checked a real WP device directly rather than
+relying on the prototype (whose own `.allapps-btn` CSS turned out to be a dead stub — a fixed-position
+floating button class with no HTML/JS ever actually instantiating it): the real behaviour is a text
+label + arrow sitting right after the last tile, scrolling away with the rest of the content, not fixed
+to the screen. Added as the last child of each page's scrolling Column in `StartPage` (`StartScreen.kt`),
+reusing the exact same `onChevron` tap target (and `chevronVisible` gating — hidden in edit mode, during
+an open folder/sheet, etc.) as the pre-existing fixed floating "more" icon button lower on the screen,
+which is kept as-is, purely additive, not replaced. Three rounds of on-device correction, all from the
+user's own real-device testing: **(1)** first gated to only the *last* Start page (multiple pages is a
+feature beyond anything real WP had, so "last page" was the closest single analogue to "the end of your
+tiles") — user reported "no all apps label visible" after checking their (heavily populated) first page,
+which most real usage never leaves; multi-page discoverability is itself weak, so restricting the fix to
+one specific page defeated its own purpose. Changed to show at the bottom of *every* page. **(2)**
+right-aligned (`Arrangement.End`) per direct request — incidentally matches the dead prototype CSS's own
+`right:14px` positioning, so the fixed and the new scrolling affordance now agree on side. **(3)** font
+size bumped 15sp → 20sp for legibility, also per direct request. **Same-session, separately requested**:
+the small "N dots, current page highlighted" indicator at the very bottom of the screen (`PageDotsIndicator`,
+shown only with 2+ Start pages) was removed outright, calls site and definition both — the user's exact
+words were "remove three dots," seen in a review screenshot taken while checking the all-apps label
+change. Build + full unit test suite green after every round; installed on the physical device (a
+mid-session USB disconnect required switching to wireless adb — `adb connect <device-ip>:<port>` — to
+keep verifying), launched with no crash in `adb logcat`, and the final state (right-aligned, larger
+label, no page dots, visible without swiping to a specific page) confirmed via an on-device screenshot.

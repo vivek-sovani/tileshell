@@ -1779,33 +1779,6 @@ fun StartScreen(
             }
         }
 
-        // Small dot row at the bottom of the screen showing how many pages Start
-        // has and which one is active — page names are hidden outside edit
-        // mode (user-requested "just do it by scroll"), so this is the only
-        // always-visible cue that there's more than one page to swipe to.
-        // Hidden with a single page (nothing to indicate), while editing
-        // (every page's own header already shows its name there), and while
-        // the feed/app-list is what's actually showing. User-requested move
-        // from the top to the bottom; rises to clear the edge strip exactly
-        // like the app-list/quick-panel icon column does, via the same
-        // already-computed edgeStripVisible.
-        if (blockCount > 1 && !editMode && !appListShown && !feedShown) {
-            val dotsBottomOffset by animateDpAsState(
-                targetValue = if (edgeStripVisible) STRIP_THICK + 8.dp else 14.dp,
-                animationSpec = spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMediumLow),
-                label = "pageDotsBottomOffset",
-            )
-            PageDotsIndicator(
-                count = blockCount,
-                activeIndex = activeBlockIndex,
-                tint = Glass.faceTextColor(screenBackgroundIsLight),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = dotsBottomOffset),
-            )
-        }
-
         // Edge-strip overlay: shown only when enabled and no overlay is on top. Quick
         // search stays out of the mount condition — the strip stays composed and just
         // slides fully away (suppressed) so its expanded/collapsed state isn't lost.
@@ -3931,6 +3904,49 @@ private fun StartPage(
             } // end key(block.sectionId) [inner]
             } // end run
             } // end Column(sectionPanelModifier)
+            // "all apps ->", real Windows Phone's own Start-screen affordance —
+            // user checked a real device: it's a text label + arrow that sits
+            // *after the last tile*, scrolling away with the rest of the
+            // content, not the fixed floating icon-only button further below
+            // (that one predates this, ported from the prototype's own
+            // `.allapps-btn` CSS, which — unlike this — was never actually
+            // given real markup there; kept as-is, purely additive). Shown at
+            // the bottom of every page, not just the last: real WP never had
+            // multiple Start pages to begin with, and restricting this to only
+            // the final one (tried first) meant it wasn't visible without
+            // first discovering/swiping through every other page — directly
+            // defeating the whole point of adding it (user-reported: "no all
+            // apps label visible" after only checking their first page).
+            // Reuses the exact same onChevron target (and chevronVisible's
+            // gating) as the fixed button.
+            if (chevronVisible && !editMode) {
+                Row(
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp, vertical = 14.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onChevron,
+                        ),
+                ) {
+                    Text(
+                        text = "all apps",
+                        color = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.72f),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "→",
+                        color = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.72f),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+            }
             // FR-1 bottom breathing room (prototype home-scroll padding-bottom:74px;
             // grows to clear the edit bar while editing, like .home-scroll padding).
             Spacer(Modifier.height(if (editMode) 130.dp else 74.dp))
@@ -5178,33 +5194,6 @@ private fun FolderExpandedPlaceholder(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                 ) { renaming = true },
-            )
-        }
-    }
-}
-
-/**
- * A small row of dots at the top of the screen — one per Start block page,
- * the active one drawn larger/more opaque — so there's some always-visible
- * cue that Start has more than one page, now that a page's own name is
- * hidden outside edit mode. Purely a static "you are here" marker (doesn't
- * track a live drag mid-swipe); [activeIndex] is expected already clamped
- * into `0 until count`.
- */
-@Composable
-private fun PageDotsIndicator(count: Int, activeIndex: Int, tint: Color, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        repeat(count) { i ->
-            val active = i == activeIndex
-            Box(
-                modifier = Modifier
-                    .size(if (active) 7.dp else 5.dp)
-                    .clip(CircleShape)
-                    .background(tint.copy(alpha = if (active) 0.9f else 0.35f)),
             )
         }
     }
