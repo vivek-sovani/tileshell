@@ -1,5 +1,15 @@
 package com.tileshell.feature.livetiles
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -81,6 +91,7 @@ fun PeopleHubPageTileFace(
     when (page) {
         "recent" -> RecentPeopleTileFace(size, fallback, modifier)
         "what's new" -> WhatsNewTileFace(size, active, fallback, modifier)
+        "apps" -> PeopleAppsTileFace(size, active, fallback, modifier)
         else -> fallback()
     }
 }
@@ -219,5 +230,118 @@ private fun WhatsNewTileFace(size: TileSize, active: Boolean, fallback: @Composa
             },
         )
         PageIconCorner("bell")
+    }
+}
+
+/**
+ * The "apps" page pinned to Start: the front face shows the chat, messages and
+ * mail apps and the back face the social apps (user-requested), each sorted by
+ * most pending notifications first and badged with its count. One icon per
+ * grid cell of the tile (4 on medium, 8 on wide, 9 on large). Tapping an icon
+ * opens that app's home screen, not the latest message (user-requested); a tap
+ * anywhere else opens the People Hub's apps page. Flips on the same slow dwell
+ * as the "what's new" tile, and doesn't flip when one face would be empty.
+ */
+@Composable
+private fun PeopleAppsTileFace(size: TileSize, active: Boolean, fallback: @Composable () -> Unit, modifier: Modifier) {
+    val installed = rememberInstalledPeopleApps() ?: return
+    val snapshot by NotificationCenter.snapshot.collectAsStateWithLifecycle()
+    val apps = remember(installed, snapshot) { peopleApps(installed, snapshot.badges) }
+    val (inbox, social) = remember(apps) { apps.partition { it.category != PeopleCategory.SOCIAL } }
+    if (apps.isEmpty()) return fallback()
+
+    val canFlip = inbox.isNotEmpty() && social.isNotEmpty()
+    var flipped by remember { mutableStateOf(false) }
+    LaunchedEffect(active, canFlip) {
+        if (!active || !canFlip) {
+            flipped = false
+            return@LaunchedEffect
+        }
+        while (true) {
+            delay(WHATS_NEW_FLIP_MS)
+            flipped = !flipped
+        }
+    }
+    val frontApps = inbox.ifEmpty { social }
+    val frontLabel = if (inbox.isEmpty()) "social" else "inbox"
+    FlipTile(
+        flipped = flipped,
+        modifier = modifier.fillMaxSize(),
+        front = { PeopleAppIconGrid(frontApps, frontLabel, size) },
+        back = { PeopleAppIconGrid(social, "social", size) },
+    )
+}
+
+@Composable
+private fun PeopleAppIconGrid(apps: List<PeopleApp>, label: String, size: TileSize) {
+    val context = LocalContext.current
+    val color = LocalTileFaceColor.current
+    val columns = size.cols.coerceAtLeast(1)
+    val rows = size.rows.coerceAtLeast(1)
+    val showLabel = rows >= 2
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = if (showLabel) 18.dp else 6.dp),
+        ) {
+            apps.take(columns * rows).chunked(columns).forEach { rowApps ->
+                Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    rowApps.forEach { app ->
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = { openApp(context, app.packageName) },
+                                ),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            PeopleAppIcon(app, color)
+                        }
+                    }
+                    repeat(columns - rowApps.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+        }
+        if (showLabel) {
+            Text(
+                label,
+                color = color,
+                fontSize = 11.sp,
+                maxLines = 1,
+                modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun PeopleAppIcon(app: PeopleApp, color: Color) {
+    val icon = rememberMonochromeAppIcon(app.packageName, sizePx = 96)
+    Box(modifier = Modifier.size(34.dp)) {
+        if (icon != null) {
+            Image(
+                bitmap = icon,
+                contentDescription = app.label,
+                colorFilter = ColorFilter.tint(color),
+                modifier = Modifier.size(28.dp).align(Alignment.Center),
+            )
+        }
+        if (app.badge > 0) {
+            Text(
+                text = if (app.badge > 99) "99+" else app.badge.toString(),
+                color = Color(0xFF0A0A0D),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(color)
+                    .padding(horizontal = 4.dp),
+            )
+        }
     }
 }

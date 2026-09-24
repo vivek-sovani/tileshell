@@ -71,6 +71,15 @@ fun rememberAppIconBitmap(packageName: String, sizePx: Int = 96): ImageBitmap? {
     return image
 }
 
+/**
+ * [packageName]'s icon as an untinted white silhouette (the same monochrome
+ * icon the "monochrome icons" setting uses), for tinting to the tile's face
+ * colour. Null while loading or if the package can't be resolved.
+ */
+@Composable
+fun rememberMonochromeAppIcon(packageName: String, sizePx: Int = 96): ImageBitmap? =
+    rememberMaskableAppIcon(packageName, sizePx)?.monochromeBitmap
+
 private data class MaskableAppIcon(
     val bitmap: ImageBitmap,
     val unmaskedBitmap: ImageBitmap,

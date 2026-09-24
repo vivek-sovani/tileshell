@@ -7282,6 +7282,7 @@ private fun StaticTileGlyph(
     val effectiveIconKey = when (PeopleHubTile.decode(tile.activityName)) {
         "recent" -> "clock"
         "what's new" -> "bell"
+        "apps" -> "app"
         else -> tile.iconKey
     }
     val useAppIcon = !TileIcons.hasIcon(effectiveIconKey)

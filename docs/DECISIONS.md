@@ -10320,3 +10320,21 @@ through the existing LAUNCHER `<queries>`, so no new permission. Tapping opens
 the app's home screen (`openApp`), not the latest message: the user asked for
 this explicitly. The app bar's pin button uses the existing `pinPeopleHubPage`
 ("apps"), and part 3 gives that tile its face.
+
+## People Hub "apps" tile pinned to Start (part 3 of 3)
+
+Pinning the apps page gives a `PeopleHubTile` "apps" tile (`PeopleAppsTileFace`,
+`PeopleHubPageTile.kt`). This replaced an earlier idea of putting app shortcuts on
+the main people tile's back face, which the user turned down: the main people
+tile keeps its contact mosaic. The front face shows chat, messages and mail
+apps; the back face shows social apps (user-requested), each sorted by most
+notifications (`peopleApps`) and badged. One icon per grid cell: 4 on medium,
+8 on wide, 9 on large. Icons are the apps' own icons as monochrome silhouettes
+tinted to the face colour (new `rememberMonochromeAppIcon`, reusing the
+monochrome-icons code), so any app fits the tile style, not just ones with a
+hand-drawn glyph. Tapping an icon opens the app's home screen, not the latest
+message (user-requested). A tap anywhere else goes through the existing
+people-tile routing to the hub's apps page. It flips on the same 15 s dwell as
+the "what's new" tile, and doesn't flip when there are no social apps (or no
+inbox apps). SMALL tiles have no live face in this codebase, so a 1×1 apps
+tile shows the static "app" glyph.

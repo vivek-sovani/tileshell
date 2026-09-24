@@ -1084,7 +1084,7 @@ private fun PeopleAppsPage(
     accent: Color,
     snapshot: NotificationSnapshot,
 ) {
-    val installed = rememberInstalledPeopleApps()
+    val installed = rememberInstalledPeopleApps() ?: return
     val groups = remember(installed, snapshot) { groupPeopleApps(peopleApps(installed, snapshot.badges)) }
 
     LazyColumn(
@@ -1164,12 +1164,13 @@ private fun PeopleAppRow(app: PeopleApp, tokens: ColorTokens, accent: Color, onC
 
 /**
  * The installed people apps (package to label), looked up once off the main
- * thread. Visible to this app through the manifest's LAUNCHER `<queries>`.
+ * thread; null while that lookup is running. Visible to this app through the
+ * manifest's LAUNCHER `<queries>`.
  */
 @Composable
-internal fun rememberInstalledPeopleApps(): Map<String, String> {
+internal fun rememberInstalledPeopleApps(): Map<String, String>? {
     val context = LocalContext.current
-    val installed by produceState(initialValue = emptyMap<String, String>()) {
+    val installed by produceState<Map<String, String>?>(initialValue = null) {
         value = withContext(Dispatchers.IO) {
             val pm = context.packageManager
             PEOPLE_APP_PACKAGES.mapNotNull { packageName ->

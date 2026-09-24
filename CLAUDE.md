@@ -37,6 +37,19 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — People Hub gains mail, filters, inline reply, an apps page and a
+  pinnable apps tile (instead of separate mail/messaging hubs).** User-requested,
+  designed first with mockups. (1) "what's new" now includes mail apps and has
+  all/chat/messages/mail/social chips with counts (`PeopleCategory`,
+  `PEOPLE_APP_CATEGORIES`). Tapping a row expands it to reply inline, mark read
+  or archive, using the posting app's own notification buttons
+  (`classifyQuickActions`, `NotificationCenter.performQuickAction`), or to open
+  the app. (2) New "apps" pivot groups installed chat/messages/mail/social apps
+  with unread counts. (3) Pinning it gives a tile with inbox apps on the front
+  and social apps on the back, sorted by badges; tapping an icon opens the app's
+  home screen. Build + full unit test suite green; installed on the physical
+  device, but the phone was locked, so none of it has been seen on screen yet.
+  Inline reply/mark read haven't been exercised on a real notification.
 - **`main` — "add live tiles" restores the built-in people, photos, mail and
   messages tiles after unpinning.** User-requested. They're new `WidgetListSheet`
   rows through the existing `addDefaultTile`. `t-people` is now `liveOnly` (the
