@@ -53,6 +53,8 @@ object WeatherCacheCodec {
             append("wind=").append(s.windKph?.toString().orEmpty()).append('\n')
             append("humidity=").append(s.humidityPct?.toString().orEmpty()).append('\n')
             append("isDay=").append(s.isDay.codecFlag()).append('\n')
+            append("uvMax=").append(s.uvIndexMax?.toString().orEmpty()).append('\n')
+            append("utcOffset=").append(s.utcOffsetSeconds?.toString().orEmpty()).append('\n')
             // condition last among the single-value keys: it is the presence
             // marker for a valid snapshot.
             append("condition=").append(s.condition)
@@ -117,7 +119,9 @@ object WeatherCacheCodec {
                         "${clean(hour.hourLabel)}|${hour.tempC}|${clean(hour.condition)}|${hour.isDay.codecFlag()}"
                     },
                 ).append('~')
-                .append(s.isDay.codecFlag())
+                .append(s.isDay.codecFlag()).append('~')
+                .append(s.uvIndexMax?.toString().orEmpty()).append('~')
+                .append(s.utcOffsetSeconds?.toString().orEmpty())
         }
     }
 
@@ -151,6 +155,8 @@ object WeatherCacheCodec {
         var wind: Int? = null
         var humidity: Int? = null
         var isDay: Boolean? = null
+        var uvMax: Int? = null
+        var utcOffset: Int? = null
         val forecastByIndex = sortedMapOf<Int, DailyForecast>()
         val hourlyByIndex = sortedMapOf<Int, HourlyForecast>()
         val places = LinkedHashMap<String, WeatherSnapshot>()
@@ -172,6 +178,8 @@ object WeatherCacheCodec {
                 key == "wind" -> wind = value.trim().toIntOrNull()
                 key == "humidity" -> humidity = value.trim().toIntOrNull()
                 key == "isDay" -> isDay = decodeFlag(value)
+                key == "uvMax" -> uvMax = value.trim().toIntOrNull()
+                key == "utcOffset" -> utcOffset = value.trim().toIntOrNull()
                 key == "loc" -> decodePlaceLine(value)?.let { (placeKey, snapshot) ->
                     places[placeKey] = snapshot
                 }
@@ -201,6 +209,8 @@ object WeatherCacheCodec {
                 windKph = wind,
                 humidityPct = humidity,
                 isDay = isDay,
+                uvIndexMax = uvMax,
+                utcOffsetSeconds = utcOffset,
             )
         } else {
             null
@@ -281,6 +291,8 @@ object WeatherCacheCodec {
             windKph = wind,
             humidityPct = humidity,
             isDay = decodeFlag(f.getOrNull(13)),
+            uvIndexMax = f.getOrNull(14)?.trim()?.toIntOrNull(),
+            utcOffsetSeconds = f.getOrNull(15)?.trim()?.toIntOrNull(),
         )
     }
 }

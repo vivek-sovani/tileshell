@@ -26,6 +26,10 @@ sealed interface WeatherQuery {
  *   cache file written before it existed. Only a fallback for [isNightAt] —
  *   the day's own sunrise/sunset (on [forecast]) is preferred, since a cached
  *   flag goes stale the moment the sun sets between two refreshes.
+ * @property uvIndexMax today's max UV index (weather hub); null when absent.
+ * @property utcOffsetSeconds the forecast place's own UTC offset, so the hub
+ *   can show sunrise/sunset in that place's local time (a fixed city can be in
+ *   another zone than the device); null for an old cache file.
  * @property hourly the next ~24h outlook (weather hub only); empty on the tile
  *   faces' own fetches would be wasteful, but the provider always requests it
  *   now, so this is populated whenever [forecast] is.
@@ -44,6 +48,8 @@ data class WeatherSnapshot(
     val windKph: Int? = null,
     val humidityPct: Int? = null,
     val isDay: Boolean? = null,
+    val uvIndexMax: Int? = null,
+    val utcOffsetSeconds: Int? = null,
 )
 
 /**

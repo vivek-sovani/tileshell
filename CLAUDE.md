@@ -51,8 +51,14 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   the cloud. The hub's hourly rows use each hour's own `is_day`, and the daily
   rows always use the daytime icon. The cache codec adds the new fields at the
   end, so older cache files still decode. The today tab gains a "max 31° · min
-  22°" line under the condition. Build + full unit test suite green
-  (`WeatherNightTest`, 11 cases). Not yet checked on a device, since none was
+  22°" line under the condition. **Follow-up, user-requested:** the today
+  tab's single "feels like · wind · humidity" line is now a labelled
+  two-column grid: feels like, wind speed, humidity, uv index (today's
+  `uv_index_max` plus its WHO band, e.g. "7 · high"), sunrise and sunset.
+  Sunrise/sunset are shown in the forecast place's own local time, using the
+  newly stored `utcOffsetSeconds`, and in the device's zone for an older cache
+  file. Pure `weatherHubStats`/`uvIndexCategory`/`sunTimeLabel`. Build + full
+  unit test suite green (`WeatherNightTest`, 15 cases). Not yet checked on a device, since none was
   connected over adb.
 - **`main` — music hub no longer keeps the display on while playing.**
   User-requested: now that all playback runs in `LocalMusicPlaybackService`

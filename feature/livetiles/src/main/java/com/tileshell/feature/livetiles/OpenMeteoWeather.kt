@@ -175,6 +175,7 @@ fun parseOpenMeteoForecast(json: String, place: String, nowMillis: Long): Weathe
     val low = daily?.optJSONArray("temperature_2m_min")?.optDoubleOrNull(0)?.roundToInt()
         ?: temp.roundToInt()
     val precip = daily?.optJSONArray("precipitation_probability_max")?.optIntOrNull(0)
+    val uvMax = daily?.optJSONArray("uv_index_max")?.optDoubleOrNull(0)?.roundToInt()
 
     return WeatherSnapshot(
         tempC = temp.roundToInt(),
@@ -190,6 +191,8 @@ fun parseOpenMeteoForecast(json: String, place: String, nowMillis: Long): Weathe
         windKph = windKph,
         humidityPct = humidity,
         isDay = isDay,
+        uvIndexMax = uvMax,
+        utcOffsetSeconds = if (root.has("utc_offset_seconds")) utcOffsetSeconds else null,
     )
 }
 
@@ -232,7 +235,7 @@ fun openMeteoForecastUrl(lat: Double, lon: Double): String =
         "&hourly=temperature_2m,weather_code,is_day" +
         // sunrise/sunset drive the day/night icon (moon at night) at render
         // time, so it flips at sunset without waiting for the next refresh.
-        "&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code,sunrise,sunset" +
+        "&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code,sunrise,sunset,uv_index_max" +
         // 7 days (user-requested outlook), not just today — daily.time
         // comes back automatically alongside any other daily field.
         "&timezone=auto&forecast_days=7"

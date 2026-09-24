@@ -264,10 +264,22 @@ private fun CurrentConditionsPage(snapshot: WeatherSnapshot, accent: Color, toke
             night = rememberWeatherNight(snapshot),
         )
     }
-    val detail = weatherHubDetailLine(snapshot)
-    if (detail.isNotEmpty()) {
-        Spacer(Modifier.height(10.dp))
-        Text(text = detail, color = tokens.fgDim, fontSize = 12.sp)
+    // Labelled two-column grid (user-requested sunrise/sunset/uv alongside the
+    // existing feels-like/wind/humidity) — one joined line no longer fits.
+    val stats = weatherHubStats(snapshot)
+    if (stats.isNotEmpty()) {
+        Spacer(Modifier.height(18.dp))
+        stats.chunked(2).forEach { pair ->
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp)) {
+                pair.forEach { (label, value) ->
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = label, color = tokens.fgDim, fontSize = 11.sp)
+                        Text(text = value, color = tokens.fg, fontSize = 16.sp, maxLines = 1)
+                    }
+                }
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
     }
 }
 
@@ -275,13 +287,44 @@ private fun CurrentConditionsPage(snapshot: WeatherSnapshot, accent: Color, toke
 internal fun weatherHubHighLowLine(highC: Int, lowC: Int): String =
     "max ${tempLabel(highC)}  ·  min ${tempLabel(lowC)}"
 
-/** "feels like 30° · wind 14 km/h · humidity 54%", skipping any missing field. */
-private fun weatherHubDetailLine(snapshot: WeatherSnapshot): String =
-    listOfNotNull(
-        snapshot.feelsLikeC?.let { "feels like ${tempLabel(it)}" },
-        snapshot.windKph?.let { "wind $it km/h" },
-        snapshot.humidityPct?.let { "humidity $it%" },
-    ).joinToString("  ·  ")
+/**
+ * The today page's label → value stats, skipping any field the snapshot doesn't
+ * carry (an old cache file, or a response missing it). Sunrise/sunset are
+ * today's (the first forecast day), shown in the forecast place's own local
+ * time. Pure.
+ */
+internal fun weatherHubStats(snapshot: WeatherSnapshot): List<Pair<String, String>> {
+    val today = snapshot.forecast.firstOrNull()
+    return listOfNotNull(
+        snapshot.feelsLikeC?.let { "feels like" to tempLabel(it) },
+        snapshot.windKph?.let { "wind speed" to "$it km/h" },
+        snapshot.humidityPct?.let { "humidity" to "$it%" },
+        snapshot.uvIndexMax?.let { "uv index" to "$it · ${uvIndexCategory(it)}" },
+        today?.sunriseMillis?.let { "sunrise" to sunTimeLabel(it, snapshot.utcOffsetSeconds) },
+        today?.sunsetMillis?.let { "sunset" to sunTimeLabel(it, snapshot.utcOffsetSeconds) },
+    )
+}
+
+/** WHO UV index bands, lowercase. Pure. */
+internal fun uvIndexCategory(uv: Int): String = when {
+    uv <= 2 -> "low"
+    uv <= 5 -> "moderate"
+    uv <= 7 -> "high"
+    uv <= 10 -> "very high"
+    else -> "extreme"
+}
+
+/**
+ * "6:12 am" for [epochMillis] in the place's own [utcOffsetSeconds]; the device
+ * zone when that's unknown (a cache file written before it was stored). Pure.
+ */
+internal fun sunTimeLabel(epochMillis: Long, utcOffsetSeconds: Int?): String {
+    val zone = utcOffsetSeconds?.let { java.time.ZoneOffset.ofTotalSeconds(it) } ?: java.time.ZoneId.systemDefault()
+    val t = java.time.Instant.ofEpochMilli(epochMillis).atZone(zone).toLocalTime()
+    val h12 = if (t.hour % 12 == 0) 12 else t.hour % 12
+    val suffix = if (t.hour < 12) "am" else "pm"
+    return "$h12:${t.minute.toString().padStart(2, '0')} $suffix"
+}
 
 @Composable
 private fun DailyForecastPage(days: List<DailyForecast>, accent: Color, tokens: ColorTokens) {

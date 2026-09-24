@@ -108,4 +108,54 @@ class WeatherNightTest {
     fun `today page range line labels max and min`() {
         assertEquals("max 31°  ·  min 22°", weatherHubHighLowLine(31, 22))
     }
+
+    @Test
+    fun `uv index bands follow the WHO scale`() {
+        assertEquals("low", uvIndexCategory(2))
+        assertEquals("moderate", uvIndexCategory(3))
+        assertEquals("high", uvIndexCategory(7))
+        assertEquals("very high", uvIndexCategory(8))
+        assertEquals("extreme", uvIndexCategory(11))
+    }
+
+    @Test
+    fun `sun time is shown in the place's own offset`() {
+        // 00:42 UTC is 6:12 am at +05:30; 12:30 UTC is 6:00 pm there.
+        assertEquals("6:12 am", sunTimeLabel(42 * 60 * 1000L, 19800))
+        assertEquals("6:00 pm", sunTimeLabel(12 * hour + 30 * 60 * 1000L, 19800))
+        assertEquals("12:05 am", sunTimeLabel(5 * 60 * 1000L, 0))
+    }
+
+    @Test
+    fun `today stats list every present field and skip missing ones`() {
+        val full = snap().copy(feelsLikeC = 30, windKph = 14, humidityPct = 54, uvIndexMax = 7, utcOffsetSeconds = 0)
+        assertEquals(
+            listOf(
+                "feels like" to "30°", "wind speed" to "14 km/h", "humidity" to "54%",
+                "uv index" to "7 · high", "sunrise" to "6:00 am", "sunset" to "6:00 pm",
+            ),
+            weatherHubStats(full),
+        )
+        assertEquals(emptyList<Pair<String, String>>(), weatherHubStats(snap(withSun = false)))
+    }
+
+    @Test
+    fun `uv and offset parse from json and round-trip through the codec`() {
+        val json = """
+            {
+              "utc_offset_seconds": 19800,
+              "current": { "temperature_2m": 20, "weather_code": 0 },
+              "daily": { "temperature_2m_max": [25], "temperature_2m_min": [15], "uv_index_max": [6.6] }
+            }
+        """.trimIndent()
+        val s = parseOpenMeteoForecast(json, "x", 0L)!!
+        assertEquals(7, s.uvIndexMax)
+        assertEquals(19800, s.utcOffsetSeconds)
+        val data = WeatherCacheData(snapshot = s, places = mapOf("k" to s))
+        val back = WeatherCacheCodec.decode(WeatherCacheCodec.encode(data))
+        assertEquals(7, back.snapshot!!.uvIndexMax)
+        assertEquals(19800, back.snapshot!!.utcOffsetSeconds)
+        assertEquals(7, back.places["k"]!!.uvIndexMax)
+        assertEquals(19800, back.places["k"]!!.utcOffsetSeconds)
+    }
 }
