@@ -37,6 +37,24 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — Panchang (calendar system) tile + widget: moonrise/moonset and a
+  big tithi number.** User-requested. New `core/data/MoonTimes.kt`:
+  `nextMoonriseMoonset(now, lat, lon)` samples the Moon's altitude every 10 min
+  over 48 h and bisects each crossing of the standard moonrise altitude
+  (0.125°, Meeus ch. 15). It uses the existing Meeus longitude series plus a
+  new 10-term `HinduPanchang.moonLatitude`, converted to RA/Dec and local
+  sidereal time. Unit-tested against the US Naval Observatory's rise/set
+  times for Pune on 24/25 Sep and 3 Oct 2026, all within 4 min
+  (`MoonTimesTest`). The tile's back face and the widget's back face add
+  moonrise/moonset lines under sunrise/sunset, in the same "short weekday +
+  Devanagari time" form, with new `moonrise`/`moonset` monoline glyphs on the
+  tile and "🌙↑"/"🌙↓" on the widget. The front faces show the tithi as a big
+  Devanagari number between vara and the paksha line, like the calendar
+  tile's day of month (40sp medium / 56sp large / 30sp narrow; inline in the
+  tithi line on the 1-row size). `TithiInfo.displayNumber`: 1-14, 15 for
+  purnima, **30 for amavasya**, the usual Marathi panchang numbering;
+  `PanchangDevanagari.tithiNumber`/`digits`. Build + full unit test suite
+  green; installed on the physical device, no crash. Not visually verified yet.
 - **`main` — weather shows a moon at night; the weather hub's "today" tab shows
   max/min.** User-requested. Open-Meteo now also returns `current.is_day`,
   `hourly.is_day` and `daily.sunrise/sunset` (converted to epoch millis using

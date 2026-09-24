@@ -266,6 +266,23 @@ object TileIcons {
             p(line(19.0, 18.0, 21.0, 16.0)),
         ))
 
+        // The sunrise/sunset pair's lunar twins (Panchang tile): the "moon"
+        // crescent shrunk to sit on the same horizon line, with the arrow
+        // moved above it (the crescent is taller than the sun's half-disc).
+        put("moonrise", vector("moonrise",
+            p("M13.35 8.9a4.05 4.05 0 1 0 2.7 6.75 3.15 3.15 0 0 1-2.7-6.75z"),
+            p(line(2.0, 18.0, 22.0, 18.0)),
+            p(line(12.0, 7.0, 12.0, 2.0)),
+            p("M9.5 4.5l2.5-2.5 2.5 2.5"),
+        ))
+
+        put("moonset", vector("moonset",
+            p("M13.35 8.9a4.05 4.05 0 1 0 2.7 6.75 3.15 3.15 0 0 1-2.7-6.75z"),
+            p(line(2.0, 18.0, 22.0, 18.0)),
+            p(line(12.0, 2.0, 12.0, 7.0)),
+            p("M9.5 4.5l2.5 2.5 2.5-2.5"),
+        ))
+
         put("calendar", vector("calendar",
             p(rect(3.0, 5.0, 18.0, 16.0, 1.5)),
             p(line(3.0, 9.0, 21.0, 9.0)),

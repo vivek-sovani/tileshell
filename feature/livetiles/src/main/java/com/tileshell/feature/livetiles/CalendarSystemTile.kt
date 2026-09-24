@@ -39,6 +39,8 @@ import com.tileshell.core.data.HinduPanchang
 import com.tileshell.core.data.Paksha
 import com.tileshell.core.data.PanchangDevanagari
 import com.tileshell.core.data.PanchangInfo
+import com.tileshell.core.data.MoonTimes
+import com.tileshell.core.data.MoonTimesInfo
 import com.tileshell.core.data.SunTimes
 import com.tileshell.core.data.SunTimesInfo
 import com.tileshell.core.data.TileSize
@@ -205,11 +207,20 @@ fun CalendarSystemTileFace(
         val sunTimes = remember(nowMillis, location) {
             SunTimes.nextSunriseSunset(nowMillis, location.first, location.second)
         }
+        // Same "next" semantics as sunTimes — each rolls forward the minute it
+        // passes. A ~300-sample altitude scan, still cheap once a minute.
+        val moonTimes = remember(nowMillis, location) {
+            MoonTimes.nextMoonriseMoonset(nowMillis, location.first, location.second)
+        }
         FlipTile(
             flipped = flipped,
             modifier = modifier.fillMaxSize(),
-            front = { PanchangFace(panchang = panchang, size = size, romanDate = romanDate, devanagari = true, sunTimes = sunTimes) },
-            back = { PanchangFace(panchang = panchang, size = size, romanDate = romanDate, devanagari = false, sunTimes = sunTimes) },
+            front = {
+                PanchangFace(panchang = panchang, size = size, romanDate = romanDate, devanagari = true, sunTimes = sunTimes, moonTimes = moonTimes)
+            },
+            back = {
+                PanchangFace(panchang = panchang, size = size, romanDate = romanDate, devanagari = false, sunTimes = sunTimes, moonTimes = moonTimes)
+            },
         )
         return
     }
@@ -353,6 +364,7 @@ private fun PanchangFace(
     romanDate: String,
     devanagari: Boolean,
     sunTimes: SunTimesInfo?,
+    moonTimes: MoonTimesInfo?,
 ) {
     val narrow = size.narrowLive
     val short = size.shortLive
@@ -366,6 +378,7 @@ private fun PanchangFace(
     }
     val vara = if (devanagari) PanchangDevanagari.vara(panchang.vara) else panchang.vara
     val tithiName = if (devanagari) PanchangDevanagari.tithiName(panchang.tithi.name) else panchang.tithi.name
+    val tithiNumber = PanchangDevanagari.tithiNumber(panchang.tithi)
     val month = if (devanagari) PanchangDevanagari.month(panchang.month) else panchang.month
     val nakshatra = if (devanagari) PanchangDevanagari.nakshatra(panchang.nakshatra) else panchang.nakshatra
     val nakshatraLabel = if (devanagari) "नक्षत्र" else "nakshatra"
@@ -386,7 +399,7 @@ private fun PanchangFace(
                 Text(
                     text = vara,
                     color = FaceText,
-                    fontSize = if (short) 16.sp else if (narrow) 18.sp else if (big) 26.sp else 20.sp,
+                    fontSize = if (short) 16.sp else if (narrow) 15.sp else if (big) 22.sp else 17.sp,
                     fontWeight = FontWeight.Light,
                     letterSpacing = (-0.5).sp,
                     maxLines = 1,
@@ -397,9 +410,25 @@ private fun PanchangFace(
             // Tithi/paksha/month text only on the Devanagari face — the
             // back face shows sunrise/sunset/ayana instead of repeating the
             // same facts (user-requested).
+            // The tithi as a big number (user-requested), the way the
+            // calendar tile shows the day of the month between weekday and
+            // month. The 1-row size has no room for it, so there the number
+            // rides along in the tithi line instead.
+            if (devanagari && !short) {
+                val numberSize = if (narrow) 30.sp else if (big) 56.sp else 40.sp
+                Text(
+                    text = tithiNumber,
+                    color = FaceText,
+                    fontSize = numberSize,
+                    lineHeight = numberSize,
+                    fontWeight = FontWeight.Light,
+                    maxLines = 1,
+                    textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
+                )
+            }
             if (devanagari) {
                 Text(
-                    text = "$pakshaName · $tithiName · $month",
+                    text = if (short) "$pakshaName · $tithiName $tithiNumber · $month" else "$pakshaName · $tithiName · $month",
                     // A fixed highlight tint (not the tile's own accent fill,
                     // which this text sits on top of and would risk blending
                     // into) so tithi+month reads as the day's defining pair
@@ -484,6 +513,14 @@ private fun PanchangFace(
                             )
                         }
                     }
+                    // Next moonrise/moonset (user-requested), same day-label
+                    // + time shape as the sun rows above.
+                    moonTimes?.moonriseMillis?.let {
+                        PanchangEventRow("moonrise", it, detailIconSize, detailFontSize)
+                    }
+                    moonTimes?.moonsetMillis?.let {
+                        PanchangEventRow("moonset", it, detailIconSize, detailFontSize)
+                    }
                     Text(
                         text = PanchangDevanagari.ayana(panchang.ayana),
                         color = FaceText.copy(alpha = 0.6f),
@@ -525,6 +562,27 @@ private fun PanchangFace(
             MoonPhaseVisual(fraction = moonFraction, modifier = Modifier.size(visualSize))
             Box(modifier = Modifier.weight(1f, fill = false)) { textColumn() }
         }
+    }
+}
+
+/** One "glyph · short weekday · time" line on the Panchang back face (moonrise/moonset). */
+@Composable
+private fun PanchangEventRow(iconKey: String, epochMillis: Long, iconSize: androidx.compose.ui.unit.Dp, fontSize: androidx.compose.ui.unit.TextUnit) {
+    val vara = PanchangDevanagari.shortVara(HinduPanchang.varaFor(epochMillis))
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Icon(
+            imageVector = TileIcons[iconKey],
+            contentDescription = iconKey,
+            tint = FaceText.copy(alpha = 0.75f),
+            modifier = Modifier.size(iconSize),
+        )
+        Text(
+            text = "$vara ${formatClockTime12Devanagari(epochMillis)}",
+            color = FaceText.copy(alpha = 0.75f),
+            fontSize = fontSize,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

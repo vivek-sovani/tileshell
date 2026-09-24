@@ -51,9 +51,20 @@
                 android:id="@+id/widget_vara"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textSize="22sp"
+                android:textSize="18sp"
                 android:maxLines="1"
                 android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+
+            <!-- The tithi as a big number, like a calendar's day of month. -->
+            <TextView
+                android:id="@+id/widget_tithi_number"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="38sp"
+                android:fontFamily="sans-serif-light"
+                android:includeFontPadding="false"
+                android:maxLines="1"
                 android:textColor="#FFFFFFFF" />
 
             <TextView
@@ -156,6 +167,26 @@
 
             <TextView
                 android:id="@+id/widget_back_sunset"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:textSize="14sp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+
+            <TextView
+                android:id="@+id/widget_back_moonrise"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:textSize="14sp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF" />
+
+            <TextView
+                android:id="@+id/widget_back_moonset"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"

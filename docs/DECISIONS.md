@@ -10204,3 +10204,13 @@ a fallback when the stored sun times don't cover the current time. The moon
 uses a fixed pale-cream colour, the same exception the amber sun already
 makes to the "tint to face text" rule. The daily outlook always shows daytime
 icons, because a day's forecast describes its daytime weather.
+
+## Panchang: amavasya is numbered ३०, moonrise found by altitude search
+The big tithi number shows 1-14 in both pakshas and १५ for purnima. Amavasya
+is shown as ३०, not a second १५. That matches how Marathi/Hindi panchangs
+number it, as the month's 30th tithi. Moonrise/moonset are found by
+sampling the Moon's altitude every 10 minutes over the next 48 hours and
+bisecting each horizon crossing, not from a closed-form equation. The Moon
+moves about 13° a day against the stars, so a sunrise-style formula would be
+off by tens of minutes. The result was checked against the US Naval
+Observatory's published times for Pune and is within 4 minutes.

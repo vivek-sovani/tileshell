@@ -47,6 +47,17 @@
             android:textColor="#FFFFFFFF" />
 
         <TextView
+            android:id="@+id/widget_tithi_number"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="30sp"
+            android:fontFamily="sans-serif-light"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:gravity="center"
+            android:textColor="#FFFFFFFF" />
+
+        <TextView
             android:id="@+id/widget_paksha"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -111,6 +122,28 @@
 
         <TextView
             android:id="@+id/widget_back_sunset"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:textSize="11sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:textColor="#FFFFFFFF" />
+
+        <TextView
+            android:id="@+id/widget_back_moonrise"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:textSize="11sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:textColor="#FFFFFFFF" />
+
+        <TextView
+            android:id="@+id/widget_back_moonset"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="1dp"

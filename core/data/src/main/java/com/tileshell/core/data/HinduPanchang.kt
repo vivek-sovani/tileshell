@@ -10,7 +10,16 @@ import kotlin.math.sin
 enum class Paksha { SHUKLA, KRISHNA }
 
 /** One lunar day (tithi): 1-15 within its [paksha], plus the display [name]. */
-data class TithiInfo(val paksha: Paksha, val tithiInPaksha: Int, val name: String)
+data class TithiInfo(val paksha: Paksha, val tithiInPaksha: Int, val name: String) {
+    /**
+     * The number a Marathi/Hindi panchang prints for this tithi
+     * (user-requested): 1-14 within either paksha, 15 for purnima, and 30 for
+     * amavasya — the conventional numbering, which counts amavasya as the
+     * month's 30th tithi rather than a second "15".
+     */
+    val displayNumber: Int
+        get() = if (paksha == Paksha.KRISHNA && tithiInPaksha == 15) 30 else tithiInPaksha
+}
 
 /**
  * The Sun's half-year solar journey: [UTTARAYANA] (northward, from Makar
@@ -151,6 +160,36 @@ object HinduPanchang {
             coeff * sin(cd * d + cm * m + cmp * mp + cf * f)
         }
         return norm360(lp + sum)
+    }
+
+    /** The ~10 largest lunar latitude terms (coeff, D-mult, M-mult, M'-mult, F-mult), Meeus table 47.B. */
+    private val MOON_LAT_TERMS = listOf(
+        doubleArrayOf(5.128122, 0.0, 0.0, 0.0, 1.0),
+        doubleArrayOf(0.280602, 0.0, 0.0, 1.0, 1.0),
+        doubleArrayOf(0.277693, 0.0, 0.0, 1.0, -1.0),
+        doubleArrayOf(0.173237, 2.0, 0.0, 0.0, -1.0),
+        doubleArrayOf(0.055413, 2.0, 0.0, -1.0, 1.0),
+        doubleArrayOf(0.046271, 2.0, 0.0, -1.0, -1.0),
+        doubleArrayOf(0.032573, 2.0, 0.0, 0.0, 1.0),
+        doubleArrayOf(0.017198, 0.0, 0.0, 2.0, 1.0),
+        doubleArrayOf(0.009266, 2.0, 0.0, 1.0, -1.0),
+        doubleArrayOf(0.008822, 0.0, 0.0, 2.0, -1.0),
+    )
+
+    /**
+     * Low-precision lunar ecliptic latitude, degrees (Meeus ch. 47, truncated
+     * series) — only needed for moonrise/moonset ([MoonTimes]), where the
+     * Moon's up-to-5° departure from the ecliptic shifts rise/set by tens of
+     * minutes; the tithi/nakshatra math never needs it.
+     */
+    internal fun moonLatitude(t: Double): Double {
+        val d = Math.toRadians(norm360(297.8501921 + 445267.1114034 * t - 0.0018819 * t * t))
+        val m = Math.toRadians(norm360(357.5291092 + 35999.0502909 * t - 0.0001536 * t * t))
+        val mp = Math.toRadians(norm360(134.9633964 + 477198.8675055 * t + 0.0087414 * t * t))
+        val f = Math.toRadians(norm360(93.2720950 + 483202.0175233 * t - 0.0036539 * t * t))
+        return MOON_LAT_TERMS.sumOf { (coeff, cd, cm, cmp, cf) ->
+            coeff * sin(cd * d + cm * m + cmp * mp + cf * f)
+        }
     }
 
     /** Lahiri ayanamsa, linear approximation (~24.2° in the mid-2020s) — plenty precise next to a nakshatra's 13.33° width. */
@@ -343,6 +382,14 @@ object PanchangDevanagari {
         "dhanishta" to "धनिष्ठा", "shatabhisha" to "शतभिषा", "purva bhadrapada" to "पूर्वाभाद्रपदा",
         "uttara bhadrapada" to "उत्तराभाद्रपदा", "revati" to "रेवती",
     )
+
+    private val DIGITS = charArrayOf('०', '१', '२', '३', '४', '५', '६', '७', '८', '९')
+
+    /** [n]'s decimal digits as Devanagari numerals (`13` → `"१३"`). */
+    fun digits(n: Int): String = n.toString().map { c -> if (c in '0'..'9') DIGITS[c - '0'] else c }.joinToString("")
+
+    /** [TithiInfo.displayNumber] in Devanagari numerals — `"१"` … `"१५"`, `"३०"` for amavasya. */
+    fun tithiNumber(tithi: TithiInfo): String = digits(tithi.displayNumber)
 
     fun vara(value: String): String = VARA[value] ?: value
     fun shortVara(value: String): String = SHORT_VARA[value] ?: value

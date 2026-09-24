@@ -16,6 +16,8 @@ import com.tileshell.core.data.HINDU_PANCHANG_ID
 import com.tileshell.core.data.HinduPanchang
 import com.tileshell.core.data.PanchangDevanagari
 import com.tileshell.core.data.PanchangInfo
+import com.tileshell.core.data.MoonTimes
+import com.tileshell.core.data.MoonTimesInfo
 import com.tileshell.core.data.SunTimes
 import com.tileshell.core.data.SunTimesInfo
 import com.tileshell.core.data.calendarSystemFor
@@ -105,12 +107,13 @@ class CalendarSystemWidgetRefreshWorker(
             // already runs inside a CoroutineWorker.
             val location = lastCoarseLocationOrDefault(context)
             val sunTimes = SunTimes.nextSunriseSunset(nowMillis, location.first, location.second)
+            val moonTimes = MoonTimes.nextMoonriseMoonset(nowMillis, location.first, location.second)
             ids.forEach { id ->
                 val systemId = WidgetConfigStore.calendarSystemId(context, id)
                 val minWidthDp = manager.getAppWidgetOptions(id)
                     .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 110)
                 val (accent, onAccent) = resolveWidgetAccent(context, id)
-                val views = buildRemoteViews(context, id, systemId, nowMillis, sunTimes, accent, onAccent, isCompactWidget(minWidthDp))
+                val views = buildRemoteViews(context, id, systemId, nowMillis, sunTimes, moonTimes, accent, onAccent, isCompactWidget(minWidthDp))
                 manager.updateAppWidget(id, views)
             }
         }
@@ -121,6 +124,7 @@ class CalendarSystemWidgetRefreshWorker(
             systemId: String?,
             nowMillis: Long,
             sunTimes: SunTimesInfo?,
+            moonTimes: MoonTimesInfo,
             accent: Int,
             onAccent: Int,
             compact: Boolean,
@@ -167,8 +171,8 @@ class CalendarSystemWidgetRefreshWorker(
                 val moon = moonPhaseBitmap(moonFraction, onAccent)
                 views.setImageViewBitmap(R.id.widget_icon, moon)
                 views.setImageViewBitmap(R.id.widget_icon_back, moon)
-                setPanchangFace(views, panchang, romanDate, sunTimes, onAccent, devanagari = true, back = false, compact = compact)
-                setPanchangFace(views, panchang, romanDate, sunTimes, onAccent, devanagari = false, back = true, compact = compact)
+                setPanchangFace(views, panchang, romanDate, sunTimes, moonTimes, onAccent, devanagari = true, back = false, compact = compact)
+                setPanchangFace(views, panchang, romanDate, sunTimes, moonTimes, onAccent, devanagari = false, back = true, compact = compact)
             } else {
                 views.setTextColor(R.id.widget_label, onAccent)
                 views.setTextColor(R.id.widget_date, onAccent)
@@ -203,6 +207,7 @@ class CalendarSystemWidgetRefreshWorker(
             panchang: PanchangInfo,
             romanDate: String,
             sunTimes: SunTimesInfo?,
+            moonTimes: MoonTimesInfo,
             onAccent: Int,
             devanagari: Boolean,
             back: Boolean,
@@ -224,6 +229,9 @@ class CalendarSystemWidgetRefreshWorker(
                 val month = PanchangDevanagari.month(panchang.month)
                 views.setViewVisibility(pakshaId, View.VISIBLE)
                 views.setTextViewText(pakshaId, "$pakshaName · $tithiName · $month")
+                // The tithi as a big number (user-requested), front face only.
+                views.setTextColor(R.id.widget_tithi_number, onAccent)
+                views.setTextViewText(R.id.widget_tithi_number, PanchangDevanagari.tithiNumber(panchang.tithi))
             } else {
                 // Back face shows no tithi text at all — replaced by
                 // sunrise/sunset/ayana below.
@@ -249,6 +257,22 @@ class CalendarSystemWidgetRefreshWorker(
                 } else {
                     views.setViewVisibility(sunriseId, View.GONE)
                     views.setViewVisibility(sunsetId, View.GONE)
+                }
+                // Next moonrise/moonset (user-requested), same day-label +
+                // time shape as the sun lines; a line with no event in the
+                // search window is hidden rather than left blank.
+                listOf(
+                    Triple(R.id.widget_back_moonrise, moonTimes.moonriseMillis, "🌙↑"),
+                    Triple(R.id.widget_back_moonset, moonTimes.moonsetMillis, "🌙↓"),
+                ).forEach { (viewId, millis, glyph) ->
+                    if (millis == null) {
+                        views.setViewVisibility(viewId, View.GONE)
+                    } else {
+                        val vara = PanchangDevanagari.shortVara(HinduPanchang.varaFor(millis))
+                        views.setViewVisibility(viewId, View.VISIBLE)
+                        views.setTextColor(viewId, onAccent)
+                        views.setTextViewText(viewId, "$glyph $vara ${formatClockTime12Devanagari(millis)}")
+                    }
                 }
                 views.setTextColor(ayanaId, onAccent)
                 views.setTextViewText(ayanaId, PanchangDevanagari.ayana(panchang.ayana))
