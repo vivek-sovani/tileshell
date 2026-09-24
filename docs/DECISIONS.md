@@ -9992,3 +9992,20 @@ change. Build + full unit test suite green after every round; installed on the p
 mid-session USB disconnect required switching to wireless adb — `adb connect <device-ip>:<port>` — to
 keep verifying), launched with no crash in `adb logcat`, and the final state (right-aligned, larger
 label, no page dots, visible without swiping to a specific page) confirmed via an on-device screenshot.
+
+**Same-session correction: "remove three dots" meant a different element than the one removed, and the
+one actually removed was still wanted.** User followed up "... not removed" after the round above,
+then "multipage indicator was needed", then "jump to app list should had been removed" — together
+clarifying the real request: the fixed floating icon button lower on the screen (bottom-right, a
+literal 3-dot glyph — `TileIcons["more"]` is drawn as three plain circles, confirmed by reading its
+path data) was the "three dots," not the multi-page `PageDotsIndicator` removed in the round above
+(which the user actually still wants — real WP never had multiple Start pages, so this app's own
+addition needs its own "which page am I on" cue, and removing it was a misread of the original
+request). Restored `PageDotsIndicator` (call site + definition) verbatim from the prior commit's diff.
+Removed the fixed "open app list" icon specifically (the `Box`/`Icon` for `TileIcons["more"]`, along
+with its now-covered `onChevron` wiring at that call site) while keeping its sibling quick-panel icon
+in the same bottom-right column untouched — it's a now-genuinely-redundant second "open app list"
+affordance now that every Start page's own scrolling "all apps →" row does the same job. Build + full
+unit test suite green; installed on the physical device over wireless adb, launched with no crash in
+`adb logcat`, and the corrected end state (dots back, all-apps row present, no floating 3-dot icon,
+quick-panel icon still there) confirmed via an on-device screenshot.

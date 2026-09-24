@@ -1779,6 +1779,38 @@ fun StartScreen(
             }
         }
 
+        // Small dot row at the bottom of the screen showing how many pages Start
+        // has and which one is active — page names are hidden outside edit
+        // mode (user-requested "just do it by scroll"), so this is the only
+        // always-visible cue that there's more than one page to swipe to.
+        // Hidden with a single page (nothing to indicate), while editing
+        // (every page's own header already shows its name there), and while
+        // the feed/app-list is what's actually showing. User-requested move
+        // from the top to the bottom; rises to clear the edge strip exactly
+        // like the app-list/quick-panel icon column does, via the same
+        // already-computed edgeStripVisible.
+        //
+        // Restored after a same-session removal: "remove three dots" turned
+        // out to mean the fixed "more" icon button further down (a literal
+        // 3-dot glyph, see TileIcons["more"]), not this indicator — this one
+        // was still needed ("multipage indicator was needed").
+        if (blockCount > 1 && !editMode && !appListShown && !feedShown) {
+            val dotsBottomOffset by animateDpAsState(
+                targetValue = if (edgeStripVisible) STRIP_THICK + 8.dp else 14.dp,
+                animationSpec = spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMediumLow),
+                label = "pageDotsBottomOffset",
+            )
+            PageDotsIndicator(
+                count = blockCount,
+                activeIndex = activeBlockIndex,
+                tint = Glass.faceTextColor(screenBackgroundIsLight),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = dotsBottomOffset),
+            )
+        }
+
         // Edge-strip overlay: shown only when enabled and no overlay is on top. Quick
         // search stays out of the mount condition — the strip stays composed and just
         // slides fully away (suppressed) so its expanded/collapsed state isn't lost.
@@ -4135,11 +4167,16 @@ private fun StartPage(
             )
         }
 
-        // App-list affordance (prototype .allapps-btn) with a settings button just
-        // below it; both hidden in edit mode (personalize is on the edit bar there).
-        // Original order restored (chevron above gear); bottom offset animates up to
-        // clear the edge strip's full expanded height only while it's actually visible,
-        // and eases back down to the original resting position once it isn't.
+        // Fixed settings/quick-panel button column, bottom-right; hidden in edit
+        // mode (personalize is on the edit bar there). This used to also hold a
+        // fixed "open app list" icon (a literal 3-dot "more" glyph) above the
+        // quick-panel one — removed per direct request, now that every Start
+        // page's own scrolling "all apps ->" row (see StartPage) covers that
+        // same job without a second, redundant, always-on affordance
+        // ("jump to app list should had been removed"). Bottom offset animates
+        // up to clear the edge strip's full expanded height only while it's
+        // actually visible, and eases back down to the original resting
+        // position once it isn't.
         if (chevronVisible) {
             val iconsBottomOffset by animateDpAsState(
                 targetValue = if (edgeStripVisible) STRIP_THICK + 8.dp else 26.dp,
@@ -4154,18 +4191,7 @@ private fun StartPage(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                // 48dp min touch targets (a11y) — icons stay smaller inside.
-                Box(
-                    modifier = Modifier.size(48.dp).clickable(onClick = onChevron),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = TileIcons["more"],
-                        contentDescription = "open app list",
-                        tint = Glass.faceTextColor(screenBackgroundIsLight).copy(alpha = 0.72f),
-                        modifier = Modifier.size(28.dp),
-                    )
-                }
+                // 48dp min touch target (a11y) — icon stays smaller inside.
                 // Tap affordance for the quick panel (two-finger swipe-up is the
                 // primary gesture; this is the discoverable fallback for users who
                 // don't find it — see docs/QUICK-PANEL-SPEC.md §4).
@@ -5194,6 +5220,33 @@ private fun FolderExpandedPlaceholder(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                 ) { renaming = true },
+            )
+        }
+    }
+}
+
+/**
+ * A small row of dots at the top of the screen — one per Start block page,
+ * the active one drawn larger/more opaque — so there's some always-visible
+ * cue that Start has more than one page, now that a page's own name is
+ * hidden outside edit mode. Purely a static "you are here" marker (doesn't
+ * track a live drag mid-swipe); [activeIndex] is expected already clamped
+ * into `0 until count`.
+ */
+@Composable
+private fun PageDotsIndicator(count: Int, activeIndex: Int, tint: Color, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        repeat(count) { i ->
+            val active = i == activeIndex
+            Box(
+                modifier = Modifier
+                    .size(if (active) 7.dp else 5.dp)
+                    .clip(CircleShape)
+                    .background(tint.copy(alpha = if (active) 0.9f else 0.35f)),
             )
         }
     }
