@@ -10354,3 +10354,19 @@ fit one line. (3) A photo attached to a message/post/mail
 full-width (up to 220dp tall) when expanded. It uses only that notification's
 own picture (`itemImages[key]`), never the per-package fallback, which belongs to
 whichever notification is newest.
+
+## People Hub: app filter chips replace category chips; compact apps grid
+
+User-requested: "show app wise filter and display those filter for which
+messages/notifications are received". What's new's chips are now "all" plus
+one chip per people app with something pending (app icon, name, count), most
+notifications first, ties broken by the newest (`whatsNewApps`, pure, tested).
+Apps with nothing pending get no chip. This replaces the chat/messages/mail/social
+category chips. Those categories remain for the apps page and the apps tile.
+The remembered chip is now a package name, under a new prefs key (the old key
+held a category name). It only applies while that app still has a chip, and
+otherwise shows "all". The "N more in <app>" footer (`hiddenActivityCount`)
+now appears for any selected app, not just mail. "Compose" shows when the
+selected app is a mail app, and opens that app's compose screen (falling back to
+any `mailto:` handler). Apps page made compact: 4 columns, 40dp icons, tighter
+padding and group headers.

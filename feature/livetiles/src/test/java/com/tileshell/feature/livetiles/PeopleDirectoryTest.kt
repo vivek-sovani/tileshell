@@ -145,25 +145,42 @@ class WhatsNewFilterTest {
     }
 
     @Test
-    fun `chip counts sum badges per category, all includes calls, non-people apps excluded`() {
-        val counts = whatsNewCounts(snapshot)
-        assertEquals(2, counts[PeopleCategory.CHAT])
-        assertEquals(7, counts[PeopleCategory.MAIL])
-        assertEquals(1, counts[PeopleCategory.MESSAGES])
-        assertEquals(1, counts[PeopleCategory.SOCIAL])
-        assertEquals(12, counts[null])
+    fun `an app filter keeps only that app`() {
+        assertEquals(listOf("anand"), recentActivity(snapshot, packageName = "com.google.android.gm").map { it.sender })
     }
 
     @Test
-    fun `hidden counts report notifications beyond the rows shown`() {
-        assertEquals(mapOf("com.google.android.gm" to 6), hiddenActivityCounts(snapshot, PeopleCategory.MAIL))
-        assertEquals(emptyMap<String, Int>(), hiddenActivityCounts(snapshot, PeopleCategory.MESSAGES))
+    fun `app chips list only people apps with something pending, most first`() {
+        assertEquals(
+            listOf(
+                "com.google.android.gm" to 7,
+                "com.whatsapp" to 2,
+                "com.google.android.apps.messaging" to 1,
+                "com.instagram.android" to 1,
+                "com.google.android.dialer" to 1,
+            ),
+            whatsNewApps(snapshot),
+        )
     }
 
     @Test
-    fun `calls have no chip of their own`() {
-        assertEquals(false, PeopleCategory.CALLS in WHATS_NEW_FILTERS)
-        assertEquals(null, WHATS_NEW_FILTERS.first())
+    fun `ties are broken by the newest notification`() {
+        val tied = NotificationSnapshot(
+            badges = mapOf("com.whatsapp" to 1, "com.instagram.android" to 1, "com.twitter.android" to 0),
+            conversations = mapOf(
+                "com.whatsapp" to preview("old", 1000),
+                "com.instagram.android" to preview("new", 9000),
+            ),
+        )
+        assertEquals(listOf("com.instagram.android", "com.whatsapp"), whatsNewApps(tied).map { it.first })
+    }
+
+    @Test
+    fun `hidden count reports notifications beyond the rows shown`() {
+        assertEquals(6, hiddenActivityCount(snapshot, "com.google.android.gm"))
+        assertEquals(1, hiddenActivityCount(snapshot, "com.whatsapp"))
+        assertEquals(0, hiddenActivityCount(snapshot, "com.google.android.apps.messaging"))
+        assertEquals(0, hiddenActivityCount(snapshot, "com.unknown"))
     }
 }
 

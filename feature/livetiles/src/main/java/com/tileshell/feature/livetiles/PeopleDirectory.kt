@@ -246,9 +246,9 @@ data class ActivityEntry(
 )
 
 /**
- * Which kind of person-to-person app a package is, for "what's new"'s filter
- * chips and the apps page. [CALLS] has no chip of its own: missed calls only
- * show under "all".
+ * Which kind of person-to-person app a package is, for the apps page and the
+ * pinned apps tile. [CALLS] isn't shown on either: missed calls only appear in
+ * "what's new".
  */
 enum class PeopleCategory(val label: String) {
     CHAT("chat"),
@@ -257,10 +257,6 @@ enum class PeopleCategory(val label: String) {
     SOCIAL("social"),
     CALLS("calls"),
 }
-
-/** The chips "what's new" offers, in order. Null means "all". */
-val WHATS_NEW_FILTERS: List<PeopleCategory?> =
-    listOf(null, PeopleCategory.CHAT, PeopleCategory.MESSAGES, PeopleCategory.MAIL, PeopleCategory.SOCIAL)
 
 /**
  * Packages whose notifications are inherently person-to-person (a message, a
@@ -360,19 +356,24 @@ fun groupPeopleApps(apps: List<PeopleApp>): List<Pair<PeopleCategory, List<Peopl
 /**
  * Flattens every people app's pending [ConversationItem]s (already capped at
  * [MAX_CONVERSATION_ITEMS] per package) into one newest-first list, capped at
- * [limit] — narrowed to one [category] when a filter chip is selected (null =
- * "all"). Pure — the hub reads [NotificationCenter.snapshot] itself and passes
- * it in.
+ * [limit] — narrowed to one app when [packageName] is given (an app filter
+ * chip; null = "all"), or to one [category]. Pure — the hub reads
+ * [NotificationCenter.snapshot] itself and passes it in.
  */
 fun recentActivity(
     snapshot: NotificationSnapshot,
     limit: Int = 40,
     category: PeopleCategory? = null,
+    packageName: String? = null,
 ): List<ActivityEntry> =
     snapshot.conversations.entries
-        .mapNotNull { (packageName, preview) ->
-            val kind = peopleCategoryFor(packageName) ?: return@mapNotNull null
-            if (category != null && kind != category) null else Triple(packageName, preview, kind)
+        .mapNotNull { (pkg, preview) ->
+            val kind = peopleCategoryFor(pkg) ?: return@mapNotNull null
+            when {
+                packageName != null && pkg != packageName -> null
+                category != null && kind != category -> null
+                else -> Triple(pkg, preview, kind)
+            }
         }
         .flatMap { (packageName, preview, kind) ->
             preview.items.map { item ->
@@ -391,34 +392,31 @@ fun recentActivity(
         .take(limit)
 
 /**
- * Pending-notification count per filter chip: each [PeopleCategory]'s total
- * badge count, plus "all" under the null key (every category, calls included).
- * Uses badge counts rather than rows, so a chip still counts mail an app
- * bundled beyond the rows shown. Pure.
+ * The app filter chips on "what's new": every people app that has pending
+ * notifications right now, with its count — most notifications first, then the
+ * app with the newest one. Apps with nothing pending get no chip (user-
+ * requested). Pure.
  */
-fun whatsNewCounts(snapshot: NotificationSnapshot): Map<PeopleCategory?, Int> {
-    val counts = mutableMapOf<PeopleCategory?, Int>()
-    snapshot.badges.forEach { (packageName, count) ->
-        val kind = peopleCategoryFor(packageName) ?: return@forEach
-        counts[kind] = (counts[kind] ?: 0) + count
-        counts[null] = (counts[null] ?: 0) + count
-    }
-    return counts
-}
+fun whatsNewApps(snapshot: NotificationSnapshot): List<Pair<String, Int>> =
+    snapshot.badges
+        .filter { (packageName, count) -> count > 0 && peopleCategoryFor(packageName) != null }
+        .map { (packageName, count) -> packageName to count }
+        .sortedWith(
+            compareByDescending<Pair<String, Int>> { it.second }
+                .thenByDescending { (packageName, _) ->
+                    snapshot.conversations[packageName]?.items?.maxOfOrNull { it.postTime } ?: 0L
+                },
+        )
 
 /**
- * Per [category] app, how many pending notifications "what's new" isn't
+ * How many of [packageName]'s pending notifications "what's new" isn't
  * listing (the app has more than the [MAX_CONVERSATION_ITEMS] rows kept per
- * package) — the "3 more in gmail · open gmail" footer. Only apps with at
- * least one hidden notification are included. Pure.
+ * package) — the "3 more in gmail · open gmail" footer. Pure.
  */
-fun hiddenActivityCounts(snapshot: NotificationSnapshot, category: PeopleCategory): Map<String, Int> =
-    snapshot.badges.mapNotNull { (packageName, count) ->
-        if (peopleCategoryFor(packageName) != category) return@mapNotNull null
-        val shown = snapshot.conversations[packageName]?.items?.size ?: 0
-        val hidden = count - shown
-        if (hidden > 0) packageName to hidden else null
-    }.toMap()
+fun hiddenActivityCount(snapshot: NotificationSnapshot, packageName: String): Int {
+    val shown = snapshot.conversations[packageName]?.items?.size ?: 0
+    return ((snapshot.badges[packageName] ?: 0) - shown).coerceAtLeast(0)
+}
 
 /** "2 min ago" / "18 min ago" / "1 hr ago" / "3 days ago" — the "what's new"
  * page's own relative-time label (a distinct wording style from the feed's

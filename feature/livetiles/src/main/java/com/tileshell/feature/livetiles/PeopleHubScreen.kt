@@ -136,8 +136,12 @@ fun PeopleHubScreen(
     val pagerScope = rememberCoroutineScope()
     var searchOpen by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
-    var whatsNewFilter by remember { mutableStateOf(loadWhatsNewFilter(context)) }
+    var savedWhatsNewApp by remember { mutableStateOf(loadWhatsNewFilter(context)) }
     val snapshot by NotificationCenter.snapshot.collectAsStateWithLifecycle()
+    val whatsNewApps = remember(snapshot) { whatsNewApps(snapshot) }
+    // The remembered app chip only applies while that app has something
+    // pending; otherwise its chip isn't shown, so fall back to "all".
+    val whatsNewFilter = savedWhatsNewApp?.takeIf { saved -> whatsNewApps.any { it.first == saved } }
 
     LaunchedEffect(visible, initialPage) {
         if (visible && initialPage != null) {
@@ -210,8 +214,8 @@ fun PeopleHubScreen(
                 HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
                     when (page) {
                         0 -> AllPeoplePage(context, tokens, accent, query)
-                        1 -> WhatsNewPage(context, tokens, accent, whatsNewFilter) {
-                            whatsNewFilter = it
+                        1 -> WhatsNewPage(context, tokens, accent, snapshot, whatsNewApps, whatsNewFilter) {
+                            savedWhatsNewApp = it
                             saveWhatsNewFilter(context, it)
                         }
                         2 -> RecentPeoplePage(context, tokens, accent)
@@ -236,14 +240,14 @@ fun PeopleHubScreen(
                         add(
                             HubAppBarAction("check", "clear these") {
                                 NotificationCenter.clearKeys(
-                                    recentActivity(snapshot, category = whatsNewFilter)
+                                    recentActivity(snapshot, packageName = whatsNewFilter)
                                         .map { it.notificationKey }
                                         .filter { it.isNotEmpty() },
                                 )
                             },
                         )
-                        if (whatsNewFilter == PeopleCategory.MAIL) {
-                            add(HubAppBarAction("edit", "compose") { openMailCompose(context) })
+                        if (whatsNewFilter != null && peopleCategoryFor(whatsNewFilter) == PeopleCategory.MAIL) {
+                            add(HubAppBarAction("edit", "compose") { openMailCompose(context, whatsNewFilter) })
                         } else {
                             add(HubAppBarAction("people", "open contacts app") { openContactsApp(context) })
                         }
@@ -740,24 +744,24 @@ private fun WhatsNewPage(
     context: android.content.Context,
     tokens: ColorTokens,
     accent: Color,
-    filter: PeopleCategory?,
-    onFilterChange: (PeopleCategory?) -> Unit,
+    snapshot: NotificationSnapshot,
+    apps: List<Pair<String, Int>>,
+    filter: String?,
+    onFilterChange: (String?) -> Unit,
 ) {
     val granted = rememberNotificationAccess()
     if (!granted) {
         NotificationAccessGate(tokens, accent)
         return
     }
-    val snapshot by NotificationCenter.snapshot.collectAsStateWithLifecycle()
-    val entries = remember(snapshot, filter) { recentActivity(snapshot, category = filter) }
-    val counts = remember(snapshot) { whatsNewCounts(snapshot) }
+    val entries = remember(snapshot, filter) { recentActivity(snapshot, packageName = filter) }
     val hidden = remember(snapshot, filter) {
-        if (filter == PeopleCategory.MAIL) hiddenActivityCounts(snapshot, PeopleCategory.MAIL) else emptyMap()
+        if (filter == null) emptyMap() else mapOf(filter to hiddenActivityCount(snapshot, filter)).filterValues { it > 0 }
     }
     var expandedKey by remember { mutableStateOf<String?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        WhatsNewFilterChips(tokens, accent, filter, counts) {
+        WhatsNewFilterChips(tokens, accent, filter, apps) {
             expandedKey = null
             onFilterChange(it)
         }
@@ -768,7 +772,7 @@ private fun WhatsNewPage(
             if (entries.isEmpty()) {
                 item {
                     Text(
-                        if (filter == null) "nothing new right now" else "nothing new in ${filter.label}",
+                        "nothing new right now",
                         color = tokens.fgDim,
                         fontSize = 14.sp,
                         modifier = Modifier.padding(vertical = 24.dp),
@@ -817,39 +821,65 @@ private fun WhatsNewPage(
     }
 }
 
-/** The all / chat / messages / mail / social chip row, each with its pending count. */
+/**
+ * "all" plus one chip per app that has pending notifications (user-requested:
+ * filter by app, and only for apps something was received from), each with
+ * the app's icon and count.
+ */
 @Composable
 private fun WhatsNewFilterChips(
     tokens: ColorTokens,
     accent: Color,
-    selected: PeopleCategory?,
-    counts: Map<PeopleCategory?, Int>,
-    onSelect: (PeopleCategory?) -> Unit,
+    selected: String?,
+    apps: List<Pair<String, Int>>,
+    onSelect: (String?) -> Unit,
 ) {
+    val context = LocalContext.current
+    val total = apps.sumOf { it.second }
     LazyRow(
         contentPadding = PaddingValues(horizontal = 18.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.padding(bottom = 8.dp),
     ) {
-        items(WHATS_NEW_FILTERS, key = { it?.name ?: "all" }) { category ->
-            val on = category == selected
-            val count = counts[category] ?: 0
-            val label = (category?.label ?: "all") + if (count > 0) " $count" else ""
-            Text(
-                text = label,
-                color = if (on) Color.White else tokens.fg,
-                fontSize = 13.sp,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(if (on) accent else tokens.fg.copy(alpha = 0.08f))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { onSelect(category) },
-                    )
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-            )
+        item(key = "all") {
+            FilterChip(if (total > 0) "all $total" else "all", null, selected == null, tokens, accent) { onSelect(null) }
         }
+        items(apps, key = { it.first }) { (packageName, count) ->
+            val label = remember(packageName) { appLabelOrNull(context, packageName)?.lowercase() ?: packageName }
+            FilterChip("$label $count", packageName, selected == packageName, tokens, accent) { onSelect(packageName) }
+        }
+    }
+}
+
+@Composable
+private fun FilterChip(
+    label: String,
+    iconPackage: String?,
+    on: Boolean,
+    tokens: ColorTokens,
+    accent: Color,
+    onClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (on) accent else tokens.fg.copy(alpha = 0.08f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(start = if (iconPackage != null) 6.dp else 12.dp, end = 12.dp, top = 5.dp, bottom = 5.dp),
+    ) {
+        if (iconPackage != null) {
+            val icon = rememberAppIconBitmap(iconPackage, sizePx = 48)
+            Box(modifier = Modifier.size(18.dp)) {
+                if (icon != null) Image(bitmap = icon, contentDescription = null, modifier = Modifier.fillMaxSize())
+            }
+            Spacer(Modifier.width(6.dp))
+        }
+        Text(label, color = if (on) Color.White else tokens.fg, fontSize = 13.sp, maxLines = 1)
     }
 }
 
@@ -1083,31 +1113,32 @@ private fun showToast(context: android.content.Context, message: String) {
 }
 
 private const val PEOPLE_PREFS = "tileshell.prefs"
-private const val WHATS_NEW_FILTER_KEY = "people_whats_new_filter"
+// A new key: the old one held a category name, which isn't a package.
+private const val WHATS_NEW_FILTER_KEY = "people_whats_new_app_filter"
 
-/** The filter chip last picked on "what's new", remembered across hub opens. */
-private fun loadWhatsNewFilter(context: android.content.Context): PeopleCategory? = runCatching {
+/** The app chip (a package name) last picked on "what's new", remembered
+ * across hub opens; null = "all". */
+private fun loadWhatsNewFilter(context: android.content.Context): String? = runCatching {
     context.getSharedPreferences(PEOPLE_PREFS, android.content.Context.MODE_PRIVATE)
         .getString(WHATS_NEW_FILTER_KEY, null)
-        ?.let { PeopleCategory.valueOf(it) }
-        ?.takeIf { it in WHATS_NEW_FILTERS }
+        ?.takeIf { peopleCategoryFor(it) != null }
 }.getOrNull()
 
-private fun saveWhatsNewFilter(context: android.content.Context, filter: PeopleCategory?) {
+private fun saveWhatsNewFilter(context: android.content.Context, filter: String?) {
     runCatching {
         context.getSharedPreferences(PEOPLE_PREFS, android.content.Context.MODE_PRIVATE)
-            .edit().putString(WHATS_NEW_FILTER_KEY, filter?.name).apply()
+            .edit().putString(WHATS_NEW_FILTER_KEY, filter).apply()
     }
 }
 
-/** Opens the default mail app's compose screen (the mail filter's "compose"). */
-private fun openMailCompose(context: android.content.Context) {
-    runCatching {
-        context.startActivity(
-            android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:"))
-                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
-        )
-    }.onFailure { showToast(context, "no mail app found") }
+/** Opens [packageName]'s compose screen (a mail app chip's "compose"),
+ * falling back to whichever app handles mailto: if that app doesn't. */
+private fun openMailCompose(context: android.content.Context, packageName: String) {
+    val compose = android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:"))
+        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { context.startActivity(android.content.Intent(compose).setPackage(packageName)) }
+        .recoverCatching { context.startActivity(compose) }
+        .onFailure { showToast(context, "no mail app found") }
 }
 
 /**
@@ -1127,8 +1158,8 @@ private fun PeopleAppsPage(
     val groups = remember(installed, snapshot) { groupPeopleApps(peopleApps(installed, snapshot.badges)) }
 
     LazyVerticalGrid(
-        columns = GridCells.Fixed(3),
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        columns = GridCells.Fixed(4),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
         contentPadding = PaddingValues(bottom = 32.dp),
     ) {
         if (groups.isEmpty()) {
@@ -1148,7 +1179,7 @@ private fun PeopleAppsPage(
                     color = tokens.fgDim,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(start = 4.dp, top = 14.dp, bottom = 2.dp),
+                    modifier = Modifier.padding(start = 6.dp, top = 8.dp),
                 )
             }
             gridItems(apps, key = { "app-${it.packageName}" }) { app ->
@@ -1158,8 +1189,9 @@ private fun PeopleAppsPage(
     }
 }
 
-/** One app in the apps grid: its icon with an unread badge, label below —
- * the same cell shape as the music hub's apps page. */
+/** One app in the apps grid: its icon with an unread badge, label below.
+ * Compact (4 columns, 40dp icons — user-requested), a denser take on the
+ * music hub's apps cell. */
 @Composable
 private fun PeopleAppCell(app: PeopleApp, tokens: ColorTokens, accent: Color, onClick: () -> Unit) {
     val icon = rememberAppIconBitmap(app.packageName, sizePx = 96)
@@ -1171,28 +1203,28 @@ private fun PeopleAppCell(app: PeopleApp, tokens: ColorTokens, accent: Color, on
                 indication = null,
                 onClick = onClick,
             )
-            .padding(vertical = 10.dp),
+            .padding(vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.size(46.dp), contentAlignment = Alignment.Center) {
             if (icon != null) {
-                Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(48.dp))
+                Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(40.dp))
             }
             if (app.badge > 0) {
                 Text(
                     text = if (app.badge > 99) "99+" else app.badge.toString(),
                     color = Color.White,
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .background(accent)
-                        .padding(horizontal = 6.dp, vertical = 1.dp),
+                        .padding(horizontal = 5.dp),
                 )
             }
         }
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(3.dp))
         Text(
             text = app.label.lowercase(),
             color = tokens.fg,
