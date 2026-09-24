@@ -167,6 +167,35 @@ class WhatsNewFilterTest {
     }
 }
 
+class PeopleAppsTest {
+
+    private val installed = mapOf(
+        "com.whatsapp" to "WhatsApp",
+        "org.telegram.messenger" to "Telegram",
+        "com.google.android.gm" to "Gmail",
+        "com.instagram.android" to "Instagram",
+        "com.google.android.dialer" to "Phone",
+        "com.android.chrome" to "Chrome",
+    )
+
+    @Test
+    fun `sorted by badge then label, calling and non-people apps dropped`() {
+        val apps = peopleApps(installed, mapOf("com.google.android.gm" to 4, "com.whatsapp" to 5))
+        assertEquals(
+            listOf("com.whatsapp", "com.google.android.gm", "com.instagram.android", "org.telegram.messenger"),
+            apps.map { it.packageName },
+        )
+        assertEquals(listOf(5, 4, 0, 0), apps.map { it.badge })
+    }
+
+    @Test
+    fun `grouped in chat, messages, mail, social order with empty groups dropped`() {
+        val groups = groupPeopleApps(peopleApps(installed, emptyMap()))
+        assertEquals(listOf(PeopleCategory.CHAT, PeopleCategory.MAIL, PeopleCategory.SOCIAL), groups.map { it.first })
+        assertEquals(listOf("Telegram", "WhatsApp"), groups.first().second.map { it.label })
+    }
+}
+
 class ActivityAgoTest {
 
     @Test

@@ -322,6 +322,41 @@ private val PEOPLE_APP_CATEGORIES: Map<String, PeopleCategory> = buildMap {
 /** [packageName]'s [PeopleCategory], or null when it isn't a people app. */
 fun peopleCategoryFor(packageName: String): PeopleCategory? = PEOPLE_APP_CATEGORIES[packageName]
 
+/** Every package [PEOPLE_APP_CATEGORIES] knows, for the apps page's
+ * installed-app lookup. */
+val PEOPLE_APP_PACKAGES: Set<String> get() = PEOPLE_APP_CATEGORIES.keys
+
+/** An installed people app, for the apps page and the pinned apps tile. */
+data class PeopleApp(
+    val packageName: String,
+    val label: String,
+    val category: PeopleCategory,
+    val badge: Int,
+)
+
+/** The categories the apps page and tile show, in order. Calling apps are
+ * left out: they're neither a conversation nor social. */
+val PEOPLE_APP_GROUPS = listOf(PeopleCategory.CHAT, PeopleCategory.MESSAGES, PeopleCategory.MAIL, PeopleCategory.SOCIAL)
+
+/**
+ * Turns the installed people apps ([installed], package to label) into
+ * [PeopleApp]s with their pending [badges], sorted by most notifications
+ * first, then by label. Non-people packages and calling apps are dropped.
+ * Pure.
+ */
+fun peopleApps(installed: Map<String, String>, badges: Map<String, Int>): List<PeopleApp> =
+    installed.mapNotNull { (packageName, label) ->
+        val category = peopleCategoryFor(packageName)?.takeIf { it in PEOPLE_APP_GROUPS } ?: return@mapNotNull null
+        PeopleApp(packageName, label, category, badges[packageName] ?: 0)
+    }.sortedWith(compareByDescending<PeopleApp> { it.badge }.thenBy { it.label.lowercase() })
+
+/** [apps] grouped for the apps page, in [PEOPLE_APP_GROUPS] order, empty
+ * groups dropped. Keeps [peopleApps]'s order within each group. Pure. */
+fun groupPeopleApps(apps: List<PeopleApp>): List<Pair<PeopleCategory, List<PeopleApp>>> =
+    PEOPLE_APP_GROUPS.mapNotNull { category ->
+        apps.filter { it.category == category }.takeIf { it.isNotEmpty() }?.let { category to it }
+    }
+
 /**
  * Flattens every people app's pending [ConversationItem]s (already capped at
  * [MAX_CONVERSATION_ITEMS] per package) into one newest-first list, capped at

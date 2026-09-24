@@ -75,7 +75,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val HUB_PIVOTS = listOf("all", "what's new", "recent")
+private val HUB_PIVOTS = listOf("all", "what's new", "recent", "apps")
 private val JUMP_LETTERS = listOf("#") + ('A'..'Z').map { it.toString() }
 
 /**
@@ -207,7 +207,8 @@ fun PeopleHubScreen(
                             whatsNewFilter = it
                             saveWhatsNewFilter(context, it)
                         }
-                        else -> RecentPeoplePage(context, tokens, accent)
+                        2 -> RecentPeoplePage(context, tokens, accent)
+                        else -> PeopleAppsPage(context, tokens, accent, snapshot)
                     }
                 }
             }
@@ -1068,6 +1069,116 @@ private fun openMailCompose(context: android.content.Context) {
                 .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
         )
     }.onFailure { showToast(context, "no mail app found") }
+}
+
+/**
+ * "apps" — the installed chat, messaging, mail and social apps, grouped, each
+ * with its pending-notification count, like the music hub's apps page.
+ * Tapping one opens the app's home screen (not the latest message — user-
+ * requested). Pinnable to Start from the app bar, as the apps tile.
+ */
+@Composable
+private fun PeopleAppsPage(
+    context: android.content.Context,
+    tokens: ColorTokens,
+    accent: Color,
+    snapshot: NotificationSnapshot,
+) {
+    val installed = rememberInstalledPeopleApps()
+    val groups = remember(installed, snapshot) { groupPeopleApps(peopleApps(installed, snapshot.badges)) }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
+    ) {
+        if (groups.isEmpty()) {
+            item {
+                Text(
+                    "no chat, messaging, mail or social apps found",
+                    color = tokens.fgDim,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(vertical = 24.dp),
+                )
+            }
+        }
+        groups.forEach { (category, apps) ->
+            item(key = "group-${category.name}") {
+                Text(
+                    category.label,
+                    color = tokens.fgDim,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(top = 14.dp, bottom = 4.dp),
+                )
+            }
+            items(apps, key = { "app-${it.packageName}" }) { app ->
+                PeopleAppRow(app, tokens, accent) { openApp(context, app.packageName) }
+            }
+        }
+        item { Spacer(Modifier.height(24.dp)) }
+    }
+}
+
+@Composable
+private fun PeopleAppRow(app: PeopleApp, tokens: ColorTokens, accent: Color, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val icon = rememberAppIconBitmap(app.packageName, sizePx = 96)
+        Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+            if (icon != null) {
+                Image(bitmap = icon, contentDescription = null, modifier = Modifier.fillMaxSize())
+            }
+        }
+        Spacer(Modifier.width(14.dp))
+        Text(
+            app.label.lowercase(),
+            color = tokens.fg,
+            fontSize = 16.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        if (app.badge > 0) {
+            Text(
+                text = if (app.badge > 99) "99+" else app.badge.toString(),
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(accent)
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+            )
+        }
+    }
+}
+
+/**
+ * The installed people apps (package to label), looked up once off the main
+ * thread. Visible to this app through the manifest's LAUNCHER `<queries>`.
+ */
+@Composable
+internal fun rememberInstalledPeopleApps(): Map<String, String> {
+    val context = LocalContext.current
+    val installed by produceState(initialValue = emptyMap<String, String>()) {
+        value = withContext(Dispatchers.IO) {
+            val pm = context.packageManager
+            PEOPLE_APP_PACKAGES.mapNotNull { packageName ->
+                if (runCatching { pm.getLaunchIntentForPackage(packageName) }.getOrNull() == null) return@mapNotNull null
+                packageName to (appLabelOrNull(context, packageName) ?: packageName)
+            }.toMap()
+        }
+    }
+    return installed
 }
 
 @Composable

@@ -10306,3 +10306,17 @@ Limits: everything is still limited to notifications currently in the shade.
 Replying from the hub depends on each app accepting its reply intent from another
 app. WhatsApp's buttons were confirmed present via `dumpsys notification`, but
 the actual send wasn't exercised on the device (it was locked).
+
+## People Hub "apps" page (part 2 of 3)
+
+A fourth pivot, "apps", after "recent" (as mocked up): the installed chat,
+messages, mail and social apps from `PEOPLE_APP_CATEGORIES`, grouped in that
+order, each with its pending-notification count, like the music hub's apps page.
+Within a group, apps are sorted by most notifications first, then by label
+(`peopleApps`/`groupPeopleApps`, pure, tested). Calling apps are left out
+(neither a conversation nor social). Installed apps are found with
+`getLaunchIntentForPackage` over the known package list, off the main thread,
+through the existing LAUNCHER `<queries>`, so no new permission. Tapping opens
+the app's home screen (`openApp`), not the latest message: the user asked for
+this explicitly. The app bar's pin button uses the existing `pinPeopleHubPage`
+("apps"), and part 3 gives that tile its face.
