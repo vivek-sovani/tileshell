@@ -355,13 +355,17 @@ class LayoutRepository(
      * already exists — keyed on the pair, not the package alone, since one
      * package can expose several independently-pinnable launcher activities
      * (e.g. Amazon's Fresh/Now/Pay activity-aliases).
-     * Apps that match a default role (phone, mail, calendar, etc.) get their
-     * designed WP icon key; all others default to null and show the real app icon.
+     * Always pins with the app's real icon (`iconKey = null`), including apps
+     * that fill a default role (phone, calendar, contacts, music…): the built-in
+     * role tile keeps its WP glyph and, for people/calendar/music, opens the
+     * TileShell hub, since the hub redirect is keyed on `iconKey`. A tile pinned
+     * here is the plain "open the real app" tile, so de-dupe only counts other
+     * real-icon tiles for the same activity, not the role tile.
      * [sectionId] pins straight into that section (the App List's "pin to
      * section" picker) instead of the default unsectioned landing spot.
      */
     suspend fun pinApp(app: AppEntry, defaultSize: TileSize = TileSize.MEDIUM, sectionId: String? = null): PinResult {
-        if (dao.appActivityTileCount(app.packageName, app.activityName) > 0) return PinResult.ALREADY_ON_START
+        if (dao.realIconAppTileCount(app.packageName, app.activityName) > 0) return PinResult.ALREADY_ON_START
         dao.insertTiles(
             listOf(
                 TileEntity(
@@ -373,7 +377,7 @@ class LayoutRepository(
                     packageName = app.packageName,
                     activityName = app.activityName,
                     label = app.label,
-                    iconKey = roleIconKeyMap[app.packageName],
+                    iconKey = null,
                     sectionId = sectionId,
                 ),
             ),

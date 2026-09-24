@@ -242,6 +242,19 @@ class TileMergeTest {
     }
 
     @Test
+    fun roleTileAndRealIconPinOfSameApp_bothKept() {
+        // The built-in calendar tile (WP glyph, opens the hub) and the same app
+        // pinned from the app list (real icon, iconKey = null) are different
+        // tiles; merging them must not dedupe one away.
+        val hubTile = app("t-cal", pkg = "com.cal", icon = "calendar")
+        val realPin = app("pin-cal", pkg = "com.cal", icon = null)
+        val result = computeMerge(drag = realPin, target = hubTile)
+
+        assertEquals(2, result.children.size)
+        assertEquals(listOf("calendar", null), result.children.map { it.iconKey })
+    }
+
+    @Test
     fun nonLargeOntoStack_revertsToNormalFolder() {
         // Merging a non-large tile into a stack breaks the "all members LARGE" rule,
         // so it collapses back to a normal folder: tile → WIDE, members → MEDIUM.

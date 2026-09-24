@@ -62,9 +62,12 @@ private fun TileModel.apps(): List<FolderChild> = when (this) {
  * no-op for them, but a pinned contact tile (`ContactTile`) shares the `"contact"` iconKey
  * across every contact, so without the activityName (which encodes the contact's identity)
  * every contact would collide onto the same slot and merging two would drop one.
+ * A real app's key includes `iconKey` too: the built-in role tile (WP glyph, opens the
+ * hub) and the same app pinned from the app list (real icon, `iconKey = null`) are two
+ * different tiles, so merging them keeps both.
  */
 private fun FolderChild.mergeKey(): String =
-    if (packageName.isNotBlank()) "$packageName/$activityName" else "live:${iconKey ?: label}:$activityName"
+    if (packageName.isNotBlank()) "$packageName/$activityName:${iconKey.orEmpty()}" else "live:${iconKey ?: label}:$activityName"
 
 /**
  * A tile that can take part in a **widget stack via drag-merge**: a LARGE app

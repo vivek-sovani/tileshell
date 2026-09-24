@@ -10229,3 +10229,23 @@ bisecting each horizon crossing, not from a closed-form equation. The Moon
 moves about 13° a day against the stars, so a sunrise-style formula would be
 off by tens of minutes. The result was checked against the US Naval
 Observatory's published times for Pune and is within 4 minutes.
+
+## Default-role apps pin from the app list with their real icon, next to the hub tile
+
+User-requested: "allow default apps to pin directly ... with their original icons."
+Implements decision 2 of "Hub apps ... independent app pinning" above, but more
+simply than that entry proposed. There's no need to blank the package on the
+built-in tiles or add a migration, because the hub redirect in `StartScreen.kt` is
+already keyed on `iconKey`, not the package. `LayoutRepository.pinApp` now always
+pins with `iconKey = null`, so the tile shows the real launcher icon, skips the hub
+redirect and launches the app itself (`onTileClick`). De-dupe moved from
+`appActivityTileCount` (removed) to `LayoutDao.realIconAppTileCount`, which only
+counts `iconKey IS NULL` tiles. So the built-in people/calendar/music tile (and
+phone/mail etc. with their WP glyph) no longer returns "already on start" for the
+same app, but pinning the real app twice still does. `TileMerge`'s real-app
+`mergeKey` now includes `iconKey`, so merging the hub tile with the real-icon tile
+of the same app keeps both instead of dropping one. Out of scope: older hand-pinned
+role tiles keep their WP glyph and still open the hub, because they can't be told
+apart from a folder child pulled back out onto Start (both use a `pin-` id and keep
+the role `iconKey`). Pinning the app again now adds the real-icon tile beside them.
+Folder creation from the category picker still assigns role glyphs (unchanged).

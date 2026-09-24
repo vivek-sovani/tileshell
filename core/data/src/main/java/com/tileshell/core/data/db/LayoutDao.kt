@@ -43,13 +43,16 @@ interface LayoutDao {
     suspend fun appTileCount(packageName: String): Int
 
     /**
-     * Count app tiles already pinned for a specific package+activity — a package
-     * can expose several distinct launcher activities (e.g. Amazon's Fresh/Now/Pay
-     * activity-aliases all under one package) that should be pinnable independently,
-     * so pin de-dupe must key on the pair, not [appTileCount]'s package-only match.
+     * Count real-icon app tiles (`iconKey IS NULL`) already pinned for a specific
+     * package+activity. Keyed on the pair, not the package alone, since a package
+     * can expose several independently-pinnable launcher activities (e.g. Amazon's
+     * Fresh/Now/Pay activity-aliases). Pinning from the app list de-dupes on this, so a
+     * built-in role tile for the same app (the people/calendar/music tile that
+     * opens a TileShell hub, or a phone/mail tile with its WP glyph) doesn't
+     * block pinning the real app next to it.
      */
-    @Query("SELECT COUNT(*) FROM tiles WHERE type = 'app' AND packageName = :packageName AND activityName = :activityName")
-    suspend fun appActivityTileCount(packageName: String, activityName: String): Int
+    @Query("SELECT COUNT(*) FROM tiles WHERE type = 'app' AND packageName = :packageName AND activityName = :activityName AND iconKey IS NULL")
+    suspend fun realIconAppTileCount(packageName: String, activityName: String): Int
 
     /**
      * Count app tiles with a given `activityName` — used to de-dupe pinning a
@@ -505,7 +508,7 @@ interface LayoutDao {
      * package's other activities alone.
      *
      * Correct for foldering, where [deleteTilesByPackage] is not: pinning is
-     * keyed on package **and** activity ([appActivityTileCount]), so one
+     * keyed on package **and** activity ([realIconAppTileCount]), so one
      * package can legitimately own several independent tiles (a shopping app's
      * regional sub-apps, an app-shortcut tile). Moving one of them into a
      * folder must not silently delete its siblings. Uninstall still uses the

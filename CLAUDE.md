@@ -37,6 +37,15 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — default-role apps (calendar, contacts, music, phone, mail…) can be
+  pinned from the app list with their real icon, beside the built-in tile.**
+  User-requested. `pinApp` always uses `iconKey = null` (real icon, launches the
+  app itself, never the hub), and de-dupes only against other real-icon tiles
+  (`LayoutDao.realIconAppTileCount`), so the built-in hub/role tile no longer
+  blocks it. `TileMerge.mergeKey` includes `iconKey` so merging the two keeps
+  both (`TileMergeTest`). Older hand-pinned role tiles are unchanged. Build + full
+  unit test suite green; installed on the physical device, no crash. The pin
+  gesture itself still needs a hands-on check.
 - **`main` — music hub pauses when Bluetooth/headphones disconnect.**
   User-requested. `LocalMusicPlaybackService` registers for
   `AudioManager.ACTION_AUDIO_BECOMING_NOISY` for its whole lifetime (i.e.
