@@ -10194,3 +10194,13 @@ Verified on-device: removal reflects immediately, remaining order preserved in b
 
 Also fixed while there: `PLAY_ORDER` is **1-based** — the provider inserts at position `PLAY_ORDER − 1` — so
 `addTrackToPlaylist`'s `existing.size` put each new track *before* the current last one. Now `existing.size + 1`.
+
+## Weather: moon at night, computed from sunrise/sunset at render time
+The night icon depends on the forecast's own sunrise/sunset, not only on
+Open-Meteo's `is_day`. The cached snapshot can be up to a refresh interval
+old, and Doze can delay refreshes further, so a flag stored at fetch time
+would keep showing the sun for a while after sunset. `is_day` is kept only as
+a fallback when the stored sun times don't cover the current time. The moon
+uses a fixed pale-cream colour, the same exception the amber sun already
+makes to the "tint to face text" rule. The daily outlook always shows daytime
+icons, because a day's forecast describes its daytime weather.

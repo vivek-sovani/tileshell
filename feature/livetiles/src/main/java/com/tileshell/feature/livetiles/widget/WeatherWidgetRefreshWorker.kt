@@ -19,6 +19,7 @@ import com.tileshell.feature.livetiles.R
 import com.tileshell.feature.livetiles.WeatherCache
 import com.tileshell.feature.livetiles.WeatherCacheData
 import com.tileshell.feature.livetiles.WeatherSnapshot
+import com.tileshell.feature.livetiles.isNightAt
 import com.tileshell.feature.livetiles.highLowLabel
 import com.tileshell.feature.livetiles.tempLabel
 import kotlinx.coroutines.flow.first
@@ -202,7 +203,11 @@ class WeatherWidgetRefreshWorker(
             } else {
                 views.setImageViewBitmap(
                     R.id.widget_icon,
-                    weatherConditionBitmap(snapshot.condition, onAccent),
+                    weatherConditionBitmap(
+                        snapshot.condition,
+                        onAccent,
+                        night = snapshot.isNightAt(System.currentTimeMillis()),
+                    ),
                 )
                 views.setTextViewText(R.id.widget_temp, tempLabel(snapshot.tempC))
                 views.setTextViewText(R.id.widget_condition, snapshot.condition)

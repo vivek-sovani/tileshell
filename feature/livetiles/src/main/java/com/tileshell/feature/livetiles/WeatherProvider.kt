@@ -22,6 +22,10 @@ sealed interface WeatherQuery {
  * @property fetchedAtMillis when this snapshot was produced (staleness checks)
  * @property feelsLikeC / [windKph] / [humidityPct] the weather hub's detail line;
  *   null when the response doesn't carry that field. Not shown on the tile faces.
+ * @property isDay Open-Meteo's `current.is_day` at fetch time; null for a
+ *   cache file written before it existed. Only a fallback for [isNightAt] —
+ *   the day's own sunrise/sunset (on [forecast]) is preferred, since a cached
+ *   flag goes stale the moment the sun sets between two refreshes.
  * @property hourly the next ~24h outlook (weather hub only); empty on the tile
  *   faces' own fetches would be wasteful, but the provider always requests it
  *   now, so this is populated whenever [forecast] is.
@@ -39,6 +43,7 @@ data class WeatherSnapshot(
     val feelsLikeC: Int? = null,
     val windKph: Int? = null,
     val humidityPct: Int? = null,
+    val isDay: Boolean? = null,
 )
 
 /**
@@ -53,6 +58,8 @@ data class WeatherSnapshot(
  *   for a snapshot decoded from a cache file written before this field existed.
  * @property precipProbabilityMax that day's max chance of rain, 0-100; null when
  *   the response didn't carry it (or an old cache file predates this field).
+ * @property sunriseMillis / [sunsetMillis] that day's sunrise/sunset as epoch
+ *   millis; null when absent (old cache file). Drive [isNightAt].
  */
 data class DailyForecast(
     val dayLabel: String,
@@ -61,6 +68,8 @@ data class DailyForecast(
     val condition: String,
     val isoDate: String = "",
     val precipProbabilityMax: Int? = null,
+    val sunriseMillis: Long? = null,
+    val sunsetMillis: Long? = null,
 )
 
 /**
@@ -72,7 +81,35 @@ data class HourlyForecast(
     val hourLabel: String,
     val tempC: Int,
     val condition: String,
+    val isDay: Boolean? = null,
 )
+
+/**
+ * Whether it is night at [nowMillis] for this snapshot's place (user-requested:
+ * a moon instead of the sun at night). Pure. Prefers the forecast's own
+ * sunrise/sunset, so the answer changes at sunset even between two refreshes;
+ * falls back to the fetch-time [WeatherSnapshot.isDay] when the sun times don't
+ * cover [nowMillis] (old cache file, or a snapshot more than a week stale), and
+ * reads as day when neither is known.
+ */
+fun WeatherSnapshot.isNightAt(nowMillis: Long): Boolean {
+    val sun = forecast.mapNotNull { d ->
+        val rise = d.sunriseMillis ?: return@mapNotNull null
+        val set = d.sunsetMillis ?: return@mapNotNull null
+        rise to set
+    }.sortedBy { it.first }
+    if (sun.isNotEmpty()) {
+        if (sun.any { (rise, set) -> nowMillis in rise until set }) return false
+        // Before the first sunrise (the night leading into it) or between a
+        // sunset and the next sunrise within the covered span → night.
+        if (nowMillis >= sun.first().first - DAY_MILLIS && nowMillis < sun.last().second + DAY_MILLIS / 2) {
+            return true
+        }
+    }
+    return isDay == false
+}
+
+private const val DAY_MILLIS = 24 * 60 * 60 * 1000L
 
 /**
  * The pluggable seam (FR-2 "via a pluggable provider interface"). The live build

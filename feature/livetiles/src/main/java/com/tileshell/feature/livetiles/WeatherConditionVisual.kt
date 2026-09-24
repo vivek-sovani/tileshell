@@ -6,6 +6,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import kotlin.math.cos
@@ -13,6 +14,9 @@ import kotlin.math.sin
 
 /** The fixed warm sun colour — the one deliberate departure from "everything tints to FaceText" in this app's live tiles. */
 private val SunColor = Color(0xFFFFB347)
+
+/** The moon's fixed pale-cream colour — same "a tinted moon reads as not-a-moon" exception as [SunColor]. */
+private val MoonColor = Color(0xFFF4E9C6)
 
 /**
  * The richer multi-element weather illustration (user-requested: "can we
@@ -24,9 +28,13 @@ private val SunColor = Color(0xFFFFB347)
  * condition branches, same fixed-amber-sun exception to the tint rule —
  * keeping the two implementations in visual lockstep is the point, so a
  * fix/tweak to one should get mirrored to the other.
+ *
+ * [night] swaps the sun for a crescent moon (user-requested) wherever the sun
+ * would show — "clear"/"mostly clear" and "partly cloudy"; every other
+ * condition (cloud, rain, snow, fog, storm) has no sun and draws the same.
  */
 @Composable
-fun WeatherConditionVisual(condition: String, tint: Color, modifier: Modifier = Modifier) {
+fun WeatherConditionVisual(condition: String, tint: Color, modifier: Modifier = Modifier, night: Boolean = false) {
     Canvas(modifier = modifier) {
         val cx = size.width / 2f
         val cy = size.height / 2f
@@ -47,6 +55,23 @@ fun WeatherConditionVisual(condition: String, tint: Color, modifier: Modifier = 
                     drawLine(SunColor, Offset(sx, sy), Offset(ex, ey), strokeWidth = strokeW, cap = StrokeCap.Round)
                 }
             }
+        }
+
+        // A crescent: the disc minus the same disc shifted up-right, so the lit
+        // limb faces down-left.
+        fun drawMoon(radius: Float, moonCx: Float, moonCy: Float) {
+            val disc = Path().apply {
+                addOval(androidx.compose.ui.geometry.Rect(center = Offset(moonCx, moonCy), radius = radius))
+            }
+            val bite = Path().apply {
+                addOval(
+                    androidx.compose.ui.geometry.Rect(
+                        center = Offset(moonCx + radius * 0.55f, moonCy - radius * 0.35f),
+                        radius = radius * 0.85f,
+                    ),
+                )
+            }
+            drawPath(Path.combine(PathOperation.Difference, disc, bite), MoonColor)
         }
 
         fun cloudPath(width: Float, height: Float, offsetY: Float): Path {
@@ -82,7 +107,14 @@ fun WeatherConditionVisual(condition: String, tint: Color, modifier: Modifier = 
 
         when {
             condition.contains("clear") || condition.contains("mostly clear") ->
-                drawSun(s * 0.28f, cx, cy, withRays = true)
+                if (night) {
+                    drawMoon(s * 0.3f, cx - s * 0.04f, cy + s * 0.02f)
+                    // Two small stars beside the crescent's open side.
+                    drawCircle(MoonColor, radius = s * 0.035f, center = Offset(cx + s * 0.3f, cy - s * 0.22f))
+                    drawCircle(MoonColor, radius = s * 0.025f, center = Offset(cx + s * 0.18f, cy + s * 0.26f))
+                } else {
+                    drawSun(s * 0.28f, cx, cy, withRays = true)
+                }
 
             condition.contains("thunderstorm") -> {
                 drawPath(cloudPath(s * 0.78f, s * 0.42f, -s * 0.08f), tint.copy(alpha = tint.alpha * 0.55f))
@@ -142,8 +174,13 @@ fun WeatherConditionVisual(condition: String, tint: Color, modifier: Modifier = 
                 drawPath(cloudPath(s * 0.8f, s * 0.46f, 0f), tint)
 
             else -> {
-                // "partly cloudy" and any unmapped phrase: sun peeking from behind a cloud.
-                drawSun(s * 0.22f, cx - s * 0.12f, cy - s * 0.14f, withRays = false)
+                // "partly cloudy" and any unmapped phrase: sun (moon at night)
+                // peeking from behind a cloud.
+                if (night) {
+                    drawMoon(s * 0.24f, cx - s * 0.12f, cy - s * 0.14f)
+                } else {
+                    drawSun(s * 0.22f, cx - s * 0.12f, cy - s * 0.14f, withRays = false)
+                }
                 drawPath(cloudPath(s * 0.66f, s * 0.38f, s * 0.08f), tint)
             }
         }

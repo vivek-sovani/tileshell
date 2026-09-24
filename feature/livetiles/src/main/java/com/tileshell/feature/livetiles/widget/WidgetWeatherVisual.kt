@@ -24,8 +24,11 @@ import android.graphics.RectF
  * deliberate departure from "everything tints to onAccent" elsewhere in this
  * batch, because a grey/white sun reads as "not a sun" the way a tinted cloud
  * still reads as a cloud.
+ *
+ * [night] swaps the sun for a crescent moon (fixed pale cream, same exception),
+ * mirroring [com.tileshell.feature.livetiles.WeatherConditionVisual].
  */
-fun weatherConditionBitmap(condition: String, onAccent: Int, sizePx: Int = 160): Bitmap {
+fun weatherConditionBitmap(condition: String, onAccent: Int, sizePx: Int = 160, night: Boolean = false): Bitmap {
     val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
     val cx = sizePx / 2f
@@ -37,6 +40,7 @@ fun weatherConditionBitmap(condition: String, onAccent: Int, sizePx: Int = 160):
         color = withAlpha(onAccent, 0.55f)
         style = Paint.Style.FILL
     }
+    val moonPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(244, 233, 198); style = Paint.Style.FILL }
     val sunPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = sunColor; style = Paint.Style.FILL }
     val rayPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = sunColor
@@ -67,6 +71,15 @@ fun weatherConditionBitmap(condition: String, onAccent: Int, sizePx: Int = 160):
         }
     }
 
+    fun drawMoon(radius: Float, moonCx: Float, moonCy: Float) {
+        val disc = Path().apply { addCircle(moonCx, moonCy, radius, Path.Direction.CW) }
+        val bite = Path().apply {
+            addCircle(moonCx + radius * 0.55f, moonCy - radius * 0.35f, radius * 0.85f, Path.Direction.CW)
+        }
+        disc.op(bite, Path.Op.DIFFERENCE)
+        canvas.drawPath(disc, moonPaint)
+    }
+
     fun cloudPath(width: Float, height: Float, offsetY: Float): Path {
         val w = width
         val h = height
@@ -80,7 +93,13 @@ fun weatherConditionBitmap(condition: String, onAccent: Int, sizePx: Int = 160):
 
     when {
         condition.contains("clear") || condition.contains("mostly clear") ->
-            drawSun(sizePx * 0.28f, cx, cy, withRays = true)
+            if (night) {
+                drawMoon(sizePx * 0.3f, cx - sizePx * 0.04f, cy + sizePx * 0.02f)
+                canvas.drawCircle(cx + sizePx * 0.3f, cy - sizePx * 0.22f, sizePx * 0.035f, moonPaint)
+                canvas.drawCircle(cx + sizePx * 0.18f, cy + sizePx * 0.26f, sizePx * 0.025f, moonPaint)
+            } else {
+                drawSun(sizePx * 0.28f, cx, cy, withRays = true)
+            }
 
         condition.contains("thunderstorm") -> {
             canvas.drawPath(cloudPath(sizePx * 0.78f, sizePx * 0.42f, -sizePx * 0.08f), cloudShadowPaint)
@@ -142,8 +161,13 @@ fun weatherConditionBitmap(condition: String, onAccent: Int, sizePx: Int = 160):
             canvas.drawPath(cloudPath(sizePx * 0.8f, sizePx * 0.46f, 0f), cloudPaint)
 
         else -> {
-            // "partly cloudy" and any unmapped phrase: sun peeking from behind a cloud.
-            drawSun(sizePx * 0.22f, cx - sizePx * 0.12f, cy - sizePx * 0.14f, withRays = false)
+            // "partly cloudy" and any unmapped phrase: sun (moon at night)
+            // peeking from behind a cloud.
+            if (night) {
+                drawMoon(sizePx * 0.24f, cx - sizePx * 0.12f, cy - sizePx * 0.14f)
+            } else {
+                drawSun(sizePx * 0.22f, cx - sizePx * 0.12f, cy - sizePx * 0.14f, withRays = false)
+            }
             canvas.drawPath(cloudPath(sizePx * 0.66f, sizePx * 0.38f, sizePx * 0.08f), cloudPaint)
         }
     }

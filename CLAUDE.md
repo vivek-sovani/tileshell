@@ -37,6 +37,23 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — weather shows a moon at night; the weather hub's "today" tab shows
+  max/min.** User-requested. Open-Meteo now also returns `current.is_day`,
+  `hourly.is_day` and `daily.sunrise/sunset` (converted to epoch millis using
+  the response's own `utc_offset_seconds`, so a fixed city in another zone is
+  right). Pure `WeatherSnapshot.isNightAt(now)` prefers the stored
+  sunrise/sunset and only falls back to the fetch-time `isDay` flag when those
+  don't cover `now`. `rememberWeatherNight` re-checks once a minute, so the
+  tile, feed card and hub flip at sunset without waiting for a refetch; the
+  home-screen widget picks it up on its next 30-min repaint. `WeatherConditionVisual`/
+  `weatherConditionBitmap` gained `night`: in "clear"/"mostly clear" the sun becomes
+  a pale-cream crescent with two stars, and in "partly cloudy" a crescent behind
+  the cloud. The hub's hourly rows use each hour's own `is_day`, and the daily
+  rows always use the daytime icon. The cache codec adds the new fields at the
+  end, so older cache files still decode. The today tab gains a "max 31° · min
+  22°" line under the condition. Build + full unit test suite green
+  (`WeatherNightTest`, 11 cases). Not yet checked on a device, since none was
+  connected over adb.
 - **`main` — music hub no longer keeps the display on while playing.**
   User-requested: now that all playback runs in `LocalMusicPlaybackService`
   in the background, the hub's `FLAG_KEEP_SCREEN_ON` (added before that, so

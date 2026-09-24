@@ -52,6 +52,7 @@ object WeatherCacheCodec {
             append("feelsLike=").append(s.feelsLikeC?.toString().orEmpty()).append('\n')
             append("wind=").append(s.windKph?.toString().orEmpty()).append('\n')
             append("humidity=").append(s.humidityPct?.toString().orEmpty()).append('\n')
+            append("isDay=").append(s.isDay.codecFlag()).append('\n')
             // condition last among the single-value keys: it is the presence
             // marker for a valid snapshot.
             append("condition=").append(s.condition)
@@ -67,14 +68,17 @@ object WeatherCacheCodec {
                     .append(day.lowC).append('|')
                     .append(day.condition).append('|')
                     .append(day.isoDate).append('|')
-                    .append(day.precipProbabilityMax?.toString().orEmpty())
+                    .append(day.precipProbabilityMax?.toString().orEmpty()).append('|')
+                    .append(day.sunriseMillis?.toString().orEmpty()).append('|')
+                    .append(day.sunsetMillis?.toString().orEmpty())
             }
             // Weather hub's next-24h row, one `hourlyN=` line per hour.
             s.hourly.forEachIndexed { i, hour ->
                 append('\n').append("hourly").append(i).append('=')
                     .append(hour.hourLabel).append('|')
                     .append(hour.tempC).append('|')
-                    .append(hour.condition)
+                    .append(hour.condition).append('|')
+                    .append(hour.isDay.codecFlag())
             }
         }
         // One `loc=` line per user-picked fixed location, each self-contained
@@ -97,7 +101,8 @@ object WeatherCacheCodec {
                 .append(
                     s.forecast.joinToString(";") { day ->
                         "${clean(day.dayLabel)}|${day.highC}|${day.lowC}|${clean(day.condition)}" +
-                            "|${day.isoDate}|${day.precipProbabilityMax ?: ""}"
+                            "|${day.isoDate}|${day.precipProbabilityMax ?: ""}" +
+                            "|${day.sunriseMillis ?: ""}|${day.sunsetMillis ?: ""}"
                     },
                 ).append('~')
                 // Appended after the original 9 fields (index 0-8) so a file
@@ -109,10 +114,24 @@ object WeatherCacheCodec {
                 .append(s.humidityPct?.toString().orEmpty()).append('~')
                 .append(
                     s.hourly.joinToString(";") { hour ->
-                        "${clean(hour.hourLabel)}|${hour.tempC}|${clean(hour.condition)}"
+                        "${clean(hour.hourLabel)}|${hour.tempC}|${clean(hour.condition)}|${hour.isDay.codecFlag()}"
                     },
-                )
+                ).append('~')
+                .append(s.isDay.codecFlag())
         }
+    }
+
+    /** `1`/`0`/"" for a nullable day flag; read back by [decodeFlag]. */
+    private fun Boolean?.codecFlag(): String = when (this) {
+        true -> "1"
+        false -> "0"
+        null -> ""
+    }
+
+    private fun decodeFlag(value: String?): Boolean? = when (value?.trim()) {
+        "1" -> true
+        "0" -> false
+        else -> null
     }
 
     /** Strips this codec's own separators so a value can never split a line. */
@@ -131,6 +150,7 @@ object WeatherCacheCodec {
         var feelsLike: Int? = null
         var wind: Int? = null
         var humidity: Int? = null
+        var isDay: Boolean? = null
         val forecastByIndex = sortedMapOf<Int, DailyForecast>()
         val hourlyByIndex = sortedMapOf<Int, HourlyForecast>()
         val places = LinkedHashMap<String, WeatherSnapshot>()
@@ -151,6 +171,7 @@ object WeatherCacheCodec {
                 key == "feelsLike" -> feelsLike = value.trim().toIntOrNull()
                 key == "wind" -> wind = value.trim().toIntOrNull()
                 key == "humidity" -> humidity = value.trim().toIntOrNull()
+                key == "isDay" -> isDay = decodeFlag(value)
                 key == "loc" -> decodePlaceLine(value)?.let { (placeKey, snapshot) ->
                     places[placeKey] = snapshot
                 }
@@ -179,6 +200,7 @@ object WeatherCacheCodec {
                 feelsLikeC = feelsLike,
                 windKph = wind,
                 humidityPct = humidity,
+                isDay = isDay,
             )
         } else {
             null
@@ -188,8 +210,9 @@ object WeatherCacheCodec {
 
     /**
      * One `forecastN=`/`loc=`-embedded day field → a [DailyForecast]; null when
-     * malformed. Accepts both the original 4-field form (`label|high|low|cond`)
-     * and the current 6-field form with `isoDate`/`precip` appended, so a cache
+     * malformed. Accepts the original 4-field form (`label|high|low|cond`),
+     * the 6-field form with `isoDate`/`precip`, and the current 8-field form with
+     * `sunrise`/`sunset` epoch millis appended too, so a cache
      * file written before those fields existed still decodes.
      */
     private fun parseDailyForecastField(value: String): DailyForecast? {
@@ -204,15 +227,23 @@ object WeatherCacheCodec {
             condition = parts[3],
             isoDate = parts.getOrNull(4).orEmpty(),
             precipProbabilityMax = parts.getOrNull(5)?.toIntOrNull(),
+            sunriseMillis = parts.getOrNull(6)?.toLongOrNull(),
+            sunsetMillis = parts.getOrNull(7)?.toLongOrNull(),
         )
     }
 
     /** One `hourlyN=`/`loc=`-embedded hour field → an [HourlyForecast]; null when malformed. */
     private fun parseHourlyForecastField(value: String): HourlyForecast? {
         val parts = value.split('|')
-        if (parts.size != 3) return null
+        // 3 fields in a file written before the day/night flag existed, 4 since.
+        if (parts.size !in 3..4) return null
         val temp = parts[1].toIntOrNull() ?: return null
-        return HourlyForecast(hourLabel = parts[0], tempC = temp, condition = parts[2])
+        return HourlyForecast(
+            hourLabel = parts[0],
+            tempC = temp,
+            condition = parts[2],
+            isDay = decodeFlag(parts.getOrNull(3)),
+        )
     }
 
     /** One `loc=` line → its cache key + snapshot; null when malformed. */
@@ -249,6 +280,7 @@ object WeatherCacheCodec {
             feelsLikeC = feelsLike,
             windKph = wind,
             humidityPct = humidity,
+            isDay = decodeFlag(f.getOrNull(13)),
         )
     }
 }

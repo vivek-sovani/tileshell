@@ -248,8 +248,21 @@ private fun CurrentConditionsPage(snapshot: WeatherSnapshot, accent: Color, toke
             )
             Spacer(Modifier.height(4.dp))
             Text(text = snapshot.condition, color = tokens.fgDim, fontSize = 14.sp)
+            // Today's range (user-requested), labelled explicitly rather than the
+            // tile's bare "26° / 17°" since this page has the room.
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = weatherHubHighLowLine(snapshot.highC, snapshot.lowC),
+                color = tokens.fg,
+                fontSize = 14.sp,
+            )
         }
-        WeatherConditionVisual(condition = snapshot.condition, tint = accent, modifier = Modifier.size(52.dp))
+        WeatherConditionVisual(
+            condition = snapshot.condition,
+            tint = accent,
+            modifier = Modifier.size(52.dp),
+            night = rememberWeatherNight(snapshot),
+        )
     }
     val detail = weatherHubDetailLine(snapshot)
     if (detail.isNotEmpty()) {
@@ -257,6 +270,10 @@ private fun CurrentConditionsPage(snapshot: WeatherSnapshot, accent: Color, toke
         Text(text = detail, color = tokens.fgDim, fontSize = 12.sp)
     }
 }
+
+/** "max 31°  ·  min 22°" — the today page's range line. Pure. */
+internal fun weatherHubHighLowLine(highC: Int, lowC: Int): String =
+    "max ${tempLabel(highC)}  ·  min ${tempLabel(lowC)}"
 
 /** "feels like 30° · wind 14 km/h · humidity 54%", skipping any missing field. */
 private fun weatherHubDetailLine(snapshot: WeatherSnapshot): String =
@@ -324,7 +341,12 @@ private fun HourlyForecastPage(hours: List<HourlyForecast>, accent: Color, token
                 fontSize = 14.sp,
                 modifier = Modifier.width(56.dp),
             )
-            WeatherConditionVisual(condition = hour.condition, tint = accent, modifier = Modifier.size(20.dp))
+            WeatherConditionVisual(
+                condition = hour.condition,
+                tint = accent,
+                modifier = Modifier.size(20.dp),
+                night = hour.isDay == false,
+            )
             Spacer(Modifier.width(12.dp))
             Text(
                 text = hour.condition,

@@ -21,6 +21,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.delay
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -113,6 +115,21 @@ private fun WeatherWakeRefresh(fetchedAtMillis: Long) {
         onDispose { owner.lifecycle.removeObserver(observer) }
     }
 }
+
+/**
+ * Whether [snapshot]'s place is in night right now (moon instead of sun),
+ * re-evaluated every minute so the icon flips at sunset/sunrise on its own —
+ * the cached snapshot can be up to a refresh interval old, and nothing else
+ * recomposes the face at that moment. False for a null snapshot.
+ */
+@Composable
+fun rememberWeatherNight(snapshot: WeatherSnapshot?): Boolean =
+    produceState(initialValue = snapshot?.isNightAt(System.currentTimeMillis()) ?: false, snapshot) {
+        while (true) {
+            value = snapshot?.isNightAt(System.currentTimeMillis()) ?: false
+            delay(60_000L)
+        }
+    }.value
 
 /**
  * The live weather tile (FR-2). Schedules the background refresh, asks for coarse
@@ -259,6 +276,7 @@ private fun WeatherFront(snapshot: WeatherSnapshot, size: TileSize) {
                 WeatherConditionVisual(
                     condition = snapshot.condition,
                     tint = FaceText,
+                    night = rememberWeatherNight(snapshot),
                     modifier = Modifier.size(if (short) 22.dp else if (big) 40.dp else 30.dp),
                 )
             }

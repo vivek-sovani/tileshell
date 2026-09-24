@@ -896,6 +896,7 @@ internal fun WeatherCard(
                 com.tileshell.feature.livetiles.WeatherConditionVisual(
                     condition = snapshot.condition,
                     tint = onAccent,
+                    night = com.tileshell.feature.livetiles.rememberWeatherNight(snapshot),
                     modifier = Modifier.size(28.dp),
                 )
             }

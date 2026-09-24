@@ -69,13 +69,15 @@ fun dailyForecastDayLabel(index: Int, isoDate: String): String = when (index) {
  * `forecast_days` requested), skipping any index missing a usable high/low/date
  * rather than failing the whole list. Pure.
  */
-private fun parseDailyForecastList(daily: JSONObject?): List<DailyForecast> {
+private fun parseDailyForecastList(daily: JSONObject?, utcOffsetSeconds: Int): List<DailyForecast> {
     if (daily == null) return emptyList()
     val times = daily.optJSONArray("time") ?: return emptyList()
     val highs = daily.optJSONArray("temperature_2m_max") ?: return emptyList()
     val lows = daily.optJSONArray("temperature_2m_min") ?: return emptyList()
     val codes = daily.optJSONArray("weather_code")
     val precips = daily.optJSONArray("precipitation_probability_max")
+    val sunrises = daily.optJSONArray("sunrise")
+    val sunsets = daily.optJSONArray("sunset")
     return (0 until times.length()).mapNotNull { i ->
         val isoDate = times.optString(i, "")
         val high = highs.optDoubleOrNull(i)?.roundToInt() ?: return@mapNotNull null
@@ -87,9 +89,23 @@ private fun parseDailyForecastList(daily: JSONObject?): List<DailyForecast> {
             condition = weatherCodeToCondition(codes?.optInt(i, -1) ?: -1),
             isoDate = isoDate,
             precipProbabilityMax = precips?.optIntOrNull(i),
+            sunriseMillis = sunrises?.optString(i, "")?.let { localIsoToEpochMillis(it, utcOffsetSeconds) },
+            sunsetMillis = sunsets?.optString(i, "")?.let { localIsoToEpochMillis(it, utcOffsetSeconds) },
         )
     }
 }
+
+/**
+ * A `timezone=auto` local ISO time (`YYYY-MM-DDTHH:mm`) → epoch millis, using the
+ * response's own `utc_offset_seconds` (the forecast place's offset, not the
+ * device's — a fixed picked city can be in another zone). Null when unparseable.
+ * Pure.
+ */
+fun localIsoToEpochMillis(isoLocal: String, utcOffsetSeconds: Int): Long? = runCatching {
+    java.time.LocalDateTime.parse(isoLocal)
+        .toInstant(java.time.ZoneOffset.ofTotalSeconds(utcOffsetSeconds))
+        .toEpochMilli()
+}.getOrNull()
 
 /**
  * "now" for [isNow], else a 12-hour clock label ("3pm"/"12am") parsed from an
@@ -121,6 +137,7 @@ private fun parseHourlyForecastList(
     val times = hourly.optJSONArray("time") ?: return emptyList()
     val temps = hourly.optJSONArray("temperature_2m") ?: return emptyList()
     val codes = hourly.optJSONArray("weather_code")
+    val isDays = hourly.optJSONArray("is_day")
     val startIndex = (0 until times.length()).firstOrNull { times.optString(it, "") >= currentIsoTime } ?: 0
     val endIndex = minOf(times.length(), startIndex + maxEntries)
     return (startIndex until endIndex).mapNotNull { i ->
@@ -129,6 +146,7 @@ private fun parseHourlyForecastList(
             hourLabel = hourlyForecastTimeLabel(times.optString(i, ""), isNow = i == startIndex),
             tempC = temp,
             condition = weatherCodeToCondition(codes?.optInt(i, -1) ?: -1),
+            isDay = isDays?.optIntOrNull(i)?.let { it == 1 },
         )
     }
 }
@@ -148,6 +166,8 @@ fun parseOpenMeteoForecast(json: String, place: String, nowMillis: Long): Weathe
     val windKph = current.optDoubleOrNull("wind_speed_10m")?.roundToInt()
     val humidity = current.optIntOrNull("relative_humidity_2m")
     val currentIsoTime = current.optString("time", "")
+    val isDay = current.optIntOrNull("is_day")?.let { it == 1 }
+    val utcOffsetSeconds = root.optInt("utc_offset_seconds", 0)
 
     val daily = root.optJSONObject("daily")
     val high = daily?.optJSONArray("temperature_2m_max")?.optDoubleOrNull(0)?.roundToInt()
@@ -164,11 +184,12 @@ fun parseOpenMeteoForecast(json: String, place: String, nowMillis: Long): Weathe
         detail = weatherDetail(precip),
         place = place,
         fetchedAtMillis = nowMillis,
-        forecast = parseDailyForecastList(daily),
+        forecast = parseDailyForecastList(daily, utcOffsetSeconds),
         hourly = parseHourlyForecastList(root.optJSONObject("hourly"), currentIsoTime),
         feelsLikeC = feelsLike,
         windKph = windKph,
         humidityPct = humidity,
+        isDay = isDay,
     )
 }
 
@@ -207,9 +228,11 @@ private fun JSONObject.optIntOrNull(key: String): Int? =
 fun openMeteoForecastUrl(lat: Double, lon: Double): String =
     "https://api.open-meteo.com/v1/forecast" +
         "?latitude=$lat&longitude=$lon" +
-        "&current=temperature_2m,weather_code,apparent_temperature,wind_speed_10m,relative_humidity_2m" +
-        "&hourly=temperature_2m,weather_code" +
-        "&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code" +
+        "&current=temperature_2m,weather_code,apparent_temperature,wind_speed_10m,relative_humidity_2m,is_day" +
+        "&hourly=temperature_2m,weather_code,is_day" +
+        // sunrise/sunset drive the day/night icon (moon at night) at render
+        // time, so it flips at sunset without waiting for the next refresh.
+        "&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code,sunrise,sunset" +
         // 7 days (user-requested outlook), not just today — daily.time
         // comes back automatically alongside any other daily field.
         "&timezone=auto&forecast_days=7"
