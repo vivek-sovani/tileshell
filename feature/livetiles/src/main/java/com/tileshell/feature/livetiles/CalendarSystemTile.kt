@@ -12,9 +12,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -414,21 +416,42 @@ private fun PanchangFace(
             // calendar tile shows the day of the month between weekday and
             // month. The 1-row size has no room for it, so there the number
             // rides along in the tithi line instead.
+            // Paksha rides beside the number (user-requested) so the line
+            // below only has to fit tithi + month.
             if (devanagari && !short) {
                 val numberSize = if (narrow) 30.sp else if (big) 56.sp else 40.sp
-                Text(
-                    text = tithiNumber,
-                    color = FaceText,
-                    fontSize = numberSize,
-                    lineHeight = numberSize,
-                    fontWeight = FontWeight.Light,
-                    maxLines = 1,
-                    textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = tithiNumber,
+                        color = FaceText,
+                        fontSize = numberSize,
+                        lineHeight = numberSize,
+                        fontWeight = FontWeight.Light,
+                        maxLines = 1,
+                    )
+                    Spacer(Modifier.width(if (narrow) 3.dp else 5.dp))
+                    // Stacked one word per line ("शुक्ल" over "पक्ष") — a
+                    // medium tile has no room for "शुक्ल पक्ष" on one line
+                    // beside the number (verified on-device: it squeezed to
+                    // nothing).
+                    Column {
+                        pakshaName.split(' ').forEach { word ->
+                            Text(
+                                text = word,
+                                color = TileAccents.Amber,
+                                fontSize = if (narrow) 10.sp else if (big) 14.sp else 11.sp,
+                                lineHeight = if (narrow) 12.sp else if (big) 17.sp else 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                softWrap = false,
+                            )
+                        }
+                    }
+                }
             }
             if (devanagari) {
                 Text(
-                    text = if (short) "$pakshaName · $tithiName $tithiNumber · $month" else "$pakshaName · $tithiName · $month",
+                    text = if (short) "$pakshaName · $tithiName $tithiNumber · $month" else "$tithiName · $month",
                     // A fixed highlight tint (not the tile's own accent fill,
                     // which this text sits on top of and would risk blending
                     // into) so tithi+month reads as the day's defining pair

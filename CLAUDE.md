@@ -54,7 +54,13 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   tithi line on the 1-row size). `TithiInfo.displayNumber`: 1-14, 15 for
   purnima, **30 for amavasya**, the usual Marathi panchang numbering;
   `PanchangDevanagari.tithiNumber`/`digits`. Build + full unit test suite
-  green; installed on the physical device, no crash. Not visually verified yet.
+  green; installed on the physical device, no crash. **Follow-up,
+  user-requested:** the paksha now sits beside the big number, stacked one
+  word per line ("शुक्ल" over "पक्ष"; one line squeezed to nothing on a medium
+  tile, seen on-device), so the line below is just "त्रयोदशी · भाद्रपद" and
+  fits on one line. Screenshot-verified on the phone. A trial that also shrank
+  the number to 36sp and dropped the front's Roman date line was reverted at
+  the user's request ("first one was correct").
 - **`main` — weather shows a moon at night; the weather hub's "today" tab shows
   max/min.** User-requested. Open-Meteo now also returns `current.is_day`,
   `hourly.is_day` and `daily.sunrise/sunset` (converted to epoch millis using
