@@ -10338,3 +10338,19 @@ people-tile routing to the hub's apps page. It flips on the same 15 s dwell as
 the "what's new" tile, and doesn't flip when there are no social apps (or no
 inbox apps). SMALL tiles have no live face in this codebase, so a 1×1 apps
 tile shows the static "app" glyph.
+
+## People Hub follow-up: apps as a grid, dismiss, attached photos
+
+User-requested. (1) The apps page is now a 3-column `LazyVerticalGrid` with
+full-width group headers (chat / messages / mail / social), same cell as the
+music hub's apps page (48dp icon, 11sp label), plus an unread badge at the
+icon's corner. (2) An expanded "what's new" row gets a **dismiss** action
+(`NotificationCenter.clearKeys` for just that notification). This works for
+every row, unlike mark read/archive, which depend on the app. Dismissing is a
+button, not a swipe, because a horizontal swipe would fight the hub's pivot
+pager. The action row now wraps (`FlowRow`), since up to four actions no longer
+fit one line. (3) A photo attached to a message/post/mail
+(`NotificationImages.picture`) shows as a 40dp thumbnail on a collapsed row and
+full-width (up to 220dp tall) when expanded. It uses only that notification's
+own picture (`itemImages[key]`), never the per-package fallback, which belongs to
+whichever notification is newest.

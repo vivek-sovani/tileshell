@@ -19,12 +19,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -33,6 +36,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
@@ -865,6 +872,12 @@ private fun ActivityRow(
     val fallbackImages by NotificationCenter.images.collectAsStateWithLifecycle()
     val avatarBitmap = (itemImages[entry.notificationKey] ?: fallbackImages[entry.packageName])
         ?.avatar?.asImageBitmap()
+    // A photo attached to the message/post/mail (user-requested). Only this
+    // notification's own picture — the per-package fallback belongs to
+    // whichever notification is newest, which may be a different row.
+    val picture = remember(itemImages, entry.notificationKey) {
+        itemImages[entry.notificationKey]?.picture?.asImageBitmap()
+    }
     val appLabel = remember(entry.packageName) {
         appLabelOrNull(context, entry.packageName)?.lowercase() ?: "app"
     }
@@ -929,12 +942,34 @@ private fun ActivityRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            if (picture != null && !expanded) {
+                Spacer(Modifier.width(8.dp))
+                Image(
+                    bitmap = picture,
+                    contentDescription = "attached photo",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(6.dp)),
+                )
+            }
             Spacer(Modifier.width(8.dp))
             Text(activityAgo(entry.postTime), color = tokens.fgDim, fontSize = 11.sp)
         }
 
         if (expanded) {
             Column(modifier = Modifier.padding(start = 66.dp, end = 10.dp, bottom = 10.dp)) {
+                if (picture != null) {
+                    Image(
+                        bitmap = picture,
+                        contentDescription = "attached photo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 220.dp)
+                            .aspectRatio(picture.width.toFloat() / picture.height.coerceAtLeast(1))
+                            .clip(RoundedCornerShape(8.dp)),
+                    )
+                    Spacer(Modifier.height(10.dp))
+                }
                 if (QuickAction.REPLY in entry.quickActions) {
                     InlineReplyField(tokens, accent, entry.sender) { text ->
                         val sent = NotificationCenter.performQuickAction(context, entry.notificationKey, QuickAction.REPLY, text)
@@ -948,7 +983,7 @@ private fun ActivityRow(
                     }
                     Spacer(Modifier.height(10.dp))
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                     if (QuickAction.MARK_READ in entry.quickActions) {
                         RowAction("mark read", accent) {
                             pressOrFallBack(context, entry, QuickAction.MARK_READ, appLabel, onDone, onOpenApp)
@@ -958,6 +993,10 @@ private fun ActivityRow(
                         RowAction("archive", accent) {
                             pressOrFallBack(context, entry, QuickAction.ARCHIVE, appLabel, onDone, onOpenApp)
                         }
+                    }
+                    RowAction("dismiss", accent) {
+                        NotificationCenter.clearKeys(listOf(entry.notificationKey))
+                        onDone()
                     }
                     RowAction("open $appLabel", accent, onOpenApp)
                 }
@@ -1087,78 +1126,80 @@ private fun PeopleAppsPage(
     val installed = rememberInstalledPeopleApps() ?: return
     val groups = remember(installed, snapshot) { groupPeopleApps(peopleApps(installed, snapshot.badges)) }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(3),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        contentPadding = PaddingValues(bottom = 32.dp),
     ) {
         if (groups.isEmpty()) {
-            item {
+            item(span = { GridItemSpan(maxLineSpan) }) {
                 Text(
                     "no chat, messaging, mail or social apps found",
                     color = tokens.fgDim,
                     fontSize = 14.sp,
-                    modifier = Modifier.padding(vertical = 24.dp),
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 24.dp),
                 )
             }
         }
         groups.forEach { (category, apps) ->
-            item(key = "group-${category.name}") {
+            item(key = "group-${category.name}", span = { GridItemSpan(maxLineSpan) }) {
                 Text(
                     category.label,
                     color = tokens.fgDim,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(top = 14.dp, bottom = 4.dp),
+                    modifier = Modifier.padding(start = 4.dp, top = 14.dp, bottom = 2.dp),
                 )
             }
-            items(apps, key = { "app-${it.packageName}" }) { app ->
-                PeopleAppRow(app, tokens, accent) { openApp(context, app.packageName) }
+            gridItems(apps, key = { "app-${it.packageName}" }) { app ->
+                PeopleAppCell(app, tokens, accent) { openApp(context, app.packageName) }
             }
         }
-        item { Spacer(Modifier.height(24.dp)) }
     }
 }
 
+/** One app in the apps grid: its icon with an unread badge, label below —
+ * the same cell shape as the music hub's apps page. */
 @Composable
-private fun PeopleAppRow(app: PeopleApp, tokens: ColorTokens, accent: Color, onClick: () -> Unit) {
-    Row(
+private fun PeopleAppCell(app: PeopleApp, tokens: ColorTokens, accent: Color, onClick: () -> Unit) {
+    val icon = rememberAppIconBitmap(app.packageName, sizePx = 96)
+    Column(
         modifier = Modifier
-            .fillMaxWidth()
+            .padding(4.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick,
             )
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        val icon = rememberAppIconBitmap(app.packageName, sizePx = 96)
-        Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center) {
             if (icon != null) {
-                Image(bitmap = icon, contentDescription = null, modifier = Modifier.fillMaxSize())
+                Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(48.dp))
+            }
+            if (app.badge > 0) {
+                Text(
+                    text = if (app.badge > 99) "99+" else app.badge.toString(),
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(accent)
+                        .padding(horizontal = 6.dp, vertical = 1.dp),
+                )
             }
         }
-        Spacer(Modifier.width(14.dp))
+        Spacer(Modifier.height(6.dp))
         Text(
-            app.label.lowercase(),
+            text = app.label.lowercase(),
             color = tokens.fg,
-            fontSize = 16.sp,
+            fontSize = 11.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
         )
-        if (app.badge > 0) {
-            Text(
-                text = if (app.badge > 99) "99+" else app.badge.toString(),
-                color = Color.White,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(accent)
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
-            )
-        }
     }
 }
 
