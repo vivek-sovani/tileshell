@@ -32,7 +32,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /** A completed pin, surfaced once for the UI to toast / navigate on. */
-data class PinOutcome(val result: PinResult, val label: String)
+/** [pageSectionId]/[pageLabel]: for [PinResult.ALREADY_ON_START], which Start
+ * page the existing tile is on (null section = main). */
+data class PinOutcome(
+    val result: PinResult,
+    val label: String,
+    val pageSectionId: String? = null,
+    val pageLabel: String? = null,
+)
 
 /**
  * A synthetic, non-installed "app" entry for this launcher's own Personalize
@@ -224,7 +231,12 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
                 TileSize.MEDIUM
             }
             val result = layout.pinApp(app, defaultSize, sectionId)
-            _pinned.emit(PinOutcome(result, app.label))
+            if (result == PinResult.ALREADY_ON_START) {
+                val (pageSectionId, pageLabel) = layout.pinnedPageOf(app)
+                _pinned.emit(PinOutcome(result, app.label, pageSectionId, pageLabel))
+            } else {
+                _pinned.emit(PinOutcome(result, app.label))
+            }
         }
     }
 

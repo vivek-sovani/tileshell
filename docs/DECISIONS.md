@@ -10505,3 +10505,16 @@ reuses the People Hub's mail package list (`peopleCategoryFor(..) == MAIL`)
 rather than a second copy, so the two hubs always agree on what counts as a
 mail app. Mail apps now appear in both hubs' apps pages, and on the productivity
 tile's back face when they're among the most used.
+
+## "Already on start" says which page, and Start switches there
+
+User-reported: pinning an app said "already on start", but the tile couldn't be
+found. The phone's DB showed why. Start now has four pages (main plus three
+named sections), and the duplicate check (`realIconAppTileCount`) spans all of
+them, so an app already pinned on another page correctly returned
+ALREADY_ON_START, while the message gave no hint where. `LayoutRepository.pinnedPageOf` now looks up
+the existing tile's page. The app list's toast reads "already on start · on the
+shopping page", and `AppListScreen.onAlreadyOnStart` has Start settle on that
+page's block (0 = main, else section index + 1), as a fresh pin already did
+for the active page. The sections' stale `collapsed` flags were checked and
+don't hide anything: pages ignore them.

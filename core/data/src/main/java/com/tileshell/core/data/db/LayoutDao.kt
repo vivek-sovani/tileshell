@@ -57,6 +57,11 @@ interface LayoutDao {
     @Query("SELECT EXISTS(SELECT 1 FROM tiles WHERE id = :id)")
     suspend fun tileExists(id: String): Boolean
 
+    /** The page (section id; null = main) holding the real-icon tile that
+     * [realIconAppTileCount] found. */
+    @Query("SELECT sectionId FROM tiles WHERE type = 'app' AND packageName = :packageName AND activityName = :activityName AND iconKey IS NULL LIMIT 1")
+    suspend fun realIconAppTileSection(packageName: String, activityName: String): String?
+
     /**
      * Count app tiles with a given `activityName` — used to de-dupe pinning a
      * contact (quick search → "pin to start"): contact tiles share a blank

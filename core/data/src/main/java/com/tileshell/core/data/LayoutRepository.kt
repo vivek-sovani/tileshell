@@ -386,6 +386,19 @@ class LayoutRepository(
     }
 
     /**
+     * Where an already-pinned app's tile is: its page's section id (null =
+     * the main page) and that page's name — so "already on start" can say
+     * which page, and Start can switch to it (user-reported: pinning said
+     * "already on start" for a tile on a different page, with no way to
+     * find it).
+     */
+    suspend fun pinnedPageOf(app: AppEntry): Pair<String?, String> {
+        val sectionId = dao.realIconAppTileSection(app.packageName, app.activityName)
+        val label = sectionId?.let { id -> dao.sectionsOnce().firstOrNull { it.id == id }?.label } ?: "main"
+        return sectionId to label
+    }
+
+    /**
      * Pin a contact (quick search → "pin to start") as a medium tile, appended to
      * the end of the grid. Stored as a plain app tile with a blank `packageName`
      * (like the weather/calendar liveOnly tiles) — [ContactTile] encodes the

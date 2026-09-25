@@ -1644,6 +1644,12 @@ fun StartScreen(
                 visible = isAppList,
                 activeSectionId = activeSectionId,
                 onPinned = { settleTo(lastActiveBlockIndex.toFloat()) },
+                onAlreadyOnStart = { pageSectionId ->
+                    // Block 0 is the main page; a named page's block is its
+                    // index in sortedSections + 1 (see activeSectionId).
+                    val block = if (pageSectionId == null) 0 else sortedSections.indexOfFirst { it.id == pageSectionId } + 1
+                    if (block >= 0) settleTo(block.toFloat())
+                },
                 onOpenPersonalize = viewModel::openPersonalize,
                 onAddWidget = { provider ->
                     if (feedEnabled) {

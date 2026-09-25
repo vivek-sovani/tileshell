@@ -113,6 +113,9 @@ fun AppListScreen(
     modifier: Modifier = Modifier,
     visible: Boolean = true,
     onPinned: () -> Unit = {},
+    // An app that's already pinned: Start switches to the page its tile is on
+    // (null = main), so "already on start" never leaves the tile unfindable.
+    onAlreadyOnStart: (pageSectionId: String?) -> Unit = {},
     onOpenPersonalize: () -> Unit = {},
     onAddWidget: (android.appwidget.AppWidgetProviderInfo) -> Unit = {},
     // Whichever section tab is currently active on Start (null =
@@ -148,14 +151,19 @@ fun AppListScreen(
 
     // Pinning a row toasts and, on success, returns to Start (FR-5).
     val onPinnedState = rememberUpdatedState(onPinned)
+    val onAlreadyOnStartState = rememberUpdatedState(onAlreadyOnStart)
     LaunchedEffect(viewModel) {
-        viewModel.pinned.collect { (result, label) ->
-            val message = when (result) {
-                PinResult.PINNED -> "pinned $label"
-                PinResult.ALREADY_ON_START -> "already on start"
+        viewModel.pinned.collect { outcome ->
+            val message = when (outcome.result) {
+                PinResult.PINNED -> "pinned ${outcome.label}"
+                PinResult.ALREADY_ON_START ->
+                    outcome.pageLabel?.let { "already on start · on the ${it.lowercase()} page" } ?: "already on start"
             }
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-            if (result == PinResult.PINNED) onPinnedState.value()
+            if (outcome.result == PinResult.PINNED) onPinnedState.value()
+            if (outcome.result == PinResult.ALREADY_ON_START && outcome.pageLabel != null) {
+                onAlreadyOnStartState.value(outcome.pageSectionId)
+            }
         }
     }
 
