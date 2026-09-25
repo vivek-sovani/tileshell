@@ -35,13 +35,14 @@ class ProductivityAppsTest {
         "us.zoom.videomeetings" to "Zoom",
         "com.oem.calc" to "Calculator",
         "com.whatsapp" to "WhatsApp",
+        "com.google.android.gm" to "Gmail",
     )
 
     @Test
     fun `known and role-resolved apps are grouped, others dropped`() {
         val groups = groupProductivityApps(productivityApps(installed, tools = setOf("com.oem.calc")))
         assertEquals(
-            listOf(ProductivityCategory.OFFICE, ProductivityCategory.NOTES_FILES, ProductivityCategory.MEETINGS, ProductivityCategory.TOOLS),
+            listOf(ProductivityCategory.OFFICE, ProductivityCategory.MAIL, ProductivityCategory.NOTES_FILES, ProductivityCategory.MEETINGS, ProductivityCategory.TOOLS),
             groups.map { it.first },
         )
         assertEquals(listOf("com.oem.calc"), groups.last().second.map { it.packageName })
@@ -50,6 +51,6 @@ class ProductivityAppsTest {
     @Test
     fun `most opened first, then name`() {
         val apps = productivityApps(installed, opens = mapOf("us.zoom.videomeetings" to 9, "com.google.android.keep" to 2))
-        assertEquals(listOf("Zoom", "Keep", "Word"), apps.map { it.label })
+        assertEquals(listOf("Zoom", "Keep", "Gmail", "Word"), apps.map { it.label })
     }
 }

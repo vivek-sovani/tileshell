@@ -10497,3 +10497,11 @@ All user-reported or user-requested, the same day.
   page to `StartViewModel.setActivePage`, and contact, people-hub page, note,
   task list, notepad and productivity pins pass that section id. The app list
   and "add live tiles" already did this.
+
+## Productivity hub apps page includes mail apps
+
+User-requested. A new `ProductivityCategory.MAIL` group sits after office. It
+reuses the People Hub's mail package list (`peopleCategoryFor(..) == MAIL`)
+rather than a second copy, so the two hubs always agree on what counts as a
+mail app. Mail apps now appear in both hubs' apps pages, and on the productivity
+tile's back face when they're among the most used.

@@ -876,7 +876,7 @@ private fun ProductivityAppsPage(tokens: ColorTokens, accent: Color, onAddToQuic
     ) {
         if (groups.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Text("no office, meeting or tool apps found", color = tokens.fgDim, fontSize = 14.sp, modifier = Modifier.padding(6.dp))
+                Text("no office, mail, meeting or tool apps found", color = tokens.fgDim, fontSize = 14.sp, modifier = Modifier.padding(6.dp))
             }
         }
         if (!usageGranted && groups.isNotEmpty()) {

@@ -11,6 +11,7 @@ import java.util.Locale
 /** Which group a productivity app sits in on the hub's apps page. */
 enum class ProductivityCategory(val label: String) {
     OFFICE("office"),
+    MAIL("mail"),
     NOTES_FILES("notes and files"),
     MEETINGS("meetings"),
     TOOLS("tools"),
@@ -75,7 +76,10 @@ private val PRODUCTIVITY_APP_CATEGORIES: Map<String, ProductivityCategory> = bui
     ).forEach { put(it, ProductivityCategory.TOOLS) }
 }
 
-val PRODUCTIVITY_APP_PACKAGES: Set<String> get() = PRODUCTIVITY_APP_CATEGORIES.keys
+/** Every package the apps page looks for: the productivity list plus the
+ * People Hub's mail apps (user-requested: mail belongs here too). */
+val PRODUCTIVITY_APP_PACKAGES: Set<String>
+    get() = PRODUCTIVITY_APP_CATEGORIES.keys + PEOPLE_APP_PACKAGES.filter { peopleCategoryFor(it) == PeopleCategory.MAIL }
 
 /** An installed productivity app for the hub's apps page and tile. */
 data class ProductivityApp(
@@ -96,6 +100,7 @@ fun productivityApps(
 ): List<ProductivityApp> =
     installed.mapNotNull { (packageName, label) ->
         val category = PRODUCTIVITY_APP_CATEGORIES[packageName]
+            ?: if (peopleCategoryFor(packageName) == PeopleCategory.MAIL) ProductivityCategory.MAIL else null
             ?: if (packageName in tools) ProductivityCategory.TOOLS else return@mapNotNull null
         ProductivityApp(packageName, label, category)
     }.sortedWith(compareByDescending<ProductivityApp> { opens[it.packageName] ?: 0 }.thenBy { it.label.lowercase() })
