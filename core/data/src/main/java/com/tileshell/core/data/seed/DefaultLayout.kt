@@ -166,6 +166,7 @@ object DefaultLayout {
         DefaultTile("t-stock", TileSize.MEDIUM, "teal", app = "stock", liveOnly = true),
         DefaultTile("t-commodity", TileSize.MEDIUM, "mauve", app = "commodity", liveOnly = true),
         DefaultTile("t-calsys", TileSize.MEDIUM, "cobalt", app = "calsys", liveOnly = true),
+        DefaultTile("t-productivity", TileSize.WIDE, "cobalt", app = "productivity", liveOnly = true),
     )
 
     /** Every known tile template — the default-layout set plus opt-in-only widgets. */

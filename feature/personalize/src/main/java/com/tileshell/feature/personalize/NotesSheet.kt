@@ -83,6 +83,7 @@ fun NotesSheet(
     onDismiss: () -> Unit,
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
+    initialNoteId: Long? = null,
 ) {
     val progress by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
@@ -100,7 +101,8 @@ fun NotesSheet(
 
     // null = list; non-null = editing that note.
     var editingId by remember { mutableStateOf<Long?>(null) }
-    LaunchedEffect(visible) { if (visible) editingId = null }
+    // Opens on the list, or straight into [initialNoteId] (the productivity hub).
+    LaunchedEffect(visible, initialNoteId) { if (visible) editingId = initialNoteId }
 
     // Shared by both delete entry points (a list row's "×" and the editor's
     // own delete icon) — set the id to confirm, never delete directly.

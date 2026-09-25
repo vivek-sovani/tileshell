@@ -24,6 +24,9 @@ interface TaskListDao {
     @Query("SELECT COUNT(*) FROM task_lists")
     suspend fun count(): Int
 
+    @Query("SELECT id FROM task_lists ORDER BY createdAt LIMIT 1")
+    suspend fun firstId(): String?
+
     /** No-op when the list already exists. */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(list: TaskListEntity)

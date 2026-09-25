@@ -38,6 +38,7 @@ import com.tileshell.core.data.StockTile
 import com.tileshell.core.data.NoteRepository
 import com.tileshell.core.data.StickyNoteTile
 import com.tileshell.core.data.TileModel
+import com.tileshell.core.data.hasNotesTile
 import com.tileshell.core.data.isPersonalizeTile
 import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.WeatherTile
@@ -312,6 +313,21 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         _peopleHubOpen.value = false
     }
 
+    /** The productivity hub (its Start tile → hub), same shape as the people hub. */
+    private val _productivityHubOpen = MutableStateFlow(false)
+    val productivityHubOpen: StateFlow<Boolean> = _productivityHubOpen.asStateFlow()
+    private val _productivityHubInitialPage = MutableStateFlow<String?>(null)
+    val productivityHubInitialPage: StateFlow<String?> = _productivityHubInitialPage.asStateFlow()
+
+    fun openProductivityHub(page: String? = null) {
+        _productivityHubInitialPage.value = page
+        _productivityHubOpen.value = true
+    }
+
+    fun closeProductivityHub() {
+        _productivityHubOpen.value = false
+    }
+
     /**
      * An image [Uri] shared into TileShell from another app (e.g. "share" from Gallery/Photos),
      * awaiting import + the crop overlay so the user can position it before it becomes the
@@ -360,6 +376,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** True while the notes sheet is open (tapping the Notes tile). */
     private val _notesOpen = MutableStateFlow(false)
     val notesOpen: StateFlow<Boolean> = _notesOpen.asStateFlow()
+
+    // Which note the notes sheet opens straight into (the productivity hub
+    // opening a specific note); null = the list.
+    private val _notesInitialNoteId = MutableStateFlow<Long?>(null)
+    val notesInitialNoteId: StateFlow<Long?> = _notesInitialNoteId.asStateFlow()
 
     /** Id of the Sticky Note tile currently open in its editor, or null when closed. */
     private val _stickyNoteEditTileId = MutableStateFlow<String?>(null)
@@ -752,7 +773,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Open the notes sheet (tapping the Notes tile). */
-    fun openNotes() {
+    fun openNotes(noteId: Long? = null) {
+        _notesInitialNoteId.value = noteId
         _notesOpen.value = true
     }
 
@@ -1907,6 +1929,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         closeMusicHub()
         closeCalendarHub()
         closePeopleHub()
+        closeProductivityHub()
         closePermissions()
         closeNewsRegion()
         closeEdgeStrip()
@@ -2227,6 +2250,54 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Pin a People Hub page ("what's new" / "recent") to Start as its own
      * tile, from the hub's own "pin this page" action. */
+    /** A new blank note, opened straight in the notes editor (hub "new note"). */
+    fun newNote() {
+        viewModelScope.launch { openNotes(noteRepository.createNote()) }
+    }
+
+    /** Pin a note to Start as a sticky note tile (productivity hub). */
+    fun pinNote(noteId: Long) {
+        viewModelScope.launch(writeContext) {
+            _pinMessage.tryEmit(pinOutcomeText(repository.pinNote(noteId), "note"))
+        }
+    }
+
+    /** Pin a task list to Start as a Tasks tile (productivity hub). */
+    fun pinTaskList(listId: String) {
+        viewModelScope.launch(writeContext) {
+            _pinMessage.tryEmit(pinOutcomeText(repository.pinTaskList(listId), "task list"))
+        }
+    }
+
+    /** Pin the notepad tile (productivity hub's notes page). Only one exists,
+     * since every notepad tile shows the same notes. */
+    fun pinNotepad() {
+        viewModelScope.launch(writeContext) {
+            val result = if (tiles.value.hasNotesTile()) {
+                PinResult.ALREADY_ON_START
+            } else if (repository.addDefaultTile("notepad")) {
+                PinResult.PINNED
+            } else {
+                PinResult.ALREADY_ON_START
+            }
+            _pinMessage.tryEmit(pinOutcomeText(result, "notes"))
+        }
+    }
+
+    /** Pin the productivity hub's own tile. */
+    fun pinProductivityHub() {
+        viewModelScope.launch(writeContext) {
+            val exists = tiles.value.any { it is TileModel.App && it.iconKey == "productivity" }
+            val result = if (!exists && repository.addDefaultTile("productivity")) PinResult.PINNED else PinResult.ALREADY_ON_START
+            _pinMessage.tryEmit(pinOutcomeText(result, "productivity"))
+        }
+    }
+
+    private fun pinOutcomeText(result: PinResult, what: String): String = when (result) {
+        PinResult.PINNED -> "pinned $what to start"
+        PinResult.ALREADY_ON_START -> "already on start"
+    }
+
     fun pinPeopleHubPage(page: String, label: String) {
         viewModelScope.launch(writeContext) {
             val result = repository.pinPeopleHubPage(page, label)

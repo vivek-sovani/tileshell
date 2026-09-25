@@ -665,5 +665,12 @@ object TileIcons {
             p(line(16.0, 3.0, 16.0, 6.0)),
             p("M14.5 12.2a3.1 3.1 0 0 0 0 6a3.6 3.6 0 0 1 0-6z"),
         ))
+
+        // Productivity hub tile: a briefcase.
+        put("productivity", vector("productivity",
+            p(rect(3.0, 7.5, 18.0, 12.5, 1.5)),
+            p("M9 7.5V5.5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5.5v2"),
+            p(line(3.0, 13.0, 21.0, 13.0)),
+        ))
     }
 }

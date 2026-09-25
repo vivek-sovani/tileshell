@@ -52,6 +52,8 @@ enum class LiveFace(val flips: Boolean) {
     STOCK(flips = true),
     COMMODITY(flips = true),
     CALENDAR_SYSTEM(flips = true),
+    // Self-flipping (like the People Hub page tiles), so not in the shared scheduler.
+    PRODUCTIVITY(flips = false),
     ;
 
     companion object {
@@ -84,6 +86,7 @@ enum class LiveFace(val flips: Boolean) {
                 "stock" -> STOCK
                 "commodity" -> COMMODITY
                 "calsys" -> CALENDAR_SYSTEM
+                "productivity" -> PRODUCTIVITY
                 else -> null
             }
         }

@@ -10419,3 +10419,44 @@ Verified by pushing a copy of the phone's v13 database, plus sample sticky
 notes and task lists, onto the emulator and letting Room migrate it. The result:
 v14, all 56 tiles kept, lists named, sticky texts moved and linked, an empty
 sticky left unlinked. Build + full unit tests green (`HubTileLinksTest`).
+
+## Productivity hub: screens, pins and its Start tile
+
+Built from the approved mockups on top of the v14 data layer above.
+`ProductivityHubScreen` (`:feature:livetiles`) uses the same Panorama/Pivot shell
+as the people and music hubs, with four pivots:
+- **today:** the next meeting (`queryUpcomingMeetings`, timed events in the next
+  24 h, with location and description), with a **join** button when
+  `meetingLinkFrom` finds a Meet / Zoom / Teams / Webex / GoToMeeting / Whereby
+  link. Matching is on the host, so look-alike hosts and other links (maps, docs)
+  are skipped (tested). The following meeting shows on the next line, and a
+  calendar-access prompt when calendar access isn't granted. Also: up to 4 open
+  tasks across all lists, ticked in place; the latest note; and quick actions for
+  new note, new task, calculator (`CATEGORY_APP_CALCULATOR`) and timer
+  (`ACTION_SHOW_TIMERS`).
+- **notes:** every non-empty note (sticky notes included) as a coloured card,
+  with the colour fixed by note id. Tap opens it in the notes editor; long-press
+  gives pin to start / delete; a pin marks notes already on Start.
+- **tasks:** every named list with its open count and first 4 tasks (tick in
+  place), and a pin button (or "on start"). Tapping a card opens that list's sheet.
+- **apps:** installed office / notes and files / meetings / tools apps
+  (`PRODUCTIVITY_APP_CATEGORIES`, plus the device's calculator and clock
+  resolved from their roles), in a 4-column grid, most used first via the usage
+  access added for the people hub.
+The note and task editors stay in `:feature:personalize`, which this module can't
+depend on, so the hub calls back into Start. `NotesSheet` gained `initialNoteId`
+to open straight into a note, and `StartViewModel.newNote` creates a note, then
+opens it. Pins: `LayoutRepository.pinNote` (a sticky note tile linked to the
+note), `pinTaskList` (a Tasks tile with `tasklist:<id>`), `pinNotepad` (only
+one), and `pinProductivityHub`. Each is de-duplicated and reports through the
+existing pin toast. Tasks tiles now show their list name at the bottom.
+**Hub tile** (`ProductivityTileFace`, new `LiveFace.PRODUCTIVITY`, opt-in
+template `t-productivity`, and a "productivity" row in add live tiles): the front
+shows the next meeting (join pill) and the open-task count, the back shows the
+most used apps as monochrome icons (tap to open), with a self-driven 15 s flip.
+Tapping elsewhere opens the hub. It has a new "productivity" briefcase glyph.
+The calendar, people and productivity hubs are now all in `anySheetOpen`,
+which gates the two-finger and edge gestures; calendar and people were missing
+before. Checked on the emulator: tile faces, today/notes/tasks/apps pages, and
+pinning a list. The join button isn't exercised (the emulator calendar has no
+events); the link parser is unit-tested.

@@ -54,6 +54,9 @@ interface LayoutDao {
     @Query("SELECT COUNT(*) FROM tiles WHERE type = 'app' AND packageName = :packageName AND activityName = :activityName AND iconKey IS NULL")
     suspend fun realIconAppTileCount(packageName: String, activityName: String): Int
 
+    @Query("SELECT EXISTS(SELECT 1 FROM tiles WHERE id = :id)")
+    suspend fun tileExists(id: String): Boolean
+
     /**
      * Count app tiles with a given `activityName` — used to de-dupe pinning a
      * contact (quick search → "pin to start"): contact tiles share a blank

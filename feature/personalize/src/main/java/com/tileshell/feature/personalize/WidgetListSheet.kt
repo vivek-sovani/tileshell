@@ -64,6 +64,7 @@ private val WIDGET_CATALOG = listOf(
     WidgetCatalogEntry("weather", "weather", "live forecast for your location", "weather", "cyan"),
     WidgetCatalogEntry("calendar", "calendar", "today's date, flips to your next event", "calendar", "magenta"),
     WidgetCatalogEntry("clock", "clock", "time, weekday and date", "clock", "cobalt"),
+    WidgetCatalogEntry("productivity", "productivity", "next meeting, open tasks and your office apps, plus the productivity hub", "productivity", "cobalt"),
     WidgetCatalogEntry("people", "people", "contact photos, plus the people hub — all, what's new and recent", "people", "teal"),
     WidgetCatalogEntry("photos", "photos", "a slideshow of photos you pick", "photos", "cyan"),
     WidgetCatalogEntry("mail", "mail", "your newest email, from your mail app", "mail", "purple"),

@@ -37,6 +37,18 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — productivity hub (today / notes / tasks / apps) and its Start
+  tile, plus schema v14.** User-requested, designed first. Task lists get names
+  (`task_lists`). Sticky notes become notes pinned to Start (the migration moved
+  their text into `notes` and linked the tiles). Today shows the next meeting
+  with a join button when the event has a Meet/Zoom/Teams/Webex link, open
+  tasks, the latest note and quick actions. Notes and tasks can be pinned from
+  the hub. The apps page lists office/notes/meetings/tools apps, most used first.
+  Add it from "add live tiles" → productivity. The notes/tasks tiles still open
+  their own sheets. Build + full unit tests green. The migration was verified on
+  an emulator copy of the phone's DB, and the phone itself migrated cleanly
+  (52 tiles kept). The hub was checked on the emulator; the join button wasn't
+  exercised with a real event.
 - **`main` — People Hub follow-ups: app-wise filter chips, compact apps grid,
   dismiss, attached photos, and most-used ordering via usage access.**
   User-requested. What's new chips are "all" plus one per app with pending

@@ -415,6 +415,28 @@ class LayoutRepository(
     }
 
     /**
+     * Pin a note to Start as a sticky note tile linked to it (the productivity
+     * hub's "pin to start"). No-op ([PinResult.ALREADY_ON_START]) if that note
+     * already has a tile.
+     */
+    suspend fun pinNote(noteId: Long): PinResult {
+        val link = StickyNoteTile.encode(noteId)
+        if (dao.activityTileCount(link) > 0) return PinResult.ALREADY_ON_START
+        return if (addDefaultTile("stickynote", activityName = link)) PinResult.PINNED else PinResult.ALREADY_ON_START
+    }
+
+    /**
+     * Pin a task list to Start as a Tasks tile showing it. No-op if a tile
+     * already shows that list — either its own tile (an older list is keyed by
+     * its tile's id) or one linked to it.
+     */
+    suspend fun pinTaskList(listId: String): PinResult {
+        val link = TaskListTile.encode(listId)
+        if (dao.activityTileCount(link) > 0 || dao.tileExists(listId)) return PinResult.ALREADY_ON_START
+        return if (addDefaultTile("tasks", activityName = link)) PinResult.PINNED else PinResult.ALREADY_ON_START
+    }
+
+    /**
      * Pin a People Hub page ("what's new" / "recent") to Start as its own
      * tile — see [PeopleHubTile]'s own doc for why. Same shape as
      * [pinContact]: blank `packageName`, the page encoded into `activityName`,
@@ -608,7 +630,7 @@ class LayoutRepository(
      * false when there is no such template or it can't be seeded (a non-liveOnly
      * role that doesn't resolve on this device).
      */
-    suspend fun addDefaultTile(appId: String, sectionId: String? = null): Boolean {
+    suspend fun addDefaultTile(appId: String, sectionId: String? = null, activityName: String? = null): Boolean {
         val template = DefaultLayout.ALL_TILE_TEMPLATES
             .firstOrNull { !it.isGroup && it.app == appId } ?: return false
         val seeded = seeder.seed(listOf(template), resolver)
@@ -623,7 +645,7 @@ class LayoutRepository(
                     colorId = seeded.colorId,
                     type = TileEntity.TYPE_APP,
                     packageName = seeded.component.packageName,
-                    activityName = seeded.component.activityName,
+                    activityName = activityName ?: seeded.component.activityName,
                     label = seeded.component.label,
                     iconKey = seeded.iconKey,
                     sectionId = sectionId,

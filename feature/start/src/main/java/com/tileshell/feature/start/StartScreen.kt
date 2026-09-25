@@ -259,6 +259,8 @@ import com.tileshell.feature.livetiles.NotificationTileFace
 import com.tileshell.feature.livetiles.OemBatteryGuard
 import com.tileshell.feature.livetiles.PeopleHubNavigation
 import com.tileshell.feature.livetiles.PeopleHubPageTileFace
+import com.tileshell.feature.livetiles.ProductivityHubScreen
+import com.tileshell.feature.livetiles.ProductivityTileFace
 import com.tileshell.feature.livetiles.recentActivity
 import com.tileshell.feature.livetiles.PeopleHubScreen
 import com.tileshell.feature.livetiles.PeopleTileFace
@@ -394,6 +396,9 @@ fun StartScreen(
     val calendarHubOpen by viewModel.calendarHubOpen.collectAsStateWithLifecycle()
     val peopleHubOpen by viewModel.peopleHubOpen.collectAsStateWithLifecycle()
     val peopleHubInitialPage by viewModel.peopleHubInitialPage.collectAsStateWithLifecycle()
+    val productivityHubOpen by viewModel.productivityHubOpen.collectAsStateWithLifecycle()
+    val productivityHubInitialPage by viewModel.productivityHubInitialPage.collectAsStateWithLifecycle()
+    val notesInitialNoteId by viewModel.notesInitialNoteId.collectAsStateWithLifecycle()
     // The dedicated music tile's back-face quick-nav menu posts here rather
     // than through a callback threaded down the whole TileView/AppTileContent
     // rendering tree — see MusicHubNavigation's own doc comment. Observed
@@ -971,7 +976,8 @@ fun StartScreen(
     val anySheetOpen = personalizeOpen || aboutOpen || historyOpen || backupOpen ||
         foldersOpen || hiddenAppsOpen || addWidgetsOpen || (tasksOpen != null) || notesOpen ||
         (stickyNoteEditTileId != null) || (countdownEditTileId != null) || (sportsEditTileId != null) || (stockEditTileId != null) ||
-        (commodityEditTileId != null) || (calendarSystemEditTileId != null) || (weatherHubTarget != null) || musicHubOpen
+        (commodityEditTileId != null) || (calendarSystemEditTileId != null) || (weatherHubTarget != null) || musicHubOpen ||
+        calendarHubOpen || peopleHubOpen || productivityHubOpen
     val quickSearchEnabled = swipeEnabled && restingAtStart && !searchOpen && !quickPanelOpen && !anySheetOpen
     val quickPanelEnabled = swipeEnabled && restingAtStart && !searchOpen && !quickPanelOpen && !anySheetOpen
     // Runs in the Initial pass like the pager, but keys off pointer *count* (2)
@@ -1430,6 +1436,8 @@ fun StartScreen(
                                     // the real tile row off-device: packageName was
                                     // "com.samsung.android.calendar", not blank).
                                     viewModel.openCalendarHub()
+                                } else if (tile.packageName.isBlank() && tile.iconKey == "productivity") {
+                                    viewModel.openProductivityHub()
                                 } else if (tile.iconKey == "people") {
                                     // Same pattern as music/calendar just above —
                                     // not blank-package-gated, since the contacts
@@ -1467,7 +1475,9 @@ fun StartScreen(
                             // Matches the listId a folder child's own inline-expanded
                             // rendering uses (its synthetic AppTileContent `tile.id`),
                             // so the sheet shows exactly what that tile is displaying.
-                            viewModel.openTasks(folderChildTileId(expandedFolderId.orEmpty(), child.rowId))
+                            viewModel.openTasks(
+                                TaskListTile.listIdFor(folderChildTileId(expandedFolderId.orEmpty(), child.rowId), child.activityName),
+                            )
                         } else if (child.packageName.isBlank() && child.iconKey == "notepad") {
                             viewModel.openNotes()
                         } else if (child.packageName.isBlank() && child.iconKey == "weather") {
@@ -1483,6 +1493,8 @@ fun StartScreen(
                             // Not blank-package-gated, same fix as the top-level
                             // tile branch above.
                             viewModel.openCalendarHub()
+                        } else if (child.packageName.isBlank() && child.iconKey == "productivity") {
+                            viewModel.openProductivityHub()
                         } else if (child.iconKey == "people") {
                             val hubPage = PeopleHubTile.decode(child.activityName)
                             if (hubPage != "what's new" || !NotificationCenter.openWhatsNewDisplayed(context)) {
@@ -2157,6 +2169,44 @@ fun StartScreen(
             onPinPage = viewModel::pinPeopleHubPage,
         )
 
+        // Composed before the notes/tasks sheets so, when the hub opens one,
+        // it slides in on top of the hub.
+        // Sticky notes and Tasks tiles inside folders count as pinned too.
+        val pinnedNoteIds = remember(tiles) {
+            tiles.flatMap { tile ->
+                when (tile) {
+                    is TileModel.App -> listOf(tile.iconKey to tile.activityName)
+                    is TileModel.Folder -> tile.children.map { it.iconKey to it.activityName }
+                }
+            }.mapNotNull { (iconKey, activityName) -> if (iconKey == "stickynote") StickyNoteTile.decode(activityName) else null }.toSet()
+        }
+        val pinnedListIds = remember(tiles) {
+            tiles.flatMap { tile ->
+                when (tile) {
+                    is TileModel.App -> if (tile.iconKey == "tasks") listOf(TaskListTile.listIdFor(tile.id, tile.activityName)) else emptyList()
+                    is TileModel.Folder -> tile.children.filter { it.iconKey == "tasks" }
+                        .map { TaskListTile.listIdFor(folderChildTileId(tile.id, it.rowId), it.activityName) }
+                }
+            }.toSet()
+        }
+        ProductivityHubScreen(
+            visible = productivityHubOpen,
+            dark = dark,
+            accentId = settings.accentId,
+            onDismiss = viewModel::closeProductivityHub,
+            onOpenNote = { viewModel.openNotes(it) },
+            onNewNote = viewModel::newNote,
+            onOpenTaskList = viewModel::openTasks,
+            onPinNote = viewModel::pinNote,
+            onPinTaskList = viewModel::pinTaskList,
+            onPinNotepad = viewModel::pinNotepad,
+            onPinHub = viewModel::pinProductivityHub,
+            pinnedNoteIds = pinnedNoteIds,
+            pinnedListIds = pinnedListIds,
+            rightHalf = isLandscape,
+            initialPage = productivityHubInitialPage,
+        )
+
         // Build a name→packageNames map from the current tile list so CategoryFolderSheet
         // can detect which categories already have a folder and pre-check their members.
         val existingFoldersByName = remember(tiles) {
@@ -2251,6 +2301,7 @@ fun StartScreen(
             dark = dark,
             accentId = settings.accentId,
             onDismiss = viewModel::closeNotes,
+            initialNoteId = notesInitialNoteId,
         )
 
         // Sticky Note tile's own editor (tapping that tile).
@@ -7130,6 +7181,10 @@ private fun AppTileContent(
         }
         LiveFace.NOTES -> {
             NotesTileFace(size = tile.size, flipped = flipped, modifier = Modifier.fillMaxSize())
+            return
+        }
+        LiveFace.PRODUCTIVITY -> {
+            ProductivityTileFace(size = tile.size, active = liveActive, modifier = Modifier.fillMaxSize())
             return
         }
         LiveFace.STICKYNOTE -> {

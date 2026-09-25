@@ -123,9 +123,13 @@ fun TasksTileFace(size: TileSize, listId: String, modifier: Modifier = Modifier,
     val tasks by remember(listId) { repository.tasks(listId) }.collectAsState(initial = emptyList())
     val summary = remember(tasks, size) { tasksSummary(tasks, maxPreviewFor(size)) }
     val scope = rememberCoroutineScope()
+    // The list's name ("work", "home") labels the tile; every shown list gets one.
+    val name by remember(listId) { repository.listName(listId) }.collectAsState(initial = null)
+    LaunchedEffect(listId) { repository.ensureList(listId) }
 
     TasksFront(
         summary = summary,
+        name = name ?: "tasks",
         size = size,
         interactive = interactive,
         onToggle = { id, done -> scope.launch { repository.setDone(id, done) } },
@@ -136,6 +140,7 @@ fun TasksTileFace(size: TileSize, listId: String, modifier: Modifier = Modifier,
 @Composable
 private fun TasksFront(
     summary: TasksSummary,
+    name: String,
     size: TileSize,
     interactive: Boolean,
     onToggle: (id: Long, done: Boolean) -> Unit,
@@ -179,7 +184,7 @@ private fun TasksFront(
             // list, so the tile's own tap-to-open-the-sheet handler always has
             // somewhere to land regardless of how many tasks are shown.
             Spacer(Modifier.weight(1f))
-            Text("tasks", color = FaceText.copy(alpha = 0.82f), fontSize = 10.sp)
+            Text(name.lowercase(), color = FaceText.copy(alpha = 0.82f), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         return
     }
@@ -229,7 +234,7 @@ private fun TasksFront(
             }
         }
         Spacer(Modifier.weight(1f))
-        Text("tasks", color = FaceText.copy(alpha = 0.82f), fontSize = 12.sp)
+        Text(name.lowercase(), color = FaceText.copy(alpha = 0.82f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

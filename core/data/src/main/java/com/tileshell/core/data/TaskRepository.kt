@@ -86,6 +86,9 @@ class TaskRepository(private val dao: TaskDao, private val lists: TaskListDao) {
         lists.insert(TaskListEntity(listId, defaultTaskListName(lists.count()), System.currentTimeMillis()))
     }
 
+    /** The oldest list's id, or null when there are none. */
+    suspend fun firstListIdOrNull(): String? = lists.firstId()
+
     /** A new empty list for the productivity hub; returns its id. */
     suspend fun createList(name: String): String {
         val id = "list-${System.currentTimeMillis()}"
