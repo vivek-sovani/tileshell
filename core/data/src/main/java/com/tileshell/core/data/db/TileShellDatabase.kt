@@ -18,8 +18,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TaskEntity::class,
         NoteEntity::class,
         SectionEntity::class,
+        TaskListEntity::class,
     ],
-    version = 13,
+    version = 14,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -28,6 +29,7 @@ abstract class TileShellDatabase : RoomDatabase() {
     abstract fun layoutDao(): LayoutDao
     abstract fun taskDao(): TaskDao
     abstract fun noteDao(): NoteDao
+    abstract fun taskListDao(): TaskListDao
 
     companion object {
         private const val NAME = "tileshell.db"
@@ -232,12 +234,79 @@ abstract class TileShellDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v13→v14, for the productivity hub:
+         * 1. **Named task lists.** A fresh `task_lists` table, backfilled with
+         *    one row per list that already exists — every distinct
+         *    `tasks.listId`, plus every top-level Tasks tile (its list is its
+         *    own tile id) even if still empty — oldest first, named "tasks",
+         *    "tasks 2", … so nothing is unnamed.
+         * 2. **Sticky notes become notes.** A sticky note's text used to live
+         *    on its own tile row (`activityName`). Each one with text is moved
+         *    into `notes`, and the tile's `activityName` becomes a link to that
+         *    note (`note:<id>`, matching `StickyNoteTile.encode`), so the note
+         *    appears in the notepad and the hub, and unpinning the tile no
+         *    longer deletes it. Covers sticky notes inside folders too.
+         */
+        private val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `task_lists` (
+                        `id` TEXT PRIMARY KEY NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `createdAt` INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                val now = System.currentTimeMillis()
+                val listIds = mutableListOf<Pair<String, Long>>()
+                db.query("SELECT listId, MIN(createdAt) FROM tasks GROUP BY listId ORDER BY MIN(createdAt)").use { c ->
+                    while (c.moveToNext()) listIds += c.getString(0) to c.getLong(1)
+                }
+                db.query("SELECT id FROM tiles WHERE iconKey = 'tasks' ORDER BY position").use { c ->
+                    while (c.moveToNext()) {
+                        val id = c.getString(0)
+                        if (listIds.none { it.first == id }) listIds += id to now
+                    }
+                }
+                listIds.forEachIndexed { index, (id, createdAt) ->
+                    val name = if (index == 0) "tasks" else "tasks ${index + 1}"
+                    db.execSQL(
+                        "INSERT OR IGNORE INTO task_lists (id, name, createdAt) VALUES (?, ?, ?)",
+                        arrayOf<Any>(id, name, createdAt),
+                    )
+                }
+
+                fun moveStickyText(table: String, keyColumn: String) {
+                    val rows = mutableListOf<Pair<Any, String>>()
+                    db.query("SELECT $keyColumn, activityName FROM $table WHERE iconKey = 'stickynote'").use { c ->
+                        while (c.moveToNext()) {
+                            val key: Any = if (c.getType(0) == android.database.Cursor.FIELD_TYPE_INTEGER) c.getLong(0) else c.getString(0)
+                            val text = if (c.isNull(1)) "" else c.getString(1)
+                            if (text.isNotBlank() && !text.startsWith("note:")) rows += key to text
+                        }
+                    }
+                    rows.forEach { (key, text) ->
+                        db.execSQL("INSERT INTO notes (text, updatedAt) VALUES (?, ?)", arrayOf<Any>(text, now))
+                        val noteId = db.query("SELECT last_insert_rowid()").use { c -> c.moveToFirst(); c.getLong(0) }
+                        db.execSQL(
+                            "UPDATE $table SET activityName = ? WHERE $keyColumn = ?",
+                            arrayOf<Any>("note:$noteId", key),
+                        )
+                    }
+                }
+                moveStickyText("tiles", "id")
+                moveStickyText("folder_children", "rowId")
+            }
+        }
+
         /** Versioned migrations, added as the schema evolves. */
         val MIGRATIONS: Array<Migration> =
             arrayOf(
                 MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
                 MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
-                MIGRATION_11_12, MIGRATION_12_13,
+                MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
             )
 
         @Volatile

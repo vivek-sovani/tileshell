@@ -108,6 +108,14 @@ fun TaskListSheet(
     var draft by remember { mutableStateOf("") }
     var confirmClearAll by remember { mutableStateOf(false) }
 
+    // The list's name ("work", "home"), editable in place. Every shown list
+    // gets a row (and a default name) the moment it's opened.
+    val savedName by remember(listId) { repository.listName(listId) }.collectAsState(initial = null)
+    var nameDraft by remember(listId) { mutableStateOf<String?>(null) }
+    LaunchedEffect(listId, visible) {
+        if (visible) repository.ensureList(listId)
+    }
+
     // A text area with no focus shows no cursor at all — claim focus and raise
     // the keyboard whenever this sheet opens (or opens for a different list),
     // same as NotesSheet/StickyNoteEditorSheet's own editors, so typing a task
@@ -186,12 +194,18 @@ fun TaskListSheet(
                         .background(tokens.fgDim.copy(alpha = 0.5f)),
                 )
 
-                Text(
-                    text = "tasks",
-                    color = tokens.fg,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.W300,
-                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 4.dp),
+                BasicTextField(
+                    value = nameDraft ?: savedName ?: "tasks",
+                    onValueChange = { value ->
+                        nameDraft = value
+                        if (value.isNotBlank()) scope.launch { repository.renameList(listId, value) }
+                    },
+                    singleLine = true,
+                    textStyle = TextStyle(color = tokens.fg, fontSize = 20.sp, fontWeight = FontWeight.W300),
+                    cursorBrush = SolidColor(accent),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 4.dp),
                 )
 
                 // Auto-clear-completed-daily toggle.

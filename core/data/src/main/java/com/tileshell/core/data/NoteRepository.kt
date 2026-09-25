@@ -66,9 +66,9 @@ class NoteRepository(private val dao: NoteDao) {
     /** Live notes, most-recently-edited first. */
     val notes: Flow<List<NoteItem>> = dao.observeAll().map { rows -> rows.map { it.toItem() } }
 
-    /** Creates a blank note and returns its new id, ready to open in the editor. */
-    suspend fun createNote(): Long =
-        dao.insert(NoteEntity(text = "", updatedAt = System.currentTimeMillis()))
+    /** Creates a note (blank by default) and returns its new id, ready to open in the editor. */
+    suspend fun createNote(text: String = ""): Long =
+        dao.insert(NoteEntity(text = text, updatedAt = System.currentTimeMillis()))
 
     suspend fun get(id: Long): NoteItem? = dao.getById(id)?.toItem()
 

@@ -35,6 +35,8 @@ import com.tileshell.core.data.CalendarSystemTile
 import com.tileshell.core.data.CommodityTile
 import com.tileshell.core.data.SportsTile
 import com.tileshell.core.data.StockTile
+import com.tileshell.core.data.NoteRepository
+import com.tileshell.core.data.StickyNoteTile
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.isPersonalizeTile
 import com.tileshell.core.data.TileSize
@@ -86,6 +88,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val settingsRepository = SettingsRepository.create(application)
     private val historyRepository = LayoutHistoryRepository(application)
     private val feedStore = FeedStore.create(application)
+    private val noteRepository = NoteRepository.create(application)
     private val launcherApps =
         application.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
 
@@ -361,6 +364,16 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Id of the Sticky Note tile currently open in its editor, or null when closed. */
     private val _stickyNoteEditTileId = MutableStateFlow<String?>(null)
     val stickyNoteEditTileId: StateFlow<String?> = _stickyNoteEditTileId.asStateFlow()
+
+    // The open sticky note's text, loaded from its linked note before the
+    // editor opens (so the editor never seeds from an empty placeholder).
+    private val _stickyNoteEditText = MutableStateFlow("")
+    val stickyNoteEditText: StateFlow<String> = _stickyNoteEditText.asStateFlow()
+
+    // A sticky tile whose note was just created, before the tile row's new
+    // link has come back through the tiles flow — so the next keystroke
+    // updates that note instead of creating a second one.
+    private val pendingStickyLinks = mutableMapOf<String, Long>()
 
     /** Id of the Countdown tile currently open in its editor, or null when closed. */
     private val _countdownEditTileId = MutableStateFlow<String?>(null)
@@ -750,7 +763,15 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Open a Sticky Note tile's own dedicated editor (tapping that tile). */
     fun openStickyNoteEditor(id: String) {
-        _stickyNoteEditTileId.value = id
+        viewModelScope.launch {
+            val tile = tiles.value.firstOrNull { it.id == id } as? TileModel.App
+            val noteId = StickyNoteTile.decode(tile?.activityName) ?: pendingStickyLinks[id]
+            _stickyNoteEditText.value = when {
+                noteId != null -> noteRepository.get(noteId)?.text.orEmpty()
+                else -> ""
+            }
+            _stickyNoteEditTileId.value = id
+        }
     }
 
     /** Close the Sticky Note editor. */
@@ -758,9 +779,21 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         _stickyNoteEditTileId.value = null
     }
 
-    /** Overwrite a Sticky Note tile's own text. */
+    /** Overwrite a Sticky Note tile's text — its linked note's text. A tile
+     * with no note yet (freshly added) creates one on the first keystroke and
+     * links the tile to it. */
     fun setStickyNoteText(id: String, text: String) {
-        viewModelScope.launch(writeContext) { repository.setTileText(id, text) }
+        viewModelScope.launch(writeContext) {
+            val tile = tiles.value.firstOrNull { it.id == id } as? TileModel.App
+            val noteId = StickyNoteTile.decode(tile?.activityName) ?: pendingStickyLinks[id]
+            if (noteId != null) {
+                noteRepository.updateText(noteId, text)
+            } else {
+                val created = noteRepository.createNote(text)
+                pendingStickyLinks[id] = created
+                repository.setTileText(id, StickyNoteTile.encode(created))
+            }
+        }
     }
 
     /** Open a Countdown tile's own dedicated editor (tapping that tile). */

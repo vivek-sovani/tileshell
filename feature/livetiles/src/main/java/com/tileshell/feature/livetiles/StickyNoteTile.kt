@@ -5,6 +5,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import com.tileshell.core.data.NoteRepository
+import kotlinx.coroutines.flow.map
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
@@ -59,4 +65,19 @@ fun StickyNoteTileFace(size: TileSize, text: String, modifier: Modifier = Modifi
             )
         }
     }
+}
+
+/**
+ * The live text of note [noteId] — what a sticky note tile (a note pinned to
+ * Start) shows. Empty for a tile with no note yet, or whose note was deleted.
+ */
+@Composable
+fun rememberNoteText(noteId: Long?): String {
+    val context = LocalContext.current
+    if (noteId == null) return ""
+    val flow = remember(noteId) {
+        NoteRepository.create(context).notes.map { notes -> notes.firstOrNull { it.id == noteId }?.text.orEmpty() }
+    }
+    val text by flow.collectAsState(initial = "")
+    return text
 }

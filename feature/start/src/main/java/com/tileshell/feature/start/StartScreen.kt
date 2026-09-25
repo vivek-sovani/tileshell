@@ -182,6 +182,8 @@ import com.tileshell.core.data.StockTile
 import com.tileshell.core.data.TileColors
 import com.tileshell.core.data.Section
 import com.tileshell.core.data.PeopleHubTile
+import com.tileshell.core.data.StickyNoteTile
+import com.tileshell.core.data.TaskListTile
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.UNSECTIONED_LABEL
 import com.tileshell.core.data.TileSize
@@ -269,6 +271,7 @@ import com.tileshell.feature.livetiles.SportsTileFace
 import com.tileshell.feature.livetiles.StepsSmallFace
 import com.tileshell.feature.livetiles.StepsTileFace
 import com.tileshell.feature.livetiles.StickyNoteTileFace
+import com.tileshell.feature.livetiles.rememberNoteText
 import com.tileshell.feature.livetiles.StockSmallFace
 import com.tileshell.feature.livetiles.StockTileFace
 import com.tileshell.feature.livetiles.TasksTileFace
@@ -378,6 +381,7 @@ fun StartScreen(
     val tasksOpen by viewModel.tasksOpen.collectAsStateWithLifecycle()
     val notesOpen by viewModel.notesOpen.collectAsStateWithLifecycle()
     val stickyNoteEditTileId by viewModel.stickyNoteEditTileId.collectAsStateWithLifecycle()
+    val stickyNoteEditText by viewModel.stickyNoteEditText.collectAsStateWithLifecycle()
     val countdownEditTileId by viewModel.countdownEditTileId.collectAsStateWithLifecycle()
     val sportsEditTileId by viewModel.sportsEditTileId.collectAsStateWithLifecycle()
     val stockEditTileId by viewModel.stockEditTileId.collectAsStateWithLifecycle()
@@ -1318,7 +1322,7 @@ fun StartScreen(
                                     // pinned Tasks tile keeps its own independent list,
                                     // keyed by the tile's own stable id (user-reported:
                                     // every Tasks tile used to show the same one list).
-                                    viewModel.openTasks(tile.id)
+                                    viewModel.openTasks(TaskListTile.listIdFor(tile.id, tile.activityName))
                                 } else if (tile.packageName.isBlank() && tile.iconKey == "notepad") {
                                     viewModel.openNotes()
                                 } else if (tile.packageName.isBlank() && tile.iconKey == "stickynote") {
@@ -2256,8 +2260,7 @@ fun StartScreen(
             dark = dark,
             accentId = settings.accentId,
             tileId = stickyNoteEditTileId,
-            initialText = (tiles.firstOrNull { it.id == stickyNoteEditTileId } as? TileModel.App)
-                ?.activityName.orEmpty(),
+            initialText = stickyNoteEditText,
             onTextChange = viewModel::setStickyNoteText,
             onDismiss = viewModel::closeStickyNoteEditor,
         )
@@ -7120,7 +7123,7 @@ private fun AppTileContent(
             TasksTileFace(
                 size = tile.size,
                 interactive = interactive,
-                listId = tile.id,
+                listId = TaskListTile.listIdFor(tile.id, tile.activityName),
                 modifier = Modifier.fillMaxSize(),
             )
             return
@@ -7130,7 +7133,9 @@ private fun AppTileContent(
             return
         }
         LiveFace.STICKYNOTE -> {
-            StickyNoteTileFace(size = tile.size, text = tile.activityName, modifier = Modifier.fillMaxSize())
+            // A sticky note is a note pinned to Start; the tile links to it.
+            val noteText = rememberNoteText(StickyNoteTile.decode(tile.activityName))
+            StickyNoteTileFace(size = tile.size, text = noteText, modifier = Modifier.fillMaxSize())
             return
         }
         LiveFace.FLASHLIGHT -> {

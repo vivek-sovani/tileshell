@@ -151,9 +151,31 @@ data class TaskEntity(
 )
 
 /**
+ * A named task list ("work", "home") — v13→v14. [id] is the same `listId`
+ * the list's [TaskEntity] rows carry: a pinned Tasks tile's own id for older
+ * lists, or a `list-…` id for a list created in the productivity hub. A list
+ * outlives any tile showing it, so unpinning a Tasks tile never loses it.
+ */
+@Entity(tableName = "task_lists")
+data class TaskListEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val createdAt: Long,
+)
+
+/** A [TaskListEntity] with its count of unfinished tasks, for the hub. */
+data class TaskListSummaryRow(
+    val id: String,
+    val name: String,
+    val openCount: Int,
+)
+
+/**
  * One note in the Notes live tile's notepad, most-recently-edited first
  * ([updatedAt] desc). Independent of any specific pinned tile — one shared
- * notepad, same as the Tasks checklist is one shared list.
+ * notepad. A sticky note tile is one of these notes pinned to Start (its
+ * tile's `activityName` links to the note, see `StickyNoteTile`), so every
+ * note — pinned or not — also shows in the notepad and the productivity hub.
  */
 @Entity(tableName = "notes")
 data class NoteEntity(

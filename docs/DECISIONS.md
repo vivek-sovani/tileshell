@@ -10389,3 +10389,33 @@ and caches the result for 10 minutes, shared by the page and the tile.
 access, opens are empty, so the order is unchanged. The apps page shows a
 one-line "sort by most used · allow usage access" prompt until access is
 granted. Worth adding a line to the privacy policy on the next release.
+
+## Productivity hub, data layer: named task lists, sticky notes are notes (schema v14)
+
+User-approved plan for a productivity hub (today / notes / tasks / apps). The
+notes and tasks tiles keep opening their own sheets, and their content is also
+consolidated in the hub. Data changes first (`MIGRATION_13_14`):
+- **Named task lists.** New `task_lists` table (`TaskListEntity`: id = the
+  list's `listId`, name, createdAt), backfilled oldest first as "tasks",
+  "tasks 2", … from every distinct `tasks.listId` plus every top-level Tasks
+  tile (even an empty one). `TaskRepository` gains `lists()` (with open counts),
+  `openTasks`, `ensureList` (called on show/write, so any list gets a name),
+  `createList`, `renameList` and `deleteList`. The tasks sheet's title is now
+  the list name, editable in place. Unpinning a Tasks tile still leaves its list
+  (now visible in the hub rather than orphaned). A Tasks tile can show a list
+  other than its own id through `TaskListTile` (`tasklist:<id>` in
+  `activityName`), so lists created in the hub can be pinned later.
+- **Sticky notes are notes pinned to Start** (user chose to merge them). The
+  text used to live on the tile row's `activityName`. The migration moves each
+  non-blank one (top-level and inside folders) into `notes` and leaves
+  `note:<id>` on the tile (`StickyNoteTile`). The tile face reads the live note
+  (`rememberNoteText`). The editor loads the note before opening and writes to
+  it, and a freshly added sticky note creates its note on the first keystroke
+  (`pendingStickyLinks` guards against a second keystroke creating a second
+  note). So every sticky note also shows in the notepad and hub, and unpinning
+  no longer deletes the text. The home-screen widget's sticky note
+  (`WidgetStickyNoteStore`) is a separate store and unchanged.
+Verified by pushing a copy of the phone's v13 database, plus sample sticky
+notes and task lists, onto the emulator and letting Room migrate it. The result:
+v14, all 56 tiles kept, lists named, sticky texts moved and linked, an empty
+sticky left unlinked. Build + full unit tests green (`HubTileLinksTest`).
