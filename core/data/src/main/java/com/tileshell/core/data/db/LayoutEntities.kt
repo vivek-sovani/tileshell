@@ -1,6 +1,7 @@
 package com.tileshell.core.data.db
 
 import androidx.room.Embedded
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -182,6 +183,8 @@ data class NoteEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val text: String,
     val updatedAt: Long,
+    /** Optional title (v14→v15); blank = the first line of [text] stands in. */
+    @ColumnInfo(defaultValue = "") val title: String = "",
 )
 
 // ---- relations ----------------------------------------------------------

@@ -58,4 +58,22 @@ class SuggestedNoteFileNameTest {
         val longTitle = "a".repeat(80)
         assertEquals("${"a".repeat(40)}.txt", suggestedNoteFileName(longTitle))
     }
+
+    @Test
+    fun `a set title wins and the whole text becomes the snippet`() {
+        assertEquals(
+            NotePreview(title = "groceries", snippet = "milk eggs"),
+            notePreview("milk\neggs", title = "  groceries "),
+        )
+    }
+
+    @Test
+    fun `a blank title falls back to the first line`() {
+        assertEquals(NotePreview(title = "milk", snippet = "eggs"), notePreview("milk\neggs", title = "  "))
+    }
+
+    @Test
+    fun `a title with no body still previews`() {
+        assertEquals(NotePreview(title = "idea", snippet = ""), notePreview("", title = "idea"))
+    }
 }

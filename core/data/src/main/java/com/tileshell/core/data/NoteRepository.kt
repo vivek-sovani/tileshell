@@ -12,21 +12,29 @@ data class NoteItem(
     val id: Long,
     val text: String,
     val updatedAt: Long,
+    val title: String = "",
 )
 
-private fun NoteEntity.toItem() = NoteItem(id = id, text = text, updatedAt = updatedAt)
+private fun NoteEntity.toItem() = NoteItem(id = id, text = text, updatedAt = updatedAt, title = title)
+
+/** This note's title and snippet (see [notePreview]). */
+fun NoteItem.preview(): NotePreview = notePreview(text, title)
 
 /** The first line (title) and a flattened rest-of-text snippet for one note. */
 data class NotePreview(val title: String, val snippet: String)
 
 /**
- * Pure — the "first line is the title" convention (matching Google Keep/
- * Apple Notes rather than a separate title field). Lives here (not in
+ * Pure — a note's own [title] when it has one (v15, user-requested), and the
+ * whole text becomes the snippet. Otherwise the "first line is the title"
+ * convention, which older notes keep using. Lives here (not in
  * `:feature:livetiles`, where the live tile face that also uses it lives)
  * so both the tile face and the personalize-module notes sheet can share it
  * without a new cross-feature-module dependency for one tiny function.
  */
-fun notePreview(text: String): NotePreview {
+fun notePreview(text: String, title: String = ""): NotePreview {
+    if (title.isNotBlank()) {
+        return NotePreview(title = title.trim(), snippet = text.trim().replace('\n', ' '))
+    }
     val trimmed = text.trim()
     if (trimmed.isEmpty()) return NotePreview(title = "empty note", snippet = "")
     val firstBreak = trimmed.indexOf('\n')
@@ -74,6 +82,9 @@ class NoteRepository(private val dao: NoteDao) {
 
     suspend fun updateText(id: Long, text: String) =
         dao.updateText(id, text, System.currentTimeMillis())
+
+    suspend fun updateTitle(id: Long, title: String) =
+        dao.updateTitle(id, title, System.currentTimeMillis())
 
     suspend fun delete(id: Long) = dao.delete(id)
 

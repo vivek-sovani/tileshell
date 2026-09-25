@@ -38,7 +38,7 @@ data class NotesSummary(val count: Int, val preview: List<NotePreview>)
  * "most recent first."
  */
 fun notesSummary(notes: List<NoteItem>, maxPreview: Int = 2): NotesSummary =
-    NotesSummary(count = notes.size, preview = notes.take(maxPreview).map { notePreview(it.text) })
+    NotesSummary(count = notes.size, preview = notes.take(maxPreview).map { notePreview(it.text, it.title) })
 
 /**
  * How many *separate notes* a tile of this size shows, so a bigger tile shows

@@ -273,7 +273,7 @@ import com.tileshell.feature.livetiles.SportsTileFace
 import com.tileshell.feature.livetiles.StepsSmallFace
 import com.tileshell.feature.livetiles.StepsTileFace
 import com.tileshell.feature.livetiles.StickyNoteTileFace
-import com.tileshell.feature.livetiles.rememberNoteText
+import com.tileshell.feature.livetiles.rememberNote
 import com.tileshell.feature.livetiles.StockSmallFace
 import com.tileshell.feature.livetiles.StockTileFace
 import com.tileshell.feature.livetiles.TasksTileFace
@@ -384,6 +384,7 @@ fun StartScreen(
     val notesOpen by viewModel.notesOpen.collectAsStateWithLifecycle()
     val stickyNoteEditTileId by viewModel.stickyNoteEditTileId.collectAsStateWithLifecycle()
     val stickyNoteEditText by viewModel.stickyNoteEditText.collectAsStateWithLifecycle()
+    val stickyNoteEditTitle by viewModel.stickyNoteEditTitle.collectAsStateWithLifecycle()
     val countdownEditTileId by viewModel.countdownEditTileId.collectAsStateWithLifecycle()
     val sportsEditTileId by viewModel.sportsEditTileId.collectAsStateWithLifecycle()
     val stockEditTileId by viewModel.stockEditTileId.collectAsStateWithLifecycle()
@@ -869,6 +870,7 @@ fun StartScreen(
     // sortedSections[k - 1], not sortedSections[k]. Mirrors the same -1 correction
     // at the cross-page-drag target-section lookup below.
     val activeSectionId: String? = sortedSections.getOrNull(activeBlockIndex - 1)?.id
+    LaunchedEffect(activeSectionId) { viewModel.setActivePage(activeSectionId) }
 
     // Set right before a merge is kicked off (see `onMergeSection` below) to
     // the block index the merged tiles are headed to, once the merge
@@ -2313,6 +2315,8 @@ fun StartScreen(
             tileId = stickyNoteEditTileId,
             initialText = stickyNoteEditText,
             onTextChange = viewModel::setStickyNoteText,
+            initialTitle = stickyNoteEditTitle,
+            onTitleChange = viewModel::setStickyNoteTitle,
             onDismiss = viewModel::closeStickyNoteEditor,
         )
 
@@ -7189,8 +7193,8 @@ private fun AppTileContent(
         }
         LiveFace.STICKYNOTE -> {
             // A sticky note is a note pinned to Start; the tile links to it.
-            val noteText = rememberNoteText(StickyNoteTile.decode(tile.activityName))
-            StickyNoteTileFace(size = tile.size, text = noteText, modifier = Modifier.fillMaxSize())
+            val (noteTitle, noteText) = rememberNote(StickyNoteTile.decode(tile.activityName))
+            StickyNoteTileFace(size = tile.size, text = noteText, title = noteTitle, modifier = Modifier.fillMaxSize())
             return
         }
         LiveFace.FLASHLIGHT -> {

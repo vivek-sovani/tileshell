@@ -28,6 +28,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -239,7 +242,7 @@ private fun NotesListContent(
 
 @Composable
 private fun NoteRow(note: NoteItem, tokens: ColorTokens, onOpen: () -> Unit, onDelete: () -> Unit) {
-    val preview = remember(note.text) { notePreview(note.text) }
+    val preview = remember(note.text, note.title) { notePreview(note.text, note.title) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -279,16 +282,21 @@ private fun ColumnScope.NoteEditorContent(
     onDelete: () -> Unit,
 ) {
     var text by remember(noteId) { mutableStateOf("") }
-    LaunchedEffect(noteId) { text = repository.get(noteId)?.text.orEmpty() }
+    var title by remember(noteId) { mutableStateOf("") }
 
     // Opening a note should drop the user straight into typing — a text area
     // with no focus shows no cursor at all (easy to mistake for "the cursor
     // doesn't blink"), so claim focus and raise the keyboard the moment this
-    // note's editor appears, same as tapping the field by hand would.
+    // note's editor appears. A new, empty note starts in the title field;
+    // an existing one in the body.
     val focusRequester = remember(noteId) { FocusRequester() }
+    val titleFocusRequester = remember(noteId) { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(noteId) {
-        focusRequester.requestFocus()
+        val note = repository.get(noteId)
+        text = note?.text.orEmpty()
+        title = note?.title.orEmpty()
+        if (text.isEmpty() && title.isEmpty()) titleFocusRequester.requestFocus() else focusRequester.requestFocus()
         keyboard?.show()
     }
 
@@ -332,7 +340,7 @@ private fun ColumnScope.NoteEditorContent(
             tint = tokens.fgDim,
             modifier = Modifier
                 .size(20.dp)
-                .clickable(onClick = { saveLauncher.launch(suggestedNoteFileName(text)) }),
+                .clickable(onClick = { saveLauncher.launch(suggestedNoteFileName(title.ifBlank { text })) }),
         )
         Spacer(Modifier.width(16.dp))
         Icon(
@@ -342,6 +350,17 @@ private fun ColumnScope.NoteEditorContent(
             modifier = Modifier.size(20.dp).clickable(onClick = onDelete),
         )
     }
+    NoteTitleField(
+        title = title,
+        onTitleChange = { newTitle ->
+            title = newTitle
+            scope.launch { repository.updateTitle(noteId, newTitle) }
+        },
+        tokens = tokens,
+        accent = accent,
+        focusRequester = titleFocusRequester,
+        onNext = { focusRequester.requestFocus() },
+    )
     BasicTextField(
         value = text,
         onValueChange = { newText ->
@@ -359,6 +378,41 @@ private fun ColumnScope.NoteEditorContent(
             .weight(1f)
             .padding(horizontal = 20.dp)
             .navigationBarsPadding()
+            .focusRequester(focusRequester),
+    )
+}
+
+/**
+ * A note's optional title (user-requested): one bold line above the body,
+ * "title" placeholder while empty. Enter moves on to the body. Shared by the
+ * notes editor and the sticky note editor.
+ */
+@Composable
+internal fun NoteTitleField(
+    title: String,
+    onTitleChange: (String) -> Unit,
+    tokens: ColorTokens,
+    accent: Color,
+    focusRequester: FocusRequester,
+    onNext: () -> Unit,
+) {
+    BasicTextField(
+        value = title,
+        onValueChange = { onTitleChange(it.replace("\n", "")) },
+        singleLine = true,
+        textStyle = TextStyle(color = tokens.fg, fontSize = 20.sp, fontWeight = FontWeight.Medium),
+        cursorBrush = SolidColor(accent),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+        keyboardActions = KeyboardActions(onNext = { onNext() }),
+        decorationBox = { inner ->
+            Box {
+                if (title.isEmpty()) Text("title", color = tokens.fgDim, fontSize = 20.sp, fontWeight = FontWeight.Medium)
+                inner()
+            }
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 20.dp, bottom = 10.dp)
             .focusRequester(focusRequester),
     )
 }

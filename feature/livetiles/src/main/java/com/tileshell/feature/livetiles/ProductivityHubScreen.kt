@@ -16,7 +16,10 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -65,7 +68,7 @@ import com.tileshell.core.data.NoteItem
 import com.tileshell.core.data.NoteRepository
 import com.tileshell.core.data.TaskListSummary
 import com.tileshell.core.data.TaskRepository
-import com.tileshell.core.data.notePreview
+import com.tileshell.core.data.preview
 import com.tileshell.core.design.ColorTokens
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
@@ -143,12 +146,47 @@ fun ProductivityHubScreen(
         }
     }
 
-    // Opens an existing list, or makes the first one, for "new task".
-    val openAnyList: () -> Unit = {
-        scope.launch {
-            val first = withContext(Dispatchers.IO) { tasksRepo.firstListIdOrNull() }
-            onOpenTaskList(first ?: tasksRepo.createList("tasks"))
+    val lists by remember { tasksRepo.lists() }.collectAsState(initial = emptyList())
+
+    // The quick row, customisable (user-requested): the four built-ins by
+    // default, plus any list / note / app pinned to it; long-press removes.
+    var quickItems by remember { mutableStateOf(loadQuickItems(context)) }
+    val setQuick: (List<QuickItem>) -> Unit = {
+        quickItems = it
+        saveQuickItems(context, it)
+    }
+    val addToQuick: (QuickItem) -> Unit = { item ->
+        if (item in quickItems) {
+            android.widget.Toast.makeText(context, "already in quick", android.widget.Toast.LENGTH_SHORT).show()
+        } else {
+            setQuick(addQuickItem(quickItems, item))
+            android.widget.Toast.makeText(context, "added to quick", android.widget.Toast.LENGTH_SHORT).show()
         }
+    }
+
+    // "new task": straight into the only list, a new one when there are
+    // none, or a picker when there are several (user-requested).
+    var listPickerOpen by remember { mutableStateOf(false) }
+    val newTask: () -> Unit = {
+        when (lists.size) {
+            0 -> scope.launch { onOpenTaskList(tasksRepo.createList("tasks")) }
+            1 -> onOpenTaskList(lists.first().id)
+            else -> listPickerOpen = true
+        }
+    }
+    if (listPickerOpen) {
+        TaskListPicker(
+            lists = lists,
+            onPick = { id ->
+                listPickerOpen = false
+                onOpenTaskList(id)
+            },
+            onNewList = {
+                listPickerOpen = false
+                scope.launch { onOpenTaskList(tasksRepo.createList("")) }
+            },
+            onDismiss = { listPickerOpen = false },
+        )
     }
 
     SheetStage(rightHalf = rightHalf, modifier = modifier) {
@@ -199,12 +237,33 @@ fun ProductivityHubScreen(
 
             HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
                 when (page) {
-                    0 -> TodayPage(tokens, accent, notes, tasksRepo, onOpenNote, onNewNote, openAnyList)
-                    1 -> NotesPage(tokens, notes, pinnedNoteIds, onOpenNote, onPinNote) { id ->
+                    0 -> TodayPage(
+                        tokens, accent, notes, lists, tasksRepo, quickItems,
+                        onOpenNote = onOpenNote,
+                        onOpenTaskList = onOpenTaskList,
+                        onRunQuick = { item ->
+                            when (item) {
+                                QuickItem.NewNote -> onNewNote()
+                                QuickItem.NewTask -> newTask()
+                                QuickItem.Calculator -> if (!openCalculator(context)) {
+                                    android.widget.Toast.makeText(context, "no calculator app found", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                                QuickItem.Timer -> openTimers(context)
+                                is QuickItem.TaskList -> onOpenTaskList(item.listId)
+                                is QuickItem.Note -> onOpenNote(item.noteId)
+                                is QuickItem.App -> openApp(context, item.packageName)
+                            }
+                        },
+                        onRemoveQuick = { setQuick(removeQuickItem(quickItems, it)) },
+                        onAddQuick = addToQuick,
+                    )
+                    1 -> NotesPage(tokens, notes, pinnedNoteIds, onOpenNote, onPinNote, { addToQuick(QuickItem.Note(it)) }) { id ->
                         scope.launch { notesRepo.delete(id) }
                     }
-                    2 -> TasksPage(tokens, accent, tasksRepo, pinnedListIds, onOpenTaskList, onPinTaskList)
-                    else -> ProductivityAppsPage(tokens, accent)
+                    2 -> TasksPage(tokens, accent, lists, tasksRepo, pinnedListIds, onOpenTaskList, onPinTaskList) {
+                        addToQuick(QuickItem.TaskList(it))
+                    }
+                    else -> ProductivityAppsPage(tokens, accent) { addToQuick(QuickItem.App(it)) }
                 }
             }
 
@@ -239,10 +298,14 @@ private fun TodayPage(
     tokens: ColorTokens,
     accent: Color,
     notes: List<NoteItem>,
+    lists: List<TaskListSummary>,
     tasksRepo: TaskRepository,
+    quickItems: List<QuickItem>,
     onOpenNote: (Long) -> Unit,
-    onNewNote: () -> Unit,
-    onNewTask: () -> Unit,
+    onOpenTaskList: (String) -> Unit,
+    onRunQuick: (QuickItem) -> Unit,
+    onRemoveQuick: (QuickItem) -> Unit,
+    onAddQuick: (QuickItem) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -256,7 +319,7 @@ private fun TodayPage(
     }
     val openTasks by remember { tasksRepo.openTasks(limit = 4) }.collectAsState(initial = emptyList())
     val openCount by remember { tasksRepo.openCount() }.collectAsState(initial = 0)
-    val latestNote = notes.firstOrNull { it.text.isNotBlank() }
+    val latestNote = notes.firstOrNull { it.text.isNotBlank() || it.title.isNotBlank() }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -306,7 +369,7 @@ private fun TodayPage(
             if (latestNote == null) {
                 Text("no notes yet", color = tokens.fgDim, fontSize = 14.sp)
             } else {
-                val preview = notePreview(latestNote.text)
+                val preview = latestNote.preview()
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -328,14 +391,7 @@ private fun TodayPage(
         }
 
         item { SectionLabel("quick", tokens) }
-        item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                QuickAction("notepad", "note", tokens, onNewNote)
-                QuickAction("tasks", "task", tokens, onNewTask)
-                QuickAction("calc", "calculator", tokens) { openCalculator(context) }
-                QuickAction("alarm", "timer", tokens) { openTimers(context) }
-            }
-        }
+        item { QuickRowSection(quickItems, notes, lists, tokens, onRunQuick, onRemoveQuick, onAddQuick) }
         item { Spacer(Modifier.height(24.dp)) }
     }
 }
@@ -403,15 +459,113 @@ private fun CalendarPermissionPrompt(tokens: ColorTokens, accent: Color) {
     )
 }
 
+/**
+ * The quick row: each shortcut runs on tap, long-press offers "remove from
+ * quick", and a trailing "+" adds back any built-in that was removed. A pinned
+ * list/note/app whose target is gone (deleted, uninstalled) is skipped.
+ */
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
-private fun QuickAction(iconKey: String, label: String, tokens: ColorTokens, onClick: () -> Unit) {
+private fun QuickRowSection(
+    items: List<QuickItem>,
+    notes: List<NoteItem>,
+    lists: List<TaskListSummary>,
+    tokens: ColorTokens,
+    onRun: (QuickItem) -> Unit,
+    onRemove: (QuickItem) -> Unit,
+    onAdd: (QuickItem) -> Unit,
+) {
+    val context = LocalContext.current
+    val missingBuiltIns = QuickItem.BUILT_INS.filter { it !in items }
+    // Fixed quarter-width cells, so a short last row lines up under the first
+    // columns instead of stretching across the row.
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+    val cellWidth = (maxWidth - 18.dp) / 4
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        maxItemsInEachRow = 4,
+    ) {
+        items.forEach { item ->
+            val (iconKey, label, packageName) = when (item) {
+                QuickItem.NewNote -> Triple("notepad", "note", null)
+                QuickItem.NewTask -> Triple("tasks", "task", null)
+                QuickItem.Calculator -> Triple("calc", "calculator", null)
+                QuickItem.Timer -> Triple("alarm", "timer", null)
+                is QuickItem.TaskList -> {
+                    val list = lists.firstOrNull { it.id == item.listId } ?: return@forEach
+                    Triple("tasks", list.name.lowercase(), null)
+                }
+                is QuickItem.Note -> {
+                    val note = notes.firstOrNull { it.id == item.noteId }?.takeIf { it.text.isNotBlank() || it.title.isNotBlank() } ?: return@forEach
+                    Triple("note", note.preview().title.lowercase(), null)
+                }
+                is QuickItem.App -> {
+                    val appLabel = remember(item.packageName) { appLabelOrNull(context, item.packageName) } ?: return@forEach
+                    Triple(null, appLabel.lowercase(), item.packageName)
+                }
+            }
+            var menuOpen by remember(item) { mutableStateOf(false) }
+            Box(modifier = Modifier.width(cellWidth)) {
+                QuickCell(iconKey, packageName, label, tokens, onClick = { onRun(item) }, onLongClick = { menuOpen = true })
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(text = { Text("remove from quick") }, onClick = {
+                        menuOpen = false
+                        onRemove(item)
+                    })
+                }
+            }
+        }
+        if (missingBuiltIns.isNotEmpty()) {
+            var addOpen by remember { mutableStateOf(false) }
+            Box(modifier = Modifier.width(cellWidth)) {
+                QuickCell("plus", null, "add", tokens, onClick = { addOpen = true }, onLongClick = { addOpen = true })
+                DropdownMenu(expanded = addOpen, onDismissRequest = { addOpen = false }) {
+                    missingBuiltIns.forEach { builtIn ->
+                        val name = when (builtIn) {
+                            QuickItem.NewNote -> "new note"
+                            QuickItem.NewTask -> "new task"
+                            QuickItem.Calculator -> "calculator"
+                            else -> "timer"
+                        }
+                        DropdownMenuItem(text = { Text(name) }, onClick = {
+                            addOpen = false
+                            onAdd(builtIn)
+                        })
+                    }
+                }
+            }
+        }
+    }
+    }
+    Text(
+        "long-press a note, list or app to add it here",
+        color = tokens.fgDim,
+        fontSize = 11.sp,
+        modifier = Modifier.padding(top = 6.dp),
+    )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun QuickCell(
+    iconKey: String?,
+    packageName: String?,
+    label: String,
+    tokens: ColorTokens,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .clickable(
+            .fillMaxWidth()
+            .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick,
+                onLongClick = onLongClick,
             )
             .padding(4.dp),
     ) {
@@ -419,11 +573,54 @@ private fun QuickAction(iconKey: String, label: String, tokens: ColorTokens, onC
             modifier = Modifier.size(48.dp).clip(CircleShape).background(tokens.fg.copy(alpha = 0.08f)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(TileIcons[iconKey], contentDescription = null, tint = tokens.fg, modifier = Modifier.size(22.dp))
+            if (packageName != null) {
+                val icon = rememberAppIconBitmap(packageName, sizePx = 96)
+                if (icon != null) Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(32.dp))
+            } else if (iconKey != null) {
+                Icon(TileIcons[iconKey], contentDescription = null, tint = tokens.fg, modifier = Modifier.size(22.dp))
+            }
         }
         Spacer(Modifier.height(4.dp))
-        Text(label, color = tokens.fgDim, fontSize = 12.sp)
+        Text(label, color = tokens.fgDim, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
+}
+
+/** Which list "new task" goes into, when there are several. */
+@Composable
+private fun TaskListPicker(
+    lists: List<TaskListSummary>,
+    onPick: (String) -> Unit,
+    onNewList: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("add a task to") },
+        text = {
+            Column {
+                lists.forEach { list ->
+                    Text(
+                        "${list.name.lowercase()} · ${list.openCount} open",
+                        fontSize = 16.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onPick(list.id) }
+                            .padding(vertical = 10.dp),
+                    )
+                }
+                Text(
+                    "+ new list",
+                    fontSize = 16.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onNewList)
+                        .padding(vertical = 10.dp),
+                )
+            }
+        },
+        confirmButton = {},
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("cancel") } },
+    )
 }
 
 /** Upcoming meetings, re-read every 5 minutes while shown. */
@@ -453,9 +650,10 @@ private fun NotesPage(
     pinnedNoteIds: Set<Long>,
     onOpenNote: (Long) -> Unit,
     onPinNote: (Long) -> Unit,
+    onAddToQuick: (Long) -> Unit,
     onDelete: (Long) -> Unit,
 ) {
-    val visibleNotes = notes.filter { it.text.isNotBlank() }
+    val visibleNotes = notes.filter { it.text.isNotBlank() || it.title.isNotBlank() }
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
@@ -487,14 +685,18 @@ private fun NotesPage(
                         )
                         .padding(10.dp),
                 ) {
-                    Text(
-                        note.text.trim(),
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        maxLines = 5,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        if (note.title.isNotBlank()) {
+                            Text(note.title.trim(), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
+                        Text(
+                            note.text.trim(),
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            maxLines = if (note.title.isNotBlank()) 3 else 5,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     if (note.id in pinnedNoteIds) {
                         Icon(TileIcons["pin"], contentDescription = "pinned to start", tint = Color.White, modifier = Modifier.size(14.dp))
                     }
@@ -506,6 +708,10 @@ private fun NotesPage(
                             onPinNote(note.id)
                         })
                     }
+                    DropdownMenuItem(text = { Text("add to quick") }, onClick = {
+                        menuOpen = false
+                        onAddToQuick(note.id)
+                    })
                     DropdownMenuItem(text = { Text("delete") }, onClick = {
                         menuOpen = false
                         onDelete(note.id)
@@ -522,12 +728,13 @@ private fun NotesPage(
 private fun TasksPage(
     tokens: ColorTokens,
     accent: Color,
+    lists: List<TaskListSummary>,
     tasksRepo: TaskRepository,
     pinnedListIds: Set<String>,
     onOpenTaskList: (String) -> Unit,
     onPinTaskList: (String) -> Unit,
+    onAddToQuick: (String) -> Unit,
 ) {
-    val lists by remember { tasksRepo.lists() }.collectAsState(initial = emptyList())
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
@@ -537,14 +744,18 @@ private fun TasksPage(
             item { Text("no task lists yet · tap + to start one", color = tokens.fgDim, fontSize = 14.sp) }
         }
         items(lists, key = { it.id }) { list ->
-            TaskListCard(list, list.id in pinnedListIds, tasksRepo, tokens, accent, { onOpenTaskList(list.id) }) {
-                onPinTaskList(list.id)
-            }
+            TaskListCard(
+                list, list.id in pinnedListIds, tasksRepo, tokens, accent,
+                onOpen = { onOpenTaskList(list.id) },
+                onPin = { onPinTaskList(list.id) },
+                onAddToQuick = { onAddToQuick(list.id) },
+            )
         }
         item { Spacer(Modifier.height(16.dp)) }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TaskListCard(
     list: TaskListSummary,
@@ -554,51 +765,62 @@ private fun TaskListCard(
     accent: Color,
     onOpen: () -> Unit,
     onPin: () -> Unit,
+    onAddToQuick: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val tasks by remember(list.id) { tasksRepo.tasks(list.id) }.collectAsState(initial = emptyList())
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(tokens.fg.copy(alpha = 0.06f))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onOpen,
-            )
-            .padding(12.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                list.name.lowercase() + " · ${list.openCount} open",
-                color = tokens.fg,
-                fontSize = 16.sp,
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                if (pinned) "on start" else "pin",
-                color = if (pinned) tokens.fgDim else accent,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.clickable(
+    var menuOpen by remember { mutableStateOf(false) }
+    Box {
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(text = { Text("add to quick") }, onClick = {
+                menuOpen = false
+                onAddToQuick()
+            })
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(tokens.fg.copy(alpha = 0.06f))
+                .combinedClickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
-                    enabled = !pinned,
-                    onClick = onPin,
-                ),
-            )
-        }
-        Spacer(Modifier.height(4.dp))
-        val shown = tasks.sortedBy { it.done }.take(4)
-        if (shown.isEmpty()) {
-            Text("empty · tap to add tasks", color = tokens.fgDim, fontSize = 13.sp)
-        }
-        shown.forEach { task ->
-            TaskRow(task.text, task.done, tokens, accent) {
-                scope.launch { tasksRepo.setDone(task.id, !task.done) }
+                    onClick = onOpen,
+                    onLongClick = { menuOpen = true },
+                )
+                .padding(12.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    list.name.lowercase() + " · ${list.openCount} open",
+                    color = tokens.fg,
+                    fontSize = 16.sp,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    if (pinned) "on start" else "pin",
+                    color = if (pinned) tokens.fgDim else accent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        enabled = !pinned,
+                        onClick = onPin,
+                    ),
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            val shown = tasks.sortedBy { it.done }.take(4)
+            if (shown.isEmpty()) {
+                Text("empty · tap to add tasks", color = tokens.fgDim, fontSize = 13.sp)
+            }
+            shown.forEach { task ->
+                TaskRow(task.text, task.done, tokens, accent) {
+                    scope.launch { tasksRepo.setDone(task.id, !task.done) }
+                }
             }
         }
     }
@@ -642,7 +864,7 @@ private fun TaskRow(text: String, done: Boolean, tokens: ColorTokens, accent: Co
 // ---- apps ------------------------------------------------------------------
 
 @Composable
-private fun ProductivityAppsPage(tokens: ColorTokens, accent: Color) {
+private fun ProductivityAppsPage(tokens: ColorTokens, accent: Color, onAddToQuick: (String) -> Unit) {
     val context = LocalContext.current
     val apps = rememberProductivityApps() ?: return
     val usageGranted = rememberUsageAccess()
@@ -680,22 +902,31 @@ private fun ProductivityAppsPage(tokens: ColorTokens, accent: Color) {
             }
             items(list.size, key = { "app-${list[it].packageName}" }) { index ->
                 val app = list[index]
-                ProductivityAppCell(app, tokens) { openApp(context, app.packageName) }
+                ProductivityAppCell(app, tokens, onLongClick = { onAddToQuick(app.packageName) }) { openApp(context, app.packageName) }
             }
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ProductivityAppCell(app: ProductivityApp, tokens: ColorTokens, onClick: () -> Unit) {
+private fun ProductivityAppCell(app: ProductivityApp, tokens: ColorTokens, onLongClick: () -> Unit, onClick: () -> Unit) {
     val icon = rememberAppIconBitmap(app.packageName, sizePx = 96)
+    var menuOpen by remember { mutableStateOf(false) }
+    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+        DropdownMenuItem(text = { Text("add to quick") }, onClick = {
+            menuOpen = false
+            onLongClick()
+        })
+    }
     Column(
         modifier = Modifier
             .padding(4.dp)
-            .clickable(
+            .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick,
+                onLongClick = { menuOpen = true },
             )
             .padding(vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

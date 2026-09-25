@@ -68,6 +68,8 @@ fun StickyNoteEditorSheet(
     tileId: String?,
     initialText: String,
     onTextChange: (id: String, text: String) -> Unit,
+    initialTitle: String = "",
+    onTitleChange: (id: String, title: String) -> Unit = { _, _ -> },
     onDismiss: () -> Unit,
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
@@ -87,6 +89,9 @@ fun StickyNoteEditorSheet(
     // every recomposition would fight the user's own typing).
     var text by remember(tileId) { mutableStateOf(initialText) }
     LaunchedEffect(tileId) { text = initialText }
+    var title by remember(tileId) { mutableStateOf(initialTitle) }
+    LaunchedEffect(tileId) { title = initialTitle }
+    val titleFocusRequester = remember(tileId) { FocusRequester() }
 
     // A text area with no focus shows no cursor at all — claim focus and raise
     // the keyboard whenever this sheet opens (or a different tile's note opens
@@ -174,15 +179,19 @@ fun StickyNoteEditorSheet(
                         tint = tokens.fgDim,
                         modifier = Modifier
                             .size(20.dp)
-                            .clickable(onClick = { saveLauncher.launch(suggestedNoteFileName(text)) }),
+                            .clickable(onClick = { saveLauncher.launch(suggestedNoteFileName(title.ifBlank { text })) }),
                     )
                 }
-                Text(
-                    text = "sticky note",
-                    color = tokens.fg,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.W300,
-                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp),
+                NoteTitleField(
+                    title = title,
+                    onTitleChange = { newTitle ->
+                        title = newTitle
+                        tileId?.let { id -> onTitleChange(id, newTitle) }
+                    },
+                    tokens = tokens,
+                    accent = accent,
+                    focusRequester = titleFocusRequester,
+                    onNext = { focusRequester.requestFocus() },
                 )
                 BasicTextField(
                     value = text,

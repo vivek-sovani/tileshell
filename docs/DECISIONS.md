@@ -10460,3 +10460,40 @@ which gates the two-finger and edge gestures; calendar and people were missing
 before. Checked on the emulator: tile faces, today/notes/tasks/apps pages, and
 pinning a list. The join button isn't exercised (the emulator calendar has no
 events); the link parser is unit-tested.
+
+## Productivity hub follow-ups: calculator, quick row, list picker, keyboard, note titles, pin page
+
+All user-reported or user-requested, the same day.
+- **Calculator did nothing.** `openCalculator` relied on
+  `CATEGORY_APP_CALCULATOR`, which Samsung's calculator (and several other
+  OEMs') doesn't declare, and the failure was swallowed silently. It now tries
+  known calculator packages first (`KNOWN_CALCULATOR_PACKAGES`: Samsung, Google,
+  Xiaomi, Oppo/Realme, OnePlus, Vivo, AOSP), then the role, then any launcher
+  app labelled "calculator", and toasts "no calculator app found" otherwise.
+  The phone was disconnected, so its actual package wasn't confirmed.
+- **Quick "task" picks a list:** it goes straight into the only list, creates
+  one when there are none, and asks with a picker when there are several.
+- **Pin to quick** (`QuickRow.kt`): the row is now a user list of `QuickItem`s
+  (four built-ins by default, plus pinned task lists / notes / apps), stored
+  one code per line in `tileshell.prefs` (pure codec, tested). "add to quick" is
+  on a long-press of a note card, task list card or app. A long-press on a quick
+  shortcut removes it, and "+" restores removed built-ins. A shortcut whose target
+  is gone is skipped. Cells are a fixed quarter width, so a second row doesn't
+  stretch.
+- **Editor top off-screen with the keyboard:** `MainActivity` had no
+  `windowSoftInputMode`, so Android panned the whole window up, pushing the top
+  of the note, sticky note and task sheets off-screen. `adjustResize` makes the
+  keyboard arrive as IME insets, which the sheets' existing `imePadding()`
+  handles. Verified on the emulator: the editor's header stays visible.
+- **Note titles** (schema v15, `MIGRATION_14_15` adds `notes.title`, default
+  ''). There's a bold single-line title field above the body in both the notes
+  editor and the sticky note editor (shared `NoteTitleField`; Enter moves to
+  the body; a new note starts in the title field). `notePreview(text, title)`
+  uses the title when set, else the old first-line rule, so existing notes read
+  the same. Titles are shown on hub cards, the sticky tile face, the notepad
+  tile and widget, and the quick row. The sticky editor's linking was factored
+  into `stickyNoteIdFor`, shared by the text and title writes.
+- **Pins land on the last open Start page.** `StartScreen` reports its active
+  page to `StartViewModel.setActivePage`, and contact, people-hub page, note,
+  task list, notepad and productivity pins pass that section id. The app list
+  and "add live tiles" already did this.

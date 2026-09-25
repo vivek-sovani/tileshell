@@ -128,7 +128,7 @@ class NotesWidgetRefreshWorker(
                         continue
                     }
                     views.setViewVisibility(rowIds[i], View.VISIBLE)
-                    val preview = notePreview(note.text)
+                    val preview = notePreview(note.text, note.title)
                     views.setTextColor(titleIds[i], onAccent)
                     views.setTextViewText(titleIds[i], preview.title)
                     views.setTextColor(snippetIds[i], onAccent)

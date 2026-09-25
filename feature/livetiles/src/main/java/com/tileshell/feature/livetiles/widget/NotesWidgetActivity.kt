@@ -161,7 +161,7 @@ private fun NotesListScreen(
                 )
             }
             notes.forEach { note ->
-                val preview = notePreview(note.text)
+                val preview = notePreview(note.text, note.title)
                 Row(
                     modifier = Modifier.fillMaxWidth().clickable { onOpen(note.id) }.padding(horizontal = 20.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,

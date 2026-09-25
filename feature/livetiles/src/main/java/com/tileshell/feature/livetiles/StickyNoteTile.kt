@@ -38,17 +38,24 @@ private val FaceText: Color
     @Composable get() = LocalTileFaceColor.current
 
 /**
- * The live sticky-note tile: the tile's [text] *is* the note — one note per
- * pinned tile (its text lives directly on the tile's own row, not in a shared
- * table — see `LayoutRepository.setTileText`), so there's no repository/Flow
- * to read here, just the value the caller already has from the tile model.
- * Never flips (see [LiveFace.STICKYNOTE]) and has no on-tile interaction —
+ * The live sticky-note tile: a note pinned to Start. [title] (optional, bold)
+ * and [text] come from the linked note (see [rememberNote]). Never flips (see [LiveFace.STICKYNOTE]) and has no on-tile interaction —
  * tapping the tile opens a small dedicated editor instead of typing in place.
  */
 @Composable
-fun StickyNoteTileFace(size: TileSize, text: String, modifier: Modifier = Modifier) {
+fun StickyNoteTileFace(size: TileSize, text: String, modifier: Modifier = Modifier, title: String = "") {
     Column(modifier = modifier.fillMaxSize().padding(11.dp)) {
-        if (text.isBlank()) {
+        if (title.isNotBlank()) {
+            Text(
+                text = title,
+                color = FaceText,
+                fontSize = if (size == TileSize.LARGE || size == TileSize.XLARGE) 17.sp else 14.sp,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (text.isBlank() && title.isBlank()) {
             Text(
                 text = "tap to write a note",
                 color = FaceText.copy(alpha = 0.6f),
@@ -60,7 +67,7 @@ fun StickyNoteTileFace(size: TileSize, text: String, modifier: Modifier = Modifi
                 color = FaceText,
                 fontSize = if (size == TileSize.LARGE || size == TileSize.XLARGE) 15.sp else 13.sp,
                 lineHeight = if (size == TileSize.LARGE || size == TileSize.XLARGE) 20.sp else 17.sp,
-                maxLines = maxLinesForStickyNote(size),
+                maxLines = (maxLinesForStickyNote(size) - if (title.isNotBlank()) 1 else 0).coerceAtLeast(1),
                 overflow = TextOverflow.Ellipsis,
             )
         }
@@ -68,16 +75,19 @@ fun StickyNoteTileFace(size: TileSize, text: String, modifier: Modifier = Modifi
 }
 
 /**
- * The live text of note [noteId] — what a sticky note tile (a note pinned to
- * Start) shows. Empty for a tile with no note yet, or whose note was deleted.
+ * The live title and text of note [noteId] — what a sticky note tile (a note
+ * pinned to Start) shows. Blank for a tile with no note yet, or whose note
+ * was deleted.
  */
 @Composable
-fun rememberNoteText(noteId: Long?): String {
+fun rememberNote(noteId: Long?): Pair<String, String> {
     val context = LocalContext.current
-    if (noteId == null) return ""
+    if (noteId == null) return "" to ""
     val flow = remember(noteId) {
-        NoteRepository.create(context).notes.map { notes -> notes.firstOrNull { it.id == noteId }?.text.orEmpty() }
+        NoteRepository.create(context).notes.map { notes ->
+            notes.firstOrNull { it.id == noteId }?.let { it.title to it.text } ?: ("" to "")
+        }
     }
-    val text by flow.collectAsState(initial = "")
-    return text
+    val note by flow.collectAsState(initial = "" to "")
+    return note
 }

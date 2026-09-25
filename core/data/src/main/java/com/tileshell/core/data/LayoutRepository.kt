@@ -393,7 +393,7 @@ class LayoutRepository(
      * contact card without a schema change. No-op (returns
      * [PinResult.ALREADY_ON_START]) if that contact is already pinned.
      */
-    suspend fun pinContact(contactId: Long, lookupKey: String, name: String): PinResult {
+    suspend fun pinContact(contactId: Long, lookupKey: String, name: String, sectionId: String? = null): PinResult {
         val activityName = ContactTile.encode(contactId, lookupKey)
         if (dao.activityTileCount(activityName) > 0) return PinResult.ALREADY_ON_START
         dao.insertTiles(
@@ -408,6 +408,7 @@ class LayoutRepository(
                     activityName = activityName,
                     label = name,
                     iconKey = ContactTile.ICON_KEY,
+                    sectionId = sectionId,
                 ),
             ),
         )
@@ -419,10 +420,10 @@ class LayoutRepository(
      * hub's "pin to start"). No-op ([PinResult.ALREADY_ON_START]) if that note
      * already has a tile.
      */
-    suspend fun pinNote(noteId: Long): PinResult {
+    suspend fun pinNote(noteId: Long, sectionId: String? = null): PinResult {
         val link = StickyNoteTile.encode(noteId)
         if (dao.activityTileCount(link) > 0) return PinResult.ALREADY_ON_START
-        return if (addDefaultTile("stickynote", activityName = link)) PinResult.PINNED else PinResult.ALREADY_ON_START
+        return if (addDefaultTile("stickynote", sectionId, link)) PinResult.PINNED else PinResult.ALREADY_ON_START
     }
 
     /**
@@ -430,10 +431,10 @@ class LayoutRepository(
      * already shows that list — either its own tile (an older list is keyed by
      * its tile's id) or one linked to it.
      */
-    suspend fun pinTaskList(listId: String): PinResult {
+    suspend fun pinTaskList(listId: String, sectionId: String? = null): PinResult {
         val link = TaskListTile.encode(listId)
         if (dao.activityTileCount(link) > 0 || dao.tileExists(listId)) return PinResult.ALREADY_ON_START
-        return if (addDefaultTile("tasks", activityName = link)) PinResult.PINNED else PinResult.ALREADY_ON_START
+        return if (addDefaultTile("tasks", sectionId, link)) PinResult.PINNED else PinResult.ALREADY_ON_START
     }
 
     /**
@@ -443,7 +444,7 @@ class LayoutRepository(
      * appended to the end of the grid. No-op (returns
      * [PinResult.ALREADY_ON_START]) if that exact page is already pinned.
      */
-    suspend fun pinPeopleHubPage(page: String, label: String): PinResult {
+    suspend fun pinPeopleHubPage(page: String, label: String, sectionId: String? = null): PinResult {
         val activityName = PeopleHubTile.encode(page)
         if (dao.activityTileCount(activityName) > 0) return PinResult.ALREADY_ON_START
         dao.insertTiles(
@@ -458,6 +459,7 @@ class LayoutRepository(
                     activityName = activityName,
                     label = label,
                     iconKey = "people",
+                    sectionId = sectionId,
                 ),
             ),
         )

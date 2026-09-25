@@ -63,6 +63,9 @@ private val PRODUCTIVITY_APP_CATEGORIES: Map<String, ProductivityCategory> = bui
     listOf(
         "com.google.android.calculator",
         "com.sec.android.app.popupcalculator",
+        "com.miui.calculator",
+        "com.coloros.calculator",
+        "com.oneplus.calculator",
         "com.google.android.deskclock",
         "com.sec.android.app.clockpackage",
         "com.google.android.apps.nbu.files",
@@ -250,14 +253,40 @@ fun openCalendarEvent(context: Context, eventId: Long) {
     }
 }
 
-/** Opens the calculator app. */
-fun openCalculator(context: Context) {
-    runCatching {
-        context.startActivity(
-            Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_CALCULATOR)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-        )
-    }
+/** Calculator apps by package, tried first since several OEM calculators
+ * (Samsung's among them) don't declare the calculator role. */
+internal val KNOWN_CALCULATOR_PACKAGES = listOf(
+    "com.sec.android.app.popupcalculator", // Samsung
+    "com.google.android.calculator",
+    "com.miui.calculator", // Xiaomi
+    "com.coloros.calculator", // Oppo / Realme
+    "com.oneplus.calculator",
+    "com.vivo.calculator",
+    "com.android.calculator2",
+)
+
+/**
+ * Opens a calculator: a known calculator app if one is installed, else
+ * whatever declares the calculator role, else any launchable app named
+ * "calculator". Returns false (and the caller says so) when none exists.
+ */
+fun openCalculator(context: Context): Boolean {
+    val pm = context.packageManager
+    val launch = KNOWN_CALCULATOR_PACKAGES.firstNotNullOfOrNull { pkg ->
+        runCatching { pm.getLaunchIntentForPackage(pkg) }.getOrNull()
+    } ?: runCatching {
+        Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_CALCULATOR)
+            .takeIf { it.resolveActivity(pm) != null }
+    }.getOrNull() ?: runCatching {
+        val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        pm.queryIntentActivities(launcher, 0)
+            .firstOrNull { it.loadLabel(pm).toString().contains("calculator", ignoreCase = true) }
+            ?.activityInfo?.packageName
+            ?.let { pm.getLaunchIntentForPackage(it) }
+    }.getOrNull()
+    return launch != null && runCatching {
+        context.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }.isSuccess
 }
 
 /** Opens the clock app's timers. */

@@ -37,6 +37,15 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — productivity hub follow-ups (schema v15).** Calculator now opens on
+  OEMs without the calculator role. The quick row is customisable (long-press a
+  note, list or app → "add to quick"; long-press a shortcut to remove; "+"
+  restores built-ins). Quick "task" asks which list when there are several.
+  Notes have an optional title (`notes.title`, v15). `adjustResize` stops the
+  keyboard pushing editors off-screen. Hub/contact pins land on the last open
+  Start page. Build + full unit tests green; installed on the phone (DB v15, no
+  crash). Titles, quick row and keyboard fix checked on the emulator. Calculator
+  on the phone and the list picker weren't seen on screen.
 - **`main` — productivity hub (today / notes / tasks / apps) and its Start
   tile, plus schema v14.** User-requested, designed first. Task lists get names
   (`task_lists`). Sticky notes become notes pinned to Start (the migration moved

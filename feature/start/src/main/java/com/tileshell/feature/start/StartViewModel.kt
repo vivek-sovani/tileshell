@@ -390,6 +390,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     // editor opens (so the editor never seeds from an empty placeholder).
     private val _stickyNoteEditText = MutableStateFlow("")
     val stickyNoteEditText: StateFlow<String> = _stickyNoteEditText.asStateFlow()
+    private val _stickyNoteEditTitle = MutableStateFlow("")
+    val stickyNoteEditTitle: StateFlow<String> = _stickyNoteEditTitle.asStateFlow()
 
     // A sticky tile whose note was just created, before the tile row's new
     // link has come back through the tiles flow — so the next keystroke
@@ -788,10 +790,9 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val tile = tiles.value.firstOrNull { it.id == id } as? TileModel.App
             val noteId = StickyNoteTile.decode(tile?.activityName) ?: pendingStickyLinks[id]
-            _stickyNoteEditText.value = when {
-                noteId != null -> noteRepository.get(noteId)?.text.orEmpty()
-                else -> ""
-            }
+            val note = noteId?.let { noteRepository.get(it) }
+            _stickyNoteEditText.value = note?.text.orEmpty()
+            _stickyNoteEditTitle.value = note?.title.orEmpty()
             _stickyNoteEditTileId.value = id
         }
     }
@@ -805,17 +806,25 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      * with no note yet (freshly added) creates one on the first keystroke and
      * links the tile to it. */
     fun setStickyNoteText(id: String, text: String) {
-        viewModelScope.launch(writeContext) {
-            val tile = tiles.value.firstOrNull { it.id == id } as? TileModel.App
-            val noteId = StickyNoteTile.decode(tile?.activityName) ?: pendingStickyLinks[id]
-            if (noteId != null) {
-                noteRepository.updateText(noteId, text)
-            } else {
-                val created = noteRepository.createNote(text)
-                pendingStickyLinks[id] = created
-                repository.setTileText(id, StickyNoteTile.encode(created))
-            }
-        }
+        viewModelScope.launch(writeContext) { noteRepository.updateText(stickyNoteIdFor(id), text) }
+    }
+
+    /** The sticky note tile's title — its linked note's title. */
+    fun setStickyNoteTitle(id: String, title: String) {
+        viewModelScope.launch(writeContext) { noteRepository.updateTitle(stickyNoteIdFor(id), title) }
+    }
+
+    /** The note a sticky tile is linked to, creating and linking one the first
+     * time an unlinked tile is edited. Runs on [writeContext], so edits stay
+     * ordered and a second keystroke never creates a second note. */
+    private suspend fun stickyNoteIdFor(tileId: String): Long {
+        val tile = tiles.value.firstOrNull { it.id == tileId } as? TileModel.App
+        StickyNoteTile.decode(tile?.activityName)?.let { return it }
+        pendingStickyLinks[tileId]?.let { return it }
+        val created = noteRepository.createNote()
+        pendingStickyLinks[tileId] = created
+        repository.setTileText(tileId, StickyNoteTile.encode(created))
+        return created
     }
 
     /** Open a Countdown tile's own dedicated editor (tapping that tile). */
@@ -2238,7 +2247,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Pin a contact to Start from quick search's "pin to start" action. */
     fun pinContact(contactId: Long, lookupKey: String, name: String) {
         viewModelScope.launch(writeContext) {
-            val result = repository.pinContact(contactId, lookupKey, name)
+            val result = repository.pinContact(contactId, lookupKey, name, sectionId = activePageSectionId)
             _pinMessage.tryEmit(
                 when (result) {
                     PinResult.PINNED -> "pinned $name to start"
@@ -2250,6 +2259,15 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Pin a People Hub page ("what's new" / "recent") to Start as its own
      * tile, from the hub's own "pin this page" action. */
+    // The Start page the user last had open (null = main), kept in sync by
+    // StartScreen. Pins made from a hub or quick search land there (user-
+    // requested), the same as pins from the app list and "add live tiles".
+    @Volatile private var activePageSectionId: String? = null
+
+    fun setActivePage(sectionId: String?) {
+        activePageSectionId = sectionId
+    }
+
     /** A new blank note, opened straight in the notes editor (hub "new note"). */
     fun newNote() {
         viewModelScope.launch { openNotes(noteRepository.createNote()) }
@@ -2258,14 +2276,14 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Pin a note to Start as a sticky note tile (productivity hub). */
     fun pinNote(noteId: Long) {
         viewModelScope.launch(writeContext) {
-            _pinMessage.tryEmit(pinOutcomeText(repository.pinNote(noteId), "note"))
+            _pinMessage.tryEmit(pinOutcomeText(repository.pinNote(noteId, activePageSectionId), "note"))
         }
     }
 
     /** Pin a task list to Start as a Tasks tile (productivity hub). */
     fun pinTaskList(listId: String) {
         viewModelScope.launch(writeContext) {
-            _pinMessage.tryEmit(pinOutcomeText(repository.pinTaskList(listId), "task list"))
+            _pinMessage.tryEmit(pinOutcomeText(repository.pinTaskList(listId, activePageSectionId), "task list"))
         }
     }
 
@@ -2275,7 +2293,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) {
             val result = if (tiles.value.hasNotesTile()) {
                 PinResult.ALREADY_ON_START
-            } else if (repository.addDefaultTile("notepad")) {
+            } else if (repository.addDefaultTile("notepad", activePageSectionId)) {
                 PinResult.PINNED
             } else {
                 PinResult.ALREADY_ON_START
@@ -2288,7 +2306,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     fun pinProductivityHub() {
         viewModelScope.launch(writeContext) {
             val exists = tiles.value.any { it is TileModel.App && it.iconKey == "productivity" }
-            val result = if (!exists && repository.addDefaultTile("productivity")) PinResult.PINNED else PinResult.ALREADY_ON_START
+            val result = if (!exists && repository.addDefaultTile("productivity", activePageSectionId)) PinResult.PINNED else PinResult.ALREADY_ON_START
             _pinMessage.tryEmit(pinOutcomeText(result, "productivity"))
         }
     }
@@ -2300,7 +2318,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     fun pinPeopleHubPage(page: String, label: String) {
         viewModelScope.launch(writeContext) {
-            val result = repository.pinPeopleHubPage(page, label)
+            val result = repository.pinPeopleHubPage(page, label, activePageSectionId)
             _pinMessage.tryEmit(
                 when (result) {
                     PinResult.PINNED -> "pinned $label to start"
