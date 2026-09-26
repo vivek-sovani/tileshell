@@ -10506,6 +10506,44 @@ rather than a second copy, so the two hubs always agree on what counts as a
 mail app. Mail apps now appear in both hubs' apps pages, and on the productivity
 tile's back face when they're among the most used.
 
+## Battery audit of the hubs: one real gap found — productivity tile's calendar poll ignored the live-tile gate
+
+User asked for a battery optimisation pass over the productivity/people/music
+hubs. Read every hub-related file in `:feature:livetiles` for unconditional
+loops (`delay`/`while (true)` inside `LaunchedEffect`/`produceState`) that
+don't check the shared live-tile `active` gate (edit mode, off-screen, screen
+off, battery saver — CLAUDE.md's own invariant, "all paused in edit mode /
+off-screen / battery saver"). Everything else already follows it correctly:
+`WhatsNewTileFace`/`PeopleAppsTileFace` (People Hub page tiles) and
+`ProductivityTileFace`'s own flip loop all gate on `active`;
+`MusicTileFace`'s media poll already backs off to a long idle interval with
+no session and is gated on `active`; every other hub `produceState` (installed
+apps, app-open counts, playlists/tracks/albums) is a one-shot load with no
+loop at all, so nothing to gate; `LocalMusicPlaybackService` has no polling of
+its own (event-driven off the player's own callbacks).
+
+The one real gap: `rememberUpcomingMeetings` (`ProductivityHubScreen.kt`) reads
+the calendar provider on a bare `while(true) { … ; delay(5 min) }` keyed only
+on the permission grant, never on `active`. The productivity Start tile
+(`ProductivityTileFace`) calls it and *is* handed the real `active = liveActive`
+gate for its own flip loop — but never threaded that same value into this
+call, so pinning the productivity tile meant a calendar query every 5 minutes
+forever, including in edit mode, with the screen off, or in battery saver,
+for as long as the tile stayed pinned (which is effectively always, being a
+Start tile). Fixed by adding an `active: Boolean = true` param to
+`rememberUpcomingMeetings` — false skips the loop entirely, leaving the last
+fetched meetings on screen (matching how every other paused live face freezes
+rather than blanks) — and passing it from `ProductivityTileFace`. The hub
+screen's own call (`TodayPage`) keeps the default `true`: it has no gate of
+its own and this poll only ever runs while that screen is genuinely open, so
+its behaviour is unchanged.
+
+Not build-verified this session — the sandbox's `dl.google.com` block (recorded
+earlier in this log) prevents resolving the Android Gradle plugin here; this
+is a code-reading-level fix following the exact pattern already proven
+correct at every other hub call site, not yet confirmed by a local
+`./gradlew` run or on-device test.
+
 ## "Already on start" says which page, and Start switches there
 
 User-reported: pinning an app said "already on start", but the tile couldn't be

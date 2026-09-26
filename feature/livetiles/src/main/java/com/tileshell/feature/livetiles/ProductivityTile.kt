@@ -54,7 +54,7 @@ private const val PRODUCTIVITY_FLIP_MS = 15_000L
 fun ProductivityTileFace(size: TileSize, active: Boolean, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val calendarGranted = rememberPermissionGranted(Manifest.permission.READ_CALENDAR)
-    val meetings = rememberUpcomingMeetings(calendarGranted)
+    val meetings = rememberUpcomingMeetings(calendarGranted, active)
     val openCount by remember(context) { TaskRepository.create(context).openCount() }.collectAsState(initial = 0)
     val apps = rememberProductivityApps().orEmpty()
 

@@ -37,6 +37,19 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — battery audit of the hubs: fixed the productivity tile's calendar
+  poll ignoring the live-tile gate.** User-requested. Read every hub-related
+  file in `:feature:livetiles` for a loop that doesn't pause under the shared
+  `active` gate (edit mode / off-screen / screen off / battery saver); found
+  one real gap — `rememberUpcomingMeetings`'s 5-minute calendar re-query never
+  took `active`, so the Start-pinned productivity tile polled the calendar
+  provider forever regardless of the gate. Added an `active` param (default
+  `true`, unchanged for the hub screen's own call) and threaded the tile's
+  real `active` through. Everything else already gated correctly (People Hub
+  page tiles, the music tile's poll, every one-shot installed-apps/track/
+  album load). Not build-verified this session — the sandbox's `dl.google.com`
+  block prevents resolving the Android Gradle plugin here; needs a real
+  `./gradlew` run + on-device check next session. See DECISIONS.md.
 - **`main` — productivity hub follow-ups (schema v15).** Calculator now opens on
   OEMs without the calculator role. The quick row is customisable (long-press a
   note, list or app → "add to quick"; long-press a shortcut to remove; "+"

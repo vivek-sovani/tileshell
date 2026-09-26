@@ -623,15 +623,23 @@ private fun TaskListPicker(
     )
 }
 
-/** Upcoming meetings, re-read every 5 minutes while shown. */
+/**
+ * Upcoming meetings, re-read every 5 minutes while shown. [active] is the
+ * same live-tile gate every other Start face is paused by (edit mode,
+ * off-screen, screen off, battery saver) — the hub screen itself has no such
+ * gate and passes the default `true`, but the Start-pinned productivity tile
+ * must thread its own `active` through so this calendar poll actually stops
+ * when the tile isn't visible instead of querying the provider forever.
+ */
 @Composable
-internal fun rememberUpcomingMeetings(granted: Boolean): List<UpcomingMeeting> {
+internal fun rememberUpcomingMeetings(granted: Boolean, active: Boolean = true): List<UpcomingMeeting> {
     val context = LocalContext.current
-    val meetings by produceState(initialValue = emptyList<UpcomingMeeting>(), granted) {
+    val meetings by produceState(initialValue = emptyList<UpcomingMeeting>(), granted, active) {
         if (!granted) {
             value = emptyList()
             return@produceState
         }
+        if (!active) return@produceState
         while (true) {
             value = withContext(Dispatchers.IO) { queryUpcomingMeetings(context) }
             delay(5 * 60_000L)
