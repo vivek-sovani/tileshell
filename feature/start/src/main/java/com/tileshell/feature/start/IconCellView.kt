@@ -248,7 +248,11 @@ internal fun IconCellView(
                 )
             }
             "calsys" -> LiveIconTile(accent, badgeCount, darkTheme) {
-                CalendarSystemSmallFace(active = liveActive, modifier = Modifier.fillMaxSize())
+                CalendarSystemSmallFace(
+                    active = liveActive,
+                    modifier = Modifier.fillMaxSize(),
+                    systemId = com.tileshell.core.data.CalendarSystemTile.decode(tile.activityName),
+                )
             }
             "moonphase" -> LiveIconTile(accent, badgeCount, darkTheme) {
                 MoonPhaseSmallFace(active = liveActive, modifier = Modifier.fillMaxSize())

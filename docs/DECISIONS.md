@@ -10671,3 +10671,21 @@ Checked on the emulator with a seeded 8-hour log: tile faces, the today and week
 started recording on install. The phone's own history starts now, so the week page fills over 7 days.
 While testing, an emulator-boot ANR ("no response to onStopJob", CPU pressure 99%, GMS also
 ANR'd) prompted moving all log I/O off the main thread.
+
+## Panchang tile and widget: back face without the moon; front face sized to show everything
+
+User-requested. **Back face** (`PanchangBackFace`, replacing the English branch of
+`PanchangFace`): no moon picture. Ayana is the heading, then a "सूर्य" column (sunrise,
+sunset) and a "चंद्र" column (moonrise, moonset), side by side at 4 columns wide and
+stacked otherwise, and the Roman date at the bottom. A 1-row tile shows just
+sunrise · sunset. The widget's full layout gets the same arrangement: the moon image
+view is kept but GONE so the worker's ids still resolve, there are column headers,
+and ↑/↓ replace the emoji glyphs (the compact layout keeps the emoji). **Front face:**
+on 2×2 the moon sat beside the text and squeezed tithi/nakshatra/year into ellipses.
+At 2×2 and larger the moon now sits in the top-right corner (34dp at 2 columns, 44dp
+at 4, 64dp large) and the text gets the full width, showing every line: weekday,
+tithi number + paksha, tithi · month, nakshatra, Shaka/Vikram, Roman date. The
+one-row and one-column layouts are unchanged. The **1×1** face for the Panchang now
+shows the tithi number and paksha (`PanchangSmallFace`), not the Roman day
+(other systems keep the Roman day). Checked on the emulator at 1×1, 2×2, wide and large,
+front and back.

@@ -101,102 +101,102 @@
 
     </LinearLayout>
 
-    <!-- Back: english/transliterated. -->
+    <!-- Back (user-requested: no moon picture, text laid out better):
+         ayana heading, a sun column and a moon column side by side, the
+         Roman date at the bottom. widget_icon_back/vara/paksha/nakshatra
+         stay (GONE at runtime) so the worker's view ids keep resolving. -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         android:gravity="center_vertical"
         android:padding="12dp">
 
         <ImageView
             android:id="@+id/widget_icon_back"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_marginEnd="10dp"
-            android:src="@drawable/ic_widget_moonphase" />
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/widget_back_ayana"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="18sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#FFFFFFFF" />
+
+        <TextView android:id="@+id/widget_back_vara" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+        <TextView android:id="@+id/widget_back_paksha" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+        <TextView android:id="@+id/widget_back_nakshatra" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
 
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
 
             <TextView
-                android:id="@+id/widget_back_vara"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textSize="22sp"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:textColor="#FFFFFFFF" />
-
-            <!-- Back face: no tithi text, no day-name line — sunrise/sunset
-                 + ayana instead, one below another (user-requested), all in
-                 Devanagari. widget_back_paksha/widget_back_nakshatra are no
-                 longer used on this face (set GONE at runtime). -->
-            <TextView
-                android:id="@+id/widget_back_paksha"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:textSize="15sp"
-                android:maxLines="2"
-                android:ellipsize="end"
+                android:text="सूर्य"
+                android:textSize="12sp"
+                android:textStyle="bold"
                 android:textColor="#FFE2A200" />
-
-            <TextView
-                android:id="@+id/widget_back_nakshatra"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="3dp"
-                android:textSize="13sp"
-                android:maxLines="2"
-                android:ellipsize="end"
-                android:textColor="#FFFFFFFF" />
 
             <TextView
                 android:id="@+id/widget_back_sunrise"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="3dp"
-                android:textSize="14sp"
+                android:layout_marginTop="2dp"
+                android:textSize="13sp"
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textColor="#FFFFFFFF" />
-
             <TextView
                 android:id="@+id/widget_back_sunset"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
-                android:textSize="14sp"
+                android:textSize="13sp"
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textColor="#FFFFFFFF" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="चंद्र"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="#FFE2A200" />
 
             <TextView
                 android:id="@+id/widget_back_moonrise"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
-                android:textSize="14sp"
+                android:textSize="13sp"
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textColor="#FFFFFFFF" />
-
             <TextView
                 android:id="@+id/widget_back_moonset"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:textSize="14sp"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:textColor="#FFFFFFFF" />
-
-            <TextView
-                android:id="@+id/widget_back_ayana"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
@@ -205,17 +205,19 @@
                 android:ellipsize="end"
                 android:textColor="#FFFFFFFF" />
 
-            <TextView
-                android:id="@+id/widget_back_roman"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="3dp"
-                android:textSize="12sp"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:textColor="#FFFFFFFF" />
+            </LinearLayout>
 
         </LinearLayout>
+
+        <TextView
+            android:id="@+id/widget_back_roman"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textSize="12sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#FFFFFFFF" />
 
     </LinearLayout>
 

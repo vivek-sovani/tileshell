@@ -170,7 +170,8 @@ class CalendarSystemWidgetRefreshWorker(
                 val moonFraction = tithiMoonFraction(panchang.tithi.paksha, panchang.tithi.tithiInPaksha)
                 val moon = moonPhaseBitmap(moonFraction, onAccent)
                 views.setImageViewBitmap(R.id.widget_icon, moon)
-                views.setImageViewBitmap(R.id.widget_icon_back, moon)
+                // The back face shows no moon picture (user-requested).
+                views.setViewVisibility(R.id.widget_icon_back, View.GONE)
                 setPanchangFace(views, panchang, romanDate, sunTimes, moonTimes, onAccent, devanagari = true, back = false, compact = compact)
                 setPanchangFace(views, panchang, romanDate, sunTimes, moonTimes, onAccent, devanagari = false, back = true, compact = compact)
             } else {
@@ -252,8 +253,8 @@ class CalendarSystemWidgetRefreshWorker(
                     // short day label in front of each disambiguates which.
                     val sunriseVara = PanchangDevanagari.shortVara(HinduPanchang.varaFor(sunTimes.sunriseMillis))
                     val sunsetVara = PanchangDevanagari.shortVara(HinduPanchang.varaFor(sunTimes.sunsetMillis))
-                    views.setTextViewText(sunriseId, "🌅 $sunriseVara ${formatClockTime12Devanagari(sunTimes.sunriseMillis)}")
-                    views.setTextViewText(sunsetId, "🌇 $sunsetVara ${formatClockTime12Devanagari(sunTimes.sunsetMillis)}")
+                    views.setTextViewText(sunriseId, "${if (compact) "🌅" else "↑"} $sunriseVara ${formatClockTime12Devanagari(sunTimes.sunriseMillis)}")
+                    views.setTextViewText(sunsetId, "${if (compact) "🌇" else "↓"} $sunsetVara ${formatClockTime12Devanagari(sunTimes.sunsetMillis)}")
                 } else {
                     views.setViewVisibility(sunriseId, View.GONE)
                     views.setViewVisibility(sunsetId, View.GONE)
@@ -262,8 +263,8 @@ class CalendarSystemWidgetRefreshWorker(
                 // time shape as the sun lines; a line with no event in the
                 // search window is hidden rather than left blank.
                 listOf(
-                    Triple(R.id.widget_back_moonrise, moonTimes.moonriseMillis, "🌙↑"),
-                    Triple(R.id.widget_back_moonset, moonTimes.moonsetMillis, "🌙↓"),
+                    Triple(R.id.widget_back_moonrise, moonTimes.moonriseMillis, if (compact) "🌙↑" else "↑"),
+                    Triple(R.id.widget_back_moonset, moonTimes.moonsetMillis, if (compact) "🌙↓" else "↓"),
                 ).forEach { (viewId, millis, glyph) ->
                     if (millis == null) {
                         views.setViewVisibility(viewId, View.GONE)
