@@ -112,6 +112,7 @@ fun ProductivityHubScreen(
     onOpenTaskList: (listId: String) -> Unit,
     onPinNote: (noteId: Long) -> Unit,
     onPinTaskList: (listId: String) -> Unit,
+    onDeleteTaskList: (listId: String) -> Unit,
     onPinNotepad: () -> Unit,
     onPinHub: () -> Unit,
     pinnedNoteIds: Set<Long>,
@@ -260,7 +261,7 @@ fun ProductivityHubScreen(
                     1 -> NotesPage(tokens, notes, pinnedNoteIds, onOpenNote, onPinNote, { addToQuick(QuickItem.Note(it)) }) { id ->
                         scope.launch { notesRepo.delete(id) }
                     }
-                    2 -> TasksPage(tokens, accent, lists, tasksRepo, pinnedListIds, onOpenTaskList, onPinTaskList) {
+                    2 -> TasksPage(tokens, accent, lists, tasksRepo, pinnedListIds, onOpenTaskList, onPinTaskList, onDeleteTaskList) {
                         addToQuick(QuickItem.TaskList(it))
                     }
                     else -> ProductivityAppsPage(tokens, accent) { addToQuick(QuickItem.App(it)) }
@@ -741,8 +742,34 @@ private fun TasksPage(
     pinnedListIds: Set<String>,
     onOpenTaskList: (String) -> Unit,
     onPinTaskList: (String) -> Unit,
+    onDeleteTaskList: (String) -> Unit,
     onAddToQuick: (String) -> Unit,
 ) {
+    var confirmDelete by remember { mutableStateOf<TaskListSummary?>(null) }
+    confirmDelete?.let { list ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDelete = null },
+            title = { Text("delete \"${list.name.lowercase()}\"?") },
+            text = {
+                Text(
+                    if (list.id in pinnedListIds) {
+                        "this deletes the list and all its tasks, and removes its tile from start. this can't be undone."
+                    } else {
+                        "this deletes the list and all its tasks. this can't be undone."
+                    },
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    onDeleteTaskList(list.id)
+                    confirmDelete = null
+                }) { Text("delete") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmDelete = null }) { Text("cancel") }
+            },
+        )
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
@@ -757,7 +784,13 @@ private fun TasksPage(
                 onOpen = { onOpenTaskList(list.id) },
                 onPin = { onPinTaskList(list.id) },
                 onAddToQuick = { onAddToQuick(list.id) },
+                onDelete = { confirmDelete = list },
             )
+        }
+        if (lists.isNotEmpty()) {
+            item {
+                Text("long-press a list to delete it or add it to quick", color = tokens.fgDim, fontSize = 11.sp)
+            }
         }
         item { Spacer(Modifier.height(16.dp)) }
     }
@@ -774,6 +807,7 @@ private fun TaskListCard(
     onOpen: () -> Unit,
     onPin: () -> Unit,
     onAddToQuick: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val tasks by remember(list.id) { tasksRepo.tasks(list.id) }.collectAsState(initial = emptyList())
@@ -783,6 +817,10 @@ private fun TaskListCard(
             DropdownMenuItem(text = { Text("add to quick") }, onClick = {
                 menuOpen = false
                 onAddToQuick()
+            })
+            DropdownMenuItem(text = { Text("delete list") }, onClick = {
+                menuOpen = false
+                onDelete()
             })
         }
         Column(

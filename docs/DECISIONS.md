@@ -10570,3 +10570,16 @@ quick actions shows a one-line hint instead. Trade-off: a sideways swipe that
 starts on a row now belongs to the row, so switching pivots needs a swipe on the
 header or empty space, or a tap on the pivot name. (Earlier, dismiss was kept to a
 button for this reason; the user chose the swipe.)
+
+## Productivity hub: delete a task list
+
+User-reported: clearing every task left the list's card in place with no way to
+remove it. A task list card's long-press menu gains "delete list", behind a
+confirm dialog. The dialog also says the tile goes when the list is pinned.
+`StartViewModel.deleteTaskList` unpins every top-level Tasks tile showing that
+list (through the normal `unpin`, so row gaps still collapse), then
+`TaskRepository.deleteList` removes the tasks and the `task_lists` row.
+Unpinning is needed because a pinned Tasks tile calls `ensureList` and would
+otherwise recreate the list, empty and under a default name. A quick-row shortcut
+to the list simply disappears (the row skips missing targets). A one-line hint
+under the lists points to the long-press.

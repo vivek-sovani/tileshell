@@ -2207,6 +2207,7 @@ fun StartScreen(
             onOpenTaskList = viewModel::openTasks,
             onPinNote = viewModel::pinNote,
             onPinTaskList = viewModel::pinTaskList,
+            onDeleteTaskList = viewModel::deleteTaskList,
             onPinNotepad = viewModel::pinNotepad,
             onPinHub = viewModel::pinProductivityHub,
             pinnedNoteIds = pinnedNoteIds,

@@ -37,6 +37,8 @@ import com.tileshell.core.data.SportsTile
 import com.tileshell.core.data.StockTile
 import com.tileshell.core.data.NoteRepository
 import com.tileshell.core.data.StickyNoteTile
+import com.tileshell.core.data.TaskListTile
+import com.tileshell.core.data.TaskRepository
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.hasNotesTile
 import com.tileshell.core.data.isPersonalizeTile
@@ -2284,6 +2286,21 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     fun pinTaskList(listId: String) {
         viewModelScope.launch(writeContext) {
             _pinMessage.tryEmit(pinOutcomeText(repository.pinTaskList(listId, activePageSectionId), "task list"))
+        }
+    }
+
+    /**
+     * Delete a task list and its tasks (productivity hub, user-requested).
+     * Tasks tiles showing that list are unpinned too, since a pinned tile would
+     * otherwise bring the list straight back, empty, under a default name.
+     */
+    fun deleteTaskList(listId: String) {
+        tiles.value
+            .filter { it is TileModel.App && it.iconKey == "tasks" && TaskListTile.listIdFor(it.id, it.activityName) == listId }
+            .forEach { unpin(it.id) }
+        viewModelScope.launch(writeContext) {
+            TaskRepository.create(getApplication()).deleteList(listId)
+            _pinMessage.tryEmit("list deleted")
         }
     }
 
