@@ -303,14 +303,16 @@ private fun ConfigureScreen(
     // `Modifier.fillMaxSize()` root) — this Box just reserves the status
     // bar's height up front, and each child's own `fillMaxSize()` then fills
     // whatever's left underneath it.
-    // A bottom sheet over the home screen (translucent window, see the
-    // manifest's WidgetSheet theme): the top part is a scrim that dismisses,
-    // and each screen's own fillMaxSize() fills the sheet. It shrinks with
-    // the keyboard since the fraction is taken after imePadding.
+    // Full screen in portrait. In landscape, where Start shows the glance
+    // panel on the left half, the settings cover only that half and the
+    // rest is a dismissing scrim over Start (translucent window, see the
+    // manifest's WidgetSheet theme).
+    val landscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+        android.content.res.Configuration.ORIENTATION_LANDSCAPE
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.45f))
+            .background(if (landscape) Color.Black.copy(alpha = 0.45f) else Color(0xFF0A0A0D))
             .clickable(
                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                 indication = null,
@@ -321,10 +323,9 @@ private fun ConfigureScreen(
     ) {
     Box(
         modifier = Modifier
-            .align(Alignment.BottomCenter)
-            .fillMaxWidth()
-            .fillMaxHeight(0.5f)
-            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+            .align(Alignment.CenterStart)
+            .fillMaxHeight()
+            .fillMaxWidth(if (landscape) 0.5f else 1f)
             .background(Color(0xFF0A0A0D))
             // Swallow taps so they don't reach the dismissing scrim.
             .clickable(
