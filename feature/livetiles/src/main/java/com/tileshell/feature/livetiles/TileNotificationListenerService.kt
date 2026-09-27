@@ -80,6 +80,7 @@ class TileNotificationListenerService : NotificationListenerService() {
     }
 
     override fun onListenerDisconnected() {
+        synchronized(refreshLock) { imageCache.clear() }
         NotificationCenter.unbindListener(this)
         NotificationCenter.clear()
         // Best-effort rebind; a no-op (and harmless) if access was actually revoked.
@@ -94,8 +95,25 @@ class TileNotificationListenerService : NotificationListenerService() {
         refreshSignals.tryEmit(Unit)
     }
 
+    // Decoded images per notification, kept across refreshes (see [imagesFor]).
+    // Every post/removal rebuilds the whole picture, and used to re-decode every
+    // pending notification's sender photo and shared picture each time — the
+    // newest per package twice — so one new message in a busy chat re-decoded
+    // dozens of unchanged bitmaps. A battery diagnosis found 53% of TileShell's
+    // CPU time happening with the screen off, which is this work (it runs on
+    // every notification, day and night). Guarded by [refreshLock], since the
+    // connect-time refresh can overlap a debounced one.
+    private val imageCache = HashMap<String, NotificationImages>()
+    private val refreshLock = Any()
+
+    /** [sbn]'s images, decoded once per version of the notification: an
+     * updated notification (new `postTime`) is decoded again, an unchanged
+     * one never is. */
+    private fun imagesFor(sbn: StatusBarNotification): NotificationImages =
+        imageCache.getOrPut(notificationImageCacheKey(sbn.key, sbn.postTime)) { sbn.extractImages(this) }
+
     /** Always invoked off the main thread — see the class doc. */
-    private fun refresh() {
+    private fun refresh() = synchronized(refreshLock) {
         // activeNotifications throws if the listener is not connected — guard it.
         val active = runCatching { activeNotifications }.getOrNull().orEmpty()
         NotificationCenter.publish(summarizeNotifications(active.mapNotNull { it.toItem() }))
@@ -110,6 +128,9 @@ class TileNotificationListenerService : NotificationListenerService() {
         // in WhatsApp etc. has its own avatar, so we decode up to MAX_CONVERSATION_ITEMS
         // images per package so the cycling face can show the right one for each item.
         NotificationCenter.publishItemImages(notificationItemImages(active))
+        // Forget notifications that are gone (or superseded by a newer version).
+        val live = active.mapTo(HashSet()) { notificationImageCacheKey(it.key, it.postTime) }
+        imageCache.keys.retainAll(live)
     }
 
     /** Newest dismissable notification's images per package (empty entries dropped). */
@@ -124,7 +145,7 @@ class TileNotificationListenerService : NotificationListenerService() {
             .groupBy { it.tilePackageName() }
             .mapNotNull { (pkg, list) ->
                 val newest = list.maxByOrNull { it.postTime } ?: return@mapNotNull null
-                val images = newest.extractImages(this)
+                val images = imagesFor(newest)
                 if (images.avatar == null && images.picture == null) null else pkg to images
             }
             .toMap()
@@ -149,7 +170,7 @@ class TileNotificationListenerService : NotificationListenerService() {
                 list.sortedByDescending { it.postTime }
                     .take(MAX_CONVERSATION_ITEMS)
                     .forEach { sbn ->
-                        val images = sbn.extractImages(this)
+                        val images = imagesFor(sbn)
                         if (images.avatar != null || images.picture != null) {
                             result[sbn.key] = images
                         }
@@ -258,3 +279,6 @@ private fun StatusBarNotification.toActionRow(): NotificationActionRow =
         isGroupSummary = ((notification?.flags ?: 0) and Notification.FLAG_GROUP_SUMMARY) != 0,
         postTime = postTime,
     )
+
+/** Cache key for one version of a notification's decoded images. Pure. */
+internal fun notificationImageCacheKey(key: String, postTime: Long): String = "$key@$postTime"

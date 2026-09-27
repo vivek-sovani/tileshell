@@ -10606,3 +10606,33 @@ open the people hub on that page. Heading-plus-link is now a shared
 after the productivity hub, like the calendar hub, so it opens on top and back
 returns to productivity. A saved quick row gets the new shortcut from "+"
 (fresh rows: six built-ins, two rows).
+
+## Battery diagnosis (2026-09-27): notification image cache, longer usage cache
+
+User asked for an on-device battery analysis and whether the hubs cost battery.
+Since the last charge (10 h 19 min on battery, 2,716 mAh drained), TileShell used
+188 mAh (~7%). That makes it the top app; only system UIDs 1000 and 0 used more. Breakdown:
+- **Data:** 80.8 MB mobile + 17.2 MB Wi-Fi. `netstats detail` per day: about
+  12 MB/day before 2026-09-24, then 80–535 MB/day. The spikes line up exactly with
+  music hub listening. `podcast_subscriptions`/`radio_favorites` were written on
+  09-24 16:07–16:12, and `podcast_recents`/`radio_recents` on 09-26 23:33–23:38
+  (the 214 MB bucket). That's user-initiated podcast/radio streaming, not a leak.
+  A 3-minute `dumpsys netstats --poll` sample with the phone dozing showed 0 bytes.
+  The feed refresh (every 30 min) already skips when the screen is off or the
+  feed is idle, and weather already skips screen-off ticks. Measured feed size:
+  12 enabled feeds ≈ 0.2 MB compressed per refresh.
+- **CPU:** 12.4 min total, **53% with the screen off**. Wakelocks (8.7 s), jobs
+  (43 runs, 77 s), alarms (44) are all small. The "fgs" process state for 10 h is
+  the bound notification listener, which is normal for a home screen.
+- **Fix, screen-off CPU:** `TileNotificationListenerService` rebuilt everything
+  on each post/removal and re-decoded every pending notification's large icon /
+  big picture (the newest per package twice) with no cache. It now keeps decoded
+  `NotificationImages` per `key@postTime` across refreshes (`imagesFor`,
+  pruned to live notifications, guarded by a lock since the connect-time
+  refresh can overlap a debounced one). Only new or updated notifications are
+  decoded.
+- **Fix, usage count:** `AppOpenCounts` cache 10 min → 1 h. Each recount scans 30
+  days of `UsageEvents`, and it's shared by the people and productivity apps
+  pages and tiles.
+The effect of the image cache can't be measured until a fresh charge cycle.
+Re-run `dumpsys batterystats --charged` after a day of normal use.

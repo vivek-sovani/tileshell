@@ -75,8 +75,10 @@ fun rememberUsageAccess(): Boolean {
 /** How far back "frequently used" looks. */
 private const val USAGE_WINDOW_MS = 30L * 24 * 60 * 60 * 1000
 
-/** Recount at most this often; the apps page and the tile share one count. */
-private const val USAGE_CACHE_MS = 10L * 60 * 1000
+/** Recount at most this often; the apps pages and tiles share one count.
+ * Each recount scans a month of usage events, and an hour-old "most used"
+ * order is just as useful as a fresh one. */
+private const val USAGE_CACHE_MS = 60L * 60 * 1000
 
 /**
  * Times each app was opened in the last 30 days, per package. Empty without
