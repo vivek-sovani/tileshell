@@ -484,7 +484,9 @@ private fun PanchangFace(
                 text = romanDate,
                 color = FaceText.copy(alpha = 0.55f),
                 fontSize = if (short) 9.sp else if (narrow) 9.sp else if (big) 11.sp else 10.sp,
-                maxLines = if (narrow) 2 else 1,
+                // Wraps on a 2-column tile rather than ellipsizing; ScaleDownToFit
+                // keeps the taller column inside the tile.
+                maxLines = if (narrow || (!short && size.cols <= 2)) 2 else 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
             )
@@ -500,7 +502,7 @@ private fun PanchangFace(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             MoonPhaseVisual(fraction = moonFraction, modifier = Modifier.size(visualSize))
-            textColumn()
+            ScaleDownToFit(Modifier.weight(1f, fill = false)) { textColumn() }
         }
     } else if (short) {
         // One row tall: the moon beside a condensed line or two.
@@ -510,7 +512,7 @@ private fun PanchangFace(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             MoonPhaseVisual(fraction = moonFraction, modifier = Modifier.size(visualSize))
-            Box(modifier = Modifier.weight(1f, fill = false)) { textColumn() }
+            Box(modifier = Modifier.weight(1f, fill = false)) { ScaleDownToFit { textColumn() } }
         }
     } else {
         // 2×2 and larger (user-requested: show the full data): the moon sits
@@ -518,7 +520,9 @@ private fun PanchangFace(
         // the text it squeezed the tithi/nakshatra/year lines into ellipses
         // on a 2×2 tile.
         Box(modifier = Modifier.fillMaxSize().padding(11.dp)) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) { textColumn() }
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
+                ScaleDownToFit { textColumn() }
+            }
             MoonPhaseVisual(fraction = moonFraction, modifier = Modifier.align(Alignment.TopEnd).size(visualSize))
         }
     }
@@ -562,9 +566,13 @@ private fun PanchangBackFace(
             moonTimes?.moonsetMillis?.let { PanchangEventRow("moonset", it, iconSize, fontSize) }
         }
     }
-    Column(
+    Box(
         modifier = Modifier.fillMaxSize().padding(if (narrow || short) 4.dp else 11.dp),
-        verticalArrangement = if (short) Arrangement.Center else Arrangement.SpaceBetween,
+        contentAlignment = if (narrow) Alignment.Center else Alignment.CenterStart,
+    ) {
+    ScaleDownToFit {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(if (short) 2.dp else 8.dp),
         horizontalAlignment = if (narrow) Alignment.CenterHorizontally else Alignment.Start,
     ) {
         Text(
@@ -599,11 +607,13 @@ private fun PanchangBackFace(
                 text = romanDate,
                 color = FaceText.copy(alpha = 0.6f),
                 fontSize = if (narrow) 9.sp else if (big) 12.sp else 10.sp,
-                maxLines = if (narrow) 2 else 1,
+                maxLines = if (narrow || size.cols <= 2) 2 else 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
             )
         }
+    }
+    }
     }
 }
 
@@ -710,5 +720,37 @@ private fun RomanDaySmallFace(active: Boolean, modifier: Modifier) {
             maxLines = 1,
             textAlign = TextAlign.Center,
         )
+    }
+}
+
+/**
+ * Lays [content] out at its natural size and, only if that's taller than the
+ * space available, scales it down uniformly (from the top-left) until it fits
+ * — so the Panchang faces show every line on any tile, whatever the grid's
+ * column count, font scale or tile style (user-reported: the 2×2 face cut off
+ * its year and date lines on a 5-column grid with a 1.08 font scale). Content
+ * that already fits is untouched. The reported size is the scaled size, so a
+ * parent can still center it.
+ */
+@Composable
+internal fun ScaleDownToFit(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    androidx.compose.ui.layout.Layout(content = content, modifier = modifier) { measurables, constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0, maxHeight = androidx.compose.ui.unit.Constraints.Infinity)
+        val placeable = measurables.first().measure(loose)
+        val maxH = constraints.maxHeight
+        val scale = if (constraints.hasBoundedHeight && placeable.height > maxH && placeable.height > 0) {
+            maxH / placeable.height.toFloat()
+        } else {
+            1f
+        }
+        val w = (placeable.width * scale).toInt().coerceIn(constraints.minWidth, constraints.maxWidth)
+        val h = (placeable.height * scale).toInt().coerceIn(constraints.minHeight, if (constraints.hasBoundedHeight) maxH else Int.MAX_VALUE)
+        layout(w, h) {
+            placeable.placeWithLayer(0, 0) {
+                scaleX = scale
+                scaleY = scale
+                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
+            }
+        }
     }
 }

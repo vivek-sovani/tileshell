@@ -10689,3 +10689,16 @@ one-row and one-column layouts are unchanged. The **1×1** face for the Panchang
 shows the tithi number and paksha (`PanchangSmallFace`), not the Roman day
 (other systems keep the Roman day). Checked on the emulator at 1×1, 2×2, wide and large,
 front and back.
+
+## Panchang faces scale down to fit instead of clipping
+
+User-reported after the full-data front face: on the phone the 2×2 face still cut off
+the year and date lines. Fixed font sizes can't anticipate every combination: that
+grid has more columns (smaller cells), a 1.08 font scale, and widget-card padding.
+New `ScaleDownToFit` (CalendarSystemTile.kt) measures its content at natural height
+and, only when that's taller than the tile, scales it down uniformly from the
+top-left. Content that fits is untouched. It wraps the front face's text at every
+size and the whole back face. The Roman date and the Shaka/Vikram line may now wrap
+to two lines on a 2-column tile rather than ellipsize, since the scaling keeps the
+taller column inside the tile. Checked live on the phone at 2×2 (every line visible)
+and at a one-row size.
