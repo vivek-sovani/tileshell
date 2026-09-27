@@ -218,10 +218,10 @@ fun CalendarSystemTileFace(
             flipped = flipped,
             modifier = modifier.fillMaxSize(),
             front = {
-                PanchangFace(panchang = panchang, size = size, romanDate = romanDate, devanagari = true)
+                PanchangFace(panchang = panchang, size = size, devanagari = true)
             },
             back = {
-                PanchangBackFace(panchang = panchang, size = size, romanDate = romanDate, sunTimes = sunTimes, moonTimes = moonTimes)
+                PanchangBackFace(panchang = panchang, size = size, sunTimes = sunTimes, moonTimes = moonTimes)
             },
         )
         return
@@ -343,10 +343,8 @@ internal fun formatClockTime12Devanagari(epochMillis: Long): String {
  * explicit request: vara (weekday) leads at the largest size since it's the
  * single most glanceable fact, tithi+month follow at medium size as the
  * day's defining pair (Devanagari face only — see below), then a
- * supplementary detail line trails at the smallest, dimmed size — and
- * [romanDate] trails everything as its own bottom line, on both the
- * [devanagari] and the English face (the two faces this tile flips between;
- * see [CalendarSystemTileFace]). A big [MoonPhaseVisual] sits beside the
+ * supplementary detail line trails at the smallest, dimmed size. No Roman
+ * (English) date on either face (user-requested, for room). A big [MoonPhaseVisual] sits beside the
  * text on both faces (user-requested) — mirrors [MoonPhaseTile]'s own
  * front-face layout (visual beside text when there's room, above it when
  * [narrow]).
@@ -359,7 +357,6 @@ internal fun formatClockTime12Devanagari(epochMillis: Long): String {
 private fun PanchangFace(
     panchang: PanchangInfo,
     size: TileSize,
-    romanDate: String,
     devanagari: Boolean,
 ) {
     val narrow = size.narrowLive
@@ -480,16 +477,6 @@ private fun PanchangFace(
                     )
                 }
             }
-            Text(
-                text = romanDate,
-                color = FaceText.copy(alpha = 0.55f),
-                fontSize = if (short) 9.sp else if (narrow) 9.sp else if (big) 11.sp else 10.sp,
-                // Wraps on a 2-column tile rather than ellipsizing; ScaleDownToFit
-                // keeps the taller column inside the tile.
-                maxLines = if (narrow || (!short && size.cols <= 2)) 2 else 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
-            )
         }
     }
 
@@ -532,7 +519,8 @@ private fun PanchangFace(
  * The Panchang back face (user-requested: no moon picture, the text laid out
  * better): ayana as the heading, then a sun column (sunrise, sunset) and a
  * moon column (moonrise, moonset) — side by side when the tile is wide
- * enough, one under the other otherwise — and the Roman date at the bottom.
+ * enough, one under the other otherwise. No Roman date (user-requested, for
+ * room: the front face already has it).
  * Each time carries a short Devanagari weekday, since "next sunrise" can be
  * tomorrow's.
  */
@@ -540,7 +528,6 @@ private fun PanchangFace(
 private fun PanchangBackFace(
     panchang: PanchangInfo,
     size: TileSize,
-    romanDate: String,
     sunTimes: SunTimesInfo?,
     moonTimes: MoonTimesInfo?,
 ) {
@@ -550,9 +537,12 @@ private fun PanchangBackFace(
     val sideBySide = size.cols >= 4
     val iconSize = if (narrow) 12.dp else if (big) 15.dp else 13.dp
     val fontSize = if (narrow) 11.sp else if (big) 14.sp else 12.sp
+    // The "सूर्य"/"चंद्र" labels only where there's room — on a 2-column tile
+    // they cost two lines, and the rise/set glyphs already tell sun from moon.
+    val labels = !short && !narrow && size.cols >= 3
     val sun = @Composable {
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            if (!short && !narrow) PanchangColumnLabel("सूर्य", big)
+            if (labels) PanchangColumnLabel("सूर्य", big)
             sunTimes?.let {
                 PanchangEventRow("sunrise", it.sunriseMillis, iconSize, fontSize)
                 PanchangEventRow("sunset", it.sunsetMillis, iconSize, fontSize)
@@ -561,7 +551,7 @@ private fun PanchangBackFace(
     }
     val moon = @Composable {
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            if (!short && !narrow) PanchangColumnLabel("चंद्र", big)
+            if (labels) PanchangColumnLabel("चंद्र", big)
             moonTimes?.moonriseMillis?.let { PanchangEventRow("moonrise", it, iconSize, fontSize) }
             moonTimes?.moonsetMillis?.let { PanchangEventRow("moonset", it, iconSize, fontSize) }
         }
@@ -601,16 +591,6 @@ private fun PanchangBackFace(
                 sun()
                 moon()
             }
-        }
-        if (!short) {
-            Text(
-                text = romanDate,
-                color = FaceText.copy(alpha = 0.6f),
-                fontSize = if (narrow) 9.sp else if (big) 12.sp else 10.sp,
-                maxLines = if (narrow || size.cols <= 2) 2 else 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
-            )
         }
     }
     }

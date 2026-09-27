@@ -10702,3 +10702,15 @@ size and the whole back face. The Roman date and the Shaka/Vikram line may now w
 to two lines on a 2-column tile rather than ellipsize, since the scaling keeps the
 taller column inside the tile. Checked live on the phone at 2×2 (every line visible)
 and at a one-row size.
+
+## Panchang: English date removed from both faces; 2-column back face without labels
+
+User-requested, for readability. The 2×2 back face had been scaled down until it
+was unreadable (heading, two column labels, four times and the date). The Roman
+(English) date is gone from the back face, then, at the user's follow-up, from the
+front face too, on the tile and the widget (`widget_roman`/`widget_back_roman` are
+set GONE). The "सूर्य"/"चंद्र" column labels now only appear at 3 columns and up,
+since on 2 columns they cost two lines and the rise/set glyphs already tell sun from
+moon. That leaves the ayana and four times, which fit at full size. Other calendar
+systems still show the Roman date on their back face (a separate, unchanged
+`CalendarSystemFace`).

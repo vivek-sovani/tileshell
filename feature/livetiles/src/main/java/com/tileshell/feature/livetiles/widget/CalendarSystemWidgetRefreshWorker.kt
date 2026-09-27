@@ -166,14 +166,13 @@ class CalendarSystemWidgetRefreshWorker(
 
             if (isHindu) {
                 val panchang = HinduPanchang.panchangFor(nowMillis)
-                val romanDate = formatRomanDate(nowMillis)
                 val moonFraction = tithiMoonFraction(panchang.tithi.paksha, panchang.tithi.tithiInPaksha)
                 val moon = moonPhaseBitmap(moonFraction, onAccent)
                 views.setImageViewBitmap(R.id.widget_icon, moon)
                 // The back face shows no moon picture (user-requested).
                 views.setViewVisibility(R.id.widget_icon_back, View.GONE)
-                setPanchangFace(views, panchang, romanDate, sunTimes, moonTimes, onAccent, devanagari = true, back = false, compact = compact)
-                setPanchangFace(views, panchang, romanDate, sunTimes, moonTimes, onAccent, devanagari = false, back = true, compact = compact)
+                setPanchangFace(views, panchang, sunTimes, moonTimes, onAccent, devanagari = true, back = false, compact = compact)
+                setPanchangFace(views, panchang, sunTimes, moonTimes, onAccent, devanagari = false, back = true, compact = compact)
             } else {
                 views.setTextColor(R.id.widget_label, onAccent)
                 views.setTextColor(R.id.widget_date, onAccent)
@@ -206,7 +205,6 @@ class CalendarSystemWidgetRefreshWorker(
         private fun setPanchangFace(
             views: RemoteViews,
             panchang: PanchangInfo,
-            romanDate: String,
             sunTimes: SunTimesInfo?,
             moonTimes: MoonTimesInfo,
             onAccent: Int,
@@ -294,7 +292,8 @@ class CalendarSystemWidgetRefreshWorker(
                 // above have their own dedicated lines now.
                 views.setViewVisibility(nakshatraId, View.GONE)
             }
-            views.setTextViewText(romanId, romanDate)
+            // No Roman (English) date on either face (user-requested, for room).
+            views.setViewVisibility(romanId, View.GONE)
         }
     }
 }
