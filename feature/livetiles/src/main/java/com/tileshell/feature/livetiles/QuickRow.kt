@@ -12,12 +12,16 @@ sealed class QuickItem(val code: String) {
     data object NewTask : QuickItem("task")
     data object Calculator : QuickItem("calculator")
     data object Timer : QuickItem("timer")
+    data object Calendar : QuickItem("calendar")
     data class TaskList(val listId: String) : QuickItem("list:$listId")
     data class Note(val noteId: Long) : QuickItem("opennote:$noteId")
     data class App(val packageName: String) : QuickItem("app:$packageName")
 
     companion object {
-        val BUILT_INS: List<QuickItem> = listOf(NewNote, NewTask, Calculator, Timer)
+        /** The default row, and what "+" can restore. Calendar (opens the
+         * calendar hub) joined later: rows saved before then offer it
+         * under "+" rather than gaining it silently. */
+        val BUILT_INS: List<QuickItem> = listOf(NewNote, NewTask, Calendar, Calculator, Timer)
 
         /** Parses one stored code; null for anything unrecognised. */
         fun parse(code: String): QuickItem? = when {
@@ -25,6 +29,7 @@ sealed class QuickItem(val code: String) {
             code == NewTask.code -> NewTask
             code == Calculator.code -> Calculator
             code == Timer.code -> Timer
+            code == Calendar.code -> Calendar
             code.startsWith("list:") -> code.removePrefix("list:").takeIf { it.isNotBlank() }?.let(::TaskList)
             code.startsWith("opennote:") -> code.removePrefix("opennote:").toLongOrNull()?.let(::Note)
             code.startsWith("app:") -> code.removePrefix("app:").takeIf { it.isNotBlank() }?.let(::App)

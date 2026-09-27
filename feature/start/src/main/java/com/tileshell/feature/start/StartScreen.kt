@@ -2159,14 +2159,6 @@ fun StartScreen(
             initialPage = musicHubInitialPage,
         )
 
-        CalendarHubScreen(
-            visible = calendarHubOpen,
-            dark = dark,
-            accentId = settings.accentId,
-            onDismiss = viewModel::closeCalendarHub,
-            rightHalf = isLandscape,
-        )
-
         PeopleHubScreen(
             visible = peopleHubOpen,
             dark = dark,
@@ -2210,11 +2202,23 @@ fun StartScreen(
             onDeleteTaskList = viewModel::deleteTaskList,
             onPinNotepad = viewModel::pinNotepad,
             onPinHub = viewModel::pinProductivityHub,
+            onOpenCalendar = { viewModel.openCalendarHub() },
             pinnedNoteIds = pinnedNoteIds,
             pinnedListIds = pinnedListIds,
             rightHalf = isLandscape,
             initialPage = productivityHubInitialPage,
         )
+
+        // After the productivity hub so, opened from it, the calendar hub sits
+        // on top, and back returns to productivity.
+        CalendarHubScreen(
+            visible = calendarHubOpen,
+            dark = dark,
+            accentId = settings.accentId,
+            onDismiss = viewModel::closeCalendarHub,
+            rightHalf = isLandscape,
+        )
+
 
         // Build a name→packageNames map from the current tile list so CategoryFolderSheet
         // can detect which categories already have a folder and pre-check their members.

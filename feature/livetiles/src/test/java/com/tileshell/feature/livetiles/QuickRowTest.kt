@@ -12,7 +12,7 @@ class QuickRowTest {
 
     @Test
     fun `round-trips pinned lists, notes and apps`() {
-        val items = listOf(QuickItem.NewTask, QuickItem.TaskList("list-1"), QuickItem.Note(7), QuickItem.App("us.zoom.videomeetings"))
+        val items = listOf(QuickItem.NewTask, QuickItem.Calendar, QuickItem.TaskList("list-1"), QuickItem.Note(7), QuickItem.App("us.zoom.videomeetings"))
         assertEquals(items, decodeQuickItems(encodeQuickItems(items)))
     }
 

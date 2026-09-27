@@ -10583,3 +10583,12 @@ Unpinning is needed because a pinned Tasks tile calls `ensureList` and would
 otherwise recreate the list, empty and under a default name. A quick-row shortcut
 to the list simply disappears (the row skips missing targets). A one-line hint
 under the lists points to the long-press.
+
+## Productivity hub links to the calendar hub
+
+User-requested. There's a "calendar ›" link beside "next meeting" on the today
+page, and a new built-in quick shortcut, `QuickItem.Calendar`, that opens the
+calendar hub. Fresh rows include it by default (five built-ins). A quick row
+saved before this doesn't gain it silently; it's offered under "+". The calendar
+hub is now composed after the productivity hub in `StartScreen`, so when opened
+from it, it sits on top and back returns to productivity.

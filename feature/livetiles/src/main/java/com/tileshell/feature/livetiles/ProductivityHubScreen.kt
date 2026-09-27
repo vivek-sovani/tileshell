@@ -115,6 +115,7 @@ fun ProductivityHubScreen(
     onDeleteTaskList: (listId: String) -> Unit,
     onPinNotepad: () -> Unit,
     onPinHub: () -> Unit,
+    onOpenCalendar: () -> Unit,
     pinnedNoteIds: Set<Long>,
     pinnedListIds: Set<String>,
     rightHalf: Boolean = false,
@@ -242,6 +243,7 @@ fun ProductivityHubScreen(
                         tokens, accent, notes, lists, tasksRepo, quickItems,
                         onOpenNote = onOpenNote,
                         onOpenTaskList = onOpenTaskList,
+                        onOpenCalendar = onOpenCalendar,
                         onRunQuick = { item ->
                             when (item) {
                                 QuickItem.NewNote -> onNewNote()
@@ -250,6 +252,7 @@ fun ProductivityHubScreen(
                                     android.widget.Toast.makeText(context, "no calculator app found", android.widget.Toast.LENGTH_SHORT).show()
                                 }
                                 QuickItem.Timer -> openTimers(context)
+                                QuickItem.Calendar -> onOpenCalendar()
                                 is QuickItem.TaskList -> onOpenTaskList(item.listId)
                                 is QuickItem.Note -> onOpenNote(item.noteId)
                                 is QuickItem.App -> openApp(context, item.packageName)
@@ -304,6 +307,7 @@ private fun TodayPage(
     quickItems: List<QuickItem>,
     onOpenNote: (Long) -> Unit,
     onOpenTaskList: (String) -> Unit,
+    onOpenCalendar: () -> Unit,
     onRunQuick: (QuickItem) -> Unit,
     onRemoveQuick: (QuickItem) -> Unit,
     onAddQuick: (QuickItem) -> Unit,
@@ -326,7 +330,25 @@ private fun TodayPage(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
     ) {
-        item { SectionLabel("next meeting", tokens) }
+        item {
+            // "calendar ›" opens the calendar hub (user-requested link).
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.weight(1f)) { SectionLabel("next meeting", tokens) }
+                Text(
+                    "calendar ›",
+                    color = accent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .padding(top = 16.dp, bottom = 6.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onOpenCalendar,
+                        ),
+                )
+            }
+        }
         item {
             when {
                 !calendarGranted -> CalendarPermissionPrompt(tokens, accent)
@@ -494,6 +516,7 @@ private fun QuickRowSection(
                 QuickItem.NewTask -> Triple("tasks", "task", null)
                 QuickItem.Calculator -> Triple("calc", "calculator", null)
                 QuickItem.Timer -> Triple("alarm", "timer", null)
+                QuickItem.Calendar -> Triple("calendar", "calendar", null)
                 is QuickItem.TaskList -> {
                     val list = lists.firstOrNull { it.id == item.listId } ?: return@forEach
                     Triple("tasks", list.name.lowercase(), null)
@@ -528,6 +551,7 @@ private fun QuickRowSection(
                             QuickItem.NewNote -> "new note"
                             QuickItem.NewTask -> "new task"
                             QuickItem.Calculator -> "calculator"
+                            QuickItem.Calendar -> "calendar"
                             else -> "timer"
                         }
                         DropdownMenuItem(text = { Text(name) }, onClick = {
