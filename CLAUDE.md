@@ -37,6 +37,15 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — battery tile, battery hub and widget from TileShell's own battery log.**
+  User-requested, designed first. `BatteryLog` records the level, screen state and current
+  on each 1% change, screen on/off and plug/unplug, plus every 15 minutes (off the main
+  thread, `files/battery_log.txt`, 8 days). The tile shows drain rate, time left and today's
+  curve, with the screen split on the back; tapping opens the new battery hub (today / week /
+  apps (screen time) / details). The home-screen widget gains the curve and opens the hub.
+  Also: cached notification image decoding and an hourly usage recount, from the battery
+  diagnosis. Build + full unit tests green; verified on the emulator; installed on the
+  phone and recording.
 - **`main` — battery audit of the hubs: fixed the productivity tile's calendar
   poll ignoring the live-tile gate.** User-requested. Read every hub-related
   file in `:feature:livetiles` for a loop that doesn't pause under the shared

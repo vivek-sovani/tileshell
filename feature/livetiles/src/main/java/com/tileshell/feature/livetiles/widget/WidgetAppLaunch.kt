@@ -44,6 +44,17 @@ fun alarmAppPendingIntent(context: Context, appWidgetId: Int): PendingIntent =
     activityPendingIntent(context, appWidgetId, Intent(AlarmClock.ACTION_SHOW_ALARMS))
 
 /** Opens the system's own battery-usage screen — there's no single "battery app" to open instead. */
+/** Extra on TileShell's launch intent asking it to open a hub (see MainActivity). */
+const val EXTRA_OPEN_HUB = "com.tileshell.extra.OPEN_HUB"
+
+/** Opens TileShell's own battery hub (the widget's tap, user-requested). */
+fun batteryHubPendingIntent(context: Context, appWidgetId: Int): PendingIntent {
+    val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
+        ?: return batteryAppPendingIntent(context, appWidgetId)
+    launch.putExtra(EXTRA_OPEN_HUB, "battery").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    return activityPendingIntent(context, appWidgetId, launch)
+}
+
 fun batteryAppPendingIntent(context: Context, appWidgetId: Int): PendingIntent =
     activityPendingIntent(context, appWidgetId, Intent(Intent.ACTION_POWER_USAGE_SUMMARY))
 

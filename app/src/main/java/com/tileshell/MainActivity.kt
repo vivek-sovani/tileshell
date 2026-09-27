@@ -85,6 +85,8 @@ class MainActivity : ComponentActivity() {
         )
 
         handleWallpaperTargetIntent(intent)
+        handleOpenHubIntent(intent)
+        com.tileshell.feature.livetiles.BatteryLog.ensureStarted(this)
 
         setContent {
             DefaultLauncherPrompt()
@@ -172,6 +174,7 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         if (handleWallpaperTargetIntent(intent)) return
         startViewModel.goHome()
+        handleOpenHubIntent(intent)
         // Dismiss the keyboard when returning to Start via the Home button.
         // The search field in the app list / feed retains IME focus after
         // goHome() snaps the pager back, leaving the keyboard open on Start.
@@ -193,6 +196,14 @@ class MainActivity : ComponentActivity() {
      * true if this intent was one of the three (and was handled), so callers can skip
      * their own "just reopened" home-button handling for it.
      */
+    /** A widget asking TileShell to open one of its hubs (the battery widget's tap). */
+    private fun handleOpenHubIntent(intent: Intent) {
+        when (intent.getStringExtra(com.tileshell.feature.livetiles.widget.EXTRA_OPEN_HUB)) {
+            "battery" -> startViewModel.openBatteryHub()
+        }
+        intent.removeExtra(com.tileshell.feature.livetiles.widget.EXTRA_OPEN_HUB)
+    }
+
     private fun handleWallpaperTargetIntent(intent: Intent): Boolean {
         if (intent.type?.startsWith("image/") != true) return false
         val uri = when (intent.action) {

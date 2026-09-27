@@ -58,6 +58,9 @@ class TileNotificationListenerService : NotificationListenerService() {
 
     override fun onCreate() {
         super.onCreate()
+        // This service keeps TileShell's process alive, which is what lets the
+        // battery log hear screen on/off and plug/unplug as they happen.
+        BatteryLog.ensureStarted(this)
         scope.launch {
             refreshSignals.debounce(REFRESH_DEBOUNCE_MS).collect {
                 runCatching { refresh() }

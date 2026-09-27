@@ -315,6 +315,18 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         _peopleHubOpen.value = false
     }
 
+    /** The battery hub (the battery tile or widget → hub). */
+    private val _batteryHubOpen = MutableStateFlow(false)
+    val batteryHubOpen: StateFlow<Boolean> = _batteryHubOpen.asStateFlow()
+
+    fun openBatteryHub() {
+        _batteryHubOpen.value = true
+    }
+
+    fun closeBatteryHub() {
+        _batteryHubOpen.value = false
+    }
+
     /** The productivity hub (its Start tile → hub), same shape as the people hub. */
     private val _productivityHubOpen = MutableStateFlow(false)
     val productivityHubOpen: StateFlow<Boolean> = _productivityHubOpen.asStateFlow()
@@ -1941,6 +1953,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         closeCalendarHub()
         closePeopleHub()
         closeProductivityHub()
+        closeBatteryHub()
         closePermissions()
         closeNewsRegion()
         closeEdgeStrip()

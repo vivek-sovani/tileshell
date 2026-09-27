@@ -1,5 +1,11 @@
 package com.tileshell.feature.livetiles.widget
 
+import com.tileshell.feature.livetiles.timeLeftLabel
+import com.tileshell.feature.livetiles.screenSplit
+import com.tileshell.feature.livetiles.samplesSinceUnplug
+import com.tileshell.feature.livetiles.hoursLeft
+import com.tileshell.feature.livetiles.drainRatePerHour
+import com.tileshell.feature.livetiles.BatteryLog
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
@@ -95,11 +101,25 @@ class BatteryWidgetRefreshWorker(
             if (ids.isEmpty()) return
 
             val face = currentBatteryFace(context)
+            BatteryLog.ensureStarted(context)
+            val samples = BatteryLog.samples.value
+            val now = System.currentTimeMillis()
+            val rate = drainRatePerHour(samples, now)
+            val level = face.percentText.removeSuffix("%").toIntOrNull() ?: 0
+            val split = screenSplit(samples, now)
+            val curve = samplesSinceUnplug(samples).ifEmpty { samples.filter { it.time >= now - 12 * 3_600_000L } }
+            val frontLine = when {
+                !face.hasData -> face.statusLine
+                face.isCharging -> face.statusLine
+                rate == null -> "measuring drain…"
+                else -> listOfNotNull("~${"%.1f".format(rate)}%/hr", timeLeftLabel(hoursLeft(level, rate))).joinToString(" · ")
+            }
+            val backLines = listOf("screen on · ${split.onDrop}%", "screen off · ${split.offDrop}%").joinToString("\n")
             ids.forEach { id ->
                 val minWidthDp = manager.getAppWidgetOptions(id)
                     .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 110)
                 val (accent, onAccent) = resolveWidgetAccent(context, id)
-                val views = buildRemoteViews(context, id, face, accent, onAccent, isCompactWidget(minWidthDp))
+                val views = buildRemoteViews(context, id, face, accent, onAccent, isCompactWidget(minWidthDp), frontLine, backLines, curve, now)
                 manager.updateAppWidget(id, views)
             }
         }
@@ -111,6 +131,10 @@ class BatteryWidgetRefreshWorker(
             accent: Int,
             onAccent: Int,
             compact: Boolean,
+            frontLine: String,
+            backLines: String,
+            curve: List<com.tileshell.feature.livetiles.BatterySample>,
+            nowMillis: Long,
         ): RemoteViews {
             val layout = if (compact) R.layout.widget_battery_compact else R.layout.widget_battery
             val views = RemoteViews(context.packageName, layout)
@@ -119,10 +143,10 @@ class BatteryWidgetRefreshWorker(
             // the background drawable provides an Outline; clipToOutline clips
             // widget_bg's full-bleed gradient (and everything else) to it.
             views.setBoolean(R.id.widget_root, "setClipToOutline", true)
-            views.setOnClickPendingIntent(R.id.widget_root, batteryAppPendingIntent(context, appWidgetId))
+            views.setOnClickPendingIntent(R.id.widget_root, batteryHubPendingIntent(context, appWidgetId))
             views.setOnClickPendingIntent(R.id.widget_settings, reconfigurePendingIntent(context, appWidgetId))
 
-            val backStatus = if (face.hasData) face.statusLine else "battery status unavailable"
+            val backStatus = if (face.hasData) backLines else "battery status unavailable"
             // A real filled-bar gauge (user-requested), not a static outline
             // glyph — see WidgetBatteryVisual.kt. percentText is e.g. "82%"
             // or "--" when unavailable. Shown at both sizes now — the compact
@@ -139,15 +163,20 @@ class BatteryWidgetRefreshWorker(
                 views.setTextColor(R.id.widget_percent, onAccent)
                 views.setTextColor(R.id.widget_back_status, onAccent)
                 views.setTextViewText(R.id.widget_percent, face.percentText)
-                views.setTextViewText(R.id.widget_back_status, backStatus)
+                views.setTextViewText(R.id.widget_back_status, frontLine)
             } else {
                 views.setTextColor(R.id.widget_percent, onAccent)
                 views.setTextColor(R.id.widget_status, onAccent)
                 views.setTextColor(R.id.widget_back_label, onAccent)
                 views.setTextColor(R.id.widget_back_status, onAccent)
                 views.setTextViewText(R.id.widget_percent, face.percentText)
-                views.setTextViewText(R.id.widget_status, face.statusLine)
+                views.setTextViewText(R.id.widget_status, frontLine)
+                views.setTextViewText(R.id.widget_back_label, "today")
                 views.setTextViewText(R.id.widget_back_status, backStatus)
+                views.setImageViewBitmap(
+                    R.id.widget_curve,
+                    batteryCurveBitmap(curve, nowMillis, onAccent, (onAccent and 0x00FFFFFF) or 0x26000000),
+                )
             }
             return views
         }

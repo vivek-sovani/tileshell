@@ -10636,3 +10636,38 @@ Since the last charge (10 h 19 min on battery, 2,716 mAh drained), TileShell use
   pages and tiles.
 The effect of the image cache can't be measured until a fresh charge cycle.
 Re-run `dumpsys batterystats --charged` after a day of normal use.
+
+## Battery tile, hub and widget, from TileShell's own battery log
+
+User-approved design: the existing battery tile is replaced rather than a new one added,
+15-minute background recording is fine, and the existing home-screen widget is upgraded.
+Android gives a normal app no battery history and no per-app battery figures
+(BATTERY_STATS is system-only), so TileShell records its own:
+- **`BatteryLog`** (`BatteryHistory.kt`): samples of time, level, charging, screen on,
+  and current in mA. They're taken on every 1% level change, screen on/off and plug/unplug
+  (a receiver on the application context; the process is alive as the home screen / notification
+  listener host), plus `BatteryLogWorker` every 15 minutes as a fallback. They go in
+  `files/battery_log.txt`, one line each, pruned after 8 days. Loading, the receiver and writes
+  all run on a `HandlerThread`, never the main thread. Started from `MainActivity`, the
+  notification listener, the tile and the widget worker. `BATTERY_CHANGED` is only logged
+  when the level or charging state changed. Current readings are normalised
+  (`normaliseCurrentMa`), since devices disagree on µA vs mA and on sign.
+- **Analysis, pure and tested:** `samplesSinceUnplug`, `lastDischargeRun` (while charging, the
+  split describes the last stretch on battery), `drainRatePerHour` (needs 30 min and a 1% drop),
+  `hoursLeft`/`timeLeftLabel`, `screenSplit`, `screenRates`, `dailyUsage`.
+- **Tile** (`BatteryTileFace`): the front shows percent + gauge, "~x%/hr now" and "about N h left"
+  (or time to full + charge current, dropped once full), plus the curve since unplugging with
+  screen-on shaded, at two rows or more (`BatteryCurve`). The back shows screen on/off % today,
+  live mA, temperature and health. Tapping opens the hub (it used to open Android's battery screen).
+- **Hub** (`BatteryHubScreen`), four pivots. Today: the curve, the used split, a live grid, and
+  top 3 apps by screen time. Week: per-day bars and average on/off drain. Apps: screen time per
+  app today and over 7 days, explicitly labelled as screen time, not battery; it needs usage
+  access and prompts otherwise. Details: charger, current, voltage, temperature, health, cycles
+  (`android.os.extra.CYCLE_COUNT`, Android 14+), and battery settings.
+- **Widget:** the full layout gains `widget_curve` (`batteryCurveBitmap`), and the status line
+  shows the drain rate. The back shows today's split. Tapping opens TileShell to the battery hub
+  via the `EXTRA_OPEN_HUB` launch extra, handled in `MainActivity`.
+Checked on the emulator with a seeded 8-hour log: tile faces, the today and week pages. The phone
+started recording on install. The phone's own history starts now, so the week page fills over 7 days.
+While testing, an emulator-boot ANR ("no response to onStopJob", CPU pressure 99%, GMS also
+ANR'd) prompted moving all log I/O off the main thread.
