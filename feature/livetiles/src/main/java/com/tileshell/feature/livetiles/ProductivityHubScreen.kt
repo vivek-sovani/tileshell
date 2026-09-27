@@ -116,6 +116,7 @@ fun ProductivityHubScreen(
     onPinNotepad: () -> Unit,
     onPinHub: () -> Unit,
     onOpenCalendar: () -> Unit,
+    onOpenNotifications: () -> Unit,
     pinnedNoteIds: Set<Long>,
     pinnedListIds: Set<String>,
     rightHalf: Boolean = false,
@@ -244,6 +245,7 @@ fun ProductivityHubScreen(
                         onOpenNote = onOpenNote,
                         onOpenTaskList = onOpenTaskList,
                         onOpenCalendar = onOpenCalendar,
+                        onOpenNotifications = onOpenNotifications,
                         onRunQuick = { item ->
                             when (item) {
                                 QuickItem.NewNote -> onNewNote()
@@ -253,6 +255,7 @@ fun ProductivityHubScreen(
                                 }
                                 QuickItem.Timer -> openTimers(context)
                                 QuickItem.Calendar -> onOpenCalendar()
+                                QuickItem.Notifications -> onOpenNotifications()
                                 is QuickItem.TaskList -> onOpenTaskList(item.listId)
                                 is QuickItem.Note -> onOpenNote(item.noteId)
                                 is QuickItem.App -> openApp(context, item.packageName)
@@ -308,6 +311,7 @@ private fun TodayPage(
     onOpenNote: (Long) -> Unit,
     onOpenTaskList: (String) -> Unit,
     onOpenCalendar: () -> Unit,
+    onOpenNotifications: () -> Unit,
     onRunQuick: (QuickItem) -> Unit,
     onRemoveQuick: (QuickItem) -> Unit,
     onAddQuick: (QuickItem) -> Unit,
@@ -323,6 +327,9 @@ private fun TodayPage(
         }
     }
     val openTasks by remember { tasksRepo.openTasks(limit = 4) }.collectAsState(initial = emptyList())
+    val notificationsGranted = rememberNotificationAccess()
+    val snapshot by NotificationCenter.snapshot.collectAsState()
+    val pendingCount = remember(snapshot) { whatsNewApps(snapshot).sumOf { it.second } }
     val openCount by remember { tasksRepo.openCount() }.collectAsState(initial = 0)
     val latestNote = notes.firstOrNull { it.text.isNotBlank() || it.title.isNotBlank() }
 
@@ -332,22 +339,7 @@ private fun TodayPage(
     ) {
         item {
             // "calendar ›" opens the calendar hub (user-requested link).
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.weight(1f)) { SectionLabel("next meeting", tokens) }
-                Text(
-                    "calendar ›",
-                    color = accent,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier
-                        .padding(top = 16.dp, bottom = 6.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onOpenCalendar,
-                        ),
-                )
-            }
+            SectionLink("next meeting", "calendar ›", tokens, accent, onOpenCalendar)
         }
         item {
             when {
@@ -376,6 +368,17 @@ private fun TodayPage(
             }
         }
 
+        item {
+            // "what's new ›" opens the people hub's notifications page
+            // (user-requested, alongside the calendar link).
+            SectionLink(
+                label = if (!notificationsGranted) "notifications" else if (pendingCount > 0) "notifications · $pendingCount new" else "notifications · nothing new",
+                link = "what's new ›",
+                tokens = tokens,
+                accent = accent,
+                onClick = onOpenNotifications,
+            )
+        }
         item { SectionLabel(if (openCount > 0) "tasks · $openCount open" else "tasks", tokens) }
         if (openTasks.isEmpty()) {
             item { Text("no open tasks", color = tokens.fgDim, fontSize = 14.sp) }
@@ -517,6 +520,7 @@ private fun QuickRowSection(
                 QuickItem.Calculator -> Triple("calc", "calculator", null)
                 QuickItem.Timer -> Triple("alarm", "timer", null)
                 QuickItem.Calendar -> Triple("calendar", "calendar", null)
+                QuickItem.Notifications -> Triple("bell", "notifications", null)
                 is QuickItem.TaskList -> {
                     val list = lists.firstOrNull { it.id == item.listId } ?: return@forEach
                     Triple("tasks", list.name.lowercase(), null)
@@ -552,6 +556,7 @@ private fun QuickRowSection(
                             QuickItem.NewTask -> "new task"
                             QuickItem.Calculator -> "calculator"
                             QuickItem.Calendar -> "calendar"
+                            QuickItem.Notifications -> "notifications"
                             else -> "timer"
                         }
                         DropdownMenuItem(text = { Text(name) }, onClick = {
@@ -1030,6 +1035,27 @@ internal fun rememberProductivityApps(): List<ProductivityApp>? {
     }
     val (apps, tools) = installed ?: return null
     return remember(apps, tools, opens) { productivityApps(apps, opens, tools) }
+}
+
+/** A section heading with a link on the right ("calendar ›", "what's new ›"). */
+@Composable
+private fun SectionLink(label: String, link: String, tokens: ColorTokens, accent: Color, onClick: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(modifier = Modifier.weight(1f)) { SectionLabel(label, tokens) }
+        Text(
+            link,
+            color = accent,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier
+                .padding(top = 16.dp, bottom = 6.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick,
+                ),
+        )
+    }
 }
 
 @Composable

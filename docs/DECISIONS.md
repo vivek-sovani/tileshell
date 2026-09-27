@@ -10592,3 +10592,17 @@ calendar hub. Fresh rows include it by default (five built-ins). A quick row
 saved before this doesn't gain it silently; it's offered under "+". The calendar
 hub is now composed after the productivity hub in `StartScreen`, so when opened
 from it, it sits on top and back returns to productivity.
+
+## Productivity hub links to notifications (the people hub's "what's new")
+
+User-requested, "like the calendar link". "Notifications" is read as the
+people hub's "what's new", which already collects chat, SMS, mail and social
+notifications. The today page gains a "notifications · N new" heading (the
+count is the sum of `whatsNewApps`; it says "nothing new" when there are none, and
+just "notifications" without notification access) with a "what's new ›" link.
+There's also a built-in `QuickItem.Notifications` shortcut (bell glyph). Both
+open the people hub on that page. Heading-plus-link is now a shared
+`SectionLink`, used by the calendar link too. The people hub is now composed
+after the productivity hub, like the calendar hub, so it opens on top and back
+returns to productivity. A saved quick row gets the new shortcut from "+"
+(fresh rows: six built-ins, two rows).

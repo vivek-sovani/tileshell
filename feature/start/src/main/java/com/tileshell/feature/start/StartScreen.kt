@@ -2159,16 +2159,6 @@ fun StartScreen(
             initialPage = musicHubInitialPage,
         )
 
-        PeopleHubScreen(
-            visible = peopleHubOpen,
-            dark = dark,
-            accentId = settings.accentId,
-            onDismiss = viewModel::closePeopleHub,
-            rightHalf = isLandscape,
-            initialPage = peopleHubInitialPage,
-            onPinPage = viewModel::pinPeopleHubPage,
-        )
-
         // Composed before the notes/tasks sheets so, when the hub opens one,
         // it slides in on top of the hub.
         // Sticky notes and Tasks tiles inside folders count as pinned too.
@@ -2203,14 +2193,25 @@ fun StartScreen(
             onPinNotepad = viewModel::pinNotepad,
             onPinHub = viewModel::pinProductivityHub,
             onOpenCalendar = { viewModel.openCalendarHub() },
+            onOpenNotifications = { viewModel.openPeopleHub("what's new") },
             pinnedNoteIds = pinnedNoteIds,
             pinnedListIds = pinnedListIds,
             rightHalf = isLandscape,
             initialPage = productivityHubInitialPage,
         )
 
-        // After the productivity hub so, opened from it, the calendar hub sits
-        // on top, and back returns to productivity.
+        // After the productivity hub so, opened from it, the calendar and
+        // people hubs sit on top, and back returns to productivity.
+        PeopleHubScreen(
+            visible = peopleHubOpen,
+            dark = dark,
+            accentId = settings.accentId,
+            onDismiss = viewModel::closePeopleHub,
+            rightHalf = isLandscape,
+            initialPage = peopleHubInitialPage,
+            onPinPage = viewModel::pinPeopleHubPage,
+        )
+
         CalendarHubScreen(
             visible = calendarHubOpen,
             dark = dark,
