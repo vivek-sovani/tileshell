@@ -1743,6 +1743,9 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             // does, or sticky/free mode would behave as auto-arrange.
             val current = settingsRepository.settings.first()
             if (current.tilePackMode.isAnchored) seedStickySlots(current.columns)
+            // The fresh settings tile shows the real device Settings icon, as
+            // it does after a first-install seed.
+            migrateSettingsTile()
         }
     }
 

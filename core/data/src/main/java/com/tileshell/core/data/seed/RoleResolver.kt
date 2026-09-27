@@ -52,8 +52,16 @@ class AndroidRoleResolver(context: Context) : RoleResolver {
     /** Package of the best match for [intent], skipping the system chooser. */
     private fun resolvePackage(intent: Intent): String? {
         val info = pm.resolveActivity(intent, 0)?.activityInfo ?: return null
-        if (info.packageName == "android") return null // disambiguation chooser, no default
-        return info.packageName
+        if (info.packageName != "android") return info.packageName
+        // No default set (the system chooser answered, e.g. Samsung's camera
+        // intent): take the preinstalled handler, which is the phone's own app.
+        val candidates = pm.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            .mapNotNull { it.activityInfo }
+            .filter { it.packageName != "android" }
+        val system = candidates.firstOrNull {
+            (it.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+        }
+        return (system ?: candidates.firstOrNull())?.packageName
     }
 
     /** The package's launcher activity as a [ResolvedComponent], if launchable. */
