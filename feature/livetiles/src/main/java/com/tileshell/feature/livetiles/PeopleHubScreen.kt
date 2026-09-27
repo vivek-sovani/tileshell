@@ -49,6 +49,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -781,21 +786,29 @@ private fun WhatsNewPage(
             } else {
                 items(entries, key = { "activity-${it.notificationKey.ifBlank { it.packageName + it.postTime }}" }) { entry ->
                     val key = entry.notificationKey
-                    ActivityRow(
-                        entry = entry,
+                    SwipeToDismissRow(
                         tokens = tokens,
-                        accent = accent,
-                        expanded = key.isNotEmpty() && expandedKey == key,
-                        onToggle = { expandedKey = if (expandedKey == key || key.isEmpty()) null else key },
-                        onOpenApp = {
-                            expandedKey = null
-                            NotificationCenter.reportDisplayedKey(entry.packageName, key)
-                            if (!NotificationCenter.openAndClear(context, entry.packageName)) {
-                                openApp(context, entry.packageName)
-                            }
+                        onDismiss = {
+                            if (expandedKey == key) expandedKey = null
+                            NotificationCenter.clearKeys(listOf(key).filter { it.isNotEmpty() })
                         },
-                        onDone = { expandedKey = null },
-                    )
+                    ) {
+                        ActivityRow(
+                            entry = entry,
+                            tokens = tokens,
+                            accent = accent,
+                            expanded = key.isNotEmpty() && expandedKey == key,
+                            onToggle = { expandedKey = if (expandedKey == key || key.isEmpty()) null else key },
+                            onOpenApp = {
+                                expandedKey = null
+                                NotificationCenter.reportDisplayedKey(entry.packageName, key)
+                                if (!NotificationCenter.openAndClear(context, entry.packageName)) {
+                                    openApp(context, entry.packageName)
+                                }
+                            },
+                            onDone = { expandedKey = null },
+                        )
+                    }
                 }
             }
             hidden.forEach { (packageName, count) ->
@@ -924,7 +937,7 @@ private fun ActivityRow(
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
-                    onClick = onToggle,
+                    onClick = onOpenApp,
                 )
                 .padding(vertical = 9.dp, horizontal = if (expanded) 8.dp else 0.dp),
             verticalAlignment = if (expanded) Alignment.Top else Alignment.CenterVertically,
@@ -982,7 +995,29 @@ private fun ActivityRow(
                 )
             }
             Spacer(Modifier.width(8.dp))
-            Text(activityAgo(entry.postTime), color = tokens.fgDim, fontSize = 11.sp)
+            Column(horizontalAlignment = Alignment.End) {
+                Text(activityAgo(entry.postTime), color = tokens.fgDim, fontSize = 11.sp)
+                // Expands the row for reply / mark read / archive (user-
+                // requested: a small arrow next to the message, while a tap
+                // on the message itself opens it).
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onToggle,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        TileIcons["chevron"],
+                        contentDescription = if (expanded) "collapse" else "expand",
+                        tint = tokens.fgDim,
+                        modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = if (expanded) -90f else 90f },
+                    )
+                }
+            }
         }
 
         if (expanded) {
@@ -1024,14 +1059,46 @@ private fun ActivityRow(
                             pressOrFallBack(context, entry, QuickAction.ARCHIVE, appLabel, onDone, onOpenApp)
                         }
                     }
-                    RowAction("dismiss", accent) {
-                        NotificationCenter.clearKeys(listOf(entry.notificationKey))
-                        onDone()
+                    if (QuickAction.MARK_READ !in entry.quickActions && QuickAction.ARCHIVE !in entry.quickActions && QuickAction.REPLY !in entry.quickActions) {
+                        Text("tap the message to open it in $appLabel · swipe to dismiss", color = tokens.fgDim, fontSize = 12.sp)
                     }
-                    RowAction("open $appLabel", accent, onOpenApp)
                 }
             }
         }
+    }
+}
+
+/**
+ * Swipe a "what's new" row sideways, either way, to dismiss its notification
+ * (user-requested). A swipe that starts on a row belongs to the row, so the
+ * pivots still swipe from the header or empty space.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeToDismissRow(tokens: ColorTokens, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value != SwipeToDismissBoxValue.Settled) onDismiss()
+            value != SwipeToDismissBoxValue.Settled
+        },
+    )
+    SwipeToDismissBox(
+        state = state,
+        backgroundContent = {
+            val alignment = if (state.dismissDirection == SwipeToDismissBoxValue.EndToStart) Alignment.CenterEnd else Alignment.CenterStart
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(tokens.fg.copy(alpha = 0.08f))
+                    .padding(horizontal = 18.dp),
+                contentAlignment = alignment,
+            ) {
+                Text("dismiss", color = tokens.fgDim, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            }
+        },
+    ) {
+        Box(modifier = Modifier.background(tokens.bg)) { content() }
     }
 }
 

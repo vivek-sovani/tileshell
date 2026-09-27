@@ -10556,3 +10556,17 @@ shopping page", and `AppListScreen.onAlreadyOnStart` has Start settle on that
 page's block (0 = main, else section index + 1), as a fresh pin already did
 for the active page. The sections' stale `collapsed` flags were checked and
 don't hide anything: pages ignore them.
+
+## People Hub "what's new": swipe to dismiss, tap to open, arrow to expand
+
+User-requested, changing the earlier tap-to-expand choice. A sideways swipe on a
+row, in either direction, dismisses that notification (Material 3
+`SwipeToDismissBox`, `SwipeToDismissRow`), showing a muted "dismiss" behind the
+row. A tap on the message opens it, like tapping the notification. A small
+arrow under the time expands the row for reply / mark read / archive (rotated
+chevron: down, or up when open). The expanded row's own "dismiss" and "open
+<app>" buttons were dropped since the swipe and tap now do those. A row with no
+quick actions shows a one-line hint instead. Trade-off: a sideways swipe that
+starts on a row now belongs to the row, so switching pivots needs a swipe on the
+header or empty space, or a tap on the pivot name. (Earlier, dismiss was kept to a
+button for this reason; the user chose the swipe.)
