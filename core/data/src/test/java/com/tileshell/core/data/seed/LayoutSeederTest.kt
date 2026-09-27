@@ -9,6 +9,15 @@ class LayoutSeederTest {
 
     private val seeder = LayoutSeeder()
 
+    // The default layout has no folder any more; the folder rules are tested
+    // against this one.
+    private val socialFolder = listOf(
+        DefaultTile(
+            "g-social", TileSize.MEDIUM, "magenta", isGroup = true, name = "social",
+            children = listOf("contacts", "mail", "messages", "people"),
+        ),
+    )
+
     /** Resolver that maps the given role ids to fabricated components. */
     private fun resolverFor(vararg appIds: String): RoleResolver {
         val queries = appIds.associate { id ->
@@ -21,17 +30,19 @@ class LayoutSeederTest {
     fun `resolvable and live-only app tiles are seeded, in order, with contiguous positions`() {
         val seeded = seeder.seed(resolver = resolverFor("clock", "phone"))
 
-        // clock/phone resolve; people/weather/calendar/music/personalize seed as liveOnly
-        // (personalize has no role at all — it's the in-app Personalize sheet, not
-        // a real app; music is liveOnly because CATEGORY_APP_MUSIC resolves on
-        // few/no devices — see DefaultLayout's t-music comment; people opens the
-        // people hub either way); the rest (camera, mail, …) drop out. Declared order is preserved.
+        // clock/phone resolve; the liveOnly tiles (weather, calendar, people,
+        // productivity, music, battery, what's new, personalize) seed regardless;
+        // the rest (messages, mail, camera, photos, browser, …) drop out.
+        // Declared order is preserved.
         val apps = seeded.filterIsInstance<SeededTile.App>()
         assertEquals(
-            listOf("t-clock", "t-phone", "t-people", "t-weather", "t-cal", "t-music", "t-personalize"),
+            listOf(
+                "t-clock", "t-weather", "t-cal", "t-people", "t-phone", "t-productivity",
+                "t-music", "t-battery", "t-whatsnew", "t-personalize",
+            ),
             apps.map { it.id },
         )
-        assertEquals(listOf(0, 1, 2, 3, 4, 5, 6), seeded.map { it.position })
+        assertEquals((0 until 10).toList(), seeded.map { it.position })
     }
 
     @Test
@@ -94,7 +105,7 @@ class LayoutSeederTest {
         // social children: contacts, mail, messages, people. Resolve mail and
         // messages (distinct roles); contacts/people (shared APP_CONTACTS role)
         // stay unresolved here. Children keep declared order.
-        val seeded = seeder.seed(resolver = resolverFor("mail", "messages"))
+        val seeded = seeder.seed(socialFolder, resolverFor("mail", "messages"))
         val folder = seeded.filterIsInstance<SeededTile.Folder>().single()
         assertEquals("social", folder.name)
         assertEquals(listOf("com.mail", "com.messages"), folder.children.map { it.component.packageName })
@@ -103,7 +114,7 @@ class LayoutSeederTest {
     @Test
     fun `folder with no resolvable children is dropped`() {
         // Resolve only clock — none of the social children resolve.
-        val seeded = seeder.seed(resolver = resolverFor("clock"))
+        val seeded = seeder.seed(socialFolder, resolverFor("clock"))
         assertTrue(seeded.none { it is SeededTile.Folder })
         assertTrue("g-social" !in seeded.map { it.id })
     }
@@ -116,33 +127,33 @@ class LayoutSeederTest {
         val shared = ResolvedComponent("com.shared", ".Main", "shared")
         val resolver = RoleResolver { if (it in socialRoles) shared else null }
 
-        val folder = seeder.seed(resolver = resolver)
+        val folder = seeder.seed(socialFolder, resolver)
             .filterIsInstance<SeededTile.Folder>().single()
         assertEquals(1, folder.children.size)
     }
 
     @Test
     fun `seeded tiles preserve declared size and color`() {
-        val seeded = seeder.seed(resolver = resolverFor("clock", "calc"))
+        val seeded = seeder.seed(resolver = resolverFor("clock", "maps"))
         val clock = seeded.first { it.id == "t-clock" }
-        val calc = seeded.first { it.id == "t-calc" }
+        val maps = seeded.first { it.id == "t-maps" }
         assertEquals(TileSize.WIDE, clock.size)
         assertEquals("cobalt", clock.colorId)
-        assertEquals(TileSize.SMALL, calc.size)
-        assertEquals("steel", calc.colorId)
+        assertEquals(TileSize.SMALL, maps.size)
+        assertEquals("steel", maps.colorId)
     }
 
     @Test
     fun `app tiles carry the monoline glyph key, remapping browser and notes`() {
-        val seeded = seeder.seed(resolver = resolverFor("clock", "browser"))
+        val seeded = seeder.seed(resolver = resolverFor("clock", "settings"))
         val apps = seeded.filterIsInstance<SeededTile.App>().associateBy { it.id }
         assertEquals("clock", apps.getValue("t-clock").iconKey)
-        assertEquals("web", apps.getValue("t-browser").iconKey) // browser → web glyph
+        assertEquals("settings", apps.getValue("t-settings").iconKey)
     }
 
     @Test
     fun `folder children carry glyph keys`() {
-        val folder = seeder.seed(resolver = resolverFor("mail", "messages"))
+        val folder = seeder.seed(socialFolder, resolverFor("mail", "messages"))
             .filterIsInstance<SeededTile.Folder>().single()
         assertEquals(listOf("mail", "messages"), folder.children.map { it.iconKey })
     }
@@ -163,5 +174,42 @@ class LayoutSeederTest {
         assertEquals(RoleQuery.Category("android.intent.category.APP_CALCULATOR"), DefaultLayout.roleFor("calc"))
         assertEquals(null, DefaultLayout.roleFor("weather"))
         assertEquals(null, DefaultLayout.roleFor("bank"))
+    }
+
+    @Test
+    fun `what's new seeds as a people hub page tile with no app`() {
+        val tile = seeder.seed(resolver = resolverFor("people"))
+            .filterIsInstance<SeededTile.App>().single { it.id == "t-whatsnew" }
+        assertEquals("", tile.component.packageName)
+        assertEquals("peoplehub:what's new", tile.component.activityName)
+        assertEquals("what's new", tile.component.label)
+        assertEquals("people", tile.iconKey)
+    }
+
+    @Test
+    fun `default layout colours follow the approved groups`() {
+        val colors = DefaultLayout.DEFAULT_TILES.associate { it.id to it.colorId }
+        assertEquals("cobalt", colors["t-clock"])
+        assertEquals("cyan", colors["t-weather"])
+        assertEquals("teal", colors["t-people"])
+        assertEquals("green", colors["t-phone"])
+        assertEquals("purple", colors["t-productivity"])
+        assertEquals("orange", colors["t-music"])
+        assertEquals("lime", colors["t-battery"])
+        assertEquals("steel", colors["t-maps"])
+    }
+
+    @Test
+    fun `essentials folder keeps only the installed apps`() {
+        val seeded = seeder.seed(resolver = resolverFor("youtube", "chrome", "calc"))
+        val folder = seeded.filterIsInstance<SeededTile.Folder>().single { it.id == "g-essentials" }
+        assertEquals("essentials", folder.name)
+        assertEquals(listOf("com.youtube", "com.chrome", "com.calc"), folder.children.map { it.component.packageName })
+        assertEquals(listOf("video", "web", "calc"), folder.children.map { it.iconKey })
+    }
+
+    @Test
+    fun `essentials folder is dropped when none of its apps are installed`() {
+        assertTrue(seeder.seed(resolver = RoleResolver { null }).none { it.id == "g-essentials" })
     }
 }

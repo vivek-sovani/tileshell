@@ -138,6 +138,7 @@ fun WallpaperStartPreview(
                 }
                 val tileAccent = when {
                     tileOverrideId != null -> TileAccents.colorForOverride(tileOverrideId, settings.accentId)
+                    settings.tileColorSource == TileColorSource.MULTICOLOR -> TileAccents.forId(model.colorId)
                     wallpaperAccent != null -> wallpaperAccent
                     else -> accent
                 }

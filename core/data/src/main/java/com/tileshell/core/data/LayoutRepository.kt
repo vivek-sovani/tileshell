@@ -745,10 +745,12 @@ class LayoutRepository(
         sections: List<SectionEntity> = emptyList(),
     ) = dao.replaceLayout(tiles, folders, children, sections)
 
-    /** Seed the default layout iff the grid is empty. Safe to call repeatedly. */
-    suspend fun seedIfEmpty() {
-        if (dao.tileCount() > 0) return
+    /** Seed the default layout iff the grid is empty. Safe to call repeatedly.
+     * Returns true when it seeded (a fresh install, or a wiped database). */
+    suspend fun seedIfEmpty(): Boolean {
+        if (dao.tileCount() > 0) return false
         writeDefaultLayout()
+        return true
     }
 
     /**

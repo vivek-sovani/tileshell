@@ -70,8 +70,13 @@ class LayoutSeeder {
             } else {
                 val appId = tile.app ?: continue
                 val resolved = DefaultLayout.roleFor(appId)?.let(resolver::resolve)
-                val component = resolved
-                    ?: if (tile.liveOnly) selfContainedComponent(appId) else continue
+                val component = if (tile.liveOnly && tile.activityName != null) {
+                    // A page/config tile (e.g. "what's new"): blank package, its
+                    // identity in activityName.
+                    ResolvedComponent(packageName = "", activityName = tile.activityName, label = tile.label ?: appId)
+                } else {
+                    resolved ?: if (tile.liveOnly) selfContainedComponent(appId) else continue
+                }
                 out += SeededTile.App(
                     id = tile.id,
                     position = position++,

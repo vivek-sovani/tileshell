@@ -37,6 +37,23 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — new first-install default layout, in multicolour.** User-approved
+  design. `DefaultLayout.DEFAULT_TILES` rebuilt around the hubs, with colours
+  grouped by purpose: clock/weather/calendar/people at the top; phone, messages,
+  mail and camera as smalls; then productivity (wide), music, photos, battery and
+  the people hub's "what's new" page tile. An "essentials" folder holds
+  youtube, google, chrome, calculator and files (only the ones installed; the
+  folder is dropped if none are). Settings, store, maps and personalize finish
+  it. `RoleQuery.Package` seeds a tile by exact package. A new
+  `TileColorSource.MULTICOLOR` paints each tile's own seeded `colorId`, and is
+  set on a fresh install and by "reset start layout". That reset row is back,
+  in personalize → backup & restore, with a confirm dialog, and it re-anchors
+  sticky slots. Personalize's tile-colour row is now 2x2. Icons mode keeps
+  every hub live (they're blank-package live tiles, which
+  `shrinkDefaultAppsToIcons` skips); only real app tiles become icons. On one
+  emulator fresh run the Start screen stayed on the old accent even though the
+  stored setting was multicolour; this didn't reproduce and wasn't found. Build
+  and tests are green, and it's installed on the physical device.
 - **`main` — battery tile, battery hub and widget from TileShell's own battery log.**
   User-requested, designed first. `BatteryLog` records the level, screen state and current
   on each 1% change, screen on/off and plug/unplug, plus every 15 minutes (off the main

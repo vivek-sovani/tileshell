@@ -31,6 +31,7 @@ class AndroidRoleResolver(context: Context) : RoleResolver {
     override fun resolve(query: RoleQuery): ResolvedComponent? {
         val packageName = when (query) {
             is RoleQuery.DefaultSms -> Telephony.Sms.getDefaultSmsPackage(appContext)
+            is RoleQuery.Package -> query.packageName
             is RoleQuery.Category -> {
                 val intent = Intent(Intent.ACTION_MAIN).addCategory(query.category)
                 resolvePackage(intent)

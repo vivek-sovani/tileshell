@@ -58,6 +58,7 @@ fun BackupRestoreSheet(
     onSaveSnapshot: () -> Unit,
     onExportBackup: () -> Unit,
     onRestoreBackup: () -> Unit,
+    onResetLayout: () -> Unit,
     autoBackupEnabled: Boolean,
     autoBackupIntervalHours: Int,
     onAutoBackupEnabled: (Boolean) -> Unit,
@@ -204,6 +205,7 @@ fun BackupRestoreSheet(
 
                     WallpaperNavRow("export layout", "save ›", accent, tokens, onExportBackup)
                     WallpaperNavRow("restore from file", "open ›", accent, tokens, onRestoreBackup)
+                    WallpaperNavRow("reset start layout", "reset ›", accent, tokens, onResetLayout)
                     Spacer(Modifier.height(10.dp))
                     Text(
                         text = "tip: save the exported file to google drive (or another cloud folder) " +

@@ -17,6 +17,10 @@ sealed interface RoleQuery {
     /** The user's default SMS app (Telephony.Sms.getDefaultSmsPackage). */
     data object DefaultSms : RoleQuery
 
+    /** A specific app by package, for apps with no Android role (YouTube,
+     * Google, a wallet). Resolves only when it's installed. */
+    data class Package(val packageName: String) : RoleQuery
+
     /**
      * Try each query in order; the first that resolves wins. Lets a role tolerate
      * device variation — e.g. clock apps that expose `SET_ALARM` but not the more
@@ -43,6 +47,10 @@ data class DefaultTile(
     val name: String? = null,
     val children: List<String> = emptyList(),
     val liveOnly: Boolean = false,
+    /** Seeds this `activityName`/label on a liveOnly tile with no app, e.g. a
+     * People Hub page tile (`PeopleHubTile.encode`). */
+    val activityName: String? = null,
+    val label: String? = null,
 )
 
 object DefaultLayout {
@@ -85,6 +93,11 @@ object DefaultLayout {
         "fitness" -> RoleQuery.Category("android.intent.category.APP_FITNESS")
         "files" -> RoleQuery.Category("android.intent.category.APP_FILES")
         "calc" -> RoleQuery.Category("android.intent.category.APP_CALCULATOR")
+        // The "essentials" folder: apps on nearly every Android phone that no
+        // hub already covers (user-requested). None has an Android role.
+        "youtube" -> RoleQuery.Package("com.google.android.youtube")
+        "google" -> RoleQuery.Package("com.google.android.googlequicksearchbox")
+        "chrome" -> RoleQuery.Package("com.android.chrome")
         else -> null
     }
 
@@ -102,46 +115,65 @@ object DefaultLayout {
         // its *actual* device icon (see StartViewModel.migrateSettingsTile),
         // not by picking a different glyph for personalize.
         "personalize" -> "settings"
+        // A People Hub page tile carries the people icon key; its page is in
+        // its activityName (see PeopleHubTile).
+        "whatsnew" -> "people"
+        "youtube" -> "video"
+        "google" -> "search"
+        "chrome" -> "web"
         else -> appId
     }
 
-    /** The default Start layout, ordered, from `window.DEFAULT_TILES()` in data.js. */
+    /**
+     * The default Start layout (redesigned 2026-09-27, user-approved; see
+     * DECISIONS.md "Default layout redesign"). First screen: clock; weather and
+     * calendar; people plus phone / messages / mail / camera; productivity.
+     * Below: music and photos; battery and what's new; an "essentials" folder
+     * (YouTube, Google, Chrome, calculator, files) beside settings, store,
+     * maps, personalize. [DefaultTile.colorId]s follow the approved group colours,
+     * shown when tile colours are "multicolour" (which a fresh install and
+     * "reset start layout" switch on): time cobalt, weather cyan, people teal,
+     * calls and messages green, productivity purple, media orange/magenta,
+     * battery lime, tools steel.
+     */
     val DEFAULT_TILES: List<DefaultTile> = listOf(
         DefaultTile("t-clock", TileSize.WIDE, "cobalt", app = "clock", liveOnly = true),
-        DefaultTile("t-phone", TileSize.MEDIUM, "green", app = "phone"),
-        DefaultTile("t-camera", TileSize.MEDIUM, "slate", app = "camera"),
-        // liveOnly so re-adding it from "add live tiles" works even when no app
-        // declares the contacts role: the tile opens the people hub either way.
-        DefaultTile("t-people", TileSize.MEDIUM, "teal", app = "people", liveOnly = true),
         DefaultTile("t-weather", TileSize.MEDIUM, "cyan", app = "weather", liveOnly = true),
-        DefaultTile("t-mail", TileSize.MEDIUM, "purple", app = "mail"),
-        DefaultTile("t-msg", TileSize.MEDIUM, "amber", app = "messages"),
-        DefaultTile("t-cal", TileSize.WIDE, "magenta", app = "calendar", liveOnly = true),
-        DefaultTile("t-photos", TileSize.WIDE, "cyan", app = "photos"),
-        // liveOnly (user-reported: the tile silently never appeared at all on a
-        // device where no installed app resolves CATEGORY_APP_MUSIC — the same
-        // role-resolution gap clock/weather/calendar/personalize are already
-        // liveOnly to route around). The tile still shows real now-playing
-        // content — MediaCenter, not this role — so a resolved role was only
-        // ever needed to pick a *tap* target, which the music hub now owns
-        // instead (see DECISIONS.md "Music hub tap redirect").
-        DefaultTile("t-music", TileSize.WIDE, "orange", app = "music", liveOnly = true),
+        DefaultTile("t-cal", TileSize.MEDIUM, "cobalt", app = "calendar", liveOnly = true),
+        // liveOnly so it seeds even when no app declares the contacts role:
+        // the tile opens the people hub either way.
+        DefaultTile("t-people", TileSize.MEDIUM, "teal", app = "people", liveOnly = true),
+        DefaultTile("t-phone", TileSize.SMALL, "green", app = "phone"),
+        DefaultTile("t-msg", TileSize.SMALL, "green", app = "messages"),
+        DefaultTile("t-mail", TileSize.SMALL, "teal", app = "mail"),
+        DefaultTile("t-camera", TileSize.SMALL, "steel", app = "camera"),
+        DefaultTile("t-productivity", TileSize.WIDE, "purple", app = "productivity", liveOnly = true),
+        // liveOnly: the tile shows real now-playing content (MediaCenter) and
+        // opens the music hub, so a resolved music role only mattered for its
+        // tap target (CATEGORY_APP_MUSIC resolves on few devices).
+        DefaultTile("t-music", TileSize.MEDIUM, "orange", app = "music", liveOnly = true),
+        DefaultTile("t-photos", TileSize.MEDIUM, "magenta", app = "photos"),
+        DefaultTile("t-battery", TileSize.MEDIUM, "lime", app = "battery", liveOnly = true),
+        // The People Hub's "what's new" page as its own tile.
         DefaultTile(
-            "g-social", TileSize.MEDIUM, "magenta", isGroup = true, name = "social",
-            children = listOf("contacts", "mail", "messages", "people"),
+            "t-whatsnew", TileSize.MEDIUM, "teal", app = "whatsnew", liveOnly = true,
+            activityName = "peoplehub:what's new", label = "what's new",
         ),
-        DefaultTile("t-maps", TileSize.SMALL, "green", app = "maps"),
-        DefaultTile("t-store", TileSize.SMALL, "cobalt", app = "store"),
+        // Apps on nearly every phone (user-picked); any that isn't installed
+        // is left out, and the folder is dropped if none are.
+        DefaultTile(
+            "g-essentials", TileSize.MEDIUM, "steel", isGroup = true, name = "essentials",
+            children = listOf("youtube", "google", "chrome", "calc", "files"),
+        ),
+        // Android settings in the small row (not a browser tile, which would
+        // duplicate the folder's Chrome on most phones).
+        DefaultTile("t-settings", TileSize.SMALL, "steel", app = "settings"),
+        DefaultTile("t-store", TileSize.SMALL, "steel", app = "store"),
+        DefaultTile("t-maps", TileSize.SMALL, "steel", app = "maps"),
         // Opens this app's own Personalize sheet, not the real Android Settings app —
         // that's retired as a separate Start pin in favor of the Quick Panel's
         // "android settings" tile (see docs/DECISIONS.md).
-        DefaultTile("t-personalize", TileSize.SMALL, "slate", app = "personalize", liveOnly = true),
-        DefaultTile("t-browser", TileSize.SMALL, "blue", app = "browser"),
-        DefaultTile("t-notes", TileSize.SMALL, "amber", app = "notes"),
-        DefaultTile("t-fitness", TileSize.SMALL, "lime", app = "fitness"),
-        DefaultTile("t-bank", TileSize.MEDIUM, "green", app = "bank"),
-        DefaultTile("t-files", TileSize.SMALL, "amber", app = "files"),
-        DefaultTile("t-calc", TileSize.SMALL, "steel", app = "calc"),
+        DefaultTile("t-personalize", TileSize.SMALL, "steel", app = "personalize", liveOnly = true),
     )
 
     /**
@@ -153,7 +185,6 @@ object DefaultLayout {
      * moon-phase tile), same as weather/calendar/clock.
      */
     val OPT_IN_WIDGET_TILES: List<DefaultTile> = listOf(
-        DefaultTile("t-battery", TileSize.MEDIUM, "green", app = "battery", liveOnly = true),
         DefaultTile("t-alarm", TileSize.MEDIUM, "purple", app = "alarm", liveOnly = true),
         DefaultTile("t-moonphase", TileSize.MEDIUM, "slate", app = "moonphase", liveOnly = true),
         DefaultTile("t-tasks", TileSize.MEDIUM, "blue", app = "tasks", liveOnly = true),
@@ -166,7 +197,6 @@ object DefaultLayout {
         DefaultTile("t-stock", TileSize.MEDIUM, "teal", app = "stock", liveOnly = true),
         DefaultTile("t-commodity", TileSize.MEDIUM, "mauve", app = "commodity", liveOnly = true),
         DefaultTile("t-calsys", TileSize.MEDIUM, "cobalt", app = "calsys", liveOnly = true),
-        DefaultTile("t-productivity", TileSize.WIDE, "cobalt", app = "productivity", liveOnly = true),
     )
 
     /** Every known tile template — the default-layout set plus opt-in-only widgets. */

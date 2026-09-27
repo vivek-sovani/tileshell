@@ -10714,3 +10714,6 @@ since on 2 columns they cost two lines and the rise/set glyphs already tell sun 
 moon. That leaves the ayana and four times, which fit at full size. Other calendar
 systems still show the Roman date on their back face (a separate, unchanged
 `CalendarSystemFace`).
+
+## New default layout in multicolour (2026-09-27)
+The first-install and reset layout is built around the hubs, with colours grouped by purpose. The essentials folder holds generally available apps that aren't in any hub: youtube, google, chrome, calculator and files. Settings took the place of a separate browser tile. Multicolour is a tile-colour source, not a new layout flag, so the user can switch back to one accent in Personalize. "Reset start layout" is back, in backup & restore, next to the snapshot tools, so people see "save a snapshot first" before they reset.

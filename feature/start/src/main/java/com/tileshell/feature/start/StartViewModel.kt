@@ -603,7 +603,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch(writeContext) {
-            repository.seedIfEmpty()
+            // A freshly seeded layout starts in multicolour (user-approved
+            // default), so its group colours show.
+            if (repository.seedIfEmpty()) {
+                settingsRepository.setTileColorSource(com.tileshell.core.data.settings.TileColorSource.MULTICOLOR)
+            }
             // Sticky mode is the fresh-install default (LauncherSettings), so the
             // very first layout needs its anchors seeded here too — not only on
             // an explicit user toggle (see seedStickySlots). FREE is anchored the
@@ -1730,7 +1734,16 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Reset the Start grid to the WP default layout (FR-7). */
     fun resetLayout() {
-        viewModelScope.launch(writeContext) { repository.resetLayout() }
+        viewModelScope.launch(writeContext) {
+            repository.resetLayout()
+            // "reset start layout" re-establishes the default look too: the
+            // new layout in multicolour (user-requested).
+            settingsRepository.setTileColorSource(com.tileshell.core.data.settings.TileColorSource.MULTICOLOR)
+            // The fresh default tiles have no anchors; anchor them the way init
+            // does, or sticky/free mode would behave as auto-arrange.
+            val current = settingsRepository.settings.first()
+            if (current.tilePackMode.isAnchored) seedStickySlots(current.columns)
+        }
     }
 
     /** Rename the open folder (FR-4). Blank/whitespace names are ignored. */

@@ -66,7 +66,12 @@ val TilePackMode.isAnchored: Boolean get() = this != TilePackMode.DENSE
  * Panel already use (see `rememberFeedPalette`), so tiles, feed, and Quick
  * Panel all read as one coordinated palette. A per-tile override still wins.
  */
-enum class TileColorSource { GLOBAL_ACCENT, APP_ICON, WALLPAPER_ACCENT }
+/**
+ * Where tile colours come from. [MULTICOLOR] (2026-09-27) gives each tile its own
+ * stored colour (`TileEntity.colorId`; the default layout's are grouped by kind), and is
+ * what a fresh install and "reset start layout" switch on.
+ */
+enum class TileColorSource { GLOBAL_ACCENT, APP_ICON, WALLPAPER_ACCENT, MULTICOLOR }
 
 /** See [LauncherSettings.monochromeIconTint]'s doc comment. */
 enum class MonochromeIconTint { ACCENT, NEUTRAL }

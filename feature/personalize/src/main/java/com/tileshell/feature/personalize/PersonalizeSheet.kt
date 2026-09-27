@@ -507,11 +507,10 @@ fun PersonalizeSheet(
             // swatch dot, wrapping its text one letter per line instead of
             // just overflowing ----
             SettingGroup(label = "tile color source", tokens.fgDim) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, tokens.tileLine),
-                ) {
+                // Two rows of two (like tile style) — four labels squeezed on
+                // one line.
+                Column(modifier = Modifier.fillMaxWidth().border(1.dp, tokens.tileLine)) {
+                Row(modifier = Modifier.fillMaxWidth()) {
                     SegCell(
                         "accent",
                         selected = tileColorSource == TileColorSource.GLOBAL_ACCENT,
@@ -520,6 +519,16 @@ fun PersonalizeSheet(
                     ) {
                         onTileColorSourceChange(TileColorSource.GLOBAL_ACCENT)
                     }
+                    SegCell(
+                        "multicolour",
+                        selected = tileColorSource == TileColorSource.MULTICOLOR,
+                        accent = accent,
+                        fg = tokens.fg,
+                    ) {
+                        onTileColorSourceChange(TileColorSource.MULTICOLOR)
+                    }
+                }
+                Row(modifier = Modifier.fillMaxWidth()) {
                     SegCell(
                         "app icon",
                         selected = tileColorSource == TileColorSource.APP_ICON,
@@ -543,6 +552,7 @@ fun PersonalizeSheet(
                     ) {
                         onTileColorSourceChange(TileColorSource.WALLPAPER_ACCENT)
                     }
+                }
                 }
             }
 

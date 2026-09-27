@@ -779,6 +779,25 @@ fun StartScreen(
     }
 
     // Guard against accidental restore (destructive — replaces the current layout).
+    var resetConfirmPending by remember { mutableStateOf(false) }
+    if (resetConfirmPending) {
+        AlertDialog(
+            onDismissRequest = { resetConfirmPending = false },
+            title = { Text("reset start layout?") },
+            text = { Text("this replaces your start screen with the default tiles, hubs and folder, in multicolour. save a snapshot first if you may want it back.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    resetConfirmPending = false
+                    viewModel.closeBackup()
+                    viewModel.closePersonalize()
+                    viewModel.resetLayout()
+                }) { Text("reset") }
+            },
+            dismissButton = {
+                TextButton(onClick = { resetConfirmPending = false }) { Text("cancel") }
+            },
+        )
+    }
     var restoreConfirmPending by remember { mutableStateOf(false) }
     if (restoreConfirmPending) {
         AlertDialog(
@@ -1262,6 +1281,7 @@ fun StartScreen(
                     accent = accent,
                     accentId = settings.accentId,
                     appIconColors = settings.tileColorSource == TileColorSource.APP_ICON,
+                    multiColor = settings.tileColorSource == TileColorSource.MULTICOLOR,
                     stockRefreshRate = settings.stockRefreshRate,
                     commodityRefreshRate = settings.commodityRefreshRate,
                     sportsRefreshRate = settings.sportsRefreshRate,
@@ -2140,6 +2160,7 @@ fun StartScreen(
             },
             onExportBackup = { backupExportLauncher.launch("tileshell-backup.json") },
             onRestoreBackup = { restoreConfirmPending = true },
+            onResetLayout = { resetConfirmPending = true },
             autoBackupEnabled = settings.autoBackupEnabled,
             autoBackupIntervalHours = settings.autoBackupIntervalHours,
             onAutoBackupEnabled = viewModel::setAutoBackupEnabled,
@@ -2765,6 +2786,8 @@ private fun StartPage(
     accent: Color,
     accentId: String,
     appIconColors: Boolean,
+    // Multicolour tile colours: each tile's own stored colorId.
+    multiColor: Boolean = false,
     // Personalize's "live data refresh" — threaded down to TileView for the
     // stock/commodity/sports live faces.
     stockRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
@@ -3732,6 +3755,7 @@ private fun StartPage(
                         ?.let { rememberDominantIconColor(it.packageName, it.activityName) }
                     val tileAccent = when {
                         tileOverride != null -> TileAccents.colorForOverride(tileOverride, accentId)
+                        multiColor -> TileAccents.forId(model.colorId)
                         iconColor != null -> iconColor
                         wallpaperAccent != null -> wallpaperAccent
                         else -> accent
