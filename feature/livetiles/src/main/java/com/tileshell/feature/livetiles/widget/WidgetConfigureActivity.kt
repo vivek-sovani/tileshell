@@ -21,7 +21,9 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
@@ -230,6 +232,7 @@ class WidgetConfigureActivity : ComponentActivity() {
                 onCountdownPicked = { targetIsoDate, label -> WidgetConfigStore.setCountdown(this, appWidgetId, targetIsoDate, label) },
                 onWeatherLocationPicked = { encoded -> WidgetConfigStore.setWeatherLocation(this, appWidgetId, encoded) },
                 onColorPicked = ::save,
+                onDismiss = ::finish,
             )
         }
     }
@@ -288,6 +291,7 @@ private fun ConfigureScreen(
     onCountdownPicked: (targetIsoDate: String, label: String) -> Unit,
     onWeatherLocationPicked: (encoded: String) -> Unit,
     onColorPicked: (String?) -> Unit,
+    onDismiss: () -> Unit = {},
 ) {
     var step by remember { mutableStateOf(if (requiredStep == RequiredStep.NONE) ConfigureStep.COLOR else ConfigureStep.FIRST) }
     // This app targets Android 15+ (API 35), where edge-to-edge is enforced —
@@ -299,7 +303,37 @@ private fun ConfigureScreen(
     // `Modifier.fillMaxSize()` root) — this Box just reserves the status
     // bar's height up front, and each child's own `fillMaxSize()` then fills
     // whatever's left underneath it.
-    Box(modifier = Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
+    // A bottom sheet over the home screen (translucent window, see the
+    // manifest's WidgetSheet theme): the top part is a scrim that dismisses,
+    // and each screen's own fillMaxSize() fills the sheet. It shrinks with
+    // the keyboard since the fraction is taken after imePadding.
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.45f))
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null,
+                onClick = onDismiss,
+            )
+            .statusBarsPadding()
+            .imePadding(),
+    ) {
+    Box(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .fillMaxHeight(0.5f)
+            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+            .background(Color(0xFF0A0A0D))
+            // Swallow taps so they don't reach the dismissing scrim.
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null,
+                onClick = {},
+            )
+            .navigationBarsPadding(),
+    ) {
         when (step) {
             ConfigureStep.FIRST -> when (requiredStep) {
                 RequiredStep.CALENDAR_SYSTEM -> SystemPickerScreen(
@@ -356,6 +390,7 @@ private fun ConfigureScreen(
             }
             ConfigureStep.COLOR -> ColorPickerScreen(onPick = onColorPicked)
         }
+    }
     }
 }
 
