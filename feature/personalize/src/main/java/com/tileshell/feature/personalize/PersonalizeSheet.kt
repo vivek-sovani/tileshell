@@ -286,11 +286,15 @@ fun PersonalizeSheet(
     }
     var showResetTileStyleConfirm by remember { mutableStateOf(false) }
     var showLiveTilesPermissionPrompt by remember { mutableStateOf(false) }
+    // "live data refresh" opens as its own screen on top of the sheet.
+    var liveRefreshOpen by remember { mutableStateOf(false) }
 
     // Android back / back-gesture closes the sheet. When a sub-sheet (about,
     // folders, bing history) is open on top, its own handler — registered later —
     // takes the back press first, so this closes personalize only once they're gone.
     BackHandler(enabled = visible) { onDismiss() }
+    // Registered after the sheet's own handler, so it takes back first.
+    BackHandler(enabled = visible && liveRefreshOpen) { liveRefreshOpen = false }
 
     if (showResetTileStyleConfirm) {
         AlertDialog(
@@ -1242,15 +1246,23 @@ fun PersonalizeSheet(
             // stock/commodity polling further outside 9am-4pm weekday market
             // hours regardless of which rate is picked here. ----
             SettingGroup(label = "live data refresh", tokens.fgDim) {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Text(
-                        "how often stock, commodity, and sports tiles re-poll — a battery/data tradeoff; slower saves more",
-                        color = tokens.fgDim,
-                        fontSize = 12.sp,
-                    )
-                    RefreshRateRow("stock", stockRefreshRate, accent, tokens, onStockRefreshRateChange)
-                    RefreshRateRow("commodity", commodityRefreshRate, accent, tokens, onCommodityRefreshRateChange)
-                    RefreshRateRow("sports", sportsRefreshRate, accent, tokens, onSportsRefreshRateChange)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { liveRefreshOpen = true }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "refresh rates", color = tokens.fg, fontSize = 14.sp)
+                        Text(
+                            text = "how often stock, commodity and sports tiles update",
+                            color = tokens.fgDim,
+                            fontSize = 12.sp,
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(text = "›", color = accent, fontSize = 16.sp)
                 }
             }
 
@@ -1484,7 +1496,7 @@ fun PersonalizeSheet(
             }
 
             // ---- backup & restore ----
-            SettingGroup(label = "backup & restore", tokens.fgDim) {
+            SettingGroup(label = "backup, restore & reset", tokens.fgDim) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1495,7 +1507,7 @@ fun PersonalizeSheet(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(text = "manage backups", color = tokens.fg, fontSize = 14.sp)
                         Text(
-                            text = "layout history, auto-save, export & restore",
+                            text = "layout history, auto-save, export, restore & reset",
                             color = tokens.fgDim,
                             fontSize = 12.sp,
                         )
@@ -1518,6 +1530,42 @@ fun PersonalizeSheet(
                     Spacer(Modifier.weight(1f))
                     Text(text = "features & info ›", color = accent, fontSize = 13.sp)
                 }
+            }
+        }
+
+        if (liveRefreshOpen) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { translationY = size.height * (1f - progress) }
+                    .background(tokens.sheet)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {},
+                    )
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Text(
+                    text = "‹ personalize",
+                    color = accent,
+                    fontSize = 14.sp,
+                    modifier = Modifier.clickable { liveRefreshOpen = false }.padding(vertical = 6.dp),
+                )
+                Text("live data refresh", color = tokens.fg, fontSize = 26.sp, fontWeight = FontWeight.Light)
+                Text(
+                    "how often stock, commodity and sports tiles re-poll. slower saves battery and data. " +
+                        "stock and commodity tiles also slow down outside market hours on their own.",
+                    color = tokens.fgDim,
+                    fontSize = 13.sp,
+                )
+                RefreshRateRow("stock", stockRefreshRate, accent, tokens, onStockRefreshRateChange)
+                RefreshRateRow("commodity", commodityRefreshRate, accent, tokens, onCommodityRefreshRateChange)
+                RefreshRateRow("sports", sportsRefreshRate, accent, tokens, onSportsRefreshRateChange)
             }
         }
     }

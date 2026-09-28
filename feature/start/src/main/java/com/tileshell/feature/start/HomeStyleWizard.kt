@@ -309,6 +309,9 @@ private fun HomeStyleOption(
 
 private enum class SetupStep { STYLE, SETUP, APPS }
 
+/** The wizard's theme pick; AUTO follows the system. */
+internal enum class SetupTheme { DARK, LIGHT, AUTO }
+
 /** Wizard background and text, fixed dark like the rest of first run. */
 private val WizardBg = Color(0xFF0A0A0D)
 private val WizardDim = Color.White.copy(alpha = 0.65f)
@@ -328,15 +331,17 @@ internal fun StartSetupWizard(
     reset: Boolean,
     initialStyle: HomeStyle,
     initialMulticolor: Boolean,
+    initialTheme: SetupTheme,
     accent: Color,
     apps: List<AppEntry>,
     defaultPackages: Set<String>,
-    onFinish: (style: HomeStyle, multicolor: Boolean, custom: Boolean, picked: Set<String>) -> Unit,
+    onFinish: (style: HomeStyle, theme: SetupTheme, multicolor: Boolean, custom: Boolean, picked: Set<String>) -> Unit,
     onCancel: () -> Unit,
 ) {
     var step by rememberSaveable { mutableStateOf(SetupStep.STYLE) }
     var style by rememberSaveable { mutableStateOf(initialStyle) }
     var multicolor by rememberSaveable { mutableStateOf(initialMulticolor) }
+    var theme by rememberSaveable { mutableStateOf(initialTheme) }
     var custom by rememberSaveable { mutableStateOf(false) }
     var picked by remember { mutableStateOf<Set<String>?>(null) }
     // Pre-tick the defaults once they've loaded.
@@ -361,6 +366,8 @@ internal fun StartSetupWizard(
         SetupStep.SETUP -> SetupChoiceScreen(
             reset = reset,
             accent = accent,
+            theme = theme,
+            onTheme = { theme = it },
             multicolor = multicolor,
             onMulticolor = { multicolor = it },
             custom = custom,
@@ -368,7 +375,7 @@ internal fun StartSetupWizard(
             onBack = { step = SetupStep.STYLE },
             onNext = {
                 if (custom) step = SetupStep.APPS
-                else onFinish(style, multicolor, false, emptySet())
+                else onFinish(style, theme, multicolor, false, emptySet())
             },
         )
         SetupStep.APPS -> SetupAppsScreen(
@@ -382,7 +389,7 @@ internal fun StartSetupWizard(
                 picked = if (pkg in cur) cur - pkg else cur + pkg
             },
             onBack = { step = SetupStep.SETUP },
-            onDone = { onFinish(style, multicolor, true, picked ?: defaultPackages) },
+            onDone = { onFinish(style, theme, multicolor, true, picked ?: defaultPackages) },
         )
     }
 }
@@ -454,6 +461,8 @@ private val MULTI_SWATCHES = listOf("cobalt", "teal", "green", "purple", "orange
 private fun SetupChoiceScreen(
     reset: Boolean,
     accent: Color,
+    theme: SetupTheme,
+    onTheme: (SetupTheme) -> Unit,
     multicolor: Boolean,
     onMulticolor: (Boolean) -> Unit,
     custom: Boolean,
@@ -467,6 +476,33 @@ private fun SetupChoiceScreen(
     Text("set up your start", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Light)
     Spacer(Modifier.height(24.dp))
 
+    Text("theme", color = WizardDim, fontSize = 13.sp)
+    Spacer(Modifier.height(8.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        listOf(SetupTheme.DARK to "dark", SetupTheme.LIGHT to "light", SetupTheme.AUTO to "auto").forEach { (t, label) ->
+            SelectableCard(theme == t, accent, Modifier.weight(1f), onClick = { onTheme(t) }) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    Box(
+                        Modifier
+                            .size(22.dp)
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(
+                                when (t) {
+                                    SetupTheme.DARK -> Color(0xFF0A0A0D)
+                                    SetupTheme.LIGHT -> Color(0xFFECE9E4)
+                                    SetupTheme.AUTO -> Color(0xFF6E6C68)
+                                },
+                            )
+                            .border(1.dp, WizardLine, RoundedCornerShape(5.dp)),
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(label, color = Color.White, fontSize = 14.sp)
+                }
+            }
+        }
+    }
+
+    Spacer(Modifier.height(20.dp))
     Text("tile colour", color = WizardDim, fontSize = 13.sp)
     Spacer(Modifier.height(8.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -490,7 +526,7 @@ private fun SetupChoiceScreen(
         }
     }
 
-    Spacer(Modifier.height(24.dp))
+    Spacer(Modifier.height(20.dp))
     Text("apps", color = WizardDim, fontSize = 13.sp)
     Spacer(Modifier.height(8.dp))
     SelectableCard(!custom, accent, Modifier.fillMaxWidth(), onClick = { onCustom(false) }) {

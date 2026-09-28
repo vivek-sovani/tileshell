@@ -2490,6 +2490,11 @@ fun StartScreen(
                 reset = setupReset,
                 initialStyle = settings.homeStyle,
                 initialMulticolor = if (setupReset) settings.tileColorSource == TileColorSource.MULTICOLOR else true,
+                initialTheme = when {
+                    settings.followSystemTheme -> SetupTheme.AUTO
+                    settings.dark -> SetupTheme.DARK
+                    else -> SetupTheme.LIGHT
+                },
                 accent = TileAccents.forId(settings.accentId),
                 apps = apps,
                 defaultPackages = setupDefaults,

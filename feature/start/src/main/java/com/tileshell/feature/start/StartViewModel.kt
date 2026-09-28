@@ -1396,7 +1396,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      * WP-appropriate seed sizes are written well before this choice is ever
      * made.
      */
-    fun finishStartSetup(style: HomeStyle, multicolor: Boolean, custom: Boolean, picked: Set<String>) {
+    internal fun finishStartSetup(style: HomeStyle, theme: SetupTheme, multicolor: Boolean, custom: Boolean, picked: Set<String>) {
         val reset = _setupReset.value
         val defaults = _setupDefaultPackages.value
         val installed = apps.value
@@ -1418,6 +1418,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
                 repository.resetLayout(removed, extras)
                 migrateSettingsTile()
             }
+            settingsRepository.setFollowSystemTheme(theme == SetupTheme.AUTO)
+            if (theme != SetupTheme.AUTO) settingsRepository.setDark(theme == SetupTheme.DARK)
             settingsRepository.setTileColorSource(
                 if (multicolor) com.tileshell.core.data.settings.TileColorSource.MULTICOLOR else com.tileshell.core.data.settings.TileColorSource.GLOBAL_ACCENT,
             )

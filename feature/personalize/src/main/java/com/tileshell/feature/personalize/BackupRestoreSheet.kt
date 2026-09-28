@@ -116,7 +116,7 @@ fun BackupRestoreSheet(
                 )
 
                 Text(
-                    text = "backup & restore",
+                    text = "backup, restore & reset",
                     color = tokens.fg,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Medium,
@@ -205,11 +205,37 @@ fun BackupRestoreSheet(
 
                     WallpaperNavRow("export layout", "save ›", accent, tokens, onExportBackup)
                     WallpaperNavRow("restore from file", "open ›", accent, tokens, onRestoreBackup)
-                    WallpaperNavRow("reset start layout", "reset ›", accent, tokens, onResetLayout)
                     Spacer(Modifier.height(10.dp))
                     Text(
                         text = "tip: save the exported file to google drive (or another cloud folder) " +
                             "so it's there to restore on your next device.",
+                        color = tokens.fgDim,
+                        fontSize = 12.sp,
+                        lineHeight = 17.sp,
+                    )
+
+                    // — reset divider —
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        HorizontalDivider(
+                            modifier = Modifier.weight(1f),
+                            color = tokens.fgDim.copy(alpha = 0.15f),
+                        )
+                        Text(
+                            text = "  reset  ",
+                            color = tokens.fgDim.copy(alpha = 0.5f),
+                            fontSize = 11.sp,
+                        )
+                        HorizontalDivider(
+                            modifier = Modifier.weight(1f),
+                            color = tokens.fgDim.copy(alpha = 0.15f),
+                        )
+                    }
+                    WallpaperNavRow("reset start layout", "reset ›", accent, tokens, onResetLayout)
+                    Text(
+                        text = "sets up start again from the first step: style, colour and apps.",
                         color = tokens.fgDim,
                         fontSize = 12.sp,
                         lineHeight = 17.sp,

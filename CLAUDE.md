@@ -51,7 +51,10 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   replaces the old confirm dialog. Finishing marks "what's new" seen, so a
   new install doesn't get that card on its second launch. The wizard now
   opens before the default list loads, so the first-run hint no longer
-  flashes. Verified on the emulator: a first-run custom pass (single
+  flashes. Step 2 also picks the theme (dark / light / auto). Follow-ups:
+  backups' "reset start layout" sits in its own "reset" section, the
+  personalize group is renamed "backup, restore & reset", and "live data
+  refresh" is now a row opening its own screen. Verified on the emulator: a first-run custom pass (single
   colour, youtube unticked, contacts added) and a reset pass (multicolour,
   contacts added). Build and full unit tests green.
 - **`main` — new first-install default layout, in multicolour.** User-approved
