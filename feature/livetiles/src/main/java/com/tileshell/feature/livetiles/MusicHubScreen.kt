@@ -515,7 +515,7 @@ private fun ExternalNowPlaying(
                 .padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val icon = rememberAppIconBitmap(packageName, sizePx = 64)
+            val icon = rememberAppIconBitmap(packageName, sizePx = iconPx(28.dp))
             if (icon != null) {
                 androidx.compose.foundation.Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(28.dp))
                 Spacer(Modifier.width(10.dp))
@@ -770,7 +770,7 @@ private fun LibrarySearchField(query: String, onQueryChange: (String) -> Unit, p
 
 @Composable
 private fun MusicAppCell(app: AppEntry, accent: Color, tokens: ColorTokens, onClick: () -> Unit) {
-    val icon = rememberAppIconBitmap(app.packageName, sizePx = 96)
+    val icon = rememberAppIconBitmap(app.packageName, sizePx = iconPx(48.dp))
     Column(
         modifier = Modifier
             .padding(4.dp)
@@ -855,7 +855,7 @@ private fun HistoryPage(context: Context, accent: Color, tokens: ColorTokens) {
                         Icon(TileIcons["music"], contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                     }
                 } else {
-                    val icon = rememberAppIconBitmap(track.packageName, sizePx = 64)
+                    val icon = rememberAppIconBitmap(track.packageName, sizePx = iconPx(28.dp))
                     if (icon != null) {
                         androidx.compose.foundation.Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(28.dp))
                     }

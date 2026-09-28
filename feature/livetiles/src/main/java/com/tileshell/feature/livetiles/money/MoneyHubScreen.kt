@@ -97,10 +97,14 @@ fun MoneyHubScreen(
         animationSpec = tween(300, easing = CubicBezierEasing(0.22f, 0.61f, 0.36f, 1f)),
         label = "moneyHubProgress",
     )
-    // Locked again every time the hub closes.
+    // Locked again every time the hub closes — but only once it has fully
+    // slid away: re-locking at the start of the close showed the locked page
+    // during the exit animation, which asked for biometrics again.
     var unlocked by remember { mutableStateOf(false) }
-    LaunchedEffect(visible) { if (!visible) unlocked = false }
-    if (!visible && progress == 0f) return
+    if (!visible && progress == 0f) {
+        LaunchedEffect(Unit) { unlocked = false }
+        return
+    }
 
     val tokens = colorTokens(dark)
     val accent = TileAccents.forId(accentId)
@@ -157,7 +161,7 @@ fun MoneyHubScreen(
                         when (page) {
                             0 -> {
                                 val locked = (settings?.lockTransactions ?: true) && !unlocked && MoneyLock.isDeviceSecure(context)
-                                if (locked) MoneyLockedPage(tokens, accent) { unlocked = true } else MoneyTransactionsPage(tokens, accent)
+                                if (locked) MoneyLockedPage(tokens, accent, autoPrompt = visible) { unlocked = true } else MoneyTransactionsPage(tokens, accent)
                             }
                             else -> MoneyAppsPage(tokens)
                         }
@@ -177,7 +181,7 @@ fun MoneyHubScreen(
 }
 
 @Composable
-private fun MoneyLockedPage(tokens: ColorTokens, accent: Color, onUnlocked: () -> Unit) {
+private fun MoneyLockedPage(tokens: ColorTokens, accent: Color, autoPrompt: Boolean, onUnlocked: () -> Unit) {
     val context = LocalContext.current
     val credentialLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) onUnlocked()
@@ -189,8 +193,9 @@ private fun MoneyLockedPage(tokens: ColorTokens, accent: Color, onUnlocked: () -
             MoneyLock.confirmIntent(context)?.let { credentialLauncher.launch(it) } ?: onUnlocked()
         }
     }
-    // Ask straight away; the button is there if they cancel.
-    LaunchedEffect(Unit) { unlock() }
+    // Ask straight away while the hub is open (never while it's closing); the
+    // button is there if they cancel.
+    LaunchedEffect(autoPrompt) { if (autoPrompt) unlock() }
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -359,7 +364,7 @@ private fun AppGridRow(apps: List<MoneyApp>, tokens: ColorTokens) {
                 modifier = Modifier.weight(1f).clickable { openApp(context, app.packageName) },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                val icon = rememberAppIconBitmap(app.packageName)
+                val icon = rememberAppIconBitmap(app.packageName, sizePx = com.tileshell.feature.livetiles.iconPx(48.dp))
                 if (icon != null) Image(icon, null, modifier = Modifier.size(48.dp)) else Box(Modifier.size(48.dp))
                 Spacer(Modifier.height(4.dp))
                 Text(app.label.lowercase(), color = tokens.fg, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

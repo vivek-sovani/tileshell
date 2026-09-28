@@ -1281,7 +1281,7 @@ private fun PeopleAppsPage(
  * music hub's apps cell. */
 @Composable
 private fun PeopleAppCell(app: PeopleApp, tokens: ColorTokens, accent: Color, onClick: () -> Unit) {
-    val icon = rememberAppIconBitmap(app.packageName, sizePx = 96)
+    val icon = rememberAppIconBitmap(app.packageName, sizePx = iconPx(40.dp))
     Column(
         modifier = Modifier
             .padding(4.dp)

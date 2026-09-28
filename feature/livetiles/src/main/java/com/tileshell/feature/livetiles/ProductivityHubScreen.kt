@@ -604,7 +604,7 @@ private fun QuickCell(
             contentAlignment = Alignment.Center,
         ) {
             if (packageName != null) {
-                val icon = rememberAppIconBitmap(packageName, sizePx = 96)
+                val icon = rememberAppIconBitmap(packageName, sizePx = iconPx(32.dp))
                 if (icon != null) Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(32.dp))
             } else if (iconKey != null) {
                 Icon(TileIcons[iconKey], contentDescription = null, tint = tokens.fg, modifier = Modifier.size(22.dp))
@@ -986,7 +986,7 @@ private fun ProductivityAppsPage(tokens: ColorTokens, accent: Color, onAddToQuic
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ProductivityAppCell(app: ProductivityApp, tokens: ColorTokens, onLongClick: () -> Unit, onClick: () -> Unit) {
-    val icon = rememberAppIconBitmap(app.packageName, sizePx = 96)
+    val icon = rememberAppIconBitmap(app.packageName, sizePx = iconPx(40.dp))
     var menuOpen by remember { mutableStateOf(false) }
     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
         DropdownMenuItem(text = { Text("add to quick") }, onClick = {

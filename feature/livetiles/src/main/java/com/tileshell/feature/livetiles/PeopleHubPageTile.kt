@@ -322,7 +322,7 @@ private fun PeopleAppIconGrid(apps: List<PeopleApp>, label: String, size: TileSi
 
 @Composable
 private fun PeopleAppIcon(app: PeopleApp, color: Color) {
-    val icon = rememberMonochromeAppIcon(app.packageName, sizePx = 96)
+    val icon = rememberMonochromeAppIcon(app.packageName, sizePx = iconPx(28.dp))
     Box(modifier = Modifier.size(34.dp)) {
         if (icon != null) {
             Image(

@@ -44,6 +44,11 @@ import kotlinx.coroutines.withContext
  * entry, so this resolves for any pinned app. Reloads only when [packageName]
  * changes.
  */
+/** Pixels for an icon drawn at [size], so it's decoded sharp on this screen. */
+@Composable
+fun iconPx(size: androidx.compose.ui.unit.Dp): Int =
+    with(androidx.compose.ui.platform.LocalDensity.current) { size.roundToPx() }
+
 @Composable
 fun rememberAppIconBitmap(packageName: String, sizePx: Int = 96): ImageBitmap? {
     val context = LocalContext.current

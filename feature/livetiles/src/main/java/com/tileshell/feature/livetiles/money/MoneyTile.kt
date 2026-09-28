@@ -140,7 +140,7 @@ private fun MoneyAppsBack(apps: List<MoneyApp>, size: TileSize) {
                                 ),
                             contentAlignment = Alignment.Center,
                         ) {
-                            val icon = rememberMonochromeAppIcon(app.packageName, sizePx = 96)
+                            val icon = rememberMonochromeAppIcon(app.packageName, sizePx = com.tileshell.feature.livetiles.iconPx(26.dp))
                             if (icon != null) {
                                 Image(icon, app.label, colorFilter = ColorFilter.tint(color), modifier = Modifier.size(26.dp))
                             }

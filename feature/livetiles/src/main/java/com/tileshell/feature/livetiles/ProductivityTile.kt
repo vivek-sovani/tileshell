@@ -153,7 +153,7 @@ private fun ProductivityAppsBack(apps: List<ProductivityApp>, size: TileSize) {
             apps.take(columns * rows).chunked(columns).forEach { rowApps ->
                 Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     rowApps.forEach { app ->
-                        val icon = rememberMonochromeAppIcon(app.packageName, sizePx = 96)
+                        val icon = rememberMonochromeAppIcon(app.packageName, sizePx = iconPx(28.dp))
                         Box(
                             modifier = Modifier
                                 .weight(1f)

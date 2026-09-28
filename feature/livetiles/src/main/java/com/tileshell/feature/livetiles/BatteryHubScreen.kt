@@ -416,7 +416,7 @@ private fun ScreenTimeRow(entry: ScreenTimeEntry, tokens: ColorTokens) {
             )
             .padding(vertical = 6.dp),
     ) {
-        val icon = rememberAppIconBitmap(entry.packageName, sizePx = 72)
+        val icon = rememberAppIconBitmap(entry.packageName, sizePx = iconPx(28.dp))
         Box(modifier = Modifier.size(28.dp)) {
             if (icon != null) Image(bitmap = icon, contentDescription = null, modifier = Modifier.fillMaxSize())
         }
