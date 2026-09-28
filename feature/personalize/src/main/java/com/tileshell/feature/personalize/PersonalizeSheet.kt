@@ -1414,7 +1414,10 @@ fun PersonalizeSheet(
                             singleLine = true,
                             textStyle = TextStyle(color = tokens.fg, fontSize = 14.sp),
                             cursorBrush = SolidColor(accent),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardOptions = KeyboardOptions(
+                                capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words,
+                                imeAction = ImeAction.Done,
+                            ),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))

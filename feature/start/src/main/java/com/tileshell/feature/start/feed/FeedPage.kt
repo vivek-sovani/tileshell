@@ -590,7 +590,7 @@ private fun GreetingHeader(userName: String, hour: Int, fg: Color, fgDim: Color)
         )
         if (userName.isNotBlank()) {
             Text(
-                text = userName,
+                text = userName.trim().replaceFirstChar { it.titlecase() },
                 color = fgDim,
                 fontSize = 34.sp,
                 fontFamily = FontFamily.Serif,
