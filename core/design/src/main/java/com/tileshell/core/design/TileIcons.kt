@@ -433,6 +433,12 @@ object TileIcons {
             p("M16 12h3"),
             p("M3 9h13a2 2 0 0 1 2 2"),
         ))
+        // The money hub's tile: the wallet shape.
+        put("money", vector("money",
+            p(rect(3.0, 6.0, 18.0, 13.0, 2.0)),
+            p("M16 12h3"),
+            p("M3 9h13a2 2 0 0 1 2 2"),
+        ))
 
         put("cloud", vector("cloud", p("M6.5 18h10.5a3.5 3.5 0 0 0 0-7 5 5 0 0 0-9.7-1.2A3.5 3.5 0 0 0 6.5 18z")))
 

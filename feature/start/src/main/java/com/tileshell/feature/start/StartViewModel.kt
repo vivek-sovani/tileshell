@@ -317,6 +317,27 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** The battery hub (the battery tile or widget → hub). */
+    /** True while the money hub is open. */
+    private val _moneyHubOpen = MutableStateFlow(false)
+    val moneyHubOpen: StateFlow<Boolean> = _moneyHubOpen.asStateFlow()
+
+    fun openMoneyHub() {
+        _moneyHubOpen.value = true
+    }
+
+    fun closeMoneyHub() {
+        _moneyHubOpen.value = false
+    }
+
+    /** Pin the money hub's own tile. */
+    fun pinMoneyHub() {
+        viewModelScope.launch(writeContext) {
+            val exists = tiles.value.any { it is TileModel.App && it.iconKey == "money" }
+            val result = if (!exists && repository.addDefaultTile("money", activePageSectionId)) PinResult.PINNED else PinResult.ALREADY_ON_START
+            _pinMessage.tryEmit(pinOutcomeText(result, "money"))
+        }
+    }
+
     private val _batteryHubOpen = MutableStateFlow(false)
     val batteryHubOpen: StateFlow<Boolean> = _batteryHubOpen.asStateFlow()
 
@@ -2032,6 +2053,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         closePeopleHub()
         closeProductivityHub()
         closeBatteryHub()
+        closeMoneyHub()
         closePermissions()
         closeNewsRegion()
         closeEdgeStrip()

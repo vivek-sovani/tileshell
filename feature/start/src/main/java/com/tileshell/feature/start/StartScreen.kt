@@ -402,6 +402,7 @@ fun StartScreen(
     val peopleHubInitialPage by viewModel.peopleHubInitialPage.collectAsStateWithLifecycle()
     val productivityHubOpen by viewModel.productivityHubOpen.collectAsStateWithLifecycle()
     val batteryHubOpen by viewModel.batteryHubOpen.collectAsStateWithLifecycle()
+    val moneyHubOpen by viewModel.moneyHubOpen.collectAsStateWithLifecycle()
     val productivityHubInitialPage by viewModel.productivityHubInitialPage.collectAsStateWithLifecycle()
     val notesInitialNoteId by viewModel.notesInitialNoteId.collectAsStateWithLifecycle()
     // The dedicated music tile's back-face quick-nav menu posts here rather
@@ -983,7 +984,7 @@ fun StartScreen(
         foldersOpen || hiddenAppsOpen || addWidgetsOpen || (tasksOpen != null) || notesOpen ||
         (stickyNoteEditTileId != null) || (countdownEditTileId != null) || (sportsEditTileId != null) || (stockEditTileId != null) ||
         (commodityEditTileId != null) || (calendarSystemEditTileId != null) || (weatherHubTarget != null) || musicHubOpen ||
-        calendarHubOpen || peopleHubOpen || productivityHubOpen || batteryHubOpen
+        calendarHubOpen || peopleHubOpen || productivityHubOpen || batteryHubOpen || moneyHubOpen
     val quickSearchEnabled = swipeEnabled && restingAtStart && !searchOpen && !quickPanelOpen && !anySheetOpen
     val quickPanelEnabled = swipeEnabled && restingAtStart && !searchOpen && !quickPanelOpen && !anySheetOpen
     // Runs in the Initial pass like the pager, but keys off pointer *count* (2)
@@ -1447,6 +1448,8 @@ fun StartScreen(
                                     viewModel.openProductivityHub()
                                 } else if (tile.packageName.isBlank() && tile.iconKey == "battery") {
                                     viewModel.openBatteryHub()
+                                } else if (tile.packageName.isBlank() && tile.iconKey == "money") {
+                                    viewModel.openMoneyHub()
                                 } else if (tile.iconKey == "people") {
                                     // Same pattern as music/calendar just above —
                                     // not blank-package-gated, since the contacts
@@ -1506,6 +1509,8 @@ fun StartScreen(
                             viewModel.openProductivityHub()
                         } else if (child.packageName.isBlank() && child.iconKey == "battery") {
                             viewModel.openBatteryHub()
+                        } else if (child.packageName.isBlank() && child.iconKey == "money") {
+                            viewModel.openMoneyHub()
                         } else if (child.iconKey == "people") {
                             val hubPage = PeopleHubTile.decode(child.activityName)
                             if (hubPage != "what's new" || !NotificationCenter.openWhatsNewDisplayed(context)) {
@@ -2231,6 +2236,15 @@ fun StartScreen(
             dark = dark,
             accentId = settings.accentId,
             onDismiss = viewModel::closeBatteryHub,
+            rightHalf = isLandscape,
+        )
+
+        com.tileshell.feature.livetiles.money.MoneyHubScreen(
+            visible = moneyHubOpen,
+            dark = dark,
+            accentId = settings.accentId,
+            onDismiss = viewModel::closeMoneyHub,
+            onPinHub = viewModel::pinMoneyHub,
             rightHalf = isLandscape,
         )
 
@@ -7242,6 +7256,10 @@ private fun AppTileContent(
         }
         LiveFace.NOTES -> {
             NotesTileFace(size = tile.size, flipped = flipped, modifier = Modifier.fillMaxSize())
+            return
+        }
+        LiveFace.MONEY -> {
+            com.tileshell.feature.livetiles.money.MoneyTileFace(size = tile.size, active = liveActive, modifier = Modifier.fillMaxSize())
             return
         }
         LiveFace.PRODUCTIVITY -> {

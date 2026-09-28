@@ -149,6 +149,7 @@ private val WHATS_NEW_FEATURES = listOf(
     "people: chats, messages, mail and social notifications in one list — reply inline, swipe to dismiss",
     "productivity: your next meeting with a join button, notes, named task lists and office apps",
     "battery tile, hub and widget, from tileshell's own battery log",
+    "money: bank and upi transactions from new bank sms and payment notifications, locked with your fingerprint, plus your payment and banking apps",
     "weather shows a moon at night, plus sunrise, sunset and uv index; panchang shows moonrise and moonset",
     "reset start layout now runs a quick setup — tiles or icons, theme, one colour or multicolour, and your apps",
     "every permission, and refresh rates for weather, news, stocks and sports, each in one place",

@@ -37,6 +37,17 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — money hub (folded into v5.0.0, not yet uploaded).** User-requested, designed first.
+  Transactions are parsed from new bank-SMS and payment-app notifications (`money/MoneyParser.kt`,
+  pure + tested; `MoneyCapture` in the listener; SMS app and payment/bank apps only; OTP/due/offer
+  rejected; 5-min duplicate window) into `files/money_log.txt` (`MoneyStore`, one year). Hub:
+  transactions (monthly totals, account/UPI/card chips, day list, last balance; locked with
+  `BiometricPrompt` / screen-lock confirmation, `USE_BIOMETRIC` added) and apps (payment & wallets,
+  banking; `moneyAppKind`). Settings in the hub (`MoneyPrefs`): tile shows nothing (default) or last
+  payment & receipt; lock; read bank messages; clear history. Tile back shows payment apps. Add from
+  "add live tiles". Verified on the emulator end-to-end with real test SMS (debit, credit + balance,
+  OTP ignored), the tile's details option, the PIN unlock, and a release-build launch. Privacy
+  policy, page, disclosure, about/guide, release notes and what's-new updated.
 - **v5.0.0 (versionCode 500) — release cut: the hubs release.** Rolls up everything since
   v4.5.0 (weather, music, calendar, people, productivity and battery hubs; Panchang
   moonrise/moonset; the multicolour default layout and setup wizard; the full permissions sheet;

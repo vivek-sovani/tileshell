@@ -168,10 +168,11 @@ TileShell 5.0.0
 
 New features:
 • Hubs: weather, music, calendar, people,
-  productivity & battery – tap a tile
+  productivity, battery & money – tap a tile
 • Music: your library, podcasts & radio
 • People: messages & mail in one list,
   with inline reply
+• Money: bank & UPI transactions, locked
 • Productivity: meetings, notes, task lists
 • Quick setup: style, theme, colours & apps
 • All permissions & refresh rates in one place
@@ -181,7 +182,7 @@ Bugs fixed:
 • Music pauses when headphones disconnect
 ```
 
-*(Character count 435, under Play's 500 limit.)*
+*(Character count 483, under Play's 500 limit.)*
 
 ### Full changelog since v4.5.0
 
@@ -204,6 +205,12 @@ full-screen hub with windows-phone-style swipeable pages.
   latest note, quick actions), notes with optional titles, named task lists (create, delete, pin),
   and office, meeting and tool apps most used first. A customisable quick row, and links to the
   calendar hub and what's new.
+- **Money hub** — bank and payment transactions read from new bank SMS and payment-app notifications
+  (no SMS permission; only new notifications, OTPs and promotions ignored, duplicates across the SMS
+  and the payment app counted once), kept only on the phone for a year: monthly spent/received,
+  per-account/UPI/card filters, the last reported balance. Transactions are locked behind
+  fingerprint, face or screen lock. An apps page lists payment & wallet apps and banking apps. The
+  tile shows nothing or the last payment and receipt (a setting), with payment apps on the back.
 - **Battery** — TileShell now keeps its own on-device battery log; a redesigned tile (drain rate,
   time left, today's curve), a battery hub (today, week, per-app screen time, details) and an
   upgraded widget.

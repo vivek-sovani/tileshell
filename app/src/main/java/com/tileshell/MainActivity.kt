@@ -273,6 +273,9 @@ private fun AccessibilityDisclosureDialog(onConfirm: () -> Unit, onDismiss: () -
                     "• App usage (how often apps are opened, screen time), if you allow usage " +
                     "access — sorts the People and Productivity apps pages and shows Battery hub " +
                     "screen time. Stays on this device.\n\n" +
+                    "• Bank and payment notifications — new bank SMS and payment-app notices are " +
+                    "read to list your transactions in the Money hub (amount, merchant, account " +
+                    "last 4 digits, balance). Stays on this device.\n\n" +
                     "• Music files on your device — Music hub library. Stays on this device.\n\n" +
                     "• Step count — Steps tile, from the phone's step sensor. Stays on this " +
                     "device.\n\n" +

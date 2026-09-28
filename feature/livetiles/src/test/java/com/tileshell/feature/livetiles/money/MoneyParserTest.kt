@@ -1,0 +1,128 @@
+package com.tileshell.feature.livetiles.money
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class MoneyParserTest {
+    private fun parse(text: String, title: String = "AX-HDFCBK") = parseMoneyTxn(title, text, "com.messages", 1_000L)
+
+    @Test
+    fun `hdfc upi debit`() {
+        val t = parse("Rs.450.00 debited from a/c **1234 on 28-09-26 to VPA swiggy@icici (UPI Ref No 123456789012). Not you? Call 18002586161")!!
+        assertEquals(45000L, t.amountPaise)
+        assertFalse(t.credit)
+        assertEquals("1234", t.account)
+        assertEquals("upi", t.method)
+        assertEquals("swiggy@icici", t.counterparty)
+    }
+
+    @Test
+    fun `sbi credit with balance`() {
+        val t = parse(
+            "Your A/C XXXXX8890 Credited INR 42,000.00 on 28/09/26 -Deposit by transfer from ACME LTD. Avl Bal INR 64,210.50-SBI",
+            title = "VM-SBIINB",
+        )!!
+        assertTrue(t.credit)
+        assertEquals(4_200_000L, t.amountPaise)
+        assertEquals("8890", t.account)
+        assertEquals("sbi", t.bank)
+        assertEquals(6_421_050L, t.balancePaise)
+        assertEquals("acme ltd", t.counterparty)
+    }
+
+    @Test
+    fun `card spend`() {
+        val u = parse("Spent Rs 1,299 on your ICICI Bank Credit Card XX5521 at AMAZON on 27-Sep. Avl Lmt: Rs 88,000", title = "ICICIB")!!
+        assertEquals(129_900L, u.amountPaise)
+        assertEquals("card", u.method)
+        assertEquals("5521", u.account)
+        assertEquals("amazon", u.counterparty)
+        assertEquals("icici", u.bank)
+    }
+
+    @Test
+    fun `payment app notification`() {
+        val t = parseMoneyTxn("Payment successful", "You paid ₹200 to Rahul S", "com.google.android.apps.nbu.paisa.user", 5L)!!
+        assertEquals(20_000L, t.amountPaise)
+        assertFalse(t.credit)
+        assertEquals("rahul s", t.counterparty)
+    }
+
+    @Test
+    fun `otp, due notices, offers and requests are ignored`() {
+        assertNull(parse("123456 is your OTP for a payment of Rs 499 at Flipkart"))
+        assertNull(parse("Your credit card bill of Rs 5,400 is due on 05-Oct"))
+        assertNull(parse("Rs 2,000 will be debited from your a/c for SIP on 01-Oct"))
+        assertNull(parse("Get a pre-approved loan offer of Rs 5,00,000"))
+        assertNull(parse("Rahul has requested Rs 300 via UPI"))
+        assertNull(parse("Hello, how are you?"))
+    }
+
+    @Test
+    fun `duplicates within five minutes are the same payment`() {
+        val a = parse("Rs 450 debited from a/c XX1234 to swiggy UPI")!!
+        val b = a.copy(time = a.time + 60_000L, sourcePackage = "com.gpay")
+        val later = a.copy(time = a.time + 10 * 60_000L)
+        val otherDirection = a.copy(credit = true)
+        assertTrue(isDuplicateTxn(b, listOf(a)))
+        assertFalse(isDuplicateTxn(later, listOf(a)))
+        assertFalse(isDuplicateTxn(otherDirection, listOf(a)))
+    }
+
+    @Test
+    fun `rupee formatting uses indian grouping`() {
+        assertEquals("₹450", formatRupees(45000))
+        assertEquals("₹42,000", formatRupees(4_200_000))
+        assertEquals("₹1,23,456.50", formatRupees(12_345_650))
+    }
+
+    @Test
+    fun `money app classification`() {
+        assertEquals(MoneyAppKind.PAYMENT, moneyAppKind("com.google.android.apps.nbu.paisa.user", "Google Pay"))
+        assertEquals(MoneyAppKind.PAYMENT, moneyAppKind("com.phonepe.app", "PhonePe"))
+        assertEquals(MoneyAppKind.BANK, moneyAppKind("com.snapwork.hdfc", "HDFC Bank"))
+        assertEquals(MoneyAppKind.BANK, moneyAppKind("com.sbi.lotusintouch", "YONO SBI"))
+        assertEquals(MoneyAppKind.BANK, moneyAppKind("com.csam.icici.bank.imobile", "iMobile Pay"))
+        assertNull(moneyAppKind("com.biology.app", "Biology Notes"))
+        assertNull(moneyAppKind("com.spotify.music", "Spotify"))
+        assertNotNull(moneyAppKind("in.org.npci.upiapp", "BHIM"))
+    }
+}
+
+class MoneyCodecTest {
+    @Test
+    fun `round trip, with and without optional fields`() {
+        val full = MoneyTxn(10L, 45000L, false, "swiggy\tx", "1234", "hdfc", "upi", 2_310_800L, "com.messages")
+        val bare = MoneyTxn(20L, 100L, true, "rahul", null, null, null, null, "com.gpay")
+        assertEquals(full.copy(counterparty = "swiggy x"), MoneyCodec.decode(MoneyCodec.encode(full)))
+        assertEquals(bare, MoneyCodec.decode(MoneyCodec.encode(bare)))
+        assertNull(MoneyCodec.decode("garbage"))
+    }
+}
+
+class MoneyHubLogicTest {
+    private fun txn(time: Long, paise: Long, credit: Boolean, account: String? = "1234", bank: String? = "hdfc", method: String? = "upi") =
+        MoneyTxn(time, paise, credit, "x", account, bank, method, null, "p")
+
+    @Test
+    fun `month totals count only this month`() {
+        val now = java.util.Calendar.getInstance().apply { set(2026, 8, 28, 12, 0) }.timeInMillis
+        val lastMonth = java.util.Calendar.getInstance().apply { set(2026, 7, 30, 12, 0) }.timeInMillis
+        val totals = monthTotals(listOf(txn(now, 45000, false), txn(now, 4_200_000, true), txn(lastMonth, 99_900, false)), now)
+        assertEquals(45000L, totals.spent)
+        assertEquals(4_200_000L, totals.received)
+        assertEquals("sep", totals.label)
+    }
+
+    @Test
+    fun `filters list accounts then upi and cards`() {
+        val list = listOf(txn(1, 1, false), txn(2, 1, false, account = "8890", bank = "sbi", method = "neft"), txn(3, 1, false, method = "card"))
+        assertEquals(listOf("hdfc ·1234", "sbi ·8890", "upi", "cards"), moneyFilters(list))
+        assertTrue(moneyFilterKey(list[1], "sbi ·8890"))
+        assertFalse(moneyFilterKey(list[1], "upi"))
+    }
+}

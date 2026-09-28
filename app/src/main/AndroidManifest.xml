@@ -31,6 +31,8 @@
          runtime permission on API 29+; a normal, auto-granted-at-install
          permission below that, so requesting it there is a harmless no-op. -->
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <!-- The money hub's transactions lock (system biometric prompt). -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <!-- Weather tile (FR-2): fetch a live, location-specific forecast from the
          no-API-key Open-Meteo service. -->
     <uses-permission android:name="android.permission.INTERNET" />

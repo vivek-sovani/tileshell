@@ -220,6 +220,8 @@ fun AboutSheet(
                     "productivity's quick row is yours to arrange — long-press a note, list, or app to add it, long-press a shortcut to remove it; links to calendar and what's new sit there too",
                     "pin any note or task list from the hub as its own start tile",
                     "battery — today's charge curve with screen on and off, a week's history, per-app screen time, and details like temperature, health, and current",
+                    "money — your bank and upi transactions, read from new bank sms and payment-app notifications and kept only on this phone, with monthly spent and received, filters per account, upi and cards, and the last balance your bank sent",
+                    "money's transactions are locked behind your fingerprint, face or screen lock; its apps page lists your payment and banking apps, and the tile can show your last payment and receipt, with payment apps on the back",
                 ),
             )
 
