@@ -114,4 +114,4 @@ acceptance.
 
 ## 6. Contact
 
-Questions about this privacy policy: **vivek.sovani@kimayainfotech.com**
+Questions about this privacy policy: **vivek.sovani@gmail.com**

@@ -20,7 +20,7 @@
 <body>
 
 <h1>TileShell — Privacy Policy</h1>
-<p class="meta">Effective date: 2026-06-18 &nbsp;·&nbsp; Last updated: 2026-06-20</p>
+<p class="meta">Effective date: 2026-06-18 &nbsp;·&nbsp; Last updated: 2026-09-28</p>
 
 <h2>Summary</h2>
 <p>TileShell is a launcher (home-screen replacement) for Android. It does not have a server backend, does not create user accounts, and does not transmit personal data to the developer. All personalisation data (layout, settings, photos) stays on your device.</p>
@@ -29,21 +29,36 @@
 <p>TileShell requests the following permissions. Each is optional — the relevant feature simply stays inactive when a permission is denied.</p>
 <table>
   <tr><th>Permission</th><th>What it reads</th><th>Where the data goes</th></tr>
-  <tr><td><code>READ_CONTACTS</code></td><td>Contact names and profile photos for the People live tile</td><td>Stays on device</td></tr>
-  <tr><td><code>READ_CALENDAR</code></td><td>Upcoming calendar events for the Calendar live tile</td><td>Stays on device</td></tr>
-  <tr><td><code>ACCESS_COARSE_LOCATION</code></td><td>Device coarse location (city level) for the Weather live tile</td><td>Sent to Open-Meteo (see §2)</td></tr>
-  <tr><td><code>NOTIFICATION_LISTENER</code> (special access)</td><td>Notification titles and snippets for badges and Mail/Messages live tiles</td><td>Stays on device</td></tr>
-  <tr><td><code>INTERNET</code></td><td>Weather forecast fetches, news RSS feeds</td><td>Sent to Open-Meteo and RSS sources (see §2)</td></tr>
-  <tr><td><code>BIND_ACCESSIBILITY_SERVICE</code> (optional)</td><td>Used only to issue the "lock screen" action when you long-press the settings icon</td><td>Not read; no data transmitted</td></tr>
+  <tr><td><code>READ_CONTACTS</code></td><td>Contact names and profile photos for the People tile and hub, and Quick Search</td><td>Stays on device</td></tr>
+  <tr><td><code>READ_CALENDAR</code></td><td>Upcoming calendar events for the Calendar tile and hub, and the Productivity hub's next meeting</td><td>Stays on device</td></tr>
+  <tr><td><code>ACCESS_COARSE_LOCATION</code></td><td>Device coarse location (city level) for the Weather tile, hub and widget</td><td>Sent to Open-Meteo (see §2)</td></tr>
+  <tr><td><code>ACTIVITY_RECOGNITION</code></td><td>Your phone's built-in step-counter sensor reading, for the Steps tile and widget. Asked only when you add one.</td><td>Stays on device</td></tr>
+  <tr><td><code>READ_MEDIA_AUDIO</code></td><td>Music files, albums and playlists on your device, for the Music hub library</td><td>Stays on device</td></tr>
+  <tr><td><code>NOTIFICATION_LISTENER</code> (special access)</td><td>Notification titles, snippets and attached images for badges, message previews and the People hub's "what's new"; replies you type are sent back through the posting app's own notification</td><td>Stays on device</td></tr>
+  <tr><td><code>PACKAGE_USAGE_STATS</code> (usage access, special access)</td><td>How often each app was opened over the last 30 days, and per-app screen time, to sort the People and Productivity hubs' apps pages and to show screen time in the Battery hub</td><td>Stays on device</td></tr>
+  <tr><td><code>POST_NOTIFICATIONS</code></td><td>Nothing read; shows the Music hub's playback controls in the notification shade</td><td>Not read; no data transmitted</td></tr>
+  <tr><td><code>WRITE_SETTINGS</code> (special access)</td><td>Nothing read; lets the Quick Panel change screen brightness and timeout</td><td>Not read; no data transmitted</td></tr>
+  <tr><td><code>REQUEST_IGNORE_BATTERY_OPTIMIZATIONS</code></td><td>Nothing read; keeps live updates running while the screen is off</td><td>Not read; no data transmitted</td></tr>
+  <tr><td><code>INTERNET</code></td><td>Weather, news, stock, commodity and sports data, podcasts, radio streams and wallpapers</td><td>Sent to the services in §2</td></tr>
+  <tr><td><code>BIND_ACCESSIBILITY_SERVICE</code> (optional)</td><td>Used only to perform system actions you trigger: lock screen, recents, and opening the notification shade or quick settings with an edge swipe</td><td>Not read; no data transmitted</td></tr>
 </table>
-<p>TileShell does <strong>not</strong> access call logs, SMS/MMS bodies, microphone, camera, or files beyond photos you explicitly pick for the wallpaper and live-photos slideshow.</p>
+<p>TileShell does <strong>not</strong> access call logs, SMS/MMS bodies, microphone, camera, or files beyond photos you explicitly pick for the wallpaper and live-photos slideshow and the music on your device.</p>
 
 <h2>2. Third-party services</h2>
 <h3 style="font-size:1rem;margin-bottom:4px;">Open-Meteo (weather)</h3>
-<p>When you grant coarse location for the Weather live tile, TileShell sends your approximate GPS coordinates to <a href="https://open-meteo.com">Open-Meteo</a> to retrieve a weather forecast. The request contains latitude/longitude only — no device identifiers, no account information. Open-Meteo's own privacy policy applies to data they receive.</p>
+<p>When you grant coarse location for weather, TileShell sends your approximate coordinates to <a href="https://open-meteo.com">Open-Meteo</a> to retrieve a forecast. The request contains latitude/longitude only — no device identifiers, no account information. Open-Meteo's own privacy policy applies to data they receive.</p>
 
 <h3 style="font-size:1rem;margin-bottom:4px;">RSS news feeds</h3>
-<p>The Feed page fetches articles from RSS/Atom feeds you have enabled. Each request is a standard HTTP GET to the feed URL; no personal data is included. The feed providers' own privacy policies apply.</p>
+<p>The Feed page fetches articles from the RSS/Atom feeds you have enabled. Each request is a standard HTTP GET to the feed URL; no personal data is included. The feed providers' own privacy policies apply.</p>
+
+<h3 style="font-size:1rem;margin-bottom:4px;">Stocks, commodities and sports scores</h3>
+<p>Stock and commodity tiles and widgets fetch prices from Yahoo Finance; sports tiles and widgets fetch scores from ESPN. Each request contains only the symbol or league/team you picked — no personal data.</p>
+
+<h3 style="font-size:1rem;margin-bottom:4px;">Podcasts and internet radio</h3>
+<p>The Music hub searches podcasts through the Apple iTunes Search API and radio stations through the Radio Browser directory (radio-browser.info), then streams from each show's or station's own server. Requests contain only your search words, category or country filter.</p>
+
+<h3 style="font-size:1rem;margin-bottom:4px;">Bing daily wallpaper</h3>
+<p>When "bing daily wallpaper" is on, TileShell downloads Microsoft Bing's image of the day. The request contains only your language/region, to pick the right image.</p>
 
 <h3 style="font-size:1rem;margin-bottom:4px;">Google Search</h3>
 <p>Tapping the search pill on the Feed page opens a Google Search query in your default browser. TileShell does not intercept or log these queries.</p>
@@ -52,11 +67,13 @@
 <p>TileShell stores the following data locally on your device (using Android Room and DataStore):</p>
 <ul>
   <li><strong>Start screen layout</strong> — tile positions, sizes, folder contents</li>
-  <li><strong>Personalisation settings</strong> — theme, accent colour, wallpaper choice, transparency</li>
+  <li><strong>Personalisation settings</strong> — theme, accent colour, wallpaper choice, transparency, refresh rates</li>
   <li><strong>Photos you pick</strong> for the live-photos slideshow and custom wallpaper</li>
   <li><strong>News feed preferences</strong> — which categories and sources you have enabled</li>
   <li><strong>Widget bindings</strong> — widget IDs added to the Feed/Glance tab</li>
-  <li><strong>Recently launched apps</strong> — used for the "recent" section in the App List (capped at 12 entries, never transmitted)</li>
+  <li><strong>Recently launched and newly installed apps</strong> — used for the "recent" section in the App List (capped at 12 entries, never transmitted)</li>
+  <li><strong>Battery log</strong> — TileShell's own record of battery level, charging state, screen on/off and charging current, written on each 1% change and every 15 minutes and kept for 8 days, for the Battery tile, hub and widget (never transmitted)</li>
+  <li><strong>Notes and task lists</strong> you create in the Productivity hub, and music favourites, playlists and recently played podcasts/stations</li>
 </ul>
 <p>None of this data is backed up to the developer's servers. Android's standard auto-backup to Google may back it up according to your device's backup settings.</p>
 
