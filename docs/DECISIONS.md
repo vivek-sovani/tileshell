@@ -10726,3 +10726,6 @@ User-requested, overriding the prototype's 4. New installs start at 5 and reset 
 
 ## Refresh rates drive background work, with floors (2026-09-28)
 The same "live data refresh" rate now sets tile polling and the background fetches/widgets. Periodic work can't run under 15 minutes on Android, and a widget's open-market / live-match chain keeps its own short minimum, so a faster pick only speeds up the in-app tile. The screen says so.
+
+## StartScreen must not keep growing: R8 VerifyError in release (2026-09-28)
+The first v5.0.0 release build crashed on launch with `java.lang.VerifyError` ("register v7 has type Undefined but expected Integer") in `StartScreenKt.StartScreen`. The debug build, which skips R8, was fine. R8 mis-compiled the huge composable once this session's additions made it bigger. Moving the permissions sheet's states and launchers into `PermissionsSheetHost` fixed it. New UI wiring goes in its own small composable, not in `StartScreen`, and every release build gets a launch check on a device before shipping.

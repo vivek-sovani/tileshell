@@ -459,20 +459,6 @@ fun StartScreen(
     val calendarGranted = rememberPermissionGranted(android.Manifest.permission.READ_CALENDAR)
     val locationGranted = rememberPermissionGranted(android.Manifest.permission.ACCESS_COARSE_LOCATION)
     val activityGranted = rememberPermissionGranted(android.Manifest.permission.ACTIVITY_RECOGNITION)
-    val musicPermission = if (android.os.Build.VERSION.SDK_INT >= 33) {
-        android.Manifest.permission.READ_MEDIA_AUDIO
-    } else {
-        android.Manifest.permission.READ_EXTERNAL_STORAGE
-    }
-    val musicGranted = rememberPermissionGranted(musicPermission)
-    val postNotificationsGranted = if (android.os.Build.VERSION.SDK_INT >= 33) {
-        rememberPermissionGranted(android.Manifest.permission.POST_NOTIFICATIONS)
-    } else {
-        true
-    }
-    val usageAccessGranted = com.tileshell.feature.livetiles.rememberUsageAccess()
-    val writeSettingsGranted = com.tileshell.feature.livetiles.rememberWriteSettingsGranted()
-    val accessibilityEnabled = rememberAccessibilityEnabled()
     // The ViewModel's own init-time attempt to seed the feed greeting's name from
     // the device contact profile races the runtime permission dialog (it always
     // sees "denied" then, since the dialog hasn't resolved yet) — retry here
@@ -690,12 +676,6 @@ fun StartScreen(
         ActivityResultContracts.RequestPermission(),
     ) { /* granted state is re-read on ON_RESUME via rememberPermissionGranted */ }
     val calendarLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { }
-    val musicLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { }
-    val postNotificationsLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { }
     val locationLauncher = rememberLauncherForActivityResult(
@@ -2434,8 +2414,9 @@ fun StartScreen(
             onDismiss = viewModel::closeCalendarSystemEditor,
         )
 
-        // Permissions sheet (personalize → permissions).
-        PermissionsSheet(
+        // Permissions sheet (personalize → permissions). Its own composable
+        // keeps StartScreen small enough for R8 (a larger one failed to verify).
+        PermissionsSheetHost(
             visible = permissionsOpen,
             rightHalf = isLandscape,
             dark = dark,
@@ -2471,40 +2452,9 @@ fun StartScreen(
                     activityLauncher.launch(android.Manifest.permission.ACTIVITY_RECOGNITION)
                 }
             },
-            musicGranted = musicGranted,
-            // asked = false: shows the system dialog if it can, else opens app settings.
-            onRequestMusic = {
-                requestPermissionOrOpenSettings(musicPermission, asked = false) { musicLauncher.launch(musicPermission) }
-            },
-            postNotificationsGranted = postNotificationsGranted,
-            onRequestPostNotifications = {
-                if (android.os.Build.VERSION.SDK_INT >= 33) {
-                    requestPermissionOrOpenSettings(android.Manifest.permission.POST_NOTIFICATIONS, asked = false) {
-                        postNotificationsLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                    }
-                }
-            },
             notificationAccess = notificationAccess,
-            onNotificationAccess = {
-                runCatching { context.startActivity(NotificationAccess.settingsIntent()) }
-            },
-            usageAccess = usageAccessGranted,
-            onUsageAccess = { com.tileshell.feature.livetiles.UsageAccess.openSettings(context) },
             batteryExempt = batteryExempt,
-            onBatteryExemption = { OemBatteryGuard.requestExemption(context) },
-            writeSettings = writeSettingsGranted,
-            onWriteSettings = {
-                runCatching {
-                    context.startActivity(
-                        android.content.Intent(
-                            android.provider.Settings.ACTION_MANAGE_WRITE_SETTINGS,
-                            android.net.Uri.parse("package:${context.packageName}"),
-                        ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
-                    )
-                }
-            },
-            accessibilityEnabled = accessibilityEnabled,
-            onAccessibility = onEnableAccessibility,
+            onEnableAccessibility = onEnableAccessibility,
         )
 
         // News-region sheet (personalize → news region) — same subscribed-region
@@ -8770,4 +8720,96 @@ private fun rememberAccessibilityEnabled(): Boolean {
         onDispose { owner.lifecycle.removeObserver(observer) }
     }
     return enabled
+}
+
+/**
+ * [PermissionsSheet] plus the permission states and launchers only it needs.
+ * Kept out of [StartScreen] on purpose: that function is already huge, and
+ * growing it further made R8 emit bytecode the Android verifier rejected.
+ */
+@Composable
+private fun PermissionsSheetHost(
+    visible: Boolean,
+    rightHalf: Boolean,
+    dark: Boolean,
+    accentId: String,
+    onDismiss: () -> Unit,
+    contactsGranted: Boolean,
+    calendarGranted: Boolean,
+    locationGranted: Boolean,
+    activityGranted: Boolean,
+    onRequestContacts: () -> Unit,
+    onRequestCalendar: () -> Unit,
+    onRequestLocation: () -> Unit,
+    onRequestActivity: () -> Unit,
+    notificationAccess: Boolean,
+    batteryExempt: Boolean,
+    onEnableAccessibility: () -> Unit,
+) {
+    val context = LocalContext.current
+    val musicPermission = if (android.os.Build.VERSION.SDK_INT >= 33) {
+        android.Manifest.permission.READ_MEDIA_AUDIO
+    } else {
+        android.Manifest.permission.READ_EXTERNAL_STORAGE
+    }
+    val musicGranted = rememberPermissionGranted(musicPermission)
+    val postNotificationsGranted = if (android.os.Build.VERSION.SDK_INT >= 33) {
+        rememberPermissionGranted(android.Manifest.permission.POST_NOTIFICATIONS)
+    } else {
+        true
+    }
+    val usageAccessGranted = com.tileshell.feature.livetiles.rememberUsageAccess()
+    val writeSettingsGranted = com.tileshell.feature.livetiles.rememberWriteSettingsGranted()
+    val accessibilityEnabled = rememberAccessibilityEnabled()
+    val musicLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val postNotificationsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    // asked = false: shows the system dialog if it can, else opens app settings.
+    fun request(permission: String, launch: () -> Unit) {
+        if (canShowSystemPermissionDialog(context, permission, false)) launch() else openAppPermissionSettings(context)
+    }
+
+    PermissionsSheet(
+        visible = visible,
+        rightHalf = rightHalf,
+        dark = dark,
+        accentId = accentId,
+        onDismiss = onDismiss,
+        contactsGranted = contactsGranted,
+        calendarGranted = calendarGranted,
+        locationGranted = locationGranted,
+        activityGranted = activityGranted,
+        onRequestContacts = onRequestContacts,
+        onRequestCalendar = onRequestCalendar,
+        onRequestLocation = onRequestLocation,
+        onRequestActivity = onRequestActivity,
+        musicGranted = musicGranted,
+        onRequestMusic = { request(musicPermission) { musicLauncher.launch(musicPermission) } },
+        postNotificationsGranted = postNotificationsGranted,
+        onRequestPostNotifications = {
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                request(android.Manifest.permission.POST_NOTIFICATIONS) {
+                    postNotificationsLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+        },
+        notificationAccess = notificationAccess,
+        onNotificationAccess = { runCatching { context.startActivity(NotificationAccess.settingsIntent()) } },
+        usageAccess = usageAccessGranted,
+        onUsageAccess = { com.tileshell.feature.livetiles.UsageAccess.openSettings(context) },
+        batteryExempt = batteryExempt,
+        onBatteryExemption = { OemBatteryGuard.requestExemption(context) },
+        writeSettings = writeSettingsGranted,
+        onWriteSettings = {
+            runCatching {
+                context.startActivity(
+                    android.content.Intent(
+                        android.provider.Settings.ACTION_MANAGE_WRITE_SETTINGS,
+                        android.net.Uri.parse("package:${context.packageName}"),
+                    ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }
+        },
+        accessibilityEnabled = accessibilityEnabled,
+        onAccessibility = onEnableAccessibility,
+    )
 }
