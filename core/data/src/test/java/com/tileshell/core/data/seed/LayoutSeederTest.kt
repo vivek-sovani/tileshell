@@ -82,11 +82,14 @@ class LayoutSeederTest {
     }
 
     @Test
-    fun `live tile uses its resolved app when one exists`() {
-        // calendar resolves here, so it keeps a real launch target.
-        val seeded = seeder.seed(resolver = resolverFor("calendar"))
-        val cal = seeded.filterIsInstance<SeededTile.App>().single { it.id == "t-cal" }
-        assertEquals("com.calendar", cal.component.packageName)
+    fun `hub tiles are never bound to an app, even when their role resolves`() {
+        // Bound, a hub tile took that app's name and icon and was pruned on uninstall.
+        val seeded = seeder.seed(resolver = resolverFor("calendar", "music", "people", "clock"))
+        val apps = seeded.filterIsInstance<SeededTile.App>().associateBy { it.id }
+        for ((id, label) in listOf("t-cal" to "calendar", "t-music" to "music", "t-people" to "people", "t-clock" to "clock")) {
+            assertEquals("$id package", "", apps.getValue(id).component.packageName)
+            assertEquals("$id label", label, apps.getValue(id).component.label)
+        }
     }
 
     @Test

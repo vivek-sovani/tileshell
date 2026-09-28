@@ -10729,3 +10729,6 @@ The same "live data refresh" rate now sets tile polling and the background fetch
 
 ## StartScreen must not keep growing: R8 VerifyError in release (2026-09-28)
 The first v5.0.0 release build crashed on launch with `java.lang.VerifyError` ("register v7 has type Undefined but expected Integer") in `StartScreenKt.StartScreen`. The debug build, which skips R8, was fine. R8 mis-compiled the huge composable once this session's additions made it bigger. Moving the permissions sheet's states and launchers into `PermissionsSheetHost` fixed it. New UI wiring goes in its own small composable, not in `StartScreen`, and every release build gets a launch check on a device before shipping.
+
+## Hub and live tiles are never bound to an app (2026-09-28)
+The seeder used to bind liveOnly tiles to whatever app their role resolved to (music → YouTube Music, people → Contacts, calendar → the calendar app). They then showed that app's name and icon, and package-removed pruning deleted them on uninstall. The music hub covers several apps, so no single one fits. Every liveOnly tile now seeds with a blank package and its own label; taps already route by icon key. `LayoutRepository.unbindHubTilesFromApps` fixes existing `t-`/`live-` tiles on launch. Hand-pinned app tiles are untouched.

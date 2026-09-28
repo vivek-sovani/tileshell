@@ -35,6 +35,10 @@ interface LayoutDao {
      * package makes it fall back to that app's own real icon (see
      * `StaticTileGlyph`'s `useAppIcon = !TileIcons.hasIcon(tile.iconKey)`).
      */
+    /** Unbinds a hub/live tile from the app it was once seeded with. */
+    @Query("UPDATE tiles SET packageName = '', activityName = '', label = :label WHERE id = :id")
+    suspend fun unbindTileApp(id: String, label: String)
+
     @Query("UPDATE tiles SET iconKey = :iconKey WHERE id = :id")
     suspend fun updateTileIconKey(id: String, iconKey: String?)
 

@@ -17,6 +17,7 @@ import com.tileshell.core.data.seed.SeededTile
 import com.tileshell.core.data.seed.customizeSeed
 import com.tileshell.core.data.seed.defaultAppChoices
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 /** Raw DB entities for a manual backup export/import — see [LayoutRepository.tilesForBackup]. */
@@ -648,7 +649,22 @@ class LayoutRepository(
      * false when there is no such template or it can't be seeded (a non-liveOnly
      * role that doesn't resolve on this device).
      */
-    suspend fun addDefaultTile(appId: String, sectionId: String? = null, activityName: String? = null): Boolean {
+/**
+     * Older layouts bound the music, calendar, people and clock hub tiles to
+     * whatever app their role resolved to — they showed that app's name and
+     * icon and disappeared when it was uninstalled. Unbinds them (seeded
+     * `t-…` and "add live tiles" `live-…` ids only, never a hand-pinned app).
+     * Idempotent.
+     */
+    suspend fun unbindHubTilesFromApps() {
+        val hubKeys = mapOf("music" to "music", "calendar" to "calendar", "people" to "people", "clock" to "clock")
+        tiles.first().filterIsInstance<TileModel.App>()
+            .filter { it.packageName.isNotBlank() && it.iconKey in hubKeys && (it.id.startsWith("t-") || it.id.startsWith("live-")) }
+            .filter { PeopleHubTile.decode(it.activityName) == null || it.iconKey != "people" }
+            .forEach { dao.unbindTileApp(it.id, hubKeys.getValue(it.iconKey!!)) }
+    }
+
+        suspend fun addDefaultTile(appId: String, sectionId: String? = null, activityName: String? = null): Boolean {
         val template = DefaultLayout.ALL_TILE_TEMPLATES
             .firstOrNull { !it.isGroup && it.app == appId } ?: return false
         val seeded = seeder.seed(listOf(template), resolver)

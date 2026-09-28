@@ -641,6 +641,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             }
             migrateSettingsTile()
             migrateMusicTile()
+            repository.unbindHubTilesFromApps()
             if (!HomeStyleWizardPrefs.shown(getApplication())) {
                 _homeStyleWizardOpen.value = true
                 _setupDefaultPackages.value = repository.defaultAppPackages()

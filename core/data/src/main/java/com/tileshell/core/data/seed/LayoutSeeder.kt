@@ -71,13 +71,15 @@ class LayoutSeeder {
                 )
             } else {
                 val appId = tile.app ?: continue
-                val resolved = DefaultLayout.roleFor(appId)?.let(resolver::resolve)
-                val component = if (tile.liveOnly && tile.activityName != null) {
-                    // A page/config tile (e.g. "what's new"): blank package, its
-                    // identity in activityName.
-                    ResolvedComponent(packageName = "", activityName = tile.activityName, label = tile.label ?: appId)
+                val component = if (tile.liveOnly) {
+                    // Hub and live tiles are never bound to an app, even when a
+                    // role resolves (music, calendar, contacts, clock): bound, they
+                    // took that app's name and icon and were pruned when it was
+                    // uninstalled. Taps open the hub by icon key. A page/config
+                    // tile (e.g. "what's new") keeps its identity in activityName.
+                    ResolvedComponent(packageName = "", activityName = tile.activityName.orEmpty(), label = tile.label ?: appId)
                 } else {
-                    resolved ?: if (tile.liveOnly) selfContainedComponent(appId) else continue
+                    DefaultLayout.roleFor(appId)?.let(resolver::resolve) ?: continue
                 }
                 out += SeededTile.App(
                     id = tile.id,
@@ -91,14 +93,6 @@ class LayoutSeeder {
         }
         return out
     }
-
-    /**
-     * The launch target for a self-contained live tile with no resolvable app: a
-     * blank component. The live face renders from its own provider; tapping is
-     * inert (the UI skips a blank package rather than launching it).
-     */
-    private fun selfContainedComponent(appId: String): ResolvedComponent =
-        ResolvedComponent(packageName = "", activityName = "", label = appId)
 }
 
 /**
