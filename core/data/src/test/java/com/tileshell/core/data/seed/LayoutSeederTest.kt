@@ -212,4 +212,45 @@ class LayoutSeederTest {
     fun `essentials folder is dropped when none of its apps are installed`() {
         assertTrue(seeder.seed(resolver = RoleResolver { null }).none { it.id == "g-essentials" })
     }
+
+    @Test
+    fun `default app choices skip hubs and include folder children`() {
+        val seeded = seeder.seed(resolver = resolverFor("clock", "phone", "camera", "youtube", "calc"))
+        val pkgs = defaultAppChoices(seeded).map { it.packageName }
+        // clock is a liveOnly hub (always kept), so it isn't a choice.
+        assertEquals(listOf("com.phone", "com.camera", "com.youtube", "com.calc"), pkgs)
+    }
+
+    @Test
+    fun `custom seed drops unticked apps and appends extras as small real-icon tiles`() {
+        val seeded = seeder.seed(resolver = resolverFor("clock", "phone", "camera", "youtube"))
+        val extra = ResolvedComponent("com.whatsapp", ".Main", "whatsapp")
+        val out = customizeSeed(seeded, removed = setOf("com.camera", "com.youtube", "com.clock"), extras = listOf(extra))
+
+        val ids = out.map { it.id }
+        assertTrue("camera removed", "t-camera" !in ids)
+        assertTrue("hub kept even if its package is unticked", "t-clock" in ids)
+        assertTrue("folder with no children left is dropped", "g-essentials" !in ids)
+        val added = out.last() as SeededTile.App
+        assertEquals("t-app-com.whatsapp", added.id)
+        assertEquals(TileSize.SMALL, added.size)
+        assertEquals(null, added.iconKey)
+        assertEquals(out.indices.toList(), out.map { it.position })
+    }
+
+    @Test
+    fun `custom seed does not duplicate an extra that is already a default`() {
+        val seeded = seeder.seed(resolver = resolverFor("phone"))
+        val out = customizeSeed(seeded, emptySet(), listOf(ResolvedComponent("com.phone", ".Main", "phone")))
+        assertEquals(1, out.count { (it as? SeededTile.App)?.component?.packageName == "com.phone" })
+    }
+
+    @Test
+    fun `an extra whose package a hub resolves to is still added`() {
+        // t-people (a hub) resolves to the contacts app's package.
+        val seeded = seeder.seed(resolver = resolverFor("people"))
+        val contactsPkg = (seeded.first { it.id == "t-people" } as SeededTile.App).component.packageName
+        val out = customizeSeed(seeded, emptySet(), listOf(ResolvedComponent(contactsPkg, ".Main", "contacts")))
+        assertTrue(out.any { it.id == "t-app-$contactsPkg" })
+    }
 }

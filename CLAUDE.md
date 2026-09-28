@@ -37,6 +37,23 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — Start setup wizard on first run and on "reset start layout".**
+  User-requested, designed first. Step 1 is the existing tiles/icons choice.
+  Step 2 picks the tile colour (single colour, which uses the accent, or
+  multicolour) and "default" or "custom" apps. Custom opens step 3: a
+  searchable checklist with the default layout's ordinary apps pre-ticked
+  (`defaultAppChoices`), then every other app alphabetically
+  (`setupAppRows`). Hubs and live tiles are always kept. Unticked defaults
+  are dropped and extra apps are appended as small real-icon tiles
+  (`customizeSeed`; a hub resolving to an app's package, e.g. people →
+  contacts, doesn't block adding that app). Reset now runs the same wizard
+  (`openResetSetup`), with a cancel option and a red "reset" button, and
+  replaces the old confirm dialog. Finishing marks "what's new" seen, so a
+  new install doesn't get that card on its second launch. The wizard now
+  opens before the default list loads, so the first-run hint no longer
+  flashes. Verified on the emulator: a first-run custom pass (single
+  colour, youtube unticked, contacts added) and a reset pass (multicolour,
+  contacts added). Build and full unit tests green.
 - **`main` — new first-install default layout, in multicolour.** User-approved
   design. `DefaultLayout.DEFAULT_TILES` rebuilt around the hubs, with colours
   grouped by purpose: clock/weather/calendar/people at the top; phone, messages,

@@ -476,6 +476,17 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val _homeStyleWizardOpen = MutableStateFlow(false)
     val homeStyleWizardOpen: StateFlow<Boolean> = _homeStyleWizardOpen.asStateFlow()
 
+    /** True when the setup wizard was opened from "reset start layout"
+     *  rather than on first run: it rewrites the layout even for "default",
+     *  and cancelling changes nothing. */
+    private val _setupReset = MutableStateFlow(false)
+    val setupReset: StateFlow<Boolean> = _setupReset.asStateFlow()
+
+    /** Packages of the default layout's ordinary apps, pre-ticked in the
+     *  wizard's custom list (see [LayoutRepository.defaultAppPackages]). */
+    private val _setupDefaultPackages = MutableStateFlow<Set<String>>(emptySet())
+    val setupDefaultPackages: StateFlow<Set<String>> = _setupDefaultPackages.asStateFlow()
+
     /**
      * True while the one-shot "what's new in this version" card is open — see
      * [WhatsNewSheet] and [WhatsNewPrefs]. Set in [init], only ever for a
@@ -622,6 +633,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             migrateMusicTile()
             if (!HomeStyleWizardPrefs.shown(getApplication())) {
                 _homeStyleWizardOpen.value = true
+                _setupDefaultPackages.value = repository.defaultAppPackages()
             } else if (WhatsNewPrefs.shouldShow(getApplication(), WHATS_NEW_VERSION_CODE)) {
                 _whatsNewOpen.value = true
             }
@@ -1384,11 +1396,53 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      * WP-appropriate seed sizes are written well before this choice is ever
      * made.
      */
-    fun chooseHomeStyle(style: HomeStyle) {
-        setHomeStyle(style)
-        if (style == HomeStyle.ICONS) shrinkDefaultAppsToIcons()
+    fun finishStartSetup(style: HomeStyle, multicolor: Boolean, custom: Boolean, picked: Set<String>) {
+        val reset = _setupReset.value
+        val defaults = _setupDefaultPackages.value
+        val installed = apps.value
         HomeStyleWizardPrefs.markShown(getApplication())
+        // A new install has nothing to be told is new.
+        WhatsNewPrefs.markSeen(getApplication(), WHATS_NEW_VERSION_CODE)
         _homeStyleWizardOpen.value = false
+        _setupReset.value = false
+        viewModelScope.launch(writeContext) {
+            val rewrite = reset || custom
+            if (rewrite) {
+                val removed = if (custom) defaults - picked else emptySet()
+                val extras = if (custom) {
+                    installed.filter { it.packageName in picked && it.packageName !in defaults }
+                        .distinctBy { it.packageName }
+                } else {
+                    emptyList()
+                }
+                repository.resetLayout(removed, extras)
+                migrateSettingsTile()
+            }
+            settingsRepository.setTileColorSource(
+                if (multicolor) com.tileshell.core.data.settings.TileColorSource.MULTICOLOR else com.tileshell.core.data.settings.TileColorSource.GLOBAL_ACCENT,
+            )
+            if (style == HomeStyle.ICONS && settings.value.cornerRadius == LauncherSettings().cornerRadius) {
+                settingsRepository.setCornerRadius(ICONS_MODE_DEFAULT_CORNER_RADIUS)
+            }
+            settingsRepository.setHomeStyle(style)
+            if (style == HomeStyle.ICONS) {
+                shrinkDefaultAppsToIconsNow()
+            } else if (rewrite) {
+                val current = settingsRepository.settings.first()
+                if (current.tilePackMode.isAnchored) seedStickySlots(current.columns)
+            }
+        }
+    }
+
+    /** "reset start layout": runs the setup wizard again from its first step. */
+    fun openResetSetup() {
+        _backupOpen.value = false
+        _personalizeOpen.value = false
+        _setupReset.value = true
+        viewModelScope.launch(writeContext) {
+            _setupDefaultPackages.value = repository.defaultAppPackages()
+            _homeStyleWizardOpen.value = true
+        }
     }
 
     /**
@@ -1419,9 +1473,9 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      * by 0; the right lane's placements are offset by `columns - 2` to sit
      * against the right edge.
      */
-    private fun shrinkDefaultAppsToIcons() {
-        viewModelScope.launch(writeContext) {
-            val current = tiles.value
+    private suspend fun shrinkDefaultAppsToIconsNow() {
+        run {
+            val current = repository.tiles.first()
             val futureSize = HashMap<String, TileSize>()
             current.forEach { tile ->
                 val shrunk = tile is TileModel.App && tile.packageName.isNotBlank() && tile.size != TileSize.SMALL
@@ -1434,7 +1488,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             val rightLaneIds = listOf("calendar", "clock", "weather").mapNotNull { byIconKey[it]?.id }
             val leftLaneIds = current.map { it.id }.filterNot { it in rightLaneIds }
 
-            val columns = settings.value.columns
+            val columns = settingsRepository.settings.first().columns
             if (rightLaneIds.isNotEmpty() && columns >= 3) {
                 val laneWidth = 2
                 val laneOffset = columns - laneWidth
@@ -1468,7 +1522,9 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      *  fresh install), but still marks the flag so it isn't shown again. */
     fun skipHomeStyleWizard() {
         HomeStyleWizardPrefs.markShown(getApplication())
+        WhatsNewPrefs.markSeen(getApplication(), WHATS_NEW_VERSION_CODE)
         _homeStyleWizardOpen.value = false
+        _setupReset.value = false
     }
 
     /** Set the icon mask ICONS home style applies (unused in TILES). */
@@ -1730,23 +1786,6 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Force a manual news refresh (the feed's refresh action). */
     fun refreshFeeds() {
         FeedRefreshWorker.refreshNow(getApplication())
-    }
-
-    /** Reset the Start grid to the WP default layout (FR-7). */
-    fun resetLayout() {
-        viewModelScope.launch(writeContext) {
-            repository.resetLayout()
-            // "reset start layout" re-establishes the default look too: the
-            // new layout in multicolour (user-requested).
-            settingsRepository.setTileColorSource(com.tileshell.core.data.settings.TileColorSource.MULTICOLOR)
-            // The fresh default tiles have no anchors; anchor them the way init
-            // does, or sticky/free mode would behave as auto-arrange.
-            val current = settingsRepository.settings.first()
-            if (current.tilePackMode.isAnchored) seedStickySlots(current.columns)
-            // The fresh settings tile shows the real device Settings icon, as
-            // it does after a first-install seed.
-            migrateSettingsTile()
-        }
     }
 
     /** Rename the open folder (FR-4). Blank/whitespace names are ignored. */

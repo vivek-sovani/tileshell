@@ -12,7 +12,10 @@ import com.tileshell.core.data.seed.AndroidRoleResolver
 import com.tileshell.core.data.seed.DefaultLayout
 import com.tileshell.core.data.seed.LayoutSeeder
 import com.tileshell.core.data.seed.RoleResolver
+import com.tileshell.core.data.seed.ResolvedComponent
 import com.tileshell.core.data.seed.SeededTile
+import com.tileshell.core.data.seed.customizeSeed
+import com.tileshell.core.data.seed.defaultAppChoices
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -757,10 +760,24 @@ class LayoutRepository(
      * Reset the Start grid to the WP default layout (FR-7 reset), discarding the
      * user's tiles/folders. Always overwrites (unlike [seedIfEmpty]).
      */
-    suspend fun resetLayout() = writeDefaultLayout()
+    suspend fun resetLayout(
+        removed: Set<String> = emptySet(),
+        extras: List<AppEntry> = emptyList(),
+    ) = writeDefaultLayout(removed, extras)
 
-    private suspend fun writeDefaultLayout() {
-        val seeded = seeder.seed(DefaultLayout.DEFAULT_TILES, resolver)
+    /** Packages of the default layout's ordinary apps (see [defaultAppChoices]). */
+    suspend fun defaultAppPackages(): Set<String> =
+        defaultAppChoices(seeder.seed(DefaultLayout.DEFAULT_TILES, resolver)).map { it.packageName }.toSet()
+
+    private suspend fun writeDefaultLayout(
+        removed: Set<String> = emptySet(),
+        extras: List<AppEntry> = emptyList(),
+    ) {
+        val seeded = customizeSeed(
+            seeder.seed(DefaultLayout.DEFAULT_TILES, resolver),
+            removed,
+            extras.map { ResolvedComponent(it.packageName, it.activityName, it.label) },
+        )
 
         val tileRows = ArrayList<TileEntity>(seeded.size)
         val folderRows = ArrayList<FolderEntity>()

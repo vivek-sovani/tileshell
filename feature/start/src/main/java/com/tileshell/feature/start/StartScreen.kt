@@ -779,25 +779,6 @@ fun StartScreen(
     }
 
     // Guard against accidental restore (destructive — replaces the current layout).
-    var resetConfirmPending by remember { mutableStateOf(false) }
-    if (resetConfirmPending) {
-        AlertDialog(
-            onDismissRequest = { resetConfirmPending = false },
-            title = { Text("reset start layout?") },
-            text = { Text("this replaces your start screen with the default tiles, hubs and folder, in multicolour. save a snapshot first if you may want it back.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    resetConfirmPending = false
-                    viewModel.closeBackup()
-                    viewModel.closePersonalize()
-                    viewModel.resetLayout()
-                }) { Text("reset") }
-            },
-            dismissButton = {
-                TextButton(onClick = { resetConfirmPending = false }) { Text("cancel") }
-            },
-        )
-    }
     var restoreConfirmPending by remember { mutableStateOf(false) }
     if (restoreConfirmPending) {
         AlertDialog(
@@ -2160,7 +2141,7 @@ fun StartScreen(
             },
             onExportBackup = { backupExportLauncher.launch("tileshell-backup.json") },
             onRestoreBackup = { restoreConfirmPending = true },
-            onResetLayout = { resetConfirmPending = true },
+            onResetLayout = viewModel::openResetSetup,
             autoBackupEnabled = settings.autoBackupEnabled,
             autoBackupIntervalHours = settings.autoBackupIntervalHours,
             onAutoBackupEnabled = viewModel::setAutoBackupEnabled,
@@ -2503,9 +2484,17 @@ fun StartScreen(
         // Drawn last so it fully covers everything else, including the hint
         // above.
         if (homeStyleWizardOpen) {
-            HomeStyleWizardScreen(
-                onChoose = viewModel::chooseHomeStyle,
-                onSkip = viewModel::skipHomeStyleWizard,
+            val setupReset by viewModel.setupReset.collectAsStateWithLifecycle()
+            val setupDefaults by viewModel.setupDefaultPackages.collectAsStateWithLifecycle()
+            StartSetupWizard(
+                reset = setupReset,
+                initialStyle = settings.homeStyle,
+                initialMulticolor = if (setupReset) settings.tileColorSource == TileColorSource.MULTICOLOR else true,
+                accent = TileAccents.forId(settings.accentId),
+                apps = apps,
+                defaultPackages = setupDefaults,
+                onFinish = viewModel::finishStartSetup,
+                onCancel = viewModel::skipHomeStyleWizard,
             )
         }
 

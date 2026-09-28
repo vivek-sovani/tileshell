@@ -10717,3 +10717,6 @@ systems still show the Roman date on their back face (a separate, unchanged
 
 ## New default layout in multicolour (2026-09-27)
 The first-install and reset layout is built around the hubs, with colours grouped by purpose. The essentials folder holds generally available apps that aren't in any hub: youtube, google, chrome, calculator and files. Settings took the place of a separate browser tile. Multicolour is a tile-colour source, not a new layout flag, so the user can switch back to one accent in Personalize. "Reset start layout" is back, in backup & restore, next to the snapshot tools, so people see "save a snapshot first" before they reset.
+
+## Start setup wizard: colour + default/custom, on first run and reset (2026-09-28)
+The colour choice sits on the same screen as default/custom, so default users pick it too. Custom is one checklist, defaults pre-ticked, so it stays a single short step. Hubs and live tiles aren't in the list and are always kept: they are what makes TileShell TileShell, and leaving them out keeps the list to real apps. Added apps land as small tiles after the defaults, keeping the default layout's shape. Reset runs the whole wizard from step 1, as the user asked, replacing the old confirm dialog; the red final button and "save a snapshot first" line carry that warning.

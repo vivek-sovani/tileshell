@@ -1,5 +1,6 @@
 package com.tileshell.core.data.seed
 
+import com.tileshell.core.data.TileColors
 import com.tileshell.core.data.TileSize
 
 /** A resolved folder child paired with its monoline glyph key. */
@@ -18,7 +19,8 @@ sealed interface SeededTile {
         override val size: TileSize,
         override val colorId: String,
         val component: ResolvedComponent,
-        val iconKey: String,
+        /** Null shows the app's real icon (apps added in the setup wizard). */
+        val iconKey: String?,
     ) : SeededTile
 
     data class Folder(
@@ -97,4 +99,72 @@ class LayoutSeeder {
      */
     private fun selfContainedComponent(appId: String): ResolvedComponent =
         ResolvedComponent(packageName = "", activityName = "", label = appId)
+}
+
+/**
+ * The default layout's ordinary app picks (not hubs or live tiles, which are
+ * always kept): each seeded non-`liveOnly` app tile and every folder child.
+ * These are what the setup wizard's custom list shows pre-ticked.
+ */
+fun defaultAppChoices(
+    seeded: List<SeededTile>,
+    defaults: List<DefaultTile> = DefaultLayout.DEFAULT_TILES,
+): List<ResolvedComponent> {
+    val hubIds = defaults.filter { it.liveOnly }.map { it.id }.toSet()
+    return seeded.flatMap { tile ->
+        when (tile) {
+            is SeededTile.App ->
+                if (tile.id in hubIds || tile.component.packageName.isBlank()) emptyList() else listOf(tile.component)
+            is SeededTile.Folder -> tile.children.map { it.component }
+        }
+    }.distinctBy { it.packageName }
+}
+
+/**
+ * The setup wizard's custom layout: the seeded default minus the default apps
+ * the user unticked ([removed] packages; hubs are never removed), plus
+ * [extras] appended as small tiles with their real icon. A folder left empty
+ * is dropped. Positions are renumbered contiguously. Pure, unit-tested.
+ */
+fun customizeSeed(
+    seeded: List<SeededTile>,
+    removed: Set<String>,
+    extras: List<ResolvedComponent>,
+    defaults: List<DefaultTile> = DefaultLayout.DEFAULT_TILES,
+): List<SeededTile> {
+    val hubIds = defaults.filter { it.liveOnly }.map { it.id }.toSet()
+    val kept = seeded.mapNotNull { tile ->
+        when (tile) {
+            is SeededTile.App ->
+                tile.takeUnless { it.id !in hubIds && it.component.packageName in removed }
+            is SeededTile.Folder -> {
+                val children = tile.children.filterNot { it.component.packageName in removed }
+                if (children.isEmpty()) null else tile.copy(children = children)
+            }
+        }
+    }
+    // A hub tile may resolve to an app's package (people -> contacts) but is
+    // not that app's tile, so it doesn't count as already present.
+    val present = kept.flatMap { tile ->
+        when (tile) {
+            is SeededTile.App -> if (tile.id in hubIds) emptyList() else listOf(tile.component.packageName)
+            is SeededTile.Folder -> tile.children.map { it.component.packageName }
+        }
+    }.toSet()
+    val added = extras.distinctBy { it.packageName }.filter { it.packageName !in present }.map { app ->
+        SeededTile.App(
+            id = "t-app-${app.packageName}",
+            position = 0,
+            size = TileSize.SMALL,
+            colorId = TileColors.defaultIdFor(app.packageName),
+            component = app,
+            iconKey = null,
+        )
+    }
+    return (kept + added).mapIndexed { i, tile ->
+        when (tile) {
+            is SeededTile.App -> tile.copy(position = i)
+            is SeededTile.Folder -> tile.copy(position = i)
+        }
+    }
 }
