@@ -1,5 +1,8 @@
 package com.tileshell.feature.start
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.statusBarsPadding
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -63,8 +66,11 @@ fun WhatsNewSheet(visible: Boolean, accentId: String, onDismiss: () -> Unit, mod
         ) {
             Column(
                 modifier = Modifier
+                    .statusBarsPadding()
                     .navigationBarsPadding()
                     .padding(horizontal = 18.dp, vertical = 24.dp)
+                    // Longer releases can be taller than a small screen.
+                    .verticalScroll(rememberScrollState())
                     .fillMaxWidth()
                     .background(Color(0xFF1B1B22), RoundedCornerShape(10.dp))
                     .padding(horizontal = 18.dp, vertical = 18.dp),
@@ -127,8 +133,8 @@ private fun WhatsNewSection(title: String, accent: Color, items: List<String>) {
  * [WHATS_NEW_FIXES] are updated for a new release, or the card will show the
  * previous release's content under the new version's own version-code gate.
  */
-internal const val WHATS_NEW_VERSION_CODE = 450
-private const val WHATS_NEW_VERSION_NAME = "4.5.0"
+internal const val WHATS_NEW_VERSION_CODE = 500
+private const val WHATS_NEW_VERSION_NAME = "5.0.0"
 
 // Started word-for-word in sync with docs/PLAY_STORE.md's "Release notes (v4.5.0)"
 // Play-facing blurb (no character limit here, so each line reads as a full
@@ -138,24 +144,20 @@ private const val WHATS_NEW_VERSION_NAME = "4.5.0"
 // "Also folded into this same versionCode 450" in PLAY_STORE.md instead) —
 // this in-app card reflects what's actually in the build, not that frozen text.
 private val WHATS_NEW_FEATURES = listOf(
-    "icons home style — shaped app icons, 11 tile sizes",
-    "live tiles: clock, weather, calendar & music stay live, even as icons",
-    "14 gadgets (stocks, sports, calendars & more) as real widgets — usable on any launcher",
-    "start now supports multiple pages — swipe to switch between them",
-    "widget-card tile style, plus 3 new wallpapers (nebula, ember, reef)",
-    "monochrome icons — turn every app icon into a flat glyph, nothing-phone style, tinted to your accent colour or a fixed black/white",
+    "hubs — tap the weather, music, calendar, people, productivity or battery tile for its own full-screen hub",
+    "music: your own library and playlists, podcasts and internet radio, all playing in the background",
+    "people: chats, messages, mail and social notifications in one list — reply inline, swipe to dismiss",
+    "productivity: your next meeting with a join button, notes, named task lists and office apps",
+    "battery tile, hub and widget, from tileshell's own battery log",
+    "weather shows a moon at night, plus sunrise, sunset and uv index; panchang shows moonrise and moonset",
+    "reset start layout now runs a quick setup — tiles or icons, theme, one colour or multicolour, and your apps",
+    "every permission, and refresh rates for weather, news, stocks and sports, each in one place",
 )
 
 private val WHATS_NEW_FIXES = listOf(
-    "removed duplicate widget refresh jobs that were draining battery",
-    "widgets & the feed no longer wake the device overnight",
-    "fixed a stutter on every Start screen swipe",
-    "notification bursts no longer freeze the UI",
-    "wallpaper preview now shows your actual main page, not a mix of every page",
-    "dragging a tile to another page no longer leaves its preview stuck on screen",
-    "monochrome icons now show the correct glyph for many more apps, after several rounds of real-device fixes",
-    "home-screen calendar, moon-phase and countdown widgets could still show yesterday's date in the morning — they now update the moment the date rolls over",
-    "monochrome icons with icon shape \"original\" now sit on a proper rounded plate instead of the wrong shape",
+    "less battery use: notification images are cached and background polling pauses with live tiles",
+    "music pauses when bluetooth or headphones disconnect",
+    "widget settings no longer cover the whole screen in landscape",
 )
 
 /**

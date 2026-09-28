@@ -269,7 +269,15 @@ private fun AccessibilityDisclosureDialog(onConfirm: () -> Unit, onDismiss: () -
                     "• Installed apps — read to display and launch them, as any home-screen " +
                     "launcher must. Stays on this device.\n\n" +
                     "• Which apps you tap — remembered locally to power the \"recent\" section " +
-                    "of the App List and Quick Search. Never leaves this device.",
+                    "of the App List and Quick Search. Never leaves this device.\n\n" +
+                    "• App usage (how often apps are opened, screen time), if you allow usage " +
+                    "access — sorts the People and Productivity apps pages and shows Battery hub " +
+                    "screen time. Stays on this device.\n\n" +
+                    "• Music files on your device — Music hub library. Stays on this device.\n\n" +
+                    "• Step count — Steps tile, from the phone's step sensor. Stays on this " +
+                    "device.\n\n" +
+                    "• Battery level, charging and screen on/off — recorded by TileShell for the " +
+                    "Battery tile and hub, kept 8 days. Stays on this device.",
                 )
                 Text(
                     "\nTileShell has no analytics or ad SDKs, no account system, and never " +

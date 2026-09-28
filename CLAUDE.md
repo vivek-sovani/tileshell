@@ -37,6 +37,15 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **v5.0.0 (versionCode 500) — release cut: the hubs release.** Rolls up everything since
+  v4.5.0 (weather, music, calendar, people, productivity and battery hubs; Panchang
+  moonrise/moonset; the multicolour default layout and setup wizard; the full permissions sheet;
+  refresh rates for weather/news/widgets; 5 columns by default). Privacy policy updated (usage
+  access, music library, battery log, Yahoo Finance/ESPN/iTunes/Radio Browser/Bing), and the
+  accessibility disclosure lists the same. "What's new" card updated (now scrollable). Signed
+  release AAB + APK and a debug APK in `release-out/tileshell-5.0.0-*`, same release key as
+  4.5.0; release notes in `docs/PLAY_STORE.md` (blurb 435 chars). The updated policy still has
+  to be published to the hosted page before submitting.
 - **`main` — permissions and live data refresh reworked; 5 grid columns by
   default.** User-requested, designed first. The permissions sheet is now full
   height with every permission: data (contacts, calendar, location, physical

@@ -161,6 +161,89 @@ labeled sections — "New features:" and "Bugs fixed:" — each a short bulleted
 "• New: / • Improved: / • Fixed:" per-line style used in every entry before this one (those keep their
 original format as the historical record, unchanged). Still capped at Play's 500-character limit.*
 
+## Release notes (v5.0.0)
+
+```
+TileShell 5.0.0
+
+New features:
+• Hubs: weather, music, calendar, people,
+  productivity & battery – tap a tile
+• Music: your library, podcasts & radio
+• People: messages & mail in one list,
+  with inline reply
+• Productivity: meetings, notes, task lists
+• Quick setup: style, theme, colours & apps
+• All permissions & refresh rates in one place
+
+Bugs fixed:
+• Lower battery use from live tiles
+• Music pauses when headphones disconnect
+```
+
+*(Character count 435, under Play's 500 limit.)*
+
+### Full changelog since v4.5.0
+
+**New: hubs.** Tapping a weather, music, calendar, people, productivity or battery tile opens a
+full-screen hub with windows-phone-style swipeable pages.
+
+- **Weather hub** — now, hourly and daily forecasts; max/min, feels like, wind, humidity, uv index
+  and sunrise/sunset on the today tab. Weather shows a moon at night on the tile, hub, glance card
+  and widget, and the widget repaints at sunrise and sunset.
+- **Music hub** — your own music library (albums, playlists you can create and edit, shuffle) with
+  background playback and a playback notification; podcasts (Apple iTunes search) and internet
+  radio (Radio Browser) with favourites and recents; a history of what you played in other apps.
+  Playback pauses when bluetooth or headphones disconnect, and the screen no longer stays on.
+- **Calendar hub** — upcoming events grouped by day; tap one to open it.
+- **People hub** — all contacts with call/message/view; "what's new" gathers chat, messages, mail
+  and social notifications with per-app filter chips, attached photos, inline reply, mark read or
+  archive, tap to open, and swipe to dismiss; an apps page grouping communication apps, most used
+  first (with usage access), pinnable as a tile with inbox apps on the front and social on the back.
+- **Productivity hub** — today (next meeting with a Meet/Zoom/Teams/Webex join button, open tasks,
+  latest note, quick actions), notes with optional titles, named task lists (create, delete, pin),
+  and office, meeting and tool apps most used first. A customisable quick row, and links to the
+  calendar hub and what's new.
+- **Battery** — TileShell now keeps its own on-device battery log; a redesigned tile (drain rate,
+  time left, today's curve), a battery hub (today, week, per-app screen time, details) and an
+  upgraded widget.
+
+**New: setup and defaults.**
+- A hub-centred default start layout, colour-grouped in the new **multicolour** tile colour source,
+  with an "essentials" folder (youtube, google, chrome, calculator, files).
+- A setup wizard on first run and on **reset start layout**: tiles or icons, theme (dark, light,
+  auto), one colour or multicolour, and default or custom apps (defaults pre-ticked, hubs always
+  kept).
+- 5 grid columns by default.
+- Default apps (phone, mail, calendar…) can be pinned from the app list with their real icon beside
+  the built-in live tile; "add live tiles" restores built-in people, photos, mail and messages tiles.
+
+**New: settings.**
+- **Permissions** — every permission in one full-height list (data and special access), with what
+  it's for and whether it's on.
+- **Live data refresh** — its own screen, with weather and news rows and 1h/3h choices; home-screen
+  widgets follow the rates too (Android limits background work to every 15 minutes).
+- Personalize's "backup & restore" is now "backup, restore & reset", with reset in its own section.
+- Your name in the feed greeting starts with a capital letter.
+
+**Other.**
+- Hindu Panchang tile and widget: a big tithi number with paksha, moonrise and moonset, faces that
+  scale to fit every size, and no English date.
+- TileShell widget settings open full screen in portrait and over the glance half in landscape.
+- "Already on start" names the page the tile is on and switches to it.
+- About and guide sheets describe all of the above.
+
+**Fixed.**
+- Less battery use: decoded notification images are cached, app usage is recounted hourly, and the
+  productivity tile's calendar poll now pauses with the other live tiles.
+- The default layout now includes the camera on phones where no default camera app is set.
+- Removing a track from a playlist works on Android 16.
+
+**Privacy.** The privacy policy now covers usage access, the music library, the on-device battery
+log, and the stock, sports, podcast, radio and Bing services. The accessibility disclosure lists the
+same. **Publish the updated `docs/PRIVACY_POLICY.md` to https://vivek-sovani.github.io/tileshell/
+before submitting.**
+
 ## Release notes (v4.5.0)
 
 *A deliberate one-time exception: this entry's "New features" section reaches back further than

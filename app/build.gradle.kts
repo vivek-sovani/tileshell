@@ -638,8 +638,14 @@ android {
         //   silhouette with nothing behind it, unlike a real icon's own opaque bitmap, so it could
         //   vanish into a similarly-toned background). Settled: "original" keeps its accent plate
         //   for legibility, shaped as rounded-corners rather than a true circle or a plain square.
-        versionCode = 450
-        versionName = "4.5.0"
+        //   --- 500 / 5.0.0: the hubs release — weather, music (library, podcasts, radio),
+        //   calendar, people (what's new with inline reply, apps page), productivity (meetings,
+        //   notes, named task lists) and battery hubs; Panchang moonrise/moonset; a hub-centred
+        //   multicolour default layout and a setup wizard (style, theme, colour, default/custom
+        //   apps) on first run and reset; a full permissions sheet; refresh rates for weather,
+        //   news and widgets; 5 grid columns by default.
+        versionCode = 500
+        versionName = "5.0.0"
     }
 
     if (keystoreFile.exists()) {
