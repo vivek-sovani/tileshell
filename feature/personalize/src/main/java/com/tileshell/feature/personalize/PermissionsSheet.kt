@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -60,6 +61,20 @@ fun PermissionsSheet(
     onRequestCalendar: () -> Unit,
     onRequestLocation: () -> Unit,
     onRequestActivity: () -> Unit,
+    musicGranted: Boolean,
+    onRequestMusic: () -> Unit,
+    postNotificationsGranted: Boolean,
+    onRequestPostNotifications: () -> Unit,
+    notificationAccess: Boolean,
+    onNotificationAccess: () -> Unit,
+    usageAccess: Boolean,
+    onUsageAccess: () -> Unit,
+    batteryExempt: Boolean,
+    onBatteryExemption: () -> Unit,
+    writeSettings: Boolean,
+    onWriteSettings: () -> Unit,
+    accessibilityEnabled: Boolean,
+    onAccessibility: () -> Unit,
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -90,7 +105,7 @@ fun PermissionsSheet(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .fillMaxHeight(0.5f)
+                    .fillMaxHeight()
                     .graphicsLayer { translationY = size.height * (1f - progress) }
                     .background(tokens.sheet, RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
                     .clickable(
@@ -98,6 +113,7 @@ fun PermissionsSheet(
                         indication = null,
                         onClick = {},
                     )
+                    .statusBarsPadding()
                     .verticalScroll(rememberScrollState())
                     .navigationBarsPadding()
                     .padding(bottom = 24.dp),
@@ -120,53 +136,44 @@ fun PermissionsSheet(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                 )
 
+                Text(
+                    text = "what tileshell can use, and what for. only the weather location ever leaves your phone.",
+                    color = tokens.fgDim,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                )
+
                 Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        PermissionRow(
-                            label = "contacts",
-                            description = "people tile · quick search",
-                            granted = contactsGranted,
-                            accent = accent,
-                            tokens = tokens,
-                            onClick = onRequestContacts,
-                        )
-                        PermissionRow(
-                            label = "calendar",
-                            description = "calendar tile",
-                            granted = calendarGranted,
-                            accent = accent,
-                            tokens = tokens,
-                            onClick = onRequestCalendar,
-                        )
-                        PermissionRow(
-                            label = "location",
-                            description = "weather tile",
-                            granted = locationGranted,
-                            accent = accent,
-                            tokens = tokens,
-                            onClick = onRequestLocation,
-                        )
-                        // Activity recognition is the one permission this app
-                        // asks for *contextually* (the first time a steps
-                        // face renders) rather than in the upfront batch — so
-                        // unlike the three above, a user who missed or
-                        // declined that one ask has no other route back to it.
-                        // This row is that route (user-reported: the steps
-                        // tile's own ask didn't take, and nothing showed the
-                        // count afterwards).
-                        PermissionRow(
-                            label = "physical activity",
-                            description = "steps tile · steps widget",
-                            granted = activityGranted,
-                            accent = accent,
-                            tokens = tokens,
-                            onClick = onRequestActivity,
-                        )
-                    }
+                    GroupLabel("data", tokens)
+                    PermissionRow("contacts", "people hub · quick search", contactsGranted, accent, tokens, onRequestContacts)
+                    PermissionRow("calendar", "calendar tile · productivity", calendarGranted, accent, tokens, onRequestCalendar)
+                    PermissionRow("location", "weather · sunrise and moonrise", locationGranted, accent, tokens, onRequestLocation)
+                    // Asked contextually (the first time a steps face renders),
+                    // so this row is the way back after a missed or declined ask.
+                    PermissionRow("physical activity", "steps tile and widget", activityGranted, accent, tokens, onRequestActivity)
+                    PermissionRow("music & audio", "music hub library", musicGranted, accent, tokens, onRequestMusic)
+                    PermissionRow("notifications", "music player controls", postNotificationsGranted, accent, tokens, onRequestPostNotifications)
+
+                    GroupLabel("special access · opens android settings", tokens)
+                    PermissionRow("notification access", "badges, what's new, previews", notificationAccess, accent, tokens, onNotificationAccess, special = true)
+                    PermissionRow("usage access", "most-used apps, screen time", usageAccess, accent, tokens, onUsageAccess, special = true)
+                    PermissionRow("background battery", "live updates with the screen off", batteryExempt, accent, tokens, onBatteryExemption, special = true)
+                    PermissionRow("modify system settings", "quick panel brightness, timeout", writeSettings, accent, tokens, onWriteSettings, special = true)
+                    PermissionRow("accessibility", "lock screen, recents, edge swipes", accessibilityEnabled, accent, tokens, onAccessibility, special = true)
                 }
             }
         }
     }
+}
+
+@Composable
+private fun GroupLabel(text: String, tokens: ColorTokens) {
+    Text(
+        text = text,
+        color = tokens.fgDim,
+        fontSize = 12.sp,
+        modifier = Modifier.padding(top = 18.dp, bottom = 4.dp),
+    )
 }
 
 /** A permission row: label + description on the left, status / "allow" on the right. */
@@ -178,6 +185,7 @@ private fun PermissionRow(
     accent: Color,
     tokens: ColorTokens,
     onClick: () -> Unit,
+    special: Boolean = false,
 ) {
     Row(
         modifier = Modifier
@@ -191,7 +199,12 @@ private fun PermissionRow(
             Text(text = description, color = tokens.fgDim, fontSize = 12.sp)
         }
         Text(
-            text = if (granted) "allowed ✓" else "allow ›",
+            text = when {
+                granted && special -> "on ✓"
+                granted -> "allowed ✓"
+                special -> "turn on ›"
+                else -> "allow ›"
+            },
             color = if (granted) accent else tokens.fgDim,
             fontSize = 13.sp,
         )

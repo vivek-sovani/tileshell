@@ -357,6 +357,14 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(sportsRefreshRate = rate) }
     }
 
+    suspend fun setWeatherRefreshRate(rate: LiveRefreshRate) {
+        store.updateData { it.copy(weatherRefreshRate = rate) }
+    }
+
+    suspend fun setNewsRefreshRate(rate: LiveRefreshRate) {
+        store.updateData { it.copy(newsRefreshRate = rate) }
+    }
+
     /** Set the icon mask used in ICONS home style. */
     suspend fun setIconShape(shape: IconShape) {
         store.updateData { it.copy(iconShape = shape) }

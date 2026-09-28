@@ -1,5 +1,7 @@
 package com.tileshell.feature.livetiles.widget
 
+import com.tileshell.core.data.settings.RefreshRatePrefs
+import com.tileshell.core.data.settings.backgroundMs
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
@@ -113,7 +115,11 @@ class StockWidgetRefreshWorker(
                 // silently discard a changed interval or constraint there,
                 // leaving existing installs on the original schedule forever.
                 ExistingPeriodicWorkPolicy.UPDATE,
-                PeriodicWorkRequestBuilder<StockWidgetRefreshWorker>(CLOSED_MARKET_REFRESH_MS, TimeUnit.MILLISECONDS)
+                PeriodicWorkRequestBuilder<StockWidgetRefreshWorker>(
+                    RefreshRatePrefs.rate(context, RefreshRatePrefs.STOCK)
+                        .backgroundMs(CLOSED_MARKET_REFRESH_MS, CLOSED_MARKET_REFRESH_MS),
+                    TimeUnit.MILLISECONDS,
+                )
                     .setConstraints(WidgetWork.networkConstraints())
                     .build(),
             )
@@ -203,7 +209,11 @@ class StockWidgetRefreshWorker(
                     UNIQUE_LIVE_CHAIN,
                     ExistingWorkPolicy.REPLACE,
                     OneTimeWorkRequestBuilder<StockWidgetRefreshWorker>()
-                        .setInitialDelay(STOCK_OPEN_MARKET_CHAIN_DELAY_MS, TimeUnit.MILLISECONDS)
+                        .setInitialDelay(
+                            RefreshRatePrefs.rate(context, RefreshRatePrefs.STOCK)
+                                .backgroundMs(STOCK_OPEN_MARKET_CHAIN_DELAY_MS, STOCK_OPEN_MARKET_CHAIN_DELAY_MS),
+                            TimeUnit.MILLISECONDS,
+                        )
                         .setConstraints(WidgetWork.networkConstraints())
                         .build(),
                 )

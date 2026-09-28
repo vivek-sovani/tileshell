@@ -10720,3 +10720,9 @@ The first-install and reset layout is built around the hubs, with colours groupe
 
 ## Start setup wizard: colour + default/custom, on first run and reset (2026-09-28)
 The colour choice sits on the same screen as default/custom, so default users pick it too. Custom is one checklist, defaults pre-ticked, so it stays a single short step. Hubs and live tiles aren't in the list and are always kept: they are what makes TileShell TileShell, and leaving them out keeps the list to real apps. Added apps land as small tiles after the defaults, keeping the default layout's shape. Reset runs the whole wizard from step 1, as the user asked, replacing the old confirm dialog; the red final button and "save a snapshot first" line carry that warning.
+
+## Five grid columns by default (2026-09-28)
+User-requested, overriding the prototype's 4. New installs start at 5 and reset sets 5 again; existing installs keep their stored count. The minimum stays 4.
+
+## Refresh rates drive background work, with floors (2026-09-28)
+The same "live data refresh" rate now sets tile polling and the background fetches/widgets. Periodic work can't run under 15 minutes on Android, and a widget's open-market / live-match chain keeps its own short minimum, so a faster pick only speeds up the in-app tile. The screen says so.

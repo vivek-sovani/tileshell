@@ -1,5 +1,9 @@
 package com.tileshell.feature.livetiles.widget
 
+import com.tileshell.core.data.settings.RefreshRatePrefs
+import com.tileshell.core.data.settings.backgroundMs
+import com.tileshell.core.data.settings.WEATHER_DEFAULT_REFRESH_MS
+import com.tileshell.core.data.settings.BACKGROUND_MIN_MS
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
@@ -70,7 +74,11 @@ class WeatherWidgetRefreshWorker(
                 // WeatherRefreshWorker already cached and makes no network
                 // request of its own, so requiring connectivity here would
                 // block a render that doesn't need it.
-                PeriodicWorkRequestBuilder<WeatherWidgetRefreshWorker>(30, TimeUnit.MINUTES)
+                PeriodicWorkRequestBuilder<WeatherWidgetRefreshWorker>(
+                    RefreshRatePrefs.rate(context, RefreshRatePrefs.WEATHER)
+                        .backgroundMs(WEATHER_DEFAULT_REFRESH_MS, BACKGROUND_MIN_MS),
+                    TimeUnit.MILLISECONDS,
+                )
                     .setConstraints(WidgetWork.localConstraints())
                     .build(),
             )

@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.tileshell.core.data.settings.FontStyle
 import com.tileshell.core.data.settings.LiveRefreshRate
+import com.tileshell.core.data.settings.resolveMs
 import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.data.settings.HomeStyle
@@ -232,6 +233,10 @@ fun PersonalizeSheet(
     liveTilesEnabled: Boolean,
     onLiveTilesEnabledChange: (Boolean) -> Unit,
     /** How often stock/commodity/sports tiles re-poll — a battery/data tradeoff, default matches the original hardcoded cadence. */
+    weatherRefreshRate: LiveRefreshRate,
+    onWeatherRefreshRateChange: (LiveRefreshRate) -> Unit,
+    newsRefreshRate: LiveRefreshRate,
+    onNewsRefreshRateChange: (LiveRefreshRate) -> Unit,
     stockRefreshRate: LiveRefreshRate,
     onStockRefreshRateChange: (LiveRefreshRate) -> Unit,
     commodityRefreshRate: LiveRefreshRate,
@@ -1256,7 +1261,7 @@ fun PersonalizeSheet(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(text = "refresh rates", color = tokens.fg, fontSize = 14.sp)
                         Text(
-                            text = "how often stock, commodity and sports tiles update",
+                            text = "how often weather, news, stocks, commodities and sports update",
                             color = tokens.fgDim,
                             fontSize = 12.sp,
                         )
@@ -1561,14 +1566,21 @@ fun PersonalizeSheet(
                 )
                 Text("live data refresh", color = tokens.fg, fontSize = 26.sp, fontWeight = FontWeight.Light)
                 Text(
-                    "how often stock, commodity and sports tiles re-poll. slower saves battery and data. " +
-                        "stock and commodity tiles also slow down outside market hours on their own.",
+                    "slower saves battery and data. stock and commodity tiles also slow down outside market hours on their own.",
                     color = tokens.fgDim,
                     fontSize = 13.sp,
                 )
-                RefreshRateRow("stock", stockRefreshRate, accent, tokens, onStockRefreshRateChange)
-                RefreshRateRow("commodity", commodityRefreshRate, accent, tokens, onCommodityRefreshRateChange)
-                RefreshRateRow("sports", sportsRefreshRate, accent, tokens, onSportsRefreshRateChange)
+                RefreshRateRow("weather", weatherRefreshRate, WEATHER_RATE_OPTIONS, 30 * 60_000L, accent, tokens, onWeatherRefreshRateChange)
+                RefreshRateRow("news", newsRefreshRate, WEATHER_RATE_OPTIONS, 30 * 60_000L, accent, tokens, onNewsRefreshRateChange)
+                RefreshRateRow("stocks", stockRefreshRate, MARKET_RATE_OPTIONS, 60_000L, accent, tokens, onStockRefreshRateChange)
+                RefreshRateRow("commodities", commodityRefreshRate, MARKET_RATE_OPTIONS, 60_000L, accent, tokens, onCommodityRefreshRateChange)
+                RefreshRateRow("sports", sportsRefreshRate, SPORTS_RATE_OPTIONS, 90_000L, accent, tokens, onSportsRefreshRateChange)
+                Text(
+                    "home-screen widgets follow these too, but android refreshes them at most every 15 minutes " +
+                        "(every few minutes while a market is open or a match is live).",
+                    color = tokens.fgDim,
+                    fontSize = 12.sp,
+                )
             }
         }
     }
@@ -1715,32 +1727,61 @@ private fun ThemeTile(
     }
 }
 
-private val REFRESH_RATE_LABELS = listOf(
-    LiveRefreshRate.DEFAULT to "default",
-    LiveRefreshRate.EVERY_1_MIN to "1m",
+/** Weather and news: the default (30m) sits second, between 15m and 1h. */
+private val WEATHER_RATE_OPTIONS = listOf(
+    LiveRefreshRate.EVERY_15_MIN to "15m",
+    LiveRefreshRate.DEFAULT to "30m",
+    LiveRefreshRate.EVERY_1_HOUR to "1h",
+    LiveRefreshRate.EVERY_3_HOURS to "3h",
+)
+
+/** Stocks and commodities: the default is 1 minute, so it's the first pill. */
+private val MARKET_RATE_OPTIONS = listOf(
+    LiveRefreshRate.DEFAULT to "1m",
     LiveRefreshRate.EVERY_5_MIN to "5m",
     LiveRefreshRate.EVERY_15_MIN to "15m",
     LiveRefreshRate.EVERY_30_MIN to "30m",
+    LiveRefreshRate.EVERY_1_HOUR to "1h",
 )
 
-/** One category's "live data refresh" selector — a label above a 5-pill segmented row (default/1m/5m/15m/30m), matching the arrangement/home-style rows' own [SegCell] shape. */
+/** Sports: the default is 90 seconds. */
+private val SPORTS_RATE_OPTIONS = listOf(
+    LiveRefreshRate.DEFAULT to "90s",
+    LiveRefreshRate.EVERY_5_MIN to "5m",
+    LiveRefreshRate.EVERY_15_MIN to "15m",
+    LiveRefreshRate.EVERY_30_MIN to "30m",
+    LiveRefreshRate.EVERY_1_HOUR to "1h",
+)
+
+/**
+ * One category's refresh selector: label and its default on top, a segmented
+ * row of [options] below. A pill is selected when it resolves to the same
+ * interval as [rate] (so an old stored "1m" still lights the 1m default pill).
+ */
 @Composable
 private fun RefreshRateRow(
     label: String,
     rate: LiveRefreshRate,
+    options: List<Pair<LiveRefreshRate, String>>,
+    defaultMs: Long,
     accent: Color,
     tokens: com.tileshell.core.design.ColorTokens,
     onChange: (LiveRefreshRate) -> Unit,
 ) {
+    val defaultLabel = options.first { it.first == LiveRefreshRate.DEFAULT }.second
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label, color = tokens.fg, fontSize = 14.sp)
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+            Text(label, color = tokens.fg, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            Text("default $defaultLabel", color = tokens.fgDim, fontSize = 12.sp)
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .border(1.dp, tokens.tileLine),
         ) {
-            REFRESH_RATE_LABELS.forEach { (value, text) ->
-                SegCell(text, selected = rate == value, accent = accent, fg = tokens.fg) { onChange(value) }
+            options.forEach { (value, text) ->
+                val selected = rate.resolveMs(defaultMs) == value.resolveMs(defaultMs)
+                SegCell(text, selected = selected, accent = accent, fg = tokens.fg) { onChange(value) }
             }
         }
     }

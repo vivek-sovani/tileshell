@@ -37,6 +37,23 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — permissions and live data refresh reworked; 5 grid columns by
+  default.** User-requested, designed first. The permissions sheet is now full
+  height with every permission: data (contacts, calendar, location, physical
+  activity, music & audio, notifications) and special access (notification
+  access, usage access, background battery, modify system settings,
+  accessibility — the last via the Play-required disclosure, new StartScreen
+  `onEnableAccessibility`). "live data refresh" gains weather and news rows
+  and a 1h/3h choice. The duplicate "default" pill is gone: each row's
+  default is its own interval ("1m" for markets, "90s" for sports, "30m" for
+  weather/news). Background work follows the rates too: `RefreshRatePrefs`
+  mirrors them synchronously, and `RefreshRateScheduler.sync` (collected in
+  the VM) reschedules the weather/news fetches and placed widgets, floored at
+  15 min for periodic work and at each widget's own chain delay while a
+  market is open or a match is live. `LauncherSettings.DEFAULT_COLUMNS` is
+  now 5, and finishing the setup wizard from reset sets it too. Build and
+  full unit tests green; 5-column first run checked on the emulator;
+  installed on the phone.
 - **`main` — Start setup wizard on first run and on "reset start layout".**
   User-requested, designed first. Step 1 is the existing tiles/icons choice.
   Step 2 picks the tile colour (single colour, which uses the accent, or

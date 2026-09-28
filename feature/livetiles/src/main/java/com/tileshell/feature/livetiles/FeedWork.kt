@@ -1,5 +1,9 @@
 package com.tileshell.feature.livetiles
 
+import com.tileshell.core.data.settings.RefreshRatePrefs
+import com.tileshell.core.data.settings.backgroundMs
+import com.tileshell.core.data.settings.NEWS_DEFAULT_REFRESH_MS
+import com.tileshell.core.data.settings.BACKGROUND_MIN_MS
 import android.content.Context
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -212,15 +216,28 @@ class FeedRefreshWorker(
          * one-off so a freshly shown feed page does not wait a full period.
          * Idempotent (KEEP) — safe to call every time the feed page appears.
          */
-        fun ensureScheduled(context: Context) {
-            val wm = WorkManager.getInstance(context.applicationContext)
-            wm.enqueueUniquePeriodicWork(
+        /** The periodic fetch at the personalize "live data refresh" news rate. */
+        private fun enqueuePeriodic(context: Context) {
+            val ms = RefreshRatePrefs.rate(context, RefreshRatePrefs.NEWS)
+                .backgroundMs(NEWS_DEFAULT_REFRESH_MS, BACKGROUND_MIN_MS)
+            WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
                 UNIQUE_PERIODIC,
-                ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequestBuilder<FeedRefreshWorker>(30, TimeUnit.MINUTES)
+                // UPDATE so a changed rate takes effect; an unchanged one keeps
+                // the running cadence.
+                ExistingPeriodicWorkPolicy.UPDATE,
+                PeriodicWorkRequestBuilder<FeedRefreshWorker>(ms, TimeUnit.MILLISECONDS)
                     .setConstraints(periodicConstraints)
                     .build(),
             )
+        }
+
+        /** Re-applies the rate after it changes, only if the fetch is scheduled. */
+        fun reschedule(context: Context) {
+            if (isScheduled(context, UNIQUE_PERIODIC)) enqueuePeriodic(context)
+        }
+
+        fun ensureScheduled(context: Context) {
+            enqueuePeriodic(context)
             // Deliberately no one-off fetch here any more. This runs from the
             // feed page's LaunchedEffect(Unit), i.e. once per app launch, and it
             // used to re-download every subscribed feed (777 KB measured) however

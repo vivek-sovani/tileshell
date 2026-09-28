@@ -1,5 +1,7 @@
 package com.tileshell.feature.livetiles.widget
 
+import com.tileshell.core.data.settings.RefreshRatePrefs
+import com.tileshell.core.data.settings.backgroundMs
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
@@ -62,7 +64,11 @@ class CommodityWidgetRefreshWorker(
                 // silently discard a changed interval or constraint there,
                 // leaving existing installs on the original schedule forever.
                 ExistingPeriodicWorkPolicy.UPDATE,
-                PeriodicWorkRequestBuilder<CommodityWidgetRefreshWorker>(CLOSED_MARKET_REFRESH_MS, TimeUnit.MILLISECONDS)
+                PeriodicWorkRequestBuilder<CommodityWidgetRefreshWorker>(
+                    RefreshRatePrefs.rate(context, RefreshRatePrefs.COMMODITY)
+                        .backgroundMs(CLOSED_MARKET_REFRESH_MS, CLOSED_MARKET_REFRESH_MS),
+                    TimeUnit.MILLISECONDS,
+                )
                     .setConstraints(WidgetWork.networkConstraints())
                     .build(),
             )

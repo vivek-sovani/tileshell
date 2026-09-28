@@ -1,5 +1,9 @@
 package com.tileshell.feature.livetiles
 
+import com.tileshell.core.data.settings.RefreshRatePrefs
+import com.tileshell.core.data.settings.backgroundMs
+import com.tileshell.core.data.settings.WEATHER_DEFAULT_REFRESH_MS
+import com.tileshell.core.data.settings.BACKGROUND_MIN_MS
 import android.Manifest
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
@@ -175,13 +179,7 @@ class WeatherRefreshWorker(
          */
         fun ensureScheduled(context: Context) {
             val wm = androidx.work.WorkManager.getInstance(context.applicationContext)
-            wm.enqueueUniquePeriodicWork(
-                UNIQUE_PERIODIC,
-                ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequestBuilder<WeatherRefreshWorker>(30, TimeUnit.MINUTES)
-                    .setConstraints(periodicConstraints)
-                    .build(),
-            )
+            enqueuePeriodic(context)
             wm.enqueueUniqueWork(
                 UNIQUE_NOW,
                 ExistingWorkPolicy.KEEP,
@@ -189,6 +187,26 @@ class WeatherRefreshWorker(
                     .setInputData(workDataOf(KEY_FORCE to true))
                     .build(),
             )
+        }
+
+        /** The periodic fetch at the personalize "live data refresh" weather rate. */
+        private fun enqueuePeriodic(context: Context) {
+            val ms = RefreshRatePrefs.rate(context, RefreshRatePrefs.WEATHER)
+                .backgroundMs(WEATHER_DEFAULT_REFRESH_MS, BACKGROUND_MIN_MS)
+            androidx.work.WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
+                UNIQUE_PERIODIC,
+                // UPDATE so a changed rate takes effect; an unchanged one keeps
+                // the running cadence.
+                ExistingPeriodicWorkPolicy.UPDATE,
+                PeriodicWorkRequestBuilder<WeatherRefreshWorker>(ms, TimeUnit.MILLISECONDS)
+                    .setConstraints(periodicConstraints)
+                    .build(),
+            )
+        }
+
+        /** Re-applies the rate after it changes, only if the fetch is scheduled. */
+        fun reschedule(context: Context) {
+            if (isScheduled(context, UNIQUE_PERIODIC)) enqueuePeriodic(context)
         }
 
         /**
@@ -255,3 +273,10 @@ suspend fun requestedFixedPlaces(context: Context): Map<String, WeatherTile.Loca
 
     return WeatherTile.fixedPlaces(fromTiles + fromWidgets)
 }
+
+/** True when [uniqueName] has periodic work that is enqueued or running. */
+internal fun isScheduled(context: Context, uniqueName: String): Boolean = runCatching {
+    androidx.work.WorkManager.getInstance(context.applicationContext)
+        .getWorkInfosForUniqueWork(uniqueName).get()
+        .any { !it.state.isFinished }
+}.getOrDefault(false)

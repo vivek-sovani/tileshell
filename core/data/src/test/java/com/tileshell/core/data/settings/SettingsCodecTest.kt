@@ -189,7 +189,7 @@ class SettingsCodecTest {
     fun `columns round-trips and out-of-range is clamped`() {
         assertEquals(5, SettingsCodec.decode(SettingsCodec.encode(LauncherSettings(columns = 5))).columns)
         assertEquals(6, SettingsCodec.decode("columns=9").columns)
-        assertEquals(4, SettingsCodec.decode("columns=1").columns)
+        assertEquals(LauncherSettings.MIN_COLUMNS, SettingsCodec.decode("columns=1").columns)
         assertEquals(LauncherSettings().columns, SettingsCodec.decode("columns=lots").columns)
     }
 

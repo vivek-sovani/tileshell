@@ -1,5 +1,8 @@
 package com.tileshell.feature.livetiles.widget
 
+import com.tileshell.core.data.settings.RefreshRatePrefs
+import com.tileshell.core.data.settings.backgroundMs
+import com.tileshell.core.data.settings.BACKGROUND_MIN_MS
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
@@ -90,6 +93,7 @@ class SportsWidgetRefreshWorker(
 
         /** How soon a followed match gets re-checked while it's live — see the class doc comment. */
         private const val SPORTS_LIVE_CHAIN_DELAY_MS = 3L * 60 * 1000
+        private const val SPORTS_PERIODIC_MS = 30L * 60 * 1000
 
         /**
          * Set on the one-off requests that must always fetch — a fresh pick,
@@ -106,7 +110,11 @@ class SportsWidgetRefreshWorker(
                 // silently discard a changed interval or constraint there,
                 // leaving existing installs on the original schedule forever.
                 ExistingPeriodicWorkPolicy.UPDATE,
-                PeriodicWorkRequestBuilder<SportsWidgetRefreshWorker>(30, TimeUnit.MINUTES)
+                PeriodicWorkRequestBuilder<SportsWidgetRefreshWorker>(
+                    RefreshRatePrefs.rate(context, RefreshRatePrefs.SPORTS)
+                        .backgroundMs(SPORTS_PERIODIC_MS, BACKGROUND_MIN_MS),
+                    TimeUnit.MILLISECONDS,
+                )
                     .setConstraints(WidgetWork.networkConstraints())
                     .build(),
             )
@@ -180,7 +188,11 @@ class SportsWidgetRefreshWorker(
                     UNIQUE_LIVE_CHAIN,
                     ExistingWorkPolicy.REPLACE,
                     OneTimeWorkRequestBuilder<SportsWidgetRefreshWorker>()
-                        .setInitialDelay(SPORTS_LIVE_CHAIN_DELAY_MS, TimeUnit.MILLISECONDS)
+                        .setInitialDelay(
+                            RefreshRatePrefs.rate(context, RefreshRatePrefs.SPORTS)
+                                .backgroundMs(SPORTS_LIVE_CHAIN_DELAY_MS, SPORTS_LIVE_CHAIN_DELAY_MS),
+                            TimeUnit.MILLISECONDS,
+                        )
                         .setConstraints(WidgetWork.networkConstraints())
                         .build(),
                 )

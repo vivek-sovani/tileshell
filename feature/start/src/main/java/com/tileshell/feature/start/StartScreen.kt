@@ -354,6 +354,8 @@ fun StartScreen(
     onLockScreen: () -> Unit = {},
     onRecents: () -> Unit = {},
     onOpenNotifications: () -> Unit = {},
+    // Opens accessibility settings behind the Play-required disclosure.
+    onEnableAccessibility: () -> Unit = {},
 ) {
     val tiles by viewModel.tiles.collectAsStateWithLifecycle()
     // The "main" (unsectioned) page only — see SectionBlocks.kt's TileBlock doc:
@@ -457,6 +459,20 @@ fun StartScreen(
     val calendarGranted = rememberPermissionGranted(android.Manifest.permission.READ_CALENDAR)
     val locationGranted = rememberPermissionGranted(android.Manifest.permission.ACCESS_COARSE_LOCATION)
     val activityGranted = rememberPermissionGranted(android.Manifest.permission.ACTIVITY_RECOGNITION)
+    val musicPermission = if (android.os.Build.VERSION.SDK_INT >= 33) {
+        android.Manifest.permission.READ_MEDIA_AUDIO
+    } else {
+        android.Manifest.permission.READ_EXTERNAL_STORAGE
+    }
+    val musicGranted = rememberPermissionGranted(musicPermission)
+    val postNotificationsGranted = if (android.os.Build.VERSION.SDK_INT >= 33) {
+        rememberPermissionGranted(android.Manifest.permission.POST_NOTIFICATIONS)
+    } else {
+        true
+    }
+    val usageAccessGranted = com.tileshell.feature.livetiles.rememberUsageAccess()
+    val writeSettingsGranted = com.tileshell.feature.livetiles.rememberWriteSettingsGranted()
+    val accessibilityEnabled = rememberAccessibilityEnabled()
     // The ViewModel's own init-time attempt to seed the feed greeting's name from
     // the device contact profile races the runtime permission dialog (it always
     // sees "denied" then, since the dialog hasn't resolved yet) — retry here
@@ -674,6 +690,12 @@ fun StartScreen(
         ActivityResultContracts.RequestPermission(),
     ) { /* granted state is re-read on ON_RESUME via rememberPermissionGranted */ }
     val calendarLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { }
+    val musicLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { }
+    val postNotificationsLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { }
     val locationLauncher = rememberLauncherForActivityResult(
@@ -1929,6 +1951,10 @@ fun StartScreen(
             onUserNameChange = viewModel::setUserName,
             liveTilesEnabled = settings.liveTilesEnabled,
             onLiveTilesEnabledChange = viewModel::setLiveTilesEnabled,
+            weatherRefreshRate = settings.weatherRefreshRate,
+            onWeatherRefreshRateChange = viewModel::setWeatherRefreshRate,
+            newsRefreshRate = settings.newsRefreshRate,
+            onNewsRefreshRateChange = viewModel::setNewsRefreshRate,
             stockRefreshRate = settings.stockRefreshRate,
             onStockRefreshRateChange = viewModel::setStockRefreshRate,
             commodityRefreshRate = settings.commodityRefreshRate,
@@ -2445,6 +2471,40 @@ fun StartScreen(
                     activityLauncher.launch(android.Manifest.permission.ACTIVITY_RECOGNITION)
                 }
             },
+            musicGranted = musicGranted,
+            // asked = false: shows the system dialog if it can, else opens app settings.
+            onRequestMusic = {
+                requestPermissionOrOpenSettings(musicPermission, asked = false) { musicLauncher.launch(musicPermission) }
+            },
+            postNotificationsGranted = postNotificationsGranted,
+            onRequestPostNotifications = {
+                if (android.os.Build.VERSION.SDK_INT >= 33) {
+                    requestPermissionOrOpenSettings(android.Manifest.permission.POST_NOTIFICATIONS, asked = false) {
+                        postNotificationsLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
+            },
+            notificationAccess = notificationAccess,
+            onNotificationAccess = {
+                runCatching { context.startActivity(NotificationAccess.settingsIntent()) }
+            },
+            usageAccess = usageAccessGranted,
+            onUsageAccess = { com.tileshell.feature.livetiles.UsageAccess.openSettings(context) },
+            batteryExempt = batteryExempt,
+            onBatteryExemption = { OemBatteryGuard.requestExemption(context) },
+            writeSettings = writeSettingsGranted,
+            onWriteSettings = {
+                runCatching {
+                    context.startActivity(
+                        android.content.Intent(
+                            android.provider.Settings.ACTION_MANAGE_WRITE_SETTINGS,
+                            android.net.Uri.parse("package:${context.packageName}"),
+                        ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }
+            },
+            accessibilityEnabled = accessibilityEnabled,
+            onAccessibility = onEnableAccessibility,
         )
 
         // News-region sheet (personalize → news region) — same subscribed-region
@@ -8684,4 +8744,30 @@ internal suspend fun captureSnapshotJpeg(
             file.absolutePath
         }.getOrNull()
     }
+}
+
+/**
+ * Whether TileShell's accessibility service is switched on in system settings,
+ * re-checked on every resume (there's no change broadcast for it).
+ */
+@Composable
+private fun rememberAccessibilityEnabled(): Boolean {
+    val context = LocalContext.current
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    fun check(): Boolean = runCatching {
+        val enabled = android.provider.Settings.Secure.getString(
+            context.contentResolver,
+            android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+        ).orEmpty()
+        enabled.split(':').any { it.startsWith(context.packageName + "/") }
+    }.getOrDefault(false)
+    var enabled by remember { mutableStateOf(check()) }
+    DisposableEffect(owner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) enabled = check()
+        }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
+    }
+    return enabled
 }

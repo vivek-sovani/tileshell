@@ -99,7 +99,7 @@ enum class WallpaperSyncTarget { NONE, HOME, LOCK, HOME_AND_LOCK }
  * this resolves to, slowing down further outside market hours regardless of
  * the chosen rate.
  */
-enum class LiveRefreshRate { DEFAULT, EVERY_1_MIN, EVERY_5_MIN, EVERY_15_MIN, EVERY_30_MIN }
+enum class LiveRefreshRate { DEFAULT, EVERY_1_MIN, EVERY_5_MIN, EVERY_15_MIN, EVERY_30_MIN, EVERY_1_HOUR, EVERY_3_HOURS }
 
 /** The interval, in milliseconds, this rate resolves to — [defaultMs] is the calling tile's own normal-case interval, substituted for [LiveRefreshRate.DEFAULT]. */
 fun LiveRefreshRate.resolveMs(defaultMs: Long): Long = when (this) {
@@ -108,7 +108,21 @@ fun LiveRefreshRate.resolveMs(defaultMs: Long): Long = when (this) {
     LiveRefreshRate.EVERY_5_MIN -> 5 * 60_000L
     LiveRefreshRate.EVERY_15_MIN -> 15 * 60_000L
     LiveRefreshRate.EVERY_30_MIN -> 30 * 60_000L
+    LiveRefreshRate.EVERY_1_HOUR -> 60 * 60_000L
+    LiveRefreshRate.EVERY_3_HOURS -> 3 * 60 * 60_000L
 }
+
+/**
+ * A background job's interval for this rate: the resolved interval, but never
+ * below [floorMs] (Android runs periodic work at most every 15 minutes, and a
+ * widget chain has its own minimum).
+ */
+fun LiveRefreshRate.backgroundMs(defaultMs: Long, floorMs: Long): Long = maxOf(floorMs, resolveMs(defaultMs))
+
+/** Normal intervals the refresh settings' "default" stands for. */
+const val WEATHER_DEFAULT_REFRESH_MS = 30 * 60_000L
+const val NEWS_DEFAULT_REFRESH_MS = 30 * 60_000L
+const val BACKGROUND_MIN_MS = 15 * 60_000L
 
 /**
  * Persisted personalization (FR-7). Kept deliberately flat and framework-free so
@@ -313,9 +327,13 @@ data class LauncherSettings(
     val commodityRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
     /** How often sports tiles re-poll — see [LiveRefreshRate]. */
     val sportsRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
+    /** How often the weather forecast is fetched — see [LiveRefreshRate]. */
+    val weatherRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
+    /** How often news feeds are fetched — see [LiveRefreshRate]. */
+    val newsRefreshRate: LiveRefreshRate = LiveRefreshRate.DEFAULT,
 ) {
     companion object {
-        const val DEFAULT_COLUMNS = 4
+        const val DEFAULT_COLUMNS = 5
         const val MIN_COLUMNS = 4
         const val MAX_COLUMNS = 6
         const val MIN_WALLPAPER_ZOOM = 1f
@@ -384,7 +402,9 @@ object SettingsCodec {
         append("taskAutoClearDaily=").append(settings.taskAutoClearDaily).append('\n')
         append("stockRefreshRate=").append(settings.stockRefreshRate.name).append('\n')
         append("commodityRefreshRate=").append(settings.commodityRefreshRate.name).append('\n')
-        append("sportsRefreshRate=").append(settings.sportsRefreshRate.name)
+        append("sportsRefreshRate=").append(settings.sportsRefreshRate.name).append('\n')
+        append("weatherRefreshRate=").append(settings.weatherRefreshRate.name).append('\n')
+        append("newsRefreshRate=").append(settings.newsRefreshRate.name)
     }
 
     fun decode(text: String): LauncherSettings {
@@ -438,6 +458,8 @@ object SettingsCodec {
         var stockRefreshRate = d.stockRefreshRate
         var commodityRefreshRate = d.commodityRefreshRate
         var sportsRefreshRate = d.sportsRefreshRate
+        var weatherRefreshRate = d.weatherRefreshRate
+        var newsRefreshRate = d.newsRefreshRate
         text.lineSequence().forEach { line ->
             val sep = line.indexOf('=')
             if (sep <= 0) return@forEach
@@ -513,6 +535,10 @@ object SettingsCodec {
                     LiveRefreshRate.entries.find { it.name == value }?.let { commodityRefreshRate = it }
                 "sportsRefreshRate" ->
                     LiveRefreshRate.entries.find { it.name == value }?.let { sportsRefreshRate = it }
+                "weatherRefreshRate" ->
+                    LiveRefreshRate.entries.find { it.name == value }?.let { weatherRefreshRate = it }
+                "newsRefreshRate" ->
+                    LiveRefreshRate.entries.find { it.name == value }?.let { newsRefreshRate = it }
             }
         }
         return LauncherSettings(
@@ -565,6 +591,8 @@ object SettingsCodec {
             stockRefreshRate = stockRefreshRate,
             commodityRefreshRate = commodityRefreshRate,
             sportsRefreshRate = sportsRefreshRate,
+            weatherRefreshRate = weatherRefreshRate,
+            newsRefreshRate = newsRefreshRate,
         )
     }
 }

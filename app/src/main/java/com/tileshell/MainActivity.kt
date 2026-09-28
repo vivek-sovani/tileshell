@@ -128,6 +128,7 @@ class MainActivity : ComponentActivity() {
                         showLockDisclosure = true
                     }
                 },
+                onEnableAccessibility = { showRecentsDisclosure = true },
                 onOpenNotifications = {
                     if (!LockAccessibilityService.expandNotifications()) {
                         if (LockAccessibilityService.isEnabledInSettings(ctx)) {

@@ -73,6 +73,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -613,6 +614,15 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val debouncedSettingWrites = settingWrites.debounce(SETTING_WRITE_DEBOUNCE_MS)
 
     init {
+        // Background refreshes follow the "live data refresh" rates.
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsRepository.settings
+                .map { listOf(it.weatherRefreshRate, it.newsRefreshRate, it.stockRefreshRate, it.commodityRefreshRate, it.sportsRefreshRate) to it }
+                .distinctUntilChangedBy { it.first }
+                .collect { (_, s) ->
+                    com.tileshell.feature.livetiles.widget.RefreshRateScheduler.sync(getApplication(), s)
+                }
+        }
         viewModelScope.launch(writeContext) {
             // A freshly seeded layout starts in multicolour (user-approved
             // default), so its group colours show.
@@ -1303,6 +1313,14 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setSportsRefreshRate(rate) }
     }
 
+    fun setWeatherRefreshRate(rate: com.tileshell.core.data.settings.LiveRefreshRate) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setWeatherRefreshRate(rate) }
+    }
+
+    fun setNewsRefreshRate(rate: com.tileshell.core.data.settings.LiveRefreshRate) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setNewsRefreshRate(rate) }
+    }
+
     /** Forces the feed/glance screen to a flat background, independent of Start's wallpaper. */
     fun setFeedNoBackground(noBackground: Boolean) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setFeedNoBackground(noBackground) }
@@ -1417,6 +1435,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 repository.resetLayout(removed, extras)
                 migrateSettingsTile()
+                // The default layout is laid out for the default column count.
+                settingsRepository.setColumns(LauncherSettings.DEFAULT_COLUMNS)
             }
             settingsRepository.setFollowSystemTheme(theme == SetupTheme.AUTO)
             if (theme != SetupTheme.AUTO) settingsRepository.setDark(theme == SetupTheme.DARK)
