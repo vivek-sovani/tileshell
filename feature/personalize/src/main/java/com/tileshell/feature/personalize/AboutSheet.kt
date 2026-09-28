@@ -167,13 +167,19 @@ fun AboutSheet(
                 accent = accent,
                 tokens = tokens,
                 items = listOf(
-                    "choose a home style: \"tiles\" for the classic windows-phone look, or \"icons\" for a normal android-style grid of shaped icons — a first-run choice screen with a live preview, revisit it any time in personalize · home style",
+                    "first launch walks you through a short setup: tiles or icons, then theme (dark, light, or auto), tile colour (one colour or multicolour), and default or custom apps",
+                    "custom apps is one list with the default apps already ticked — untick what you don't want, tick anything else you'd like on start; the hubs and live tiles are always included",
+                    "the default start is built around the hubs, colour-grouped by purpose, with an \"essentials\" folder of everyday apps (youtube, google, chrome, calculator, files)",
+                    "choose a home style: \"tiles\" for the classic windows-phone look, or \"icons\" for a normal android-style grid of shaped icons — revisit it any time in personalize · home style",
                     "in icons mode, small tiles render as shaped icons — circle, squircle, rounded, square, or original (your device's own, unmasked shape); live tiles, folders, and widget stacks look the same as in tiles mode",
                     "\"monochrome icons\" (personalize · home style) turns every app icon into a flat glyph — nothing-phone style — across start, the app list, folder mini-grids, and live-tile notification badges; choose whether the glyphs tint to your accent colour or a fixed black/white",
                     "growing an icon past its smallest size turns it into a live tile; shrinking one back down turns it back into an icon",
                     "tap a tile's resize handle to cycle small → medium → wide → large, or drag its corner to resize freely across 11 sizes, from a tiny icon up to a full 4×4 tile",
                     "large (3×3) tile available for any app, on any column count",
-                    "choose grid density — 4, 5, or 6 tiles across a row",
+                    "choose grid density — 4, 5, or 6 tiles across a row (5 by default)",
+                    "\"all apps →\" under your tiles opens the app list, just like windows phone",
+                    "pin a default app (phone, mail, calendar…) from the app list with its real icon, alongside its built-in live tile",
+                    "\"already on start\" tells you which page the tile is on and takes you there",
                     "choose how tiles arrange when one's removed or resized: \"sticky\" leaves the gap open, \"free\" lets you place tiles anywhere with nothing auto-moving (icons mode's default), or \"dense\" auto-packs everything tight",
                     "long-press any tile to enter edit mode",
                     "drag to reorder, resize, or unpin tiles",
@@ -184,8 +190,8 @@ fun AboutSheet(
                     "landscape mode shows feed and start side by side",
                     "hide apps you don't want cluttering the app list — bring them back any time from personalize",
                     "apps with a pending notification show up in the app list's recent section, even if they're not pinned to start",
-                    "the \"personalize\" tile is a normal start tile — drag, resize, or unpin it like any other",
-                    "removed it by accident? pin it back from the app list's own \"personalize\" entry",
+                    "the settings tile opens home settings; it's locked in place so it can't be unpinned by accident",
+                    "\"add live tiles\" brings back built-in tiles you removed — people, photos, mail, messages and the rest",
                     "start is organized into pages — swipe left/right between them; the first one is always \"main\", for anything you haven't grouped, with your named pages after it",
                     "a small dot row at the top shows how many pages there are and which one you're on, whenever there's more than one",
                     "in edit mode, tap the \"+\" at the top and name it to add a page; each page's own name (otherwise hidden) appears there too, with ←/→ to reorder it",
@@ -194,6 +200,26 @@ fun AboutSheet(
                     "drag a tile to the left or right edge of the screen to carry it onto a neighboring page — the page shifts right away and a floating preview of the tile lets you keep aiming before you let go",
                     "already-pinned tile? select it in edit mode, tap its colour dot, and use \"move to page\" at the bottom of the colour picker to move it without dragging",
                     "on a page with room below its tiles, drag down from that empty space to pull them closer to your thumb; tap one to open it, or tap elsewhere to let go",
+                ),
+            )
+
+            FeatureGroup(
+                title = "hubs",
+                accent = accent,
+                tokens = tokens,
+                items = listOf(
+                    "tap a weather, music, calendar, people, productivity, or battery tile to open its full-screen hub; swipe between each hub's pages, windows-phone style",
+                    "weather — now, hourly, and daily forecast; max/min, feels like, wind, humidity, uv index, sunrise and sunset; a moon at night",
+                    "music — your own music library with albums, playlists (create and edit real device playlists), shuffle, and background playback; podcasts and internet radio with favourites and recents; history of what you played in other apps",
+                    "music pauses by itself when bluetooth or headphones disconnect",
+                    "calendar — your upcoming events by day; tap one to open it",
+                    "people — all your contacts with quick call, message, and view; \"what's new\" gathers chats, messages, mail, and social notifications, with filters for each app",
+                    "in what's new, tap a message to open its app, tap the small arrow to expand it and reply inline, mark read, or archive, and swipe it sideways to dismiss",
+                    "people's apps page groups your chat, messages, mail, and social apps, most-used first (needs usage access) — pin it as a tile with inbox apps on the front and social apps on the back",
+                    "productivity — today (next meeting with a join button, open tasks, latest note, quick actions), notes with optional titles, named task lists, and office, meeting and tool apps, most-used first",
+                    "productivity's quick row is yours to arrange — long-press a note, list, or app to add it, long-press a shortcut to remove it; links to calendar and what's new sit there too",
+                    "pin any note or task list from the hub as its own start tile",
+                    "battery — today's charge curve with screen on and off, a week's history, per-app screen time, and details like temperature, health, and current",
                 ),
             )
 
@@ -337,6 +363,7 @@ fun AboutSheet(
                 items = listOf(
                     "add any android app widget to the feed page",
                     "widget picker is grouped by app, and each app's group can be collapsed",
+                    "tileshell widget settings open full screen in portrait, and over the glance half in landscape",
                     "tileshell's own widgets sit at the top of the picker, ahead of every other app",
                     "search the picker by app name or widget name to jump straight to one",
                     "narrow widgets automatically pair up side by side, like weather and today's agenda",
@@ -371,6 +398,11 @@ fun AboutSheet(
                     "wide and large tiles show more notification content — bigger photos, more lines",
                     "tiles with multiple notifications cycle through them one at a time on the flip side",
                     "clock back face leads with your next alarm time; date shown below",
+                    "weather shows a moon at night, and sunrise and sunset on the back",
+                    "battery — drain rate, time left, and today's curve, with screen on/off on the back; recorded by tileshell itself every 15 minutes",
+                    "productivity — next meeting, open tasks, and your latest note",
+                    "hindu panchang — tithi as a big number with paksha, vara, masa, and sunrise/sunset plus moonrise/moonset, fitted to every tile size",
+                    "what's new and people's apps pin as their own tiles",
                 ),
             )
 
@@ -383,6 +415,7 @@ fun AboutSheet(
                     "per-tile colour — give any tile its own colour in edit mode",
                     "tile colour from app icon — auto-picks the dominant colour",
                     "tile colour from wallpaper — tints every tile with the same wallpaper-derived accent the feed page and quick panel already use",
+                    "multicolour — every tile keeps its own colour, grouped by purpose, like the default start",
                     "dark, light, or follow-system theme — tap one of the three theme tiles at the top of personalize",
                     "the device's real settings app is one tap away, right at the top of personalize",
                     "glass (transparent) tiles with adjustable transparency",
@@ -405,13 +438,15 @@ fun AboutSheet(
                     "lock layout — long-pressing a tile stops opening edit mode, so nothing moves by accident",
                     "set tileshell as your default launcher right from personalize's system group",
                     "turn live tiles off as one master switch — clock/weather/notification flipping pauses, badges and counts keep updating",
+                    "live data refresh — set how often weather, news, stocks, commodities, and sports update, from their default up to every 3 hours; home-screen widgets follow too",
+                    "permissions — every permission in one list, what it's for, and whether it's on; tap one to allow it or open its android setting",
                     "enabling live tiles for the first time explains and asks before opening notification access, instead of jumping straight there",
                     "give the feed page its own \"no background\" option, independent of start's wallpaper",
                 ),
             )
 
             FeatureGroup(
-                title = "backup & restore",
+                title = "backup, restore & reset",
                 accent = accent,
                 tokens = tokens,
                 items = listOf(
@@ -421,6 +456,7 @@ fun AboutSheet(
                     "export your layout & settings to a file",
                     "save that exported file to google drive so it's there on your next device",
                     "restore from a file to bring a layout back, on this device or a new one",
+                    "reset start layout runs the setup again from the first step — style, theme, colour, and apps",
                 ),
             )
 

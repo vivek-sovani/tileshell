@@ -154,6 +154,7 @@ fun PersonalizeGuideSheet(
                     "personalize · accent colour sets the colour every tile uses by default",
                     "in edit mode, tap the colour dot on a selected tile to give just that tile its own colour",
                     "turn on \"tile colour from app icon\" (personalize · colour & fill) to auto-pick each app's dominant colour instead",
+                    "pick \"multicolour\" as the tile colour source to keep each tile's own colour, grouped by purpose",
                     "pick \"wallpaper\" as the tile colour source to tint every tile with the same wallpaper-derived accent the feed page and quick panel already use",
                     "turn on \"gradient fill\" for a subtle diagonal gradient instead of a flat colour",
                 ),
@@ -199,7 +200,9 @@ fun PersonalizeGuideSheet(
                 tokens = tokens,
                 visual = { HomeStyleVisual(accent, tokens) },
                 items = listOf(
-                    "shown once as a choice screen on first launch, with a real live preview of both looks",
+                    "shown on first launch as a short setup: tiles or icons (with a live preview), then theme, tile colour, and default or custom apps",
+                    "\"custom\" lists your apps with the defaults already ticked — untick or add apps; hubs and live tiles are always kept",
+                    "personalize · backup, restore & reset · reset start layout runs the same setup again",
                     "personalize · home style switches any time between \"tiles\" (the classic windows-phone look) and \"icons\" (a normal android-style grid)",
                     "in icons mode, small tiles render as shaped icons; live tiles, folders, and widget stacks look exactly the same as in tiles mode",
                     "growing an icon past its smallest size turns it into a live tile; shrinking one back down turns it back into an icon",
@@ -290,12 +293,52 @@ fun PersonalizeGuideSheet(
                 tokens = tokens,
                 visual = { PermissionsVisual(accent, tokens) },
                 items = listOf(
+                    "personalize · permissions lists every permission in two groups — data (contacts, calendar, location, physical activity, music & audio, notifications) and special access (notification access, usage access, background battery, modify system settings, accessibility)",
+                    "each row says what it's for and whether it's on; tap \"allow\" to grant it, or \"turn on\" to open its android setting — it updates when you come back",
                     "personalize · live tiles has a master on/off switch, plus \"badges & live mail\" to turn on unread badge counts on tiles and live mail/messages tile faces",
                     "turning live tiles on for the first time explains and asks before opening notification access, instead of jumping straight there — you can say not now",
                     "tap the \"lock screen\" icon in the quick panel's header to lock the device",
                     "the first time, this opens android's accessibility settings so you can turn on tileshell's lock service once — it's a one-time manual step, the launcher can't enable it for you",
                     "turning it on preserves biometric unlock (android 9 and up); without it, locking falls back to a plain device-admin lock with no biometrics",
-                    "personalize · permissions also lists contacts (people tile, quick search), calendar (calendar tile), location (weather tile), and physical activity (steps tile, steps widget) — tap any of them to grant",
+                    "usage access sorts the people and productivity apps pages by most used and shows battery hub screen time",
+                ),
+            )
+
+            FeatureGroup(
+                title = "hubs",
+                accent = accent,
+                tokens = tokens,
+                items = listOf(
+                    "tap the weather, music, calendar, people, productivity, or battery tile to open its hub; swipe left and right between its pages",
+                    "people · what's new: tap a message to open its app, tap the arrow to expand and reply, swipe sideways to dismiss; the chips filter by app",
+                    "people · apps and productivity · apps put your most-used apps first once usage access is on",
+                    "productivity: long-press a note, list, or app to add it to the quick row; long-press a quick shortcut to remove it",
+                    "pin a note or task list from productivity to give it its own start tile; pin people's apps page for an apps tile",
+                ),
+            )
+
+            FeatureGroup(
+                title = "live data refresh",
+                accent = accent,
+                tokens = tokens,
+                items = listOf(
+                    "personalize · live data refresh · refresh rates sets how often each kind of live data updates",
+                    "weather and news: 15m, 30m (default), 1h, or 3h",
+                    "stocks and commodities: 1m (default), 5m, 15m, 30m, or 1h — they also slow down outside market hours by themselves",
+                    "sports: 90s (default), 5m, 15m, 30m, or 1h",
+                    "slower saves battery and data; home-screen widgets follow too, but android refreshes them at most every 15 minutes",
+                ),
+            )
+
+            FeatureGroup(
+                title = "backup, restore & reset",
+                accent = accent,
+                tokens = tokens,
+                items = listOf(
+                    "personalize · backup, restore & reset · manage backups",
+                    "turn on auto-save, browse layout history, or save a snapshot now",
+                    "export to a file (save it to google drive for your next phone), or restore from one",
+                    "reset start layout, in its own section at the bottom, runs the setup again from the first step",
                 ),
             )
 
