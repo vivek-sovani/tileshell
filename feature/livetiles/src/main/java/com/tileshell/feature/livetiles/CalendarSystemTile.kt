@@ -240,10 +240,15 @@ fun CalendarSystemTileFace(
             flipped = flipped,
             modifier = modifier.fillMaxSize(),
             front = {
-                ObservanceStripped(strip, size) { PanchangFace(panchang = panchang, size = size, devanagari = true) }
+                ObservanceStripped(strip, size) {
+                    PanchangFace(panchang = panchang, size = size, devanagari = true, hasStrip = strip != null)
+                }
             },
             back = {
-                ObservanceStripped(strip, size) {
+                // A 2×2 back face has no room for the strip as well as its four
+                // times; the front already shows it, every other flip.
+                val roomy = size.cols >= 4 || size.rows >= 3
+                ObservanceStripped(if (roomy) strip else null, size) {
                     PanchangBackFace(panchang = panchang, size = size, sunTimes = sunTimes, moonTimes = moonTimes)
                 }
             },
@@ -382,10 +387,15 @@ private fun PanchangFace(
     panchang: PanchangInfo,
     size: TileSize,
     devanagari: Boolean,
+    hasStrip: Boolean = false,
 ) {
     val narrow = size.narrowLive
     val short = size.shortLive
     val big = size == TileSize.LARGE
+    // A 2×2 tile keeps the widget's lines (vara, number, tithi · month,
+    // nakshatra) at full size rather than squeezing in the year too; with a
+    // highlight strip, the strip takes the nakshatra's place.
+    val compact = !big && !narrow && !short && size.cols <= 2 && size.rows <= 2
     val pakshaName = if (devanagari) {
         PanchangDevanagari.paksha(panchang.tithi.paksha)
     } else if (panchang.tithi.paksha == Paksha.SHUKLA) {
@@ -474,7 +484,7 @@ private fun PanchangFace(
                     // at a glance, distinct from the plain face-text vara/
                     // nakshatra/year lines.
                     color = TileAccents.Amber,
-                    fontSize = if (short) 11.sp else if (narrow) 12.sp else if (big) 15.sp else 13.sp,
+                    fontSize = if (short) 11.sp else if (narrow) 12.sp else if (big) 15.sp else 14.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = if (narrow) 3 else 2,
                     overflow = TextOverflow.Ellipsis,
@@ -482,15 +492,17 @@ private fun PanchangFace(
                 )
             }
             if (!short) {
-                if (devanagari) {
+                if (devanagari && !(compact && hasStrip)) {
                     Text(
                         text = "$nakshatraLabel: $nakshatra",
-                        color = FaceText.copy(alpha = 0.75f),
-                        fontSize = if (narrow) 10.sp else if (big) 12.sp else 11.sp,
+                        color = FaceText.copy(alpha = 0.8f),
+                        fontSize = if (narrow) 10.sp else if (big) 13.sp else 12.sp,
                         maxLines = if (narrow) 2 else 1,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
                     )
+                }
+                if (devanagari && !compact) {
                     Text(
                         text = yearLabel,
                         color = FaceText.copy(alpha = 0.6f),
@@ -557,7 +569,9 @@ private fun ObservanceStripped(strip: String?, size: TileSize, content: @Composa
             color = Color(0xFF3A2600),
             fontSize = if (tiny) 10.sp else if (size == TileSize.LARGE) 14.sp else 12.sp,
             fontWeight = FontWeight.Medium,
-            maxLines = if (size.narrowLive) 2 else 1,
+            // Two lines on a 2-column tile: "अंगारकी संकष्टी चतुर्थी · चंद्रोदय ७:४७" doesn't fit on one.
+            maxLines = if (size.cols <= 2) 2 else 1,
+            lineHeight = if (tiny) 12.sp else 15.sp,
             overflow = TextOverflow.Ellipsis,
             textAlign = if (size.narrowLive) TextAlign.Center else TextAlign.Start,
             modifier = Modifier
