@@ -14,61 +14,63 @@ unchanged, since that's a separate `android:label` change with much broader
 visible impact for existing users and wasn't part of this ask.)*
 
 ### Short description (80 chars max)
-`Windows Phone–style launcher: live tiles, real widgets, feed, personalization`
+`Windows Phone–style launcher: live tiles, hubs, real widgets & personalization`
 
 ### Full description (4 000 chars max)
 
-*Updated for v4.0.0 — 14 real, installable-on-any-launcher home-screen widgets replace the old in-app-only glance gadgets; App List can pin an app's own sub-apps, shortcuts, and widgets directly.*
+*Updated for v5.0.0 — hubs (weather, music, calendar, people, productivity, battery, money), Panchang highlights, festivals and grahan, quick setup.*
 
 ```
-TileShell brings the iconic Windows Phone / Windows 10 Mobile Start screen to Android — rebuilt in Kotlin, faithful to the original, with real Android widgets and deep personalization.
+TileShell brings the iconic Windows Phone / Windows 10 Mobile Start screen to Android — rebuilt in Kotlin, faithful to the original, with full-screen hubs, real Android widgets and deep personalization.
 
 ★ START SCREEN
-4, 5, or 6 columns. Small, Medium, Wide, and Large (3×3) live tiles. Long-press to edit: drag, merge into folders or widget stacks, resize, recolour per tile or from the app's icon, or unpin. Prefer a normal Android look? Switch to Icons home style — weather/calendar/clock still live at a glance — with a matching Squircle/Circle/Rounded/Square/Original icon shape. Lock the layout so nothing moves by accident. Landscape puts the feed and Start side by side.
+4, 5 or 6 columns. Small, Medium, Wide and Large live tiles. Long-press to drag, merge into folders or widget stacks, resize, recolour or unpin. Prefer icons? Switch to Icons home style with your choice of icon shape. A quick setup on first run picks style, theme, colours and apps.
+
+★ HUBS
+Tap a tile for its full-screen hub, with swipeable pages:
+• Weather — now, hourly, 7-day, UV, sunrise and sunset
+• Music — your library and playlists, podcasts and internet radio, gapless playback with cross-fade
+• Calendar — your events by day, week and month
+• People — chats, SMS and mail in one list, with inline reply
+• Productivity — next meeting with a join button, notes and task lists
+• Battery — drain, time left, daily curve and screen time per app
+• Money — bank, UPI and card transactions from new bank SMS, locked with your fingerprint
+Music, People, Productivity and Money gather their related apps in one apps page.
+
+★ PANCHANG
+Tithi, paksha, nakshatra, sunrise, moonrise and more, in Devanagari. Highlights Sankashti (Angaraki), named Ekadashis (Smarta and Vaishnava), Mahashivaratri, 28 Hindu festivals, eclipses visible from where you are, and any tithi you pick — with month and year views.
 
 ★ LIVE TILES
-Clock with date, weekday, and your real next alarm. Live weather, forecast, and high/low. Next calendar event. Now-playing with album art and transport controls — any music app, or a dedicated tile. Contact-photo mosaic. Photos slideshow. Notification counts and message previews on every tile. All flip gently; pause automatically in battery saver.
+Clock with your next alarm. Live weather. Next calendar event. Now playing with controls. Contact photos. Photo slideshow. Notification previews on every tile. They pause in battery saver.
 
 ★ 14 REAL HOME-SCREEN WIDGETS
-Weather, battery, alarm, moon phase, steps, a second calendar system (Hindu Panchang), flashlight, stock market, commodities & currencies, sports scores, tasks, notes, sticky note, and countdown — genuine Android widgets for any launcher's home screen, not just TileShell's — pin one from App List's long-press menu.
+Weather, battery, alarm, moon phase, steps, Hindu Panchang, flashlight, stocks, commodities & currencies, sports scores, tasks, notes, sticky note and countdown — real Android widgets for any launcher.
 
 ★ WIDGET STACKS
-Merge two same-size tiles or Android widgets — on Start or the feed — into a swipeable carousel. Each member keeps its own colour and badge; every live face stays interactive inside.
-
-★ NOTIFICATIONS
-Unread badge on every pinned tile. Notification tiles flip through each pending message — sender, photo, snippet. A closed folder shows its total and which app inside has something pending. Unpinned apps with notifications surface in App List Recent too.
+Merge same-size tiles or Android widgets into a swipeable carousel; every live face stays interactive.
 
 ★ FEED PAGE (swipe right)
-A greeting, live weather and today's agenda side by side, now-playing, and any widget, resizing, reordering, and merging into stacks. News across 8 categories — pick any number of regions, India plus ~20 other countries, or add any custom RSS/Atom feed.
+A greeting, weather and today's agenda, now playing and any widget. News across 8 categories from India and ~20 other countries, or any RSS feed.
 
-★ QUICK PANEL
-Swipe up from either edge. Resizable, reorderable square tiles for wifi, bluetooth, flashlight, DND, rotation lock, and more; tap-to-step brightness and volume; a one-tap theme tile; quick links to Personalize, Android Settings, and screen lock.
-
-★ QUICK SEARCH
-Two-finger swipe down on Start. Search apps, contacts, and the web in one gesture. Long-press a contact to call, message, or pin it to Start. Choose Google, Bing, ChatGPT, Gemini, Claude, or Perplexity.
-
-★ EDGE STRIP
-A quick-launch bar along the bottom. Search on the left, favourite apps in the centre, recent apps on the right. Collapses to a thin handle when not in use.
+★ QUICK PANEL & QUICK SEARCH
+Two-finger swipe down opens resizable toggles, brightness, volume and theme; two-finger swipe up searches apps, contacts and the web at once.
 
 ★ APP LIST (swipe left)
-Alphabetical grid with A–Z jump grid and instant search. Recent and newly-installed apps up top with badge counts, even unpinned. Long-press to pin, hide, or uninstall — or reach its sub-apps, shortcuts, and widgets from the same menu.
+A–Z jump grid and instant search, recent and new apps with badges. Long-press to pin, hide, uninstall, or reach shortcuts and widgets.
 
 ★ PERSONALIZATION
-14 accent colours, or pull one from your wallpaper · per-tile colour override or colour from the app's icon · dark/light themes · glass tiles tinted per tile · blur · wallpaper-behind-tiles · gradient, custom photo, slideshow, or daily Bing wallpapers with history · corner radius, gradient fill, 3 fonts, adjustable spacing · lock layout · built-in guide.
+14 accents or one from your wallpaper · multicolour tiles · dark/light/auto · glass, widget-card or borderless tiles · blur · photo, slideshow or daily Bing wallpapers · fonts, corners and spacing · built-in guide.
 
 ★ BACKUP & RESTORE
-Auto-save on a schedule. Browse a visual history and restore any version. Export to a file to restore on your next device.
-
-★ SCREEN LOCK
-Instant lock from the Quick Panel or a gear long-press, preserving biometric unlock via the Accessibility API.
+Auto-save, a visual layout history, and export to a file for your next phone.
 
 ★ PRIVACY FIRST
-No accounts. No analytics. No ads. All data stays on your device. Only weather requests leave (Open-Meteo, no API key), and only when you grant location permission.
+No accounts. No analytics. No ads. Your data stays on your phone. Online features (weather, news, markets, sports, podcasts, radio) only fetch what they show — nothing about you is sent.
 
-Requires Android 8.0 (API 26) or higher.
+Requires Android 8.0 or higher.
 ```
 
-*(3 970 chars, under Play's 4 000 limit.)*
+*(3050 chars, under Play's 4 000 limit.)*
 
 ### Category
 Personalization
@@ -168,21 +170,20 @@ TileShell 5.0.0
 
 New features:
 • Hubs: weather, music, calendar, people,
-  productivity, battery & money – tap a tile
-• Music: your library, podcasts & radio
-• People: messages & mail in one list,
-  with inline reply
-• Money: bank & UPI transactions, locked
-• Productivity: meetings, notes, task lists
-• Quick setup: style, theme, colours & apps
-• All permissions & refresh rates in one place
+  productivity, battery & money
+• Music: library, podcasts, radio, gapless
+• People: messages & mail, inline reply
+• Money: bank, UPI & card transactions
+• Panchang: festivals, ekadashi, grahan
+• Quick setup: style, theme, colours, apps
+• Permissions & refresh rates in one place
 
 Bugs fixed:
 • Lower battery use from live tiles
-• Music pauses when headphones disconnect
+• Bluetooth play/pause in music
 ```
 
-*(Character count 483, under Play's 500 limit.)*
+*(Character count 434, under Play's 500 limit.)*
 
 ### Full changelog since v4.5.0
 
@@ -209,8 +210,11 @@ full-screen hub with windows-phone-style swipeable pages.
   (no SMS permission; only new notifications, OTPs and promotions ignored, duplicates across the SMS
   and the payment app counted once), kept only on the phone for a year: monthly spent/received,
   per-account/UPI/card filters, the last reported balance. Transactions are locked behind
-  fingerprint, face or screen lock. An apps page lists payment & wallet apps and banking apps. The
-  tile shows nothing or the last payment and receipt (a setting), with payment apps on the back.
+  fingerprint, face or screen lock. An apps page lists payment & wallet apps, banking apps, and
+  credit & debit card apps. The tile shows nothing or the last payment and receipt (a setting), with
+  payment apps on the back. Transactions split into "accounts & upi" and "cards"; card statement,
+  bill-due and payment-received messages are kept under cards with the latest amount due. Tap a
+  transaction for its full message, swipe to remove it (with undo), or clear all.
 - **Battery** — TileShell now keeps its own on-device battery log; a redesigned tile (drain rate,
   time left, today's curve), a battery hub (today, week, per-app screen time, details) and an
   upgraded widget.
@@ -233,9 +237,22 @@ full-screen hub with windows-phone-style swipeable pages.
 - Personalize's "backup & restore" is now "backup, restore & reset", with reset in its own section.
 - Your name in the feed greeting starts with a capital letter.
 
+**New: Panchang.**
+- The Hindu Panchang tile and widget highlight the day in an amber strip: Sankashti (Angaraki on a
+  Tuesday, with moonrise), each Ekadashi by name — Smarta and Vaishnava shown separately when they
+  fall on different days — Mahashivaratri, Vinayaki, Pradosh, Purnima, Amavasya, and any tithi you
+  pick; plus about 28 Hindu festivals and solar and lunar eclipses visible from where you are.
+- Tapping the tile or widget opens a Panchang sheet, all in Devanagari: today, this month and this
+  year, with important days, festivals and grahan (with sparsha/moksha times, or "not visible
+  here") in separate sections, and a page of pills to choose what's highlighted.
+- A big tithi number with paksha, moonrise and moonset, and faces that fit every tile size.
+
+**New: on update.** The first launch after updating introduces each hub and offers to set up Start
+with the new hubs layout (your current layout is saved to layout history first) or keep it.
+
 **Other.**
-- Hindu Panchang tile and widget: a big tithi number with paksha, moonrise and moonset, faces that
-  scale to fit every size, and no English date.
+- Music: gapless playback with a 1–3 s cross-fade, and share in the corner of the favourites line.
+- People: "what's new" leaves out bank and card messages, and profile photos are sharp.
 - TileShell widget settings open full screen in portrait and over the glance half in landscape.
 - "Already on start" names the page the tile is on and switches to it.
 - About and guide sheets describe all of the above.
@@ -246,6 +263,8 @@ full-screen hub with windows-phone-style swipeable pages.
 - The default layout now includes the camera on phones where no default camera app is set.
 - Removing a track from a playlist works on Android 16.
 - Bluetooth headset and car play/pause buttons now work for the music hub (they were ignored, and "pause" could restart paused audio). Now playing gains a seekable progress bar, 10 s back / 30 s forward buttons, and share. Next/previous on a radio station step through your favourite stations.
+- Radio no longer skips through your favourites when a station fails to load.
+- Panchang, calendar-system, stock and commodity tiles now open when tapped inside a folder or stack.
 - Hub tiles (music, calendar, people, clock) are no longer tied to one app: they no longer show
   that app's name or icon, and uninstalling the app no longer removes the tile. Existing tiles
   are fixed on update.
