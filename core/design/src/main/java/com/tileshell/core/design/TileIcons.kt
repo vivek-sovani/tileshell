@@ -347,6 +347,14 @@ object TileIcons {
             }
         }.build())
 
+        put("share", vector("share",
+            p(circle(18.0, 5.0, 2.5)),
+            p(circle(6.0, 12.0, 2.5)),
+            p(circle(18.0, 19.0, 2.5)),
+            p(line(8.2, 10.8, 15.8, 6.2)),
+            p(line(8.2, 13.2, 15.8, 17.8)),
+        ))
+
         put("plus", vector("plus",
             p(line(12.0, 5.0, 12.0, 19.0)),
             p(line(5.0, 12.0, 19.0, 12.0)),

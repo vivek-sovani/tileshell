@@ -71,8 +71,15 @@ class LocalMusicPlaybackService : Service() {
 
         val mediaSession = MediaSession(this, "TileShellMusicHub").apply {
             setCallback(object : MediaSession.Callback() {
-                override fun onPlay() { LocalMusicPlayer.togglePlayPause() }
-                override fun onPause() { LocalMusicPlayer.togglePlayPause() }
+                // Bluetooth headsets and car kits send separate play and pause
+                // keys: play only resumes and pause only pauses (a toggle here
+                // made "pause" restart already-paused audio). These fire only
+                // for actions advertised in the playback state below.
+                override fun onPlay() { LocalMusicPlayer.resume() }
+                override fun onPause() { LocalMusicPlayer.pause() }
+                override fun onFastForward() { LocalMusicPlayer.seekBy(SEEK_FORWARD_MS) }
+                override fun onRewind() { LocalMusicPlayer.seekBy(-SEEK_BACK_MS) }
+                override fun onSeekTo(pos: Long) { LocalMusicPlayer.seekTo(pos) }
                 override fun onSkipToNext() { LocalMusicPlayer.next(this@LocalMusicPlaybackService) }
                 override fun onSkipToPrevious() { LocalMusicPlayer.previous(this@LocalMusicPlaybackService) }
                 override fun onStop() { LocalMusicPlayer.release() }
@@ -103,22 +110,31 @@ class LocalMusicPlaybackService : Service() {
                     MediaMetadata.Builder()
                         .putString(MediaMetadata.METADATA_KEY_TITLE, item.title)
                         .putString(MediaMetadata.METADATA_KEY_ARTIST, item.subtitle)
-                        .putLong(MediaMetadata.METADATA_KEY_DURATION, item.durationMs)
+                        .putLong(MediaMetadata.METADATA_KEY_DURATION, item.durationMs.takeIf { it > 0 } ?: LocalMusicPlayer.durationMs())
                         .apply { if (art != null) putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, art) }
                         .build(),
                 )
                 mediaSession.setPlaybackState(
                     PlaybackState.Builder()
                         .setActions(
-                            PlaybackState.ACTION_PLAY_PAUSE or
+                            PlaybackState.ACTION_PLAY or
+                                PlaybackState.ACTION_PAUSE or
+                                PlaybackState.ACTION_PLAY_PAUSE or
                                 PlaybackState.ACTION_SKIP_TO_NEXT or
                                 PlaybackState.ACTION_SKIP_TO_PREVIOUS or
-                                PlaybackState.ACTION_STOP,
+                                PlaybackState.ACTION_STOP or
+                                (if (LocalMusicPlayer.canSeek()) {
+                                    PlaybackState.ACTION_SEEK_TO or PlaybackState.ACTION_FAST_FORWARD or PlaybackState.ACTION_REWIND
+                                } else {
+                                    0L
+                                }),
                         )
                         .setState(
                             if (playback.playing) PlaybackState.STATE_PLAYING else PlaybackState.STATE_PAUSED,
-                            PlaybackState.PLAYBACK_POSITION_UNKNOWN,
-                            1f,
+                            // Real position, so the lock screen / Bluetooth device
+                            // shows progress; unknown for a live radio stream.
+                            if (LocalMusicPlayer.canSeek()) LocalMusicPlayer.positionMs() else PlaybackState.PLAYBACK_POSITION_UNKNOWN,
+                            if (playback.playing) 1f else 0f,
                         )
                         .build(),
                 )

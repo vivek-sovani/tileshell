@@ -72,6 +72,8 @@ data class LocalPlayback(
     val playing: Boolean = false,
     val queue: List<PlayableAudio> = emptyList(),
     val queueIndex: Int = -1,
+    /** Bumped on every seek, so observers (the media session) re-read the position. */
+    val seekVersion: Int = 0,
 )
 
 /**
@@ -216,6 +218,42 @@ object LocalMusicPlayer {
         }
     }
 
+    /**
+     * Starts playback if paused, and never pauses — the counterpart of
+     * [pause], for a headset's separate "play" button (a toggle there would
+     * pause what's already playing).
+     */
+    fun resume() {
+        val mp = player ?: return
+        resumeOnFocusGain = false
+        runCatching {
+            if (!mp.isPlaying) {
+                mp.start()
+                _state.value = _state.value.copy(playing = true)
+            }
+        }
+    }
+
+    /** Current position in ms (0 when nothing is loaded). */
+    fun positionMs(): Long = runCatching { player?.currentPosition?.toLong() }.getOrNull() ?: 0L
+
+    /** Track length in ms from the player itself, 0 when unknown (a live stream). */
+    fun durationMs(): Long = runCatching { player?.duration?.toLong() }.getOrNull()?.takeIf { it > 0 } ?: 0L
+
+    /** Radio is live, so it can't seek; tracks and podcast episodes can. */
+    fun canSeek(): Boolean = _state.value.item.let { it != null && it !is PlayableAudio.RadioStream } && durationMs() > 0
+
+    fun seekTo(ms: Long) {
+        val mp = player ?: return
+        if (!canSeek()) return
+        val target = ms.coerceIn(0L, durationMs())
+        runCatching { mp.seekTo(target.toInt()) }
+        _state.value = _state.value.copy(seekVersion = _state.value.seekVersion + 1)
+    }
+
+    /** Jumps back (negative) or forward by [deltaMs]. */
+    fun seekBy(deltaMs: Long) = seekTo(positionMs() + deltaMs)
+
     fun next(context: Context) {
         val s = _state.value
         if (s.queue.isEmpty()) return
@@ -271,3 +309,7 @@ object LocalMusicPlayer {
         _state.value = LocalPlayback()
     }
 }
+
+/** Now playing's skip buttons, and a headset's fast-forward / rewind keys. */
+const val SEEK_BACK_MS = 10_000L
+const val SEEK_FORWARD_MS = 30_000L

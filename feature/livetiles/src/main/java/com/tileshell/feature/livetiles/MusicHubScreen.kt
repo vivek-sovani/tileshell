@@ -1,5 +1,12 @@
 package com.tileshell.feature.livetiles
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import android.content.Intent
 import android.Manifest
 import android.content.Context
 import android.graphics.Bitmap
@@ -570,9 +577,17 @@ private fun PlayerNowPlaying(
         // own main interactive element (user-requested). Previous/next are
         // meaningless for a lone radio stream (a queue of one) but harmless
         // no-ops, same as at the end/start of any single-item queue.
-        Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+        val seekable = item !is PlayableAudio.RadioStream
+        if (seekable) {
+            PlaybackProgress(playing, accent, tokens)
+            Spacer(Modifier.height(12.dp))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(if (seekable) 10.dp else 20.dp), verticalAlignment = Alignment.CenterVertically) {
             LocalPlaybackButton("prev", "previous", tokens.fg, size = 56.dp, iconSize = 28.dp) {
                 LocalMusicPlayer.previous(context)
+            }
+            if (seekable) {
+                SeekButton("−${SEEK_BACK_MS / 1000}", "back ${SEEK_BACK_MS / 1000} seconds", tokens) { LocalMusicPlayer.seekBy(-SEEK_BACK_MS) }
             }
             LocalPlaybackButton(
                 if (playing) "pause" else "play",
@@ -582,6 +597,9 @@ private fun PlayerNowPlaying(
                 iconSize = 28.dp,
             ) {
                 LocalMusicPlayer.togglePlayPause()
+            }
+            if (seekable) {
+                SeekButton("+${SEEK_FORWARD_MS / 1000}", "forward ${SEEK_FORWARD_MS / 1000} seconds", tokens) { LocalMusicPlayer.seekBy(SEEK_FORWARD_MS) }
             }
             LocalPlaybackButton("next", "next", tokens.fg, size = 56.dp, iconSize = 28.dp) {
                 LocalMusicPlayer.next(context)
@@ -616,8 +634,118 @@ private fun PlayerNowPlaying(
             Spacer(Modifier.height(14.dp))
             NowPlayingFavoriteToggle(item, accent, tokens, context)
         }
+        Spacer(Modifier.height(14.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = { shareAudio(context, item) },
+            ),
+        ) {
+            Icon(TileIcons["share"], contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("share", color = accent, fontSize = 14.sp)
+        }
         Spacer(Modifier.height(20.dp))
         Text(caption, color = tokens.fgDim, fontSize = 12.sp)
+    }
+}
+
+/** A round "−10" / "+30" skip button beside the transport controls. */
+@Composable
+private fun SeekButton(label: String, description: String, tokens: ColorTokens, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .border(1.5.dp, tokens.fg.copy(alpha = 0.6f), CircleShape)
+            .clickable(onClickLabel = description, onClick = onClick)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, color = tokens.fg, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+/**
+ * Elapsed / total time with a thin bar; tap or drag along the bar to jump.
+ * Polls the player twice a second while playing (the playback state doesn't
+ * carry the position).
+ */
+@Composable
+private fun PlaybackProgress(playing: Boolean, accent: Color, tokens: ColorTokens) {
+    var position by remember { mutableStateOf(LocalMusicPlayer.positionMs()) }
+    var duration by remember { mutableStateOf(LocalMusicPlayer.durationMs()) }
+    val seekVersion = LocalMusicPlayer.state.collectAsState().value.seekVersion
+    LaunchedEffect(playing, seekVersion) {
+        while (true) {
+            position = LocalMusicPlayer.positionMs()
+            duration = LocalMusicPlayer.durationMs()
+            if (!playing) break
+            kotlinx.coroutines.delay(500)
+        }
+    }
+    val fraction = if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(24.dp)
+                .pointerInput(duration) {
+                    detectTapGestures { offset ->
+                        if (duration > 0) LocalMusicPlayer.seekTo((offset.x / size.width * duration).toLong())
+                    }
+                }
+                .pointerInput(duration) {
+                    detectHorizontalDragGestures { change, _ ->
+                        if (duration > 0) LocalMusicPlayer.seekTo((change.position.x / size.width * duration).toLong())
+                    }
+                },
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Box(Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(tokens.fg.copy(alpha = 0.18f)))
+            Box(Modifier.fillMaxWidth(fraction).height(3.dp).clip(RoundedCornerShape(2.dp)).background(accent))
+        }
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Text(playbackTimeLabel(position), color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.weight(1f))
+            Text(if (duration > 0) playbackTimeLabel(duration) else "", color = tokens.fgDim, fontSize = 12.sp)
+        }
+    }
+}
+
+/** "3:07", or "1:02:45" past an hour. Pure, unit-tested. */
+internal fun playbackTimeLabel(ms: Long): String {
+    val total = (ms / 1000).coerceAtLeast(0)
+    val h = total / 3600
+    val m = (total % 3600) / 60
+    val s = total % 60
+    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
+}
+
+/**
+ * Shares what's playing: a local track as the audio file itself (the target
+ * app gets read access to just that file), a podcast episode or radio station
+ * as its title and link.
+ */
+internal fun shareAudio(context: Context, item: PlayableAudio) {
+    val intent = when (item) {
+        is PlayableAudio.Local -> Intent(Intent.ACTION_SEND)
+            .setType("audio/*")
+            .putExtra(Intent.EXTRA_STREAM, item.track.contentUri)
+            .putExtra(Intent.EXTRA_TEXT, listOf(item.title, item.subtitle).filter { it.isNotBlank() }.joinToString(" — "))
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        is PlayableAudio.Episode -> Intent(Intent.ACTION_SEND)
+            .setType("text/plain")
+            .putExtra(Intent.EXTRA_SUBJECT, item.title)
+            .putExtra(Intent.EXTRA_TEXT, "${item.title} — ${item.show.title}\n${item.episode.audioUrl}")
+        is PlayableAudio.RadioStream -> Intent(Intent.ACTION_SEND)
+            .setType("text/plain")
+            .putExtra(Intent.EXTRA_SUBJECT, item.title)
+            .putExtra(Intent.EXTRA_TEXT, "listening to ${item.title} on the radio\n${item.station.streamUrl}")
+    }
+    runCatching {
+        context.startActivity(Intent.createChooser(intent, "share").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 }
 
