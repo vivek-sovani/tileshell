@@ -1520,7 +1520,7 @@ fun StartScreen(
                             if (hubPage != "what's new" || !NotificationCenter.openWhatsNewDisplayed(context)) {
                                 viewModel.openPeopleHub(hubPage)
                             }
-                        } else {
+                        } else if (!openLiveFolderChild(context, child, viewModel)) {
                             launchFolderChild(context, child)
                         }
                     },
@@ -8616,6 +8616,40 @@ private fun onTileClick(context: Context, tile: TileModel, homeStyle: HomeStyle 
  * top-level tiles before, so the same child launched from inside a folder or
  * stack (whose package is not part of its folder identity) errored out.
  */
+/**
+ * A live tile inside a folder or widget stack that opens something of its own
+ * — the same as tapping it on Start: Panchang opens its sheet, another
+ * calendar system a web search, a stock or commodity its Yahoo Finance page.
+ * False when [child] isn't one of those.
+ */
+private fun openLiveFolderChild(context: Context, child: FolderChild, viewModel: StartViewModel): Boolean {
+    if (child.packageName.isNotBlank()) return false
+    fun open(url: String) = runCatching {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+    when (child.iconKey) {
+        "calsys" -> {
+            val systemId = CalendarSystemTile.decode(child.activityName) ?: return false
+            if (systemId == com.tileshell.core.data.HINDU_PANCHANG_ID) {
+                viewModel.openPanchang()
+            } else {
+                val name = calendarSystemFor(systemId)?.displayName ?: return false
+                open("https://www.google.com/search?q=" + Uri.encode("$name calendar today"))
+            }
+        }
+        "stock" -> {
+            val selection = StockTile.decode(child.activityName) as? StockTile.Selection.Single ?: return false
+            open("https://finance.yahoo.com/quote/${Uri.encode(selection.symbol)}")
+        }
+        "commodity" -> {
+            val decoded = CommodityTile.decode(child.activityName) ?: return false
+            open("https://finance.yahoo.com/quote/${Uri.encode(decoded.first)}")
+        }
+        else -> return false
+    }
+    return true
+}
+
 private fun launchFolderChild(context: Context, child: FolderChild) {
     val contact = ContactTile.decode(child.activityName)
     if (contact != null) {
