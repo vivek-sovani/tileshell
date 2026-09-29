@@ -524,6 +524,15 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         _whatsNewOpen.value = false
     }
 
+    /** The hubs update card's "set up start with hubs": saves the current
+     * layout to layout history, then runs the setup wizard from step 1 (its
+     * reset path lays Start out with the hubs; cancelling keeps this layout). */
+    fun setUpWithHubs() {
+        dismissWhatsNew()
+        saveLayoutSnapshot(label = "before hubs setup")
+        openResetSetup()
+    }
+
     fun setAppList(value: Boolean) {
         _isAppList.value = value
     }
@@ -2539,7 +2548,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Manually save the current layout to the rolling history. */
-    fun saveLayoutSnapshot(id: String = System.currentTimeMillis().toString(), screenshotPath: String? = null) {
+    fun saveLayoutSnapshot(
+        id: String = System.currentTimeMillis().toString(),
+        screenshotPath: String? = null,
+        label: String = "manual",
+    ) {
         viewModelScope.launch(writeContext) {
             runCatching {
                 val (tiles, folders, children, sections) = repository.tilesForBackup()
@@ -2551,7 +2564,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
                     LayoutSnapshot(
                         id = id,
                         timestamp = ts,
-                        label = "manual",
+                        label = label,
                         tileCount = tiles.size,
                         folderCount = folders.size,
                         contentHash = hash,

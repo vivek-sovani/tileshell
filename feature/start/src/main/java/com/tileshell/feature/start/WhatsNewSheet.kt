@@ -8,6 +8,11 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.ui.text.style.TextAlign
+import com.tileshell.core.design.TileIcons
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -44,7 +49,15 @@ import com.tileshell.core.design.TileAccents
  * [WHATS_NEW_VERSION_CODE]'s own doc comment).
  */
 @Composable
-fun WhatsNewSheet(visible: Boolean, accentId: String, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+fun WhatsNewSheet(
+    visible: Boolean,
+    accentId: String,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** Non-null for the hubs release (5.0.0): the card introduces each hub and
+     * offers to reset Start with the new layout, via the setup wizard. */
+    onSetUpWithHubs: (() -> Unit)? = null,
+) {
     val accent = TileAccents.forId(accentId)
 
     AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
@@ -76,6 +89,10 @@ fun WhatsNewSheet(visible: Boolean, accentId: String, onDismiss: () -> Unit, mod
                     .padding(horizontal = 18.dp, vertical = 18.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
+                if (onSetUpWithHubs != null) {
+                    HubsIntro(accent = accent, onSetUp = onSetUpWithHubs, onKeep = onDismiss)
+                    return@Column
+                }
                 Text(
                     text = "what's new in $WHATS_NEW_VERSION_NAME",
                     color = Color(0xFFF6F6F8),
@@ -98,6 +115,103 @@ fun WhatsNewSheet(visible: Boolean, accentId: String, onDismiss: () -> Unit, mod
         }
     }
 }
+
+/** The hubs release's update card: one line per hub, then "set up start
+ * with hubs" (saves the layout to history, runs the setup wizard) or "keep my
+ * layout". */
+@Composable
+private fun HubsIntro(accent: Color, onSetUp: () -> Unit, onKeep: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text("tileshell $WHATS_NEW_VERSION_NAME — hubs", color = Color(0xFFF6F6F8), fontSize = 17.sp, fontWeight = FontWeight.Thin)
+        Text(
+            "tiles now open full-screen hubs that bring one part of your phone together.",
+            color = Color(0xFFB4B4C2),
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+        )
+    }
+    Row(
+        verticalAlignment = Alignment.Top,
+        modifier = Modifier.fillMaxWidth().border(1.dp, accent.copy(alpha = 0.6f), RoundedCornerShape(6.dp)).padding(10.dp),
+    ) {
+        Icon(TileIcons["app"], contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
+        Text(
+            "apps in one place: the music, people, productivity and money hubs each have an apps tab that gathers " +
+                "the related apps on your phone — music players, chat and mail, office and meeting apps, " +
+                "payment and banking apps.",
+            color = Color(0xFFB4B4C2),
+            fontSize = 12.sp,
+            lineHeight = 17.sp,
+            modifier = Modifier.padding(start = 10.dp),
+        )
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        HUB_INTROS.forEach { hub ->
+            Row(verticalAlignment = Alignment.Top) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.size(32.dp).background(TileAccents.forId(hub.colorId)),
+                ) {
+                    Icon(TileIcons[hub.icon], contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                }
+                Column(modifier = Modifier.padding(start = 12.dp)) {
+                    Text(hub.name, color = Color(0xFFF6F6F8), fontSize = 14.sp)
+                    Text(hub.description, color = Color(0xFF9A9AA8), fontSize = 12.sp, lineHeight = 16.sp)
+                }
+            }
+        }
+    }
+    Text(
+        "set up start with the new hubs layout? your current layout is saved to layout history first, so you can restore it.",
+        color = Color(0xFF9A9AA8),
+        fontSize = 12.sp,
+        lineHeight = 17.sp,
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            "set up start with hubs",
+            color = Color.White,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(accent, RoundedCornerShape(4.dp))
+                .clickable(onClick = onSetUp)
+                .padding(vertical = 11.dp),
+        )
+        Text(
+            "keep my layout",
+            color = accent,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, accent, RoundedCornerShape(4.dp))
+                .clickable(onClick = onKeep)
+                .padding(vertical = 10.dp),
+        )
+    }
+    Text(
+        "you can add any hub later from personalize › add live tiles.",
+        color = Color(0xFF8A8A96),
+        fontSize = 12.sp,
+    )
+}
+
+private data class HubIntro(val name: String, val icon: String, val colorId: String, val description: String)
+
+private val HUB_INTROS = listOf(
+    HubIntro("weather", "weather", "cyan", "hourly and 7-day forecast, sunrise, sunset, uv index and a moon at night"),
+    HubIntro("music", "music", "orange", "your own library and playlists, podcasts and internet radio, with gapless playback"),
+    HubIntro("calendar", "calendar", "cobalt", "this week, what's next and a month view of your events"),
+    HubIntro("people", "people", "teal", "chats, messages and mail in one list — reply inline, swipe to dismiss"),
+    HubIntro("productivity", "productivity", "purple", "your next meeting with a join button, notes and task lists"),
+    HubIntro("battery", "battery", "lime", "drain rate, time left, today's curve and screen time per app"),
+    HubIntro("money", "money", "green", "bank and upi transactions from new bank sms, locked with your fingerprint — add it from add live tiles"),
+)
+
+/** True while [WHATS_NEW_VERSION_CODE] is the hubs release, whose card offers the hubs setup. */
+internal const val WHATS_NEW_OFFERS_HUB_SETUP = true
 
 @Composable
 private fun WhatsNewSection(title: String, accent: Color, items: List<String>) {

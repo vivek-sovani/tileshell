@@ -2542,6 +2542,7 @@ fun StartScreen(
                 visible = true,
                 accentId = settings.accentId,
                 onDismiss = viewModel::dismissWhatsNew,
+                onSetUpWithHubs = if (WHATS_NEW_OFFERS_HUB_SETUP) viewModel::setUpWithHubs else null,
             )
         }
 
