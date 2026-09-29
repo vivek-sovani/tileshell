@@ -69,7 +69,7 @@ fun MoneyTileFace(size: TileSize, active: Boolean, modifier: Modifier = Modifier
         modifier = modifier.fillMaxSize(),
         front = {
             if (showDetails && size != TileSize.SMALL) {
-                MoneyDetailsFront(txns.firstOrNull { !it.credit }, txns.firstOrNull { it.credit }, size)
+                MoneyDetailsFront(txns.firstOrNull { !it.credit && !it.alert }, txns.firstOrNull { it.credit && !it.alert }, size)
             } else {
                 MoneyGlyphFront(size)
             }

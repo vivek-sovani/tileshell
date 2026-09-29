@@ -19,6 +19,65 @@ data class MoneyTxn(
     val sender: String = "",
     /** The full message, shown when the transaction is tapped. */
     val message: String = "",
+    /** A card alert, not money moving: a statement, bill due or card payment
+     * received notice. Listed under cards, left out of totals. */
+    val alert: Boolean = false,
+)
+
+/** A credit or debit card transaction, or a card alert. Pure, unit-tested. */
+fun isCardTxn(t: MoneyTxn): Boolean {
+    if (t.alert || t.method == "card") return true
+    val l = t.message.lowercase()
+    return CARD_HINTS.any { it in l }
+}
+
+private val CARD_HINTS = listOf("credit card", "debit card", "card ending", "card no", "card xx", "card **", "cc ending")
+
+private val CARD_ALERT_OTP = listOf("otp", "one time password", "verification code")
+
+/**
+ * A credit card statement, bill-due or payment-received message, which
+ * [parseMoneyTxn] rejects as not a transaction: kept as an [MoneyTxn.alert]
+ * for the cards section. Needs a card mention and an amount. Pure, unit-tested.
+ */
+fun parseCardAlert(title: String, text: String, sourcePackage: String, time: Long): MoneyTxn? {
+    val body = text.trim()
+    if (body.isEmpty()) return null
+    val lower = body.lowercase()
+    val cardish = CARD_HINTS.any { it in lower } || " cc " in " $lower " ||
+        ("card" in lower && (MASKED.containsMatchIn(body) || ACCOUNT.containsMatchIn(body)))
+    if (!cardish) return null
+    if (CARD_ALERT_OTP.any { it in lower }) return null
+    val kind = when {
+        "statement" in lower -> "statement"
+        "payment" in lower && ("received" in lower || "credited" in lower || "thank you" in lower) -> "card payment received"
+        "due" in lower -> "bill due"
+        else -> return null
+    }
+    // The total due, not the minimum, when both are quoted.
+    val total = TOTAL_DUE.find(body)?.let { rupeesToPaise(it.groupValues[1]) }
+    val amount = total ?: AMOUNT.find(body)?.let { rupeesToPaise(it.groupValues[1]) } ?: return null
+    if (amount <= 0) return null
+    val all = "$title $body".lowercase()
+    return MoneyTxn(
+        time = time,
+        amountPaise = amount,
+        credit = kind == "card payment received",
+        counterparty = kind,
+        account = ACCOUNT.find(body)?.groupValues?.get(1)?.takeLast(4) ?: MASKED.find(body)?.groupValues?.get(1)?.takeLast(4),
+        bank = BANKS.firstOrNull { (key, _) -> key in all }?.second,
+        method = "card",
+        balancePaise = null,
+        sourcePackage = sourcePackage,
+        sender = title.trim(),
+        message = body,
+        alert = true,
+    )
+}
+
+private val TOTAL_DUE = Regex(
+    """(?:total\s+(?:amount\s+)?due|total\s+outstanding|statement\s+(?:amount|balance))\s*(?:of|is|:|-)?\s*(?:rs\.?|inr|₹)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)""",
+    RegexOption.IGNORE_CASE,
 )
 
 private val AMOUNT = Regex("""(?:rs\.?|inr|₹)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
@@ -172,20 +231,26 @@ const val MONEY_DUPLICATE_WINDOW_MS = 5 * 60_000L
  * posted again.
  */
 fun isDuplicateTxn(txn: MoneyTxn, existing: List<MoneyTxn>): Boolean = existing.any {
-    it.amountPaise == txn.amountPaise && it.credit == txn.credit &&
+    it.amountPaise == txn.amountPaise && it.credit == txn.credit && it.alert == txn.alert &&
         kotlin.math.abs(it.time - txn.time) <= MONEY_DUPLICATE_WINDOW_MS
 }
 
-enum class MoneyAppKind { PAYMENT, BANK }
+enum class MoneyAppKind { PAYMENT, BANK, CARD }
 
 private val PAYMENT_PACKAGES = setOf(
     "com.google.android.apps.nbu.paisa.user", "com.phonepe.app", "net.one97.paytm", "in.org.npci.upiapp",
-    "com.dreamplug.androidapp", "com.mobikwik_new", "com.freecharge.android", "com.google.android.apps.walletnfcrel",
+    "com.mobikwik_new", "com.freecharge.android", "com.google.android.apps.walletnfcrel",
     "com.samsung.android.spay", "com.paypal.android.p2pmobile", "com.amazon.mShop.android.shopping",
     "in.amazon.mShop.android.shopping", "money.jupiter", "com.bharatpe.app", "com.whatsapp.w4b.pay",
     "com.axis.mobile.upi", "com.sbi.upi", "com.naviapp", "com.slice", "com.fampay.in", "com.upi.axispay",
 )
-private val PAYMENT_WORDS = listOf("pay", "wallet", "upi", "bhim", "cred", "mobikwik", "freecharge")
+private val PAYMENT_WORDS = listOf("pay", "wallet", "upi", "bhim", "mobikwik", "freecharge")
+/** CRED (card bills) and card issuers' own apps. */
+private val CARD_PACKAGES = setOf("com.dreamplug.androidapp")
+private val CARD_BRAND_WORDS = listOf(
+    "cred", "onecard", "bobcard", "amex", "american express", "scapia", "sbi card", "mycards", "my cards",
+    "credit card", "credit cards", "debit card",
+)
 private val BANK_WORDS = listOf(
     "bank", "yono", "imobile", "icici", "hdfc", "kotak", "axis mobile", "bob world", "pnb one", "canara", "fedmobile",
     "indusind", "idfc", "union", "ippb", "iob", "uco", "baroda", "sbi",
@@ -197,9 +262,14 @@ private val BANK_WORDS = listOf(
  * over a bank-sounding label. Pure, unit-tested.
  */
 fun moneyAppKind(packageName: String, label: String): MoneyAppKind? {
+    if (packageName in CARD_PACKAGES) return MoneyAppKind.CARD
     if (packageName in PAYMENT_PACKAGES) return MoneyAppKind.PAYMENT
     val l = label.lowercase()
     fun hasWord(w: String) = Regex("""(^|[^a-z])${Regex.escape(w)}([^a-z]|$)""").containsMatchIn(l)
+    // A card app: a card brand, or "card(s)" together with a bank name
+    // ("HDFC Bank MyCards"); a bare "card" (a card-scanner app) doesn't count.
+    if (CARD_BRAND_WORDS.any(::hasWord)) return MoneyAppKind.CARD
+    if ((hasWord("card") || hasWord("cards")) && BANK_WORDS.any(::hasWord)) return MoneyAppKind.CARD
     if (BANK_WORDS.any(::hasWord)) return MoneyAppKind.BANK
     if (PAYMENT_WORDS.any(::hasWord)) return MoneyAppKind.PAYMENT
     return null

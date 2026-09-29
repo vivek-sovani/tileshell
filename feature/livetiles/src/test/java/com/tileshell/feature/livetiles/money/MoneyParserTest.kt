@@ -132,9 +132,9 @@ class MoneyHubLogicTest {
     }
 
     @Test
-    fun `filters list accounts then upi and cards`() {
+    fun `filters list accounts then upi`() {
         val list = listOf(txn(1, 1, false), txn(2, 1, false, account = "8890", bank = "sbi", method = "neft"), txn(3, 1, false, method = "card"))
-        assertEquals(listOf("hdfc ·1234", "sbi ·8890", "upi", "cards"), moneyFilters(list))
+        assertEquals(listOf("hdfc ·1234", "sbi ·8890", "upi"), moneyFilters(list))
         assertTrue(moneyFilterKey(list[1], "sbi ·8890"))
         assertFalse(moneyFilterKey(list[1], "upi"))
     }
@@ -152,5 +152,51 @@ class BankMessageTest {
     }
     @Test fun plainChatIsNot() {
         assertFalse(com.tileshell.feature.livetiles.money.isBankMessage("mom", "call me when you reach"))
+    }
+}
+
+class CardMoneyTest {
+    @Test fun cardAppsGetTheirOwnKind() {
+        assertEquals(MoneyAppKind.CARD, moneyAppKind("com.dreamplug.androidapp", "CRED"))
+        assertEquals(MoneyAppKind.CARD, moneyAppKind("com.x", "OneCard"))
+        assertEquals(MoneyAppKind.CARD, moneyAppKind("com.x", "HDFC Bank MyCards"))
+        assertEquals(MoneyAppKind.CARD, moneyAppKind("com.x", "SBI Card"))
+        assertEquals(MoneyAppKind.BANK, moneyAppKind("com.x", "HDFC Bank"))
+        assertNull(moneyAppKind("com.x", "Business Card Scanner"))
+    }
+
+    @Test fun cardSpendIsACardTxn() {
+        val t = parseMoneyTxn("VM-HDFCBK", "Rs.1,250.00 spent on HDFC Bank Credit Card xx4321 at AMAZON on 29-09-26", "sms", 1L)
+        assertNotNull(t)
+        assertTrue(isCardTxn(t!!))
+        val upi = parseMoneyTxn("AX-SBIINB", "Rs.300 debited from a/c XX1234 to VPA shop@okaxis via UPI", "sms", 1L)
+        assertFalse(isCardTxn(upi!!))
+    }
+
+    @Test fun billDueBecomesAnAlertWithTheTotal() {
+        val body = "Your HDFC Bank Credit Card xx4321 statement is generated. Total due Rs.12,450.00, minimum due Rs.620.00, due by 05-Oct"
+        assertNull(parseMoneyTxn("VM-HDFCBK", body, "sms", 1L))
+        val a = parseCardAlert("VM-HDFCBK", body, "sms", 1L)
+        assertNotNull(a)
+        assertTrue(a!!.alert)
+        assertEquals(1_245_000L, a.amountPaise)
+        assertEquals("statement", a.counterparty)
+        assertEquals("4321", a.account)
+    }
+
+    @Test fun cardPaymentReceivedAlert() {
+        val a = parseCardAlert("AX-ICICIB", "Payment of Rs 5,000 received towards your ICICI Bank Credit Card XX9876. Thank you", "sms", 1L)
+        assertTrue(a!!.credit)
+        assertEquals("card payment received", a.counterparty)
+    }
+
+    @Test fun nonCardBillIsNotAnAlert() {
+        assertNull(parseCardAlert("MSEDCL", "Your electricity bill of Rs 840 is due on 10-Oct. Pay by card or UPI", "sms", 1L))
+        assertNull(parseCardAlert("VM-HDFCBK", "OTP 123456 for payment of Rs 500 on credit card xx4321 due", "sms", 1L))
+    }
+
+    @Test fun alertSurvivesTheCodec() {
+        val a = parseCardAlert("VM-HDFCBK", "HDFC Bank Credit Card xx4321: total due Rs.900, due on 5 Oct", "sms", 7L)!!
+        assertEquals(a, MoneyCodec.decode(MoneyCodec.encode(a)))
     }
 }

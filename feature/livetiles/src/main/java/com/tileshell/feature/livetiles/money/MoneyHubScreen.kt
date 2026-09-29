@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -79,6 +80,7 @@ import java.util.Locale
 private val MONEY_PIVOTS = listOf("transactions", "apps")
 private val DEBIT = Color(0xFFE5645A)
 private val CREDIT = Color(0xFF3FB871)
+private val DUE = Color(0xFFE2A200)
 
 /**
  * The money hub: "transactions" (read from bank SMS and payment-app
@@ -232,9 +234,15 @@ private fun MoneyTransactionsPage(tokens: ColorTokens, accent: Color) {
     val txns by MoneyStore.transactions.collectAsStateWithLifecycle()
     val access = rememberNotificationAccess()
     var filter by remember { mutableStateOf<String?>(null) }
-    val filters = remember(txns) { moneyFilters(txns) }
-    val shown = remember(txns, filter) { txns.filter { filter == null || moneyFilterKey(it, filter!!) } }
-    val month = remember(shown) { monthTotals(shown) }
+    // "accounts & upi" or "cards": card transactions and card alerts (bill
+    // due, statement) get their own section.
+    var cards by remember { mutableStateOf(false) }
+    val hasCards = remember(txns) { txns.any(::isCardTxn) }
+    val section = remember(txns, cards, hasCards) { txns.filter { !hasCards || isCardTxn(it) == cards } }
+    val filters = remember(section) { moneyFilters(section) }
+    val shown = remember(section, filter) { section.filter { filter == null || moneyFilterKey(it, filter!!) } }
+    val month = remember(shown) { monthTotals(shown.filterNot { it.alert }) }
+    val latestDue = remember(section, cards) { if (cards) section.firstOrNull { it.alert && !it.credit } else null }
     var expanded by remember { mutableStateOf<MoneyTxn?>(null) }
     var confirmClear by remember { mutableStateOf(false) }
     // The last swiped-away transaction, offered back for a few seconds.
@@ -270,9 +278,48 @@ private fun MoneyTransactionsPage(tokens: ColorTokens, accent: Color) {
                 )
             }
         }
+        if (hasCards) {
+            item(key = "sections") {
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).border(1.dp, tokens.tileLine)) {
+                    listOf(false to "accounts & upi", true to "cards").forEach { (value, label) ->
+                        Text(
+                            label,
+                            color = if (cards == value) Color.White else tokens.fg,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .weight(1f)
+                                .background(if (cards == value) accent else Color.Transparent)
+                                .clickable { cards = value; filter = null; expanded = null }
+                                .padding(vertical = 8.dp),
+                        )
+                    }
+                }
+            }
+        }
+        latestDue?.let { due ->
+            item(key = "due") {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(DUE.copy(alpha = 0.14f))
+                        .padding(10.dp),
+                ) {
+                    Text(
+                        "${due.counterparty} · ${listOfNotNull(due.bank, due.account?.let { "·$it" }).joinToString(" ").ifBlank { "card" }}",
+                        color = tokens.fgDim,
+                        fontSize = 12.sp,
+                    )
+                    Text(formatRupees(due.amountPaise), color = DUE, fontSize = 20.sp)
+                    Text("from the latest card message · ${dayLabel(due.time)}", color = tokens.fgDim, fontSize = 11.sp)
+                }
+            }
+        }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                TotalCard("spent · ${month.label}", formatRupees(month.spent), DEBIT, tokens, Modifier.weight(1f))
+                TotalCard(if (cards) "spent on cards · ${month.label}" else "spent · ${month.label}", formatRupees(month.spent), DEBIT, tokens, Modifier.weight(1f))
                 TotalCard("received · ${month.label}", formatRupees(month.received), CREDIT, tokens, Modifier.weight(1f))
             }
         }
@@ -476,11 +523,16 @@ private fun TxnRow(txn: MoneyTxn, tokens: ColorTokens) {
                 maxLines = 1,
             )
         }
-        Text(
-            (if (txn.credit) "+" else "−") + formatRupees(txn.amountPaise),
-            color = if (txn.credit) CREDIT else DEBIT,
-            fontSize = 15.sp,
-        )
+        if (txn.alert) {
+            // A card alert isn't money moving: the amount due or paid, uncoloured by direction.
+            Text(formatRupees(txn.amountPaise), color = if (txn.credit) CREDIT else DUE, fontSize = 15.sp)
+        } else {
+            Text(
+                (if (txn.credit) "+" else "−") + formatRupees(txn.amountPaise),
+                color = if (txn.credit) CREDIT else DEBIT,
+                fontSize = 15.sp,
+            )
+        }
     }
 }
 
@@ -489,9 +541,9 @@ private fun MoneyAppsPage(tokens: ColorTokens) {
     val apps = rememberMoneyApps()
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
         if (apps != null && apps.isEmpty()) {
-            item { Text("no payment or banking apps found", color = tokens.fgDim, fontSize = 13.sp) }
+            item { Text("no payment, banking or card apps found", color = tokens.fgDim, fontSize = 13.sp) }
         }
-        listOf(MoneyAppKind.PAYMENT to "payment & wallets", MoneyAppKind.BANK to "banking").forEach { (kind, title) ->
+        listOf(MoneyAppKind.PAYMENT to "payment & wallets", MoneyAppKind.BANK to "banking", MoneyAppKind.CARD to "credit & debit cards").forEach { (kind, title) ->
             val list = apps.orEmpty().filter { it.kind == kind }
             if (list.isNotEmpty()) {
                 item { Text(title, color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp, bottom = 6.dp)) }
@@ -600,19 +652,17 @@ internal fun monthTotals(txns: List<MoneyTxn>, now: Long = System.currentTimeMil
     )
 }
 
-/** Filter chips: each bank account ("hdfc ·1234"), then "upi" and "cards" when used. Pure, unit-tested. */
+/** Filter chips: each bank account or card ("hdfc ·1234"), then "upi" when used — cards have their own section. Pure, unit-tested. */
 internal fun moneyFilters(txns: List<MoneyTxn>): List<String> {
     val accounts = txns.mapNotNull { accountLabel(it) }.distinct()
     val methods = buildList {
         if (txns.any { it.method == "upi" }) add("upi")
-        if (txns.any { it.method == "card" }) add("cards")
     }
     return accounts + methods
 }
 
 internal fun moneyFilterKey(txn: MoneyTxn, filter: String): Boolean = when (filter) {
     "upi" -> txn.method == "upi"
-    "cards" -> txn.method == "card"
     else -> accountLabel(txn) == filter
 }
 

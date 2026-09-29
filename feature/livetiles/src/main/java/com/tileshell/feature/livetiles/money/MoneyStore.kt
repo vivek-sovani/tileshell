@@ -97,7 +97,7 @@ object MoneyCodec {
         t.time.toString(), t.amountPaise.toString(), if (t.credit) "c" else "d",
         clean(t.counterparty), t.account.orEmpty(), t.bank.orEmpty(), t.method.orEmpty(),
         t.balancePaise?.toString().orEmpty(), clean(t.sourcePackage),
-        clean(t.sender), escape(t.message),
+        clean(t.sender), escape(t.message), if (t.alert) "a" else "",
     ).joinToString("\t")
 
     fun decode(line: String): MoneyTxn? {
@@ -115,6 +115,7 @@ object MoneyCodec {
             sourcePackage = f[8],
             sender = f.getOrNull(9).orEmpty(),
             message = f.getOrNull(10)?.let(::unescape).orEmpty(),
+            alert = f.getOrNull(11) == "a",
         )
     }
 
