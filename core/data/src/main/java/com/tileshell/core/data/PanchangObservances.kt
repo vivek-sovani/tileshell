@@ -192,15 +192,11 @@ object PanchangObservances {
         }
 
         val out = mutableListOf<Observance>()
-        HIGHLIGHTS.filter { it.id in settings.highlights }.forEach { h ->
+        if ("ekadashi" in settings.highlights) ekadashiOn(day, zone)?.let { out += it }
+        HIGHLIGHTS.filter { it.id in settings.highlights && it.id != "ekadashi" }.forEach { h ->
             val month = monthOf(h.at, h.paksha, h.tithi) ?: return@forEach
             if (h.month == null || (month.first == h.month && !month.second)) {
                 out += when (h.id) {
-                    "ekadashi" -> {
-                        val paksha = if (matchTime(ownedAt(h.at), Paksha.SHUKLA, 11) != null) Paksha.SHUKLA else Paksha.KRISHNA
-                        val (dev, eng) = ekadashiName(month.first, month.second, paksha)
-                        Observance(h.id, dev, eng, festival = false)
-                    }
                     // Sankashti on a Tuesday (मंगळवार) is Angaraki.
                     "sankashti" -> if (Calendar.getInstance(zone).apply { timeInMillis = day }.get(Calendar.DAY_OF_WEEK) == Calendar.TUESDAY) {
                         Observance(h.id, "अंगारकी संकष्टी चतुर्थी", "angaraki sankashti chaturthi", festival = false)
@@ -244,6 +240,49 @@ object PanchangObservances {
                 !o.festival && !o.grahan && festivalNames.any { base in it }
             }
             .sortedWith(compareByDescending<Observance> { it.grahan && it.visibleHere }.thenByDescending { it.festival })
+    }
+
+    /**
+     * The ekadashi on [day], if any, for both traditions. Smarta keep the
+     * ekadashi prevailing at sunrise (the first day when it spans two
+     * sunrises). Vaishnava move a day later when dashami still prevails at
+     * arunodaya (96 minutes before sunrise) or when the ekadashi also runs
+     * through the next sunrise. Same day: one entry; different days:
+     * "(स्मार्त)" on the first and "(वैष्णव)" on the second.
+     */
+    internal fun ekadashiOn(day: Long, zone: TimeZone): Observance? {
+        val yesterday = addDays(day, -1, zone)
+        val tomorrow = addDays(day, 1, zone)
+        val smartaToday = smartaEkadashi(day, zone)
+        val smartaYesterday = smartaEkadashi(yesterday, zone)
+        val vaishnavaToday = (smartaToday != null && !vaishnavaMoves(day, tomorrow)) ||
+            (smartaYesterday != null && vaishnavaMoves(yesterday, day))
+        val source = smartaToday ?: smartaYesterday?.takeIf { vaishnavaToday } ?: return null
+        val (month, paksha) = source
+        val (dev, eng) = ekadashiName(month.first, month.second, paksha)
+        return when {
+            smartaToday != null && vaishnavaToday -> Observance("ekadashi", dev, eng, festival = false)
+            smartaToday != null -> Observance("ekadashi", "$dev (स्मार्त)", "$eng (smarta)", festival = false)
+            else -> Observance("ekadashi", "$dev (वैष्णव)", "$eng (vaishnava)", festival = false)
+        }
+    }
+
+    /** The month and paksha of the ekadashi Smartas keep on [day], or null. */
+    private fun smartaEkadashi(day: Long, zone: TimeZone): Pair<Pair<String, Boolean>, Paksha>? {
+        val owned = ownedTithis(day, ObserveAt.SUNRISE, zone, null)
+        val (paksha, time) = when {
+            owned[10] != null -> Paksha.SHUKLA to owned.getValue(10)
+            owned[25] != null -> Paksha.KRISHNA to owned.getValue(25)
+            else -> return null
+        }
+        return HinduPanchang.lunarMonthAt(time) to paksha
+    }
+
+    /** Whether Vaishnavas keep the ekadashi Smartas keep on [smartaDay] on [nextDay] instead. */
+    private fun vaishnavaMoves(smartaDay: Long, nextDay: Long): Boolean {
+        val arunodaya = HinduPanchang.tithiIndexAt(smartaDay + 6 * HOUR - 96 * 60_000L)
+        val nextSunrise = HinduPanchang.tithiIndexAt(nextDay + 6 * HOUR)
+        return arunodaya == 9 || arunodaya == 24 || nextSunrise == 10 || nextSunrise == 25
     }
 
     /** "खग्रास चंद्रग्रहण" etc., named for how it looks from here when visible. */

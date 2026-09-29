@@ -35,7 +35,7 @@ class PanchangObservancesTest {
     @Test fun ekadashisHaveNames() {
         // Bhadrapada krishna ekadashi is Indira; Ashwin shukla is Papankusha.
         val oct = PanchangObservances.upcoming(day(2026, 10, 1), 31, ObservanceSettings(highlights = setOf("ekadashi"), festivals = false), ist)
-        assertEquals(listOf("indira ekadashi", "papankusha ekadashi"), oct.map { it.second.single().english })
+        assertEquals(listOf("indira", "papankusha"), oct.map { it.second.single().english.substringBefore(" ekadashi") }.distinct())
     }
 
     @Test fun grahanOnItsDay() {
@@ -92,5 +92,24 @@ class PanchangObservancesTest {
     @Test fun festivalReplacesItsPlainTithi() {
         val kartiki = (18..24).first { "kartiki ekadashi" in names(2026, 11, it) }
         assertFalse("ekadashi" in names(2026, 11, kartiki))
+    }
+
+    @Test fun smartaAndVaishnavaEkadashi() {
+        // Over a year, an ekadashi appears either once (both keep the same day)
+        // or as a smarta day followed directly by a vaishnava day.
+        val s = ObservanceSettings(highlights = setOf("ekadashi"), festivals = false)
+        val year = PanchangObservances.upcoming(day(2026, 1, 1), 365, s, ist)
+        val entries = year.map { it.first to it.second.single().english }
+        entries.forEachIndexed { i, (d, e) ->
+            if ("(smarta)" in e) {
+                val next = entries.getOrNull(i + 1)
+                assertTrue("$e has no vaishnava day after it", next != null && "(vaishnava)" in next.second && next.first - d < 26 * 3_600_000L)
+            }
+            if ("(vaishnava)" in e) assertTrue("(smarta)" in entries[i - 1].second)
+        }
+        // About two a month either way, and at least one split in the year.
+        val keptDays = entries.count { "(vaishnava)" !in it.second }
+        assertTrue("$keptDays", keptDays in 23..26)
+        assertTrue(entries.any { "(smarta)" in it.second })
     }
 }
