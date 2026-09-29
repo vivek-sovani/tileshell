@@ -513,7 +513,7 @@ private fun PeopleJumpGrid(
  * reused by [PeopleHubPageTileFace]'s "recent" live tile face. */
 @Composable
 internal fun ContactAvatar(person: PersonSummary, size: androidx.compose.ui.unit.Dp, fontSize: androidx.compose.ui.unit.TextUnit) {
-    val bitmap = person.photoUri?.let { rememberTileBitmap(it, targetPx = (size.value * 2).toInt()) }
+    val bitmap = person.photoUri?.let { rememberTileBitmap(it, targetPx = iconPx(size)) }
     Box(
         modifier = Modifier
             .size(size)

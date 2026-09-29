@@ -26,7 +26,7 @@ private val SUMMARY_PROJECTION = arrayOf(
     ContactsContract.Contacts._ID,
     ContactsContract.Contacts.LOOKUP_KEY,
     ContactsContract.Contacts.DISPLAY_NAME_PRIMARY,
-    ContactsContract.Contacts.PHOTO_THUMBNAIL_URI,
+    ContactsContract.Contacts.PHOTO_URI,
 )
 
 /**

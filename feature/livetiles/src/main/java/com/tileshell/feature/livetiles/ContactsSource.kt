@@ -77,7 +77,7 @@ private fun readPhotoContacts(
 ) {
     val projection = arrayOf(
         ContactsContract.Contacts.DISPLAY_NAME_PRIMARY,
-        ContactsContract.Contacts.PHOTO_THUMBNAIL_URI,
+        ContactsContract.Contacts.PHOTO_URI,
     )
     runCatching {
         context.contentResolver.query(uri, projection, null, null, sortOrder)?.use { cursor ->
@@ -126,7 +126,7 @@ fun searchContacts(context: Context, query: String, limit: Int = 5): List<Contac
         ContactsContract.Contacts._ID,
         ContactsContract.Contacts.LOOKUP_KEY,
         ContactsContract.Contacts.DISPLAY_NAME_PRIMARY,
-        ContactsContract.Contacts.PHOTO_THUMBNAIL_URI,
+        ContactsContract.Contacts.PHOTO_URI,
     )
     val uri = Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_FILTER_URI, Uri.encode(q))
     val matches = mutableListOf<ContactMatch>()
@@ -184,9 +184,9 @@ fun queryProfileName(context: Context): String? {
     }.getOrNull()
 }
 
-/** The contact's current profile-photo thumbnail URI, or null if it has none. */
+/** The contact's current profile-photo URI (full size when the contact has one), or null. */
 fun photoUriFor(context: Context, contactId: Long): String? {
-    val projection = arrayOf(ContactsContract.Contacts.PHOTO_THUMBNAIL_URI)
+    val projection = arrayOf(ContactsContract.Contacts.PHOTO_URI)
     return runCatching {
         val uri = ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, contactId)
         context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->

@@ -245,7 +245,7 @@ private fun PeopleBubble(
  */
 @Composable
 private fun Avatar(person: Person) {
-    val bitmap = rememberTileBitmap(person.photoUri, targetPx = 160)
+    val bitmap = rememberTileBitmap(person.photoUri, targetPx = 320)
     if (bitmap != null) {
         Image(
             bitmap = bitmap,
