@@ -102,6 +102,12 @@ object LocalMusicPlayer {
     // Items that failed in a row; once the whole queue has failed, stop
     // instead of skipping round it forever.
     private var consecutiveErrors = 0
+    // Gapless: the next local track, prepared ahead and chained to [player].
+    private var nextPlayer: MediaPlayer? = null
+    private var nextIndex = -1
+    private var nextReady = false
+    private val _gapless = MutableStateFlow(true)
+    private var gaplessLoaded = false
     private val _state = MutableStateFlow(LocalPlayback())
     val state: StateFlow<LocalPlayback> = _state.asStateFlow()
 
@@ -165,6 +171,33 @@ object LocalMusicPlayer {
         releasePlayerOnly()
         val item = queue[index]
         _state.value = LocalPlayback(item = item, playing = false, queue = queue, queueIndex = index)
+        val mp = newPlayer(context, item)
+        if (mp == null) {
+            _state.value = LocalPlayback()
+            return
+        }
+        mp.setOnPreparedListener {
+            prepared = true
+            consecutiveErrors = 0
+            runCatching { it.start() }
+            _state.value = _state.value.copy(playing = true)
+            // Here rather than in a UI effect so an episode auto-advanced
+            // to in the background still lands in the podcasts tab's recents.
+            MusicRecents.record(context, item)
+            preloadNext(context)
+        }
+        attachPlaybackListeners(context, mp, item)
+        if (runCatching { mp.prepareAsync() }.isSuccess) {
+            player = mp
+        } else {
+            runCatching { mp.release() }
+            _state.value = LocalPlayback()
+        }
+    }
+
+    /** A player with [item] set as its source, not yet preparing; null if the
+     * source can't be set. */
+    private fun newPlayer(context: Context, item: PlayableAudio): MediaPlayer? {
         val mp = MediaPlayer()
         val ok = runCatching {
             mp.setAudioAttributes(
@@ -181,39 +214,121 @@ object LocalMusicPlayer {
             // episode / radio stream) both work through this same overload —
             // MediaPlayer resolves either directly.
             mp.setDataSource(context, item.contentUri)
-            mp.setOnPreparedListener {
-                prepared = true
-                consecutiveErrors = 0
-                runCatching { it.start() }
-                _state.value = _state.value.copy(playing = true)
-                // Here rather than in a UI effect so an episode auto-advanced
-                // to in the background still lands in the podcasts tab's recents.
-                MusicRecents.record(context, item)
-            }
-            // A radio queue is the favourites list: a station that fails or
-            // drops out stays selected, paused, instead of the player hopping
-            // on to the next favourite (which flickered through the whole list).
-            // Next/previous are only for the user to press.
-            val isRadio = item is PlayableAudio.RadioStream
-            mp.setOnCompletionListener { if (isRadio) stopOnCurrent() else next(context) }
-            mp.setOnErrorListener { _, _, _ ->
-                consecutiveErrors++
-                when {
-                    isRadio -> stopOnCurrent()
-                    consecutiveErrors >= _state.value.queue.size.coerceAtLeast(1) -> release()
-                    else -> next(context)
-                }
-                true
-            }
-            mp.prepareAsync()
         }.isSuccess
-        if (ok) {
-            player = mp
-        } else {
-            runCatching { mp.release() }
-            _state.value = LocalPlayback()
+        if (!ok) runCatching { mp.release() }
+        return if (ok) mp else null
+    }
+
+    private fun attachPlaybackListeners(context: Context, mp: MediaPlayer, item: PlayableAudio) {
+        // A radio queue is the favourites list: a station that fails or
+        // drops out stays selected, paused, instead of the player hopping
+        // on to the next favourite (which flickered through the whole list).
+        // Next/previous are only for the user to press.
+        val isRadio = item is PlayableAudio.RadioStream
+        mp.setOnCompletionListener { if (isRadio) stopOnCurrent() else onItemFinished(context) }
+        mp.setOnErrorListener { _, _, _ ->
+            consecutiveErrors++
+            when {
+                isRadio -> stopOnCurrent()
+                consecutiveErrors >= _state.value.queue.size.coerceAtLeast(1) -> release()
+                else -> next(context)
+            }
+            true
         }
     }
+
+    /**
+     * The current item played to its end. With gapless on, the next track
+     * was already prepared and chained with [MediaPlayer.setNextMediaPlayer],
+     * so it is already playing: just adopt it. Otherwise start the next one.
+     */
+    private fun onItemFinished(context: Context) {
+        val np = nextPlayer
+        val s = _state.value
+        if (np == null || !nextReady || nextIndex !in s.queue.indices) {
+            next(context)
+            return
+        }
+        val old = player
+        val item = s.queue[nextIndex]
+        player = np
+        prepared = true
+        _state.value = s.copy(item = item, queueIndex = nextIndex, playing = true, seekVersion = s.seekVersion + 1)
+        nextPlayer = null
+        nextReady = false
+        nextIndex = -1
+        attachPlaybackListeners(context, np, item)
+        old?.let { runCatching { it.release() } }
+        MusicRecents.record(context, item)
+        preloadNext(context)
+    }
+
+    /**
+     * Gapless: prepares the queue's next local track now and chains it to the
+     * playing one, so it starts the instant this one ends, with no silence.
+     * Local files only — preloading a podcast episode would download it early,
+     * and radio has no "next" to run on into.
+     */
+    private fun preloadNext(context: Context) {
+        releaseNextOnly()
+        val cur = player ?: return
+        val s = _state.value
+        if (!gaplessEnabled(context) || !prepared || s.queue.size < 2) return
+        if (s.item !is PlayableAudio.Local) return
+        val index = (s.queueIndex + 1) % s.queue.size
+        val item = s.queue[index] as? PlayableAudio.Local ?: return
+        val np = newPlayer(context, item) ?: return
+        nextPlayer = np
+        nextIndex = index
+        np.setOnPreparedListener {
+            if (nextPlayer !== np) return@setOnPreparedListener
+            if (player === cur && prepared && runCatching { cur.setNextMediaPlayer(np) }.isSuccess) {
+                nextReady = true
+            } else {
+                releaseNextOnly()
+            }
+        }
+        np.setOnErrorListener { _, _, _ ->
+            if (nextPlayer === np) releaseNextOnly()
+            true
+        }
+        if (runCatching { np.prepareAsync() }.isFailure) releaseNextOnly()
+    }
+
+    private fun releaseNextOnly() {
+        val np = nextPlayer ?: return
+        if (prepared) player?.let { runCatching { it.setNextMediaPlayer(null) } }
+        runCatching { np.release() }
+        nextPlayer = null
+        nextReady = false
+        nextIndex = -1
+    }
+
+    /** Gapless playback between local tracks (default on), from now playing. */
+    fun gapless(context: Context): StateFlow<Boolean> {
+        gaplessEnabled(context)
+        return _gapless.asStateFlow()
+    }
+
+    fun setGapless(context: Context, on: Boolean) {
+        gaplessLoaded = true
+        _gapless.value = on
+        prefs(context).edit().putBoolean(KEY_GAPLESS, on).apply()
+        if (on) preloadNext(context) else releaseNextOnly()
+    }
+
+    private fun gaplessEnabled(context: Context): Boolean {
+        if (!gaplessLoaded) {
+            gaplessLoaded = true
+            _gapless.value = prefs(context).getBoolean(KEY_GAPLESS, true)
+        }
+        return _gapless.value
+    }
+
+    private fun prefs(context: Context) =
+        context.applicationContext.getSharedPreferences("tileshell.music", Context.MODE_PRIVATE)
+
+    private const val KEY_GAPLESS = "gapless"
 
     fun togglePlayPause() {
         val mp = player ?: return restartCurrent()
@@ -338,6 +453,7 @@ object LocalMusicPlayer {
     }
 
     private fun releasePlayerOnly() {
+        releaseNextOnly()
         prepared = false
         player?.let { runCatching { it.release() } }
         player = null

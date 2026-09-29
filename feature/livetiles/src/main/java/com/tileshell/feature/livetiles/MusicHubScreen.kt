@@ -613,42 +613,78 @@ private fun PlayerNowPlaying(
         // further down) — user-reported the caption position needed a
         // scroll to reach; here it's visible at the same time as transport
         // controls, no scrolling needed.
-        if (item is PlayableAudio.Local) {
-            Spacer(Modifier.height(14.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = { onAddToPlaylist(item.track) },
-                ),
-            ) {
-                Icon(TileIcons["plus"], contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("add to playlist", color = accent, fontSize = 14.sp)
-            }
-        } else {
-            // Same spot as "add to playlist": a podcast's favorite is its
-            // show (the podcasts tab's favorites are subscribed shows), a
-            // radio stream's is the station itself.
-            Spacer(Modifier.height(14.dp))
-            NowPlayingFavoriteToggle(item, accent, tokens, context)
-        }
         Spacer(Modifier.height(14.dp))
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = { shareAudio(context, item) },
-            ),
-        ) {
-            Icon(TileIcons["share"], contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("share", color = accent, fontSize = 14.sp)
+        // One line: add to playlist / favourite on the left, share in the
+        // right corner.
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            if (item is PlayableAudio.Local) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { onAddToPlaylist(item.track) },
+                    ),
+                ) {
+                    Icon(TileIcons["plus"], contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("add to playlist", color = accent, fontSize = 14.sp)
+                }
+            } else {
+                // A podcast's favorite is its show (the podcasts tab's
+                // favorites are subscribed shows), a radio stream's is the
+                // station itself.
+                NowPlayingFavoriteToggle(item, accent, tokens, context)
+            }
+            Spacer(Modifier.weight(1f))
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { shareAudio(context, item) },
+                    )
+                    .semantics { contentDescription = "share" },
+            ) {
+                Icon(TileIcons["share"], contentDescription = null, tint = accent, modifier = Modifier.size(20.dp))
+            }
+        }
+        if (item is PlayableAudio.Local) {
+            Spacer(Modifier.height(6.dp))
+            GaplessToggle(context, accent, tokens)
         }
         Spacer(Modifier.height(20.dp))
         Text(caption, color = tokens.fgDim, fontSize = 12.sp)
+    }
+}
+
+/** "gapless playback" on/off: the next local track runs straight on with no silence. */
+@Composable
+private fun GaplessToggle(context: Context, accent: Color, tokens: ColorTokens) {
+    val on by LocalMusicPlayer.gapless(context).collectAsState()
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = { LocalMusicPlayer.setGapless(context, !on) },
+            )
+            .semantics { contentDescription = if (on) "gapless playback on" else "gapless playback off" },
+    ) {
+        Text("gapless playback", color = tokens.fg, fontSize = 14.sp, modifier = Modifier.weight(1f))
+        Box(
+            contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
+            modifier = Modifier
+                .size(width = 40.dp, height = 22.dp)
+                .background(if (on) accent else tokens.fgDim.copy(alpha = 0.35f), RoundedCornerShape(11.dp))
+                .padding(3.dp),
+        ) {
+            Box(Modifier.size(16.dp).background(Color.White, CircleShape))
+        }
     }
 }
 
