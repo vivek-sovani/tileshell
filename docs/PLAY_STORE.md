@@ -245,7 +245,7 @@ full-screen hub with windows-phone-style swipeable pages.
   productivity tile's calendar poll now pauses with the other live tiles.
 - The default layout now includes the camera on phones where no default camera app is set.
 - Removing a track from a playlist works on Android 16.
-- Bluetooth headset and car play/pause buttons now work for the music hub (they were ignored, and "pause" could restart paused audio). Now playing gains a seekable progress bar, 10 s back / 30 s forward buttons, and share.
+- Bluetooth headset and car play/pause buttons now work for the music hub (they were ignored, and "pause" could restart paused audio). Now playing gains a seekable progress bar, 10 s back / 30 s forward buttons, and share. Next/previous on a radio station step through your favourite stations.
 - Hub tiles (music, calendar, people, clock) are no longer tied to one app: they no longer show
   that app's name or icon, and uninstalling the app no longer removes the tile. Existing tiles
   are fixed on update.

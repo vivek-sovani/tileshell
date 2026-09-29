@@ -132,10 +132,13 @@ object LocalMusicPlayer {
         playItems(context, episodes.map { PlayableAudio.Episode(show, it) }, startIndex)
     }
 
-    /** Starts a single live radio station — there's no meaningful "queue" for
-     * a live stream, so next/previous are simply unavailable (a queue of one). */
-    fun playStation(context: Context, station: RadioStationRef) {
-        playItems(context, listOf(PlayableAudio.RadioStream(station)), 0)
+    /**
+     * Starts a radio station with the favourite stations as its queue, so
+     * next/previous step through them (see [radioQueue]).
+     */
+    fun playStation(context: Context, station: RadioStationRef, favorites: List<RadioStationRef> = emptyList()) {
+        val (queue, index) = radioQueue(station, favorites)
+        playItems(context, queue.map { PlayableAudio.RadioStream(it) }, index)
     }
 
     private fun playItems(context: Context, queue: List<PlayableAudio>, startIndex: Int) {
@@ -313,3 +316,15 @@ object LocalMusicPlayer {
 /** Now playing's skip buttons, and a headset's fast-forward / rewind keys. */
 const val SEEK_BACK_MS = 10_000L
 const val SEEK_FORWARD_MS = 30_000L
+
+/**
+ * A radio station's playback queue: the favourite stations, so next/previous
+ * move through them. A station that isn't a favourite goes first, then the
+ * favourites. Returns the queue and the playing station's index. Pure,
+ * unit-tested.
+ */
+internal fun radioQueue(station: RadioStationRef, favorites: List<RadioStationRef>): Pair<List<RadioStationRef>, Int> {
+    val favs = favorites.distinctBy { it.stationId }
+    val at = favs.indexOfFirst { it.stationId == station.stationId }
+    return if (at >= 0) favs to at else (listOf(station) + favs) to 0
+}

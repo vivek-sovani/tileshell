@@ -2673,7 +2673,7 @@ private fun RadioStationRows(
             isFavorite = isFav,
             tokens = tokens,
             accent = accent,
-            onClick = { LocalMusicPlayer.playStation(context, RadioStationRef(station)) },
+            onClick = { LocalMusicPlayer.playStation(context, RadioStationRef(station), favorites.map(::RadioStationRef)) },
             onToggleFavorite = {
                 if (isFav) {
                     RadioFavoritesStore.removeFavorite(context, station.stationId)
