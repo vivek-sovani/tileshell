@@ -94,6 +94,14 @@ data class LocalPlayback(
  */
 object LocalMusicPlayer {
     private var player: MediaPlayer? = null
+    // MediaPlayer reports an error (and stops) if its position or duration is
+    // read before it has prepared, so those reads wait for this.
+    @Volatile private var prepared = false
+    // For restarting an item left stopped by [stopOnCurrent].
+    private var appContext: Context? = null
+    // Items that failed in a row; once the whole queue has failed, stop
+    // instead of skipping round it forever.
+    private var consecutiveErrors = 0
     private val _state = MutableStateFlow(LocalPlayback())
     val state: StateFlow<LocalPlayback> = _state.asStateFlow()
 
@@ -148,6 +156,8 @@ object LocalMusicPlayer {
             context.applicationContext,
             Intent(context.applicationContext, LocalMusicPlaybackService::class.java),
         )
+        consecutiveErrors = 0
+        appContext = context.applicationContext
         playAt(context, queue, startIndex)
     }
 
@@ -172,14 +182,29 @@ object LocalMusicPlayer {
             // MediaPlayer resolves either directly.
             mp.setDataSource(context, item.contentUri)
             mp.setOnPreparedListener {
+                prepared = true
+                consecutiveErrors = 0
                 runCatching { it.start() }
                 _state.value = _state.value.copy(playing = true)
                 // Here rather than in a UI effect so an episode auto-advanced
                 // to in the background still lands in the podcasts tab's recents.
                 MusicRecents.record(context, item)
             }
-            mp.setOnCompletionListener { next(context) }
-            mp.setOnErrorListener { _, _, _ -> next(context); true }
+            // A radio queue is the favourites list: a station that fails or
+            // drops out stays selected, paused, instead of the player hopping
+            // on to the next favourite (which flickered through the whole list).
+            // Next/previous are only for the user to press.
+            val isRadio = item is PlayableAudio.RadioStream
+            mp.setOnCompletionListener { if (isRadio) stopOnCurrent() else next(context) }
+            mp.setOnErrorListener { _, _, _ ->
+                consecutiveErrors++
+                when {
+                    isRadio -> stopOnCurrent()
+                    consecutiveErrors >= _state.value.queue.size.coerceAtLeast(1) -> release()
+                    else -> next(context)
+                }
+                true
+            }
             mp.prepareAsync()
         }.isSuccess
         if (ok) {
@@ -191,7 +216,9 @@ object LocalMusicPlayer {
     }
 
     fun togglePlayPause() {
-        val mp = player ?: return
+        val mp = player ?: return restartCurrent()
+        // start/pause while still preparing puts MediaPlayer in an error state.
+        if (!prepared) return
         runCatching {
             if (mp.isPlaying) {
                 mp.pause()
@@ -227,8 +254,9 @@ object LocalMusicPlayer {
      * pause what's already playing).
      */
     fun resume() {
-        val mp = player ?: return
+        val mp = player ?: return restartCurrent()
         resumeOnFocusGain = false
+        if (!prepared) return
         runCatching {
             if (!mp.isPlaying) {
                 mp.start()
@@ -238,10 +266,10 @@ object LocalMusicPlayer {
     }
 
     /** Current position in ms (0 when nothing is loaded). */
-    fun positionMs(): Long = runCatching { player?.currentPosition?.toLong() }.getOrNull() ?: 0L
+    fun positionMs(): Long = if (!prepared) 0L else runCatching { player?.currentPosition?.toLong() }.getOrNull() ?: 0L
 
     /** Track length in ms from the player itself, 0 when unknown (a live stream). */
-    fun durationMs(): Long = runCatching { player?.duration?.toLong() }.getOrNull()?.takeIf { it > 0 } ?: 0L
+    fun durationMs(): Long = if (!prepared) 0L else runCatching { player?.duration?.toLong() }.getOrNull()?.takeIf { it > 0 } ?: 0L
 
     /** Radio is live, so it can't seek; tracks and podcast episodes can. */
     fun canSeek(): Boolean = _state.value.item.let { it != null && it !is PlayableAudio.RadioStream } && durationMs() > 0
@@ -295,7 +323,22 @@ object LocalMusicPlayer {
         resumeOnFocusGain = false
     }
 
+    private fun restartCurrent() {
+        val s = _state.value
+        val context = appContext ?: return
+        if (s.item == null || s.queueIndex !in s.queue.indices) return
+        playItems(context, s.queue, s.queueIndex)
+    }
+
+    /** Keeps the current item showing, paused, with nothing loaded; play
+     * starts it again from scratch. */
+    private fun stopOnCurrent() {
+        releasePlayerOnly()
+        _state.value = _state.value.copy(playing = false)
+    }
+
     private fun releasePlayerOnly() {
+        prepared = false
         player?.let { runCatching { it.release() } }
         player = null
     }
