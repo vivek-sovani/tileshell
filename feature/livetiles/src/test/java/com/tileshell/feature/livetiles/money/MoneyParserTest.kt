@@ -95,6 +95,19 @@ class MoneyParserTest {
 
 class MoneyCodecTest {
     @Test
+    fun `full message survives newlines, tabs and backslashes`() {
+        val t = MoneyTxn(1L, 100L, true, "a", null, null, null, null, "p", sender = "AX-HDFCBK", message = "line one\nrs 1\tpaid \\ ok")
+        assertEquals(t, MoneyCodec.decode(MoneyCodec.encode(t)))
+    }
+
+    @Test
+    fun `older nine-column lines still decode, without a message`() {
+        val t = MoneyCodec.decode("5\t100\td\tshop\t\t\t\t\tpkg")
+        assertEquals("", t?.message)
+        assertEquals("shop", t?.counterparty)
+    }
+
+    @Test
     fun `round trip, with and without optional fields`() {
         val full = MoneyTxn(10L, 45000L, false, "swiggy\tx", "1234", "hdfc", "upi", 2_310_800L, "com.messages")
         val bare = MoneyTxn(20L, 100L, true, "rahul", null, null, null, null, "com.gpay")

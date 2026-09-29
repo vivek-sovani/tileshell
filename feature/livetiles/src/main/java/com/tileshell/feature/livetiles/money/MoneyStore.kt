@@ -52,6 +52,27 @@ object MoneyStore {
         }
     }
 
+    /** Removes one transaction (swiped away in the hub). */
+    fun remove(context: Context, txn: MoneyTxn) {
+        val app = context.applicationContext
+        handler.post {
+            val next = _transactions.value.filterNot { it == txn }
+            _transactions.value = next
+            write(app, next)
+        }
+    }
+
+    /** Puts back a transaction just removed (the hub's "undo"). */
+    fun restore(context: Context, txn: MoneyTxn) {
+        val app = context.applicationContext
+        handler.post {
+            if (txn in _transactions.value) return@post
+            val next = (_transactions.value + txn).sortedByDescending { it.time }
+            _transactions.value = next
+            write(app, next)
+        }
+    }
+
     fun clear(context: Context) {
         val app = context.applicationContext
         handler.post {
@@ -76,6 +97,7 @@ object MoneyCodec {
         t.time.toString(), t.amountPaise.toString(), if (t.credit) "c" else "d",
         clean(t.counterparty), t.account.orEmpty(), t.bank.orEmpty(), t.method.orEmpty(),
         t.balancePaise?.toString().orEmpty(), clean(t.sourcePackage),
+        clean(t.sender), escape(t.message),
     ).joinToString("\t")
 
     fun decode(line: String): MoneyTxn? {
@@ -91,8 +113,41 @@ object MoneyCodec {
             method = f[6].ifEmpty { null },
             balancePaise = f[7].toLongOrNull(),
             sourcePackage = f[8],
+            sender = f.getOrNull(9).orEmpty(),
+            message = f.getOrNull(10)?.let(::unescape).orEmpty(),
         )
     }
 
     private fun clean(s: String) = s.replace('\t', ' ').replace('\n', ' ')
+
+    /** Keeps a multi-line message on one line: backslash, newline and tab escaped. */
+    internal fun escape(s: String): String = buildString {
+        s.forEach { c ->
+            when (c) {
+                '\\' -> append("\\\\")
+                '\n' -> append("\\n")
+                '\t' -> append("\\t")
+                '\r' -> Unit
+                else -> append(c)
+            }
+        }
+    }
+
+    internal fun unescape(s: String): String = buildString {
+        var i = 0
+        while (i < s.length) {
+            val c = s[i]
+            if (c == '\\' && i + 1 < s.length) {
+                when (s[i + 1]) {
+                    'n' -> append('\n')
+                    't' -> append('\t')
+                    else -> append(s[i + 1])
+                }
+                i += 2
+            } else {
+                append(c)
+                i++
+            }
+        }
+    }
 }

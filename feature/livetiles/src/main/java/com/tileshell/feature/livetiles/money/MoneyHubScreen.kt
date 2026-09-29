@@ -35,6 +35,9 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -66,6 +69,7 @@ import com.tileshell.feature.livetiles.NotificationAccess
 import com.tileshell.feature.livetiles.openApp
 import com.tileshell.feature.livetiles.rememberAppIconBitmap
 import com.tileshell.feature.livetiles.rememberNotificationAccess
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -231,6 +235,27 @@ private fun MoneyTransactionsPage(tokens: ColorTokens, accent: Color) {
     val filters = remember(txns) { moneyFilters(txns) }
     val shown = remember(txns, filter) { txns.filter { filter == null || moneyFilterKey(it, filter!!) } }
     val month = remember(shown) { monthTotals(shown) }
+    var expanded by remember { mutableStateOf<MoneyTxn?>(null) }
+    var confirmClear by remember { mutableStateOf(false) }
+    // The last swiped-away transaction, offered back for a few seconds.
+    var removed by remember { mutableStateOf<MoneyTxn?>(null) }
+    LaunchedEffect(removed) {
+        if (removed != null) {
+            delay(5_000)
+            removed = null
+        }
+    }
+    if (confirmClear) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            title = { Text("clear all transactions?") },
+            text = { Text("this deletes every transaction tileshell has recorded on this phone.") },
+            confirmButton = {
+                TextButton(onClick = { MoneyStore.clear(context); confirmClear = false; removed = null }) { Text("clear all") }
+            },
+            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("cancel") } },
+        )
+    }
 
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
         if (!access) {
@@ -249,6 +274,49 @@ private fun MoneyTransactionsPage(tokens: ColorTokens, accent: Color) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                 TotalCard("spent · ${month.label}", formatRupees(month.spent), DEBIT, tokens, Modifier.weight(1f))
                 TotalCard("received · ${month.label}", formatRupees(month.received), CREDIT, tokens, Modifier.weight(1f))
+            }
+        }
+        if (removed != null) {
+            item(key = "undo") {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(tokens.fg.copy(alpha = 0.06f))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                ) {
+                    Text("transaction removed", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    Text(
+                        "undo",
+                        color = accent,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.clickable {
+                            removed?.let { MoneyStore.restore(context, it) }
+                            removed = null
+                        },
+                    )
+                }
+            }
+        }
+        if (txns.isNotEmpty()) {
+            item(key = "summary") {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                    Text(
+                        "${shown.size} transaction${if (shown.size == 1) "" else "s"} · swipe to remove, tap for the message",
+                        color = tokens.fgDim,
+                        fontSize = 12.sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        "clear all",
+                        color = accent,
+                        fontSize = 13.sp,
+                        modifier = Modifier.clickable { confirmClear = true }.padding(start = 12.dp, top = 6.dp, bottom = 6.dp),
+                    )
+                }
             }
         }
         if (filters.size > 1) {
@@ -276,7 +344,19 @@ private fun MoneyTransactionsPage(tokens: ColorTokens, accent: Color) {
                 lastDay = day
                 item(key = "d-$day-${txn.time}") { Text(day, color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)) }
             }
-            item(key = "t-${txn.time}-${txn.amountPaise}") { TxnRow(txn, tokens) }
+            item(key = "t-${txn.time}-${txn.amountPaise}-${txn.counterparty}") {
+                SwipeableTxnRow(
+                    txn = txn,
+                    expanded = expanded == txn,
+                    tokens = tokens,
+                    onTap = { expanded = if (expanded == txn) null else txn },
+                    onDismiss = {
+                        if (expanded == txn) expanded = null
+                        removed = txn
+                        MoneyStore.remove(context, txn)
+                    },
+                )
+            }
         }
         shown.firstOrNull { it.balancePaise != null }?.let { withBal ->
             item {
@@ -312,6 +392,75 @@ private fun Chip(label: String, on: Boolean, accent: Color, tokens: ColorTokens,
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 5.dp),
     )
+}
+
+/** A transaction row: swipe either way to remove it, tap to show the full message. */
+@Composable
+private fun SwipeableTxnRow(txn: MoneyTxn, expanded: Boolean, tokens: ColorTokens, onTap: () -> Unit, onDismiss: () -> Unit) {
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value != SwipeToDismissBoxValue.Settled) onDismiss()
+            value != SwipeToDismissBoxValue.Settled
+        },
+    )
+    SwipeToDismissBox(
+        state = state,
+        backgroundContent = {
+            val alignment = if (state.dismissDirection == SwipeToDismissBoxValue.EndToStart) Alignment.CenterEnd else Alignment.CenterStart
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(DEBIT.copy(alpha = 0.18f))
+                    .padding(horizontal = 16.dp),
+                contentAlignment = alignment,
+            ) {
+                Text("remove", color = tokens.fg, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            }
+        },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(tokens.bg)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onTap,
+                ),
+        ) {
+            TxnRow(txn, tokens)
+            if (expanded) TxnDetails(txn, tokens)
+        }
+    }
+}
+
+/** The full message a transaction was read from, plus what was read out of it. */
+@Composable
+private fun TxnDetails(txn: MoneyTxn, tokens: ColorTokens) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 10.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(tokens.fg.copy(alpha = 0.06f))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        val from = txn.sender.ifBlank { null }
+        Text(
+            listOfNotNull(from, SimpleDateFormat("d MMM yyyy, h:mm a", Locale.ENGLISH).format(Date(txn.time)).lowercase())
+                .joinToString(" · "),
+            color = tokens.fgDim,
+            fontSize = 12.sp,
+        )
+        Text(
+            txn.message.ifBlank { "the full message wasn't kept for this transaction (recorded before this version)." },
+            color = if (txn.message.isBlank()) tokens.fgDim else tokens.fg,
+            fontSize = 14.sp,
+        )
+        txn.balancePaise?.let { Text("balance after: ${formatRupees(it)}", color = tokens.fgDim, fontSize = 12.sp) }
+    }
 }
 
 @Composable

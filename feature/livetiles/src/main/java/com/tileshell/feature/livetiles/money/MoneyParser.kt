@@ -15,6 +15,10 @@ data class MoneyTxn(
     val method: String?,
     val balancePaise: Long?,
     val sourcePackage: String,
+    /** The notification's title (the bank's SMS sender id, or the payment app's heading). */
+    val sender: String = "",
+    /** The full message, shown when the transaction is tapped. */
+    val message: String = "",
 )
 
 private val AMOUNT = Regex("""(?:rs\.?|inr|₹)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
@@ -95,6 +99,8 @@ fun parseMoneyTxn(title: String, text: String, sourcePackage: String, time: Long
         method = method,
         balancePaise = balance,
         sourcePackage = sourcePackage,
+        sender = title.trim(),
+        message = body,
     )
 }
 
