@@ -98,6 +98,21 @@ fun parseMoneyTxn(title: String, text: String, sourcePackage: String, time: Long
     )
 }
 
+/**
+ * A bank or card message about money: a transaction, or an alert quoting an
+ * amount against an account or card (balance, due, declined, an OTP for a
+ * payment). The People hub leaves these out of "what's new" — they belong
+ * in the Money hub. Pure, unit-tested.
+ */
+fun isBankMessage(sender: String, text: String): Boolean {
+    if (parseMoneyTxn(sender, text, "", 0L) != null) return true
+    val all = "$sender $text"
+    if (!AMOUNT.containsMatchIn(all)) return false
+    val lower = all.lowercase()
+    return ACCOUNT.containsMatchIn(all) || MASKED.containsMatchIn(all) ||
+        " upi" in " $lower" || BANKS.any { (key, _) -> key in lower } && "bank" in lower
+}
+
 private val TO_NAME = Regex("""\b(?:to|at|towards|for)\s+(?:vpa\s+)?([A-Za-z0-9@._&' -]{2,40})""", RegexOption.IGNORE_CASE)
 private val FROM_NAME = Regex("""\bfrom\s+(?:vpa\s+)?([A-Za-z0-9@._&' -]{2,40})""", RegexOption.IGNORE_CASE)
 private val BY_NAME = Regex("""\bby\s+(?:vpa\s+)?([A-Za-z0-9@._&' -]{2,40})""", RegexOption.IGNORE_CASE)

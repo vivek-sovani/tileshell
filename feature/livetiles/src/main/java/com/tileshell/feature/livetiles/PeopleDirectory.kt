@@ -3,6 +3,7 @@ package com.tileshell.feature.livetiles
 import android.content.Context
 import android.content.Intent
 import android.provider.ContactsContract
+import com.tileshell.feature.livetiles.money.isBankMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -385,7 +386,7 @@ fun recentActivity(
             }
         }
         .flatMap { (packageName, preview, kind) ->
-            preview.items.map { item ->
+            peopleItems(preview).map { item ->
                 ActivityEntry(
                     packageName = packageName,
                     sender = item.sender,
@@ -400,6 +401,11 @@ fun recentActivity(
         .sortedByDescending { it.postTime }
         .take(limit)
 
+/** A people app's pending notifications minus bank/card money messages
+ * (see [isBankMessage]), which go to the Money hub instead. */
+private fun peopleItems(preview: ConversationPreview): List<ConversationItem> =
+    preview.items.filterNot { isBankMessage(it.sender, it.snippet) }
+
 /**
  * The app filter chips on "what's new": every people app that has pending
  * notifications right now, with its count — most notifications first, then the
@@ -409,7 +415,12 @@ fun recentActivity(
 fun whatsNewApps(snapshot: NotificationSnapshot): List<Pair<String, Int>> =
     snapshot.badges
         .filter { (packageName, count) -> count > 0 && peopleCategoryFor(packageName) != null }
-        .map { (packageName, count) -> packageName to count }
+        .map { (packageName, count) ->
+            // Bank messages aren't listed, so they don't count either.
+            val bank = snapshot.conversations[packageName]?.let { it.items.size - peopleItems(it).size } ?: 0
+            packageName to (count - bank)
+        }
+        .filter { it.second > 0 }
         .sortedWith(
             compareByDescending<Pair<String, Int>> { it.second }
                 .thenByDescending { (packageName, _) ->

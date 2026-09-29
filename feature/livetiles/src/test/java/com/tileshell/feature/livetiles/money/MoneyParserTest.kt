@@ -126,3 +126,18 @@ class MoneyHubLogicTest {
         assertFalse(moneyFilterKey(list[1], "upi"))
     }
 }
+
+class BankMessageTest {
+    @Test fun transactionIsBank() {
+        assertTrue(com.tileshell.feature.livetiles.money.isBankMessage("AX-HDFCBK", "Rs.500.00 debited from a/c **1234 on 28-09-26 to VPA shop@okaxis"))
+    }
+    @Test fun otpForPaymentIsBank() {
+        assertTrue(com.tileshell.feature.livetiles.money.isBankMessage("VM-ICICIB", "OTP 482913 for txn of INR 1,200 on card XX4321"))
+    }
+    @Test fun chatWithAmountIsNot() {
+        assertFalse(com.tileshell.feature.livetiles.money.isBankMessage("anand", "dinner was rs 500 each, send when free"))
+    }
+    @Test fun plainChatIsNot() {
+        assertFalse(com.tileshell.feature.livetiles.money.isBankMessage("mom", "call me when you reach"))
+    }
+}
