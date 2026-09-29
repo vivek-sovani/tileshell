@@ -91,7 +91,11 @@ private val ACCOUNT = Regex(
 )
 private val MASKED = Regex("""\b[xX*]{2,}([0-9]{3,6})\b""")
 
-private val DEBIT_WORDS = listOf("debited", "spent", "paid", "sent", "withdrawn", "purchase", "payment of", "transferred to", "dr.", " dr ")
+private val DEBIT_WORDS = listOf(
+    "debited", "spent", "paid", "sent", "withdrawn", "purchase", "payment of", "transferred to", "dr.", " dr ",
+    // Card alert emails: "…Credit Card XX1234 has been used for a transaction of INR 450.00…"
+    "has been used for", "used for a transaction",
+)
 private val CREDIT_WORDS = listOf("credited", "received", "deposited", "refund", "refunded", "cr.", " cr ", "added to your")
 
 /** Messages that mention money but aren't a completed transaction. */
@@ -163,6 +167,9 @@ fun parseMoneyTxn(title: String, text: String, sourcePackage: String, time: Long
     )
 }
 
+private val ACCOUNT_WORDS = listOf("credit card", "debit card", "a/c", "bank account", "savings account", "credit cards")
+private val ALERT_WORDS = listOf("transaction", "debited", "credited", "spent", "statement", "payment", "alert", "balance")
+
 /**
  * A bank or card message about money: a transaction, or an alert quoting an
  * amount against an account or card (balance, due, declined, an OTP for a
@@ -171,6 +178,10 @@ fun parseMoneyTxn(title: String, text: String, sourcePackage: String, time: Long
  */
 fun isBankMessage(sender: String, text: String): Boolean {
     if (parseMoneyTxn(sender, text, "", 0L) != null) return true
+    // A card or account alert whose preview has no amount — an email's subject,
+    // like "Transaction alert for your ICICI Bank Credit Card".
+    val l = "$sender $text".lowercase().replace('_', ' ')
+    if (ACCOUNT_WORDS.any { it in l } && ALERT_WORDS.any { it in l }) return true
     val all = "$sender $text"
     if (!AMOUNT.containsMatchIn(all)) return false
     val lower = all.lowercase()
@@ -178,6 +189,7 @@ fun isBankMessage(sender: String, text: String): Boolean {
         " upi" in " $lower" || BANKS.any { (key, _) -> key in lower } && "bank" in lower
 }
 
+private val INFO_NAME = Regex("""\bInfo:\s*([^.\n]{2,40})""", RegexOption.IGNORE_CASE)
 private val TO_NAME = Regex("""\b(?:to|at|towards|for)\s+(?:vpa\s+)?([A-Za-z0-9@._&' -]{2,40})""", RegexOption.IGNORE_CASE)
 private val FROM_NAME = Regex("""\bfrom\s+(?:vpa\s+)?([A-Za-z0-9@._&' -]{2,40})""", RegexOption.IGNORE_CASE)
 private val BY_NAME = Regex("""\bby\s+(?:vpa\s+)?([A-Za-z0-9@._&' -]{2,40})""", RegexOption.IGNORE_CASE)
@@ -185,6 +197,8 @@ private val NAME_STOP = Regex("""\s+(?:on|via|ref|upi|a/c|ac|acct|account|avl|av
 
 /** Who the money went to or came from, best effort; falls back to the notification title. */
 internal fun counterpartyOf(body: String, credit: Boolean, title: String): String {
+    // Card alert emails name the merchant after "Info:" ("Info: AMAZON PAY IN E COMMERCE.").
+    INFO_NAME.find(body)?.groupValues?.get(1)?.trim()?.takeIf { it.length >= 2 }?.let { return it.take(40).lowercase() }
     val match = if (credit) FROM_NAME.find(body) ?: BY_NAME.find(body) else TO_NAME.find(body)
     val name = match?.groupValues?.get(1)
         ?.replace(NAME_STOP, "")

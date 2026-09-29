@@ -22,7 +22,9 @@ object MoneyCapture {
         if (!MoneyPrefs.current(context).readBankMessages) return
         // Only the SMS app and payment/banking apps: a chat saying "I paid Rs 500"
         // is not a transaction.
-        if (!isMoneySource(context, sbn.packageName)) return
+        val mail = com.tileshell.feature.livetiles.peopleCategoryFor(sbn.packageName) ==
+            com.tileshell.feature.livetiles.PeopleCategory.MAIL
+        if (!mail && !isMoneySource(context, sbn.packageName)) return
         val n = sbn.notification ?: return
         // A group summary repeats its children.
         if ((n.flags and Notification.FLAG_GROUP_SUMMARY) != 0) return
@@ -30,6 +32,8 @@ object MoneyCapture {
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
         val text = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT) ?: extras.getCharSequence(Notification.EXTRA_TEXT))
             ?.toString().orEmpty()
+        // From a mail app, only a bank or card email (the card-alert kind) counts.
+        if (mail && !isBankMessage(title, text)) return
         val time = sbn.postTime.takeIf { it > 0 } ?: System.currentTimeMillis()
         val seenKey = "${sbn.key}|${text.hashCode()}"
         synchronized(seen) {

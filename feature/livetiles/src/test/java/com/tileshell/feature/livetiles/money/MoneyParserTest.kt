@@ -200,3 +200,21 @@ class CardMoneyTest {
         assertEquals(a, MoneyCodec.decode(MoneyCodec.encode(a)))
     }
 }
+
+class CardEmailTest {
+    private val body = "Transaction alert for your ICICI Bank Credit Card\nDear Customer, \nYour ICICI Bank Credit Card XX1234 has been used for a transaction of INR 450.00 on Sep 29, 2026 at 07:33:13. Info: AMAZON PAY IN E COMMERCE. \nThe Available Credit Limit on your card is INR 4,14,000.97 and Total Credit Limit is INR 4,28,000.00."
+
+    @Test fun cardAlertEmailIsATransaction() {
+        val t = parseMoneyTxn("credit_cards", body, "com.google.android.gm", 1L)!!
+        assertEquals(45000L, t.amountPaise)
+        assertFalse(t.credit)
+        assertEquals("amazon pay in e commerce", t.counterparty)
+        assertEquals("1234", t.account)
+        assertTrue(isCardTxn(t))
+    }
+
+    @Test fun subjectOnlyPreviewIsStillABankMessage() {
+        assertTrue(isBankMessage("credit_cards", "Transaction alert for your ICICI Bank Credit Card"))
+        assertFalse(isBankMessage("Rohan", "Did you get the card I sent for the party?"))
+    }
+}
