@@ -686,6 +686,35 @@ private fun GaplessToggle(context: Context, accent: Color, tokens: ColorTokens) 
             Box(Modifier.size(16.dp).background(Color.White, CircleShape))
         }
     }
+    if (on) {
+        val overlap by LocalMusicPlayer.overlapMs(context).collectAsState()
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text("overlap", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.weight(1f))
+            TRACK_OVERLAP_CHOICES.forEach { ms ->
+                val selected = ms == overlap
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .padding(start = 6.dp)
+                        .background(if (selected) accent else Color.Transparent, RoundedCornerShape(12.dp))
+                        .border(1.dp, if (selected) accent else tokens.fgDim.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { LocalMusicPlayer.setOverlapMs(context, ms) },
+                        )
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        if (ms == 0) "none" else "${ms / 1000}s",
+                        color = if (selected) Color.White else tokens.fg,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
+        }
+    }
 }
 
 /** A round "−10" / "+30" skip button beside the transport controls. */

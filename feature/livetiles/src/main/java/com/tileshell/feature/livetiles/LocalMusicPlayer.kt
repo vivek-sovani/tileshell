@@ -7,7 +7,10 @@ import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -107,7 +110,20 @@ object LocalMusicPlayer {
     private var nextIndex = -1
     private var nextReady = false
     private val _gapless = MutableStateFlow(true)
+    private val _overlapMs = MutableStateFlow(DEFAULT_OVERLAP_MS)
     private var gaplessLoaded = false
+    // Crossfade: the outgoing track, still fading out under the new one.
+    private var fadingPlayer: MediaPlayer? = null
+    private var fadeStartMs = 0L
+    private var fadeLengthMs = 0L
+    private var tickerContext: Context? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private val ticker = object : Runnable {
+        override fun run() {
+            tick()
+            if (player != null || fadingPlayer != null) handler.postDelayed(this, nextTickDelay())
+        }
+    }
     private val _state = MutableStateFlow(LocalPlayback())
     val state: StateFlow<LocalPlayback> = _state.asStateFlow()
 
@@ -185,6 +201,7 @@ object LocalMusicPlayer {
             // to in the background still lands in the podcasts tab's recents.
             MusicRecents.record(context, item)
             preloadNext(context)
+            startTicker(context)
         }
         attachPlaybackListeners(context, mp, item)
         if (runCatching { mp.prepareAsync() }.isSuccess) {
@@ -244,12 +261,17 @@ object LocalMusicPlayer {
      */
     private fun onItemFinished(context: Context) {
         val np = nextPlayer
-        val s = _state.value
-        if (np == null || !nextReady || nextIndex !in s.queue.indices) {
+        if (np == null || !nextReady || nextIndex !in _state.value.queue.indices) {
             next(context)
             return
         }
-        val old = player
+        player?.let { runCatching { it.release() } }
+        adoptNext(context, np)
+    }
+
+    /** Makes the already-started [nextPlayer] the current one. */
+    private fun adoptNext(context: Context, np: MediaPlayer) {
+        val s = _state.value
         val item = s.queue[nextIndex]
         player = np
         prepared = true
@@ -258,9 +280,64 @@ object LocalMusicPlayer {
         nextReady = false
         nextIndex = -1
         attachPlaybackListeners(context, np, item)
-        old?.let { runCatching { it.release() } }
         MusicRecents.record(context, item)
         preloadNext(context)
+    }
+
+    /**
+     * Overlap: once the playing track is within the overlap of its end, the
+     * prepared next track starts quietly and the two cross-fade, so there's
+     * no silence even when a file ends with a couple of seconds of it.
+     */
+    private fun tick() {
+        val context = tickerContext ?: return
+        val fading = fadingPlayer
+        if (fading != null) {
+            val t = ((SystemClock.elapsedRealtime() - fadeStartMs).toFloat() / fadeLengthMs).coerceIn(0f, 1f)
+            runCatching { fading.setVolume(1f - t, 1f - t) }
+            player?.let { runCatching { it.setVolume(t, t) } }
+            if (t >= 1f) finishFade()
+            return
+        }
+        val overlap = _overlapMs.value
+        val cur = player ?: return
+        val np = nextPlayer ?: return
+        if (overlap <= 0 || !nextReady || !prepared || !_state.value.playing) return
+        val duration = durationMs()
+        if (duration < overlap * 3) return
+        if (duration - positionMs() > overlap) return
+        // Start the crossfade: the old player finishes on its own terms and is
+        // released when the fade completes.
+        cur.setOnCompletionListener(null)
+        cur.setOnErrorListener(null)
+        runCatching { np.setVolume(0f, 0f); np.start() }.onFailure { return }
+        fadingPlayer = cur
+        fadeStartMs = SystemClock.elapsedRealtime()
+        fadeLengthMs = overlap.toLong()
+        adoptNext(context, np)
+    }
+
+    /** Checks often only near a track's end or during a fade; otherwise
+     * sleeps until close to it, so a long track costs a few wake-ups. */
+    private fun nextTickDelay(): Long {
+        if (fadingPlayer != null) return 50L
+        if (nextPlayer == null || _overlapMs.value <= 0) return 2_000L
+        val remaining = durationMs() - positionMs() - _overlapMs.value
+        return (remaining - 500L).coerceIn(TICK_MS, 5_000L)
+    }
+
+    /** Ends a crossfade at once: the old track stops, the new one at full volume. */
+    private fun finishFade() {
+        val fading = fadingPlayer ?: return
+        fadingPlayer = null
+        runCatching { fading.release() }
+        player?.let { runCatching { it.setVolume(1f, 1f) } }
+    }
+
+    private fun startTicker(context: Context) {
+        tickerContext = context.applicationContext
+        handler.removeCallbacks(ticker)
+        handler.postDelayed(ticker, TICK_MS)
     }
 
     /**
@@ -282,7 +359,11 @@ object LocalMusicPlayer {
         nextIndex = index
         np.setOnPreparedListener {
             if (nextPlayer !== np) return@setOnPreparedListener
-            if (player === cur && prepared && runCatching { cur.setNextMediaPlayer(np) }.isSuccess) {
+            // With an overlap the ticker starts it; without, chain it so it
+            // runs straight on when this one ends.
+            if (player === cur && prepared &&
+                (_overlapMs.value > 0 || runCatching { cur.setNextMediaPlayer(np) }.isSuccess)
+            ) {
                 nextReady = true
             } else {
                 releaseNextOnly()
@@ -297,7 +378,7 @@ object LocalMusicPlayer {
 
     private fun releaseNextOnly() {
         val np = nextPlayer ?: return
-        if (prepared) player?.let { runCatching { it.setNextMediaPlayer(null) } }
+        if (prepared && nextReady && _overlapMs.value <= 0) player?.let { runCatching { it.setNextMediaPlayer(null) } }
         runCatching { np.release() }
         nextPlayer = null
         nextReady = false
@@ -317,10 +398,26 @@ object LocalMusicPlayer {
         if (on) preloadNext(context) else releaseNextOnly()
     }
 
+    /** How long consecutive tracks overlap (cross-fade) with gapless on; 0 = none. */
+    fun overlapMs(context: Context): StateFlow<Int> {
+        gaplessEnabled(context)
+        return _overlapMs.asStateFlow()
+    }
+
+    fun setOverlapMs(context: Context, ms: Int) {
+        gaplessEnabled(context)
+        releaseNextOnly()
+        _overlapMs.value = ms
+        prefs(context).edit().putInt(KEY_OVERLAP, ms).apply()
+        preloadNext(context)
+    }
+
     private fun gaplessEnabled(context: Context): Boolean {
         if (!gaplessLoaded) {
             gaplessLoaded = true
-            _gapless.value = prefs(context).getBoolean(KEY_GAPLESS, true)
+            val p = prefs(context)
+            _gapless.value = p.getBoolean(KEY_GAPLESS, true)
+            _overlapMs.value = p.getInt(KEY_OVERLAP, DEFAULT_OVERLAP_MS)
         }
         return _gapless.value
     }
@@ -329,8 +426,11 @@ object LocalMusicPlayer {
         context.applicationContext.getSharedPreferences("tileshell.music", Context.MODE_PRIVATE)
 
     private const val KEY_GAPLESS = "gapless"
+    private const val KEY_OVERLAP = "overlap_ms"
+    private const val TICK_MS = 150L
 
     fun togglePlayPause() {
+        finishFade()
         val mp = player ?: return restartCurrent()
         // start/pause while still preparing puts MediaPlayer in an error state.
         if (!prepared) return
@@ -353,6 +453,7 @@ object LocalMusicPlayer {
      * resume, so a later focus gain doesn't restart it through the speaker.
      */
     fun pause() {
+        finishFade()
         val mp = player ?: return
         resumeOnFocusGain = false
         runCatching {
@@ -390,6 +491,7 @@ object LocalMusicPlayer {
     fun canSeek(): Boolean = _state.value.item.let { it != null && it !is PlayableAudio.RadioStream } && durationMs() > 0
 
     fun seekTo(ms: Long) {
+        finishFade()
         val mp = player ?: return
         if (!canSeek()) return
         val target = ms.coerceIn(0L, durationMs())
@@ -453,6 +555,7 @@ object LocalMusicPlayer {
     }
 
     private fun releasePlayerOnly() {
+        finishFade()
         releaseNextOnly()
         prepared = false
         player?.let { runCatching { it.release() } }
@@ -475,6 +578,10 @@ object LocalMusicPlayer {
 /** Now playing's skip buttons, and a headset's fast-forward / rewind keys. */
 const val SEEK_BACK_MS = 10_000L
 const val SEEK_FORWARD_MS = 30_000L
+
+/** Now playing's overlap choices between tracks, in ms; 0 is plain gapless. */
+val TRACK_OVERLAP_CHOICES = listOf(0, 1_000, 2_000, 3_000)
+const val DEFAULT_OVERLAP_MS = 2_000
 
 /**
  * A radio station's playback queue: the favourite stations, so next/previous
