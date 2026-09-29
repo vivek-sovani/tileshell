@@ -321,6 +321,18 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val _moneyHubOpen = MutableStateFlow(false)
     val moneyHubOpen: StateFlow<Boolean> = _moneyHubOpen.asStateFlow()
 
+    private val _panchangOpen = MutableStateFlow(false)
+    /** The Panchang tile's sheet (highlights and festivals). */
+    val panchangOpen: StateFlow<Boolean> = _panchangOpen.asStateFlow()
+
+    fun openPanchang() {
+        _panchangOpen.value = true
+    }
+
+    fun closePanchang() {
+        _panchangOpen.value = false
+    }
+
     fun openMoneyHub() {
         _moneyHubOpen.value = true
     }
@@ -2063,6 +2075,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         closeProductivityHub()
         closeBatteryHub()
         closeMoneyHub()
+        closePanchang()
         closePermissions()
         closeNewsRegion()
         closeEdgeStrip()

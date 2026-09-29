@@ -109,9 +109,9 @@ object HinduPanchang {
         return if (m < 0) m + 360.0 else m
     }
 
-    private fun julianDay(epochMillis: Long): Double = epochMillis / 86400000.0 + 2440587.5
+    internal fun julianDay(epochMillis: Long): Double = epochMillis / 86400000.0 + 2440587.5
 
-    private fun centuriesSinceJ2000(jd: Double): Double = (jd - 2451545.0) / 36525.0
+    internal fun centuriesSinceJ2000(jd: Double): Double = (jd - 2451545.0) / 36525.0
 
     /** Low-precision apparent solar ecliptic longitude, degrees 0..360 (Meeus ch. 25). */
     internal fun sunLongitude(t: Double): Double {
@@ -195,7 +195,7 @@ object HinduPanchang {
     /** Lahiri ayanamsa, linear approximation (~24.2° in the mid-2020s) — plenty precise next to a nakshatra's 13.33° width. */
     internal fun ayanamsa(t: Double): Double = 23.85 + 1.396 * t
 
-    private fun sunSiderealLongitude(t: Double): Double = norm360(sunLongitude(t) - ayanamsa(t))
+    internal fun sunSiderealLongitude(t: Double): Double = norm360(sunLongitude(t) - ayanamsa(t))
     private fun moonSiderealLongitude(t: Double): Double = norm360(moonLongitude(t) - ayanamsa(t))
 
     /** Pure — the named tithi for a given Moon-minus-Sun [elongation] in degrees (any range; wrapped mod 360). */
@@ -256,6 +256,30 @@ object HinduPanchang {
         }
         return jdRef
     }
+
+    /** 0..29: the tithi prevailing at [epochMillis] (0 = shukla pratipada, 14 = purnima, 29 = amavasya). */
+    fun tithiIndexAt(epochMillis: Long): Int {
+        val t = centuriesSinceJ2000(julianDay(epochMillis))
+        return floor(norm360(moonLongitude(t) - sunLongitude(t)) / 12.0).toInt().coerceIn(0, 29)
+    }
+
+    /**
+     * The amanta lunar month at [epochMillis], and whether it is adhika
+     * (intercalary): a month is adhika when the next new moon finds the Sun
+     * still in the same sidereal sign, so both months would take one name.
+     */
+    fun lunarMonthAt(epochMillis: Long): Pair<String, Boolean> {
+        val jd = julianDay(epochMillis)
+        val start = findPrecedingNewMoonJd(jd)
+        val next = findPrecedingNewMoonJd(start + 31.0)
+        val sign = floor(sunSiderealLongitude(centuriesSinceJ2000(start)) / 30.0).toInt()
+        val nextSign = floor(sunSiderealLongitude(centuriesSinceJ2000(next)) / 30.0).toInt()
+        val name = monthFromNewMoonSunSiderealLongitude(sunSiderealLongitude(centuriesSinceJ2000(start)))
+        return name to (next > start + 1.0 && sign == nextSign)
+    }
+
+    /** The Sun's sidereal longitude (Lahiri) at [epochMillis], degrees 0..360. */
+    fun sunSiderealAt(epochMillis: Long): Double = sunSiderealLongitude(centuriesSinceJ2000(julianDay(epochMillis)))
 
     /** The tithi (lunar day) prevailing at [epochMillis]. */
     fun tithiFor(epochMillis: Long): TithiInfo {

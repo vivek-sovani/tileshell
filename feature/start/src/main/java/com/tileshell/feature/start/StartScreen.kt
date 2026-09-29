@@ -403,6 +403,7 @@ fun StartScreen(
     val productivityHubOpen by viewModel.productivityHubOpen.collectAsStateWithLifecycle()
     val batteryHubOpen by viewModel.batteryHubOpen.collectAsStateWithLifecycle()
     val moneyHubOpen by viewModel.moneyHubOpen.collectAsStateWithLifecycle()
+    val panchangOpen by viewModel.panchangOpen.collectAsStateWithLifecycle()
     val productivityHubInitialPage by viewModel.productivityHubInitialPage.collectAsStateWithLifecycle()
     val notesInitialNoteId by viewModel.notesInitialNoteId.collectAsStateWithLifecycle()
     // The dedicated music tile's back-face quick-nav menu posts here rather
@@ -984,7 +985,7 @@ fun StartScreen(
         foldersOpen || hiddenAppsOpen || addWidgetsOpen || (tasksOpen != null) || notesOpen ||
         (stickyNoteEditTileId != null) || (countdownEditTileId != null) || (sportsEditTileId != null) || (stockEditTileId != null) ||
         (commodityEditTileId != null) || (calendarSystemEditTileId != null) || (weatherHubTarget != null) || musicHubOpen ||
-        calendarHubOpen || peopleHubOpen || productivityHubOpen || batteryHubOpen || moneyHubOpen
+        calendarHubOpen || peopleHubOpen || productivityHubOpen || batteryHubOpen || moneyHubOpen || panchangOpen
     val quickSearchEnabled = swipeEnabled && restingAtStart && !searchOpen && !quickPanelOpen && !anySheetOpen
     val quickPanelEnabled = swipeEnabled && restingAtStart && !searchOpen && !quickPanelOpen && !anySheetOpen
     // Runs in the Initial pass like the pager, but keys off pointer *count* (2)
@@ -1398,7 +1399,10 @@ fun StartScreen(
                                     // (see calendarSystemAppPendingIntent).
                                     val systemId = CalendarSystemTile.decode(tile.activityName)
                                     val displayName = systemId?.let { calendarSystemFor(it)?.displayName }
-                                    if (displayName != null) {
+                                    if (systemId == com.tileshell.core.data.HINDU_PANCHANG_ID) {
+                                        // Panchang opens its own sheet: highlights, festivals.
+                                        viewModel.openPanchang()
+                                    } else if (displayName != null) {
                                         runCatching {
                                             val url = "https://www.google.com/search?q=" +
                                                 Uri.encode("$displayName calendar today")
@@ -2236,6 +2240,14 @@ fun StartScreen(
             dark = dark,
             accentId = settings.accentId,
             onDismiss = viewModel::closeBatteryHub,
+            rightHalf = isLandscape,
+        )
+
+        com.tileshell.feature.livetiles.PanchangSheet(
+            visible = panchangOpen,
+            dark = dark,
+            accentId = settings.accentId,
+            onDismiss = viewModel::closePanchang,
             rightHalf = isLandscape,
         )
 

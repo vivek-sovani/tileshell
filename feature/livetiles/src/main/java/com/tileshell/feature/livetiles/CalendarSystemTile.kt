@@ -37,6 +37,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.tileshell.core.data.HINDU_PANCHANG_ID
+import androidx.compose.foundation.layout.fillMaxWidth
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import androidx.compose.foundation.background
+import androidx.compose.runtime.collectAsState
+import com.tileshell.core.data.PanchangObservances
 import com.tileshell.core.data.HinduPanchang
 import com.tileshell.core.data.Paksha
 import com.tileshell.core.data.PanchangDevanagari
@@ -67,8 +73,8 @@ private val FaceText: Color
 // specific city — real sunrise/sunset for a location like Pune can be off by
 // ~15-20 minutes from what this centre would compute, so it's only ever used
 // once both a cached fix and a fresh fix attempt (below) come up empty.
-private const val DEFAULT_LATITUDE = 20.5937
-private const val DEFAULT_LONGITUDE = 78.9629
+internal const val DEFAULT_LATITUDE = 20.5937
+internal const val DEFAULT_LONGITUDE = 78.9629
 
 /** Bound on the one-time fresh-fix request in [lastCoarseLocationOrDefault], so a cold-start caller is never blocked long. */
 private const val LOCATION_FIX_TIMEOUT_MS = 8_000L
@@ -214,14 +220,32 @@ fun CalendarSystemTileFace(
         val moonTimes = remember(nowMillis, location) {
             MoonTimes.nextMoonriseMoonset(nowMillis, location.first, location.second)
         }
+        // Highlighted tithis and festivals: recomputed once a day, when the
+        // settings change, or when the location resolves (Sankashti uses moonrise).
+        val obsSettings by PanchangPrefs.settings(context).collectAsState()
+        val dayKey = PanchangObservances.startOfDay(nowMillis, java.util.TimeZone.getDefault())
+        val strip by produceState<String?>(initialValue = null, dayKey, obsSettings, location) {
+            val settings = obsSettings ?: return@produceState
+            value = withContext(Dispatchers.Default) {
+                runCatching {
+                    val moon = moonriseAfter(location.first, location.second)
+                    observanceStripText(
+                        PanchangObservances.on(dayKey, settings, moonriseAfter = moon),
+                        eveningMoonrise(dayKey, location.first, location.second),
+                    )
+                }.getOrNull()
+            }
+        }
         FlipTile(
             flipped = flipped,
             modifier = modifier.fillMaxSize(),
             front = {
-                PanchangFace(panchang = panchang, size = size, devanagari = true)
+                ObservanceStripped(strip, size) { PanchangFace(panchang = panchang, size = size, devanagari = true) }
             },
             back = {
-                PanchangBackFace(panchang = panchang, size = size, sunTimes = sunTimes, moonTimes = moonTimes)
+                ObservanceStripped(strip, size) {
+                    PanchangBackFace(panchang = panchang, size = size, sunTimes = sunTimes, moonTimes = moonTimes)
+                }
             },
         )
         return
@@ -512,6 +536,35 @@ private fun PanchangFace(
             }
             MoonPhaseVisual(fraction = moonFraction, modifier = Modifier.align(Alignment.TopEnd).size(visualSize))
         }
+    }
+}
+
+/**
+ * A face with the day's highlight (see [observanceStripText]) as an amber
+ * strip along the bottom; unchanged when there's none.
+ */
+@Composable
+private fun ObservanceStripped(strip: String?, size: TileSize, content: @Composable () -> Unit) {
+    if (strip == null) {
+        content()
+        return
+    }
+    val tiny = size.shortLive || size.narrowLive
+    Column(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) { content() }
+        Text(
+            text = strip,
+            color = Color(0xFF3A2600),
+            fontSize = if (tiny) 10.sp else if (size == TileSize.LARGE) 14.sp else 12.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = if (size.narrowLive) 2 else 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = if (size.narrowLive) TextAlign.Center else TextAlign.Start,
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(TileAccents.Amber)
+                .padding(horizontal = if (tiny) 4.dp else 10.dp, vertical = if (tiny) 2.dp else 4.dp),
+        )
     }
 }
 

@@ -1,5 +1,10 @@
 package com.tileshell.feature.livetiles.widget
 
+import com.tileshell.core.data.PanchangObservances
+import com.tileshell.feature.livetiles.PanchangPrefs
+import com.tileshell.feature.livetiles.observanceStripText
+import com.tileshell.feature.livetiles.moonriseAfter
+import com.tileshell.feature.livetiles.eveningMoonrise
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
@@ -108,12 +113,19 @@ class CalendarSystemWidgetRefreshWorker(
             val location = lastCoarseLocationOrDefault(context)
             val sunTimes = SunTimes.nextSunriseSunset(nowMillis, location.first, location.second)
             val moonTimes = MoonTimes.nextMoonriseMoonset(nowMillis, location.first, location.second)
+            val day = PanchangObservances.startOfDay(nowMillis, java.util.TimeZone.getDefault())
+            val observanceStrip = runCatching {
+                observanceStripText(
+                    PanchangObservances.on(day, PanchangPrefs.current(context), moonriseAfter = moonriseAfter(location.first, location.second)),
+                    eveningMoonrise(day, location.first, location.second),
+                )
+            }.getOrNull()
             ids.forEach { id ->
                 val systemId = WidgetConfigStore.calendarSystemId(context, id)
                 val minWidthDp = manager.getAppWidgetOptions(id)
                     .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 110)
                 val (accent, onAccent) = resolveWidgetAccent(context, id)
-                val views = buildRemoteViews(context, id, systemId, nowMillis, sunTimes, moonTimes, accent, onAccent, isCompactWidget(minWidthDp))
+                val views = buildRemoteViews(context, id, systemId, nowMillis, sunTimes, moonTimes, accent, onAccent, isCompactWidget(minWidthDp), observanceStrip)
                 manager.updateAppWidget(id, views)
             }
         }
@@ -128,6 +140,7 @@ class CalendarSystemWidgetRefreshWorker(
             accent: Int,
             onAccent: Int,
             compact: Boolean,
+            observanceStrip: String?,
         ): RemoteViews {
             val isHindu = systemId == HINDU_PANCHANG_ID
             val layout = when {
@@ -173,6 +186,9 @@ class CalendarSystemWidgetRefreshWorker(
                 views.setViewVisibility(R.id.widget_icon_back, View.GONE)
                 setPanchangFace(views, panchang, sunTimes, moonTimes, onAccent, devanagari = true, back = false, compact = compact)
                 setPanchangFace(views, panchang, sunTimes, moonTimes, onAccent, devanagari = false, back = true, compact = compact)
+                val strip = observanceStrip
+                views.setViewVisibility(R.id.widget_observance, if (strip == null) View.GONE else View.VISIBLE)
+                if (strip != null) views.setTextViewText(R.id.widget_observance, strip)
             } else {
                 views.setTextColor(R.id.widget_label, onAccent)
                 views.setTextColor(R.id.widget_date, onAccent)
