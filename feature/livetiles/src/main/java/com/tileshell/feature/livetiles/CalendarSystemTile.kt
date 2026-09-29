@@ -230,7 +230,7 @@ fun CalendarSystemTileFace(
                 runCatching {
                     val moon = moonriseAfter(location.first, location.second)
                     observanceStripText(
-                        PanchangObservances.on(dayKey, settings, moonriseAfter = moon),
+                        PanchangObservances.on(dayKey, settings, moonriseAfter = moon, location = location),
                         eveningMoonrise(dayKey, location.first, location.second),
                     )
                 }.getOrNull()

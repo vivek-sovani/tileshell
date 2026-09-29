@@ -55,6 +55,14 @@ fun batteryHubPendingIntent(context: Context, appWidgetId: Int): PendingIntent {
     return activityPendingIntent(context, appWidgetId, launch)
 }
 
+/** Opens TileShell's Panchang sheet (the Panchang widget's tap). */
+fun panchangSheetPendingIntent(context: Context, appWidgetId: Int): PendingIntent {
+    val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
+        ?: return calendarSystemAppPendingIntent(context, appWidgetId, "hindu panchang")
+    launch.putExtra(EXTRA_OPEN_HUB, "panchang").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    return activityPendingIntent(context, appWidgetId, launch)
+}
+
 fun batteryAppPendingIntent(context: Context, appWidgetId: Int): PendingIntent =
     activityPendingIntent(context, appWidgetId, Intent(Intent.ACTION_POWER_USAGE_SUMMARY))
 

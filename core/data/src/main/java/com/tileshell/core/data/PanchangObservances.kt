@@ -36,14 +36,24 @@ data class Festival(
     val at: ObserveAt = ObserveAt.SUNRISE,
 )
 
-/** One highlight or festival falling on a day. */
-data class Observance(val id: String, val name: String, val english: String, val festival: Boolean)
+/** One highlight, festival or grahan falling on a day. [detail] carries a grahan's times. */
+data class Observance(
+    val id: String,
+    val name: String,
+    val english: String,
+    val festival: Boolean,
+    val grahan: Boolean = false,
+    /** For a grahan: seen from here. The tile only shows visible ones. */
+    val visibleHere: Boolean = true,
+    val eclipse: Eclipse? = null,
+)
 
 /** Which highlights are on, whether festivals show, and the user's own tithis ("s9" / "k9"). */
 data class ObservanceSettings(
     val highlights: Set<String> = PanchangObservances.HIGHLIGHTS.filter { it.defaultOn }.map { it.id }.toSet(),
     val festivals: Boolean = true,
     val customTithis: Set<String> = emptySet(),
+    val grahan: Boolean = true,
 )
 
 /**
@@ -96,6 +106,34 @@ object PanchangObservances {
         Festival("रंगपंचमी", "rang panchami", "phalguna", Paksha.KRISHNA, 5),
     )
 
+    /** Each month's two ekadashis by name (amanta month; shukla, krishna). */
+    private val EKADASHI_NAMES = mapOf(
+        "chaitra" to ("कामदा" to "वरूथिनी"), "vaishakha" to ("मोहिनी" to "अपरा"),
+        "jyeshtha" to ("निर्जला" to "योगिनी"), "ashadha" to ("देवशयनी" to "कामिका"),
+        "shravana" to ("पुत्रदा" to "अजा"), "bhadrapada" to ("परिवर्तिनी" to "इंदिरा"),
+        "ashwin" to ("पाशांकुशा" to "रमा"), "kartika" to ("प्रबोधिनी" to "उत्पत्ती"),
+        "margashirsha" to ("मोक्षदा" to "सफला"), "pausha" to ("पुत्रदा" to "षट्तिला"),
+        "magha" to ("जया" to "विजया"), "phalguna" to ("आमलकी" to "पापमोचनी"),
+    )
+    private val EKADASHI_ENGLISH = mapOf(
+        "कामदा" to "kamada", "वरूथिनी" to "varuthini", "मोहिनी" to "mohini", "अपरा" to "apara",
+        "निर्जला" to "nirjala", "योगिनी" to "yogini", "देवशयनी" to "devshayani", "कामिका" to "kamika",
+        "पुत्रदा" to "putrada", "अजा" to "aja", "परिवर्तिनी" to "parivartini", "इंदिरा" to "indira",
+        "पाशांकुशा" to "papankusha", "रमा" to "rama", "प्रबोधिनी" to "prabodhini", "उत्पत्ती" to "utpatti",
+        "मोक्षदा" to "mokshada", "सफला" to "saphala", "षट्तिला" to "shattila", "जया" to "jaya",
+        "विजया" to "vijaya", "आमलकी" to "amalaki", "पापमोचनी" to "papmochani", "पद्मिनी" to "padmini", "परमा" to "parama",
+    )
+
+    /** "कामिका एकादशी": the ekadashi's own name for its month (adhik: पद्मिनी / परमा). */
+    internal fun ekadashiName(month: String, adhik: Boolean, paksha: Paksha): Pair<String, String> {
+        val name = if (adhik) {
+            if (paksha == Paksha.SHUKLA) "पद्मिनी" else "परमा"
+        } else {
+            EKADASHI_NAMES[month]?.let { if (paksha == Paksha.SHUKLA) it.first else it.second }
+        } ?: return "एकादशी" to "ekadashi"
+        return "$name एकादशी" to "${EKADASHI_ENGLISH[name] ?: name} ekadashi"
+    }
+
     private val SANKRANTI = Observance("makar-sankranti", "मकर संक्रांती", "makar sankranti", festival = true)
 
     /** A custom tithi key: "s9" (shukla navami), "k4", or "b11" (both pakshas). */
@@ -140,6 +178,7 @@ object PanchangObservances {
         settings: ObservanceSettings,
         zone: TimeZone = TimeZone.getDefault(),
         moonriseAfter: ((Long) -> Long?)? = null,
+        location: Pair<Double, Double>? = null,
     ): List<Observance> {
         val day = startOfDay(dayMillis, zone)
         val owned = HashMap<ObserveAt, Map<Int, Long>>()
@@ -156,7 +195,20 @@ object PanchangObservances {
         HIGHLIGHTS.filter { it.id in settings.highlights }.forEach { h ->
             val month = monthOf(h.at, h.paksha, h.tithi) ?: return@forEach
             if (h.month == null || (month.first == h.month && !month.second)) {
-                out += Observance(h.id, h.name, h.english, festival = false)
+                out += when (h.id) {
+                    "ekadashi" -> {
+                        val paksha = if (matchTime(ownedAt(h.at), Paksha.SHUKLA, 11) != null) Paksha.SHUKLA else Paksha.KRISHNA
+                        val (dev, eng) = ekadashiName(month.first, month.second, paksha)
+                        Observance(h.id, dev, eng, festival = false)
+                    }
+                    // Sankashti on a Tuesday (मंगळवार) is Angaraki.
+                    "sankashti" -> if (Calendar.getInstance(zone).apply { timeInMillis = day }.get(Calendar.DAY_OF_WEEK) == Calendar.TUESDAY) {
+                        Observance(h.id, "अंगारकी संकष्टी चतुर्थी", "angaraki sankashti chaturthi", festival = false)
+                    } else {
+                        Observance(h.id, h.name, h.english, festival = false)
+                    }
+                    else -> Observance(h.id, h.name, h.english, festival = false)
+                }
             }
         }
         settings.customTithis.sorted().forEach { key ->
@@ -175,12 +227,45 @@ object PanchangObservances {
             val sunEnd = HinduPanchang.sunSiderealAt(day + DAY)
             if (sunStart < 270.0 && sunEnd >= 270.0) out += SANKRANTI
         }
+        if (settings.grahan && location != null) {
+            // A visible grahan belongs to the local day it's seen on; one not
+            // seen here, to the day of its greatest phase.
+            Eclipses.between(day - DAY, day + 2 * DAY, location.first, location.second).forEach { e ->
+                val anchor = e.visibleStart ?: e.maxMillis
+                if (anchor >= day && anchor < addDays(day, 1, zone)) out += grahanObservance(e)
+            }
+        }
         // A festival that is itself the highlighted tithi ("kartiki ekadashi")
         // stands in for the plain highlight ("ekadashi"). Festivals first.
         val festivalNames = out.filter { it.festival }.map { it.english }
         return out
-            .filterNot { o -> !o.festival && festivalNames.any { o.english in it } }
-            .sortedByDescending { it.festival }
+            .filterNot { o ->
+                val base = HIGHLIGHTS.firstOrNull { it.id == o.id }?.english ?: o.english
+                !o.festival && !o.grahan && festivalNames.any { base in it }
+            }
+            .sortedWith(compareByDescending<Observance> { it.grahan && it.visibleHere }.thenByDescending { it.festival })
+    }
+
+    /** "खग्रास चंद्रग्रहण" etc., named for how it looks from here when visible. */
+    internal fun grahanObservance(e: Eclipse): Observance {
+        val kind = e.localKind ?: e.kind
+        val prefix = when (kind) {
+            Eclipse.Kind.TOTAL -> "खग्रास"
+            Eclipse.Kind.ANNULAR -> "कंकणाकृती"
+            Eclipse.Kind.HYBRID -> "संकरित"
+            Eclipse.Kind.PARTIAL -> "खंडग्रास"
+        }
+        val body = if (e.solar) "सूर्यग्रहण" else "चंद्रग्रहण"
+        val english = "${kind.name.lowercase()} ${if (e.solar) "solar" else "lunar"} eclipse"
+        return Observance(
+            id = "grahan-${e.maxMillis}",
+            name = "$prefix $body",
+            english = english,
+            festival = false,
+            grahan = true,
+            visibleHere = e.visible,
+            eclipse = e,
+        )
     }
 
     /** Days (start-of-day millis) in the next [days] with anything to show, and what. */
@@ -190,11 +275,21 @@ object PanchangObservances {
         settings: ObservanceSettings,
         zone: TimeZone = TimeZone.getDefault(),
         moonriseAfter: ((Long) -> Long?)? = null,
+        location: Pair<Double, Double>? = null,
     ): List<Pair<Long, List<Observance>>> {
         val start = startOfDay(fromMillis, zone)
+        // Grahan found once for the whole range, not per day.
+        val eclipses = if (settings.grahan && location != null) {
+            Eclipses.between(start - DAY, addDays(start, days, zone) + DAY, location.first, location.second)
+        } else {
+            emptyList()
+        }
+        val noGrahan = settings.copy(grahan = false)
         return (0 until days).mapNotNull { i ->
             val day = addDays(start, i, zone)
-            on(day, settings, zone, moonriseAfter).takeIf { it.isNotEmpty() }?.let { day to it }
+            val next = addDays(day, 1, zone)
+            val grahan = eclipses.filter { (it.visibleStart ?: it.maxMillis).let { a -> a >= day && a < next } }.map(::grahanObservance)
+            (grahan + on(day, noGrahan, zone, moonriseAfter)).takeIf { it.isNotEmpty() }?.let { day to it }
         }
     }
 

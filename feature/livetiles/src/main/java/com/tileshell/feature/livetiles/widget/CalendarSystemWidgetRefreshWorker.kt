@@ -116,7 +116,7 @@ class CalendarSystemWidgetRefreshWorker(
             val day = PanchangObservances.startOfDay(nowMillis, java.util.TimeZone.getDefault())
             val observanceStrip = runCatching {
                 observanceStripText(
-                    PanchangObservances.on(day, PanchangPrefs.current(context), moonriseAfter = moonriseAfter(location.first, location.second)),
+                    PanchangObservances.on(day, PanchangPrefs.current(context), moonriseAfter = moonriseAfter(location.first, location.second), location = location),
                     eveningMoonrise(day, location.first, location.second),
                 )
             }.getOrNull()
@@ -174,7 +174,11 @@ class CalendarSystemWidgetRefreshWorker(
             val displayName = system?.displayName.orEmpty()
             views.setOnClickPendingIntent(
                 R.id.widget_root,
-                calendarSystemAppPendingIntent(context, appWidgetId, displayName.ifBlank { "calendar" }),
+                if (isHindu) {
+                    panchangSheetPendingIntent(context, appWidgetId)
+                } else {
+                    calendarSystemAppPendingIntent(context, appWidgetId, displayName.ifBlank { "calendar" })
+                },
             )
 
             if (isHindu) {

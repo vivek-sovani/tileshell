@@ -201,6 +201,7 @@ class MainActivity : ComponentActivity() {
     private fun handleOpenHubIntent(intent: Intent) {
         when (intent.getStringExtra(com.tileshell.feature.livetiles.widget.EXTRA_OPEN_HUB)) {
             "battery" -> startViewModel.openBatteryHub()
+            "panchang" -> startViewModel.openPanchang()
         }
         intent.removeExtra(com.tileshell.feature.livetiles.widget.EXTRA_OPEN_HUB)
     }

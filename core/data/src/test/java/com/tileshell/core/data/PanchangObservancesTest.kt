@@ -24,7 +24,28 @@ class PanchangObservancesTest {
     private fun firstDayOf(english: String, y: Int, m: Int, fromDay: Int, span: Int = 6): Int? =
         (fromDay until fromDay + span).firstOrNull { english in names(y, m, it) }
 
-    @Test fun sankashtiToday() = assertTrue(names(2026, 9, 29).toString(), "sankashti chaturthi" in names(2026, 9, 29))
+    // 29 Sep 2026 is a Tuesday: Angaraki.
+    @Test fun sankashtiToday() = assertTrue(names(2026, 9, 29).toString(), "angaraki sankashti chaturthi" in names(2026, 9, 29))
+
+    @Test fun plainSankashtiOnOtherDays() {
+        val oct = (27..31).first { d -> names(2026, 10, d).any { "sankashti" in it } }
+        assertTrue(names(2026, 10, oct).toString(), "sankashti chaturthi" in names(2026, 10, oct))
+    }
+
+    @Test fun ekadashisHaveNames() {
+        // Bhadrapada krishna ekadashi is Indira; Ashwin shukla is Papankusha.
+        val oct = PanchangObservances.upcoming(day(2026, 10, 1), 31, ObservanceSettings(highlights = setOf("ekadashi"), festivals = false), ist)
+        assertEquals(listOf("indira ekadashi", "papankusha ekadashi"), oct.map { it.second.single().english })
+    }
+
+    @Test fun grahanOnItsDay() {
+        val s = ObservanceSettings(highlights = emptySet(), festivals = false)
+        val march3 = PanchangObservances.on(day(2026, 3, 3), s, ist, location = pune)
+        assertTrue(march3.toString(), march3.any { it.grahan && "lunar" in it.english })
+        val aug12 = PanchangObservances.upcoming(day(2026, 8, 12), 2, s, ist, location = pune).flatMap { it.second }
+        assertTrue(aug12.single().grahan)
+        assertFalse(aug12.single().visibleHere)
+    }
 
     @Test fun ganeshChaturthi() = assertEquals(14, firstDayOf("ganesh chaturthi", 2026, 9, 11))
 

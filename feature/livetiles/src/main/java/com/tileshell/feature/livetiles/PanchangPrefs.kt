@@ -19,6 +19,7 @@ object PanchangPrefs {
     private const val KEY_HIGHLIGHTS = "panchang_highlights"
     private const val KEY_FESTIVALS = "panchang_festivals"
     private const val KEY_CUSTOM = "panchang_custom_tithis"
+    private const val KEY_GRAHAN = "panchang_grahan"
 
     private val _settings = MutableStateFlow<ObservanceSettings?>(null)
 
@@ -35,6 +36,7 @@ object PanchangPrefs {
             .putStringSet(KEY_HIGHLIGHTS, next.highlights)
             .putBoolean(KEY_FESTIVALS, next.festivals)
             .putStringSet(KEY_CUSTOM, next.customTithis)
+            .putBoolean(KEY_GRAHAN, next.grahan)
             .apply()
         _settings.value = next
         // The widget shows the same strip.
@@ -48,6 +50,7 @@ object PanchangPrefs {
             highlights = p.getStringSet(KEY_HIGHLIGHTS, null)?.toSet() ?: defaults.highlights,
             festivals = p.getBoolean(KEY_FESTIVALS, defaults.festivals),
             customTithis = p.getStringSet(KEY_CUSTOM, null)?.toSet() ?: emptySet(),
+            grahan = p.getBoolean(KEY_GRAHAN, defaults.grahan),
         )
     }
 
@@ -63,7 +66,9 @@ internal fun moonriseAfter(latitude: Double, longitude: Double): (Long) -> Long?
  * names, and the moonrise time on Sankashti ("संकष्टी चतुर्थी · चंद्रोदय ९:०२").
  * Null when there's nothing. Pure.
  */
-internal fun observanceStripText(observances: List<Observance>, sankashtiMoonrise: Long?): String? {
+internal fun observanceStripText(all: List<Observance>, sankashtiMoonrise: Long?): String? {
+    // A grahan that can't be seen from here isn't worth the tile's space.
+    val observances = all.filter { !it.grahan || it.visibleHere }
     if (observances.isEmpty()) return null
     val names = observances.take(2).joinToString(" · ") { it.name }
     val moon = if (observances.any { it.id == "sankashti" } && sankashtiMoonrise != null) {
