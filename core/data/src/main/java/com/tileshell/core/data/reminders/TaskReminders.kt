@@ -54,6 +54,12 @@ object TaskReminders {
     const val SNOOZE_MS = 10 * 60_000L
 
     private const val CHANNEL_ID = "task_reminders"
+    // While TileShell is open the toast is the visual alert, so the notification
+    // goes to a channel that sounds (the user's own notification sound, volume
+    // and Do Not Disturb, resolved by the system) but never pops a heads-up.
+    // Playing a sound ourselves failed on Samsung, whose default-sound setting
+    // isn't where RingtoneManager looks.
+    private const val CHANNEL_IN_APP_ID = "task_reminders_in_app"
     private const val PREFS = "task_reminders"
     private const val KEY_SCHEDULED = "scheduled"
 
@@ -124,9 +130,9 @@ object TaskReminders {
         if (onStart) {
             _toasts.tryEmit(DueReminder(task.id, task.text, task.listId, listName, whenText))
         }
-        // On Start the toast is the alert, so the notification is posted silently
+        // On Start the toast is the visual alert and the notification only sounds
         // (it still waits in the shade); anywhere else it's a heads-up.
-        post(context, task, listName, silent = onStart)
+        post(context, task, listName, inApp = onStart)
         sync(context)
     }
 
@@ -140,7 +146,7 @@ object TaskReminders {
         context.getSystemService(NotificationManager::class.java)?.cancel(notificationId(taskId))
     }
 
-    private fun post(context: Context, task: TaskEntity, listName: String, silent: Boolean) {
+    private fun post(context: Context, task: TaskEntity, listName: String, inApp: Boolean) {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
         if (!notificationsAllowed(context)) return
         nm.createNotificationChannel(
@@ -148,9 +154,14 @@ object TaskReminders {
                 description = "alerts when a task's reminder time arrives"
             },
         )
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_IN_APP_ID, "task reminders while tileshell is open", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = "the sound for a reminder shown as a toast on start"
+            },
+        )
         val repeat = TaskRepeat.decode(task.remindRepeat)
         val subtitle = if (repeat.label.isEmpty()) listName.lowercase() else "${listName.lowercase()} · repeats ${repeat.label}"
-        val notification = Notification.Builder(context, CHANNEL_ID)
+        val notification = Notification.Builder(context, if (inApp) CHANNEL_IN_APP_ID else CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification_task)
             .setContentTitle(task.text)
             .setContentText(subtitle)
@@ -160,7 +171,6 @@ object TaskReminders {
             .addAction(Notification.Action.Builder(null, "done", actionPendingIntent(context, task.id, TaskReminderReceiver.ACTION_DONE)).build())
             .addAction(Notification.Action.Builder(null, "snooze 10 min", actionPendingIntent(context, task.id, TaskReminderReceiver.ACTION_SNOOZE)).build())
             .addAction(Notification.Action.Builder(null, "open", openPendingIntent(context, task)).build())
-            .apply { if (silent) setGroupAlertBehavior(Notification.GROUP_ALERT_SUMMARY).setGroup("task_reminder_silent") }
             .build()
         runCatching { nm.notify(notificationId(task.id), notification) }
     }

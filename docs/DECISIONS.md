@@ -10755,8 +10755,10 @@ A calendar reminder's own title still wins when it matches.
   `tools:node` isn't substituted by the merger, and swapping the permission name for another
   one left a duplicate entry, hence the separate manifest.
 - **Where it alerts:** the system heads-up over other apps and the lock screen (we can't restyle
-  it); TileShell's own WP-style toast while it's on screen (the notification then goes in
-  silently via a childless group); the tasks/productivity tiles show due tasks first.
+  it); TileShell's own WP-style toast while it's on screen, with the notification sent to a second,
+  IMPORTANCE_DEFAULT channel ("task reminders while tileshell is open") so the system plays the
+  user's own notification sound without a heads-up. Playing RingtoneManager's default ourselves
+  was silent on Samsung (its `notification_sound` setting is null there); the tasks/productivity tiles show due tasks first.
 - **Repeat:** only the next due time is stored. Done on a repeating task advances it to the first
   occurrence after now (no copies, per the user). A monthly/yearly series started on the 29th–31st
   settles on the shorter month's last day — accepted rather than adding an anchor column.

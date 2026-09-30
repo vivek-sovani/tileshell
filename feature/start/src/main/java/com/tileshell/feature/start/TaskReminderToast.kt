@@ -1,7 +1,5 @@
 package com.tileshell.feature.start
 
-import android.media.AudioManager
-import android.media.RingtoneManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -51,9 +49,8 @@ private const val TOAST_SHOW_MS = 10_000L
  * Windows Phone–style toast for a task reminder that goes off while Start is
  * on screen: a full-width accent strip across the top with the task, done and
  * snooze. Tap opens the task's list; swipe up or sideways dismisses; it also
- * hides itself after [TOAST_SHOW_MS]. The system notification is posted
- * silently meanwhile (see [TaskReminders.fire]), so the toast plays the
- * notification sound itself.
+ * hides itself after [TOAST_SHOW_MS]. The sound comes from the notification,
+ * posted meanwhile to a sound-only channel (see [TaskReminders.fire]).
  */
 @Composable
 internal fun TaskReminderToast(accent: Color, onOpen: (listId: String) -> Unit, modifier: Modifier = Modifier) {
@@ -67,7 +64,6 @@ internal fun TaskReminderToast(accent: Color, onOpen: (listId: String) -> Unit, 
         TaskReminders.toasts.collect { reminder ->
             current = reminder
             shown = true
-            playReminderSound(context)
         }
     }
     LaunchedEffect(current, shown) {
@@ -160,14 +156,5 @@ internal fun TaskReminderToast(accent: Color, onOpen: (listId: String) -> Unit, 
                 }
             }
         }
-    }
-}
-
-/** The default notification sound, only when the ringer is on (never in silent/vibrate). */
-private fun playReminderSound(context: android.content.Context) {
-    runCatching {
-        val audio = context.getSystemService(AudioManager::class.java)
-        if (audio?.ringerMode != AudioManager.RINGER_MODE_NORMAL) return
-        RingtoneManager.getRingtone(context, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))?.play()
     }
 }
