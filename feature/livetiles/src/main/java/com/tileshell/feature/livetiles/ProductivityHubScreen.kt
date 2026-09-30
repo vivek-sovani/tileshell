@@ -1,5 +1,10 @@
 package com.tileshell.feature.livetiles
 
+import com.tileshell.core.data.TaskItem
+import com.tileshell.core.data.reminders.TaskReminders
+import com.tileshell.core.data.reminders.reminderClock
+import com.tileshell.core.data.reminders.reminderDay
+import com.tileshell.core.data.reminders.scheduledToday
 import android.Manifest
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -327,6 +332,8 @@ private fun TodayPage(
         }
     }
     val openTasks by remember { tasksRepo.openTasks(limit = 4) }.collectAsState(initial = emptyList())
+    val reminderTasks by remember { tasksRepo.reminderTasks() }.collectAsState(initial = emptyList())
+    val scheduled = remember(reminderTasks, now) { scheduledToday(reminderTasks, { it.remindAt }, now) }
     val notificationsGranted = rememberNotificationAccess()
     val snapshot by NotificationCenter.snapshot.collectAsState()
     val pendingCount = remember(snapshot) { whatsNewApps(snapshot).sumOf { it.second } }
@@ -364,6 +371,26 @@ private fun TodayPage(
                                 ),
                         )
                     }
+                }
+            }
+        }
+
+        // Tasks with a reminder today (and overdue ones still open), under the
+        // schedule — the day's timed to-dos next to its meetings.
+        if (TaskReminders.ENABLED) {
+            item { SectionLabel(if (scheduled.isNotEmpty()) "scheduled today · ${scheduled.size}" else "scheduled today", tokens) }
+            if (scheduled.isEmpty()) {
+                item { Text("no task reminders today", color = tokens.fgDim, fontSize = 14.sp) }
+            } else {
+                items(scheduled, key = { "scheduled-${it.id}" }) { task ->
+                    ScheduledTaskRow(
+                        task = task,
+                        now = now,
+                        tokens = tokens,
+                        accent = accent,
+                        onDone = { scope.launch { tasksRepo.setDone(task.id, true) } },
+                        onOpen = { onOpenTaskList(task.listId) },
+                    )
                 }
             }
         }
@@ -419,6 +446,63 @@ private fun TodayPage(
         item { SectionLabel("quick", tokens) }
         item { QuickRowSection(quickItems, notes, lists, tokens, onRunQuick, onRemoveQuick, onAddQuick) }
         item { Spacer(Modifier.height(24.dp)) }
+    }
+}
+
+/** A task with a reminder today: checkbox, text, and its time (red once overdue). */
+@Composable
+private fun ScheduledTaskRow(
+    task: TaskItem,
+    now: Long,
+    tokens: ColorTokens,
+    accent: Color,
+    onDone: () -> Unit,
+    onOpen: () -> Unit,
+) {
+    val remindAt = task.remindAt ?: return
+    val zone = java.time.ZoneId.systemDefault()
+    val at = java.time.Instant.ofEpochMilli(remindAt).atZone(zone)
+    val overdue = remindAt <= now
+    val sameDay = at.toLocalDate() == java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+    val timeText = when {
+        !sameDay -> "overdue · ${reminderDay(at.toLocalDate(), java.time.LocalDate.now(zone))}"
+        else -> reminderClock(at)
+    } + task.repeat.label.let { if (it.isEmpty()) "" else " · $it" }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onOpen,
+            )
+            .padding(vertical = 5.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(18.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .border(1.5.dp, tokens.fgDim, RoundedCornerShape(4.dp))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDone,
+                ),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            task.text,
+            color = tokens.fg,
+            fontSize = 14.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(8.dp))
+        Icon(TileIcons["bell"], contentDescription = null, tint = if (overdue) Color(0xFFF07A7A) else accent, modifier = Modifier.size(13.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(timeText, color = if (overdue) Color(0xFFF07A7A) else accent, fontSize = 12.sp, maxLines = 1)
     }
 }
 

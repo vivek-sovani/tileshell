@@ -68,4 +68,14 @@ class TaskRepeatTest {
         assertFalse(isReminderDue(at(2026, 9, 30, 9), at(2026, 9, 30, 10, 5), false, now))
         assertFalse(isReminderDue(null, null, false, now))
     }
+
+    @Test
+    fun `scheduled today keeps today and overdue, soonest first`() {
+        val now = at(2026, 9, 30, 12)
+        val times = listOf(at(2026, 9, 30, 18), at(2026, 10, 1, 9), at(2026, 9, 29, 11), at(2026, 9, 30, 23, 59))
+        assertEquals(
+            listOf(at(2026, 9, 29, 11), at(2026, 9, 30, 18), at(2026, 9, 30, 23, 59)),
+            scheduledToday(times, { it }, now, zone),
+        )
+    }
 }

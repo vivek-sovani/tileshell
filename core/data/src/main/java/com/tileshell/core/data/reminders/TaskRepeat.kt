@@ -138,3 +138,13 @@ fun reminderLine(remindAt: Long, repeat: TaskRepeat, now: Long, zone: ZoneId = Z
  */
 fun isReminderDue(remindAt: Long?, snoozeAt: Long?, done: Boolean, now: Long): Boolean =
     !done && remindAt != null && remindAt <= now && (snoozeAt == null || snoozeAt <= now)
+
+/**
+ * The productivity hub's "scheduled today": open tasks whose reminder falls on
+ * today's date, plus earlier ones still open (overdue), soonest first. Takes
+ * plain (remindAt, item) pairs so it's pure and testable.
+ */
+fun <T> scheduledToday(tasks: List<T>, remindAtOf: (T) -> Long?, now: Long, zone: ZoneId = ZoneId.systemDefault()): List<T> {
+    val endOfToday = Instant.ofEpochMilli(now).atZone(zone).toLocalDate().plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+    return tasks.filter { t -> remindAtOf(t)?.let { it < endOfToday } == true }.sortedBy { remindAtOf(it) }
+}
