@@ -123,6 +123,9 @@ fun TaskListSheet(
 
     // Task reminders (hidden entirely when TaskReminders.ENABLED is off).
     var reminderFor by remember { mutableStateOf<TaskItem?>(null) }
+    // A reminder picked for the task still being typed, set when it's added.
+    var draftRemindAt by remember { mutableStateOf<Long?>(null) }
+    var draftRepeat by remember { mutableStateOf<TaskRepeat>(TaskRepeat.Once) }
     var askExactAccess by remember { mutableStateOf(false) }
     var exactAllowed by remember { mutableStateOf(TaskReminders.canScheduleExact(context)) }
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -168,8 +171,14 @@ fun TaskListSheet(
     // every task.
     val submitDraft = {
         val text = draft
+        val at = draftRemindAt
+        val repeat = draftRepeat
         draft = ""
-        scope.launch { repository.addTask(listId, text) }
+        if (text.isNotBlank()) {
+            draftRemindAt = null
+            draftRepeat = TaskRepeat.Once
+        }
+        scope.launch { repository.addTask(listId, text, at, repeat) }
     }
 
     if (confirmClearAll) {
@@ -304,6 +313,25 @@ fun TaskListSheet(
                         )
                     }
                     Spacer(Modifier.width(8.dp))
+                    if (TaskReminders.ENABLED) {
+                        Icon(
+                            imageVector = TileIcons["bell"],
+                            contentDescription = if (draftRemindAt != null) "change reminder" else "add a reminder",
+                            tint = if (draftRemindAt != null) accent else tokens.fgDim,
+                            modifier = Modifier
+                                .padding(end = 14.dp)
+                                .size(22.dp)
+                                .clickable {
+                                    reminderFor = TaskItem(
+                                        id = NEW_TASK_ID,
+                                        text = draft.ifBlank { "new task" },
+                                        done = false,
+                                        remindAt = draftRemindAt,
+                                        repeat = draftRepeat,
+                                    )
+                                },
+                        )
+                    }
                     Icon(
                         imageVector = TileIcons["plus"],
                         contentDescription = "add task",
@@ -312,6 +340,23 @@ fun TaskListSheet(
                             .size(28.dp)
                             .clickable { submitDraft() },
                     )
+                }
+
+                draftRemindAt?.let { at ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 4.dp),
+                    ) {
+                        Icon(TileIcons["bell"], contentDescription = null, tint = accent, modifier = Modifier.size(12.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(reminderLine(at, draftRepeat, now), color = accent, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                        Text(
+                            "remove",
+                            color = tokens.fgDim,
+                            fontSize = 12.sp,
+                            modifier = Modifier.clickable { draftRemindAt = null; draftRepeat = TaskRepeat.Once },
+                        )
+                    }
                 }
 
                 if (tasks.isEmpty()) {
@@ -373,7 +418,12 @@ fun TaskListSheet(
                 accent = accent,
                 onSet = { at, repeat ->
                     reminderFor = null
-                    scope.launch { repository.setReminder(editing.id, at, repeat) }
+                    if (editing.id == NEW_TASK_ID) {
+                        draftRemindAt = at
+                        draftRepeat = repeat
+                    } else {
+                        scope.launch { repository.setReminder(editing.id, at, repeat) }
+                    }
                     if (!TaskReminders.notificationsAllowed(context) && Build.VERSION.SDK_INT >= 33) {
                         notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                     }
@@ -381,7 +431,12 @@ fun TaskListSheet(
                 },
                 onRemove = {
                     reminderFor = null
-                    scope.launch { repository.setReminder(editing.id, null, TaskRepeat.Once) }
+                    if (editing.id == NEW_TASK_ID) {
+                        draftRemindAt = null
+                        draftRepeat = TaskRepeat.Once
+                    } else {
+                        scope.launch { repository.setReminder(editing.id, null, TaskRepeat.Once) }
+                    }
                 },
                 onDismiss = { reminderFor = null },
             )
@@ -475,3 +530,6 @@ private fun rememberMinuteNow(active: Boolean): Long {
     }
     return now
 }
+
+/** Stands in for the not-yet-added task when its reminder is picked while typing it. */
+private const val NEW_TASK_ID = -1L

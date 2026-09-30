@@ -15,7 +15,7 @@ interface TaskDao {
     suspend fun maxPosition(listId: String): Int
 
     @Insert
-    suspend fun insert(task: TaskEntity)
+    suspend fun insert(task: TaskEntity): Long
 
     @Query("UPDATE tasks SET done = :done WHERE id = :id")
     suspend fun setDone(id: Long, done: Boolean)

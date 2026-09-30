@@ -37,6 +37,11 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — a reminder can be set while adding a task** (user-requested): a bell beside "add a
+  task" opens the same "remind me" sheet; the pick shows under the field (with "remove") and is
+  saved with the task (`TaskRepository.addTask(listId, text, remindAt, repeat)`). 5.0.0 AAB/APK
+  rebuilt and installed on the phone. Also confirmed on-device: the Panchang tile's "missing"
+  month and paksha were amber text on a yellow wallpaper, not a layout bug (user: fine as is).
 - **`main` — People Hub "recent" replaced by "favourites".** User-reported that "recent" never
   filled: it read Android's `LAST_TIME_CONTACTED`, no longer kept up to date on most phones since
   Android 10, and the call log needs a Play-declared permission. "favourites" lists starred

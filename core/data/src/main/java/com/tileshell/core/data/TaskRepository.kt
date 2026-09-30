@@ -59,19 +59,26 @@ class TaskRepository(
     fun tasks(listId: String): Flow<List<TaskItem>> =
         dao.observeAll(listId).map { rows -> rows.map { it.toItem() } }
 
-    /** Appends a new task at the end of [listId]'s list. Blank text is ignored. */
-    suspend fun addTask(listId: String, text: String) {
+    /**
+     * Appends a new task at the end of [listId]'s list, optionally with a
+     * reminder set in the same step. Blank text is ignored.
+     */
+    suspend fun addTask(listId: String, text: String, remindAt: Long? = null, repeat: TaskRepeat = TaskRepeat.Once) {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
         ensureList(listId)
+        val withReminder = remindAt != null && TaskReminders.ENABLED
         dao.insert(
             TaskEntity(
                 text = trimmed,
                 listId = listId,
                 position = dao.maxPosition(listId) + 1,
                 createdAt = System.currentTimeMillis(),
+                remindAt = remindAt.takeIf { withReminder },
+                remindRepeat = if (withReminder) repeat.code else "",
             ),
         )
+        if (withReminder) onRemindersChanged()
     }
 
     /**
