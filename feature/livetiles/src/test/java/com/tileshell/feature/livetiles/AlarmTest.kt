@@ -60,4 +60,24 @@ class AlarmFaceTest {
     fun `alarm face flips`() {
         assertTrue(LiveFace.ALARM.flips)
     }
+
+    @Test
+    fun `caption prefers the calendar reminder title`() {
+        assertEquals("standup", alarmCaption("standup", "Google Calendar", false))
+    }
+
+    @Test
+    fun `caption for a clock app alarm`() {
+        assertEquals("alarm", alarmCaption("", "Clock", true))
+    }
+
+    @Test
+    fun `caption names a non-clock app`() {
+        assertEquals("set by todoist", alarmCaption("", " Todoist ", false))
+    }
+
+    @Test
+    fun `caption falls back when the source is unknown`() {
+        assertEquals("alarm / bedtime", alarmCaption("", "", false))
+    }
 }

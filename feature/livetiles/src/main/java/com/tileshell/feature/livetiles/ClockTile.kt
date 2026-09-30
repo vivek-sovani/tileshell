@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.provider.AlarmClock
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -71,7 +72,44 @@ data class ClockFace(
     val reminderTitle: String = "",
     val alarmDate: String = "",
     val alarmWeekday: String = "",
+    /** Label of the app that scheduled the next alarm; empty when unknown. */
+    val alarmSource: String = "",
+    /** True when [alarmSource] is a clock app, so the entry is a real alarm. */
+    val alarmSourceIsClock: Boolean = false,
 )
+
+/**
+ * The app that put an entry into the system's single "next alarm" slot. Android
+ * reports it through the alarm's own show intent (the one the status bar opens),
+ * so this names the real source — a reminder app, a sleep tracker, Digital
+ * Wellbeing — instead of guessing "alarm / bedtime". Null when the scheduling app
+ * gave no show intent or isn't visible to us.
+ */
+internal data class AlarmSource(val appLabel: String, val isClockApp: Boolean)
+
+internal fun alarmSourceFor(context: Context, info: AlarmManager.AlarmClockInfo): AlarmSource? =
+    runCatching {
+        val pkg = info.showIntent?.creatorPackage ?: return@runCatching null
+        val pm = context.packageManager
+        val label = pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+        val clockPackages = pm.queryIntentActivities(Intent(AlarmClock.ACTION_SHOW_ALARMS), 0)
+            .map { it.activityInfo.packageName }
+            .toSet()
+        AlarmSource(label, pkg in clockPackages)
+    }.getOrNull()
+
+/**
+ * The caption above the next-alarm time. Pure, so it's unit-testable. A matching
+ * calendar reminder's title wins, then "alarm" for a clock app's own alarm, then
+ * the scheduling app's name ("set by todoist"), and only when nothing is known the
+ * old generic guess.
+ */
+fun alarmCaption(reminderTitle: String, sourceApp: String, sourceIsClock: Boolean): String = when {
+    reminderTitle.isNotEmpty() -> reminderTitle
+    sourceIsClock -> "alarm"
+    sourceApp.isNotBlank() -> "set by ${sourceApp.trim().lowercase()}"
+    else -> "alarm / bedtime"
+}
 
 private fun formatFullDate(dayOfMonth: Int, month0: Int, year: Int): String =
     "$dayOfMonth ${MONTHS[month0]} $year"
@@ -88,8 +126,8 @@ private fun formatFullDate(dayOfMonth: Int, month0: Int, year: Int): String =
  * reminder was the sooner entry — worse than the ambiguity, since a real alarm
  * further out then never showed. So: always show whatever's next; when it
  * matches a scheduled calendar reminder (see [reminderTitleFor]) show that
- * event's own title, otherwise label it "alarm / bedtime" (see [ClockBack]) —
- * the best remaining guess once a calendar match is ruled out.
+ * event's own title, otherwise name the app that scheduled it (see
+ * [alarmSourceFor] / [alarmCaption]).
  */
 fun nextAlarmString(context: Context): String {
     val am = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return ""
@@ -168,6 +206,8 @@ fun clockFace(
     reminderTitle: String = "",
     alarmDate: String = "",
     alarmWeekday: String = "",
+    alarmSource: String = "",
+    alarmSourceIsClock: Boolean = false,
 ): ClockFace {
     val hour12 = (hour24 % 12).let { if (it == 0) 12 else it }
     val suffix = if (hour24 < 12) "am" else "pm"
@@ -181,6 +221,8 @@ fun clockFace(
         reminderTitle = reminderTitle,
         alarmDate = alarmDate,
         alarmWeekday = alarmWeekday,
+        alarmSource = alarmSource,
+        alarmSourceIsClock = alarmSourceIsClock,
     )
 }
 
@@ -193,6 +235,7 @@ private fun currentClockFace(context: Context): ClockFace {
         formatFullDate(it.get(Calendar.DAY_OF_MONTH), it.get(Calendar.MONTH), it.get(Calendar.YEAR))
     }.orEmpty()
     val alarmWeekday = alarmCal?.let { WEEKDAYS[it.get(Calendar.DAY_OF_WEEK) - 1] }.orEmpty()
+    val source = info?.let { alarmSourceFor(context, it) }
     return clockFace(
         hour24 = c.get(Calendar.HOUR_OF_DAY),
         minute = c.get(Calendar.MINUTE),
@@ -204,6 +247,8 @@ private fun currentClockFace(context: Context): ClockFace {
         reminderTitle = info?.let { reminderTitleFor(context, it.triggerTime) }.orEmpty(),
         alarmDate = alarmDate,
         alarmWeekday = alarmWeekday,
+        alarmSource = source?.appLabel.orEmpty(),
+        alarmSourceIsClock = source?.isClockApp == true,
     )
 }
 
@@ -413,11 +458,11 @@ private fun ClockBack(face: ClockFace, size: TileSize) {
                 // Android's getNextAlarmClock reports a single system-wide next value
                 // that any app may have registered (not just a clock app — e.g. a
                 // calendar reminder). When it matches a known calendar reminder
-                // (reminderTitleFor), show that event's own title; otherwise it's most
-                // likely a real device alarm/bedtime schedule, so label it as such
-                // (Android gives no way to tell alarm apart from bedtime).
+                // (reminderTitleFor), show that event's own title; otherwise name the
+                // app that scheduled it (alarmCaption), so a reminder app's entry
+                // doesn't read as an alarm the user never set.
                 Text(
-                    text = face.reminderTitle.ifEmpty { "alarm / bedtime" },
+                    text = alarmCaption(face.reminderTitle, face.alarmSource, face.alarmSourceIsClock),
                     color = FaceText.copy(alpha = 0.65f),
                     fontSize = smallSize,
                     maxLines = if (short) 1 else 2,

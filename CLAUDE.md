@@ -37,6 +37,15 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — clock/alarm tiles name the app that set the next alarm.** User-reported: people saw
+  an "alarm / bedtime" time they never set, and it kept changing. The time is Android's single
+  system-wide `getNextAlarmClock()`, which any app can fill via `setAlarmClock()` (reminder/task
+  apps, sleep trackers, Digital Wellbeing); reminder apps re-register after each one fires, hence
+  the moving time. `alarmSourceFor` reads the entry's `showIntent.creatorPackage` and
+  `alarmCaption` (pure, tested in `AlarmTest`) labels it: calendar reminder title → "alarm" for
+  a clock app (any `ACTION_SHOW_ALARMS` handler) → "set by <app>" → the old "alarm / bedtime"
+  only when unknown. The alarm tile's back shows "set by <app>" too. Build + tests green; not
+  seen on a device (the emulator has the release build, and a debug install would wipe it).
 - **`main` — money hub (folded into v5.0.0, not yet uploaded).** User-requested, designed first.
   Transactions are parsed from new bank-SMS and payment-app notifications (`money/MoneyParser.kt`,
   pure + tested; `MoneyCapture` in the listener; SMS app and payment/bank apps only; OTP/due/offer

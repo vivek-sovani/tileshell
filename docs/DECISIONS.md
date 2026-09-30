@@ -10735,3 +10735,11 @@ The seeder used to bind liveOnly tiles to whatever app their role resolved to (m
 
 ## Money hub reads notifications, not SMS (2026-09-28)
 User asked for bank transactions "collected from sms". `READ_SMS` is a Play restricted permission, allowed only for the default SMS app or apps whose core purpose is SMS money management, so a launcher feature would likely be rejected. Instead, the existing notification listener reads new bank SMS as the messages app shows them, and payment apps' own notices. Only the SMS app and payment/banking apps (package list plus label words) are read, so chats mentioning money aren't counted. OTP, due, offer and request messages are rejected, and the same amount and direction within 5 minutes counts once. History before the feature is impossible by design. Data is a local file kept for a year. Transactions are behind `BiometricPrompt` (API 30+, biometric or device credential) or the screen-lock confirmation below that, skipped when no screen lock is set. The tile's amounts are off by default, per the user.
+
+## Clock/alarm tiles name the app that scheduled the next alarm
+Android exposes only one system-wide "next alarm" (`AlarmManager.getNextAlarmClock()`), and any
+app may fill it with `setAlarmClock()`. Filtering to clock apps was tried earlier and blanked the
+tile whenever a reminder was sooner, so we still show whatever is next, but name its source from
+`AlarmClockInfo.showIntent.creatorPackage`: "alarm" for a clock app (an `ACTION_SHOW_ALARMS`
+handler), "set by <app>" otherwise, and "alarm / bedtime" only when the creator can't be resolved.
+A calendar reminder's own title still wins when it matches.

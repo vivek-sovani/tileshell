@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -45,6 +46,8 @@ data class AlarmFace(
     val hasAlarm: Boolean,
     val time: String,
     val dayLabel: String,
+    /** "set by <app>" when a non-clock app scheduled it; empty for a clock alarm or unknown. */
+    val source: String = "",
 )
 
 /**
@@ -87,6 +90,11 @@ internal fun currentAlarmFace(context: Context): AlarmFace {
         triggerDayOfYear = trigger.get(Calendar.DAY_OF_YEAR),
         triggerYear = trigger.get(Calendar.YEAR),
         triggerWeekday = WEEKDAYS[trigger.get(Calendar.DAY_OF_WEEK) - 1],
+    ).copy(
+        source = alarmSourceFor(context, info)
+            ?.takeUnless { it.isClockApp }
+            ?.let { alarmCaption("", it.appLabel, false) }
+            .orEmpty(),
     )
 }
 
@@ -207,6 +215,16 @@ private fun AlarmBack(face: AlarmFace, size: TileSize) {
             letterSpacing = (-1).sp,
         )
         Spacer(Modifier.height(4.dp))
+        if (face.source.isNotEmpty()) {
+            Text(
+                text = face.source,
+                color = FaceText.copy(alpha = 0.82f),
+                fontSize = if (narrow) 11.sp else 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
+            )
+        }
         Text(
             text = if (face.hasAlarm) "tap to open your alarms" else "tap to set one",
             color = FaceText.copy(alpha = 0.65f),
