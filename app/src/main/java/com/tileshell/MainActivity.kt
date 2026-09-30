@@ -170,6 +170,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // While TileShell is on screen, a task reminder shows as its own toast.
+        com.tileshell.core.data.reminders.TaskReminders.startVisible = true
+    }
+
+    override fun onPause() {
+        com.tileshell.core.data.reminders.TaskReminders.startVisible = false
+        super.onPause()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -199,6 +210,11 @@ class MainActivity : ComponentActivity() {
      */
     /** A widget asking TileShell to open one of its hubs (the battery widget's tap). */
     private fun handleOpenHubIntent(intent: Intent) {
+        // A task reminder's notification / "open" → that task's list.
+        intent.getStringExtra(com.tileshell.core.data.reminders.TaskReminders.EXTRA_OPEN_TASK_LIST)?.let { listId ->
+            startViewModel.openTasks(listId)
+            intent.removeExtra(com.tileshell.core.data.reminders.TaskReminders.EXTRA_OPEN_TASK_LIST)
+        }
         when (intent.getStringExtra(com.tileshell.feature.livetiles.widget.EXTRA_OPEN_HUB)) {
             "battery" -> startViewModel.openBatteryHub()
             "panchang" -> startViewModel.openPanchang()

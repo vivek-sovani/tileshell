@@ -1,6 +1,10 @@
 package com.tileshell.feature.personalize
 
+import android.Manifest
+import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -34,7 +38,9 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,10 +65,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.TaskItem
 import com.tileshell.core.data.TaskRepository
+import com.tileshell.core.data.reminders.TaskReminders
+import com.tileshell.core.data.reminders.TaskRepeat
+import com.tileshell.core.data.reminders.reminderLine
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.colorTokens
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -107,6 +120,25 @@ fun TaskListSheet(
 
     var draft by remember { mutableStateOf("") }
     var confirmClearAll by remember { mutableStateOf(false) }
+
+    // Task reminders (hidden entirely when TaskReminders.ENABLED is off).
+    var reminderFor by remember { mutableStateOf<TaskItem?>(null) }
+    var askExactAccess by remember { mutableStateOf(false) }
+    var exactAllowed by remember { mutableStateOf(TaskReminders.canScheduleExact(context)) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                exactAllowed = TaskReminders.canScheduleExact(context)
+                // Access granted in Settings → re-arm alarms as exact ones.
+                scope.launch { TaskReminders.sync(context) }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val now = rememberMinuteNow(visible)
 
     // The list's name ("work", "home"), editable in place. Every shown list
     // gets a row (and a default name) the moment it's opened.
@@ -157,7 +189,26 @@ fun TaskListSheet(
         )
     }
 
-    BackHandler(enabled = visible) { onDismiss() }
+    if (askExactAccess) {
+        AlertDialog(
+            onDismissRequest = { askExactAccess = false },
+            title = { Text("turn on on-time reminders") },
+            text = {
+                Text("android needs \"alarms & reminders\" access to alert you at the exact minute. without it, reminders are off.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    askExactAccess = false
+                    runCatching { context.startActivity(TaskReminders.exactAccessIntent(context)) }
+                }) { Text("open settings") }
+            },
+            dismissButton = {
+                TextButton(onClick = { askExactAccess = false }) { Text("not now") }
+            },
+        )
+    }
+
+    BackHandler(enabled = visible && reminderFor == null) { onDismiss() }
 
     SheetStage(rightHalf = rightHalf, modifier = modifier) {
         Box(
@@ -279,6 +330,10 @@ fun TaskListSheet(
                                 tokens = tokens,
                                 onToggle = { scope.launch { repository.setDone(task.id, !task.done) } },
                                 onDelete = { scope.launch { repository.delete(task.id) } },
+                                now = now,
+                                exactAllowed = exactAllowed,
+                                onReminder = if (TaskReminders.ENABLED) ({ reminderFor = task }) else null,
+                                onFixAccess = { askExactAccess = true },
                             )
                         }
                     }
@@ -311,6 +366,26 @@ fun TaskListSheet(
                 }
             }
         }
+        reminderFor?.let { editing ->
+            TaskReminderSheet(
+                task = editing,
+                tokens = tokens,
+                accent = accent,
+                onSet = { at, repeat ->
+                    reminderFor = null
+                    scope.launch { repository.setReminder(editing.id, at, repeat) }
+                    if (!TaskReminders.notificationsAllowed(context) && Build.VERSION.SDK_INT >= 33) {
+                        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                    if (!TaskReminders.canScheduleExact(context)) askExactAccess = true
+                },
+                onRemove = {
+                    reminderFor = null
+                    scope.launch { repository.setReminder(editing.id, null, TaskRepeat.Once) }
+                },
+                onDismiss = { reminderFor = null },
+            )
+        }
     }
 }
 
@@ -321,6 +396,10 @@ private fun TaskRow(
     tokens: com.tileshell.core.design.ColorTokens,
     onToggle: () -> Unit,
     onDelete: () -> Unit,
+    now: Long,
+    exactAllowed: Boolean,
+    onReminder: (() -> Unit)?,
+    onFixAccess: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -341,13 +420,40 @@ private fun TaskRow(
             }
         }
         Spacer(Modifier.width(14.dp))
-        Text(
-            text = task.text,
-            color = if (task.done) tokens.fgDim else tokens.fg,
-            fontSize = 15.sp,
-            textDecoration = if (task.done) TextDecoration.LineThrough else null,
-            modifier = Modifier.weight(1f),
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = task.text,
+                color = if (task.done) tokens.fgDim else tokens.fg,
+                fontSize = 15.sp,
+                textDecoration = if (task.done) TextDecoration.LineThrough else null,
+            )
+            val remindAt = task.remindAt
+            if (remindAt != null && !task.done) {
+                val overdue = remindAt <= now
+                when {
+                    !exactAllowed && !overdue -> Text(
+                        text = "reminder off · needs alarms & reminders access",
+                        color = Color(0xFFE8B04A),
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 2.dp).clickable(onClick = onFixAccess),
+                    )
+                    else -> Text(
+                        text = reminderLine(remindAt, task.repeat, now),
+                        color = if (overdue) Color(0xFFF07A7A) else accent,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            }
+        }
+        if (onReminder != null && !task.done) {
+            Icon(
+                imageVector = TileIcons["bell"],
+                contentDescription = if (task.remindAt != null) "edit reminder" else "add reminder",
+                tint = if (task.remindAt != null) accent else tokens.fgDim,
+                modifier = Modifier.padding(end = 14.dp).size(20.dp).clickable(onClick = onReminder),
+            )
+        }
         Icon(
             imageVector = TileIcons["close"],
             contentDescription = "delete task",
@@ -355,4 +461,17 @@ private fun TaskRow(
             modifier = Modifier.size(18.dp).clickable(onClick = onDelete),
         )
     }
+}
+
+/** The current time, refreshed on each minute boundary while [active] (for "overdue"). */
+@Composable
+private fun rememberMinuteNow(active: Boolean): Long {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(active) {
+        while (active) {
+            now = System.currentTimeMillis()
+            delay(60_000L - (now % 60_000L))
+        }
+    }
+    return now
 }

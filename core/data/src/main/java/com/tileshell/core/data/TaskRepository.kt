@@ -6,6 +6,9 @@ import com.tileshell.core.data.db.TaskEntity
 import com.tileshell.core.data.db.TaskListDao
 import com.tileshell.core.data.db.TaskListEntity
 import com.tileshell.core.data.db.TileShellDatabase
+import com.tileshell.core.data.reminders.TaskRepeat
+import com.tileshell.core.data.reminders.TaskReminders
+import com.tileshell.core.data.reminders.nextReminderAt
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -14,9 +17,22 @@ data class TaskItem(
     val id: Long,
     val text: String,
     val done: Boolean,
+    /** Next reminder time (epoch millis), or null; always null when reminders are switched off. */
+    val remindAt: Long? = null,
+    val repeat: TaskRepeat = TaskRepeat.Once,
+    val snoozeAt: Long? = null,
+    val listId: String = "",
 )
 
-private fun TaskEntity.toItem() = TaskItem(id = id, text = text, done = done)
+private fun TaskEntity.toItem() = TaskItem(
+    id = id,
+    text = text,
+    done = done,
+    remindAt = remindAt.takeIf { TaskReminders.ENABLED },
+    repeat = TaskRepeat.decode(remindRepeat),
+    snoozeAt = remindSnoozeAt,
+    listId = listId,
+)
 
 /** A named task list with its count of unfinished tasks. */
 data class TaskListSummary(val id: String, val name: String, val openCount: Int)
@@ -32,7 +48,12 @@ data class OpenTask(val id: Long, val text: String, val listId: String)
  * instance, since a user pinning a second Tasks tile clearly wants a second,
  * separate checklist, not a duplicate view of the first one.
  */
-class TaskRepository(private val dao: TaskDao, private val lists: TaskListDao) {
+class TaskRepository(
+    private val dao: TaskDao,
+    private val lists: TaskListDao,
+    /** Runs after every write that can change a reminder — reschedules the alarms. */
+    private val onRemindersChanged: suspend () -> Unit = {},
+) {
 
     /** Live, ordered task list for one specific pinned instance. */
     fun tasks(listId: String): Flow<List<TaskItem>> =
@@ -53,15 +74,41 @@ class TaskRepository(private val dao: TaskDao, private val lists: TaskListDao) {
         )
     }
 
-    suspend fun setDone(id: Long, done: Boolean) = dao.setDone(id, done)
+    /**
+     * Ticking a repeating task with a reminder moves it to its next date and
+     * keeps it open (no copies); everything else just toggles.
+     */
+    suspend fun setDone(id: Long, done: Boolean) {
+        val task = if (done && TaskReminders.ENABLED) dao.get(id) else null
+        val repeat = TaskRepeat.decode(task?.remindRepeat)
+        val next = task?.remindAt?.let { nextReminderAt(it, repeat, System.currentTimeMillis()) }
+        if (next != null) dao.advanceReminder(id, next) else dao.setDone(id, done)
+        onRemindersChanged()
+    }
 
-    suspend fun delete(id: Long) = dao.delete(id)
+    suspend fun delete(id: Long) {
+        dao.delete(id)
+        onRemindersChanged()
+    }
+
+    /** Sets a reminder on a task, or clears it when [at] is null. */
+    suspend fun setReminder(id: Long, at: Long?, repeat: TaskRepeat) {
+        dao.setReminder(id, at, if (at == null) "" else repeat.code)
+        onRemindersChanged()
+    }
+
+    /** Open tasks with a reminder across every list, soonest first. */
+    fun reminderTasks(): Flow<List<TaskItem>> =
+        dao.observeReminderTasks().map { rows -> if (TaskReminders.ENABLED) rows.map { it.toItem() } else emptyList() }
 
     /** Removes only [listId]'s checked-off tasks — the safe, non-destructive "tidy up" action. */
     suspend fun clearCompleted(listId: String) = dao.clearCompleted(listId)
 
     /** Wipes [listId]'s whole list, including unfinished tasks — a deliberate "start over." */
-    suspend fun clearAll(listId: String) = dao.clearAll(listId)
+    suspend fun clearAll(listId: String) {
+        dao.clearAll(listId)
+        onRemindersChanged()
+    }
 
     /** Daily auto-clear (see `TaskDailyResetWorker`) — completed tasks across every list, not just one. */
     suspend fun clearCompletedEverywhere() = dao.clearCompletedEverywhere()
@@ -105,12 +152,14 @@ class TaskRepository(private val dao: TaskDao, private val lists: TaskListDao) {
     suspend fun deleteList(listId: String) {
         dao.clearAll(listId)
         lists.delete(listId)
+        onRemindersChanged()
     }
 
     companion object {
         fun create(context: Context): TaskRepository {
-            val db = TileShellDatabase.get(context)
-            return TaskRepository(db.taskDao(), db.taskListDao())
+            val app = context.applicationContext
+            val db = TileShellDatabase.get(app)
+            return TaskRepository(db.taskDao(), db.taskListDao()) { TaskReminders.sync(app) }
         }
     }
 }

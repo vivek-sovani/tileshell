@@ -648,6 +648,16 @@ android {
         versionName = "5.0.0"
     }
 
+    // Task reminders kill switch (gradle.properties → tileshell.taskReminders).
+    // SCHEDULE_EXACT_ALARM lives in its own manifest, merged into every build type
+    // only while the switch is on — off, the permission is absent from the APK/AAB.
+    val taskReminders = providers.gradleProperty("tileshell.taskReminders").orNull?.toBoolean() ?: true
+    if (taskReminders) {
+        listOf("debug", "release").forEach { type ->
+            sourceSets.getByName(type).manifest.srcFile("src/taskReminders/AndroidManifest.xml")
+        }
+    }
+
     if (keystoreFile.exists()) {
         signingConfigs {
             create("release") {

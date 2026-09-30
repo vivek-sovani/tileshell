@@ -10743,3 +10743,24 @@ tile whenever a reminder was sooner, so we still show whatever is next, but name
 `AlarmClockInfo.showIntent.creatorPackage`: "alarm" for a clock app (an `ACTION_SHOW_ALARMS`
 handler), "set by <app>" otherwise, and "alarm / bedtime" only when the creator can't be resolved.
 A calendar reminder's own title still wins when it matches.
+
+## Task reminders
+- **Permissions:** SCHEDULE_EXACT_ALARM (user-granted "Alarms & reminders", no Play declaration),
+  POST_NOTIFICATIONS (already declared) and RECEIVE_BOOT_COMPLETED. USE_EXACT_ALARM and
+  USE_FULL_SCREEN_INTENT both need a Play declaration and are deliberately not used; nor is
+  "display over other apps".
+- **Kill switch:** `tileshell.taskReminders` in gradle.properties. It feeds a core:data
+  BuildConfig flag (`TaskReminders.ENABLED`) and decides whether
+  `app/src/taskReminders/AndroidManifest.xml` is merged. A manifest placeholder in
+  `tools:node` isn't substituted by the merger, and swapping the permission name for another
+  one left a duplicate entry, hence the separate manifest.
+- **Where it alerts:** the system heads-up over other apps and the lock screen (we can't restyle
+  it); TileShell's own WP-style toast while it's on screen (the notification then goes in
+  silently via a childless group); the tasks/productivity tiles show due tasks first.
+- **Repeat:** only the next due time is stored. Done on a repeating task advances it to the first
+  occurrence after now (no copies, per the user). A monthly/yearly series started on the 29th–31st
+  settles on the shorter month's last day — accepted rather than adding an anchor column.
+- **No silent late delivery:** without exact access the alarm is still set inexactly, but the
+  task row says "reminder off · needs alarms & reminders access".
+- `setAlarmClock()` is avoided so our reminders never appear as the system "next alarm" on
+  clock tiles.

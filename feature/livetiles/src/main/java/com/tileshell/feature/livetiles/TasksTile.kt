@@ -1,5 +1,10 @@
 package com.tileshell.feature.livetiles
 
+import com.tileshell.core.data.reminders.isReminderDue
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -43,13 +48,15 @@ import com.tileshell.core.design.TileIcons
 import kotlinx.coroutines.launch
 
 /** One row shown in the tile's checklist preview. */
-data class TaskPreviewItem(val id: Long, val text: String, val done: Boolean)
+data class TaskPreviewItem(val id: Long, val text: String, val done: Boolean, val due: Boolean = false)
 
 /** What the tile actually renders — counts plus a short preview. */
 data class TasksSummary(
     val doneCount: Int,
     val totalCount: Int,
     val preview: List<TaskPreviewItem>,
+    /** Open tasks whose reminder has gone off (see isReminderDue) — listed first. */
+    val dueCount: Int = 0,
 )
 
 /**
@@ -61,14 +68,19 @@ data class TasksSummary(
  * ones are kept — otherwise a task just added would never appear until
  * enough older ones were checked off or deleted.
  */
-fun tasksSummary(tasks: List<TaskItem>, maxPreview: Int = 3): TasksSummary {
-    val active = tasks.filter { !it.done }
-    val activePreview = if (active.size > maxPreview) active.takeLast(maxPreview) else active
-    val ordered = activePreview + tasks.filter { it.done }
+fun tasksSummary(tasks: List<TaskItem>, maxPreview: Int = 3, now: Long = 0L): TasksSummary {
+    fun TaskItem.isDue() = isReminderDue(remindAt, snoozeAt, done, now)
+    // Due reminders come first, like a WP live tile surfacing what needs you now.
+    val due = tasks.filter { it.isDue() }
+    val active = tasks.filter { !it.done && !it.isDue() }
+    val room = (maxPreview - due.size).coerceAtLeast(0)
+    val activePreview = if (active.size > room) active.takeLast(room) else active
+    val ordered = due + activePreview + tasks.filter { it.done }
     return TasksSummary(
         doneCount = tasks.count { it.done },
         totalCount = tasks.size,
-        preview = ordered.take(maxPreview).map { TaskPreviewItem(it.id, it.text, it.done) },
+        preview = ordered.take(maxPreview).map { TaskPreviewItem(it.id, it.text, it.done, due = it.isDue()) },
+        dueCount = due.size,
     )
 }
 
@@ -121,7 +133,8 @@ fun TasksTileFace(size: TileSize, listId: String, modifier: Modifier = Modifier,
     LaunchedEffect(Unit) { TaskDailyResetWorker.ensureScheduled(context) }
     val repository = remember(context) { TaskRepository.create(context) }
     val tasks by remember(listId) { repository.tasks(listId) }.collectAsState(initial = emptyList())
-    val summary = remember(tasks, size) { tasksSummary(tasks, maxPreviewFor(size)) }
+    val now = rememberMinuteClock()
+    val summary = remember(tasks, size, now) { tasksSummary(tasks, maxPreviewFor(size), now) }
     val scope = rememberCoroutineScope()
     // The list's name ("work", "home") labels the tile; every shown list gets one.
     val name by remember(listId) { repository.listName(listId) }.collectAsState(initial = null)
@@ -155,13 +168,17 @@ private fun TasksFront(
         // not the tasks themselves), just left-aligned and compact instead of
         // the wider tile's two-line "x of y done" + progress bar header.
         Column(modifier = modifier.fillMaxSize().padding(6.dp)) {
-            Text(
-                text = "${summary.doneCount}/${summary.totalCount}",
-                color = FaceText,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Light,
-                maxLines = 1,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "${summary.doneCount}/${summary.totalCount}",
+                    color = FaceText,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Light,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f),
+                )
+                if (summary.dueCount > 0) DueBadge(summary.dueCount)
+            }
             Spacer(Modifier.height(6.dp))
             if (summary.preview.isEmpty()) {
                 Text(
@@ -190,13 +207,17 @@ private fun TasksFront(
     }
 
     Column(modifier = modifier.fillMaxSize().padding(11.dp)) {
-        Text(
-            text = "${summary.doneCount} of ${summary.totalCount} done",
-            color = FaceText,
-            fontSize = if (big) 20.sp else 16.sp,
-            fontWeight = FontWeight.Light,
-            maxLines = 1,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = if (summary.dueCount > 0) "due now" else "${summary.doneCount} of ${summary.totalCount} done",
+                color = FaceText,
+                fontSize = if (big) 20.sp else 16.sp,
+                fontWeight = FontWeight.Light,
+                maxLines = 1,
+                modifier = Modifier.weight(1f),
+            )
+            if (summary.dueCount > 0) DueBadge(summary.dueCount)
+        }
         if (summary.totalCount > 0) {
             Spacer(Modifier.height(6.dp))
             TaskProgressBar(
@@ -299,13 +320,49 @@ private fun TaskPreviewRow(
                 }
             }
         }
+        if (item.due) {
+            Icon(TileIcons["bell"], contentDescription = "due", tint = FaceText, modifier = Modifier.size(13.dp).padding(top = 1.dp))
+        }
         Text(
             text = item.text,
             color = if (item.done) FaceText.copy(alpha = 0.55f) else FaceText,
             fontSize = 14.sp,
+            fontWeight = if (item.due) FontWeight.Medium else null,
             maxLines = maxLines,
             overflow = TextOverflow.Ellipsis,
             textDecoration = if (item.done) TextDecoration.LineThrough else null,
         )
     }
+}
+
+/** Count of due reminders, the tile's own badge (the tasks tile has no app package to badge). */
+@Composable
+private fun DueBadge(count: Int) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(FaceText)
+            .padding(horizontal = 6.dp, vertical = 1.dp),
+    ) {
+        Text(
+            if (count > 99) "99+" else count.toString(),
+            color = FaceText.let { if (it.luminance() > 0.5f) Color(0xFF111111) else Color.White },
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+/** Now, refreshed on each minute boundary, so a reminder becomes "due" on time. */
+@Composable
+internal fun rememberMinuteClock(): Long {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = System.currentTimeMillis()
+            delay(60_000L - (now % 60_000L))
+        }
+    }
+    return now
 }

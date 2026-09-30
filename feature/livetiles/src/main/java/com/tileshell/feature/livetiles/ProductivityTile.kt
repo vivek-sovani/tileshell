@@ -1,5 +1,6 @@
 package com.tileshell.feature.livetiles
 
+import com.tileshell.core.data.reminders.isReminderDue
 import android.Manifest
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -56,6 +57,9 @@ fun ProductivityTileFace(size: TileSize, active: Boolean, modifier: Modifier = M
     val calendarGranted = rememberPermissionGranted(Manifest.permission.READ_CALENDAR)
     val meetings = rememberUpcomingMeetings(calendarGranted, active)
     val openCount by remember(context) { TaskRepository.create(context).openCount() }.collectAsState(initial = 0)
+    val reminderTasks by remember(context) { TaskRepository.create(context).reminderTasks() }.collectAsState(initial = emptyList())
+    val now = rememberMinuteClock()
+    val dueCount = reminderTasks.count { isReminderDue(it.remindAt, it.snoozeAt, it.done, now) }
     val apps = rememberProductivityApps().orEmpty()
 
     var flipped by remember { mutableStateOf(false) }
@@ -73,13 +77,13 @@ fun ProductivityTileFace(size: TileSize, active: Boolean, modifier: Modifier = M
     FlipTile(
         flipped = flipped,
         modifier = modifier.fillMaxSize(),
-        front = { ProductivityFront(meetings.firstOrNull(), openCount, size) },
+        front = { ProductivityFront(meetings.firstOrNull(), openCount, dueCount, size) },
         back = { ProductivityAppsBack(apps, size) },
     )
 }
 
 @Composable
-private fun ProductivityFront(meeting: UpcomingMeeting?, openCount: Int, size: TileSize) {
+private fun ProductivityFront(meeting: UpcomingMeeting?, openCount: Int, dueCount: Int, size: TileSize) {
     val context = LocalContext.current
     val color = LocalTileFaceColor.current
     val now = System.currentTimeMillis()
@@ -131,8 +135,13 @@ private fun ProductivityFront(meeting: UpcomingMeeting?, openCount: Int, size: T
             if (size.rows >= 2) {
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    if (openCount > 0) "$openCount task${if (openCount == 1) "" else "s"} open" else "no open tasks",
+                    when {
+                        dueCount > 0 -> "$dueCount task${if (dueCount == 1) "" else "s"} due now"
+                        openCount > 0 -> "$openCount task${if (openCount == 1) "" else "s"} open"
+                        else -> "no open tasks"
+                    },
                     color = color,
+                    fontWeight = if (dueCount > 0) FontWeight.Medium else null,
                     fontSize = 13.sp,
                     maxLines = 1,
                 )

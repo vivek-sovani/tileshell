@@ -149,6 +149,13 @@ data class TaskEntity(
     val listId: String = "default",
     val position: Int,
     val createdAt: Long,
+    // Task reminders (v15→v16). [remindAt] is the next due time (epoch millis),
+    // [remindRepeat] a [com.tileshell.core.data.reminders.TaskRepeat] code ("" = once),
+    // [remindSnoozeAt] a pending snooze, [remindFired] true once a one-off has alerted.
+    val remindAt: Long? = null,
+    val remindRepeat: String = "",
+    val remindSnoozeAt: Long? = null,
+    val remindFired: Boolean = false,
 )
 
 /**

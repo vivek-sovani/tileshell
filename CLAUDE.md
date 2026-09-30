@@ -37,6 +37,22 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — task reminders (schema v16), behind a one-line kill switch.** User-requested,
+  designed first. Tapping the bell on a task in the task list sheet opens "remind me": date
+  chips (today / tomorrow / next mon / pick), time chips (9 am / 1 pm / 6 pm / pick) and repeat
+  (once, daily, weekly, monthly, yearly, every N days). Ticking a repeating task moves it to its
+  next date and keeps it open, never copying it (`TaskRepository.setDone` → `nextReminderAt`).
+  Alerts: Android heads-up (done / snooze 10 min / open, which opens the list) over other apps;
+  a WP-style accent toast (`TaskReminderToast`) while TileShell is on screen, with the
+  notification posted silently; the tasks tile lists due tasks first with a count badge, and the
+  productivity tile says "n tasks due now". `core/data/reminders/`: pure `TaskRepeat.kt`
+  (tested), `TaskReminders.sync` (one exact alarm per pending task, called after every task
+  write, at boot and on app update), and the receivers. Exact timing uses user-granted
+  SCHEDULE_EXACT_ALARM (no Play declaration); without it the task says "reminder off · needs
+  alarms & reminders access". **Kill switch:** `tileshell.taskReminders=false` in
+  `gradle.properties` hides the UI, schedules nothing, and drops the permission (it lives in
+  `app/src/taskReminders/AndroidManifest.xml`, merged only while on; verified with aapt both
+  ways). Build + full unit tests green; not yet run on a device.
 - **`main` — clock/alarm tiles name the app that set the next alarm.** User-reported: people saw
   an "alarm / bedtime" time they never set, and it kept changing. The time is Android's single
   system-wide `getNextAlarmClock()`, which any app can fill via `setAlarmClock()` (reminder/task

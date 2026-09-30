@@ -21,6 +21,9 @@ interface TaskListDao {
     @Query("SELECT name FROM task_lists WHERE id = :id")
     fun observeName(id: String): Flow<String?>
 
+    @Query("SELECT name FROM task_lists WHERE id = :id")
+    suspend fun name(id: String): String?
+
     @Query("SELECT COUNT(*) FROM task_lists")
     suspend fun count(): Int
 

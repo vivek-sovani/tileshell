@@ -2507,6 +2507,14 @@ fun StartScreen(
             )
         }
 
+        // Task reminder going off while Start is showing: a WP-style toast across
+        // the top instead of the system heads-up (see TaskReminders.fire).
+        TaskReminderToast(
+            accent = accent,
+            onOpen = viewModel::openTasks,
+            modifier = Modifier.align(Alignment.TopCenter),
+        )
+
         // First-run hint (S19): one-time prototype hint card over Start. Sits
         // above all other layers so it reads on a fresh install; self-hides once
         // seen. Suppressed while the home-style wizard is up (below), which

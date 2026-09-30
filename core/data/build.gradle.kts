@@ -10,6 +10,13 @@ android {
 
     defaultConfig {
         minSdk = 26
+        // gradle.properties → tileshell.taskReminders; see TaskReminders.ENABLED.
+        val taskReminders = providers.gradleProperty("tileshell.taskReminders").orNull?.toBoolean() ?: true
+        buildConfigField("boolean", "TASK_REMINDERS", taskReminders.toString())
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     compileOptions {
