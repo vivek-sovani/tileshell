@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * One contact as shown in the People Hub's lists (the "all"/"frequent"/
- * "recent" rows) — enough identity to render a row (photo or initials avatar +
+ * "favourites" rows) — enough identity to render a row (photo or initials avatar +
  * name) and reopen the contact in the device's own Contacts app
  * ([openContactCard]). Falls back to an initials avatar tinted by [colorFor]
  * (see `ContactsSource.kt`) whenever [photoUri] is null.
@@ -100,21 +100,20 @@ fun queryFrequentContacts(context: Context, limit: Int = 10): List<PersonSummary
 }
 
 /**
- * Contacts sorted by [ContactsContract.Contacts.LAST_TIME_CONTACTED],
- * newest first, excluding ones never contacted (0) — needs only
- * READ_CONTACTS (this column is populated by the OS from call/SMS history
- * itself, no READ_CALL_LOG/READ_SMS required). The "recent" pivot.
+ * Starred contacts, alphabetical — the People Hub's "favourites". Starring is
+ * the user's own choice, made in Contacts or the dialer, and every phone keeps
+ * it (unlike "last contacted", which replaced "recent" for that reason).
+ * Needs only READ_CONTACTS.
  */
-@Suppress("DEPRECATION") // LAST_TIME_CONTACTED still works fine; there is no non-deprecated replacement
-fun queryRecentContacts(context: Context, limit: Int = 30): List<PersonSummary> {
+fun queryFavouriteContacts(context: Context, limit: Int = 200): List<PersonSummary> {
     val out = mutableListOf<PersonSummary>()
     runCatching {
         context.contentResolver.query(
             ContactsContract.Contacts.CONTENT_URI,
             SUMMARY_PROJECTION,
-            "${ContactsContract.Contacts.LAST_TIME_CONTACTED} > 0",
+            "${ContactsContract.Contacts.STARRED} = 1",
             null,
-            "${ContactsContract.Contacts.LAST_TIME_CONTACTED} DESC",
+            "${ContactsContract.Contacts.DISPLAY_NAME_PRIMARY} ASC",
         )?.use { cursor ->
             while (cursor.moveToNext() && out.size < limit) {
                 val name = cursor.getString(2)?.trim().orEmpty()

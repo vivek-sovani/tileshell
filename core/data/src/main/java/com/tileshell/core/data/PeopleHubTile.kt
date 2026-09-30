@@ -27,6 +27,9 @@ object PeopleHubTile {
      * one of these tiles (including the default, real-Contacts-app tile). */
     fun decode(activityName: String?): String? {
         if (activityName == null || !activityName.startsWith(PREFIX)) return null
-        return activityName.removePrefix(PREFIX).ifBlank { null }
+        val page = activityName.removePrefix(PREFIX).ifBlank { null }
+        // "recent" was replaced by "favourites" (Android no longer keeps "last
+        // contacted"); a tile pinned before that opens and draws the new page.
+        return if (page == "recent") "favourites" else page
     }
 }

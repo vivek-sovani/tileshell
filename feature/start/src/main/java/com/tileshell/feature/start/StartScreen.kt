@@ -7440,7 +7440,7 @@ private fun StaticTileGlyph(
     // icon — resolved the same way the live-face dispatch already decodes
     // which page a tile is pinned to.
     val effectiveIconKey = when (PeopleHubTile.decode(tile.activityName)) {
-        "recent" -> "clock"
+        "favourites" -> "heart"
         "what's new" -> "bell"
         "apps" -> "app"
         else -> tile.iconKey

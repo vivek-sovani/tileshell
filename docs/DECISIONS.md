@@ -10770,3 +10770,12 @@ A calendar reminder's own title still wins when it matches.
   task row says "reminder off · needs alarms & reminders access".
 - `setAlarmClock()` is avoided so our reminders never appear as the system "next alarm" on
   clock tiles.
+
+## People Hub: "recent" → "favourites" (starred + recently messaged)
+`ContactsContract.Contacts.LAST_TIME_CONTACTED` is no longer maintained by most dialers since
+Android 10, and the call log (READ_CALL_LOG) is a Play-declared permission for default phone apps
+only, so "recent" can't be made reliable. Replaced with starred contacts (kept by every phone) plus
+a TileShell-kept log of who messaged, taken from the chat/SMS notifications the hub already reads.
+Only senders matching a saved contact's name are shown (groups, businesses and unknown numbers
+aren't people rows). Old pinned "recent" tiles map to "favourites" in `PeopleHubTile.decode`, so
+no data migration is needed.

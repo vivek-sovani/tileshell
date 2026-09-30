@@ -89,7 +89,7 @@ fun PeopleHubPageTileFace(
     modifier: Modifier = Modifier,
 ) {
     when (page) {
-        "recent" -> RecentPeopleTileFace(size, fallback, modifier)
+        "favourites", "recent" -> FavouritesTileFace(size, fallback, modifier)
         "what's new" -> WhatsNewTileFace(size, active, fallback, modifier)
         "apps" -> PeopleAppsTileFace(size, active, fallback, modifier)
         else -> fallback()
@@ -97,13 +97,20 @@ fun PeopleHubPageTileFace(
 }
 
 @Composable
-private fun RecentPeopleTileFace(size: TileSize, fallback: @Composable () -> Unit, modifier: Modifier) {
+private fun FavouritesTileFace(size: TileSize, fallback: @Composable () -> Unit, modifier: Modifier) {
     val context = LocalContext.current
     val maxLines = linesFor(size)
-    val recent by produceState<List<PersonSummary>?>(initialValue = null, maxLines) {
-        value = withContext(Dispatchers.IO) { queryRecentContacts(context, limit = maxLines) }
+    // Starred contacts first; with none starred, people who recently messaged.
+    LaunchedEffect(Unit) { MessagedLog.ensureLoaded(context) }
+    val log by MessagedLog.entries.collectAsStateWithLifecycle()
+    val people by produceState<List<PersonSummary>?>(initialValue = null, maxLines, log) {
+        value = withContext(Dispatchers.IO) {
+            queryFavouriteContacts(context, limit = maxLines).ifEmpty {
+                matchMessaged(log, queryAllContacts(context)).map { it.first }.take(maxLines)
+            }
+        }
     }
-    val list = recent
+    val list = people
     if (list == null) return
     if (list.isEmpty()) return fallback()
     val color = LocalTileFaceColor.current
@@ -112,7 +119,7 @@ private fun RecentPeopleTileFace(size: TileSize, fallback: @Composable () -> Uni
             modifier = Modifier.fillMaxSize().padding(10.dp),
             verticalArrangement = Arrangement.Top,
         ) {
-            Text("recent", color = color, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("favourites", color = color, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(6.dp))
             // Real contact photos (user-requested: "recent... same thing" as
             // what's new's real sender photos), same ContactAvatar the hub's
@@ -134,7 +141,7 @@ private fun RecentPeopleTileFace(size: TileSize, fallback: @Composable () -> Uni
                 }
             }
         }
-        PageIconCorner("clock")
+        PageIconCorner("heart")
     }
 }
 

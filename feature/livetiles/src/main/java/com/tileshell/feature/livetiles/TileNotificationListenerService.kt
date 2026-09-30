@@ -120,7 +120,10 @@ class TileNotificationListenerService : NotificationListenerService() {
     private fun refresh() = synchronized(refreshLock) {
         // activeNotifications throws if the listener is not connected — guard it.
         val active = runCatching { activeNotifications }.getOrNull().orEmpty()
-        NotificationCenter.publish(summarizeNotifications(active.mapNotNull { it.toItem() }))
+        val snapshot = summarizeNotifications(active.mapNotNull { it.toItem() })
+        NotificationCenter.publish(snapshot)
+        // Who messaged — the People Hub's "recently messaged" (see MessagedLog).
+        MessagedLog.record(this, snapshot)
         // Parallel tap-action map: how each package's tile opens + clears on tap.
         NotificationCenter.publishActions(tileNotificationActions(active.map { it.toActionRow() }))
         // Reply / mark read / archive buttons per notification, for the People

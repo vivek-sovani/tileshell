@@ -10,7 +10,8 @@ class PeopleHubTileTest {
     @Test
     fun `round trips a page name`() {
         assertEquals("what's new", PeopleHubTile.decode(PeopleHubTile.encode("what's new")))
-        assertEquals("recent", PeopleHubTile.decode(PeopleHubTile.encode("recent")))
+        assertEquals("favourites", PeopleHubTile.decode(PeopleHubTile.encode("recent")))
+        assertEquals("favourites", PeopleHubTile.decode(PeopleHubTile.encode("favourites")))
     }
 
     @Test

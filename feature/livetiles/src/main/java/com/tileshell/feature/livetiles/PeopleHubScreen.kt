@@ -87,15 +87,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val HUB_PIVOTS = listOf("all", "what's new", "recent", "apps")
+private val HUB_PIVOTS = listOf("all", "what's new", "favourites", "apps")
 private val JUMP_LETTERS = listOf("#") + ('A'..'Z').map { it.toString() }
 
 /**
  * Full-screen people hub — matches the three approved mockups: an "all" page
  * (a "frequent" strip of avatars, then the full contact list grouped
  * alphabetically with a letter jump grid), a "what's new" page (recent
- * messaging/social notifications for people), and a "recent" page (most
- * recently contacted). Same WP Panorama/Pivot shell as
+ * messaging/social notifications for people), and a "favourites" page
+ * (starred contacts, then people who recently messaged — see [MessagedLog]). Same WP Panorama/Pivot shell as
  * [CalendarHubScreen]/`MusicHubScreen` — captioned title, pivot row,
  * `HubAppBar`.
  *
@@ -223,7 +223,7 @@ fun PeopleHubScreen(
                             savedWhatsNewApp = it
                             saveWhatsNewFilter(context, it)
                         }
-                        2 -> RecentPeoplePage(context, tokens, accent)
+                        2 -> FavouritesPage(context, tokens, accent)
                         else -> PeopleAppsPage(context, tokens, accent, snapshot)
                     }
                 }
@@ -577,6 +577,7 @@ private fun ContactRow(
     accent: Color,
     expanded: Boolean,
     onToggleExpand: () -> Unit,
+    subtitle: String? = null,
 ) {
     var phone by remember(person.contactId) { mutableStateOf<String?>(null) }
     LaunchedEffect(expanded, person.contactId) {
@@ -599,13 +600,18 @@ private fun ContactRow(
         ) {
             ContactAvatar(person, size = 40.dp, fontSize = 13.sp)
             Spacer(Modifier.width(14.dp))
-            Text(
-                person.name.lowercase(),
-                color = tokens.fg,
-                fontSize = 16.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Column {
+                Text(
+                    person.name.lowercase(),
+                    color = tokens.fg,
+                    fontSize = 16.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (subtitle != null) {
+                    Text(subtitle, color = tokens.fgDim, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
         }
         if (expanded) {
             // Spread evenly across the row's full width — user-reported "not
@@ -684,50 +690,105 @@ private fun PinContactMenu(expanded: Boolean, person: PersonSummary, onDismiss: 
     }
 }
 
+/**
+ * "favourites": starred contacts, then people who recently messaged (from
+ * TileShell's own [MessagedLog], matched to contacts by name). Replaced
+ * "recent", which read Android's "last contacted" field — no longer kept up to
+ * date on most phones since Android 10.
+ */
 @Composable
-private fun RecentPeoplePage(context: android.content.Context, tokens: ColorTokens, accent: Color) {
-    val recent by produceState<List<PersonSummary>?>(initialValue = null) {
-        value = withContext(Dispatchers.IO) { queryRecentContacts(context) }
+private fun FavouritesPage(context: android.content.Context, tokens: ColorTokens, accent: Color) {
+    val favourites by produceState<List<PersonSummary>?>(initialValue = null) {
+        value = withContext(Dispatchers.IO) { queryFavouriteContacts(context) }
     }
-    var expandedId by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(Unit) { MessagedLog.ensureLoaded(context) }
+    val log by MessagedLog.entries.collectAsStateWithLifecycle()
+    val contacts by produceState<List<PersonSummary>>(initialValue = emptyList()) {
+        value = withContext(Dispatchers.IO) { queryAllContacts(context) }
+    }
+    val messaged = remember(log, contacts) { matchMessaged(log, contacts).take(30) }
+    val now = System.currentTimeMillis()
+    var expandedId by remember { mutableStateOf<String?>(null) }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
     ) {
-        val list = recent
-        if (list == null) {
+        val stars = favourites
+        if (stars == null) {
             item { Spacer(Modifier.height(1.dp)) }
-        } else if (list.isEmpty()) {
+            return@LazyColumn
+        }
+        item { FavouritesHeader("favourites", tokens) }
+        if (stars.isEmpty()) {
             item {
-                Column(modifier = Modifier.padding(vertical = 24.dp)) {
-                    Text("no recently contacted people", color = tokens.fgDim, fontSize = 14.sp)
-                    Spacer(Modifier.height(6.dp))
-                    // User-reported: made real calls, "recent" still stayed
-                    // empty. Root cause: this reads Android's own
-                    // LAST_TIME_CONTACTED field, which most phones (Samsung's
-                    // own dialer included) stopped updating automatically
-                    // since Android 9 — not something this app can detect or
-                    // work around without the Call Log permission, which
-                    // carries real Play Store rejection risk for an app
-                    // that isn't the default phone app (declined per direct
-                    // discussion, kept as a known limitation instead).
-                    Text(
-                        "some phones don't keep track of this for calls made through their own dialer",
-                        color = tokens.fgDim,
-                        fontSize = 12.sp,
-                    )
-                }
+                Text(
+                    "star people in your contacts app to keep them here",
+                    color = tokens.fgDim,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
             }
         } else {
-            items(list, key = { "recent-${it.contactId}" }) { person ->
+            items(stars, key = { "fav-${it.contactId}" }) { person ->
+                val key = "fav-${person.contactId}"
                 ContactRow(
                     context, person, tokens, accent,
-                    expanded = expandedId == person.contactId,
-                    onToggleExpand = { expandedId = if (expandedId == person.contactId) null else person.contactId },
+                    expanded = expandedId == key,
+                    onToggleExpand = { expandedId = if (expandedId == key) null else key },
+                )
+            }
+        }
+
+        item { FavouritesHeader("recently messaged", tokens) }
+        if (messaged.isEmpty()) {
+            item {
+                Text(
+                    "people who message you on whatsapp, sms and other chat apps show up here",
+                    color = tokens.fgDim,
+                    fontSize = 14.sp,
+                )
+            }
+        } else {
+            items(messaged, key = { "msg-${it.first.contactId}" }) { (person, entry) ->
+                val key = "msg-${person.contactId}"
+                ContactRow(
+                    context, person, tokens, accent,
+                    expanded = expandedId == key,
+                    onToggleExpand = { expandedId = if (expandedId == key) null else key },
+                    subtitle = "${rememberAppLabel(entry.packageName)} · ${messagedAgo(entry.time, now)}",
                 )
             }
         }
         item { Spacer(Modifier.height(24.dp)) }
+    }
+}
+
+@Composable
+private fun FavouritesHeader(text: String, tokens: ColorTokens) {
+    Text(text, color = tokens.fgDim, fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
+}
+
+/** An app's own name, lowercase ("whatsapp"), or its package when unknown. */
+@Composable
+private fun rememberAppLabel(packageName: String): String {
+    val context = LocalContext.current
+    return remember(packageName) {
+        runCatching {
+            val pm = context.packageManager
+            pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString().lowercase()
+        }.getOrDefault(packageName.substringAfterLast('.'))
+    }
+}
+
+/** "just now" / "12m ago" / "3h ago" / "yesterday" / "5d ago". Pure. */
+internal fun messagedAgo(time: Long, now: Long): String {
+    val m = (now - time) / 60_000
+    return when {
+        m < 1 -> "just now"
+        m < 60 -> "${m}m ago"
+        m < 24 * 60 -> "${m / 60}h ago"
+        m < 48 * 60 -> "yesterday"
+        else -> "${m / (24 * 60)}d ago"
     }
 }
 

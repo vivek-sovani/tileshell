@@ -37,6 +37,16 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — People Hub "recent" replaced by "favourites".** User-reported that "recent" never
+  filled: it read Android's `LAST_TIME_CONTACTED`, no longer kept up to date on most phones since
+  Android 10, and the call log needs a Play-declared permission. "favourites" lists starred
+  contacts (`queryFavouriteContacts`), then "recently messaged": TileShell's own log of chat/SMS
+  notification senders (`MessagedLog`, `files/messaged_log.txt`, 30 days, 100 people, newest per
+  person; mail/social excluded), matched to contacts by name, with "whatsapp · 3h ago". Messages
+  only, and it fills from install onward. A pinned "recent" tile decodes as "favourites"
+  (`PeopleHubTile.decode`) and shows starred people, else recently messaged, with a heart corner.
+  Build + full unit tests green (`MessagedLogTest` new); installed on the phone, no crash; the
+  page itself not yet seen on screen.
 - **`main` — task reminders (schema v16), behind a one-line kill switch.** User-requested,
   designed first. Tapping the bell on a task in the task list sheet opens "remind me": date
   chips (today / tomorrow / next mon / pick), time chips (9 am / 1 pm / 6 pm / pick) and repeat
