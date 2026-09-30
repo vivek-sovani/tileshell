@@ -172,9 +172,10 @@ New features:
 • Hubs: weather, music, calendar, people,
   productivity, battery & money
 • Music: library, podcasts, radio, gapless
-• People: messages & mail, inline reply
+• People: messages, mail & favourites
 • Money: bank, UPI & card transactions
 • Panchang: festivals, ekadashi, grahan
+• Task reminders with repeat
 • Quick setup: style, theme, colours, apps
 • Permissions & refresh rates in one place
 
@@ -183,7 +184,7 @@ Bugs fixed:
 • Bluetooth play/pause in music
 ```
 
-*(Character count 434, under Play's 500 limit.)*
+*(Character count 460, under Play's 500 limit.)*
 
 ### Full changelog since v4.5.0
 
@@ -218,6 +219,23 @@ full-screen hub with windows-phone-style swipeable pages.
 - **Battery** — TileShell now keeps its own on-device battery log; a redesigned tile (drain rate,
   time left, today's curve), a battery hub (today, week, per-app screen time, details) and an
   upgraded widget.
+
+**New: task reminders.** Tap the bell on any task for a date, time and repeat (once, daily,
+weekly, monthly, yearly or every N days). A reminder rings with TileShell's own chime and vibrates:
+a banner with done, snooze 10 min and open over other apps, or a Windows Phone–style toast across
+the top while Start is showing. The tasks tile lists due tasks first with a badge and shows the next
+reminder; the productivity tile shows "due now" and the next one; productivity's today page lists
+what's scheduled today; the hub's task lists show each reminder. Ticking a repeating task moves it to
+its next date. On-time delivery uses Android's "Alarms & reminders" access (asked once); without
+it the task says its reminder is off. Reminders are set again after a restart or update.
+
+**New: people favourites.** "recent" (which relied on Android's "last contacted", no longer kept up to
+date on most phones) is now "favourites": your starred contacts, then people who recently messaged
+you on WhatsApp, SMS and other chat apps, kept by TileShell on the phone for 30 days. A pinned
+"recent" tile becomes the favourites tile.
+
+**Clock.** The clock and alarm tiles name the app that set the next alarm ("set by todoist")
+instead of a generic "alarm / bedtime".
 
 **New: setup and defaults.**
 - A hub-centred default start layout, colour-grouped in the new **multicolour** tile colour source,

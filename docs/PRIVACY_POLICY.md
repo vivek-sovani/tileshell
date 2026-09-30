@@ -1,7 +1,7 @@
 # TileShell — Privacy Policy
 
 *Effective date: 2026-06-18*  
-*Last updated: 2026-09-28*
+*Last updated: 2026-09-30*
 
 ---
 
@@ -24,13 +24,15 @@ simply stays inactive when a permission is denied.
 | `READ_CALENDAR` | Upcoming calendar events for the Calendar live tile | Stays on device |
 | `ACCESS_COARSE_LOCATION` | Device coarse location (city level) for the Weather live tile | Sent to Open-Meteo (see §2) |
 | `ACTIVITY_RECOGNITION` | Your phone's built-in step-counter sensor reading, for the Steps tile/card. Asked only the first time you add a Steps tile or card, not at first launch. | Stays on device |
-| `NOTIFICATION_LISTENER` (special access) | Notification titles and snippets for badges and Mail/Messages live tiles | Stays on device |
+| `NOTIFICATION_LISTENER` (special access) | Notification titles and snippets for badges and Mail/Messages live tiles; the names of people who message you in chat and SMS apps, remembered for 30 days for the People hub's "recently messaged" | Stays on device |
 | `INTERNET` | Weather forecast fetches, news RSS feeds, wallpaper URLs | Sent to Open-Meteo and each RSS source (see §2) |
 | `NOTIFICATION_LISTENER` — Money hub (optional, on by default once you open it) | New bank SMS (as shown by your messages app) and payment-app notifications, to record transactions: amount, debit or credit, merchant or person, account last 4 digits, method (UPI, card, NEFT…), and balance. Only new notifications; SMS history is never read. OTPs and promotions are ignored. Turn off with "read bank messages" in the Money hub's settings. | Stays on device |
 | `USE_BIOMETRIC` | Nothing read; asks for your fingerprint, face or screen lock before showing the Money hub's transactions | Not read; no data transmitted |
 | `PACKAGE_USAGE_STATS` (usage access, special access) | How often each app was opened over the last 30 days, and per-app screen time, to sort the People and Productivity hubs' apps pages by most used and to show screen time in the Battery hub | Stays on device |
 | `READ_MEDIA_AUDIO` | Music files, albums and playlists on your device, for the Music hub library | Stays on device |
-| `POST_NOTIFICATIONS` | Nothing read; shows the Music hub's playback controls in the notification shade | Not read; no data transmitted |
+| `POST_NOTIFICATIONS` | Nothing read; shows the Music hub's playback controls and your task reminders in the notification shade | Not read; no data transmitted |
+| `SCHEDULE_EXACT_ALARM` ("Alarms & reminders", special access) | Nothing read; lets a task reminder go off at the exact minute you set | Not read; no data transmitted |
+| `RECEIVE_BOOT_COMPLETED` | Nothing read; sets your task reminders again after the phone restarts | Not read; no data transmitted |
 | `WRITE_SETTINGS` (special access) | Nothing read; lets the Quick Panel change screen brightness and timeout | Not read; no data transmitted |
 | `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Nothing read; keeps live updates running while the screen is off | Not read; no data transmitted |
 | `BIND_ACCESSIBILITY_SERVICE` (optional) | Used only to perform system actions you trigger: lock screen, recents, and opening the notification shade or quick settings with an edge swipe | Not read; no data transmitted |
@@ -91,7 +93,10 @@ DataStore):
   and charging current, written on each 1% change and every 15 minutes, kept for 8 days, for
   the Battery tile, hub and widget (stored locally, never transmitted)
 - **Money transactions** read from bank and payment notifications — kept for one year, clearable any time from the Money hub ("clear transaction history"), never transmitted
-- **Notes and task lists** you create in the Productivity hub, and music favourites,
+- **People who message you** — the names of senders in chat and SMS notifications, kept for 30
+  days for the People hub's "recently messaged" (stored locally, never transmitted)
+- **Notes and task lists** you create in the Productivity hub, with any task reminders (date,
+  time and repeat), and music favourites,
   playlists and recently played podcasts/stations
 
 None of this data is backed up to the developer's servers. Android's standard auto-

@@ -281,7 +281,8 @@ private fun AccessibilityDisclosureDialog(onConfirm: () -> Unit, onDismiss: () -
                     "Stays on this device.\n\n" +
                     "• Approximate location — Weather tile forecast. Sent to Open-Meteo as " +
                     "coordinates only; never precise/GPS-level location.\n\n" +
-                    "• Notification content — badges and message previews on live tiles, if " +
+                    "• Notification content — badges and message previews on live tiles, and " +
+                    "the names of people who message you (kept 30 days for the People hub), if " +
                     "you enable notification access. Stays on this device.\n\n" +
                     "• Installed apps — read to display and launch them, as any home-screen " +
                     "launcher must. Stays on this device.\n\n" +

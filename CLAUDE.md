@@ -84,6 +84,11 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   "add live tiles". Verified on the emulator end-to-end with real test SMS (debit, credit + balance,
   OTP ignored), the tile's details option, the PIN unlock, and a release-build launch. Privacy
   policy, page, disclosure, about/guide, release notes and what's-new updated.
+- **v5.0.0 re-cut (2026-09-30, still versionCode 500, not yet uploaded)** — now also folds in task
+  reminders, the alarm-source label on clock/alarm tiles and People "favourites". Release notes
+  (blurb 460 chars), About, what's-new card, privacy policy (md + hosted `docs/index.html`, which
+  still has to be published) and the accessibility disclosure updated. Signed AAB/APK + debug APK
+  rebuilt in `release-out/tileshell-5.0.0-*` with the same key; installed on the phone.
 - **v5.0.0 (versionCode 500) — release cut: the hubs release.** Rolls up everything since
   v4.5.0 (weather, music, calendar, people, productivity and battery hubs; Panchang
   moonrise/moonset; the multicolour default layout and setup wizard; the full permissions sheet;

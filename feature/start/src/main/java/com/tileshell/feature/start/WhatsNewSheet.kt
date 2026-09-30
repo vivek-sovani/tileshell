@@ -205,7 +205,7 @@ private val HUB_INTROS = listOf(
     HubIntro("music", "music", "orange", "your own library and playlists, podcasts and internet radio, with gapless playback"),
     HubIntro("calendar", "calendar", "cobalt", "this week, what's next and a month view of your events"),
     HubIntro("people", "people", "teal", "chats, messages and mail in one list — reply inline, swipe to dismiss"),
-    HubIntro("productivity", "productivity", "purple", "your next meeting with a join button, notes and task lists"),
+    HubIntro("productivity", "productivity", "purple", "your next meeting with a join button, notes, and task lists with reminders"),
     HubIntro("battery", "battery", "lime", "drain rate, time left, today's curve and screen time per app"),
     HubIntro("money", "money", "green", "bank and upi transactions from new bank sms, locked with your fingerprint — add it from add live tiles"),
 )
@@ -262,6 +262,8 @@ private val WHATS_NEW_FEATURES = listOf(
     "music: your own library and playlists, podcasts and internet radio, all playing in the background",
     "people: chats, messages, mail and social notifications in one list — reply inline, swipe to dismiss",
     "productivity: your next meeting with a join button, notes, named task lists and office apps",
+    "task reminders: a date, time and repeat on any task, ringing with a banner or a toast on start",
+    "people favourites: your starred contacts and who recently messaged you",
     "battery tile, hub and widget, from tileshell's own battery log",
     "money: bank and upi transactions from new bank sms and payment notifications, locked with your fingerprint, plus your payment and banking apps",
     "weather shows a moon at night, plus sunrise, sunset and uv index; panchang shows moonrise and moonset",

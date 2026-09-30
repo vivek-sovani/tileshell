@@ -20,7 +20,7 @@
 <body>
 
 <h1>TileShell — Privacy Policy</h1>
-<p class="meta">Effective date: 2026-06-18 &nbsp;·&nbsp; Last updated: 2026-09-28</p>
+<p class="meta">Effective date: 2026-06-18 &nbsp;·&nbsp; Last updated: 2026-09-30</p>
 
 <h2>Summary</h2>
 <p>TileShell is a launcher (home-screen replacement) for Android. It does not have a server backend, does not create user accounts, and does not transmit personal data to the developer. All personalisation data (layout, settings, photos) stays on your device.</p>
@@ -34,11 +34,13 @@
   <tr><td><code>ACCESS_COARSE_LOCATION</code></td><td>Device coarse location (city level) for the Weather tile, hub and widget</td><td>Sent to Open-Meteo (see §2)</td></tr>
   <tr><td><code>ACTIVITY_RECOGNITION</code></td><td>Your phone's built-in step-counter sensor reading, for the Steps tile and widget. Asked only when you add one.</td><td>Stays on device</td></tr>
   <tr><td><code>READ_MEDIA_AUDIO</code></td><td>Music files, albums and playlists on your device, for the Music hub library</td><td>Stays on device</td></tr>
-  <tr><td><code>NOTIFICATION_LISTENER</code> (special access)</td><td>Notification titles, snippets and attached images for badges, message previews and the People hub's "what's new"; replies you type are sent back through the posting app's own notification</td><td>Stays on device</td></tr>
+  <tr><td><code>NOTIFICATION_LISTENER</code> (special access)</td><td>Notification titles, snippets and attached images for badges, message previews and the People hub's "what's new"; the names of people who message you in chat and SMS apps, kept 30 days for "recently messaged"; replies you type are sent back through the posting app's own notification</td><td>Stays on device</td></tr>
   <tr><td><code>NOTIFICATION_LISTENER</code> — Money hub</td><td>New bank SMS (as shown by your messages app) and payment-app notifications, to record transactions: amount, debit or credit, merchant or person, account last 4 digits, method and balance. Only new notifications — SMS history is never read. OTPs and promotions are ignored. Can be turned off in the Money hub's settings.</td><td>Stays on device</td></tr>
   <tr><td><code>USE_BIOMETRIC</code></td><td>Nothing read; asks for your fingerprint, face or screen lock before showing the Money hub's transactions</td><td>Not read; no data transmitted</td></tr>
   <tr><td><code>PACKAGE_USAGE_STATS</code> (usage access, special access)</td><td>How often each app was opened over the last 30 days, and per-app screen time, to sort the People and Productivity hubs' apps pages and to show screen time in the Battery hub</td><td>Stays on device</td></tr>
-  <tr><td><code>POST_NOTIFICATIONS</code></td><td>Nothing read; shows the Music hub's playback controls in the notification shade</td><td>Not read; no data transmitted</td></tr>
+  <tr><td><code>POST_NOTIFICATIONS</code></td><td>Nothing read; shows the Music hub's playback controls and your task reminders in the notification shade</td><td>Not read; no data transmitted</td></tr>
+  <tr><td><code>SCHEDULE_EXACT_ALARM</code> ("Alarms &amp; reminders", special access)</td><td>Nothing read; lets a task reminder go off at the exact minute you set</td><td>Not read; no data transmitted</td></tr>
+  <tr><td><code>RECEIVE_BOOT_COMPLETED</code></td><td>Nothing read; sets your task reminders again after the phone restarts</td><td>Not read; no data transmitted</td></tr>
   <tr><td><code>WRITE_SETTINGS</code> (special access)</td><td>Nothing read; lets the Quick Panel change screen brightness and timeout</td><td>Not read; no data transmitted</td></tr>
   <tr><td><code>REQUEST_IGNORE_BATTERY_OPTIMIZATIONS</code></td><td>Nothing read; keeps live updates running while the screen is off</td><td>Not read; no data transmitted</td></tr>
   <tr><td><code>INTERNET</code></td><td>Weather, news, stock, commodity and sports data, podcasts, radio streams and wallpapers</td><td>Sent to the services in §2</td></tr>
@@ -75,6 +77,8 @@
   <li><strong>Widget bindings</strong> — widget IDs added to the Feed/Glance tab</li>
   <li><strong>Recently launched and newly installed apps</strong> — used for the "recent" section in the App List (capped at 12 entries, never transmitted)</li>
   <li><strong>Battery log</strong> — TileShell's own record of battery level, charging state, screen on/off and charging current, written on each 1% change and every 15 minutes and kept for 8 days, for the Battery tile, hub and widget (never transmitted)</li>
+  <li><strong>People who message you</strong> — sender names from chat and SMS notifications, kept 30 days for the People hub, never transmitted</li>
+  <li><strong>Task reminders</strong> — the date, time and repeat you set on tasks, never transmitted</li>
   <li><strong>Money transactions</strong> read from bank and payment notifications — kept for one year, clearable from the Money hub, never transmitted</li>
   <li><strong>Notes and task lists</strong> you create in the Productivity hub, and music favourites, playlists and recently played podcasts/stations</li>
 </ul>
