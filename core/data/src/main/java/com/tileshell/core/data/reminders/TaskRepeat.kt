@@ -148,3 +148,25 @@ fun <T> scheduledToday(tasks: List<T>, remindAtOf: (T) -> Long?, now: Long, zone
     val endOfToday = Instant.ofEpochMilli(now).atZone(zone).toLocalDate().plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
     return tasks.filter { t -> remindAtOf(t)?.let { it < endOfToday } == true }.sortedBy { remindAtOf(it) }
 }
+
+/** "6:00 pm" for today, else "tomorrow 9:00 am" / "thu 1 oct 9:00 am" — compact for tiles. */
+fun reminderShortWhen(remindAt: Long, now: Long, zone: ZoneId = ZoneId.systemDefault()): String {
+    val at = Instant.ofEpochMilli(remindAt).atZone(zone)
+    val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+    val day = reminderDay(at.toLocalDate(), today)
+    return if (day == "today") reminderClock(at) else "$day ${reminderClock(at)}"
+}
+
+/**
+ * The next reminder still to come (time after [now], counting a snooze as the
+ * new time), for the tiles' "next" line. Pure over plain accessors.
+ */
+fun <T> nextScheduled(
+    tasks: List<T>,
+    remindAtOf: (T) -> Long?,
+    snoozeAtOf: (T) -> Long?,
+    now: Long,
+): T? = tasks
+    .mapNotNull { t -> (snoozeAtOf(t) ?: remindAtOf(t))?.takeIf { it > now }?.let { t to it } }
+    .minByOrNull { it.second }
+    ?.first

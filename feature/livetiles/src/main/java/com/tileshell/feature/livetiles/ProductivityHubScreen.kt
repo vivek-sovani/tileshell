@@ -4,6 +4,7 @@ import com.tileshell.core.data.TaskItem
 import com.tileshell.core.data.reminders.TaskReminders
 import com.tileshell.core.data.reminders.reminderClock
 import com.tileshell.core.data.reminders.reminderDay
+import com.tileshell.core.data.reminders.reminderLine
 import com.tileshell.core.data.reminders.scheduledToday
 import android.Manifest
 import androidx.activity.compose.BackHandler
@@ -976,8 +977,14 @@ private fun TaskListCard(
             if (shown.isEmpty()) {
                 Text("empty · tap to add tasks", color = tokens.fgDim, fontSize = 13.sp)
             }
+            val now = rememberMinuteClock()
             shown.forEach { task ->
-                TaskRow(task.text, task.done, tokens, accent) {
+                val remindAt = task.remindAt?.takeIf { !task.done }
+                TaskRow(
+                    task.text, task.done, tokens, accent,
+                    reminder = remindAt?.let { reminderLine(it, task.repeat, now) },
+                    overdue = remindAt != null && remindAt <= now,
+                ) {
                     scope.launch { tasksRepo.setDone(task.id, !task.done) }
                 }
             }
@@ -986,7 +993,15 @@ private fun TaskListCard(
 }
 
 @Composable
-private fun TaskRow(text: String, done: Boolean, tokens: ColorTokens, accent: Color, onToggle: () -> Unit) {
+private fun TaskRow(
+    text: String,
+    done: Boolean,
+    tokens: ColorTokens,
+    accent: Color,
+    reminder: String? = null,
+    overdue: Boolean = false,
+    onToggle: () -> Unit,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -1009,14 +1024,24 @@ private fun TaskRow(text: String, done: Boolean, tokens: ColorTokens, accent: Co
             if (done) Icon(TileIcons["check"], contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
         }
         Spacer(Modifier.width(10.dp))
-        Text(
-            text,
-            color = if (done) tokens.fgDim else tokens.fg,
-            fontSize = 14.sp,
-            textDecoration = if (done) TextDecoration.LineThrough else null,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Column {
+            Text(
+                text,
+                color = if (done) tokens.fgDim else tokens.fg,
+                fontSize = 14.sp,
+                textDecoration = if (done) TextDecoration.LineThrough else null,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (reminder != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val tint = if (overdue) Color(0xFFF07A7A) else accent
+                    Icon(TileIcons["bell"], contentDescription = null, tint = tint, modifier = Modifier.size(11.dp))
+                    Spacer(Modifier.width(3.dp))
+                    Text(reminder, color = tint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
     }
 }
 

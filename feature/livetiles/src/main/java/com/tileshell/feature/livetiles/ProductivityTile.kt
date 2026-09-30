@@ -1,5 +1,7 @@
 package com.tileshell.feature.livetiles
 
+import com.tileshell.core.data.reminders.nextScheduled
+import com.tileshell.core.data.reminders.reminderShortWhen
 import com.tileshell.core.data.reminders.isReminderDue
 import android.Manifest
 import androidx.compose.foundation.Image
@@ -60,6 +62,8 @@ fun ProductivityTileFace(size: TileSize, active: Boolean, modifier: Modifier = M
     val reminderTasks by remember(context) { TaskRepository.create(context).reminderTasks() }.collectAsState(initial = emptyList())
     val now = rememberMinuteClock()
     val dueCount = reminderTasks.count { isReminderDue(it.remindAt, it.snoozeAt, it.done, now) }
+    val nextTask = nextScheduled(reminderTasks, { it.remindAt }, { it.snoozeAt }, now)
+        ?.let { "${reminderShortWhen(it.snoozeAt ?: it.remindAt!!, now)} · ${it.text}" }
     val apps = rememberProductivityApps().orEmpty()
 
     var flipped by remember { mutableStateOf(false) }
@@ -77,13 +81,13 @@ fun ProductivityTileFace(size: TileSize, active: Boolean, modifier: Modifier = M
     FlipTile(
         flipped = flipped,
         modifier = modifier.fillMaxSize(),
-        front = { ProductivityFront(meetings.firstOrNull(), openCount, dueCount, size) },
+        front = { ProductivityFront(meetings.firstOrNull(), openCount, dueCount, nextTask, size) },
         back = { ProductivityAppsBack(apps, size) },
     )
 }
 
 @Composable
-private fun ProductivityFront(meeting: UpcomingMeeting?, openCount: Int, dueCount: Int, size: TileSize) {
+private fun ProductivityFront(meeting: UpcomingMeeting?, openCount: Int, dueCount: Int, nextTask: String?, size: TileSize) {
     val context = LocalContext.current
     val color = LocalTileFaceColor.current
     val now = System.currentTimeMillis()
@@ -145,6 +149,17 @@ private fun ProductivityFront(meeting: UpcomingMeeting?, openCount: Int, dueCoun
                     fontSize = 13.sp,
                     maxLines = 1,
                 )
+                // Skipped on a 2-row tile already holding a meeting's join button,
+                // where it would run into the "productivity" label.
+                if (nextTask != null && (size.rows >= 3 || meeting?.link == null)) {
+                    Text(
+                        "next · $nextTask",
+                        color = color.copy(alpha = 0.85f),
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
         Text("productivity", color = color, fontSize = 11.sp, maxLines = 1, modifier = Modifier.align(Alignment.BottomStart))

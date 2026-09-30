@@ -1,5 +1,8 @@
 package com.tileshell.feature.livetiles
 
+import com.tileshell.core.data.reminders.nextScheduled
+import com.tileshell.core.data.reminders.reminderShortWhen
+import androidx.compose.foundation.layout.width
 import com.tileshell.core.data.reminders.isReminderDue
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.runtime.mutableLongStateOf
@@ -135,6 +138,10 @@ fun TasksTileFace(size: TileSize, listId: String, modifier: Modifier = Modifier,
     val tasks by remember(listId) { repository.tasks(listId) }.collectAsState(initial = emptyList())
     val now = rememberMinuteClock()
     val summary = remember(tasks, size, now) { tasksSummary(tasks, maxPreviewFor(size), now) }
+    val next = remember(tasks, now) {
+        nextScheduled(tasks.filter { !it.done }, { it.remindAt }, { it.snoozeAt }, now)
+            ?.let { "${reminderShortWhen(it.snoozeAt ?: it.remindAt!!, now)} · ${it.text}" }
+    }
     val scope = rememberCoroutineScope()
     // The list's name ("work", "home") labels the tile; every shown list gets one.
     val name by remember(listId) { repository.listName(listId) }.collectAsState(initial = null)
@@ -143,6 +150,7 @@ fun TasksTileFace(size: TileSize, listId: String, modifier: Modifier = Modifier,
     TasksFront(
         summary = summary,
         name = name ?: "tasks",
+        next = next,
         size = size,
         interactive = interactive,
         onToggle = { id, done -> scope.launch { repository.setDone(id, done) } },
@@ -154,6 +162,7 @@ fun TasksTileFace(size: TileSize, listId: String, modifier: Modifier = Modifier,
 private fun TasksFront(
     summary: TasksSummary,
     name: String,
+    next: String?,
     size: TileSize,
     interactive: Boolean,
     onToggle: (id: Long, done: Boolean) -> Unit,
@@ -201,6 +210,7 @@ private fun TasksFront(
             // list, so the tile's own tap-to-open-the-sheet handler always has
             // somewhere to land regardless of how many tasks are shown.
             Spacer(Modifier.weight(1f))
+            if (next != null) NextLine(next, fontSize = 10)
             Text(name.lowercase(), color = FaceText.copy(alpha = 0.82f), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         return
@@ -255,6 +265,7 @@ private fun TasksFront(
             }
         }
         Spacer(Modifier.weight(1f))
+        if (next != null) NextLine(next, fontSize = 12)
         Text(name.lowercase(), color = FaceText.copy(alpha = 0.82f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
@@ -365,4 +376,14 @@ internal fun rememberMinuteClock(): Long {
         }
     }
     return now
+}
+
+/** "🔔 6:00 pm · water the plants" — the next reminder still to come on this list. */
+@Composable
+private fun NextLine(text: String, fontSize: Int) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 2.dp)) {
+        Icon(TileIcons["bell"], contentDescription = "next reminder", tint = FaceText, modifier = Modifier.size((fontSize + 1).dp))
+        Spacer(Modifier.width(4.dp))
+        Text(text, color = FaceText, fontSize = fontSize.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
 }

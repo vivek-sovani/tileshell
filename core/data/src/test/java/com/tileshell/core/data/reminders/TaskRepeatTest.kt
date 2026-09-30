@@ -78,4 +78,23 @@ class TaskRepeatTest {
             scheduledToday(times, { it }, now, zone),
         )
     }
+
+    @Test
+    fun `next scheduled skips past ones and counts a snooze`() {
+        val now = at(2026, 9, 30, 12)
+        data class T(val at: Long?, val snooze: Long? = null)
+        val a = T(at(2026, 9, 30, 9))                                   // past, not snoozed
+        val b = T(at(2026, 9, 30, 9), snooze = at(2026, 9, 30, 12, 5)) // snoozed to 12:05
+        val c = T(at(2026, 9, 30, 18))
+        assertEquals(b, nextScheduled(listOf(a, b, c), { it.at }, { it.snooze }, now))
+        assertEquals(c, nextScheduled(listOf(a, c), { it.at }, { it.snooze }, now))
+        assertNull(nextScheduled(listOf(a, T(null)), { it.at }, { it.snooze }, now))
+    }
+
+    @Test
+    fun `short when drops today`() {
+        val now = at(2026, 9, 30, 12)
+        assertEquals("6:00 pm", reminderShortWhen(at(2026, 9, 30, 18), now, zone))
+        assertEquals("tomorrow 9:00 am", reminderShortWhen(at(2026, 10, 1, 9), now, zone))
+    }
 }
