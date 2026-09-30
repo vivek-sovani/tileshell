@@ -10758,7 +10758,11 @@ A calendar reminder's own title still wins when it matches.
   it); TileShell's own WP-style toast while it's on screen, with the notification sent to a second,
   IMPORTANCE_DEFAULT channel ("task reminders while tileshell is open") so the system plays the
   user's own notification sound without a heads-up. Playing RingtoneManager's default ourselves
-  was silent on Samsung (its `notification_sound` setting is null there); the tasks/productivity tiles show due tasks first.
+  was silent on Samsung (its `notification_sound` setting is null there). That null turned out to
+  be the user's own choice of "none" as the phone's default sound, so both channels (now `_v2`;
+  the old ones are deleted) carry TileShell's own chime, `core/data/res/raw/task_reminder.wav`
+  (an original two-note C6→G6 bell synthesized for this, 1 s), and vibrate. User-chosen over
+  following the phone default; the sound can still be changed or muted per channel; the tasks/productivity tiles show due tasks first.
 - **Repeat:** only the next due time is stored. Done on a repeating task advances it to the first
   occurrence after now (no copies, per the user). A monthly/yearly series started on the 29th–31st
   settles on the shorter month's last day — accepted rather than adding an anchor column.

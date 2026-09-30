@@ -44,7 +44,8 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   next date and keeps it open, never copying it (`TaskRepository.setDone` → `nextReminderAt`).
   Alerts: Android heads-up (done / snooze 10 min / open, which opens the list) over other apps;
   a WP-style accent toast (`TaskReminderToast`) while TileShell is on screen, with the
-  notification on a sound-only channel (system plays the user's sound, no heads-up); the tasks tile lists due tasks first with a count badge, and the
+  notification on a sound-only channel, no heads-up; both channels play TileShell's own chime
+  (`res/raw/task_reminder.wav`, so a phone whose default sound is "none" still rings) and vibrate; the tasks tile lists due tasks first with a count badge, and the
   productivity tile says "n tasks due now". `core/data/reminders/`: pure `TaskRepeat.kt`
   (tested), `TaskReminders.sync` (one exact alarm per pending task, called after every task
   write, at boot and on app update), and the receivers. Exact timing uses user-granted

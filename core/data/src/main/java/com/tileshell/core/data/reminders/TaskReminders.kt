@@ -9,6 +9,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -53,13 +54,18 @@ object TaskReminders {
 
     const val SNOOZE_MS = 10 * 60_000L
 
-    private const val CHANNEL_ID = "task_reminders"
-    // While TileShell is open the toast is the visual alert, so the notification
-    // goes to a channel that sounds (the user's own notification sound, volume
-    // and Do Not Disturb, resolved by the system) but never pops a heads-up.
-    // Playing a sound ourselves failed on Samsung, whose default-sound setting
-    // isn't where RingtoneManager looks.
-    private const val CHANNEL_IN_APP_ID = "task_reminders_in_app"
+    // Both channels carry TileShell's own chime (res/raw/task_reminder.wav) and
+    // vibrate, so a reminder is heard even when the phone's default notification
+    // sound is "none" (seen on a Samsung, where the default URI resolves to
+    // nothing). The user can still change or mute either channel in settings.
+    // Channels can't be changed once created, hence the "_v2" ids; the first,
+    // default-sound, no-vibration channels are deleted in [ensureChannels].
+    private const val CHANNEL_ID = "task_reminders_v2"
+    // While TileShell is open the toast is the visual alert, so this channel
+    // sounds and vibrates but never pops a heads-up.
+    private const val CHANNEL_IN_APP_ID = "task_reminders_in_app_v2"
+    private val OLD_CHANNEL_IDS = listOf("task_reminders", "task_reminders_in_app")
+    private val VIBRATION = longArrayOf(0, 180, 120, 180)
     private const val PREFS = "task_reminders"
     private const val KEY_SCHEDULED = "scheduled"
 
@@ -149,16 +155,7 @@ object TaskReminders {
     private fun post(context: Context, task: TaskEntity, listName: String, inApp: Boolean) {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
         if (!notificationsAllowed(context)) return
-        nm.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "task reminders", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "alerts when a task's reminder time arrives"
-            },
-        )
-        nm.createNotificationChannel(
-            NotificationChannel(CHANNEL_IN_APP_ID, "task reminders while tileshell is open", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "the sound for a reminder shown as a toast on start"
-            },
-        )
+        ensureChannels(context, nm)
         val repeat = TaskRepeat.decode(task.remindRepeat)
         val subtitle = if (repeat.label.isEmpty()) listName.lowercase() else "${listName.lowercase()} · repeats ${repeat.label}"
         val notification = Notification.Builder(context, if (inApp) CHANNEL_IN_APP_ID else CHANNEL_ID)
@@ -173,6 +170,33 @@ object TaskReminders {
             .addAction(Notification.Action.Builder(null, "open", openPendingIntent(context, task)).build())
             .build()
         runCatching { nm.notify(notificationId(task.id), notification) }
+    }
+
+    private fun ensureChannels(context: Context, nm: NotificationManager) {
+        OLD_CHANNEL_IDS.forEach { runCatching { nm.deleteNotificationChannel(it) } }
+        val sound = Uri.parse("android.resource://${context.packageName}/${R.raw.task_reminder}")
+        val attributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+        fun channel(id: String, name: String, importance: Int, text: String) =
+            NotificationChannel(id, name, importance).apply {
+                description = text
+                setSound(sound, attributes)
+                enableVibration(true)
+                vibrationPattern = VIBRATION
+            }
+        nm.createNotificationChannel(
+            channel(CHANNEL_ID, "task reminders", NotificationManager.IMPORTANCE_HIGH, "alerts when a task's reminder time arrives"),
+        )
+        nm.createNotificationChannel(
+            channel(
+                CHANNEL_IN_APP_ID,
+                "task reminders while tileshell is open",
+                NotificationManager.IMPORTANCE_DEFAULT,
+                "the sound and vibration for a reminder shown as a toast on start",
+            ),
+        )
     }
 
     /** The launch intent that opens [listId]'s task sheet on Start. */
