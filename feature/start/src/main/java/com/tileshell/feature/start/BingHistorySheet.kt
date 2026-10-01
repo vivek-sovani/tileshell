@@ -136,36 +136,60 @@ fun BingHistorySheet(
                 )
                 Spacer(Modifier.height(18.dp))
 
-                val list = images
-                when {
-                    list == null -> StatusLine("loading…", tokens.fgDim)
-                    list.isEmpty() -> StatusLine("couldn't load bing wallpapers — check your connection", tokens.fgDim)
-                    else -> {
-                        // Two-per-row grid.
-                        list.chunked(2).forEach { rowItems ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            ) {
-                                rowItems.forEach { img ->
-                                    BingHistoryCell(
-                                        image = img,
-                                        tokens = tokens,
-                                        accent = accent,
-                                        modifier = Modifier.weight(1f),
-                                        onClick = { onPick(img.fullUrl) },
-                                    )
-                                }
-                                // Keep a lone trailing item half-width.
-                                if (rowItems.size == 1) Spacer(Modifier.weight(1f))
-                            }
-                            Spacer(Modifier.height(12.dp))
-                        }
-                    }
-                }
+                BingImagesGrid(images, tokens, accent, onPick)
             }
         }
     }
+}
+
+/**
+ * The last ~8 days of Bing images, two per row; tapping one picks it. Shared by
+ * this sheet and personalize's bing "select" choice. [images] null = loading.
+ */
+@Composable
+internal fun BingImagesGrid(
+    images: List<BingImage>?,
+    tokens: com.tileshell.core.design.ColorTokens,
+    accent: Color,
+    onPick: (imageUrl: String) -> Unit,
+) {
+    when {
+        images == null -> StatusLine("loading…", tokens.fgDim)
+        images.isEmpty() -> StatusLine("couldn't load bing wallpapers — check your connection", tokens.fgDim)
+        else -> Column {
+            images.chunked(2).forEach { rowItems ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    rowItems.forEach { img ->
+                        BingHistoryCell(
+                            image = img,
+                            tokens = tokens,
+                            accent = accent,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onPick(img.fullUrl) },
+                        )
+                    }
+                    // Keep a lone trailing item half-width.
+                    if (rowItems.size == 1) Spacer(Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+        }
+    }
+}
+
+/** [BingImagesGrid] fetching its own list. */
+@Composable
+internal fun BingRecentImages(
+    tokens: com.tileshell.core.design.ColorTokens,
+    accent: Color,
+    onPick: (imageUrl: String) -> Unit,
+) {
+    var images by remember { mutableStateOf<List<BingImage>?>(null) }
+    LaunchedEffect(Unit) { if (images == null) images = fetchBingImages() }
+    BingImagesGrid(images, tokens, accent, onPick)
 }
 
 @Composable
@@ -186,7 +210,6 @@ private fun BingHistoryCell(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 10f)
-                .clip(RoundedCornerShape(6.dp))
                 .background(tokens.tileLine),
         ) {
             val bitmap = rememberRemoteImage(image.thumbUrl)

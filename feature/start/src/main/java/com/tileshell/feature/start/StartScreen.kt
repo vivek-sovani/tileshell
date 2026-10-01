@@ -1914,6 +1914,12 @@ fun StartScreen(
             bingWallpaper = settings.bingWallpaper,
             onBingWallpaperChange = viewModel::setBingWallpaper,
             onBingHistory = { bingHistoryOpen = true },
+            bingPicked = settings.customWallpaperUri?.contains("bing_wallpaper") == true && !settings.bingWallpaper,
+            bingRecentImages = {
+                BingRecentImages(colorTokens(dark), TileAccents.forId(settings.accentId)) { imageUrl ->
+                    pendingWallpaperPick = PendingWallpaperPick.Bing(imageUrl)
+                }
+            },
             onAdjustWallpaper = { if (settings.customWallpaperUri != null) adjustingWallpaper = true },
             wallpaperSlideshowEnabled = settings.wallpaperSlideshowEnabled,
             onWallpaperSlideshowChange = viewModel::setWallpaperSlideshowEnabled,

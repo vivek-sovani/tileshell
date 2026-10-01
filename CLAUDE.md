@@ -43,6 +43,12 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   then a "+" square that picks more and adds them (imports no longer clear the folder; the stores
   append), and "n photos · remove all". The first slideshow photos still show at once. Checked on the
   emulator (add two, remove one).
+- **`main` — personalize: glance section, live photos in live, bing daily / select.** Sections are
+  now colours → wallpaper → tiles → start → live (now with live photos) → glance (feed & glance,
+  news region) → system. Bing has "daily" (image of the day) and "select", which shows the recent
+  Bing images inline (`BingImagesGrid`/`BingRecentImages`, shared with `BingHistorySheet`) to tap;
+  a picked Bing image keeps "bing" selected (`bingPicked`: custom wallpaper is `bing_wallpaper.jpg`
+  and daily is off). Slideshow interval is text choices too.
 - **`main` — personalize is a panorama.** User-requested, designed first. Sections: colours
   (theme, accent, tile colour, typography) → wallpaper (wallpaper, live photos) → tiles (tile style,
   sliders, grid columns) → start (home style, arrangement, folders & categories, edge strip) →

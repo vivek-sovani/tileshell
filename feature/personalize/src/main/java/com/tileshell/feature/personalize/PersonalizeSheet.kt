@@ -171,6 +171,10 @@ fun PersonalizeSheet(
     bingWallpaper: Boolean,
     onBingWallpaperChange: (Boolean) -> Unit,
     onBingHistory: () -> Unit,
+    // The custom wallpaper is a Bing image someone picked (not daily mode).
+    bingPicked: Boolean = false,
+    // The recent Bing images, inline, for bing's "select" choice.
+    bingRecentImages: @Composable () -> Unit = {},
     onAdjustWallpaper: () -> Unit,
     wallpaperSlideshowEnabled: Boolean,
     onWallpaperSlideshowChange: (Boolean) -> Unit,
@@ -538,7 +542,8 @@ fun PersonalizeSheet(
                         // ---- wallpaper ----
                         SettingGroup(label = "wallpaper", tokens.fgDim) {
                             val currentWallpaper =
-                                currentWallpaperType(wallpaperId, customWallpaper, bingWallpaper, wallpaperSlideshowEnabled)
+                                if (bingPicked && !wallpaperSlideshowEnabled) WallpaperType.BING
+                                else currentWallpaperType(wallpaperId, customWallpaper, bingWallpaper, wallpaperSlideshowEnabled)
 
                             // Picking a type applies a sensible default immediately (opens the photo
                             // picker, turns slideshow/Bing on, picks the first stock gradient) — every
@@ -597,22 +602,12 @@ fun PersonalizeSheet(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     ) {
-                                        Text(text = "every", color = tokens.fgDim, fontSize = 12.sp)
+                                        Text(text = "every", color = tokens.fgDim, fontSize = 14.sp)
                                         Spacer(Modifier.weight(1f))
                                         listOf(15 to "15m", 30 to "30m", 60 to "1h", 180 to "3h").forEach { (min, label) ->
-                                            val selected = wallpaperSlideshowIntervalMin == min
-                                            Text(
-                                                text = label,
-                                                color = if (selected) accentOnColor(accent) else tokens.fgDim,
-                                                fontSize = 12.sp,
-                                                modifier = Modifier
-                                                    .background(
-                                                        if (selected) accent else tokens.fgDim.copy(alpha = 0.12f),
-                                                        RoundedCornerShape(4.dp),
-                                                    )
-                                                    .clickable { onWallpaperSlideshowIntervalChange(min) }
-                                                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                                            )
+                                            HubFilter(label, wallpaperSlideshowIntervalMin == min, tokens, accent) {
+                                                onWallpaperSlideshowIntervalChange(min)
+                                            }
                                         }
                                     }
                                     Spacer(Modifier.height(10.dp))
@@ -632,7 +627,32 @@ fun PersonalizeSheet(
                                     )
                                 }
                                 WallpaperType.BING -> {
-                                    WallpaperNavRow("recent bing wallpapers", "browse ›", accent, tokens, onBingHistory)
+                                    // "daily" follows Bing's image of the day; "select"
+                                    // shows the recent ones to pick from, right here.
+                                    var selecting by remember { mutableStateOf(!bingWallpaper) }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                                        HubFilter("daily", bingWallpaper && !selecting, tokens, accent) {
+                                            selecting = false
+                                            if (!bingWallpaper) onBingWallpaperChange(true)
+                                        }
+                                        HubFilter("select", selecting || !bingWallpaper, tokens, accent) { selecting = true }
+                                    }
+                                    if (selecting || !bingWallpaper) {
+                                        Text(
+                                            "tap one to set it as your wallpaper",
+                                            color = tokens.fgDim,
+                                            fontSize = 13.sp,
+                                            modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
+                                        )
+                                        bingRecentImages()
+                                    } else {
+                                        Text(
+                                            "a new image of the day every morning",
+                                            color = tokens.fgDim,
+                                            fontSize = 13.sp,
+                                            modifier = Modifier.padding(top = 4.dp, bottom = 6.dp),
+                                        )
+                                    }
                                     if (customWallpaper) {
                                         WallpaperNavRow("adjust position", "reframe ›", accent, tokens, onAdjustWallpaper)
                                     }
@@ -666,17 +686,6 @@ fun PersonalizeSheet(
                                 }
                             }
 
-                        }
-                        // ---- live photos (FR-2 photos tile) ----
-                        SettingGroup(label = "live photos", tokens.fgDim) {
-                            PhotoGrid(
-                                uris = photoUris,
-                                accent = accent,
-                                tokens = tokens,
-                                onAdd = onPickPhotos,
-                                onRemove = onRemovePhoto,
-                                onRemoveAll = onClearPhotos,
-                            )
                         }
                         }
                         2 -> { // tiles
@@ -1235,6 +1244,19 @@ fun PersonalizeSheet(
                                 Text(text = "›", color = accent, fontSize = 16.sp)
                             }
                         }
+                        // ---- live photos (FR-2 photos tile) ----
+                        SettingGroup(label = "live photos", tokens.fgDim) {
+                            PhotoGrid(
+                                uris = photoUris,
+                                accent = accent,
+                                tokens = tokens,
+                                onAdd = onPickPhotos,
+                                onRemove = onRemovePhoto,
+                                onRemoveAll = onClearPhotos,
+                            )
+                        }
+                        }
+                        5 -> { // glance
                         // ---- feed & glance ---- (always reachable here, unlike the feed
                         // page's own gear-icon settings sheet, which becomes unreachable
                         // the moment "show feed page" is turned off from inside it)
@@ -1632,7 +1654,7 @@ private fun rememberPhotoThumbnail(uri: String): ImageBitmap? {
 }
 
 /** The personalize panorama's sections, in swipe order. */
-private val PERSONALIZE_SECTIONS = listOf("colours", "wallpaper", "tiles", "start", "live", "system")
+private val PERSONALIZE_SECTIONS = listOf("colours", "wallpaper", "tiles", "start", "live", "glance", "system")
 
 /** A compact tappable navigation row: dim label on the left, accent action on the right. */
 @Composable
