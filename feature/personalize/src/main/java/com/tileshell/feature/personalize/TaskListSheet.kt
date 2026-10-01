@@ -56,6 +56,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -139,6 +140,14 @@ fun TaskListSheet(
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    // The "remind me" sheet covers the list, so the keyboard goes away when it opens.
+    val focusManager = LocalFocusManager.current
+    val reminderKeyboard = LocalSoftwareKeyboardController.current
+    val openReminder = { task: TaskItem ->
+        reminderKeyboard?.hide()
+        focusManager.clearFocus()
+        reminderFor = task
     }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val now = rememberMinuteNow(visible)
@@ -322,12 +331,14 @@ fun TaskListSheet(
                                 .padding(end = 14.dp)
                                 .size(22.dp)
                                 .clickable {
-                                    reminderFor = TaskItem(
-                                        id = NEW_TASK_ID,
-                                        text = draft.ifBlank { "new task" },
-                                        done = false,
-                                        remindAt = draftRemindAt,
-                                        repeat = draftRepeat,
+                                    openReminder(
+                                        TaskItem(
+                                            id = NEW_TASK_ID,
+                                            text = draft.ifBlank { "new task" },
+                                            done = false,
+                                            remindAt = draftRemindAt,
+                                            repeat = draftRepeat,
+                                        ),
                                     )
                                 },
                         )
@@ -377,7 +388,7 @@ fun TaskListSheet(
                                 onDelete = { scope.launch { repository.delete(task.id) } },
                                 now = now,
                                 exactAllowed = exactAllowed,
-                                onReminder = if (TaskReminders.ENABLED) ({ reminderFor = task }) else null,
+                                onReminder = if (TaskReminders.ENABLED) ({ openReminder(task) }) else null,
                                 onFixAccess = { askExactAccess = true },
                             )
                         }
