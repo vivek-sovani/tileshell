@@ -1,4 +1,4 @@
-package com.tileshell.feature.livetiles
+package com.tileshell.core.design
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -19,7 +19,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.tileshell.core.design.ColorTokens
 
 /**
  * A filter or choice in a hub, the way Lumia showed one: plain light text,
@@ -28,7 +27,7 @@ import com.tileshell.core.design.ColorTokens
  * small icon before the label, such as the app's own icon.
  */
 @Composable
-internal fun HubFilter(
+fun HubFilter(
     label: String,
     selected: Boolean,
     tokens: ColorTokens,

@@ -362,6 +362,13 @@ object TileIcons {
 
         put("minus", vector("minus", p(line(5.0, 12.0, 19.0, 12.0))))
 
+        // A question mark in a circle, for "how to" / guide buttons.
+        put("help", vector("help",
+            p(circle(12.0, 12.0, 9.0)),
+            p("M9.6 9.4a2.5 2.5 0 0 1 4.9.7c0 1.7-2.5 2.2-2.5 3.9"),
+            p(circle(12.0, 17.0, 0.6)),
+        ))
+
         // Drag handle for reorderable lists: two columns of three dots.
         put("grip", vector("grip",
             p(circle(9.0, 6.0, 1.0)), p(circle(15.0, 6.0, 1.0)),

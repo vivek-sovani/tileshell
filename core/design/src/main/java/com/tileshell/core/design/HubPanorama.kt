@@ -1,4 +1,4 @@
-package com.tileshell.feature.livetiles
+package com.tileshell.core.design
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -31,7 +31,6 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.tileshell.core.design.ColorTokens
 import kotlinx.coroutines.launch
 
 /** How much of the next section shows at the right edge. */
@@ -53,7 +52,7 @@ private val PANORAMA_MARGIN = 18.dp
  * [section] draws section [index]'s content under its header.
  */
 @Composable
-internal fun HubPanorama(
+fun HubPanorama(
     title: String,
     sections: List<String>,
     pagerState: PagerState,

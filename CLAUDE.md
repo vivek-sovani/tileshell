@@ -37,6 +37,17 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — personalize is a panorama.** User-requested, designed first. Sections: colours
+  (theme, accent, tile colour) → wallpaper (wallpaper, live photos) → tiles (tile style, sliders,
+  grid columns) → start (home style, arrangement, typography, folders & categories, edge strip) →
+  live (live tiles, refresh rates, feed & glance, news region) → system (permissions, hidden apps,
+  status bar, android settings, backups, help, about). Every group's code moved over unchanged
+  (`PERSONALIZE_SECTIONS`). Lumia controls: `SegCell`/theme choices/columns/typography are plain
+  text choices (selected in accent, no bordered rows), `ToggleRow` is a square switch, your-name
+  box is square. App bar: back, guide (new `help` glyph), android settings. `HubPanorama`,
+  `HubAppBar`/`HubAppBarAction` and `HubFilter` moved from `:feature:livetiles` to `:core:design`
+  (now public) so personalize can use them. Sub-screens (backup, permissions, folders, edge strip,
+  refresh rates, guide, about) keep their old look. Checked on the emulator (release build).
 - **`main` — hubs restyled flat, Lumia-style; Panchang is a panorama.** User-requested. Shared
   `HubFilter` (`HubText.kt`): plain light text, selected in accent, others grey — replaces every
   pill chip (people what's new/favourites, music radio/podcast categories and overlap, money

@@ -1,5 +1,13 @@
 package com.tileshell.feature.personalize
 
+import com.tileshell.core.design.HubFilter
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import com.tileshell.core.design.HubAppBarAction
+import com.tileshell.core.design.HubAppBar
+import com.tileshell.core.design.HubPanorama
 import android.content.ComponentName
 import android.content.Intent
 import android.provider.Settings
@@ -342,6 +350,8 @@ fun PersonalizeSheet(
         )
     }
 
+    val sectionPager = androidx.compose.foundation.pager.rememberPagerState(pageCount = { PERSONALIZE_SECTIONS.size })
+
     SheetStage(rightHalf = rightHalf, modifier = modifier) {
         // Scrim (prototype rgba(0,0,0,.5)); tap to dismiss.
         Box(
@@ -355,12 +365,14 @@ fun PersonalizeSheet(
                 ),
         )
 
+        // A Windows Phone panorama (user-requested): colours → wallpaper → tiles →
+        // start → live → system, each section scrolling on its own.
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxSize()
                 .graphicsLayer { translationY = size.height * (1f - progress) }
-                .background(tokens.sheet)
+                .background(tokens.bg)
                 // Swallow taps so they don't fall through to the scrim.
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -368,1177 +380,1122 @@ fun PersonalizeSheet(
                     onClick = {},
                 )
                 .statusBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .navigationBarsPadding()
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.Top,
+                .navigationBarsPadding(),
         ) {
-            // Grip.
-            Box(
-                modifier = Modifier
-                    .padding(top = 10.dp, bottom = 4.dp)
-                    .align(Alignment.CenterHorizontally)
-                    .width(40.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(tokens.fgDim.copy(alpha = 0.5f)),
-            )
-
-            // Branding mark, same as the About sheet's own header — user-requested
-            // ("also show the icon in personalise screen").
-            TileLogoMark(modifier = Modifier.padding(start = 20.dp, top = 6.dp))
-
-            Text(
-                text = "personalize",
-                color = tokens.fg,
-                fontSize = 30.sp,
-                fontWeight = FontWeight.W200,
-                letterSpacing = (-1).sp,
-                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 14.dp),
-            )
-
-            // ---- android settings: quick jump to the real device Settings app,
-            // moved to the top of the sheet per explicit user request (was buried
-            // in the "system" group near the bottom) and given the device's own
-            // real Settings icon instead of the generic gear glyph ----
-            SettingGroup(label = "android settings", tokens.fgDim) {
-                Row(
+            HubPanorama(
+                title = "personalize",
+                sections = PERSONALIZE_SECTIONS,
+                pagerState = sectionPager,
+                tokens = tokens,
+                modifier = Modifier.weight(1f),
+            ) { page ->
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onSystemSettings)
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(bottom = 24.dp),
                 ) {
-                    val androidSettingsIcon = rememberAndroidSettingsIcon()
-                    if (androidSettingsIcon != null) {
-                        Image(
-                            bitmap = androidSettingsIcon,
-                            contentDescription = null,
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.size(22.dp),
-                        )
-                    } else {
-                        Icon(TileIcons["settings"], null, tint = tokens.fg, modifier = Modifier.size(22.dp))
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "android settings", color = tokens.fg, fontSize = 14.sp)
-                        Text(
-                            text = "the device's own settings app",
-                            color = tokens.fgDim,
-                            fontSize = 12.sp,
-                        )
-                    }
-                    Text(text = "open ›", color = accent, fontSize = 13.sp)
-                }
-            }
-
-            // ---- help ----
-            SettingGroup(label = "help", tokens.fgDim) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onPersonalizeGuide)
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "how to personalize", color = tokens.fg, fontSize = 14.sp)
-                        Text(
-                            text = "colours, wallpaper, tiles, home style, pages, pinning apps, the feed, and permissions",
-                            color = tokens.fgDim,
-                            fontSize = 12.sp,
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text(text = "guide ›", color = accent, fontSize = 13.sp)
-                }
-            }
-
-            // ---- theme: dark/light/auto as small square tiles, matching the
-            // Quick Panel's WP-style tile grid (accent fill selected, neutral
-            // chip fill otherwise) instead of a plain segmented row ----
-            SettingGroup(label = "theme", tokens.fgDim) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    ThemeTile(
-                        "moon", "dark", selected = !followSystemTheme && dark,
-                        accent = accent, tokens = tokens,
-                        modifier = Modifier.weight(1f).aspectRatio(1f),
-                    ) {
-                        onFollowSystemThemeChange(false)
-                        onThemeChange(true)
-                    }
-                    ThemeTile(
-                        "brightness", "light", selected = !followSystemTheme && !dark,
-                        accent = accent, tokens = tokens,
-                        modifier = Modifier.weight(1f).aspectRatio(1f),
-                    ) {
-                        onFollowSystemThemeChange(false)
-                        onThemeChange(false)
-                    }
-                    ThemeTile(
-                        "auto", "auto", selected = followSystemTheme,
-                        accent = accent, tokens = tokens,
-                        modifier = Modifier.weight(1f).aspectRatio(1f),
-                    ) {
-                        onFollowSystemThemeChange(true)
-                    }
-                }
-            }
-
-            // ---- accent colour ----
-            SettingGroup(label = "accent colour", tokens.fgDim) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    TileAccents.swatches.chunked(7).forEach { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            row.forEach { (id, color) ->
-                                Swatch(
-                                    color = color,
-                                    selected = id == accentId,
-                                    ring = tokens.fg,
-                                    modifier = Modifier.weight(1f),
-                                    onClick = { onAccentChange(id) },
-                                )
-                            }
-                            repeat(7 - row.size) { Spacer(Modifier.weight(1f)) }
-                        }
-                    }
-                }
-            }
-
-            // ---- tile color source: same label-above / bordered-segmented-row
-            // convention every other selector on this sheet uses (home style,
-            // arrangement, wallpaper type) — a bespoke same-line label+pills
-            // row squeezed "wallpaper" down to near-zero width once it grew a
-            // swatch dot, wrapping its text one letter per line instead of
-            // just overflowing ----
-            SettingGroup(label = "tile color source", tokens.fgDim) {
-                // Two rows of two (like tile style) — four labels squeezed on
-                // one line.
-                Column(modifier = Modifier.fillMaxWidth().border(1.dp, tokens.tileLine)) {
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    SegCell(
-                        "accent",
-                        selected = tileColorSource == TileColorSource.GLOBAL_ACCENT,
-                        accent = accent,
-                        fg = tokens.fg,
-                    ) {
-                        onTileColorSourceChange(TileColorSource.GLOBAL_ACCENT)
-                    }
-                    SegCell(
-                        "multicolour",
-                        selected = tileColorSource == TileColorSource.MULTICOLOR,
-                        accent = accent,
-                        fg = tokens.fg,
-                    ) {
-                        onTileColorSourceChange(TileColorSource.MULTICOLOR)
-                    }
-                }
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    SegCell(
-                        "app icon",
-                        selected = tileColorSource == TileColorSource.APP_ICON,
-                        accent = accent,
-                        fg = tokens.fg,
-                    ) {
-                        onTileColorSourceChange(TileColorSource.APP_ICON)
-                    }
-                    // Carries an actual swatch dot sampled from the current
-                    // wallpaper (the same colour the feed/glance page and Quick
-                    // Panel already use) so the user sees the real colour before
-                    // switching to it — accent/app-icon need no such preview
-                    // (accent already fills the whole cell when selected; app
-                    // icon has no single colour to show ahead of time).
-                    SegCell(
-                        "wallpaper",
-                        selected = tileColorSource == TileColorSource.WALLPAPER_ACCENT,
-                        accent = accent,
-                        fg = tokens.fg,
-                        swatch = wallpaperAccentPreview,
-                    ) {
-                        onTileColorSourceChange(TileColorSource.WALLPAPER_ACCENT)
-                    }
-                }
-                }
-            }
-
-            // ---- wallpaper ----
-            SettingGroup(label = "wallpaper", tokens.fgDim) {
-                val currentWallpaper =
-                    currentWallpaperType(wallpaperId, customWallpaper, bingWallpaper, wallpaperSlideshowEnabled)
-
-                // Picking a type applies a sensible default immediately (opens the photo
-                // picker, turns slideshow/Bing on, picks the first stock gradient) — every
-                // transition reuses the same setters the old flat toggles called, which
-                // already clear the other, now-inactive types. The section below then asks
-                // for whatever more that type needs (which photo, which interval, …).
-                fun selectWallpaperType(type: WallpaperType) {
-                    if (type == currentWallpaper) return
-                    when (type) {
-                        WallpaperType.NONE -> onClearWallpaper()
-                        WallpaperType.PHOTO -> onPickCustomWallpaper()
-                        WallpaperType.SLIDESHOW -> onWallpaperSlideshowChange(true)
-                        WallpaperType.BING -> onBingWallpaperChange(true)
-                        WallpaperType.STOCK -> onSelectStockWallpaperType()
-                    }
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, tokens.tileLine),
-                ) {
-                    val labels = listOf(
-                        WallpaperType.NONE to "none",
-                        WallpaperType.PHOTO to "photo",
-                        WallpaperType.SLIDESHOW to "slides",
-                        WallpaperType.BING to "bing",
-                        WallpaperType.STOCK to "stock",
-                    )
-                    labels.forEach { (type, label) ->
-                        SegCell(label, selected = type == currentWallpaper, accent = accent, fg = tokens.fg) {
-                            selectWallpaperType(type)
-                        }
-                    }
-                }
-                Spacer(Modifier.height(14.dp))
-
-                when (currentWallpaper) {
-                    WallpaperType.NONE -> Text(
-                        text = "flat theme background, no photo or pattern",
-                        color = tokens.fgDim,
-                        fontSize = 13.sp,
-                    )
-                    WallpaperType.PHOTO -> {
-                        WallpaperNavRow(
-                            "photo",
-                            if (customWallpaper) "change ›" else "choose ›",
-                            accent, tokens, onPickCustomWallpaper,
-                        )
-                        if (customWallpaper) {
-                            WallpaperNavRow("adjust position", "reframe ›", accent, tokens, onAdjustWallpaper)
-                        }
-                    }
-                    WallpaperType.SLIDESHOW -> {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            Text(text = "every", color = tokens.fgDim, fontSize = 12.sp)
-                            Spacer(Modifier.weight(1f))
-                            listOf(15 to "15m", 30 to "30m", 60 to "1h", 180 to "3h").forEach { (min, label) ->
-                                val selected = wallpaperSlideshowIntervalMin == min
-                                Text(
-                                    text = label,
-                                    color = if (selected) accentOnColor(accent) else tokens.fgDim,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier
-                                        .background(
-                                            if (selected) accent else tokens.fgDim.copy(alpha = 0.12f),
-                                            RoundedCornerShape(4.dp),
-                                        )
-                                        .clickable { onWallpaperSlideshowIntervalChange(min) }
-                                        .padding(horizontal = 10.dp, vertical = 4.dp),
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(10.dp))
-                        WallpaperNavRow(
-                            "slideshow photos",
-                            if (wallpaperSlideshowCount > 0) "$wallpaperSlideshowCount selected ›" else "choose ›",
-                            accent, tokens, onPickWallpaperSlideshowPhotos,
-                        )
-                        if (wallpaperSlideshowCount > 0) {
+                    when (page) {
+                        0 -> { // colours
+                        // ---- theme: dark/light/auto as small square tiles, matching the
+                        // Quick Panel's WP-style tile grid (accent fill selected, neutral
+                        // chip fill otherwise) instead of a plain segmented row ----
+                        SettingGroup(label = "theme", tokens.fgDim) {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable(onClick = onClearWallpaperSlideshowPhotos)
-                                    .padding(vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                Text(text = "clear slideshow photos", color = tokens.fgDim, fontSize = 14.sp)
-                                Spacer(Modifier.weight(1f))
-                                Text(text = "✕", color = tokens.fgDim, fontSize = 13.sp)
+                                ThemeTile(
+                                    "moon", "dark", selected = !followSystemTheme && dark,
+                                    accent = accent, tokens = tokens,
+                                    modifier = Modifier.weight(1f),
+                                ) {
+                                    onFollowSystemThemeChange(false)
+                                    onThemeChange(true)
+                                }
+                                ThemeTile(
+                                    "brightness", "light", selected = !followSystemTheme && !dark,
+                                    accent = accent, tokens = tokens,
+                                    modifier = Modifier.weight(1f),
+                                ) {
+                                    onFollowSystemThemeChange(false)
+                                    onThemeChange(false)
+                                }
+                                ThemeTile(
+                                    "auto", "auto", selected = followSystemTheme,
+                                    accent = accent, tokens = tokens,
+                                    modifier = Modifier.weight(1f),
+                                ) {
+                                    onFollowSystemThemeChange(true)
+                                }
                             }
                         }
-                    }
-                    WallpaperType.BING -> {
-                        WallpaperNavRow("recent bing wallpapers", "browse ›", accent, tokens, onBingHistory)
-                        if (customWallpaper) {
-                            WallpaperNavRow("adjust position", "reframe ›", accent, tokens, onAdjustWallpaper)
-                        }
-                    }
-                    WallpaperType.STOCK -> {
-                        // Fixed 3 per row. This used to be a hardcoded
-                        // take(3)/drop(3) pair, which silently meant "3, then
-                        // everything else" — adding a 7th wallpaper made the
-                        // second row four narrower cells than the first. Rows
-                        // are chunked instead, and a short final row is padded
-                        // with weighted spacers, so every swatch is the same
-                        // size whatever the list length.
-                        Wallpapers.all.chunked(WALLPAPER_GRID_COLUMNS)
-                            .forEachIndexed { index, row ->
-                                if (index > 0) Spacer(Modifier.height(10.dp))
-                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    row.forEach { wp ->
-                                        WallpaperCell(
-                                            wallpaper = wp,
-                                            selected = wp.id == wallpaperId,
-                                            ring = tokens.fg,
-                                            modifier = Modifier.weight(1f),
-                                            onClick = { onWallpaperChange(wp.id) },
-                                        )
-                                    }
-                                    repeat(WALLPAPER_GRID_COLUMNS - row.size) {
-                                        Spacer(Modifier.weight(1f))
+                        // ---- accent colour ----
+                        SettingGroup(label = "accent colour", tokens.fgDim) {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                TileAccents.swatches.chunked(7).forEach { row ->
+                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        row.forEach { (id, color) ->
+                                            Swatch(
+                                                color = color,
+                                                selected = id == accentId,
+                                                ring = tokens.fg,
+                                                modifier = Modifier.weight(1f),
+                                                onClick = { onAccentChange(id) },
+                                            )
+                                        }
+                                        repeat(7 - row.size) { Spacer(Modifier.weight(1f)) }
                                     }
                                 }
                             }
-                    }
-                }
-
-            }
-
-            // ---- tile style (merged: background style + transparency/blur +
-            // shape/spacing + gradient fill + reset) ----
-            SettingGroup(label = "tile style", tokens.fgDim) {
-                val currentBackground =
-                    currentTileBackgroundStyle(glass, tiledWallpaper, borderlessTiles)
-
-                // Same pattern as the wallpaper type selector above: picking an option
-                // applies it immediately (the two are already mutually exclusive at the
-                // data layer — SettingsRepository.setGlass/setTiledWallpaper), and the
-                // section below asks for whatever more that option needs.
-                fun selectBackground(style: TileBackgroundStyle) {
-                    if (style == currentBackground) return
-                    when (style) {
-                        TileBackgroundStyle.NONE -> {
-                            onGlassChange(false)
-                            onTiledWallpaperChange(false)
-                            onBorderlessTilesChange(false)
                         }
-                        TileBackgroundStyle.TRANSPARENT -> onGlassChange(true)
-                        TileBackgroundStyle.BEHIND_TILES -> onTiledWallpaperChange(true)
-                        TileBackgroundStyle.BORDERLESS -> onBorderlessTilesChange(true)
-                    }
-                }
-
-                // 2×2 rather than one 4-wide row: two of these four labels
-                // are now two words ("behind tiles", "widget cards"), which
-                // squeezed badly at quarter-width in a single row (user-
-                // reported "too crowded in horizontal space"). Each cell gets
-                // roughly double the room this way, at the cost of one extra
-                // row of height — the same trade the wallpaper swatch grid
-                // above already makes.
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, tokens.tileLine),
-                ) {
-                    val labels = listOf(
-                        TileBackgroundStyle.NONE to "none",
-                        TileBackgroundStyle.TRANSPARENT to "transparent",
-                        TileBackgroundStyle.BEHIND_TILES to "behind tiles",
-                        TileBackgroundStyle.BORDERLESS to "widget cards",
-                    )
-                    labels.chunked(2).forEachIndexed { index, row ->
-                        if (index > 0) HorizontalDivider(color = tokens.tileLine)
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            row.forEach { (style, label) ->
+                        // ---- tile color source: same label-above / bordered-segmented-row
+                        // convention every other selector on this sheet uses (home style,
+                        // arrangement, wallpaper type) — a bespoke same-line label+pills
+                        // row squeezed "wallpaper" down to near-zero width once it grew a
+                        // swatch dot, wrapping its text one letter per line instead of
+                        // just overflowing ----
+                        SettingGroup(label = "tile color source", tokens.fgDim) {
+                            // Two rows of two (like tile style) — four labels squeezed on
+                            // one line.
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                            Row(modifier = Modifier.fillMaxWidth()) {
                                 SegCell(
-                                    label,
-                                    selected = style == currentBackground,
+                                    "accent",
+                                    selected = tileColorSource == TileColorSource.GLOBAL_ACCENT,
                                     accent = accent,
                                     fg = tokens.fg,
                                 ) {
-                                    selectBackground(style)
+                                    onTileColorSourceChange(TileColorSource.GLOBAL_ACCENT)
+                                }
+                                SegCell(
+                                    "multicolour",
+                                    selected = tileColorSource == TileColorSource.MULTICOLOR,
+                                    accent = accent,
+                                    fg = tokens.fg,
+                                ) {
+                                    onTileColorSourceChange(TileColorSource.MULTICOLOR)
                                 }
                             }
-                        }
-                    }
-                }
-
-                // The hairline only exists in the two styles that paint a tile
-                // surface the wallpaper shows through — a solid accent tile and a
-                // borderless one never draw one, so the toggle would be inert
-                // there. Off keeps the fill and drops just the edge line, so
-                // adjacent tiles read as one continuous surface (most noticeable
-                // in "behind tiles" at a small tile gap).
-                if (currentBackground == TileBackgroundStyle.TRANSPARENT ||
-                    currentBackground == TileBackgroundStyle.BEHIND_TILES
-                ) {
-                    Spacer(Modifier.height(14.dp))
-                    ToggleRow("tile outline", on = tileOutline, accent = accent, tokens, onTileOutlineChange)
-                }
-
-                // Tile transparency controls the see-through amount for either
-                // style that paints a translucent surface: "transparent" (the
-                // accent-tinted glass fill) and "borderless" (its neutral
-                // widget-card fill) — the same slider, since both are "how
-                // much of the tile's own surface alpha shows through," just
-                // applied to a different base colour per style. Blur applies
-                // to "none"/"transparent"/"borderless" — all three render
-                // through the same non-tiled WallpaperBackground — but not
-                // "behind tiles": that mode has no single composable to blur
-                // (each tile draws its own window onto the wallpaper), and
-                // blurring every tile's window individually is prohibitively
-                // expensive (one RenderEffect layer per visible tile — tried
-                // it, caused an ANR).
-                if (currentBackground == TileBackgroundStyle.TRANSPARENT ||
-                    currentBackground == TileBackgroundStyle.BORDERLESS
-                ) {
-                    // Local draft so the thumb (and the % readout) track the
-                    // finger at frame rate. The persisted value is debounced
-                    // (StartViewModel's pendingSettingWrites) to avoid rewriting
-                    // the whole settings blob on every frame of the drag, so
-                    // binding straight to the persisted value would leave the
-                    // slider visibly stuck mid-gesture. Re-keyed on the persisted
-                    // value so an external change (reset tile style) still moves
-                    // the thumb; no write lands mid-drag, so this can't fight the
-                    // gesture.
-                    var transparencyDraft by remember(transparency) { mutableFloatStateOf(transparency) }
-                    Spacer(Modifier.height(14.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("tile transparency", color = tokens.fgDim, fontSize = 13.sp)
-                        Text("${(transparencyDraft * 100).roundToInt()}%", color = tokens.fgDim, fontSize = 13.sp)
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    Slider(
-                        value = transparencyDraft,
-                        onValueChange = { transparencyDraft = it; onTransparencyChange(it) },
-                        colors = SliderDefaults.colors(
-                            thumbColor = accent,
-                            activeTrackColor = accent,
-                            inactiveTrackColor = tokens.tileLine,
-                        ),
-                    )
-                }
-                if (currentBackground != TileBackgroundStyle.BEHIND_TILES) {
-                    Spacer(Modifier.height(14.dp))
-                    ToggleRow("blur wallpaper", on = blur, accent = accent, tokens, onBlurChange)
-                }
-
-                // Corner radius, tile spacing, and gradient fill all
-                // have zero visible effect on a borderless tile — it
-                // uses its own fixed corner radius/gap (see
-                // BORDERLESS_CORNER_RADIUS_DP/_TILE_GAP_DP in
-                // StartScreen.kt) and never reads useTileGradient. Hiding
-                // all three while this style is active avoids showing
-                // controls that visibly do nothing.
-                if (currentBackground != TileBackgroundStyle.BORDERLESS) {
-                    Spacer(Modifier.height(18.dp))
-                    HorizontalDivider(color = tokens.tileLine)
-                    Spacer(Modifier.height(18.dp))
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("corner radius", color = tokens.fgDim, fontSize = 13.sp)
-                        Text("${cornerRadius.roundToInt()}", color = tokens.fgDim, fontSize = 13.sp)
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(22.dp)
-                                .background(accent),
-                        )
-                        // Local draft so the thumb tracks the finger at frame rate.
-                        // The persisted value is debounced (StartViewModel's
-                        // pendingSettingWrites) to avoid rewriting the whole settings
-                        // blob on every frame of the drag, so binding the Slider
-                        // straight to the persisted value would leave it visibly
-                        // stuck mid-gesture. Re-keyed on the persisted value so an
-                        // external change (reset tile style) still moves the thumb;
-                        // no write lands mid-drag, so this can't fight the gesture.
-                        var cornerDraft by remember(cornerRadius) { mutableFloatStateOf(cornerRadius) }
-                        Slider(
-                            value = cornerDraft,
-                            onValueChange = { cornerDraft = it; onCornerRadiusChange(it) },
-                            valueRange = 0f..20f,
-                            colors = SliderDefaults.colors(
-                                thumbColor = accent,
-                                activeTrackColor = accent,
-                                inactiveTrackColor = tokens.tileLine,
-                            ),
-                            modifier = Modifier.weight(1f),
-                        )
-                        Box(
-                            modifier = Modifier
-                                .size(22.dp)
-                                .clip(RoundedCornerShape(7.dp))
-                                .background(accent),
-                        )
-                    }
-                    // Tile spacing — hidden when wallpaper-behind-tiles is on so wider
-                    // gaps never fragment the show-through wallpaper.
-                    if (!tiledWallpaper) {
-                        Spacer(Modifier.height(14.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("tile spacing", color = tokens.fgDim, fontSize = 13.sp)
-                            Text("${tileGap.roundToInt()}", color = tokens.fgDim, fontSize = 13.sp)
-                        }
-                        Spacer(Modifier.height(4.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
-                                Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
-                                Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                SegCell(
+                                    "app icon",
+                                    selected = tileColorSource == TileColorSource.APP_ICON,
+                                    accent = accent,
+                                    fg = tokens.fg,
+                                ) {
+                                    onTileColorSourceChange(TileColorSource.APP_ICON)
+                                }
+                                // Carries an actual swatch dot sampled from the current
+                                // wallpaper (the same colour the feed/glance page and Quick
+                                // Panel already use) so the user sees the real colour before
+                                // switching to it — accent/app-icon need no such preview
+                                // (accent already fills the whole cell when selected; app
+                                // icon has no single colour to show ahead of time).
+                                SegCell(
+                                    "wallpaper",
+                                    selected = tileColorSource == TileColorSource.WALLPAPER_ACCENT,
+                                    accent = accent,
+                                    fg = tokens.fg,
+                                    swatch = wallpaperAccentPreview,
+                                ) {
+                                    onTileColorSourceChange(TileColorSource.WALLPAPER_ACCENT)
+                                }
                             }
-                        // Local draft so the thumb tracks the finger at frame rate.
-                        // The persisted value is debounced (StartViewModel's
-                        // pendingSettingWrites) to avoid rewriting the whole settings
-                        // blob on every frame of the drag, so binding the Slider
-                        // straight to the persisted value would leave it visibly
-                        // stuck mid-gesture. Re-keyed on the persisted value so an
-                        // external change (reset tile style) still moves the thumb;
-                        // no write lands mid-drag, so this can't fight the gesture.
-                            var gapDraft by remember(tileGap) { mutableFloatStateOf(tileGap) }
-                            Slider(
-                                value = gapDraft,
-                                onValueChange = { gapDraft = it; onTileGapChange(it) },
-                                valueRange = 0f..16f,
-                                colors = SliderDefaults.colors(
-                                    thumbColor = accent,
-                                    activeTrackColor = accent,
-                                    inactiveTrackColor = tokens.tileLine,
-                                ),
-                                modifier = Modifier.weight(1f),
-                            )
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
-                                Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
                             }
                         }
-                    }
+                        }
+                        1 -> { // wallpaper
+                        // ---- wallpaper ----
+                        SettingGroup(label = "wallpaper", tokens.fgDim) {
+                            val currentWallpaper =
+                                currentWallpaperType(wallpaperId, customWallpaper, bingWallpaper, wallpaperSlideshowEnabled)
 
-                    Spacer(Modifier.height(14.dp))
-                    ToggleRow(
-                        "gradient fill",
-                        on = tileFill == TileFill.GRADIENT,
-                        accent = accent,
-                        tokens,
-                        onChange = { on -> onTileFillChange(if (on) TileFill.GRADIENT else TileFill.FLAT) },
-                    )
+                            // Picking a type applies a sensible default immediately (opens the photo
+                            // picker, turns slideshow/Bing on, picks the first stock gradient) — every
+                            // transition reuses the same setters the old flat toggles called, which
+                            // already clear the other, now-inactive types. The section below then asks
+                            // for whatever more that type needs (which photo, which interval, …).
+                            fun selectWallpaperType(type: WallpaperType) {
+                                if (type == currentWallpaper) return
+                                when (type) {
+                                    WallpaperType.NONE -> onClearWallpaper()
+                                    WallpaperType.PHOTO -> onPickCustomWallpaper()
+                                    WallpaperType.SLIDESHOW -> onWallpaperSlideshowChange(true)
+                                    WallpaperType.BING -> onBingWallpaperChange(true)
+                                    WallpaperType.STOCK -> onSelectStockWallpaperType()
+                                }
+                            }
 
-                }
-                Spacer(Modifier.height(18.dp))
-                HorizontalDivider(color = tokens.tileLine)
-                Spacer(Modifier.height(18.dp))
-
-                // -- reset --
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showResetTileStyleConfirm = true }
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(text = "reset tile style", color = tokens.fg, fontSize = 14.sp)
-                        Text(
-                            text = "corners, spacing, columns, fill, colour & font",
-                            color = tokens.fgDim,
-                            fontSize = 12.sp,
-                        )
-                    }
-                    Text(text = "↺", color = tokens.fgDim, fontSize = 16.sp)
-                }
-            }
-
-            // ---- grid columns ----
-            SettingGroup(label = "grid columns", tokens.fgDim) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "how many small tiles fit across a row",
-                        color = tokens.fgDim,
-                        fontSize = 13.sp,
-                    )
-                    Text(
-                        "a medium tile spans 2 columns, a wide tile spans 4",
-                        color = tokens.fgDim,
-                        fontSize = 12.sp,
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(4, 5, 6).forEach { count ->
-                            val selected = columns == count
-                            Box(
+                            Row(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(if (selected) accent else Color.Transparent)
-                                    .border(
-                                        1.dp,
-                                        if (selected) accent else tokens.tileLine,
-                                        RoundedCornerShape(20.dp),
-                                    )
-                                    .clickable { onColumnsChange(count) }
-                                    .padding(horizontal = 18.dp, vertical = 7.dp),
-                                contentAlignment = Alignment.Center,
+                                    .fillMaxWidth(),
                             ) {
+                                val labels = listOf(
+                                    WallpaperType.NONE to "none",
+                                    WallpaperType.PHOTO to "photo",
+                                    WallpaperType.SLIDESHOW to "slides",
+                                    WallpaperType.BING to "bing",
+                                    WallpaperType.STOCK to "stock",
+                                )
+                                labels.forEach { (type, label) ->
+                                    SegCell(label, selected = type == currentWallpaper, accent = accent, fg = tokens.fg) {
+                                        selectWallpaperType(type)
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(14.dp))
+
+                            when (currentWallpaper) {
+                                WallpaperType.NONE -> Text(
+                                    text = "flat theme background, no photo or pattern",
+                                    color = tokens.fgDim,
+                                    fontSize = 13.sp,
+                                )
+                                WallpaperType.PHOTO -> {
+                                    WallpaperNavRow(
+                                        "photo",
+                                        if (customWallpaper) "change ›" else "choose ›",
+                                        accent, tokens, onPickCustomWallpaper,
+                                    )
+                                    if (customWallpaper) {
+                                        WallpaperNavRow("adjust position", "reframe ›", accent, tokens, onAdjustWallpaper)
+                                    }
+                                }
+                                WallpaperType.SLIDESHOW -> {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    ) {
+                                        Text(text = "every", color = tokens.fgDim, fontSize = 12.sp)
+                                        Spacer(Modifier.weight(1f))
+                                        listOf(15 to "15m", 30 to "30m", 60 to "1h", 180 to "3h").forEach { (min, label) ->
+                                            val selected = wallpaperSlideshowIntervalMin == min
+                                            Text(
+                                                text = label,
+                                                color = if (selected) accentOnColor(accent) else tokens.fgDim,
+                                                fontSize = 12.sp,
+                                                modifier = Modifier
+                                                    .background(
+                                                        if (selected) accent else tokens.fgDim.copy(alpha = 0.12f),
+                                                        RoundedCornerShape(4.dp),
+                                                    )
+                                                    .clickable { onWallpaperSlideshowIntervalChange(min) }
+                                                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.height(10.dp))
+                                    WallpaperNavRow(
+                                        "slideshow photos",
+                                        if (wallpaperSlideshowCount > 0) "$wallpaperSlideshowCount selected ›" else "choose ›",
+                                        accent, tokens, onPickWallpaperSlideshowPhotos,
+                                    )
+                                    if (wallpaperSlideshowCount > 0) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable(onClick = onClearWallpaperSlideshowPhotos)
+                                                .padding(vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Text(text = "clear slideshow photos", color = tokens.fgDim, fontSize = 14.sp)
+                                            Spacer(Modifier.weight(1f))
+                                            Text(text = "✕", color = tokens.fgDim, fontSize = 13.sp)
+                                        }
+                                    }
+                                }
+                                WallpaperType.BING -> {
+                                    WallpaperNavRow("recent bing wallpapers", "browse ›", accent, tokens, onBingHistory)
+                                    if (customWallpaper) {
+                                        WallpaperNavRow("adjust position", "reframe ›", accent, tokens, onAdjustWallpaper)
+                                    }
+                                }
+                                WallpaperType.STOCK -> {
+                                    // Fixed 3 per row. This used to be a hardcoded
+                                    // take(3)/drop(3) pair, which silently meant "3, then
+                                    // everything else" — adding a 7th wallpaper made the
+                                    // second row four narrower cells than the first. Rows
+                                    // are chunked instead, and a short final row is padded
+                                    // with weighted spacers, so every swatch is the same
+                                    // size whatever the list length.
+                                    Wallpapers.all.chunked(WALLPAPER_GRID_COLUMNS)
+                                        .forEachIndexed { index, row ->
+                                            if (index > 0) Spacer(Modifier.height(10.dp))
+                                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                                row.forEach { wp ->
+                                                    WallpaperCell(
+                                                        wallpaper = wp,
+                                                        selected = wp.id == wallpaperId,
+                                                        ring = tokens.fg,
+                                                        modifier = Modifier.weight(1f),
+                                                        onClick = { onWallpaperChange(wp.id) },
+                                                    )
+                                                }
+                                                repeat(WALLPAPER_GRID_COLUMNS - row.size) {
+                                                    Spacer(Modifier.weight(1f))
+                                                }
+                                            }
+                                        }
+                                }
+                            }
+
+                        }
+                        // ---- live photos (FR-2 photos tile) ----
+                        SettingGroup(label = "live photos", tokens.fgDim) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = onPickPhotos)
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(text = "choose photos", color = tokens.fg, fontSize = 14.sp)
+                                Spacer(Modifier.weight(1f))
                                 Text(
-                                    text = count.toString(),
-                                    color = if (selected) accentOnColor(accent) else tokens.fg,
+                                    text = if (photosSelected > 0) "$photosSelected selected ›" else "pick ›",
+                                    color = if (photosSelected > 0) accent else tokens.fgDim,
                                     fontSize = 13.sp,
                                 )
                             }
+                            if (photosSelected > 0) {
+                                Spacer(Modifier.height(4.dp))
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable(onClick = onClearPhotos)
+                                        .padding(vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(text = "clear selected photos", color = tokens.fgDim, fontSize = 14.sp)
+                                    Spacer(Modifier.weight(1f))
+                                    Text(text = "✕", color = tokens.fgDim, fontSize = 13.sp)
+                                }
+                            }
                         }
-                    }
-                }
-            }
+                        }
+                        2 -> { // tiles
+                        // ---- tile style (merged: background style + transparency/blur +
+                        // shape/spacing + gradient fill + reset) ----
+                        SettingGroup(label = "tile style", tokens.fgDim) {
+                            val currentBackground =
+                                currentTileBackgroundStyle(glass, tiledWallpaper, borderlessTiles)
 
-            // ---- home style: windows-phone tiles vs. android-style icons ----
-            SettingGroup(label = "home style", tokens.fgDim) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "how apps render on the small (1×1) size — bigger tiles, live tiles and folders look the same either way",
-                        color = tokens.fgDim,
-                        fontSize = 13.sp,
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(1.dp, tokens.tileLine),
-                    ) {
-                        SegCell("tiles", selected = homeStyle == HomeStyle.TILES, accent = accent, fg = tokens.fg) {
-                            onHomeStyleChange(HomeStyle.TILES)
-                        }
-                        SegCell("icons", selected = homeStyle == HomeStyle.ICONS, accent = accent, fg = tokens.fg) {
-                            onHomeStyleChange(HomeStyle.ICONS)
-                        }
-                    }
-                    // Icon shape only matters once there's an icon to mask —
-                    // hidden entirely in TILES, where this setting is unused.
-                    if (homeStyle == HomeStyle.ICONS) {
-                        Spacer(Modifier.height(6.dp))
-                        Text("icon shape", color = tokens.fgDim, fontSize = 13.sp)
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            IconShape.entries.forEach { candidate ->
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                            // Same pattern as the wallpaper type selector above: picking an option
+                            // applies it immediately (the two are already mutually exclusive at the
+                            // data layer — SettingsRepository.setGlass/setTiledWallpaper), and the
+                            // section below asks for whatever more that option needs.
+                            fun selectBackground(style: TileBackgroundStyle) {
+                                if (style == currentBackground) return
+                                when (style) {
+                                    TileBackgroundStyle.NONE -> {
+                                        onGlassChange(false)
+                                        onTiledWallpaperChange(false)
+                                        onBorderlessTilesChange(false)
+                                    }
+                                    TileBackgroundStyle.TRANSPARENT -> onGlassChange(true)
+                                    TileBackgroundStyle.BEHIND_TILES -> onTiledWallpaperChange(true)
+                                    TileBackgroundStyle.BORDERLESS -> onBorderlessTilesChange(true)
+                                }
+                            }
+
+                            // 2×2 rather than one 4-wide row: two of these four labels
+                            // are now two words ("behind tiles", "widget cards"), which
+                            // squeezed badly at quarter-width in a single row (user-
+                            // reported "too crowded in horizontal space"). Each cell gets
+                            // roughly double the room this way, at the cost of one extra
+                            // row of height — the same trade the wallpaper swatch grid
+                            // above already makes.
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth(),
+                            ) {
+                                val labels = listOf(
+                                    TileBackgroundStyle.NONE to "none",
+                                    TileBackgroundStyle.TRANSPARENT to "transparent",
+                                    TileBackgroundStyle.BEHIND_TILES to "behind tiles",
+                                    TileBackgroundStyle.BORDERLESS to "widget cards",
+                                )
+                                labels.chunked(2).forEachIndexed { index, row ->
+                                    if (index > 0) HorizontalDivider(color = tokens.tileLine)
+                                    Row(modifier = Modifier.fillMaxWidth()) {
+                                        row.forEach { (style, label) ->
+                                            SegCell(
+                                                label,
+                                                selected = style == currentBackground,
+                                                accent = accent,
+                                                fg = tokens.fg,
+                                            ) {
+                                                selectBackground(style)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // The hairline only exists in the two styles that paint a tile
+                            // surface the wallpaper shows through — a solid accent tile and a
+                            // borderless one never draw one, so the toggle would be inert
+                            // there. Off keeps the fill and drops just the edge line, so
+                            // adjacent tiles read as one continuous surface (most noticeable
+                            // in "behind tiles" at a small tile gap).
+                            if (currentBackground == TileBackgroundStyle.TRANSPARENT ||
+                                currentBackground == TileBackgroundStyle.BEHIND_TILES
+                            ) {
+                                Spacer(Modifier.height(14.dp))
+                                ToggleRow("tile outline", on = tileOutline, accent = accent, tokens, onTileOutlineChange)
+                            }
+
+                            // Tile transparency controls the see-through amount for either
+                            // style that paints a translucent surface: "transparent" (the
+                            // accent-tinted glass fill) and "borderless" (its neutral
+                            // widget-card fill) — the same slider, since both are "how
+                            // much of the tile's own surface alpha shows through," just
+                            // applied to a different base colour per style. Blur applies
+                            // to "none"/"transparent"/"borderless" — all three render
+                            // through the same non-tiled WallpaperBackground — but not
+                            // "behind tiles": that mode has no single composable to blur
+                            // (each tile draws its own window onto the wallpaper), and
+                            // blurring every tile's window individually is prohibitively
+                            // expensive (one RenderEffect layer per visible tile — tried
+                            // it, caused an ANR).
+                            if (currentBackground == TileBackgroundStyle.TRANSPARENT ||
+                                currentBackground == TileBackgroundStyle.BORDERLESS
+                            ) {
+                                // Local draft so the thumb (and the % readout) track the
+                                // finger at frame rate. The persisted value is debounced
+                                // (StartViewModel's pendingSettingWrites) to avoid rewriting
+                                // the whole settings blob on every frame of the drag, so
+                                // binding straight to the persisted value would leave the
+                                // slider visibly stuck mid-gesture. Re-keyed on the persisted
+                                // value so an external change (reset tile style) still moves
+                                // the thumb; no write lands mid-drag, so this can't fight the
+                                // gesture.
+                                var transparencyDraft by remember(transparency) { mutableFloatStateOf(transparency) }
+                                Spacer(Modifier.height(14.dp))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("tile transparency", color = tokens.fgDim, fontSize = 13.sp)
+                                    Text("${(transparencyDraft * 100).roundToInt()}%", color = tokens.fgDim, fontSize = 13.sp)
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Slider(
+                                    value = transparencyDraft,
+                                    onValueChange = { transparencyDraft = it; onTransparencyChange(it) },
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = accent,
+                                        activeTrackColor = accent,
+                                        inactiveTrackColor = tokens.tileLine,
+                                    ),
+                                )
+                            }
+                            if (currentBackground != TileBackgroundStyle.BEHIND_TILES) {
+                                Spacer(Modifier.height(14.dp))
+                                ToggleRow("blur wallpaper", on = blur, accent = accent, tokens, onBlurChange)
+                            }
+
+                            // Corner radius, tile spacing, and gradient fill all
+                            // have zero visible effect on a borderless tile — it
+                            // uses its own fixed corner radius/gap (see
+                            // BORDERLESS_CORNER_RADIUS_DP/_TILE_GAP_DP in
+                            // StartScreen.kt) and never reads useTileGradient. Hiding
+                            // all three while this style is active avoids showing
+                            // controls that visibly do nothing.
+                            if (currentBackground != TileBackgroundStyle.BORDERLESS) {
+                                Spacer(Modifier.height(18.dp))
+                                HorizontalDivider(color = tokens.tileLine)
+                                Spacer(Modifier.height(18.dp))
+
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("corner radius", color = tokens.fgDim, fontSize = 13.sp)
+                                    Text("${cornerRadius.roundToInt()}", color = tokens.fgDim, fontSize = 13.sp)
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(candidate.previewShape())
-                                            .then(
-                                                // ORIGINAL means "unmasked, no colour fill" — an
-                                                // outline-only swatch, so it reads as visually
-                                                // distinct from SQUARE's solid filled rectangle
-                                                // even though both preview the same plain shape.
-                                                if (candidate == IconShape.ORIGINAL) {
-                                                    Modifier.border(1.dp, tokens.tileLine, candidate.previewShape())
-                                                } else {
-                                                    Modifier.background(accent)
-                                                },
-                                            )
-                                            .then(
-                                                if (iconShape == candidate) {
-                                                    Modifier.border(2.dp, tokens.fg, candidate.previewShape())
-                                                } else {
-                                                    Modifier
-                                                },
-                                            )
-                                            .clickable { onIconShapeChange(candidate) },
+                                            .size(22.dp)
+                                            .background(accent),
                                     )
+                                    // Local draft so the thumb tracks the finger at frame rate.
+                                    // The persisted value is debounced (StartViewModel's
+                                    // pendingSettingWrites) to avoid rewriting the whole settings
+                                    // blob on every frame of the drag, so binding the Slider
+                                    // straight to the persisted value would leave it visibly
+                                    // stuck mid-gesture. Re-keyed on the persisted value so an
+                                    // external change (reset tile style) still moves the thumb;
+                                    // no write lands mid-drag, so this can't fight the gesture.
+                                    var cornerDraft by remember(cornerRadius) { mutableFloatStateOf(cornerRadius) }
+                                    Slider(
+                                        value = cornerDraft,
+                                        onValueChange = { cornerDraft = it; onCornerRadiusChange(it) },
+                                        valueRange = 0f..20f,
+                                        colors = SliderDefaults.colors(
+                                            thumbColor = accent,
+                                            activeTrackColor = accent,
+                                            inactiveTrackColor = tokens.tileLine,
+                                        ),
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(22.dp)
+                                            .clip(RoundedCornerShape(7.dp))
+                                            .background(accent),
+                                    )
+                                }
+                                // Tile spacing — hidden when wallpaper-behind-tiles is on so wider
+                                // gaps never fragment the show-through wallpaper.
+                                if (!tiledWallpaper) {
+                                    Spacer(Modifier.height(14.dp))
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text("tile spacing", color = tokens.fgDim, fontSize = 13.sp)
+                                        Text("${tileGap.roundToInt()}", color = tokens.fgDim, fontSize = 13.sp)
+                                    }
+                                    Spacer(Modifier.height(4.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    ) {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                                            Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
+                                            Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
+                                        }
+                                    // Local draft so the thumb tracks the finger at frame rate.
+                                    // The persisted value is debounced (StartViewModel's
+                                    // pendingSettingWrites) to avoid rewriting the whole settings
+                                    // blob on every frame of the drag, so binding the Slider
+                                    // straight to the persisted value would leave it visibly
+                                    // stuck mid-gesture. Re-keyed on the persisted value so an
+                                    // external change (reset tile style) still moves the thumb;
+                                    // no write lands mid-drag, so this can't fight the gesture.
+                                        var gapDraft by remember(tileGap) { mutableFloatStateOf(tileGap) }
+                                        Slider(
+                                            value = gapDraft,
+                                            onValueChange = { gapDraft = it; onTileGapChange(it) },
+                                            valueRange = 0f..16f,
+                                            colors = SliderDefaults.colors(
+                                                thumbColor = accent,
+                                                activeTrackColor = accent,
+                                                inactiveTrackColor = tokens.tileLine,
+                                            ),
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
+                                            Box(Modifier.size(10.dp, 22.dp).clip(RoundedCornerShape(3.dp)).background(accent))
+                                        }
+                                    }
+                                }
+
+                                Spacer(Modifier.height(14.dp))
+                                ToggleRow(
+                                    "gradient fill",
+                                    on = tileFill == TileFill.GRADIENT,
+                                    accent = accent,
+                                    tokens,
+                                    onChange = { on -> onTileFillChange(if (on) TileFill.GRADIENT else TileFill.FLAT) },
+                                )
+
+                            }
+                            Spacer(Modifier.height(18.dp))
+                            HorizontalDivider(color = tokens.tileLine)
+                            Spacer(Modifier.height(18.dp))
+
+                            // -- reset --
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showResetTileStyleConfirm = true }
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(text = "reset tile style", color = tokens.fg, fontSize = 14.sp)
                                     Text(
-                                        candidate.name.lowercase(),
-                                        color = if (iconShape == candidate) tokens.fg else tokens.fgDim,
-                                        fontSize = 10.sp,
+                                        text = "corners, spacing, columns, fill, colour & font",
+                                        color = tokens.fgDim,
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                                Text(text = "↺", color = tokens.fgDim, fontSize = 16.sp)
+                            }
+                        }
+                        // ---- grid columns ----
+                        SettingGroup(label = "grid columns", tokens.fgDim) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    "how many small tiles fit across a row",
+                                    color = tokens.fgDim,
+                                    fontSize = 13.sp,
+                                )
+                                Text(
+                                    "a medium tile spans 2 columns, a wide tile spans 4",
+                                    color = tokens.fgDim,
+                                    fontSize = 12.sp,
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                                    listOf(4, 5, 6).forEach { count ->
+                                        HubFilter(count.toString(), columns == count, tokens, accent) { onColumnsChange(count) }
+                                    }
+                                }
+                            }
+                        }
+                        }
+                        3 -> { // start
+                        // ---- home style: windows-phone tiles vs. android-style icons ----
+                        SettingGroup(label = "home style", tokens.fgDim) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    "how apps render on the small (1×1) size — bigger tiles, live tiles and folders look the same either way",
+                                    color = tokens.fgDim,
+                                    fontSize = 13.sp,
+                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth(),
+                                ) {
+                                    SegCell("tiles", selected = homeStyle == HomeStyle.TILES, accent = accent, fg = tokens.fg) {
+                                        onHomeStyleChange(HomeStyle.TILES)
+                                    }
+                                    SegCell("icons", selected = homeStyle == HomeStyle.ICONS, accent = accent, fg = tokens.fg) {
+                                        onHomeStyleChange(HomeStyle.ICONS)
+                                    }
+                                }
+                                // Icon shape only matters once there's an icon to mask —
+                                // hidden entirely in TILES, where this setting is unused.
+                                if (homeStyle == HomeStyle.ICONS) {
+                                    Spacer(Modifier.height(6.dp))
+                                    Text("icon shape", color = tokens.fgDim, fontSize = 13.sp)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        IconShape.entries.forEach { candidate ->
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(40.dp)
+                                                        .clip(candidate.previewShape())
+                                                        .then(
+                                                            // ORIGINAL means "unmasked, no colour fill" — an
+                                                            // outline-only swatch, so it reads as visually
+                                                            // distinct from SQUARE's solid filled rectangle
+                                                            // even though both preview the same plain shape.
+                                                            if (candidate == IconShape.ORIGINAL) {
+                                                                Modifier.border(1.dp, tokens.tileLine, candidate.previewShape())
+                                                            } else {
+                                                                Modifier.background(accent)
+                                                            },
+                                                        )
+                                                        .then(
+                                                            if (iconShape == candidate) {
+                                                                Modifier.border(2.dp, tokens.fg, candidate.previewShape())
+                                                            } else {
+                                                                Modifier
+                                                            },
+                                                        )
+                                                        .clickable { onIconShapeChange(candidate) },
+                                                )
+                                                Text(
+                                                    candidate.name.lowercase(),
+                                                    color = if (iconShape == candidate) tokens.fg else tokens.fgDim,
+                                                    fontSize = 10.sp,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                                Spacer(Modifier.height(6.dp))
+                                ToggleRow("monochrome icons", on = themedIcons, accent = accent, tokens, onThemedIconsChange)
+                                if (themedIcons) {
+                                    Text(
+                                        "every app icon renders as a flat glyph — nothing-phone style",
+                                        color = tokens.fgDim,
+                                        fontSize = 12.sp,
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth(),
+                                    ) {
+                                        SegCell(
+                                            "accent",
+                                            selected = monochromeIconTint == MonochromeIconTint.ACCENT,
+                                            accent = accent,
+                                            fg = tokens.fg,
+                                        ) { onMonochromeIconTintChange(MonochromeIconTint.ACCENT) }
+                                        SegCell(
+                                            "monochrome",
+                                            selected = monochromeIconTint == MonochromeIconTint.NEUTRAL,
+                                            accent = accent,
+                                            fg = tokens.fg,
+                                        ) { onMonochromeIconTintChange(MonochromeIconTint.NEUTRAL) }
+                                    }
+                                    Text(
+                                        if (monochromeIconTint == MonochromeIconTint.ACCENT) {
+                                            "glyphs tint to your accent colour"
+                                        } else {
+                                            "glyphs are a fixed black/white, independent of your accent colour"
+                                        },
+                                        color = tokens.fgDim,
+                                        fontSize = 12.sp,
                                     )
                                 }
                             }
                         }
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    ToggleRow("monochrome icons", on = themedIcons, accent = accent, tokens, onThemedIconsChange)
-                    if (themedIcons) {
-                        Text(
-                            "every app icon renders as a flat glyph — nothing-phone style",
-                            color = tokens.fgDim,
-                            fontSize = 12.sp,
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(1.dp, tokens.tileLine),
-                        ) {
-                            SegCell(
-                                "accent",
-                                selected = monochromeIconTint == MonochromeIconTint.ACCENT,
-                                accent = accent,
-                                fg = tokens.fg,
-                            ) { onMonochromeIconTintChange(MonochromeIconTint.ACCENT) }
-                            SegCell(
-                                "monochrome",
-                                selected = monochromeIconTint == MonochromeIconTint.NEUTRAL,
-                                accent = accent,
-                                fg = tokens.fg,
-                            ) { onMonochromeIconTintChange(MonochromeIconTint.NEUTRAL) }
-                        }
-                        Text(
-                            if (monochromeIconTint == MonochromeIconTint.ACCENT) {
-                                "glyphs tint to your accent colour"
-                            } else {
-                                "glyphs are a fixed black/white, independent of your accent colour"
-                            },
-                            color = tokens.fgDim,
-                            fontSize = 12.sp,
-                        )
-                    }
-                }
-            }
-
-            // ---- arrangement: compact sticky | free | dense segmented pill ----
-            SettingGroup(label = "arrangement", tokens.fgDim) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "how the grid closes gaps when a tile is removed or resized",
-                        color = tokens.fgDim,
-                        fontSize = 13.sp,
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(1.dp, tokens.tileLine),
-                    ) {
-                        SegCell("sticky", selected = tilePackMode == TilePackMode.STICKY, accent = accent, fg = tokens.fg) {
-                            onTilePackModeChange(TilePackMode.STICKY)
-                        }
-                        SegCell("free", selected = tilePackMode == TilePackMode.FREE, accent = accent, fg = tokens.fg) {
-                            onTilePackModeChange(TilePackMode.FREE)
-                        }
-                        SegCell("dense", selected = tilePackMode == TilePackMode.DENSE, accent = accent, fg = tokens.fg) {
-                            onTilePackModeChange(TilePackMode.DENSE)
-                        }
-                    }
-                    // Only shown for FREE, which is the one mode where dropping a
-                    // tile onto another swaps them instead of pushing anything
-                    // down or reflowing the grid.
-                    if (tilePackMode == TilePackMode.FREE) {
-                        Text(
-                            "nothing moves unless you move it — dropping a tile onto another swaps the two",
-                            color = tokens.fgDim,
-                            fontSize = 12.sp,
-                        )
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    ToggleRow("lock layout", on = lockLayout, accent = accent, tokens, onLockLayoutChange)
-                    Text(
-                        "when on, long-pressing a tile never opens edit mode — nothing can be moved, resized, or removed by accident",
-                        color = tokens.fgDim,
-                        fontSize = 12.sp,
-                    )
-                }
-            }
-
-            // ---- pages: start is organized into always-available, swipeable
-            // pages (named sections + the trailing "main" page) — nothing to
-            // toggle here any more, "+ add page" just always works, like
-            // folders. See the guide sheet for how to add/rename/reorder. ----
-
-            // ---- typography ----
-            SettingGroup(label = "typography", tokens.fgDim) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(
-                        FontStyle.SYSTEM to "system",
-                        FontStyle.OUTFIT to "outfit",
-                        FontStyle.NUNITO to "nunito",
-                    ).forEach { entry ->
-                        val style = entry.first
-                        val label = entry.second
-                        val selected = fontStyle == style
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(if (selected) accent else Color.Transparent)
-                                .border(
-                                    1.dp,
-                                    if (selected) accent else tokens.tileLine,
-                                    RoundedCornerShape(20.dp),
-                                )
-                                .clickable { onFontStyleChange(style) }
-                                .padding(horizontal = 14.dp, vertical = 7.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = label,
-                                color = if (selected) accentOnColor(accent) else tokens.fg,
-                                fontSize = 13.sp,
-                            )
-                        }
-                    }
-                }
-            }
-
-            // ---- live tiles: master on/off switch (flip animation only) +
-            // badges & live mail (its own row, kept independent — it's a
-            // notification-access grant, not something the master switch
-            // should imply is already asked for just by being on) ----
-            SettingGroup(label = "live tiles", tokens.fgDim) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ToggleRow(
-                        "live tile updates",
-                        on = liveTilesEnabled,
-                        accent = accent,
-                        tokens = tokens,
-                        onChange = onLiveTilesEnabledChange,
-                    )
-                    Text(
-                        text = "pauses clock/weather/notification flipping when off — badges and counts keep updating",
-                        color = tokens.fgDim,
-                        fontSize = 12.sp,
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(onClick = {
-                                if (notificationsEnabled) onNotificationAccess() else showLiveTilesPermissionPrompt = true
-                            })
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(text = "badges & live mail", color = tokens.fg, fontSize = 14.sp)
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            text = if (notificationsEnabled) "on ›" else "allow access ›",
-                            color = if (notificationsEnabled) accent else tokens.fgDim,
-                            fontSize = 13.sp,
-                        )
-                    }
-                    if (notificationsEnabled && !batteryOptimizationExempt) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(onClick = onBatteryExemption)
-                                .padding(vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
+                        // ---- arrangement: compact sticky | free | dense segmented pill ----
+                        SettingGroup(label = "arrangement", tokens.fgDim) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(
-                                    text = "background activity",
-                                    color = tokens.fg,
-                                    fontSize = 14.sp,
-                                )
-                                Text(
-                                    text = if (batteryGuidanceNote.isNotEmpty()) {
-                                        batteryGuidanceNote
-                                    } else {
-                                        "exempt from battery optimisation for reliable badges"
-                                    },
+                                    "how the grid closes gaps when a tile is removed or resized",
                                     color = tokens.fgDim,
-                                    fontSize = 12.sp,
+                                    fontSize = 13.sp,
                                 )
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            Text(text = "fix ›", color = accent, fontSize = 13.sp)
-                        }
-                    }
-                }
-            }
-
-            // ---- live data refresh: per-category poll interval, a battery/data
-            // tradeoff — "default" keeps each category's original cadence
-            // (stock/commodity 60s, sports 90s); the tile itself also slows
-            // stock/commodity polling further outside 9am-4pm weekday market
-            // hours regardless of which rate is picked here. ----
-            SettingGroup(label = "live data refresh", tokens.fgDim) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { liveRefreshOpen = true }
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "refresh rates", color = tokens.fg, fontSize = 14.sp)
-                        Text(
-                            text = "how often weather, news, stocks, commodities and sports update",
-                            color = tokens.fgDim,
-                            fontSize = 12.sp,
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text(text = "›", color = accent, fontSize = 16.sp)
-                }
-            }
-
-            // ---- live photos (FR-2 photos tile) ----
-            SettingGroup(label = "live photos", tokens.fgDim) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onPickPhotos)
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(text = "choose photos", color = tokens.fg, fontSize = 14.sp)
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        text = if (photosSelected > 0) "$photosSelected selected ›" else "pick ›",
-                        color = if (photosSelected > 0) accent else tokens.fgDim,
-                        fontSize = 13.sp,
-                    )
-                }
-                if (photosSelected > 0) {
-                    Spacer(Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(onClick = onClearPhotos)
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(text = "clear selected photos", color = tokens.fgDim, fontSize = 14.sp)
-                        Spacer(Modifier.weight(1f))
-                        Text(text = "✕", color = tokens.fgDim, fontSize = 13.sp)
-                    }
-                }
-            }
-
-            // ---- folders & categories ----
-            SettingGroup(label = "folders & categories", tokens.fgDim) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onFolders)
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "create category folders", color = tokens.fg, fontSize = 14.sp)
-                        Text(
-                            text = "group apps by what they do — communication, social, shopping…",
-                            color = tokens.fgDim,
-                            fontSize = 12.sp,
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text(text = "›", color = accent, fontSize = 16.sp)
-                }
-            }
-
-            // ---- permissions (contacts/calendar/location/physical activity — sub-sheet) ----
-            SettingGroup(label = "permissions", tokens.fgDim) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onPermissions)
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "contacts, calendar, location & steps", color = tokens.fg, fontSize = 14.sp)
-                        Text(
-                            text = "manage what live tiles can access",
-                            color = tokens.fgDim,
-                            fontSize = 12.sp,
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text(text = "›", color = accent, fontSize = 16.sp)
-                }
-            }
-
-            // ---- news region (sub-sheet) ----
-            SettingGroup(label = "news region", tokens.fgDim) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onNewsRegion)
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "choose news regions", color = tokens.fg, fontSize = 14.sp)
-                        Text(
-                            text = "$newsRegionCount countries available",
-                            color = tokens.fgDim,
-                            fontSize = 12.sp,
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text(text = "›", color = accent, fontSize = 16.sp)
-                }
-            }
-
-            // ---- hidden apps ----
-            SettingGroup(label = "app visibility", tokens.fgDim) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onHiddenApps)
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "hidden apps", color = tokens.fg, fontSize = 14.sp)
-                        Text(
-                            text = "show apps you've hidden from the app list",
-                            color = tokens.fgDim,
-                            fontSize = 12.sp,
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text(text = "›", color = accent, fontSize = 16.sp)
-                }
-            }
-
-            // ---- feed & glance ---- (always reachable here, unlike the feed
-            // page's own gear-icon settings sheet, which becomes unreachable
-            // the moment "show feed page" is turned off from inside it)
-            SettingGroup(label = "feed & glance", tokens.fgDim) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ToggleRow("show feed page", on = feedEnabled, accent = accent, tokens, onFeedEnabledChange)
-                    ToggleRow(
-                        "no background",
-                        on = feedNoBackground,
-                        accent = accent,
-                        tokens,
-                        onFeedNoBackgroundChange,
-                    )
-                    Text(
-                        "keeps the glance screen flat even when start has a wallpaper set",
-                        color = tokens.fgDim,
-                        fontSize = 12.sp,
-                    )
-                    Column {
-                        Text("your name", color = tokens.fgDim, fontSize = 13.sp)
-                        Spacer(Modifier.height(6.dp))
-                        BasicTextField(
-                            value = userName,
-                            onValueChange = onUserNameChange,
-                            singleLine = true,
-                            textStyle = TextStyle(color = tokens.fg, fontSize = 14.sp),
-                            cursorBrush = SolidColor(accent),
-                            keyboardOptions = KeyboardOptions(
-                                capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words,
-                                imeAction = ImeAction.Done,
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(tokens.tileLine.copy(alpha = 0.3f))
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            decorationBox = { inner ->
-                                if (userName.isEmpty()) {
-                                    Text("shown in the feed's greeting", color = tokens.fgDim, fontSize = 14.sp)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth(),
+                                ) {
+                                    SegCell("sticky", selected = tilePackMode == TilePackMode.STICKY, accent = accent, fg = tokens.fg) {
+                                        onTilePackModeChange(TilePackMode.STICKY)
+                                    }
+                                    SegCell("free", selected = tilePackMode == TilePackMode.FREE, accent = accent, fg = tokens.fg) {
+                                        onTilePackModeChange(TilePackMode.FREE)
+                                    }
+                                    SegCell("dense", selected = tilePackMode == TilePackMode.DENSE, accent = accent, fg = tokens.fg) {
+                                        onTilePackModeChange(TilePackMode.DENSE)
+                                    }
                                 }
-                                inner()
-                            },
-                        )
-                    }
-                }
-            }
-
-            // ---- edge strip ----
-            SettingGroup(label = "edge strip", tokens.fgDim) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onEdgeStrip)
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "edge strip", color = tokens.fg, fontSize = 14.sp)
-                        Text(
-                            text = if (edgeStripEnabled) "enabled · tap to configure" else "optional shortcut strip at a screen edge",
-                            color = tokens.fgDim,
-                            fontSize = 12.sp,
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = if (edgeStripEnabled) "on ›" else "›",
-                        color = accent,
-                        fontSize = 16.sp,
-                    )
-                }
-            }
-
-            // ---- system ----
-            // The default-launcher row is hidden once TileShell already is one —
-            // there's nothing left there ("android settings" moved to the top of
-            // the sheet, see above). Re-checked live on every ON_RESUME
-            // ([rememberIsDefaultLauncher]) so backing out to Settings, changing it
-            // there, and returning updates this without reopening the sheet.
-            SettingGroup(label = "system", tokens.fgDim) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (!isDefaultLauncher) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(onClick = onSetDefaultLauncher)
-                                .padding(vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(text = "default launcher", color = tokens.fg, fontSize = 14.sp)
+                                // Only shown for FREE, which is the one mode where dropping a
+                                // tile onto another swaps them instead of pushing anything
+                                // down or reflowing the grid.
+                                if (tilePackMode == TilePackMode.FREE) {
+                                    Text(
+                                        "nothing moves unless you move it — dropping a tile onto another swaps the two",
+                                        color = tokens.fgDim,
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                                Spacer(Modifier.height(6.dp))
+                                ToggleRow("lock layout", on = lockLayout, accent = accent, tokens, onLockLayoutChange)
                                 Text(
-                                    text = "make tileshell your home screen",
+                                    "when on, long-pressing a tile never opens edit mode — nothing can be moved, resized, or removed by accident",
                                     color = tokens.fgDim,
                                     fontSize = 12.sp,
                                 )
                             }
-                            Spacer(Modifier.width(8.dp))
-                            Text(text = "set ›", color = accent, fontSize = 13.sp)
+                        }
+
+                        // ---- pages: start is organized into always-available, swipeable
+                        // pages (named sections + the trailing "main" page) — nothing to
+                        // toggle here any more, "+ add page" just always works, like
+                        // folders. See the guide sheet for how to add/rename/reorder. ----
+                        // ---- typography ----
+                        SettingGroup(label = "typography", tokens.fgDim) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                                listOf(
+                                    FontStyle.SYSTEM to "system",
+                                    FontStyle.OUTFIT to "outfit",
+                                    FontStyle.NUNITO to "nunito",
+                                ).forEach { entry ->
+                                    val style = entry.first
+                                    val label = entry.second
+                                    HubFilter(label, fontStyle == style, tokens, accent) { onFontStyleChange(style) }
+                                }
+                            }
+                        }
+                        // ---- folders & categories ----
+                        SettingGroup(label = "folders & categories", tokens.fgDim) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = onFolders)
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = "create category folders", color = tokens.fg, fontSize = 14.sp)
+                                    Text(
+                                        text = "group apps by what they do — communication, social, shopping…",
+                                        color = tokens.fgDim,
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Text(text = "›", color = accent, fontSize = 16.sp)
+                            }
+                        }
+                        // ---- edge strip ----
+                        SettingGroup(label = "edge strip", tokens.fgDim) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = onEdgeStrip)
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = "edge strip", color = tokens.fg, fontSize = 14.sp)
+                                    Text(
+                                        text = if (edgeStripEnabled) "enabled · tap to configure" else "optional shortcut strip at a screen edge",
+                                        color = tokens.fgDim,
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = if (edgeStripEnabled) "on ›" else "›",
+                                    color = accent,
+                                    fontSize = 16.sp,
+                                )
+                            }
+                        }
+                        }
+                        4 -> { // live
+                        // ---- live tiles: master on/off switch (flip animation only) +
+                        // badges & live mail (its own row, kept independent — it's a
+                        // notification-access grant, not something the master switch
+                        // should imply is already asked for just by being on) ----
+                        SettingGroup(label = "live tiles", tokens.fgDim) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                ToggleRow(
+                                    "live tile updates",
+                                    on = liveTilesEnabled,
+                                    accent = accent,
+                                    tokens = tokens,
+                                    onChange = onLiveTilesEnabledChange,
+                                )
+                                Text(
+                                    text = "pauses clock/weather/notification flipping when off — badges and counts keep updating",
+                                    color = tokens.fgDim,
+                                    fontSize = 12.sp,
+                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable(onClick = {
+                                            if (notificationsEnabled) onNotificationAccess() else showLiveTilesPermissionPrompt = true
+                                        })
+                                        .padding(vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(text = "badges & live mail", color = tokens.fg, fontSize = 14.sp)
+                                    Spacer(Modifier.weight(1f))
+                                    Text(
+                                        text = if (notificationsEnabled) "on ›" else "allow access ›",
+                                        color = if (notificationsEnabled) accent else tokens.fgDim,
+                                        fontSize = 13.sp,
+                                    )
+                                }
+                                if (notificationsEnabled && !batteryOptimizationExempt) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable(onClick = onBatteryExemption)
+                                            .padding(vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "background activity",
+                                                color = tokens.fg,
+                                                fontSize = 14.sp,
+                                            )
+                                            Text(
+                                                text = if (batteryGuidanceNote.isNotEmpty()) {
+                                                    batteryGuidanceNote
+                                                } else {
+                                                    "exempt from battery optimisation for reliable badges"
+                                                },
+                                                color = tokens.fgDim,
+                                                fontSize = 12.sp,
+                                            )
+                                        }
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(text = "fix ›", color = accent, fontSize = 13.sp)
+                                    }
+                                }
+                            }
+                        }
+                        // ---- live data refresh: per-category poll interval, a battery/data
+                        // tradeoff — "default" keeps each category's original cadence
+                        // (stock/commodity 60s, sports 90s); the tile itself also slows
+                        // stock/commodity polling further outside 9am-4pm weekday market
+                        // hours regardless of which rate is picked here. ----
+                        SettingGroup(label = "live data refresh", tokens.fgDim) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { liveRefreshOpen = true }
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = "refresh rates", color = tokens.fg, fontSize = 14.sp)
+                                    Text(
+                                        text = "how often weather, news, stocks, commodities and sports update",
+                                        color = tokens.fgDim,
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Text(text = "›", color = accent, fontSize = 16.sp)
+                            }
+                        }
+                        // ---- feed & glance ---- (always reachable here, unlike the feed
+                        // page's own gear-icon settings sheet, which becomes unreachable
+                        // the moment "show feed page" is turned off from inside it)
+                        SettingGroup(label = "feed & glance", tokens.fgDim) {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                ToggleRow("show feed page", on = feedEnabled, accent = accent, tokens, onFeedEnabledChange)
+                                ToggleRow(
+                                    "no background",
+                                    on = feedNoBackground,
+                                    accent = accent,
+                                    tokens,
+                                    onFeedNoBackgroundChange,
+                                )
+                                Text(
+                                    "keeps the glance screen flat even when start has a wallpaper set",
+                                    color = tokens.fgDim,
+                                    fontSize = 12.sp,
+                                )
+                                Column {
+                                    Text("your name", color = tokens.fgDim, fontSize = 13.sp)
+                                    Spacer(Modifier.height(6.dp))
+                                    BasicTextField(
+                                        value = userName,
+                                        onValueChange = onUserNameChange,
+                                        singleLine = true,
+                                        textStyle = TextStyle(color = tokens.fg, fontSize = 14.sp),
+                                        cursorBrush = SolidColor(accent),
+                                        keyboardOptions = KeyboardOptions(
+                                            capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words,
+                                            imeAction = ImeAction.Done,
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            // Lumia's text box: square, with a plain border.
+                                            .border(2.dp, tokens.fgDim)
+                                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                                        decorationBox = { inner ->
+                                            if (userName.isEmpty()) {
+                                                Text("shown in the feed's greeting", color = tokens.fgDim, fontSize = 14.sp)
+                                            }
+                                            inner()
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                        // ---- news region (sub-sheet) ----
+                        SettingGroup(label = "news region", tokens.fgDim) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = onNewsRegion)
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = "choose news regions", color = tokens.fg, fontSize = 14.sp)
+                                    Text(
+                                        text = "$newsRegionCount countries available",
+                                        color = tokens.fgDim,
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Text(text = "›", color = accent, fontSize = 16.sp)
+                            }
+                        }
+                        }
+                        else -> { // system
+                        // ---- permissions (contacts/calendar/location/physical activity — sub-sheet) ----
+                        SettingGroup(label = "permissions", tokens.fgDim) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = onPermissions)
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = "contacts, calendar, location & steps", color = tokens.fg, fontSize = 14.sp)
+                                    Text(
+                                        text = "manage what live tiles can access",
+                                        color = tokens.fgDim,
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Text(text = "›", color = accent, fontSize = 16.sp)
+                            }
+                        }
+                        // ---- hidden apps ----
+                        SettingGroup(label = "app visibility", tokens.fgDim) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = onHiddenApps)
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = "hidden apps", color = tokens.fg, fontSize = 14.sp)
+                                    Text(
+                                        text = "show apps you've hidden from the app list",
+                                        color = tokens.fgDim,
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Text(text = "›", color = accent, fontSize = 16.sp)
+                            }
+                        }
+                        // ---- system ----
+                        // The default-launcher row is hidden once TileShell already is one —
+                        // there's nothing left there ("android settings" moved to the top of
+                        // the sheet, see above). Re-checked live on every ON_RESUME
+                        // ([rememberIsDefaultLauncher]) so backing out to Settings, changing it
+                        // there, and returning updates this without reopening the sheet.
+                        SettingGroup(label = "system", tokens.fgDim) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (!isDefaultLauncher) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable(onClick = onSetDefaultLauncher)
+                                            .padding(vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(text = "default launcher", color = tokens.fg, fontSize = 14.sp)
+                                            Text(
+                                                text = "make tileshell your home screen",
+                                                color = tokens.fgDim,
+                                                fontSize = 12.sp,
+                                            )
+                                        }
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(text = "set ›", color = accent, fontSize = 13.sp)
+                                    }
+                                }
+                                ToggleRow("hide status bar", on = hideStatusBar, accent = accent, tokens, onHideStatusBarChange)
+                                Text(
+                                    "hides the clock/battery/signal strip at the top of the screen — swipe down " +
+                                    "from the top edge to reveal it temporarily",
+                                    color = tokens.fgDim,
+                                    fontSize = 12.sp,
+                                )
+                            }
+                        }
+                        // ---- android settings: quick jump to the real device Settings app,
+                        // moved to the top of the sheet per explicit user request (was buried
+                        // in the "system" group near the bottom) and given the device's own
+                        // real Settings icon instead of the generic gear glyph ----
+                        SettingGroup(label = "android settings", tokens.fgDim) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = onSystemSettings)
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                val androidSettingsIcon = rememberAndroidSettingsIcon()
+                                if (androidSettingsIcon != null) {
+                                    Image(
+                                        bitmap = androidSettingsIcon,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Fit,
+                                        modifier = Modifier.size(22.dp),
+                                    )
+                                } else {
+                                    Icon(TileIcons["settings"], null, tint = tokens.fg, modifier = Modifier.size(22.dp))
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = "android settings", color = tokens.fg, fontSize = 14.sp)
+                                    Text(
+                                        text = "the device's own settings app",
+                                        color = tokens.fgDim,
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                                Text(text = "open ›", color = accent, fontSize = 13.sp)
+                            }
+                        }
+                        // ---- backup & restore ----
+                        SettingGroup(label = "backup, restore & reset", tokens.fgDim) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = onBackupRestore)
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = "manage backups", color = tokens.fg, fontSize = 14.sp)
+                                    Text(
+                                        text = "layout history, auto-save, export, restore & reset",
+                                        color = tokens.fgDim,
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Text(text = "›", color = accent, fontSize = 16.sp)
+                            }
+                        }
+                        // ---- help ----
+                        SettingGroup(label = "help", tokens.fgDim) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = onPersonalizeGuide)
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = "how to personalize", color = tokens.fg, fontSize = 14.sp)
+                                    Text(
+                                        text = "colours, wallpaper, tiles, home style, pages, pinning apps, the feed, and permissions",
+                                        color = tokens.fgDim,
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Text(text = "guide ›", color = accent, fontSize = 13.sp)
+                            }
+                        }
+                        // ---- about ----
+                        SettingGroup(label = "about", tokens.fgDim) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = onAbout)
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(text = "tileshell", color = tokens.fg, fontSize = 14.sp)
+                                Spacer(Modifier.weight(1f))
+                                Text(text = "features & info ›", color = accent, fontSize = 13.sp)
+                            }
+                        }
                         }
                     }
-                    ToggleRow("hide status bar", on = hideStatusBar, accent = accent, tokens, onHideStatusBarChange)
-                    Text(
-                        "hides the clock/battery/signal strip at the top of the screen — swipe down " +
-                        "from the top edge to reveal it temporarily",
-                        color = tokens.fgDim,
-                        fontSize = 12.sp,
-                    )
                 }
             }
-
-            // ---- backup & restore ----
-            SettingGroup(label = "backup, restore & reset", tokens.fgDim) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onBackupRestore)
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "manage backups", color = tokens.fg, fontSize = 14.sp)
-                        Text(
-                            text = "layout history, auto-save, export, restore & reset",
-                            color = tokens.fgDim,
-                            fontSize = 12.sp,
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text(text = "›", color = accent, fontSize = 16.sp)
-                }
-            }
-
-            // ---- about ----
-            SettingGroup(label = "about", tokens.fgDim) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onAbout)
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(text = "tileshell", color = tokens.fg, fontSize = 14.sp)
-                    Spacer(Modifier.weight(1f))
-                    Text(text = "features & info ›", color = accent, fontSize = 13.sp)
-                }
-            }
+            HubAppBar(
+                tokens = tokens,
+                actions = listOf(
+                    HubAppBarAction("back", "close personalize", "back", onDismiss),
+                    HubAppBarAction("help", "how to personalize", "guide", onPersonalizeGuide),
+                    HubAppBarAction("settings", "android settings", "android settings", onSystemSettings),
+                ),
+            )
         }
 
         if (liveRefreshOpen) {
@@ -1586,6 +1543,9 @@ fun PersonalizeSheet(
     }
 }
 
+/** The personalize panorama's sections, in swipe order. */
+private val PERSONALIZE_SECTIONS = listOf("colours", "wallpaper", "tiles", "start", "live", "system")
+
 /** A compact tappable navigation row: dim label on the left, accent action on the right. */
 @Composable
 internal fun WallpaperNavRow(
@@ -1620,26 +1580,25 @@ private fun ToggleRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onChange(!on) },
+            .clickable { onChange(!on) }
+            .semantics { stateDescription = if (on) "on" else "off" }
+            .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = label, color = tokens.fg, fontSize = 14.sp)
-        Spacer(Modifier.weight(1f))
+        Text(text = label, color = tokens.fg, fontSize = 17.sp, fontWeight = FontWeight.Light, modifier = Modifier.weight(1f))
+        Spacer(Modifier.width(12.dp))
+        // Lumia's toggle: a square track, filled with the accent when on, and a
+        // solid block thumb.
         Box(
             modifier = Modifier
-                .width(40.dp)
+                .width(46.dp)
                 .height(22.dp)
-                .clip(RoundedCornerShape(11.dp))
-                .background(if (on) accent else tokens.tileLine),
+                .border(2.dp, if (on) accent else tokens.fg)
+                .padding(3.dp)
+                .background(if (on) accent else Color.Transparent),
             contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
         ) {
-            Box(
-                modifier = Modifier
-                    .padding(horizontal = 3.dp)
-                    .size(16.dp)
-                    .clip(CircleShape)
-                    .background(Color.White),
-            )
+            Box(modifier = Modifier.width(10.dp).fillMaxHeight().background(tokens.fg))
         }
     }
 }
@@ -1670,8 +1629,8 @@ private fun SettingGroup(label: String, labelColor: Color, content: @Composable 
         Text(
             text = label,
             color = labelColor,
-            fontSize = 13.sp,
-            modifier = Modifier.padding(bottom = 10.dp),
+            fontSize = 14.sp,
+            modifier = Modifier.padding(bottom = 6.dp),
         )
         content()
     }
@@ -1711,19 +1670,20 @@ private fun ThemeTile(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    val bg = if (selected) accent else tokens.chip
-    val fg = if (selected) accentOnColor(accent) else tokens.fgDim
-    Column(
+    // Lumia-style text choice ("dark  light  auto"), selected in the accent.
+    Box(
         modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(bg)
             .clickable(onClick = onClick)
-            .padding(6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+            .semantics { this.selected = selected }
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.CenterStart,
     ) {
-        Icon(TileIcons[icon], null, tint = fg, modifier = Modifier.size(20.dp))
-        Text(label, color = fg, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+        Text(
+            label,
+            color = if (selected) accent else tokens.fgDim,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Light,
+        )
     }
 }
 
@@ -1776,8 +1736,7 @@ private fun RefreshRateRow(
         }
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, tokens.tileLine),
+                .fillMaxWidth(),
         ) {
             options.forEach { (value, text) ->
                 val selected = rate.resolveMs(defaultMs) == value.resolveMs(defaultMs)
@@ -1817,13 +1776,15 @@ private fun RowScope.SegCell(
     swatch: Color? = null,
     onClick: () -> Unit,
 ) {
+    // Lumia-style: plain light text, the selected one in the accent colour
+    // (was an accent-filled cell in a bordered row).
     Box(
         modifier = Modifier
             .weight(1f)
             .clickable(onClick = onClick)
-            .background(if (selected) accent else Color.Transparent)
-            .padding(vertical = 10.dp),
-        contentAlignment = Alignment.Center,
+            .semantics { this.selected = selected }
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.CenterStart,
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             if (swatch != null) {
@@ -1837,9 +1798,9 @@ private fun RowScope.SegCell(
             }
             Text(
                 text = label,
-                color = if (selected) accentOnColor(accent) else fg,
-                fontSize = 14.sp,
-                textAlign = TextAlign.Center,
+                color = if (selected) accent else fg.copy(alpha = 0.55f),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Light,
                 maxLines = 1,
             )
         }

@@ -1,4 +1,4 @@
-package com.tileshell.feature.livetiles
+package com.tileshell.core.design
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -32,14 +32,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.tileshell.core.design.ColorTokens
-import com.tileshell.core.design.TileIcons
 
 /**
  * One button in a [HubAppBar]: a round icon whose [label] shows when the bar
  * is expanded with "···"; [description] is what TalkBack reads.
  */
-internal class HubAppBarAction(
+class HubAppBarAction(
     val iconKey: String,
     val description: String,
     val label: String,
@@ -58,7 +56,7 @@ internal class HubAppBarAction(
  * Lumia's did; tapping anything lowers it again.
  */
 @Composable
-internal fun HubAppBar(
+fun HubAppBar(
     tokens: ColorTokens,
     actions: List<HubAppBarAction>,
     modifier: Modifier = Modifier,
