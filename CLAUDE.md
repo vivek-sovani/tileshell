@@ -37,11 +37,12 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
-- **`main` — Weather and Calendar hubs are panoramas too.** Weather: today → daily → hourly,
-  the place as an accent capital caption at the top of "today" (it was a line under the title).
-  Calendar: this week → next → month, "OCTOBER 2026" as the caption at the top of "month" (it was
-  above the title). App bar buttons got short labels. Checked on the emulator (release build).
-  Productivity, battery and money still have the old headers.
+- **`main` — every hub is now a panorama.** Weather (today → daily → hourly, place as an accent
+  capital caption on "today"), Calendar (this week → next → month, "OCTOBER 2026" caption on
+  "month"), Productivity (today → notes → tasks → apps), Battery (today → week → apps → details)
+  and Money (transactions → apps; its settings are now their own Lumia-style page: "MONEY"
+  caption over a 56sp light "settings" title). All app bar buttons have short labels. Checked
+  on the emulator (release build); installed on the phone.
 - **`main` — People and Music hubs are Windows Phone panoramas; Music gets a full-screen now
   playing; new Lumia app bar on every hub.** User-requested (all hubs to follow, people and music
   first; designs shown and approved). Shared `HubPanorama` (`:feature:livetiles`): a ~96sp

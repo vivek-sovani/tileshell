@@ -65,6 +65,7 @@ import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.colorTokens
 import com.tileshell.feature.livetiles.HubAppBar
+import com.tileshell.feature.livetiles.HubPanorama
 import com.tileshell.feature.livetiles.HubAppBarAction
 import com.tileshell.feature.livetiles.NotificationAccess
 import com.tileshell.feature.livetiles.openApp
@@ -133,44 +134,41 @@ fun MoneyHubScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-            Column(modifier = Modifier.padding(horizontal = 18.dp)) {
-                Spacer(Modifier.height(20.dp))
-                Text(text = "tileshell", color = tokens.fgDim, fontSize = 14.sp)
-                Text("money", color = accent, fontSize = 52.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                Spacer(Modifier.height(12.dp))
-                if (!settingsOpen) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                        MONEY_PIVOTS.forEachIndexed { index, label ->
-                            Text(
-                                text = label,
-                                color = if (pagerState.currentPage == index) tokens.fg else tokens.fgDim,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Light,
-                                modifier = Modifier.clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                    onClick = { pagerScope.launch { pagerState.animateScrollToPage(index) } },
-                                ),
-                            )
-                        }
-                    }
-                } else {
-                    Text("settings", color = tokens.fg, fontSize = 20.sp, fontWeight = FontWeight.Light)
-                }
-                Spacer(Modifier.height(8.dp))
-            }
-            Box(modifier = Modifier.weight(1f)) {
-                if (settingsOpen) {
+            if (settingsOpen) {
+                // Settings as their own page, the way Lumia apps showed them:
+                // the app name in small capitals over a large light title.
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "MONEY",
+                        color = tokens.fg,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 1.sp,
+                        modifier = Modifier.padding(start = 18.dp, top = 18.dp),
+                    )
+                    Text(
+                        "settings",
+                        color = tokens.fg,
+                        fontSize = 56.sp,
+                        fontWeight = FontWeight.Light,
+                        modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
+                    )
                     MoneySettingsPage(settings ?: MoneySettings(), tokens, accent)
-                } else {
-                    HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-                        when (page) {
-                            0 -> {
-                                val locked = (settings?.lockTransactions ?: true) && !unlocked && MoneyLock.isDeviceSecure(context)
-                                if (locked) MoneyLockedPage(tokens, accent, autoPrompt = visible) { unlocked = true } else MoneyTransactionsPage(tokens, accent)
-                            }
-                            else -> MoneyAppsPage(tokens)
+                }
+            } else {
+                HubPanorama(
+                    title = "money",
+                    sections = MONEY_PIVOTS,
+                    pagerState = pagerState,
+                    tokens = tokens,
+                    modifier = Modifier.weight(1f),
+                ) { page ->
+                    when (page) {
+                        0 -> {
+                            val locked = (settings?.lockTransactions ?: true) && !unlocked && MoneyLock.isDeviceSecure(context)
+                            if (locked) MoneyLockedPage(tokens, accent, autoPrompt = visible) { unlocked = true } else MoneyTransactionsPage(tokens, accent)
                         }
+                        else -> MoneyAppsPage(tokens)
                     }
                 }
             }
@@ -178,8 +176,8 @@ fun MoneyHubScreen(
                 tokens = tokens,
                 actions = listOf(
                     HubAppBarAction("back", "back") { if (settingsOpen) settingsOpen = false else onDismiss() },
-                    HubAppBarAction("settings", "money settings") { settingsOpen = !settingsOpen },
-                    HubAppBarAction("pin", "pin to start", onPinHub),
+                    HubAppBarAction("settings", "money settings", "settings") { settingsOpen = !settingsOpen },
+                    HubAppBarAction("pin", "pin money to start", "pin to start", onPinHub),
                 ),
             )
         }

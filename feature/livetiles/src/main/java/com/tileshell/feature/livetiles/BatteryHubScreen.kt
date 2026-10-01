@@ -113,29 +113,13 @@ fun BatteryHubScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-            Column(modifier = Modifier.padding(horizontal = 18.dp)) {
-                Spacer(Modifier.height(20.dp))
-                Text(text = "tileshell", color = tokens.fgDim, fontSize = 14.sp)
-                Text("battery", color = accent, fontSize = 52.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    BATTERY_PIVOTS.forEachIndexed { index, label ->
-                        Text(
-                            text = label,
-                            color = if (pagerState.currentPage == index) tokens.fg else tokens.fgDim,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Light,
-                            modifier = Modifier.clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = { pagerScope.launch { pagerState.animateScrollToPage(index) } },
-                            ),
-                        )
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-            }
-            HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
+            HubPanorama(
+                title = "battery",
+                sections = BATTERY_PIVOTS,
+                pagerState = pagerState,
+                tokens = tokens,
+                modifier = Modifier.weight(1f),
+            ) { page ->
                 when (page) {
                     0 -> BatteryTodayPage(face, stats, tokens, accent)
                     1 -> BatteryWeekPage(samples, stats.nowMillis, tokens, accent)

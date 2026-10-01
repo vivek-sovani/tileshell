@@ -214,37 +214,13 @@ fun ProductivityHubScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-            Column(modifier = Modifier.padding(horizontal = 18.dp)) {
-                Spacer(Modifier.height(20.dp))
-                Text(text = "tileshell", color = tokens.fgDim, fontSize = 14.sp)
-                Text(
-                    text = "productivity",
-                    color = accent,
-                    fontSize = 44.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Clip,
-                )
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    PRODUCTIVITY_PIVOTS.forEachIndexed { index, label ->
-                        Text(
-                            text = label,
-                            color = if (pagerState.currentPage == index) tokens.fg else tokens.fgDim,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Light,
-                            modifier = Modifier.clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = { pagerScope.launch { pagerState.animateScrollToPage(index) } },
-                            ),
-                        )
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-            }
-
-            HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
+            HubPanorama(
+                title = "productivity",
+                sections = PRODUCTIVITY_PIVOTS,
+                pagerState = pagerState,
+                tokens = tokens,
+                modifier = Modifier.weight(1f),
+            ) { page ->
                 when (page) {
                     0 -> TodayPage(
                         tokens, accent, notes, lists, tasksRepo, quickItems,
@@ -285,18 +261,18 @@ fun ProductivityHubScreen(
                 actions = when (pagerState.currentPage) {
                     1 -> listOf(
                         HubAppBarAction("back", "back", onDismiss),
-                        HubAppBarAction("plus", "new note", onNewNote),
-                        HubAppBarAction("pin", "pin notes to start", onPinNotepad),
+                        HubAppBarAction("plus", "new note", "new note", onNewNote),
+                        HubAppBarAction("pin", "pin notes to start", "pin to start", onPinNotepad),
                     )
                     2 -> listOf(
                         HubAppBarAction("back", "back", onDismiss),
-                        HubAppBarAction("plus", "new list") {
+                        HubAppBarAction("plus", "new list", "new list") {
                             scope.launch { onOpenTaskList(tasksRepo.createList("")) }
                         },
                     )
                     else -> listOf(
                         HubAppBarAction("back", "back", onDismiss),
-                        HubAppBarAction("pin", "pin productivity to start", onPinHub),
+                        HubAppBarAction("pin", "pin productivity to start", "pin to start", onPinHub),
                     )
                 },
             )
