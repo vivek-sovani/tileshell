@@ -134,7 +134,7 @@ class TaskRepository(
     /** [listId]'s name, or null until the list has a row. */
     fun listName(listId: String): Flow<String?> = lists.observeName(listId)
 
-    /** Unfinished tasks across every list, newest first. */
+    /** Unfinished tasks across every list: reminders first (soonest first), then the rest newest first. */
     fun openTasks(limit: Int = 20): Flow<List<OpenTask>> =
         lists.observeOpenTasks(limit).map { rows -> rows.map {
             OpenTask(it.id, it.text, it.listId, it.remindAt.takeIf { TaskReminders.ENABLED }, TaskRepeat.decode(it.remindRepeat))

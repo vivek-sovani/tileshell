@@ -37,8 +37,18 @@ interface TaskListDao {
     @Query("DELETE FROM task_lists WHERE id = :id")
     suspend fun delete(id: String)
 
-    /** Unfinished tasks across every list, newest first — the hub's "today". */
-    @Query("SELECT * FROM tasks WHERE done = 0 ORDER BY createdAt DESC LIMIT :limit")
+    /**
+     * Unfinished tasks across every list for the hub's "today": tasks with a
+     * reminder first, soonest reminder first; then tasks without one (no
+     * reminder isn't "due now"), newest first.
+     */
+    @Query(
+        """
+        SELECT * FROM tasks WHERE done = 0
+        ORDER BY (remindAt IS NULL), remindAt ASC, createdAt DESC
+        LIMIT :limit
+        """,
+    )
     fun observeOpenTasks(limit: Int): Flow<List<TaskEntity>>
 
     @Query("SELECT COUNT(*) FROM tasks WHERE done = 0")
