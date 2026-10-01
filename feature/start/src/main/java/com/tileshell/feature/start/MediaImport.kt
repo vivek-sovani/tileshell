@@ -88,7 +88,9 @@ object MediaImport {
     /** True for a photo wallpaper imported by [importWallpaper] (not Bing or slideshow). */
     fun isImportedWallpaper(context: Context, uri: String?): Boolean {
         val path = uri?.let { runCatching { Uri.parse(it).path }.getOrNull() } ?: return false
-        return path.startsWith(File(context.filesDir, WALLPAPER_DIR).path)
+        // The folder itself, with its separator: "wallpaper_slideshow" also
+        // starts with "wallpaper", which made a slide count as the photo.
+        return File(path).parentFile?.canonicalPath == File(context.filesDir, WALLPAPER_DIR).canonicalPath
     }
 
     /** Whether the file behind [uri] is still there. */

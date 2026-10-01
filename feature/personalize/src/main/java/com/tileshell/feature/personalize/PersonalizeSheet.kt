@@ -1019,15 +1019,6 @@ fun PersonalizeSheet(
                         }
                         }
                         3 -> { // start
-                        // ---- lock layout ----
-                        SettingGroup(label = "layout", tokens.fgDim) {
-                            ToggleRow("lock layout", on = lockLayout, accent = accent, tokens, onLockLayoutChange)
-                            Text(
-                                "when on, long-pressing a tile never opens edit mode — nothing can be moved, resized, or removed by accident",
-                                color = tokens.fgDim,
-                                fontSize = 12.sp,
-                            )
-                        }
                         // ---- home style: windows-phone tiles vs. android-style icons ----
                         SettingGroup(label = "home style", tokens.fgDim) {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1178,6 +1169,15 @@ fun PersonalizeSheet(
                                     fontSize = 16.sp,
                                 )
                             }
+                        }
+                        // ---- lock layout ----
+                        SettingGroup(label = "layout", tokens.fgDim) {
+                            ToggleRow("lock layout", on = lockLayout, accent = accent, tokens, onLockLayoutChange)
+                            Text(
+                                "when on, long-pressing a tile never opens edit mode — nothing can be moved, resized, or removed by accident",
+                                color = tokens.fgDim,
+                                fontSize = 12.sp,
+                            )
                         }
                         }
                         4 -> { // live

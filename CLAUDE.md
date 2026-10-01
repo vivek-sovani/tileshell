@@ -41,7 +41,8 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   first slide, if any, shows; none = no picture). Removing slides shows the next one left, or no
   picture (`refreshWallpaperSlide`, `SettingsRepository.clearWallpaperSlide`). Personalize treats the
   wallpaper as "photo" only when it's an imported photo (`photoWallpaper` =
-  `MediaImport.isImportedWallpaper`), never a slide or Bing image. Checked on the emulator.
+  `MediaImport.isImportedWallpaper`, which matches the `wallpaper/` folder exactly — a prefix check
+  also matched `wallpaper_slideshow/`, so a slide replaced the remembered photo), never a slide or Bing image. Checked on the emulator.
 - **`main` — choosing "photo" again brings back the last photo.** The last imported photo wallpaper
   and its framing are remembered (`tileshell.prefs` `last_photo_wallpaper*`, the file stays in
   `filesDir/wallpaper` until a new pick); "photo" restores it (`restoreLastPhotoWallpaper`), else
@@ -49,7 +50,7 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   new wallpaper callbacks moved out of it.
 - **`main` — personalize: tiles before wallpaper; bing refresh, previews and reframe.** Section order
   colours → tiles → wallpaper → start → live → glance → system. Arrangement lives under tiles, after grid
-  columns; lock layout is its own "layout" group at the top of start. Gradient fill now also shades
+  columns; lock layout is its own "layout" group at the bottom of start. Gradient fill now also shades
   transparent (glass) tiles (`tileGradientBrush` keeps the colour's alpha) and is hidden for behind
   tiles, where there is no tile colour. Photo and Bing show the wallpaper in
   use (`WallpaperPreview`, phone-shaped, framed as on Start, tap to reframe) with "adjust position";
