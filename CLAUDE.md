@@ -42,10 +42,11 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   pill chip (people what's new/favourites, music radio/podcast categories and overlap, money
   accounts/cards and bank filters, panchang choices). Rounded grey cards became flat text:
   productivity's next meeting (accent bar on the left), latest note and task lists; money's
-  totals (30sp extra-light figures). Square instead of rounded: people's letter headers (48dp
-  accent tiles) and jump grid, action buttons, reply and search boxes, money's due/undo/details
+  totals (30sp extra-light figures). Square instead of rounded: action buttons, reply and search boxes, money's due/undo/details
   boxes and unlock button, productivity's note cards and quick buttons (accent squares), music's
-  playlist dialogs, battery's bars. Profile photos stay round (user's choice). Panchang:
+  playlist dialogs, battery's bars. Profile photos, the people list's letters and the jump grid stay as before (user's
+  choice). Favourites' "arrange the order ›" sits on its own line under the note (beside the filters
+  it squeezed into a column on narrower phones). Panchang:
   "पंचांग" panorama (आज → हा महिना → हे वर्ष), "महत्त्वाचे दिवस" as its own page, and an app bar
   (it had none) with Marathi labels. `HubPanorama` uses the tight −3sp title spacing only for
   Latin titles — on Devanagari it cut the last letter off. Installed on the phone.

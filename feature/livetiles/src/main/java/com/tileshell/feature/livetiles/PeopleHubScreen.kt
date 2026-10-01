@@ -382,24 +382,22 @@ private fun AllPeoplePage(context: android.content.Context, tokens: ColorTokens,
             } else {
                 sections.forEach { (letter, people) ->
                     item(key = "header-$letter") {
-                        // Lumia's group header: a square accent tile with the
-                        // letter low on the left; tapping it opens the jump grid.
-                        Box(
-                            contentAlignment = Alignment.BottomStart,
+                        // A small accent letter (kept at the user's request rather
+                        // than Lumia's square tiles); tapping it opens the jump grid.
+                        Text(
+                            text = letter.lowercase(),
+                            color = accent,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
                             modifier = Modifier
-                                .padding(top = 12.dp, bottom = 6.dp)
-                                .size(48.dp)
-                                .background(accent)
+                                .padding(top = 10.dp, bottom = 6.dp)
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
                                     onClickLabel = "jump to a letter",
                                     onClick = { jumpOpen = true },
-                                )
-                                .padding(start = 6.dp, bottom = 2.dp),
-                        ) {
-                            Text(text = letter.lowercase(), color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Light)
-                        }
+                                ),
+                        )
                     }
                     items(people, key = { "row-${it.contactId}" }) { person ->
                         ContactRow(
@@ -468,26 +466,26 @@ private fun PeopleJumpGrid(
                 Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
                     rowLetters.forEach { letter ->
                         val available = letter in present
-                        // Lumia's jump grid: solid accent squares for letters
-                        // with contacts, dim squares for the rest.
                         Box(
                             modifier = Modifier
                                 .size(cell)
-                                .background(if (available) accent else tokens.fg.copy(alpha = 0.12f))
+                                .background(
+                                    if (available) accent.copy(alpha = 0.18f) else Color.Transparent,
+                                    androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                                )
                                 .clickable(
                                     enabled = available,
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
                                     onClick = { onPick(letter) },
-                                )
-                                .padding(start = 5.dp, bottom = 1.dp),
-                            contentAlignment = Alignment.BottomStart,
+                                ),
+                            contentAlignment = Alignment.Center,
                         ) {
                             Text(
                                 letter.lowercase(),
-                                color = if (available) Color.White else tokens.fgDim.copy(alpha = 0.5f),
+                                color = if (available) accent else tokens.fgDim.copy(alpha = 0.4f),
                                 fontSize = fontSize,
-                                fontWeight = FontWeight.Light,
+                                fontWeight = FontWeight.Medium,
                             )
                         }
                     }
@@ -736,17 +734,6 @@ private fun FavouritesPage(context: android.content.Context, tokens: ColorTokens
             ) {
                 FilterChip("favourites", null, !showMessaged, tokens, accent) { showMessaged = false; expandedId = null }
                 FilterChip("recently messaged", null, showMessaged, tokens, accent) { showMessaged = true; expandedId = null }
-                Spacer(Modifier.weight(1f))
-                if (!showMessaged && !ordered.isNullOrEmpty()) {
-                    Text(
-                        "arrange",
-                        color = accent,
-                        fontSize = 14.sp,
-                        modifier = Modifier
-                            .clickable { arranging = true }
-                            .padding(vertical = 10.dp, horizontal = 4.dp),
-                    )
-                }
             }
         }
         if (showMessaged) {
@@ -784,10 +771,21 @@ private fun FavouritesPage(context: android.content.Context, tokens: ColorTokens
         } else {
             item {
                 Text(
-                    "people marked \"on tile\" show on your pinned favourites tile; tap to add or remove them. use arrange to set the order.",
+                    "people marked \"on tile\" show on your pinned favourites tile; tap to add or remove them.",
                     color = tokens.fgDim,
                     fontSize = 13.sp,
-                    modifier = Modifier.padding(bottom = 6.dp),
+                )
+                // On its own line: beside the two filters it was squeezed into
+                // a column on narrower phones.
+                Text(
+                    "arrange the order ›",
+                    color = accent,
+                    fontSize = 15.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier
+                        .clickable { arranging = true }
+                        .padding(top = 6.dp, bottom = 8.dp),
                 )
             }
             items(ordered, key = { "fav-${it.contactId}" }) { person ->
