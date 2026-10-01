@@ -39,10 +39,13 @@ val NunitoFamily: FontFamily = FontFamily(
 )
 
 fun tileGradientBrush(accent: Color): Brush {
-    // Shade the colour only, keeping its alpha, so a transparent (glass) tile's
-    // gradient stays as see-through as its flat fill.
-    val light = lerp(accent, Color.White, 0.15f).copy(alpha = accent.alpha)
-    val dark = lerp(accent, Color.Black, 0.30f).copy(alpha = accent.alpha)
+    // Strong enough to see at a glance (user-reported: on/off looked the
+    // same). A transparent (glass) colour also gets more opaque at the
+    // light corner and clearer at the dark one, since shading alone barely
+    // shows through a see-through fill.
+    val a = accent.alpha
+    val light = lerp(accent, Color.White, 0.28f).copy(alpha = if (a < 1f) (a * 1.6f).coerceAtMost(1f) else 1f)
+    val dark = lerp(accent, Color.Black, 0.45f).copy(alpha = if (a < 1f) a * 0.6f else 1f)
     return Brush.linearGradient(listOf(light, dark))
 }
 
