@@ -936,28 +936,6 @@ fun PersonalizeSheet(
                                 }
 
                             }
-                            Spacer(Modifier.height(18.dp))
-                            HorizontalDivider(color = tokens.tileLine)
-                            Spacer(Modifier.height(18.dp))
-
-                            // -- reset --
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { showResetTileStyleConfirm = true }
-                                    .padding(vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(text = "reset tile style", color = tokens.fg, fontSize = 14.sp)
-                                    Text(
-                                        text = "corners, spacing, columns, fill, colour & font",
-                                        color = tokens.fgDim,
-                                        fontSize = 12.sp,
-                                    )
-                                }
-                                Text(text = "↺", color = tokens.fgDim, fontSize = 16.sp)
-                            }
                         }
                         // ---- grid columns ----
                         SettingGroup(label = "grid columns", tokens.fgDim) {
@@ -1014,6 +992,26 @@ fun PersonalizeSheet(
                             }
                         }
 
+                        // ---- reset tile style: last in tiles (user-requested) ----
+                        SettingGroup(label = "reset", tokens.fgDim) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showResetTileStyleConfirm = true }
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(text = "reset tile style", color = tokens.fg, fontSize = 14.sp)
+                                    Text(
+                                        text = "corners, spacing, columns, fill, colour & font",
+                                        color = tokens.fgDim,
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                                Text(text = "↺", color = tokens.fgDim, fontSize = 16.sp)
+                            }
+                        }
                         }
                         3 -> { // start
                         // ---- lock layout ----
