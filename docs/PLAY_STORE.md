@@ -172,7 +172,7 @@ New features:
 • Hubs: weather, music, calendar, people,
   productivity, battery & money
 • Music: library, podcasts, radio, gapless
-• People: messages, mail & favourites
+• People: messages, mail, favourites tile
 • Money: bank, UPI & card transactions
 • Panchang: festivals, ekadashi, grahan
 • Task reminders with repeat
@@ -181,10 +181,10 @@ New features:
 
 Bugs fixed:
 • Lower battery use from live tiles
-• Bluetooth play/pause in music
+• Music on Bluetooth: buttons, reconnect
 ```
 
-*(Character count 460, under Play's 500 limit.)*
+*(Character count 473, under Play's 500 limit.)*
 
 ### Full changelog since v4.5.0
 
@@ -227,12 +227,16 @@ the top while Start is showing. The tasks tile lists due tasks first with a badg
 reminder; the productivity tile shows "due now" and the next one; productivity's today page lists
 what's scheduled today; the hub's task lists show each reminder. Ticking a repeating task moves it to
 its next date. On-time delivery uses Android's "Alarms & reminders" access (asked once); without
-it the task says its reminder is off. Reminders are set again after a restart or update.
+it the task says its reminder is off. Reminders are set again after a restart or update. A
+reminder can also be set while adding a task, and today's open tasks show theirs, soonest first.
 
 **New: people favourites.** "recent" (which relied on Android's "last contacted", no longer kept up to
 date on most phones) is now "favourites": your starred contacts, then people who recently messaged
-you on WhatsApp, SMS and other chat apps, kept by TileShell on the phone for 30 days. A pinned
-"recent" tile becomes the favourites tile.
+you on WhatsApp, SMS and other chat apps, kept by TileShell on the phone for 30 days, on a
+favourites / recently messaged switch. Put favourites in your own order with "arrange", and mark
+who shows on the pinned favourites tile with "on tile". The tile shows 4 people on a 2x2 (two more
+per extra row, with bigger names on bigger tiles) and "+N more"; tap a person for call, message,
+their chat app or contact. A pinned "recent" tile becomes the favourites tile.
 
 **Clock.** The clock and alarm tiles name the app that set the next alarm ("set by todoist")
 instead of a generic "alarm / bedtime".
@@ -282,6 +286,8 @@ with the new hubs layout (your current layout is saved to layout history first) 
 - Removing a track from a playlist works on Android 16.
 - Bluetooth headset and car play/pause buttons now work for the music hub (they were ignored, and "pause" could restart paused audio). Now playing gains a seekable progress bar, 10 s back / 30 s forward buttons, and share. Next/previous on a radio station step through your favourite stations.
 - Radio no longer skips through your favourites when a station fails to load.
+- Music paused when Bluetooth or headphones disconnected now plays on the Bluetooth device that
+  connects next (the car, earbuds), instead of the phone speaker.
 - Panchang, calendar-system, stock and commodity tiles now open when tapped inside a folder or stack.
 - Hub tiles (music, calendar, people, clock) are no longer tied to one app: they no longer show
   that app's name or icon, and uninstalling the app no longer removes the tile. Existing tiles

@@ -20,7 +20,7 @@ simply stays inactive when a permission is denied.
 
 | Permission | What it reads | Where the data goes |
 |---|---|---|
-| `READ_CONTACTS` | Contact names and profile photos for the People live tile | Stays on device |
+| `READ_CONTACTS` | Contact names and profile photos for the People live tile and hub. Your favourites order and which ones show on the favourites tile are saved as contact identifiers in TileShell's settings (and in backups you export) | Stays on device |
 | `READ_CALENDAR` | Upcoming calendar events for the Calendar live tile | Stays on device |
 | `ACCESS_COARSE_LOCATION` | Device coarse location (city level) for the Weather live tile | Sent to Open-Meteo (see §2) |
 | `ACTIVITY_RECOGNITION` | Your phone's built-in step-counter sensor reading, for the Steps tile/card. Asked only the first time you add a Steps tile or card, not at first launch. | Stays on device |
