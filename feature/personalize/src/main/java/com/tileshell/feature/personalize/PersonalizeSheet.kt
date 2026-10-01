@@ -1766,10 +1766,11 @@ private fun ToggleRow(
 }
 
 /**
- * Lumia's toggle: a square track, filled with the accent when on, and a solid
- * block thumb. Like Windows Phone's, the thumb can be dragged across
- * (user-requested): released past the middle it switches, otherwise it springs
- * back. A tap on the row still toggles, and the thumb slides either way.
+ * Windows Phone 8's toggle (user-chosen): a thin outlined track whose inner bar
+ * fills with the accent when on, and a tall solid thumb that stands out above
+ * and below the track. The thumb can be dragged across (user-requested):
+ * released past the middle it switches, otherwise it springs back. A tap on
+ * the row still toggles, and the thumb slides either way.
  */
 @Composable
 private fun LumiaSwitch(
@@ -1779,21 +1780,19 @@ private fun LumiaSwitch(
     onChange: (Boolean) -> Unit,
 ) {
     val density = androidx.compose.ui.platform.LocalDensity.current
-    // Thumb travel: track 46dp − 2×(2dp border + 3dp padding) − 10dp thumb.
-    val travelPx = with(density) { 26.dp.toPx() }
+    // Track 52dp wide; the 12dp thumb travels its full width, overlapping the
+    // border at either end as WP's did.
+    val travelPx = with(density) { 40.dp.toPx() }
     val thumb = remember { androidx.compose.animation.core.Animatable(if (on) travelPx else 0f) }
     var dragging by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(on) { if (!dragging) thumb.animateTo(if (on) travelPx else 0f) }
-    // Track colour follows the thumb, so dragging past the middle previews the change.
+    // Fill and outline follow the thumb, so a drag past the middle previews it.
     val lit = thumb.value > travelPx / 2f
     Box(
         modifier = Modifier
-            .width(46.dp)
-            .height(22.dp)
-            .border(2.dp, if (lit) accent else tokens.fg)
-            .padding(3.dp)
-            .background(if (lit) accent else Color.Transparent)
+            .width(52.dp)
+            .height(28.dp)
             .pointerInput(on) {
                 detectHorizontalDragGestures(
                     onDragStart = { dragging = true },
@@ -1814,10 +1813,22 @@ private fun LumiaSwitch(
             },
         contentAlignment = Alignment.CenterStart,
     ) {
+        // Track: thin outline with an inner bar, filled up to the thumb when on.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(20.dp)
+                .border(2.dp, if (lit) tokens.fg else tokens.fgDim)
+                .padding(4.dp),
+        ) {
+            val fillWidth = with(density) { (thumb.value).toDp() }
+            if (lit) Box(Modifier.width(fillWidth).fillMaxHeight().background(accent))
+        }
+        // Thumb: taller than the track.
         Box(
             modifier = Modifier
                 .offset { androidx.compose.ui.unit.IntOffset(thumb.value.toInt(), 0) }
-                .width(10.dp)
+                .width(12.dp)
                 .fillMaxHeight()
                 .background(tokens.fg),
         )

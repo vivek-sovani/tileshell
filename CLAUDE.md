@@ -37,7 +37,9 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
-- **`main` — personalize switches can be dragged, Windows Phone-style.** `LumiaSwitch`: drag the
+- **`main` — personalize switches look and drag like Windows Phone 8's.** `LumiaSwitch` (user-chosen
+  design A): thin outlined track, inner bar filling with the accent when on, a tall thumb standing
+  above and below the track. Drag the
   block thumb across (it follows the finger, the track lights up past the middle); released past
   the middle it switches, else it springs back; a tap still toggles, and the thumb slides either
   way. A drag on the switch doesn't move the panorama. Checked on the emulator (on and off by drag).
