@@ -112,7 +112,8 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   privacy policy's contacts row (favourites order stored as contact identifiers in settings and
   exported backups; md + hosted `docs/index.html`, still to publish) updated. Signed AAB/APK +
   debug APK rebuilt in `release-out/tileshell-5.0.0-*`, same release key (cert SHA-256
-  1a904ad5…), installed on the phone.
+  1a904ad5…). The phone has the same code from just before (only the What's New text differs);
+  installing the re-cut APK there failed when wireless adb dropped.
 - **v5.0.0 re-cut (2026-09-30, still versionCode 500, not yet uploaded)** — now also folds in task
   reminders, the alarm-source label on clock/alarm tiles and People "favourites". Release notes
   (blurb 460 chars), About, what's-new card, privacy policy (md + hosted `docs/index.html`, which
