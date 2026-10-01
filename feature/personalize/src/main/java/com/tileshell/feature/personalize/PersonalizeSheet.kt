@@ -1,5 +1,7 @@
 package com.tileshell.feature.personalize
 
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import com.tileshell.core.design.HubFilter
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.semantics.stateDescription
@@ -155,6 +157,10 @@ private fun currentTileBackgroundStyle(
 @Composable
 fun PersonalizeSheet(
     visible: Boolean,
+    // True from opening personalize until it is closed, including while one
+    // of its sub-screens (backup, about…) hides it; while true the panorama
+    // comes back on the section it was left on.
+    sessionOpen: Boolean = visible,
     dark: Boolean,
     accentId: String,
     glass: Boolean,
@@ -282,6 +288,7 @@ fun PersonalizeSheet(
         animationSpec = tween(300, easing = CubicBezierEasing(0.22f, 0.61f, 0.36f, 1f)),
         label = "sheetProgress",
     )
+    if (!sessionOpen) PersonalizeSectionMemory.page = 0
     if (!visible && progress == 0f) return
 
     val tokens = colorTokens(dark)
@@ -350,7 +357,13 @@ fun PersonalizeSheet(
         )
     }
 
-    val sectionPager = androidx.compose.foundation.pager.rememberPagerState(pageCount = { PERSONALIZE_SECTIONS.size })
+    val sectionPager = androidx.compose.foundation.pager.rememberPagerState(
+        initialPage = PersonalizeSectionMemory.page,
+        pageCount = { PERSONALIZE_SECTIONS.size },
+    )
+    LaunchedEffect(sectionPager) {
+        snapshotFlow { sectionPager.currentPage }.collect { PersonalizeSectionMemory.page = it }
+    }
 
     SheetStage(rightHalf = rightHalf, modifier = modifier) {
         // Scrim (prototype rgba(0,0,0,.5)); tap to dismiss.
@@ -1541,6 +1554,13 @@ fun PersonalizeSheet(
             }
         }
     }
+}
+
+/** The section personalize was last on, so returning from a sub-screen (backup,
+ * about, folders…) lands back there instead of on "colours". Reset when
+ * personalize is closed. */
+private object PersonalizeSectionMemory {
+    var page = 0
 }
 
 /** The personalize panorama's sections, in swipe order. */

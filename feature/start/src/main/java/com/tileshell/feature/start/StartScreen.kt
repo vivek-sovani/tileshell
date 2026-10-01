@@ -1897,6 +1897,7 @@ fun StartScreen(
         // Personalize sheet overlay (edit bar → personalize, FR-7).
         PersonalizeSheet(
             visible = personalizeVisible,
+            sessionOpen = personalizeOpen,
             rightHalf = isLandscape,
             dark = dark,
             followSystemTheme = settings.followSystemTheme,

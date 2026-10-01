@@ -47,7 +47,8 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   box is square. App bar: back, guide (new `help` glyph), android settings. `HubPanorama`,
   `HubAppBar`/`HubAppBarAction` and `HubFilter` moved from `:feature:livetiles` to `:core:design`
   (now public) so personalize can use them. Sub-screens (backup, permissions, folders, edge strip,
-  refresh rates, guide, about) keep their old look. Checked on the emulator (release build).
+  refresh rates, guide, about) keep their old look. Returning from a sub-screen lands on the section it was opened
+  from (`PersonalizeSectionMemory`, reset when personalize closes; `sessionOpen` = personalizeOpen). Checked on the emulator (release build).
 - **`main` — hubs restyled flat, Lumia-style; Panchang is a panorama.** User-requested. Shared
   `HubFilter` (`HubText.kt`): plain light text, selected in accent, others grey — replaces every
   pill chip (people what's new/favourites, music radio/podcast categories and overlap, money
