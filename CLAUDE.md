@@ -37,6 +37,21 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — People and Music hubs are Windows Phone panoramas; Music gets a full-screen now
+  playing; new Lumia app bar on every hub.** User-requested (all hubs to follow, people and music
+  first; designs shown and approved). Shared `HubPanorama` (`:feature:livetiles`): a ~96sp
+  extra-light title in the theme foreground that runs off the edge and slides slower than the
+  content (parallax), sections side by side 56dp narrower than the screen so the next header
+  peeks in, 34sp light tappable headers. People: all → what's new → favourites → apps (search
+  under the title). Music: play → library → podcasts → radio → apps → history; "play" is a cover
+  card plus large light links, and `NowPlayingScreen` (full screen, "NOW PLAYING" caption, 86%
+  cover, light 28sp title, centred controls) opens from the card and by itself when playback
+  starts. `HubAppBar` is now a full-width strip with round icons and "···" that shows labels (new
+  4-arg `HubAppBarAction(icon, description, label, onClick)`) and optional menu items — all seven
+  hubs get it; the other five keep their old headers until converted. **R8 fix:** Start's main
+  layout lambda had grown to 257 registers and R8 miscompiled it (VerifyError at launch, release
+  only); the hub screens now live in `HubScreensLayer` (own composable). Verified on the
+  emulator (release build): both panoramas, parallax, "···", track → full screen → card.
 - **`main` — favourites: your own order, an "on tile" choice per person, and a tile with quick
   actions.** User-requested, designed first. The hub's favourites tab has a switch between
   "favourites" and "recently messaged". Favourites show in the user's order (`favouritesOrder`,

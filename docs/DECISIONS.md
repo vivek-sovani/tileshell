@@ -10798,3 +10798,24 @@ in the title row; the full list is the hub. "on tile" is a labelled chip with a 
 a pin already means "pin to Start", and a bare checkbox didn't say what it checked. Taps on a
 person use a short custom tap (≤400ms, release consumed) so the tile's long-press into edit mode
 still wins on a hold.
+
+## Hubs become Windows Phone panoramas (people and music first)
+User-requested after comparing with Lumia screenshots; every hub is to be a panorama (the user
+chose panorama over pivot for all of them), following Lumia for type, size and colour: a giant
+extra-light title in the theme foreground (not bold accent) running off the edge with parallax,
+light section headers, light list items, grey details. Segoe WP can't be bundled, so headings use
+the app's own font at its thinnest weights. Two deliberate deviations: section headers can be
+tapped to jump (Lumia's couldn't), and the pager doesn't wrap around from the last section to the
+first. The app bar is a full-width strip with round icons and "···" (labels plus menu items), as
+on Lumia. Music's now playing became its own full screen opened from the "play" card, and it opens
+by itself when playback starts (keeping the earlier "jump to now playing" behaviour).
+
+## Release VerifyError: Start's layout lambda past 256 registers
+The release build crashed at launch with `VerifyError` in `StartScreenKt` ("register v0 has type
+Reference ... but expected Integer"). Disassembly showed the method for Start's main
+`BoxWithConstraints` content needed 257 registers; the generated code copied the wrong parameter
+(v254 instead of the `$changed` int in v256) into v0. An R8/D8 register-allocation bug that only
+shows past 256 registers, tipped over by unrelated changes (here the new hub app bar), so a newer R8
+(9.0.54), keep rules and removing `animateContentSize` didn't help. Fix: the hub screens moved out
+into their own composable (`HubScreensLayer`), shrinking that lambda. If a release build ever
+fails verification there again, move another self-contained block out the same way.

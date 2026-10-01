@@ -2165,120 +2165,11 @@ fun StartScreen(
             rightHalf = isLandscape,
         )
 
-        WeatherHubScreen(
-            visible = weatherHubTarget != null,
-            dark = dark,
-            accentId = settings.accentId,
-            location = weatherHubTarget?.location,
-            onDismiss = viewModel::closeWeatherHub,
-            rightHalf = isLandscape,
-        )
-
-        MusicHubScreen(
-            visible = musicHubOpen,
-            dark = dark,
-            accentId = settings.accentId,
-            onDismiss = viewModel::closeMusicHub,
-            rightHalf = isLandscape,
-            initialPage = musicHubInitialPage,
-        )
-
-        // Composed before the notes/tasks sheets so, when the hub opens one,
-        // it slides in on top of the hub.
-        // Sticky notes and Tasks tiles inside folders count as pinned too.
-        val pinnedNoteIds = remember(tiles) {
-            tiles.flatMap { tile ->
-                when (tile) {
-                    is TileModel.App -> listOf(tile.iconKey to tile.activityName)
-                    is TileModel.Folder -> tile.children.map { it.iconKey to it.activityName }
-                }
-            }.mapNotNull { (iconKey, activityName) -> if (iconKey == "stickynote") StickyNoteTile.decode(activityName) else null }.toSet()
-        }
-        val pinnedListIds = remember(tiles) {
-            tiles.flatMap { tile ->
-                when (tile) {
-                    is TileModel.App -> if (tile.iconKey == "tasks") listOf(TaskListTile.listIdFor(tile.id, tile.activityName)) else emptyList()
-                    is TileModel.Folder -> tile.children.filter { it.iconKey == "tasks" }
-                        .map { TaskListTile.listIdFor(folderChildTileId(tile.id, it.rowId), it.activityName) }
-                }
-            }.toSet()
-        }
-        ProductivityHubScreen(
-            visible = productivityHubOpen,
-            dark = dark,
-            accentId = settings.accentId,
-            onDismiss = viewModel::closeProductivityHub,
-            onOpenNote = { viewModel.openNotes(it) },
-            onNewNote = viewModel::newNote,
-            onOpenTaskList = viewModel::openTasks,
-            onPinNote = viewModel::pinNote,
-            onPinTaskList = viewModel::pinTaskList,
-            onDeleteTaskList = viewModel::deleteTaskList,
-            onPinNotepad = viewModel::pinNotepad,
-            onPinHub = viewModel::pinProductivityHub,
-            onOpenCalendar = { viewModel.openCalendarHub() },
-            onOpenNotifications = { viewModel.openPeopleHub("what's new") },
-            pinnedNoteIds = pinnedNoteIds,
-            pinnedListIds = pinnedListIds,
-            rightHalf = isLandscape,
-            initialPage = productivityHubInitialPage,
-        )
-
-        // After the productivity hub so, opened from it, the calendar and
-        // people hubs sit on top, and back returns to productivity.
-        // A person tapped on the favourites tile.
-        val favouriteQuickActions by PeopleHubNavigation.quickActions.collectAsStateWithLifecycle()
-        FavouriteQuickSheet(
-            person = favouriteQuickActions,
-            dark = dark,
-            accentId = settings.accentId,
-            onDismiss = PeopleHubNavigation::dismissQuickActions,
-            onOpenFavourites = { viewModel.openPeopleHub("favourites") },
-            rightHalf = isLandscape,
-        )
-
-        PeopleHubScreen(
-            visible = peopleHubOpen,
-            dark = dark,
-            accentId = settings.accentId,
-            onDismiss = viewModel::closePeopleHub,
-            rightHalf = isLandscape,
-            initialPage = peopleHubInitialPage,
-            onPinPage = viewModel::pinPeopleHubPage,
-        )
-
-        BatteryHubScreen(
-            visible = batteryHubOpen,
-            dark = dark,
-            accentId = settings.accentId,
-            onDismiss = viewModel::closeBatteryHub,
-            rightHalf = isLandscape,
-        )
-
-        com.tileshell.feature.livetiles.PanchangSheet(
-            visible = panchangOpen,
-            dark = dark,
-            accentId = settings.accentId,
-            onDismiss = viewModel::closePanchang,
-            rightHalf = isLandscape,
-        )
-
-        com.tileshell.feature.livetiles.money.MoneyHubScreen(
-            visible = moneyHubOpen,
-            dark = dark,
-            accentId = settings.accentId,
-            onDismiss = viewModel::closeMoneyHub,
-            onPinHub = viewModel::pinMoneyHub,
-            rightHalf = isLandscape,
-        )
-
-        CalendarHubScreen(
-            visible = calendarHubOpen,
-            dark = dark,
-            accentId = settings.accentId,
-            onDismiss = viewModel::closeCalendarHub,
-            rightHalf = isLandscape,
-        )
+        // The hubs live in their own composable (not inline here): this
+        // lambda had grown past the 256 registers a dex method can address,
+        // and R8's register allocation then miscompiled it (VerifyError in
+        // StartScreenKt at launch). See docs/DECISIONS.md.
+        HubScreensLayer(viewModel, tiles, accentId = settings.accentId, dark = dark, isLandscape = isLandscape)
 
 
         // Build a name→packageNames map from the current tile list so CategoryFolderSheet
@@ -8897,5 +8788,147 @@ private fun PermissionsSheetHost(
         },
         accessibilityEnabled = accessibilityEnabled,
         onAccessibility = onEnableAccessibility,
+    )
+}
+
+/**
+ * Every hub screen and the favourites quick-action sheet, drawn over Start.
+ * Kept out of [StartScreen]'s main layout lambda so that lambda stays under
+ * the 256 registers a dex method can address — past that, R8 miscompiled it
+ * and the release build crashed at launch with a VerifyError.
+ */
+@Composable
+private fun HubScreensLayer(
+    viewModel: StartViewModel,
+    tiles: List<TileModel>,
+    accentId: String,
+    dark: Boolean,
+    isLandscape: Boolean,
+) {
+    val weatherHubTarget by viewModel.weatherHubTarget.collectAsStateWithLifecycle()
+    val musicHubOpen by viewModel.musicHubOpen.collectAsStateWithLifecycle()
+    val musicHubInitialPage by viewModel.musicHubInitialPage.collectAsStateWithLifecycle()
+    val calendarHubOpen by viewModel.calendarHubOpen.collectAsStateWithLifecycle()
+    val peopleHubOpen by viewModel.peopleHubOpen.collectAsStateWithLifecycle()
+    val peopleHubInitialPage by viewModel.peopleHubInitialPage.collectAsStateWithLifecycle()
+    val productivityHubOpen by viewModel.productivityHubOpen.collectAsStateWithLifecycle()
+    val productivityHubInitialPage by viewModel.productivityHubInitialPage.collectAsStateWithLifecycle()
+    val batteryHubOpen by viewModel.batteryHubOpen.collectAsStateWithLifecycle()
+    val moneyHubOpen by viewModel.moneyHubOpen.collectAsStateWithLifecycle()
+    val panchangOpen by viewModel.panchangOpen.collectAsStateWithLifecycle()
+
+    WeatherHubScreen(
+        visible = weatherHubTarget != null,
+        dark = dark,
+        accentId = accentId,
+        location = weatherHubTarget?.location,
+        onDismiss = viewModel::closeWeatherHub,
+        rightHalf = isLandscape,
+    )
+
+    MusicHubScreen(
+        visible = musicHubOpen,
+        dark = dark,
+        accentId = accentId,
+        onDismiss = viewModel::closeMusicHub,
+        rightHalf = isLandscape,
+        initialPage = musicHubInitialPage,
+    )
+
+    // Composed before the notes/tasks sheets so, when the hub opens one,
+    // it slides in on top of the hub.
+    // Sticky notes and Tasks tiles inside folders count as pinned too.
+    val pinnedNoteIds = remember(tiles) {
+        tiles.flatMap { tile ->
+            when (tile) {
+                is TileModel.App -> listOf(tile.iconKey to tile.activityName)
+                is TileModel.Folder -> tile.children.map { it.iconKey to it.activityName }
+            }
+        }.mapNotNull { (iconKey, activityName) -> if (iconKey == "stickynote") StickyNoteTile.decode(activityName) else null }.toSet()
+    }
+    val pinnedListIds = remember(tiles) {
+        tiles.flatMap { tile ->
+            when (tile) {
+                is TileModel.App -> if (tile.iconKey == "tasks") listOf(TaskListTile.listIdFor(tile.id, tile.activityName)) else emptyList()
+                is TileModel.Folder -> tile.children.filter { it.iconKey == "tasks" }
+                    .map { TaskListTile.listIdFor(folderChildTileId(tile.id, it.rowId), it.activityName) }
+            }
+        }.toSet()
+    }
+    ProductivityHubScreen(
+        visible = productivityHubOpen,
+        dark = dark,
+        accentId = accentId,
+        onDismiss = viewModel::closeProductivityHub,
+        onOpenNote = { viewModel.openNotes(it) },
+        onNewNote = viewModel::newNote,
+        onOpenTaskList = viewModel::openTasks,
+        onPinNote = viewModel::pinNote,
+        onPinTaskList = viewModel::pinTaskList,
+        onDeleteTaskList = viewModel::deleteTaskList,
+        onPinNotepad = viewModel::pinNotepad,
+        onPinHub = viewModel::pinProductivityHub,
+        onOpenCalendar = { viewModel.openCalendarHub() },
+        onOpenNotifications = { viewModel.openPeopleHub("what's new") },
+        pinnedNoteIds = pinnedNoteIds,
+        pinnedListIds = pinnedListIds,
+        rightHalf = isLandscape,
+        initialPage = productivityHubInitialPage,
+    )
+
+    // After the productivity hub so, opened from it, the calendar and
+    // people hubs sit on top, and back returns to productivity.
+    // A person tapped on the favourites tile.
+    val favouriteQuickActions by PeopleHubNavigation.quickActions.collectAsStateWithLifecycle()
+    FavouriteQuickSheet(
+        person = favouriteQuickActions,
+        dark = dark,
+        accentId = accentId,
+        onDismiss = PeopleHubNavigation::dismissQuickActions,
+        onOpenFavourites = { viewModel.openPeopleHub("favourites") },
+        rightHalf = isLandscape,
+    )
+
+    PeopleHubScreen(
+        visible = peopleHubOpen,
+        dark = dark,
+        accentId = accentId,
+        onDismiss = viewModel::closePeopleHub,
+        rightHalf = isLandscape,
+        initialPage = peopleHubInitialPage,
+        onPinPage = viewModel::pinPeopleHubPage,
+    )
+
+    BatteryHubScreen(
+        visible = batteryHubOpen,
+        dark = dark,
+        accentId = accentId,
+        onDismiss = viewModel::closeBatteryHub,
+        rightHalf = isLandscape,
+    )
+
+    com.tileshell.feature.livetiles.PanchangSheet(
+        visible = panchangOpen,
+        dark = dark,
+        accentId = accentId,
+        onDismiss = viewModel::closePanchang,
+        rightHalf = isLandscape,
+    )
+
+    com.tileshell.feature.livetiles.money.MoneyHubScreen(
+        visible = moneyHubOpen,
+        dark = dark,
+        accentId = accentId,
+        onDismiss = viewModel::closeMoneyHub,
+        onPinHub = viewModel::pinMoneyHub,
+        rightHalf = isLandscape,
+    )
+
+    CalendarHubScreen(
+        visible = calendarHubOpen,
+        dark = dark,
+        accentId = accentId,
+        onDismiss = viewModel::closeCalendarHub,
+        rightHalf = isLandscape,
     )
 }

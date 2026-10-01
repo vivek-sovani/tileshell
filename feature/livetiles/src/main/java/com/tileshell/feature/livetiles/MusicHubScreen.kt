@@ -97,6 +97,9 @@ import kotlinx.coroutines.launch
 // entirely, since there's no longer a header row to overflow).
 private val HUB_PIVOTS = listOf("now playing", "music library", "podcasts", "radio", "apps", "history")
 
+/** What the panorama shows as each [HUB_PIVOTS] section's header. */
+private val MUSIC_SECTIONS = listOf("play", "library", "podcasts", "radio", "apps", "history")
+
 private val LOCAL_AUDIO_PERMISSION: String =
     if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
 
@@ -165,14 +168,22 @@ fun MusicHubScreen(
     // changes while it's already open) — immediate, not animated, since this
     // is meant to land exactly where the tap asked for, not visibly travel
     // through the pages in between.
+    // The full-screen now playing, over the panorama.
+    var nowPlayingOpen by remember { mutableStateOf(false) }
+    val localPlayback by LocalMusicPlayer.state.collectAsState()
+    val externalMedia by MediaCenter.nowPlaying.collectAsState()
     LaunchedEffect(visible, initialPage) {
         if (visible && initialPage != null) {
             val index = HUB_PIVOTS.indexOf(initialPage)
             if (index >= 0) pagerState.scrollToPage(index)
+            // "now playing" from the music tile opens the full screen when
+            // something is loaded.
+            if (initialPage == "now playing" && (localPlayback.item != null || externalMedia.isNotEmpty())) {
+                nowPlayingOpen = true
+            }
         }
+        if (!visible) nowPlayingOpen = false
     }
-    val localPlayback by LocalMusicPlayer.state.collectAsState()
-    val externalMedia by MediaCenter.nowPlaying.collectAsState()
 
     // Hoisted here, not inside MusicAppsPage itself — that page is one of
     // several HorizontalPager pages, disposed/recomposed on every visit, so
@@ -225,29 +236,6 @@ fun MusicHubScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-            Column(modifier = Modifier.padding(horizontal = 18.dp).fillMaxWidth()) {
-                Spacer(Modifier.height(22.dp))
-                // Two-tone Zune-hub title ("music" + "apps"), matching the
-                // approved mockup exactly — left-aligned, clipped at the
-                // edge rather than wrapping, distinct from the other hubs'
-                // plain centered title (the real Zune hub's own title was
-                // itself two-tone/unique among WP's hubs, so this asymmetry
-                // is WP-faithful, not an inconsistency).
-                Text(
-                    text = buildAnnotatedString {
-                        withStyle(SpanStyle(color = tokens.fg)) { append("music") }
-                        withStyle(SpanStyle(color = accent)) { append("+apps") }
-                    },
-                    fontSize = 44.sp,
-                    fontWeight = FontWeight.ExtraLight,
-                    letterSpacing = (-1).sp,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Clip,
-                )
-                Spacer(Modifier.height(20.dp))
-            }
-
             // Jumps to "now playing" the moment a track actually starts —
             // covers both a fresh tap in the library and an auto-advance to
             // the next queued track. User-requested; replaces the persistent
@@ -262,7 +250,7 @@ fun MusicHubScreen(
             // podcast episodes and radio stations too, not just local tracks.
             var wasLocalPlaying by remember { mutableStateOf(localPlayback.playing) }
             LaunchedEffect(localPlayback.item?.id, localPlayback.playing) {
-                if (localPlayback.playing && !wasLocalPlaying) pagerState.animateScrollToPage(0)
+                if (localPlayback.playing && !wasLocalPlaying) nowPlayingOpen = true
                 wasLocalPlaying = localPlayback.playing
             }
             // Same jump for an external app's own playback — this only ever
@@ -276,15 +264,22 @@ fun MusicHubScreen(
             val activeExternalKey = externalMedia.entries.firstOrNull { it.value.playing }
                 ?.let { (pkg, np) -> "$pkg|${np.title}|${np.artist}" }
             LaunchedEffect(activeExternalKey) {
-                if (activeExternalKey != null) pagerState.animateScrollToPage(0)
+                if (activeExternalKey != null) nowPlayingOpen = true
             }
 
-            androidx.compose.foundation.pager.HorizontalPager(
-                state = pagerState,
+            HubPanorama(
+                title = "music",
+                sections = MUSIC_SECTIONS,
+                pagerState = pagerState,
+                tokens = tokens,
                 modifier = Modifier.weight(1f),
             ) { page ->
                 when (page) {
-                    0 -> NowPlayingPage(accent = accent, tokens = tokens) { label ->
+                    0 -> PlaySection(
+                        accent = accent,
+                        tokens = tokens,
+                        onOpenNowPlaying = { nowPlayingOpen = true },
+                    ) { label ->
                         pagerScope.launch { pagerState.animateScrollToPage(HUB_PIVOTS.indexOf(label)) }
                     }
                     1 -> LibraryPage(context, accent, tokens)
@@ -299,6 +294,12 @@ fun MusicHubScreen(
             // as a standalone top-corner button.
             HubAppBar(tokens = tokens, actions = listOf(HubAppBarAction("back", "back", onDismiss)))
         }
+        NowPlayingScreen(
+            visible = visible && nowPlayingOpen,
+            accent = accent,
+            tokens = tokens,
+            onClose = { nowPlayingOpen = false },
+        )
     }
 }
 
@@ -336,140 +337,238 @@ private fun LocalPlaybackButton(
  * external session breaking the tie since a real app's own now-playing takes
  * precedence over TileShell's own library browsing.
  */
+/**
+ * The music panorama's "play" section: what's playing as a compact card (tap
+ * it for the full-screen [NowPlayingScreen]), then the other sections as
+ * large light links, the way Lumia's music hub listed them.
+ */
 @Composable
-private fun NowPlayingPage(accent: Color, tokens: ColorTokens, onOpenPage: (String) -> Unit) {
+private fun PlaySection(
+    accent: Color,
+    tokens: ColorTokens,
+    onOpenNowPlaying: () -> Unit,
+    onOpenPage: (String) -> Unit,
+) {
     val media by MediaCenter.nowPlaying.collectAsState()
     val artworkMap by MediaCenter.artwork.collectAsState()
     val localPlayback by LocalMusicPlayer.state.collectAsState()
-    val localItem = localPlayback.item
     val context = LocalContext.current
-    // TileShell's own session (local library/podcasts/radio, all playing
-    // through the shared LocalMusicPlaybackService) is deliberately included
-    // in MediaCenter.nowPlaying too — that's what lets the Start tile/feed
-    // show it like any other app's now-playing (see MusicTile.kt's
-    // buildMediaState doc comment). Here on this page specifically, it must
-    // be excluded from "external" candidates: local playback already has
-    // its own richer view below (PlayerNowPlaying — transport controls,
-    // "add to playlist" for a real LocalTrack), and without this exclusion
-    // that entry could win the branch below whenever it happened to be
-    // "playing," silently falling back to the generic ExternalNowPlaying
-    // view instead (user-reported: it showed once for the first track, then
-    // stopped showing "add to playlist" for the next one — exactly this).
-    val externalCandidates = media.entries.filterNot { it.key == context.packageName }
-    val externalEntry = externalCandidates.firstOrNull { it.value.playing } ?: externalCandidates.firstOrNull()
-    // "history" gets its own small link next to "now playing" itself instead
-    // of sitting in the main menu list — user-requested ("history can be a
-    // small menu in now playing at suitable position"), since it's more
-    // closely related to current/past playback than to the other sections.
-    val menuItems = HUB_PIVOTS.filterNot { it == "now playing" || it == "history" }
-    // No destination to navigate to from here (unlike LibraryPage's own
-    // playlists tab) — a new, still-empty playlist created from this page
-    // just stays put, guided by the confirmation toast's own instructions.
-    val addToPlaylist = rememberAddToPlaylist(context, tokens, accent)
-
-    // One Box, not several top-level composables — see LibraryPage's own
-    // note on why (the pager's per-page slot needs a single root to
-    // correctly stack/hit-test these overlays).
-    Box(modifier = Modifier.fillMaxSize()) {
+    val current = rememberCurrentPlayback(media, localPlayback)
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(bottom = 32.dp),
+            .padding(horizontal = 18.dp)
+            .padding(bottom = 24.dp),
     ) {
-        // "now playing" doubles as the hub's own menu (user-requested: "check
-        // proto first tab is only for menu. you can merge now playing in
-        // that and then all tabs"), listed *above* the playback content
-        // itself — a direct follow-up correction ("now playing screen at
-        // bottom and menus above"), replacing both the old horizontal pivot
-        // row and the smaller "apps ›"/"history ›" text links that preceded
-        // this design.
-        HubPageTitle("menu", tokens)
-        Column {
-            menuItems.forEachIndexed { index, label ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { onOpenPage(label) },
-                        )
-                        .padding(horizontal = 18.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(label, color = tokens.fg, fontSize = 18.sp, fontWeight = FontWeight.Light)
-                    Icon(TileIcons["chevron"], contentDescription = null, tint = tokens.fgDim, modifier = Modifier.size(16.dp))
-                }
-                if (index < menuItems.lastIndex) {
-                    Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp).height(1.dp).background(tokens.sheetLine))
-                }
+        when (current) {
+            is CurrentPlayback.External -> {
+                val (packageName, np) = current.entry
+                NowPlayingCard(
+                    art = artworkMap[packageName]?.asImageBitmap(),
+                    title = np.title,
+                    subtitle = np.artist,
+                    caption = "playing from ${appLabelOrNull(context, packageName) ?: packageName}",
+                    accent = accent,
+                    tokens = tokens,
+                    onClick = onOpenNowPlaying,
+                )
             }
-        }
-
-        // Tightened (24dp/10dp → 12dp/6dp) to reclaim vertical space for
-        // "add to playlist" below the transport controls further down,
-        // without shrinking the hero image (tried and reverted — read too
-        // small; user asked for this gap to absorb it instead).
-        Spacer(Modifier.height(12.dp))
-        Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp).height(1.dp).background(tokens.sheetLine))
-        Spacer(Modifier.height(6.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            Text("now playing", color = tokens.fg, fontSize = 26.sp, fontWeight = FontWeight.Light)
-            Text(
-                "history ›",
-                color = accent,
-                fontSize = 13.sp,
-                modifier = Modifier.clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = { onOpenPage("history") },
-                ),
-            )
-        }
-        when {
-            externalEntry != null && (externalEntry.value.playing || localItem == null) ->
-                ExternalNowPlaying(externalEntry, artworkMap, accent, tokens, context)
-            localItem != null -> PlayerNowPlaying(
-                localItem,
-                localPlayback.playing,
-                accent,
-                tokens,
-                context,
-                onAddToPlaylist = addToPlaylist.open,
-            )
-            else -> Column(modifier = Modifier.padding(horizontal = 18.dp)) {
-                Text("nothing playing", color = tokens.fgDim, fontSize = 14.sp)
-                Spacer(Modifier.height(6.dp))
+            is CurrentPlayback.Player -> {
+                val item = current.item
+                val art = when (item) {
+                    is PlayableAudio.Local -> rememberLocalAlbumArt(context, item.track.albumId, sizePx = 320)
+                    is PlayableAudio.Episode -> rememberRemoteArt(item.episode.imageUrl ?: item.show.artworkUrl)
+                    is PlayableAudio.RadioStream -> rememberRemoteArt(item.station.faviconUrl)
+                }
+                NowPlayingCard(
+                    art = art,
+                    title = item.title,
+                    subtitle = if (item is PlayableAudio.RadioStream) "" else item.subtitle,
+                    caption = if (localPlayback.playing) "now playing" else "paused",
+                    accent = accent,
+                    tokens = tokens,
+                    onClick = onOpenNowPlaying,
+                )
+            }
+            null -> {
+                Text("nothing playing", color = tokens.fg, fontSize = 20.sp, fontWeight = FontWeight.Light)
+                Spacer(Modifier.height(4.dp))
                 Text(
                     "start something in one of your music apps, or play a track from the library, a podcast, or a radio station",
                     color = tokens.fgDim,
-                    fontSize = 12.sp,
+                    fontSize = 13.sp,
                 )
             }
         }
+        Spacer(Modifier.height(20.dp))
+        listOf(
+            "library" to "music library",
+            "podcasts" to "podcasts",
+            "radio" to "radio",
+            "apps" to "apps",
+            "history" to "history",
+        ).forEach { (label, page) ->
+            Text(
+                label,
+                color = tokens.fg,
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Light,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { onOpenPage(page) },
+                    )
+                    .padding(vertical = 6.dp),
+            )
+        }
     }
-    addToPlaylist.overlays()
+}
+
+/** What the music hub treats as "now playing". */
+private sealed interface CurrentPlayback {
+    data class External(val entry: Map.Entry<String, NowPlaying>) : CurrentPlayback
+    data class Player(val item: PlayableAudio) : CurrentPlayback
+}
+
+/**
+ * Another app's session when it's playing (or nothing of ours is loaded),
+ * else TileShell's own player. TileShell's own session is also published in
+ * [MediaCenter.nowPlaying] (so the Start tile shows it); it's left out of the
+ * "external" candidates here, since our own player has the richer view.
+ */
+@Composable
+private fun rememberCurrentPlayback(media: Map<String, NowPlaying>, localPlayback: LocalPlayback): CurrentPlayback? {
+    val context = LocalContext.current
+    val externalCandidates = media.entries.filterNot { it.key == context.packageName }
+    val externalEntry = externalCandidates.firstOrNull { it.value.playing } ?: externalCandidates.firstOrNull()
+    val localItem = localPlayback.item
+    return when {
+        externalEntry != null && (externalEntry.value.playing || localItem == null) -> CurrentPlayback.External(externalEntry)
+        localItem != null -> CurrentPlayback.Player(localItem)
+        else -> null
+    }
+}
+
+@Composable
+private fun NowPlayingCard(
+    art: ImageBitmap?,
+    title: String,
+    subtitle: String,
+    caption: String,
+    accent: Color,
+    tokens: ColorTokens,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClickLabel = "open now playing",
+                onClick = onClick,
+            ),
+    ) {
+        TileImageBackground(image = art, modifier = Modifier.fillMaxWidth(0.72f).aspectRatio(1f)) {
+            if (art == null) {
+                Box(Modifier.fillMaxSize().background(accent), contentAlignment = Alignment.Center) {
+                    Icon(TileIcons["music"], contentDescription = null, tint = Color.White, modifier = Modifier.size(44.dp))
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(caption, color = tokens.fgDim, fontSize = 13.sp)
+        Text(title, color = tokens.fg, fontSize = 22.sp, fontWeight = FontWeight.Light, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (subtitle.isNotEmpty()) {
+            Text(subtitle, color = tokens.fgDim, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/**
+ * Full-screen now playing over the music panorama (user-requested, after
+ * Lumia's music player): a small "NOW PLAYING" caption, the large cover, the
+ * title in light type, progress and round transport controls, with the
+ * playlist / favourite / share / gapless options below. Opens on the "play"
+ * card, and by itself when playback starts.
+ */
+@Composable
+private fun NowPlayingScreen(visible: Boolean, accent: Color, tokens: ColorTokens, onClose: () -> Unit) {
+    val progress by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(260, easing = CubicBezierEasing(0.22f, 0.61f, 0.36f, 1f)),
+        label = "nowPlayingScreen",
+    )
+    if (!visible && progress == 0f) return
+    BackHandler(enabled = visible) { onClose() }
+    val media by MediaCenter.nowPlaying.collectAsState()
+    val artworkMap by MediaCenter.artwork.collectAsState()
+    val localPlayback by LocalMusicPlayer.state.collectAsState()
+    val context = LocalContext.current
+    val current = rememberCurrentPlayback(media, localPlayback)
+    val addToPlaylist = rememberAddToPlaylist(context, tokens, accent)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer { translationY = size.height * (1f - progress) }
+            .background(tokens.bg)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {},
+            )
+            .statusBarsPadding()
+            .navigationBarsPadding(),
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 24.dp),
+            ) {
+                Text(
+                    "NOW PLAYING",
+                    color = tokens.fg,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(start = 18.dp, top = 18.dp, bottom = 14.dp),
+                )
+                when (current) {
+                    is CurrentPlayback.External -> ExternalNowPlaying(current.entry, artworkMap, accent, tokens, context)
+                    is CurrentPlayback.Player -> PlayerNowPlaying(
+                        current.item,
+                        localPlayback.playing,
+                        accent,
+                        tokens,
+                        context,
+                        onAddToPlaylist = addToPlaylist.open,
+                    )
+                    null -> Text(
+                        "nothing playing",
+                        color = tokens.fgDim,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Light,
+                        modifier = Modifier.padding(horizontal = 18.dp),
+                    )
+                }
+            }
+            HubAppBar(tokens = tokens, actions = listOf(HubAppBarAction("back", "back", onClose)))
+        }
+        addToPlaylist.overlays()
     }
 }
 
 @Composable
 private fun NowPlayingHero(art: ImageBitmap?, accent: Color) {
-    // Shrunk from a full-width square — with the menu now sitting above this
-    // page's playback content, a full-width hero pushed the transport
-    // controls below the fold, needing a scroll to reach them
-    // (user-reported). ~60% width, still square, centered. (Shrinking this
-    // further to make room for "add to playlist" was tried and reverted —
-    // read too small; the menu/title gap was tightened instead, see
-    // NowPlayingPage.)
+    // The large cover on the full-screen now playing (86% wide, square,
+    // centred). It was 60% while it shared a page with the menu.
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        TileImageBackground(image = art, modifier = Modifier.fillMaxWidth(0.6f).aspectRatio(1f)) {
+        TileImageBackground(image = art, modifier = Modifier.fillMaxWidth(0.86f).aspectRatio(1f)) {
             if (art == null) {
                 Box(Modifier.fillMaxSize().background(accent), contentAlignment = Alignment.Center) {
                     Icon(TileIcons["music"], contentDescription = null, tint = Color.White, modifier = Modifier.size(56.dp))
@@ -491,24 +590,26 @@ private fun ExternalNowPlaying(
     Column(modifier = Modifier.padding(horizontal = 18.dp)) {
         NowPlayingHero(artworkMap[packageName]?.asImageBitmap(), accent)
         Spacer(Modifier.height(14.dp))
-        Text(text = np.title, color = tokens.fg, fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text = np.title, color = tokens.fg, fontSize = 28.sp, fontWeight = FontWeight.Light, maxLines = 2, overflow = TextOverflow.Ellipsis)
         if (np.artist.isNotEmpty()) {
             Spacer(Modifier.height(2.dp))
-            Text(text = np.artist, color = tokens.fgDim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(text = np.artist, color = tokens.fgDim, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.height(16.dp))
         // Bigger than the shared default (34dp/22dp) — this page's transport
         // row is its own main interactive element, not a secondary control on
         // a small tile/card, and read as too small at the shared size
         // (user-requested).
-        MediaTransportControls(
-            playing = np.playing,
-            packageName = packageName,
-            tint = tokens.fg,
-            enabled = true,
-            buttonSize = 56.dp,
-            iconSize = 28.dp,
-        )
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            MediaTransportControls(
+                playing = np.playing,
+                packageName = packageName,
+                tint = tokens.fg,
+                enabled = true,
+                buttonSize = 56.dp,
+                iconSize = 28.dp,
+            )
+        }
         Spacer(Modifier.height(20.dp))
         val label = remember(packageName) { appLabelOrNull(context, packageName) } ?: packageName
         Row(
@@ -566,10 +667,10 @@ private fun PlayerNowPlaying(
     Column(modifier = Modifier.padding(horizontal = 18.dp)) {
         NowPlayingHero(art, accent)
         Spacer(Modifier.height(14.dp))
-        Text(text = item.title, color = tokens.fg, fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text = item.title, color = tokens.fg, fontSize = 28.sp, fontWeight = FontWeight.Light, maxLines = 2, overflow = TextOverflow.Ellipsis)
         if (item.subtitle.isNotEmpty() && item !is PlayableAudio.RadioStream) {
             Spacer(Modifier.height(2.dp))
-            Text(text = item.subtitle, color = tokens.fgDim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(text = item.subtitle, color = tokens.fgDim, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.height(16.dp))
         // Bigger than the shared default (34dp/20dp), matching
@@ -582,7 +683,11 @@ private fun PlayerNowPlaying(
             PlaybackProgress(playing, accent, tokens)
             Spacer(Modifier.height(12.dp))
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(if (seekable) 10.dp else 20.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(if (seekable) 10.dp else 20.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
             LocalPlaybackButton("prev", "previous", tokens.fg, size = 56.dp, iconSize = 28.dp) {
                 LocalMusicPlayer.previous(context)
             }
@@ -895,7 +1000,6 @@ private fun MusicAppsPage(context: Context, accent: Color, tokens: ColorTokens, 
     // device's own installed music/audio players) that filtering isn't
     // needed, unlike the library/podcasts/radio pages' much larger catalogs.
     Column(modifier = Modifier.fillMaxSize()) {
-        HubPageTitle("apps", tokens)
         if (musicApps.isEmpty()) {
             LibraryEmptyState("no music apps found", tokens)
         } else {
@@ -1005,7 +1109,6 @@ private fun HistoryPage(context: Context, accent: Color, tokens: ColorTokens) {
     val history by MusicHistory.history(context).collectAsState(initial = emptyList())
     if (history.isEmpty()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            HubPageTitle("history", tokens)
             Text(
                 "nothing played yet",
                 color = tokens.fgDim,
@@ -1025,7 +1128,6 @@ private fun HistoryPage(context: Context, accent: Color, tokens: ColorTokens) {
             .padding(horizontal = 18.dp)
             .padding(bottom = 32.dp),
     ) {
-        HubPageTitle("history", tokens, applyHorizontalPadding = false)
         history.forEachIndexed { index, track ->
             val activeLocal = (localPlayback.item as? PlayableAudio.Local)?.track
             val playing = if (track.isLocal) {
@@ -1348,7 +1450,6 @@ private fun LibraryPage(context: Context, accent: Color, tokens: ColorTokens) {
         }
         null -> {
             Column(modifier = Modifier.fillMaxSize()) {
-                HubPageTitle("music library", tokens)
                 Row(
                     modifier = Modifier.padding(horizontal = 18.dp).padding(bottom = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -1537,19 +1638,6 @@ private fun LibraryEmptyState(text: String, tokens: ColorTokens) {
  * row (see "now playing"'s own doc comment). [applyHorizontalPadding] is
  * false for a page whose own content column already applies the standard
  * 18dp side padding to itself, so the title doesn't get it twice. */
-@Composable
-private fun HubPageTitle(title: String, tokens: ColorTokens, applyHorizontalPadding: Boolean = true) {
-    Text(
-        text = title,
-        color = tokens.fg,
-        fontSize = 26.sp,
-        fontWeight = FontWeight.Light,
-        modifier = Modifier
-            .let { if (applyHorizontalPadding) it.padding(horizontal = 18.dp) else it }
-            .padding(top = 4.dp, bottom = 14.dp),
-    )
-}
-
 @Composable
 private fun TracksList(
     context: Context,
@@ -2216,7 +2304,6 @@ private fun PodcastsPage(context: Context, accent: Color, tokens: ColorTokens) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        HubPageTitle("podcasts", tokens)
         LibrarySearchField(query, { query = it }, "search podcasts", tokens)
         if (query.isBlank()) {
             CategoryChipRow(PODCAST_GENRES.map { it.label }, selectedGenre?.label, accent, tokens) { label ->
@@ -2647,7 +2734,6 @@ private fun RadioPage(context: Context, accent: Color, tokens: ColorTokens) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        HubPageTitle("radio", tokens)
         LibrarySearchField(query, { query = it }, "search radio stations", tokens)
         if (query.isBlank()) {
             CategoryChipRow(RADIO_GENRES, selectedGenre, accent, tokens) { tag ->

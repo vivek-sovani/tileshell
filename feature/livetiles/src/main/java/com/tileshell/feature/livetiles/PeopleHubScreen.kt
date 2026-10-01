@@ -180,50 +180,26 @@ fun PeopleHubScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-            Column(modifier = Modifier.padding(horizontal = 18.dp)) {
-                Spacer(Modifier.height(20.dp))
-                Text(text = "tileshell", color = tokens.fgDim, fontSize = 14.sp)
-                Text(
-                    text = "people",
-                    color = accent,
-                    fontSize = 52.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Clip,
-                )
-                Spacer(Modifier.height(12.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    HUB_PIVOTS.forEachIndexed { index, label ->
-                        val selected = pagerState.currentPage == index
-                        Text(
-                            text = label,
-                            color = if (selected) tokens.fg else tokens.fgDim,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Light,
-                            modifier = Modifier.clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = { pagerScope.launch { pagerState.animateScrollToPage(index) } },
-                            ),
-                        )
+            HubPanorama(
+                title = "people",
+                sections = HUB_PIVOTS,
+                pagerState = pagerState,
+                tokens = tokens,
+                modifier = Modifier.weight(1f),
+                belowTitle = {
+                    if (searchOpen) {
+                        Box(Modifier.padding(horizontal = 18.dp).padding(bottom = 10.dp)) {
+                            PeopleSearchField(tokens, accent, query, { query = it }) {
+                                searchOpen = false
+                                query = ""
+                            }
+                        }
                     }
-                }
-                Spacer(Modifier.height(16.dp))
-
-                if (searchOpen) {
-                    PeopleSearchField(tokens, accent, query, { query = it }) {
-                        searchOpen = false
-                        query = ""
-                    }
-                    Spacer(Modifier.height(12.dp))
-                }
-            }
-
-            if (!granted) {
-                PeoplePermissionGate(tokens, accent)
-            } else {
-                HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
+                },
+            ) { page ->
+                if (!granted) {
+                    PeoplePermissionGate(tokens, accent)
+                } else {
                     when (page) {
                         0 -> AllPeoplePage(context, tokens, accent, query)
                         1 -> WhatsNewPage(context, tokens, accent, snapshot, whatsNewApps, whatsNewFilter) {
@@ -241,16 +217,16 @@ fun PeopleHubScreen(
                 actions = when (pagerState.currentPage) {
                     0 -> listOf(
                         HubAppBarAction("back", "back", onDismiss),
-                        HubAppBarAction("plus", "add contact") { openAddContact(context) },
-                        HubAppBarAction("search", "search") { searchOpen = !searchOpen },
-                        HubAppBarAction("people", "open contacts app") { openContactsApp(context) },
+                        HubAppBarAction("plus", "add contact", "add") { openAddContact(context) },
+                        HubAppBarAction("search", "search", "search") { searchOpen = !searchOpen },
+                        HubAppBarAction("people", "open contacts app", "contacts") { openContactsApp(context) },
                     )
                     1 -> buildList {
                         add(HubAppBarAction("back", "back", onDismiss))
-                        add(HubAppBarAction("pin", "pin this page to start") { onPinPage("what's new", "what's new") })
+                        add(HubAppBarAction("pin", "pin this page to start", "pin to start") { onPinPage("what's new", "what's new") })
                         // Clears just the notifications listed under the current filter.
                         add(
-                            HubAppBarAction("check", "clear these") {
+                            HubAppBarAction("check", "clear these", "clear") {
                                 NotificationCenter.clearKeys(
                                     recentActivity(snapshot, packageName = whatsNewFilter)
                                         .map { it.notificationKey }
@@ -259,17 +235,17 @@ fun PeopleHubScreen(
                             },
                         )
                         if (whatsNewFilter != null && peopleCategoryFor(whatsNewFilter) == PeopleCategory.MAIL) {
-                            add(HubAppBarAction("edit", "compose") { openMailCompose(context, whatsNewFilter) })
+                            add(HubAppBarAction("edit", "compose", "compose") { openMailCompose(context, whatsNewFilter) })
                         } else {
-                            add(HubAppBarAction("people", "open contacts app") { openContactsApp(context) })
+                            add(HubAppBarAction("people", "open contacts app", "contacts") { openContactsApp(context) })
                         }
                     }
                     else -> {
                         val page = HUB_PIVOTS[pagerState.currentPage]
                         listOf(
                             HubAppBarAction("back", "back", onDismiss),
-                            HubAppBarAction("pin", "pin this page to start") { onPinPage(page, page) },
-                            HubAppBarAction("people", "open contacts app") { openContactsApp(context) },
+                            HubAppBarAction("pin", "pin this page to start", "pin to start") { onPinPage(page, page) },
+                            HubAppBarAction("people", "open contacts app", "contacts") { openContactsApp(context) },
                         )
                     }
                 },
