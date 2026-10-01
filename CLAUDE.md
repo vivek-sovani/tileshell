@@ -37,6 +37,14 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — personalize: tiles before wallpaper; bing refresh, previews and reframe.** Section order
+  colours → tiles → wallpaper → start → live → glance → system. Photo and Bing show the wallpaper in
+  use (`WallpaperPreview`, phone-shaped, framed as on Start, tap to reframe) with "adjust position";
+  in Bing "select" it sits above the recent images. "refresh daily wallpaper" runs a forced fetch
+  (`BingWallpaperWorker.refreshFromUser`, turns daily on, toasts new / already set / failed). Picking
+  an earlier Bing day downloads it (`downloadBingPick` → `bing_pick_<time>.jpg`) and opens the
+  reframe step before "where to apply". Fixed a real race: the daily job's 30s retry and a refresh
+  wrote the same temp file at once (`bingDownload` now uses a unique temp name).
 - **`main` — chosen photos are shown with add / remove.** User-requested. Slideshow photos and live
   photos in personalize → wallpaper show as 72dp square thumbnails (`PhotoGrid`), each with a × that
   removes that photo (store + its imported file, `MediaImport.deleteImported`, only inside filesDir),

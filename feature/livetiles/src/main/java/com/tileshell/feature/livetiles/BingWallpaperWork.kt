@@ -135,19 +135,42 @@ class BingWallpaperWorker(
         }
 
         // Daily path: respect a since-toggled-off state before spending the network.
-        if (!settings.settings.first().bingWallpaper) return@withContext Result.success()
-        val metaUrl = "$BING_HOST/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=${bingMarket()}"
-        val json = runCatching { bingFetchText(metaUrl) }.getOrNull() ?: return@withContext Result.retry()
-        val imageUrl = parseBingImageUrl(json) ?: return@withContext Result.retry()
-        if (!runCatching { bingDownload(imageUrl, file) }.getOrDefault(false)) {
-            return@withContext Result.retry()
+        val forced = inputData.getBoolean(KEY_FORCE, false)
+        if (!forced && !settings.settings.first().bingWallpaper) {
+            android.util.Log.i(TAG, "daily: bing is off, skipped")
+            return@withContext Result.success(workDataOf(KEY_OUTCOME to OUTCOME_OFF))
         }
+        val metaUrl = "$BING_HOST/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=${bingMarket()}"
+        val json = runCatching { bingFetchText(metaUrl) }.getOrNull()
+        val imageUrl = json?.let { parseBingImageUrl(it) }
+        if (imageUrl == null) {
+            android.util.Log.i(TAG, "daily: couldn't read today's image")
+            return@withContext if (forced) Result.failure(workDataOf(KEY_OUTCOME to OUTCOME_FAILED)) else Result.retry()
+        }
+        val prefs = applicationContext.getSharedPreferences("tileshell.prefs", Context.MODE_PRIVATE)
+        val same = prefs.getString(PREF_LAST_URL, null) == imageUrl && file.exists()
+        if (!runCatching { bingDownload(imageUrl, file) }.getOrDefault(false)) {
+            android.util.Log.i(TAG, "daily: download failed")
+            return@withContext if (forced) Result.failure(workDataOf(KEY_OUTCOME to OUTCOME_FAILED)) else Result.retry()
+        }
+        prefs.edit().putString(PREF_LAST_URL, imageUrl).apply()
+        // A refresh turns daily mode on, so it also works after an earlier day was picked.
+        if (forced) settings.setBingWallpaper(true)
         settings.setBingImage(versionedUri(file))
-        Result.success()
+        android.util.Log.i(TAG, "daily: set ${if (same) "same image as before" else "new image"}")
+        Result.success(workDataOf(KEY_OUTCOME to if (same) OUTCOME_SAME else OUTCOME_NEW))
     }
 
     companion object {
         const val KEY_IMAGE_URL = "image_url"
+        private const val KEY_FORCE = "force"
+        const val KEY_OUTCOME = "outcome"
+        const val OUTCOME_NEW = "new"
+        const val OUTCOME_SAME = "same"
+        const val OUTCOME_OFF = "off"
+        const val OUTCOME_FAILED = "failed"
+        private const val PREF_LAST_URL = "bing_last_image_url"
+        private const val TAG = "TileShellBing"
 
         private const val UNIQUE_PERIODIC = "tileshell_bing_wallpaper"
         private const val UNIQUE_NOW = "tileshell_bing_wallpaper_now"
@@ -184,6 +207,28 @@ class BingWallpaperWorker(
                     .setConstraints(networkConstraint)
                     .build(),
             )
+        }
+
+        /**
+         * "refresh daily wallpaper": fetches today's image now, turning daily mode
+         * on if needed, and calls [onDone] with an [OUTCOME_NEW]/[OUTCOME_SAME]/
+         * [OUTCOME_FAILED] once it finishes (on the main thread).
+         */
+        fun refreshFromUser(context: Context, onDone: (String) -> Unit) {
+            val request = OneTimeWorkRequestBuilder<BingWallpaperWorker>()
+                .setInputData(workDataOf(KEY_FORCE to true))
+                .build()
+            val wm = androidx.work.WorkManager.getInstance(context.applicationContext)
+            wm.enqueueUniqueWork(UNIQUE_NOW, ExistingWorkPolicy.REPLACE, request)
+            val live = wm.getWorkInfoByIdLiveData(request.id)
+            val observer = object : androidx.lifecycle.Observer<androidx.work.WorkInfo?> {
+                override fun onChanged(value: androidx.work.WorkInfo?) {
+                    if (value == null || !value.state.isFinished) return
+                    live.removeObserver(this)
+                    onDone(value.outputData.getString(KEY_OUTCOME) ?: OUTCOME_FAILED)
+                }
+            }
+            live.observeForever(observer)
         }
 
         /** Force an immediate download of today's image (e.g. just after the user enables Bing). */
@@ -242,11 +287,27 @@ private fun bingFetchText(url: String): String =
     }
 
 /** Downloads [url] into [dest] via a temp file. Returns false on a non-2xx response or empty body. */
+/**
+ * Downloads a picked (earlier day's) Bing image for the reframe step before it
+ * is set, as `filesDir/bing_pick_<time>.jpg`, and returns its `file://` URI (null
+ * on failure). Older picks are deleted, except [keepUri] (the wallpaper in use).
+ */
+suspend fun downloadBingPick(context: android.content.Context, imageUrl: String, keepUri: String?): String? =
+    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val dir = context.filesDir
+        val keepName = keepUri?.let { runCatching { Uri.parse(it).lastPathSegment }.getOrNull() }
+        dir.listFiles { f -> f.name.startsWith("bing_pick_") && f.name != keepName }?.forEach { it.delete() }
+        val file = File(dir, "bing_pick_${System.currentTimeMillis()}.jpg")
+        if (runCatching { bingDownload(imageUrl, file) }.getOrDefault(false)) Uri.fromFile(file).toString() else null
+    }
+
 private fun bingDownload(url: String, dest: File): Boolean {
     val conn = openBingConnection(url)
     return try {
         if (conn.responseCode !in 200..299) return false
-        val tmp = File(dest.parentFile, dest.name + ".tmp")
+        // Unique per download: the daily job's retry and a user refresh can run at
+        // once, and sharing one temp file corrupted the image.
+        val tmp = File(dest.parentFile, dest.name + ".${System.nanoTime()}.tmp")
         conn.inputStream.use { input -> tmp.outputStream().use { input.copyTo(it) } }
         if (tmp.length() <= 0L) {
             tmp.delete()

@@ -175,6 +175,12 @@ fun PersonalizeSheet(
     bingPicked: Boolean = false,
     // The recent Bing images, inline, for bing's "select" choice.
     bingRecentImages: @Composable () -> Unit = {},
+    // Fetches today's Bing image again (bing "daily").
+    onRefreshBing: () -> Unit = {},
+    // The current photo wallpaper, previewed under "photo", and its framing.
+    customWallpaperUri: String? = null,
+    wallpaperAlignX: Float = 0.5f,
+    wallpaperAlignY: Float = 0.5f,
     onAdjustWallpaper: () -> Unit,
     wallpaperSlideshowEnabled: Boolean,
     onWallpaperSlideshowChange: (Boolean) -> Unit,
@@ -538,7 +544,7 @@ fun PersonalizeSheet(
                             }
                         }
                         }
-                        1 -> { // wallpaper
+                        2 -> { // wallpaper
                         // ---- wallpaper ----
                         SettingGroup(label = "wallpaper", tokens.fgDim) {
                             val currentWallpaper =
@@ -592,6 +598,9 @@ fun PersonalizeSheet(
                                         if (customWallpaper) "change ›" else "choose ›",
                                         accent, tokens, onPickCustomWallpaper,
                                     )
+                                    if (customWallpaper && customWallpaperUri != null) {
+                                        WallpaperPreview(customWallpaperUri, wallpaperAlignX, wallpaperAlignY, tokens, onAdjustWallpaper)
+                                    }
                                     if (customWallpaper) {
                                         WallpaperNavRow("adjust position", "reframe ›", accent, tokens, onAdjustWallpaper)
                                     }
@@ -637,12 +646,19 @@ fun PersonalizeSheet(
                                         }
                                         HubFilter("select", selecting || !bingWallpaper, tokens, accent) { selecting = true }
                                     }
+                                    // The Bing image in use, as it sits on Start, with reframe.
+                                    val showCurrent = customWallpaper && customWallpaperUri != null
                                     if (selecting || !bingWallpaper) {
+                                        // Selected wallpaper first, then the recent ones to pick from.
+                                        if (showCurrent) {
+                                            WallpaperPreview(customWallpaperUri!!, wallpaperAlignX, wallpaperAlignY, tokens, onAdjustWallpaper)
+                                            WallpaperNavRow("adjust position", "reframe ›", accent, tokens, onAdjustWallpaper)
+                                        }
                                         Text(
                                             "tap one to set it as your wallpaper",
                                             color = tokens.fgDim,
                                             fontSize = 13.sp,
-                                            modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
+                                            modifier = Modifier.padding(top = 10.dp, bottom = 10.dp),
                                         )
                                         bingRecentImages()
                                     } else {
@@ -652,9 +668,11 @@ fun PersonalizeSheet(
                                             fontSize = 13.sp,
                                             modifier = Modifier.padding(top = 4.dp, bottom = 6.dp),
                                         )
-                                    }
-                                    if (customWallpaper) {
-                                        WallpaperNavRow("adjust position", "reframe ›", accent, tokens, onAdjustWallpaper)
+                                        WallpaperNavRow("refresh daily wallpaper", "refresh ›", accent, tokens, onRefreshBing)
+                                        if (showCurrent) {
+                                            WallpaperPreview(customWallpaperUri!!, wallpaperAlignX, wallpaperAlignY, tokens, onAdjustWallpaper)
+                                            WallpaperNavRow("adjust position", "reframe ›", accent, tokens, onAdjustWallpaper)
+                                        }
                                     }
                                 }
                                 WallpaperType.STOCK -> {
@@ -688,7 +706,7 @@ fun PersonalizeSheet(
 
                         }
                         }
-                        2 -> { // tiles
+                        1 -> { // tiles
                         // ---- tile style (merged: background style + transparency/blur +
                         // shape/spacing + gradient fill + reset) ----
                         SettingGroup(label = "tile style", tokens.fgDim) {
@@ -1633,9 +1651,41 @@ private fun PhotoGrid(
 
 private val PHOTO_THUMB = 72.dp
 
+/** The wallpaper in use, phone-shaped and framed as on Start; tap to reframe.
+ * Keyed on [uri], whose `?v=` changes with each new Bing download. */
+@Composable
+private fun WallpaperPreview(
+    uri: String,
+    alignX: Float,
+    alignY: Float,
+    tokens: com.tileshell.core.design.ColorTokens,
+    onReframe: () -> Unit,
+) {
+    val preview = rememberPhotoThumbnail(uri, minSidePx = 480)
+    Box(
+        modifier = Modifier
+            .padding(vertical = 8.dp)
+            .width(130.dp)
+            .aspectRatio(9f / 19.5f)
+            .background(tokens.chip)
+            .border(1.dp, tokens.fgDim)
+            .clickable(onClickLabel = "reframe", onClick = onReframe),
+    ) {
+        if (preview != null) {
+            androidx.compose.foundation.Image(
+                bitmap = preview,
+                contentDescription = "your wallpaper",
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                alignment = androidx.compose.ui.BiasAlignment(alignX * 2f - 1f, alignY * 2f - 1f),
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+}
+
 /** A small thumbnail of an imported photo, decoded off the main thread. */
 @Composable
-private fun rememberPhotoThumbnail(uri: String): ImageBitmap? {
+private fun rememberPhotoThumbnail(uri: String, minSidePx: Int = 200): ImageBitmap? {
     val context = LocalContext.current
     return produceState<ImageBitmap?>(null, uri) {
         value = withContext(Dispatchers.IO) {
@@ -1644,7 +1694,7 @@ private fun rememberPhotoThumbnail(uri: String): ImageBitmap? {
                 val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 context.contentResolver.openInputStream(parsed)?.use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
                 var sample = 1
-                while (bounds.outWidth / (sample * 2) >= 200 && bounds.outHeight / (sample * 2) >= 200) sample *= 2
+                while (bounds.outWidth / (sample * 2) >= minSidePx && bounds.outHeight / (sample * 2) >= minSidePx) sample *= 2
                 val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
                 context.contentResolver.openInputStream(parsed)?.use { android.graphics.BitmapFactory.decodeStream(it, null, opts) }
                     ?.asImageBitmap()
@@ -1654,7 +1704,7 @@ private fun rememberPhotoThumbnail(uri: String): ImageBitmap? {
 }
 
 /** The personalize panorama's sections, in swipe order. */
-private val PERSONALIZE_SECTIONS = listOf("colours", "wallpaper", "tiles", "start", "live", "glance", "system")
+private val PERSONALIZE_SECTIONS = listOf("colours", "tiles", "wallpaper", "start", "live", "glance", "system")
 
 /** A compact tappable navigation row: dim label on the left, accent action on the right. */
 @Composable

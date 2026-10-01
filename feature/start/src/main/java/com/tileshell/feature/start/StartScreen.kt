@@ -602,6 +602,20 @@ fun StartScreen(
     // content, so there's nothing new to choose a target for.
     var pendingWallpaperPick by remember { mutableStateOf<PendingWallpaperPick?>(null) }
 
+    // An earlier day's Bing image (user-requested): downloaded first, then the
+    // same reframe step a gallery photo gets, then "where to apply".
+    fun pickBingImage(imageUrl: String) {
+        Toast.makeText(context, "loading the image…", Toast.LENGTH_SHORT).show()
+        scope.launch {
+            val local = com.tileshell.feature.livetiles.downloadBingPick(context, imageUrl, settings.customWallpaperUri)
+            if (local != null) {
+                pendingWallpaperCropUri = local
+            } else {
+                Toast.makeText(context, "couldn't load that image, check your connection", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     // Gallery photo picker for a custom wallpaper. PickVisualMedia opens the phone's
     // gallery / system photo picker (nicer than the SAF document browser). Its grant
     // isn't persistable, so the picked image is copied into private storage and the
@@ -1914,12 +1928,24 @@ fun StartScreen(
             bingWallpaper = settings.bingWallpaper,
             onBingWallpaperChange = viewModel::setBingWallpaper,
             onBingHistory = { bingHistoryOpen = true },
-            bingPicked = settings.customWallpaperUri?.contains("bing_wallpaper") == true && !settings.bingWallpaper,
+            bingPicked = settings.customWallpaperUri?.let { "bing_pick_" in it || ("bing_wallpaper" in it && !settings.bingWallpaper) } == true,
             bingRecentImages = {
-                BingRecentImages(colorTokens(dark), TileAccents.forId(settings.accentId)) { imageUrl ->
-                    pendingWallpaperPick = PendingWallpaperPick.Bing(imageUrl)
+                BingRecentImages(colorTokens(dark), TileAccents.forId(settings.accentId)) { imageUrl -> pickBingImage(imageUrl) }
+            },
+            onRefreshBing = {
+                Toast.makeText(context, "getting today's bing wallpaper…", Toast.LENGTH_SHORT).show()
+                com.tileshell.feature.livetiles.BingWallpaperWorker.refreshFromUser(context) { outcome ->
+                    val message = when (outcome) {
+                        com.tileshell.feature.livetiles.BingWallpaperWorker.OUTCOME_NEW -> "today's bing wallpaper is set"
+                        com.tileshell.feature.livetiles.BingWallpaperWorker.OUTCOME_SAME -> "you already have today's bing wallpaper"
+                        else -> "couldn't get today's bing wallpaper, check your connection"
+                    }
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                 }
             },
+            customWallpaperUri = settings.customWallpaperUri,
+            wallpaperAlignX = settings.wallpaperAlignX,
+            wallpaperAlignY = settings.wallpaperAlignY,
             onAdjustWallpaper = { if (settings.customWallpaperUri != null) adjustingWallpaper = true },
             wallpaperSlideshowEnabled = settings.wallpaperSlideshowEnabled,
             onWallpaperSlideshowChange = viewModel::setWallpaperSlideshowEnabled,
@@ -2555,8 +2581,8 @@ fun StartScreen(
             dark = dark,
             accentId = settings.accentId,
             onPick = { imageUrl ->
-                pendingWallpaperPick = PendingWallpaperPick.Bing(imageUrl)
                 bingHistoryOpen = false
+                pickBingImage(imageUrl)
             },
             onDismiss = { bingHistoryOpen = false },
         )
