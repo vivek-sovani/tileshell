@@ -2717,7 +2717,13 @@ private fun restoreLastPhotoWallpaper(
     target: com.tileshell.core.data.settings.WallpaperSyncTarget,
 ): Boolean {
     val prefs = context.getSharedPreferences("tileshell.prefs", Context.MODE_PRIVATE)
-    val last = prefs.getString(PREF_LAST_PHOTO, null)?.takeIf { MediaImport.exists(it) } ?: return false
+    // Only a real photo counts: an older build could remember a slide here.
+    val last = prefs.getString(PREF_LAST_PHOTO, null)
+        ?.takeIf { MediaImport.isImportedWallpaper(context, it) && MediaImport.exists(it) }
+    if (last == null) {
+        prefs.edit().remove(PREF_LAST_PHOTO).apply()
+        return false
+    }
     viewModel.setCustomWallpaperWithSync(
         last,
         prefs.getFloat(PREF_LAST_PHOTO_X, 0.5f),
