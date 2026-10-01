@@ -37,29 +37,21 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
-- **`main` — favourites tile: choose and order who's on it, tap a person for quick actions.**
-  User-requested, designed first. In the hub's favourites page each starred contact has an
-  "on tile" / "add to tile" chip, explained by a note under the heading (a pin means "pin to Start",
-  and a bare checkbox didn't say what it checks); "arrange tile" lists who's on
-  the tile with drag-to-reorder (grip; TalkBack move up/down), − / +, and a dashed line where
-  the pinned tile's room runs out. Stored in settings as lookup keys (`favouritesTileOrder`,
-  URL-encoded in the codec, + `favouritesTileArranged`), so backups carry it; until arranged the
-  tile behaves as before. The tile holds a fixed count per height (`favouritesTileCapacity`: 1 row → 1, 2x2 →
-  4, +2 per extra row; user-chosen), rows share the height so names (~18sp on a 2x2) and photos
-  grow with the tile; the count is reported to arrange (`FavouritesTileCapacity`), shows "+N more" (or "+N" on a 2-column tile) in its title row, and tapping
-  a person opens `FavouriteQuickSheet` (call → dialer, message, last-used chat app or WhatsApp
-  chat, contact card; "open favourites"). Title/empty space still open the hub (`claimTouches`
-  stops the short rows' stretched touch area stealing those taps); a hold still enters edit.
-  Pure logic in `FavouritesTile.kt` (`FavouritesTileTest`). Verified on the emulator end to end.
-- **`main` — music hub resumed on the phone speaker after Bluetooth reconnected.** User-reported
-  after the pause-on-disconnect fix. The phone's `dumpsys audio` showed the sequence: Buds
-  (LE Audio) dropped at 07:26 → BECOMING_NOISY → paused; car connected at 12:36 → resuming that
-  same 5-hour-old paused `MediaPlayer` played out of the phone. A paused player can stay on the
-  output it was opened on. Now a noisy pause (`pauseForNoisy`) or any output device added or
-  removed while paused (`AudioDeviceCallback` in the service → `onOutputsChanged`) marks the
-  player stale, and the next resume (play button, headset/car play key, focus regain) reopens a
-  fresh player at the same position (`reopenCurrent`; radio restarts the live stream). Build +
-  tests green; release build installed on the phone, no crash. Not yet tried with the car/Buds.
+- **`main` — favourites: your own order, an "on tile" choice per person, and a tile with quick
+  actions.** User-requested, designed first. The hub's favourites tab has a switch between
+  "favourites" and "recently messaged". Favourites show in the user's order (`favouritesOrder`,
+  lookup keys; newly starred people follow alphabetically) with an "on tile" / "add to tile" chip
+  each (`favouritesOffTile`), explained by a note (a pin means "pin to Start"; a bare checkbox
+  didn't say what it checked). "arrange" reorders everyone by drag (TalkBack move up/down) with
+  a dashed line after the last on-tile person the pinned tile fits. Both lists live in settings
+  (URL-encoded keys), so backups carry them. The tile holds a fixed count per height
+  (`favouritesTileCapacity`: 1 row → 1, 2x2 → 4, +2 per extra row; user-chosen), rows share the
+  height so names (~18sp on a 2x2) and photos grow with it, shows "+N more" ("+N" on 2 columns)
+  in the title row, and tapping a person opens `FavouriteQuickSheet` (call → dialer, message,
+  last-used chat app or WhatsApp chat, contact card; "open favourites"). Title/empty space open
+  the hub (`claimTouches` stops the short rows' stretched touch area stealing those taps); a
+  hold still enters edit. Pure logic in `FavouritesTile.kt` (`FavouritesTileTest`). Verified on
+  the emulator end to end; the phone has the earlier version (adb dropped).
 - **`main` — a reminder can be set while adding a task** (user-requested): a bell beside "add a
   task" opens the same "remind me" sheet; the pick shows under the field (with "remove") and is
   saved with the task (`TaskRepository.addTask(listId, text, remindAt, repeat)`). 5.0.0 AAB/APK

@@ -67,6 +67,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -699,10 +700,11 @@ private fun PinContactMenu(expanded: Boolean, person: PersonSummary, onDismiss: 
 }
 
 /**
- * "favourites": starred contacts, then people who recently messaged (from
- * TileShell's own [MessagedLog], matched to contacts by name). Replaced
- * "recent", which read Android's "last contacted" field — no longer kept up to
- * date on most phones since Android 10.
+ * "favourites": a switch between the user's starred contacts (in their own
+ * order, each with an "on tile" chip, and "arrange" to reorder) and people
+ * who recently messaged (from TileShell's own [MessagedLog], matched to
+ * contacts by name). Replaced "recent", which read Android's "last contacted"
+ * field — no longer kept up to date on most phones since Android 10.
  */
 @Composable
 private fun FavouritesPage(context: android.content.Context, tokens: ColorTokens, accent: Color) {
@@ -721,20 +723,20 @@ private fun FavouritesPage(context: android.content.Context, tokens: ColorTokens
     val settings by settingsRepo.settings.collectAsStateWithLifecycle(initialValue = null)
     val scope = rememberCoroutineScope()
     var arranging by remember { mutableStateOf(false) }
+    var showMessaged by rememberSaveable { mutableStateOf(false) }
     val stars = favourites
     val s = settings
-    // Who's on the favourites tile, in order (every starred contact until
-    // the user arranges it).
-    val tileKeys = if (stars == null || s == null) emptyList()
-        else favouritesTileKeys(stars, s.favouritesTileOrder, s.favouritesTileArranged)
-    val saveTileKeys: (List<String>) -> Unit = { keys -> scope.launch { settingsRepo.setFavouritesTile(keys) } }
-    if (arranging && stars != null && s != null) {
-        ArrangeFavouritesTile(
-            stars = stars,
-            tileKeys = tileKeys,
+    val ordered = if (stars == null || s == null) null else orderedFavourites(stars, s.favouritesOrder)
+    val offTile = s?.favouritesOffTile.orEmpty()
+    val toggleTile: (String, Boolean) -> Unit = { key, on -> scope.launch { settingsRepo.setFavouriteOnTile(key, on) } }
+    if (arranging && ordered != null) {
+        ArrangeFavourites(
+            ordered = ordered,
+            offTile = offTile,
             tokens = tokens,
             accent = accent,
-            onChange = saveTileKeys,
+            onOrderChange = { keys -> scope.launch { settingsRepo.setFavouritesOrder(keys) } },
+            onToggleTile = toggleTile,
             onDone = { arranging = false },
         )
         return
@@ -743,76 +745,76 @@ private fun FavouritesPage(context: android.content.Context, tokens: ColorTokens
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
     ) {
-        if (stars == null) {
-            item { Spacer(Modifier.height(1.dp)) }
-            return@LazyColumn
-        }
         item {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Box(Modifier.weight(1f)) { FavouritesHeader("favourites", tokens) }
-                if (stars.isNotEmpty()) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 6.dp),
+            ) {
+                FilterChip("favourites", null, !showMessaged, tokens, accent) { showMessaged = false; expandedId = null }
+                FilterChip("recently messaged", null, showMessaged, tokens, accent) { showMessaged = true; expandedId = null }
+                Spacer(Modifier.weight(1f))
+                if (!showMessaged && !ordered.isNullOrEmpty()) {
                     Text(
-                        "arrange tile",
+                        "arrange",
                         color = accent,
                         fontSize = 14.sp,
                         modifier = Modifier
                             .clickable { arranging = true }
-                            .padding(top = 12.dp, bottom = 4.dp, start = 12.dp),
+                            .padding(vertical = 10.dp, horizontal = 4.dp),
                     )
                 }
             }
         }
-        if (stars.isEmpty()) {
+        if (showMessaged) {
+            if (messaged.isEmpty()) {
+                item {
+                    Text(
+                        "people who message you on whatsapp, sms and other chat apps show up here",
+                        color = tokens.fgDim,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                }
+            } else {
+                items(messaged, key = { "msg-${it.first.contactId}" }) { (person, entry) ->
+                    val key = "msg-${person.contactId}"
+                    ContactRow(
+                        context, person, tokens, accent,
+                        expanded = expandedId == key,
+                        onToggleExpand = { expandedId = if (expandedId == key) null else key },
+                        subtitle = "${rememberAppLabel(entry.packageName)} · ${messagedAgo(entry.time, now)}",
+                    )
+                }
+            }
+        } else if (ordered == null) {
+            item { Spacer(Modifier.height(1.dp)) }
+        } else if (ordered.isEmpty()) {
             item {
                 Text(
                     "star people in your contacts app to keep them here",
                     color = tokens.fgDim,
                     fontSize = 14.sp,
-                    modifier = Modifier.padding(bottom = 8.dp),
+                    modifier = Modifier.padding(top = 6.dp),
                 )
             }
         } else {
             item {
                 Text(
-                    "people marked \"on tile\" show on your pinned favourites tile. tap to add or remove them, and use arrange tile to set their order.",
+                    "people marked \"on tile\" show on your pinned favourites tile; tap to add or remove them. use arrange to set the order.",
                     color = tokens.fgDim,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(bottom = 6.dp),
                 )
             }
-            items(stars, key = { "fav-${it.contactId}" }) { person ->
+            items(ordered, key = { "fav-${it.contactId}" }) { person ->
                 val key = "fav-${person.contactId}"
-                val onTile = person.lookupKey in tileKeys
+                val onTile = person.lookupKey !in offTile
                 ContactRow(
                     context, person, tokens, accent,
                     expanded = expandedId == key,
                     onToggleExpand = { expandedId = if (expandedId == key) null else key },
-                    trailing = {
-                        OnTileChip(onTile, tokens, accent) {
-                            saveTileKeys(if (onTile) tileKeys - person.lookupKey else tileKeys + person.lookupKey)
-                        }
-                    },
-                )
-            }
-        }
-
-        item { FavouritesHeader("recently messaged", tokens) }
-        if (messaged.isEmpty()) {
-            item {
-                Text(
-                    "people who message you on whatsapp, sms and other chat apps show up here",
-                    color = tokens.fgDim,
-                    fontSize = 14.sp,
-                )
-            }
-        } else {
-            items(messaged, key = { "msg-${it.first.contactId}" }) { (person, entry) ->
-                val key = "msg-${person.contactId}"
-                ContactRow(
-                    context, person, tokens, accent,
-                    expanded = expandedId == key,
-                    onToggleExpand = { expandedId = if (expandedId == key) null else key },
-                    subtitle = "${rememberAppLabel(entry.packageName)} · ${messagedAgo(entry.time, now)}",
+                    trailing = { OnTileChip(onTile, tokens, accent) { toggleTile(person.lookupKey, !onTile) } },
                 )
             }
         }
@@ -827,7 +829,7 @@ private fun FavouritesPage(context: android.content.Context, tokens: ColorTokens
  * say what it checks.
  */
 @Composable
-private fun OnTileChip(onTile: Boolean, tokens: ColorTokens, accent: Color, onToggle: () -> Unit) {
+internal fun OnTileChip(onTile: Boolean, tokens: ColorTokens, accent: Color, onToggle: () -> Unit) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
@@ -856,11 +858,6 @@ private fun OnTileChip(onTile: Boolean, tokens: ColorTokens, accent: Color, onTo
             )
         }
     }
-}
-
-@Composable
-private fun FavouritesHeader(text: String, tokens: ColorTokens) {
-    Text(text, color = tokens.fgDim, fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
 }
 
 /** An app's own name, lowercase ("whatsapp"), or its package when unknown. */

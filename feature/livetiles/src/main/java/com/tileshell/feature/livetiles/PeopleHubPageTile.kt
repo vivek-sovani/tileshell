@@ -113,23 +113,23 @@ private fun FavouritesTileFace(size: TileSize, interactive: Boolean, fallback: @
     val s = settings ?: return
     LaunchedEffect(Unit) { MessagedLog.ensureLoaded(context) }
     val log by MessagedLog.entries.collectAsStateWithLifecycle()
-    // Pinned starred contacts in the user's order (every starred one until
-    // they've arranged the tile); with none starred, people who recently
-    // messaged, as before.
-    val people by produceState<List<PersonSummary>?>(
-        initialValue = null, s.favouritesTileOrder, s.favouritesTileArranged, log,
+    // Starred contacts in the user's order, minus any taken off the tile;
+    // with none starred, people who recently messaged, as before. Null while
+    // loading; the flag says whether anyone is starred.
+    val loaded by produceState<Pair<Boolean, List<PersonSummary>>?>(
+        initialValue = null, s.favouritesOrder, s.favouritesOffTile, log,
     ) {
         value = withContext(Dispatchers.IO) {
             val starred = queryFavouriteContacts(context)
-            if (starred.isEmpty() && !s.favouritesTileArranged) {
-                matchMessaged(log, queryAllContacts(context)).map { it.first }.take(MAX_FAVOURITE_ROWS)
+            if (starred.isEmpty()) {
+                false to matchMessaged(log, queryAllContacts(context)).map { it.first }.take(MAX_FAVOURITE_ROWS)
             } else {
-                favouritesTilePeople(starred, s.favouritesTileOrder, s.favouritesTileArranged)
+                true to tileFavourites(orderedFavourites(starred, s.favouritesOrder), s.favouritesOffTile)
             }
         }
     }
-    val list = people ?: return
-    if (list.isEmpty() && !s.favouritesTileArranged) return fallback()
+    val (hasStarred, list) = loaded ?: return
+    if (list.isEmpty() && !hasStarred) return fallback()
     val color = LocalTileFaceColor.current
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         // A fixed count per tile height (4 on a 2x2), and the rows share the
@@ -172,7 +172,7 @@ private fun FavouritesTileFace(size: TileSize, interactive: Boolean, fallback: @
                 }
             }
             if (list.isEmpty()) {
-                Text("pin people in favourites", color = color.copy(alpha = 0.8f), fontSize = 11.sp, maxLines = 2)
+                Text("mark people \"on tile\" in favourites", color = color.copy(alpha = 0.8f), fontSize = 12.sp, maxLines = 3)
             }
             shown.forEach { person ->
                 Row(

@@ -8,26 +8,27 @@ class FavouritesTileTest {
     private val starred = listOf(p("anita"), p("dev"), p("mom"), p("rahul"))
 
     @Test
-    fun `not arranged shows every starred contact`() {
-        assertEquals(starred, favouritesTilePeople(starred, emptyList(), arranged = false))
-        assertEquals(starred, favouritesTilePeople(starred, listOf("mom"), arranged = false))
+    fun `no order keeps the starred contacts' own order`() {
+        assertEquals(starred, orderedFavourites(starred, emptyList()))
     }
 
     @Test
-    fun `arranged shows only pinned people in the user's order`() {
-        val shown = favouritesTilePeople(starred, listOf("mom", "rahul", "anita"), arranged = true)
-        assertEquals(listOf("mom", "rahul", "anita"), shown.map { it.lookupKey })
+    fun `arranged people come first, newly starred ones follow`() {
+        val ordered = orderedFavourites(starred, listOf("mom", "rahul"))
+        assertEquals(listOf("mom", "rahul", "anita", "dev"), ordered.map { it.lookupKey })
     }
 
     @Test
-    fun `unstarred or deleted pins drop out and duplicates are ignored`() {
-        val shown = favouritesTilePeople(starred, listOf("gone", "dev", "dev", "mom"), arranged = true)
-        assertEquals(listOf("dev", "mom"), shown.map { it.lookupKey })
+    fun `unstarred keys and duplicates in the order are ignored`() {
+        val ordered = orderedFavourites(starred, listOf("gone", "dev", "dev", "mom"))
+        assertEquals(listOf("dev", "mom", "anita", "rahul"), ordered.map { it.lookupKey })
     }
 
     @Test
-    fun `arranged with nobody pinned is empty`() {
-        assertEquals(emptyList<PersonSummary>(), favouritesTilePeople(starred, emptyList(), arranged = true))
+    fun `tile shows the ordered favourites minus the ones taken off`() {
+        val ordered = orderedFavourites(starred, listOf("mom", "rahul"))
+        assertEquals(listOf("mom", "anita", "dev"), tileFavourites(ordered, listOf("rahul")).map { it.lookupKey })
+        assertEquals(emptyList<PersonSummary>(), tileFavourites(ordered, starred.map { it.lookupKey }))
     }
 
     @Test

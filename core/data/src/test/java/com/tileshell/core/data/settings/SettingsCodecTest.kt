@@ -332,17 +332,14 @@ class SettingsCodecTest {
     }
 
     @Test
-    fun `favourites tile order round-trips, keys with separators survive`() {
-        assertEquals(emptyList<String>(), LauncherSettings().favouritesTileOrder)
-        assertEquals(false, LauncherSettings().favouritesTileArranged)
+    fun `favourites order and off-tile round-trip, keys with separators survive`() {
+        assertEquals(emptyList<String>(), LauncherSettings().favouritesOrder)
+        assertEquals(emptyList<String>(), LauncherSettings().favouritesOffTile)
         val s = LauncherSettings(
-            favouritesTileOrder = listOf("0r1-ABC", "3789i2a.7f|odd", "with space\nline"),
-            favouritesTileArranged = true,
+            favouritesOrder = listOf("0r1-ABC", "3789i2a.7f|odd", "with space\nline"),
+            favouritesOffTile = listOf("3789i2a.7f|odd"),
         )
         assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
-        // Arranged with nobody pinned is a real state (the tile shows a hint).
-        val empty = LauncherSettings(favouritesTileArranged = true)
-        assertEquals(empty, SettingsCodec.decode(SettingsCodec.encode(empty)))
     }
 
     @Test

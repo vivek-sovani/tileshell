@@ -52,31 +52,39 @@ import com.tileshell.core.design.TileIcons
 private val ARRANGE_ROW_HEIGHT = 56.dp
 
 /**
- * "arrange tile": who the favourites tile shows and in what order. The top
- * list is on the tile (drag the grip to reorder, − to take someone off); a
- * dashed line marks how many the pinned tile has room for, the rest going
- * into "+ more". Below are the other starred contacts (+ adds them at the
- * end). Every change saves at once.
+ * "arrange favourites": the user's order for their favourites, used by the
+ * favourites list and its tile. Drag the grip to reorder; each row's chip puts
+ * that person on the tile or takes them off. A dashed line follows the last
+ * person the pinned tile has room for; tile people below it go into "+ more".
+ * Every change saves at once.
  */
 @Composable
-internal fun ArrangeFavouritesTile(
-    stars: List<PersonSummary>,
-    tileKeys: List<String>,
+internal fun ArrangeFavourites(
+    ordered: List<PersonSummary>,
+    offTile: List<String>,
     tokens: ColorTokens,
     accent: Color,
-    onChange: (List<String>) -> Unit,
+    onOrderChange: (List<String>) -> Unit,
+    onToggleTile: (key: String, onTile: Boolean) -> Unit,
     onDone: () -> Unit,
 ) {
     BackHandler { onDone() }
     val context = LocalContext.current
     val capacity by FavouritesTileCapacity.capacity(context).collectAsStateWithLifecycle()
-    val byKey = remember(stars) { stars.associateBy { it.lookupKey } }
+    val byKey = remember(ordered) { ordered.associateBy { it.lookupKey } }
+    val baseKeys = remember(ordered) { ordered.map { it.lookupKey } }
     // Edited locally while dragging; saved when the finger lifts.
-    var keys by remember(tileKeys) { mutableStateOf(tileKeys.filter { it in byKey }) }
+    var keys by remember(baseKeys) { mutableStateOf(baseKeys) }
     var draggingKey by remember { mutableStateOf<String?>(null) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
     val rowPx = with(LocalDensity.current) { ARRANGE_ROW_HEIGHT.toPx() }
-    val others = stars.filter { it.lookupKey !in keys }
+    val off = offTile.toHashSet()
+    // Where the dashed line goes: after the capacity-th person on the tile,
+    // only when someone on the tile falls below it.
+    val cutAfter = capacity?.let { cap ->
+        val onTile = keys.withIndex().filter { it.value !in off }
+        if (cap > 0 && onTile.size > cap) onTile[cap - 1].index else null
+    }
 
     Column(
         modifier = Modifier
@@ -85,7 +93,7 @@ internal fun ArrangeFavouritesTile(
             .padding(horizontal = 18.dp, vertical = 4.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-            Text("arrange tile", color = tokens.fg, fontSize = 24.sp, fontWeight = FontWeight.Light, modifier = Modifier.weight(1f))
+            Text("arrange favourites", color = tokens.fg, fontSize = 24.sp, fontWeight = FontWeight.Light, modifier = Modifier.weight(1f))
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier.size(48.dp).clickable(onClickLabel = "done", onClick = onDone),
@@ -93,21 +101,17 @@ internal fun ArrangeFavouritesTile(
                 Icon(TileIcons["check"], contentDescription = "done", tint = tokens.fg, modifier = Modifier.size(22.dp))
             }
         }
-
-        ArrangeHeader("on the tile · drag to reorder", tokens)
-        if (keys.isEmpty()) {
-            Text(
-                "the tile is empty. add people from the list below",
-                color = tokens.fgDim,
-                fontSize = 14.sp,
-                modifier = Modifier.padding(vertical = 8.dp),
-            )
-        }
+        Text(
+            "drag to reorder. this order is used in favourites and on its tile.",
+            color = tokens.fgDim,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
+        )
         keys.forEachIndexed { index, key ->
             val person = byKey[key] ?: return@forEachIndexed
-            val cap = capacity
-            if (cap != null && index == cap) CapacityLine(cap, accent)
             val dragging = draggingKey == key
+            val onTile = key !in off
+            val inMore = onTile && cutAfter != null && index > cutAfter
             // Keyed by person, so a row (and the drag running in it) moves
             // with them when the list reorders mid-drag.
             key(key) {
@@ -119,14 +123,13 @@ internal fun ArrangeFavouritesTile(
                         .zIndex(if (dragging) 1f else 0f)
                         .graphicsLayer { translationY = if (dragging) dragOffset else 0f }
                         .background(if (dragging) tokens.chip else Color.Transparent)
-                        .alpha(if (cap != null && index >= cap && !dragging) 0.55f else 1f)
                         .semantics {
                             customActions = listOfNotNull(
                                 if (index > 0) CustomAccessibilityAction("move up") {
-                                    keys = moveItem(keys, index, index - 1); onChange(keys); true
+                                    keys = moveItem(keys, index, index - 1); onOrderChange(keys); true
                                 } else null,
                                 if (index < keys.lastIndex) CustomAccessibilityAction("move down") {
-                                    keys = moveItem(keys, index, index + 1); onChange(keys); true
+                                    keys = moveItem(keys, index, index + 1); onOrderChange(keys); true
                                 } else null,
                             )
                         },
@@ -135,18 +138,18 @@ internal fun ArrangeFavouritesTile(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .size(44.dp)
-                            // Keyed on tileKeys too: a save makes a new `keys`
+                            // Keyed on baseKeys too: a save makes a new `keys`
                             // state, which a still-running gesture wouldn't see.
-                            .pointerInput(key, tileKeys) {
+                            .pointerInput(key, baseKeys) {
                                 detectDragGestures(
                                     onDragStart = { draggingKey = key; dragOffset = 0f },
-                                    onDragEnd = { draggingKey = null; dragOffset = 0f; onChange(keys) },
-                                    onDragCancel = { draggingKey = null; dragOffset = 0f; onChange(keys) },
+                                    onDragEnd = { draggingKey = null; dragOffset = 0f; onOrderChange(keys) },
+                                    onDragCancel = { draggingKey = null; dragOffset = 0f; onOrderChange(keys) },
                                 ) { change, amount ->
                                     change.consume()
                                     dragOffset += amount.y
-                                    // Swap with the neighbour once the row has moved
-                                    // half a row past it.
+                                    // Swap with the neighbour once the row has
+                                    // moved half a row past it.
                                     val from = keys.indexOf(key)
                                     val steps = (dragOffset / rowPx).let { if (it > 0) (it + 0.5f).toInt() else (it - 0.5f).toInt() }
                                     if (from >= 0 && steps != 0) {
@@ -161,38 +164,14 @@ internal fun ArrangeFavouritesTile(
                     ) {
                         Icon(TileIcons["grip"], contentDescription = "drag to reorder", tint = tokens.fgDim, modifier = Modifier.size(20.dp))
                     }
-                    ArrangePerson(person, tokens, Modifier.weight(1f))
-                    ArrangeButton("minus", "remove ${person.name} from tile", tokens) {
-                        keys = keys - key
-                        onChange(keys)
-                    }
+                    ArrangePerson(person, tokens, Modifier.weight(1f).alpha(if (inMore && !dragging) 0.55f else 1f))
+                    OnTileChip(onTile, tokens, accent) { onToggleTile(key, !onTile) }
                 }
-            }
-        }
-
-        if (others.isNotEmpty()) {
-            ArrangeHeader("other favourites", tokens)
-            others.forEach { person ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().height(ARRANGE_ROW_HEIGHT),
-                ) {
-                    Spacer(Modifier.width(44.dp))
-                    ArrangePerson(person, tokens, Modifier.weight(1f))
-                    ArrangeButton("plus", "add ${person.name} to tile", tokens) {
-                        keys = keys + person.lookupKey
-                        onChange(keys)
-                    }
-                }
+                if (index == cutAfter) capacity?.let { CapacityLine(it, accent) }
             }
         }
         Spacer(Modifier.height(24.dp))
     }
-}
-
-@Composable
-private fun ArrangeHeader(text: String, tokens: ColorTokens) {
-    Text(text, color = tokens.fgDim, fontSize = 14.sp, modifier = Modifier.padding(top = 14.dp, bottom = 4.dp))
 }
 
 @Composable
@@ -201,16 +180,6 @@ private fun ArrangePerson(person: PersonSummary, tokens: ColorTokens, modifier: 
         ContactAvatar(person, size = 36.dp, fontSize = 12.sp)
         Spacer(Modifier.width(12.dp))
         Text(person.name.lowercase(), color = tokens.fg, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-}
-
-@Composable
-private fun ArrangeButton(icon: String, description: String, tokens: ColorTokens, onClick: () -> Unit) {
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier.size(48.dp).clickable(onClick = onClick),
-    ) {
-        Icon(TileIcons[icon], contentDescription = description, tint = tokens.fgDim, modifier = Modifier.size(20.dp))
     }
 }
 
@@ -224,7 +193,7 @@ private fun CapacityLine(capacity: Int, accent: Color) {
     ) {
         DashedRule(accent, Modifier.weight(1f))
         Text(
-            "your tile fits $capacity · the rest go in \"+ more\"",
+            "your tile fits $capacity · the rest of \"on tile\" go in \"+ more\"",
             color = accent,
             fontSize = 11.sp,
             maxLines = 1,

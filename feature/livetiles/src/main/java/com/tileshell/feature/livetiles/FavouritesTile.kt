@@ -6,28 +6,23 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Who the favourites tile shows. Until the user has pinned or ordered anyone
- * ([arranged] false) it's every starred contact; after that, only the pinned
- * ones in the user's order. A pinned contact who was deleted or unstarred
- * drops out and everyone below moves up. Pure.
+ * Starred contacts in the user's order: the ones they've arranged first, then
+ * any others (newly starred, say) in their original alphabetical order. Keys
+ * of people no longer starred are ignored. Pure.
  */
-internal fun favouritesTilePeople(
-    starred: List<PersonSummary>,
-    order: List<String>,
-    arranged: Boolean,
-): List<PersonSummary> {
-    if (!arranged) return starred
+internal fun orderedFavourites(starred: List<PersonSummary>, order: List<String>): List<PersonSummary> {
     val byKey = starred.associateBy { it.lookupKey }
-    return order.distinct().mapNotNull { byKey[it] }
+    val arranged = order.distinct().mapNotNull { byKey[it] }
+    val placed = arranged.mapTo(HashSet()) { it.lookupKey }
+    return arranged + starred.filter { it.lookupKey !in placed }
 }
 
-/** The tile's pinned keys as an editable list: the user's order, or every
- * starred contact before they've arranged anything. Pure. */
-internal fun favouritesTileKeys(
-    starred: List<PersonSummary>,
-    order: List<String>,
-    arranged: Boolean,
-): List<String> = favouritesTilePeople(starred, order, arranged).map { it.lookupKey }
+/** Who the favourites tile shows: the ordered favourites minus the ones the
+ * user took off it. Pure. */
+internal fun tileFavourites(ordered: List<PersonSummary>, offTile: List<String>): List<PersonSummary> {
+    val off = offTile.toHashSet()
+    return ordered.filter { it.lookupKey !in off }
+}
 
 /**
  * How many people the favourites tile holds for its height in grid rows:

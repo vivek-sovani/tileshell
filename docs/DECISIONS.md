@@ -10788,12 +10788,13 @@ that same player played on the phone speaker, while Apple Music played on the ca
 noisy pause or any sink added/removed while paused marks the player stale, and resuming reopens
 a fresh player at the saved position. Costs a short re-prepare on resume; radio restarts live.
 
-## Favourites tile: user-chosen order, "+N more" in the title row, no in-tile scrolling
-A tile can't scroll (it would fight Start's own vertical scroll, as the widget stack did), so it
-shows as many people as its measured height fits and a "+N more" count; the full list is the
-hub. The count sits in the title row rather than a last row so it never costs a person. Who's
-on it is the user's own ordered pick of starred contacts (the chip + "arrange tile"), kept as
-contact lookup keys in settings; a labelled "on tile" / "add to tile" chip plus a one-line
-note replaced first a pin (which already means "pin to Start") and then a bare checkbox (which
-didn't say what it checked). Taps on a person use a short custom tap (≤400ms, release
-consumed) so the tile's long-press into edit mode still wins on a hold.
+## Favourites: one user order for the list and its tile, "on tile" per person, no tile scrolling
+The order is the user's order of their favourites in general (user correction), so the hub's
+favourites list and the tile share it; whether someone is on the tile is a separate per-person
+choice (an off-tile list, so a newly starred contact appears at the end of both). A tile can't
+scroll (it would fight Start's own vertical scroll, as the widget stack did), so it holds a fixed
+count per height (4 on a 2x2, user-chosen over 5 so names can be ~18sp) plus a "+N more" count
+in the title row; the full list is the hub. "on tile" is a labelled chip with a one-line note:
+a pin already means "pin to Start", and a bare checkbox didn't say what it checked. Taps on a
+person use a short custom tap (≤400ms, release consumed) so the tile's long-press into edit mode
+still wins on a hold.

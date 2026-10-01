@@ -405,9 +405,19 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(edgeStripApps = apps) }
     }
 
-    /** The People Hub favourites tile's pinned contacts (lookup keys), in order. */
-    suspend fun setFavouritesTile(order: List<String>) {
-        store.updateData { it.copy(favouritesTileOrder = order, favouritesTileArranged = true) }
+    /** The user's order of their favourites (lookup keys). */
+    suspend fun setFavouritesOrder(order: List<String>) {
+        store.updateData { it.copy(favouritesOrder = order) }
+    }
+
+    /** Shows [lookupKey] on the favourites tile, or takes it off. */
+    suspend fun setFavouriteOnTile(lookupKey: String, onTile: Boolean) {
+        store.updateData {
+            it.copy(
+                favouritesOffTile = if (onTile) it.favouritesOffTile - lookupKey
+                else (it.favouritesOffTile + lookupKey).distinct(),
+            )
+        }
     }
 
     suspend fun setQuickPanelTileOrder(order: List<String>) {
