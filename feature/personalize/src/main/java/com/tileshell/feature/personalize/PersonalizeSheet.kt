@@ -1780,9 +1780,9 @@ private fun LumiaSwitch(
     onChange: (Boolean) -> Unit,
 ) {
     val density = androidx.compose.ui.platform.LocalDensity.current
-    // Track 52dp wide; the 12dp thumb travels its full width, overlapping the
-    // border at either end as WP's did.
-    val travelPx = with(density) { 40.dp.toPx() }
+    // Track 44dp wide; the 10dp thumb travels its full width, overlapping the
+    // border at either end as WP's did. (Sized down from 52dp: read bulky.)
+    val travelPx = with(density) { 34.dp.toPx() }
     val thumb = remember { androidx.compose.animation.core.Animatable(if (on) travelPx else 0f) }
     var dragging by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -1791,8 +1791,8 @@ private fun LumiaSwitch(
     val lit = thumb.value > travelPx / 2f
     Box(
         modifier = Modifier
-            .width(52.dp)
-            .height(28.dp)
+            .width(44.dp)
+            .height(22.dp)
             .pointerInput(on) {
                 detectHorizontalDragGestures(
                     onDragStart = { dragging = true },
@@ -1817,9 +1817,9 @@ private fun LumiaSwitch(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(20.dp)
-                .border(2.dp, if (lit) tokens.fg else tokens.fgDim)
-                .padding(4.dp),
+                .height(16.dp)
+                .border(1.5.dp, if (lit) tokens.fg else tokens.fgDim)
+                .padding(3.dp),
         ) {
             val fillWidth = with(density) { (thumb.value).toDp() }
             if (lit) Box(Modifier.width(fillWidth).fillMaxHeight().background(accent))
@@ -1828,7 +1828,7 @@ private fun LumiaSwitch(
         Box(
             modifier = Modifier
                 .offset { androidx.compose.ui.unit.IntOffset(thumb.value.toInt(), 0) }
-                .width(12.dp)
+                .width(10.dp)
                 .fillMaxHeight()
                 .background(tokens.fg),
         )
