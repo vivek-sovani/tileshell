@@ -1290,6 +1290,18 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setWallpaperSlide(uri, index) }
     }
 
+    /** After slideshow photos were removed: shows the first one left, or no
+     * picture when none are, so a removed slide never lingers on screen. */
+    fun refreshWallpaperSlide(remaining: List<String>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val current = settings.value.customWallpaperUri
+            when {
+                remaining.isEmpty() -> settingsRepository.clearWallpaperSlide()
+                current !in remaining -> settingsRepository.setWallpaperSlide(remaining.first(), 0)
+            }
+        }
+    }
+
     /**
      * Pin a specific Bing image (chosen from the history viewer) as the wallpaper.
      * Downloads it off-thread via the worker; stays in Bing mode (daily auto-refresh

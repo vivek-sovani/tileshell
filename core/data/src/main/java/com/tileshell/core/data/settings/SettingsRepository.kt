@@ -204,7 +204,9 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
      */
     suspend fun setWallpaperSlideshowEnabled(enabled: Boolean) {
         store.updateData {
-            if (enabled) it.copy(wallpaperSlideshowEnabled = true, bingWallpaper = false)
+            // Turning slides on drops the photo/Bing image shown before, so the
+            // two never mix; the first slide (if any) is set right after.
+            if (enabled) it.copy(wallpaperSlideshowEnabled = true, bingWallpaper = false, customWallpaperUri = null)
             else it.copy(wallpaperSlideshowEnabled = false)
         }
     }
@@ -223,6 +225,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
      * Resets alignment/zoom to centred/1x since the crop of the previous photo rarely
      * suits a different one. No-ops if the slideshow has since been turned off.
      */
+    /** Slides are on but none is left to show: no picture until more are added. */
+    suspend fun clearWallpaperSlide() {
+        store.updateData { if (it.wallpaperSlideshowEnabled) it.copy(customWallpaperUri = null, wallpaperSlideshowIndex = 0) else it }
+    }
+
     suspend fun setWallpaperSlide(uri: String, index: Int) {
         store.updateData {
             if (!it.wallpaperSlideshowEnabled) it

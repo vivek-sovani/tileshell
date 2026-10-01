@@ -37,6 +37,11 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — photo and slides no longer mix.** Turning slides on clears the photo/Bing image (the
+  first slide, if any, shows; none = no picture). Removing slides shows the next one left, or no
+  picture (`refreshWallpaperSlide`, `SettingsRepository.clearWallpaperSlide`). Personalize treats the
+  wallpaper as "photo" only when it's an imported photo (`photoWallpaper` =
+  `MediaImport.isImportedWallpaper`), never a slide or Bing image. Checked on the emulator.
 - **`main` — choosing "photo" again brings back the last photo.** The last imported photo wallpaper
   and its framing are remembered (`tileshell.prefs` `last_photo_wallpaper*`, the file stays in
   `filesDir/wallpaper` until a new pick); "photo" restores it (`restoreLastPhotoWallpaper`), else

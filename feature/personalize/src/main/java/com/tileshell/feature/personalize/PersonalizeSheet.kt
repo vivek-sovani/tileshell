@@ -177,6 +177,8 @@ fun PersonalizeSheet(
     bingRecentImages: @Composable () -> Unit = {},
     // Fetches today's Bing image again (bing "daily").
     onRefreshBing: () -> Unit = {},
+    // The wallpaper is a photo picked as "photo" (not a slide or Bing image).
+    photoWallpaper: Boolean? = null,
     // Choosing "photo": brings back the last photo set, else opens the picker.
     onSelectPhotoType: (() -> Unit)? = null,
     // The current photo wallpaper, previewed under "photo", and its framing.
@@ -551,7 +553,7 @@ fun PersonalizeSheet(
                         SettingGroup(label = "wallpaper", tokens.fgDim) {
                             val currentWallpaper =
                                 if (bingPicked && !wallpaperSlideshowEnabled) WallpaperType.BING
-                                else currentWallpaperType(wallpaperId, customWallpaper, bingWallpaper, wallpaperSlideshowEnabled)
+                                else currentWallpaperType(wallpaperId, photoWallpaper ?: customWallpaper, bingWallpaper, wallpaperSlideshowEnabled)
 
                             // Picking a type applies a sensible default immediately (opens the photo
                             // picker, turns slideshow/Bing on, picks the first stock gradient) — every
@@ -597,13 +599,14 @@ fun PersonalizeSheet(
                                 WallpaperType.PHOTO -> {
                                     WallpaperNavRow(
                                         "photo",
-                                        if (customWallpaper) "change ›" else "choose ›",
+                                        if (photoWallpaper ?: customWallpaper) "change ›" else "choose ›",
                                         accent, tokens, onPickCustomWallpaper,
                                     )
-                                    if (customWallpaper && customWallpaperUri != null) {
+                                    val isPhoto = photoWallpaper ?: customWallpaper
+                                    if (isPhoto && customWallpaperUri != null) {
                                         WallpaperPreview(customWallpaperUri, wallpaperAlignX, wallpaperAlignY, tokens, onAdjustWallpaper)
                                     }
-                                    if (customWallpaper) {
+                                    if (isPhoto) {
                                         WallpaperNavRow("adjust position", "reframe ›", accent, tokens, onAdjustWallpaper)
                                     }
                                 }

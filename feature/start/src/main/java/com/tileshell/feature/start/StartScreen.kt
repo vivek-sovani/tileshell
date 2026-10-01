@@ -649,6 +649,8 @@ fun StartScreen(
 
     // Personalize → wallpaper callbacks, kept out of the main layout lambda
     // below (it sits near the 256-register limit where R8 miscompiles it).
+    // Only a photo picked as "photo" counts as one; a slide or Bing image doesn't.
+    val photoWallpaper = !settings.wallpaperSlideshowEnabled && MediaImport.isImportedWallpaper(context, settings.customWallpaperUri)
     val bingPicked = settings.customWallpaperUri?.let { "bing_pick_" in it || ("bing_wallpaper" in it && !settings.bingWallpaper) } == true
     val bingRecentImages: @Composable () -> Unit = {
         BingRecentImages(colorTokens(dark), TileAccents.forId(settings.accentId)) { imageUrl -> pickBingImage(imageUrl) }
@@ -1953,6 +1955,7 @@ fun StartScreen(
             blur = settings.blur,
             wallpaperId = settings.wallpaperId,
             customWallpaper = settings.customWallpaperUri != null,
+            photoWallpaper = photoWallpaper,
             bingWallpaper = settings.bingWallpaper,
             onBingWallpaperChange = viewModel::setBingWallpaper,
             onBingHistory = { bingHistoryOpen = true },
@@ -1977,12 +1980,15 @@ fun StartScreen(
             onClearWallpaperSlideshowPhotos = {
                 scope.launch {
                     wallpaperSlideshowStore.setUris(emptyList())
+                    viewModel.refreshWallpaperSlide(emptyList())
                     withContext(Dispatchers.IO) { MediaImport.clearWallpaperSlideshow(context) }
                 }
             },
             onRemoveWallpaperSlideshowPhoto = { uri ->
                 scope.launch {
-                    wallpaperSlideshowStore.setUris(wallpaperSlideshowStore.read().uris - uri)
+                    val left = wallpaperSlideshowStore.read().uris - uri
+                    wallpaperSlideshowStore.setUris(left)
+                    viewModel.refreshWallpaperSlide(left)
                     withContext(Dispatchers.IO) { MediaImport.deleteImported(context, uri) }
                 }
             },
