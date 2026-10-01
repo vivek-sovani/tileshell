@@ -37,6 +37,10 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — personalize switches can be dragged, Windows Phone-style.** `LumiaSwitch`: drag the
+  block thumb across (it follows the finger, the track lights up past the middle); released past
+  the middle it switches, else it springs back; a tap still toggles, and the thumb slides either
+  way. A drag on the switch doesn't move the panorama. Checked on the emulator (on and off by drag).
 - **`main` — photo and slides no longer mix.** Turning slides on clears the photo/Bing image (the
   first slide, if any, shows; none = no picture). Removing slides shows the next one left, or no
   picture (`refreshWallpaperSlide`, `SettingsRepository.clearWallpaperSlide`). Personalize treats the

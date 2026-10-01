@@ -1,5 +1,10 @@
 package com.tileshell.feature.personalize
 
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
 import com.tileshell.core.design.HubFilter
@@ -1756,19 +1761,66 @@ private fun ToggleRow(
     ) {
         Text(text = label, color = tokens.fg, fontSize = 17.sp, fontWeight = FontWeight.Light, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(12.dp))
-        // Lumia's toggle: a square track, filled with the accent when on, and a
-        // solid block thumb.
+        LumiaSwitch(on, accent, tokens, onChange)
+    }
+}
+
+/**
+ * Lumia's toggle: a square track, filled with the accent when on, and a solid
+ * block thumb. Like Windows Phone's, the thumb can be dragged across
+ * (user-requested): released past the middle it switches, otherwise it springs
+ * back. A tap on the row still toggles, and the thumb slides either way.
+ */
+@Composable
+private fun LumiaSwitch(
+    on: Boolean,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+    onChange: (Boolean) -> Unit,
+) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    // Thumb travel: track 46dp − 2×(2dp border + 3dp padding) − 10dp thumb.
+    val travelPx = with(density) { 26.dp.toPx() }
+    val thumb = remember { androidx.compose.animation.core.Animatable(if (on) travelPx else 0f) }
+    var dragging by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(on) { if (!dragging) thumb.animateTo(if (on) travelPx else 0f) }
+    // Track colour follows the thumb, so dragging past the middle previews the change.
+    val lit = thumb.value > travelPx / 2f
+    Box(
+        modifier = Modifier
+            .width(46.dp)
+            .height(22.dp)
+            .border(2.dp, if (lit) accent else tokens.fg)
+            .padding(3.dp)
+            .background(if (lit) accent else Color.Transparent)
+            .pointerInput(on) {
+                detectHorizontalDragGestures(
+                    onDragStart = { dragging = true },
+                    onDragEnd = {
+                        dragging = false
+                        val nowOn = thumb.value > travelPx / 2f
+                        scope.launch { thumb.animateTo(if (nowOn) travelPx else 0f) }
+                        if (nowOn != on) onChange(nowOn)
+                    },
+                    onDragCancel = {
+                        dragging = false
+                        scope.launch { thumb.animateTo(if (on) travelPx else 0f) }
+                    },
+                ) { change, amount ->
+                    change.consume()
+                    scope.launch { thumb.snapTo((thumb.value + amount).coerceIn(0f, travelPx)) }
+                }
+            },
+        contentAlignment = Alignment.CenterStart,
+    ) {
         Box(
             modifier = Modifier
-                .width(46.dp)
-                .height(22.dp)
-                .border(2.dp, if (on) accent else tokens.fg)
-                .padding(3.dp)
-                .background(if (on) accent else Color.Transparent),
-            contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
-        ) {
-            Box(modifier = Modifier.width(10.dp).fillMaxHeight().background(tokens.fg))
-        }
+                .offset { androidx.compose.ui.unit.IntOffset(thumb.value.toInt(), 0) }
+                .width(10.dp)
+                .fillMaxHeight()
+                .background(tokens.fg),
+        )
     }
 }
 
