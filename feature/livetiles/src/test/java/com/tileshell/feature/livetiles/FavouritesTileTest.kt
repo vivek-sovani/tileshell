@@ -40,6 +40,14 @@ class FavouritesTileTest {
     }
 
     @Test
+    fun `capacity is four on a 2x2 and grows with height`() {
+        assertEquals(1, favouritesTileCapacity(1))
+        assertEquals(4, favouritesTileCapacity(2))
+        assertEquals(6, favouritesTileCapacity(3))
+        assertEquals(8, favouritesTileCapacity(4))
+    }
+
+    @Test
     fun `moveItem moves up and down and clamps`() {
         val l = listOf("a", "b", "c", "d")
         assertEquals(listOf("b", "c", "a", "d"), moveItem(l, 0, 2))

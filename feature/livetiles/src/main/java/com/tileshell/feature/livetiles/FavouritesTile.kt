@@ -29,6 +29,16 @@ internal fun favouritesTileKeys(
     arranged: Boolean,
 ): List<String> = favouritesTilePeople(starred, order, arranged).map { it.lookupKey }
 
+/**
+ * How many people the favourites tile holds for its height in grid rows:
+ * one on a 1-row tile, four on a 2x2 (user-chosen, so names can be large),
+ * then two more for every extra row. Width doesn't change it. Pure.
+ */
+internal fun favouritesTileCapacity(rows: Int): Int = when {
+    rows <= 1 -> 1
+    else -> 4 + (rows - 2) * 2
+}
+
 /** The first [capacity] people, and how many are left for "+ N more". Pure. */
 internal fun favouritesTileSplit(people: List<PersonSummary>, capacity: Int): Pair<List<PersonSummary>, Int> {
     val fit = capacity.coerceAtLeast(0)

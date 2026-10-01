@@ -132,21 +132,24 @@ private fun FavouritesTileFace(size: TileSize, interactive: Boolean, fallback: @
     if (list.isEmpty() && !s.favouritesTileArranged) return fallback()
     val color = LocalTileFaceColor.current
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        // As many rows as the tile's real height holds, so a bigger tile (or a
-        // 4-column grid) shows more people.
-        val capacity = ((maxHeight - FAVOURITE_HEADER_HEIGHT) / FAVOURITE_ROW_HEIGHT).toInt()
-            .coerceIn(0, MAX_FAVOURITE_ROWS)
+        // A fixed count per tile height (4 on a 2x2), and the rows share the
+        // height evenly, so names and photos grow with the tile.
+        val capacity = favouritesTileCapacity(size.rows)
+        val rowHeight = (maxHeight - FAVOURITE_HEADER_HEIGHT) / capacity.coerceAtLeast(1)
+        // Names as large as the row allows (user-reported: too small at 12sp).
+        val nameSize = (rowHeight.value * 0.56f).coerceIn(12f, 20f).sp
+        val avatarSize = (rowHeight * 0.8f).coerceIn(18.dp, 44.dp)
         LaunchedEffect(capacity) { FavouritesTileCapacity.report(context, capacity) }
         val (shown, more) = favouritesTileSplit(list, capacity)
         // A 2-column tile only has room for the count beside the title.
         val wide = maxWidth >= 200.dp
-        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 6.dp)) {
+        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 4.dp)) {
             // "+ N more" sits in the title row, so it never costs a person's
             // row; tapping the title or empty space opens favourites (the
             // tile's own tap).
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().height(22.dp).claimTouches(),
+                modifier = Modifier.fillMaxWidth().height(FAVOURITE_TITLE_HEIGHT).claimTouches(),
             ) {
                 // On a 2-column tile the heart would squeeze "favourites"
                 // once "+N" is showing; the title names the tile anyway.
@@ -176,15 +179,16 @@ private fun FavouritesTileFace(size: TileSize, interactive: Boolean, fallback: @
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(FAVOURITE_ROW_HEIGHT)
+                        .height(rowHeight)
                         .personTap(enabled = interactive) { PeopleHubNavigation.showQuickActions(person) },
                 ) {
-                    ContactAvatar(person, size = 22.dp, fontSize = 9.sp)
+                    ContactAvatar(person, size = avatarSize, fontSize = (avatarSize.value * 0.4f).sp)
                     Spacer(Modifier.width(6.dp))
                     Text(
                         person.name.lowercase(),
                         color = color,
-                        fontSize = 12.sp,
+                        fontSize = nameSize,
+                        lineHeight = nameSize,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -196,10 +200,11 @@ private fun FavouritesTileFace(size: TileSize, interactive: Boolean, fallback: @
 }
 
 private const val MAX_FAVOURITE_ROWS = 8
-private val FAVOURITE_ROW_HEIGHT = 26.dp
 
-// Title row (22dp) plus the column's vertical padding (2 x 6dp).
-private val FAVOURITE_HEADER_HEIGHT = 34.dp
+private val FAVOURITE_TITLE_HEIGHT = 20.dp
+
+// Title row plus the column's vertical padding (2 x 4dp).
+private val FAVOURITE_HEADER_HEIGHT = 28.dp
 
 /**
  * A quick tap on a person's row. Lets the tile's own gestures win otherwise:

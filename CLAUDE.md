@@ -44,8 +44,9 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   the tile with drag-to-reorder (grip; TalkBack move up/down), − / +, and a dashed line where
   the pinned tile's room runs out. Stored in settings as lookup keys (`favouritesTileOrder`,
   URL-encoded in the codec, + `favouritesTileArranged`), so backups carry it; until arranged the
-  tile behaves as before. The tile measures how many rows fit (`FavouritesTileCapacity`, also
-  read by arrange), shows "+N more" (or "+N" on a 2-column tile) in its title row, and tapping
+  tile behaves as before. The tile holds a fixed count per height (`favouritesTileCapacity`: 1 row → 1, 2x2 →
+  4, +2 per extra row; user-chosen), rows share the height so names (~18sp on a 2x2) and photos
+  grow with the tile; the count is reported to arrange (`FavouritesTileCapacity`), shows "+N more" (or "+N" on a 2-column tile) in its title row, and tapping
   a person opens `FavouriteQuickSheet` (call → dialer, message, last-used chat app or WhatsApp
   chat, contact card; "open favourites"). Title/empty space still open the hub (`claimTouches`
   stops the short rows' stretched touch area stealing those taps); a hold still enters edit.
