@@ -73,6 +73,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -265,7 +266,7 @@ private fun PeopleSearchField(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(tokens.fg.copy(alpha = 0.08f), androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+            .background(tokens.fg.copy(alpha = 0.08f))
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -381,19 +382,24 @@ private fun AllPeoplePage(context: android.content.Context, tokens: ColorTokens,
             } else {
                 sections.forEach { (letter, people) ->
                     item(key = "header-$letter") {
-                        Text(
-                            text = letter.lowercase(),
-                            color = accent,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
+                        // Lumia's group header: a square accent tile with the
+                        // letter low on the left; tapping it opens the jump grid.
+                        Box(
+                            contentAlignment = Alignment.BottomStart,
                             modifier = Modifier
-                                .padding(top = 10.dp, bottom = 6.dp)
+                                .padding(top = 12.dp, bottom = 6.dp)
+                                .size(48.dp)
+                                .background(accent)
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
+                                    onClickLabel = "jump to a letter",
                                     onClick = { jumpOpen = true },
-                                ),
-                        )
+                                )
+                                .padding(start = 6.dp, bottom = 2.dp),
+                        ) {
+                            Text(text = letter.lowercase(), color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Light)
+                        }
                     }
                     items(people, key = { "row-${it.contactId}" }) { person ->
                         ContactRow(
@@ -462,26 +468,26 @@ private fun PeopleJumpGrid(
                 Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
                     rowLetters.forEach { letter ->
                         val available = letter in present
+                        // Lumia's jump grid: solid accent squares for letters
+                        // with contacts, dim squares for the rest.
                         Box(
                             modifier = Modifier
                                 .size(cell)
-                                .background(
-                                    if (available) accent.copy(alpha = 0.18f) else Color.Transparent,
-                                    androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                                )
+                                .background(if (available) accent else tokens.fg.copy(alpha = 0.12f))
                                 .clickable(
                                     enabled = available,
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
                                     onClick = { onPick(letter) },
-                                ),
-                            contentAlignment = Alignment.Center,
+                                )
+                                .padding(start = 5.dp, bottom = 1.dp),
+                            contentAlignment = Alignment.BottomStart,
                         ) {
                             Text(
                                 letter.lowercase(),
-                                color = if (available) accent else tokens.fgDim.copy(alpha = 0.4f),
+                                color = if (available) Color.White else tokens.fgDim.copy(alpha = 0.5f),
                                 fontSize = fontSize,
-                                fontWeight = FontWeight.Medium,
+                                fontWeight = FontWeight.Light,
                             )
                         }
                     }
@@ -492,8 +498,9 @@ private fun PeopleJumpGrid(
 }
 
 /** A contact's avatar: the real profile photo, cropped to a circle, or a
- * circular initials plate tinted by [colorFor] when there is none. Also
- * reused by [PeopleHubPageTileFace]'s "recent" live tile face. */
+ * circular initials plate tinted by [colorFor] when there is none (kept
+ * round at the user's request, though Lumia's were square). Also reused by
+ * [PeopleHubPageTileFace]'s favourites tile face. */
 @Composable
 internal fun ContactAvatar(person: PersonSummary, size: androidx.compose.ui.unit.Dp, fontSize: androidx.compose.ui.unit.TextUnit) {
     val bitmap = person.photoUri?.let { rememberTileBitmap(it, targetPx = iconPx(size)) }
@@ -635,7 +642,7 @@ private fun ContactActionButton(iconKey: String, label: String, tint: Color, tok
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RectangleShape)
                 // Solid tonal fill (user picked this over a bordered
                 // translucent-circle option and a bare-icon-no-plate option,
                 // shown side by side after "icon display should be improved"
@@ -1002,27 +1009,21 @@ private fun FilterChip(
     accent: Color,
     onClick: () -> Unit,
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (on) accent else tokens.fg.copy(alpha = 0.08f))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            )
-            .padding(start = if (iconPackage != null) 6.dp else 12.dp, end = 12.dp, top = 5.dp, bottom = 5.dp),
-    ) {
-        if (iconPackage != null) {
-            val icon = rememberAppIconBitmap(iconPackage, sizePx = 48)
-            Box(modifier = Modifier.size(18.dp)) {
-                if (icon != null) Image(bitmap = icon, contentDescription = null, modifier = Modifier.fillMaxSize())
+    HubFilter(
+        label = label,
+        selected = on,
+        tokens = tokens,
+        accent = accent,
+        leading = iconPackage?.let { pkg ->
+            {
+                val icon = rememberAppIconBitmap(pkg, sizePx = 48)
+                Box(modifier = Modifier.size(18.dp)) {
+                    if (icon != null) Image(bitmap = icon, contentDescription = null, modifier = Modifier.fillMaxSize())
+                }
             }
-            Spacer(Modifier.width(6.dp))
-        }
-        Text(label, color = if (on) Color.White else tokens.fg, fontSize = 13.sp, maxLines = 1)
-    }
+        },
+        onClick = onClick,
+    )
 }
 
 @Composable
@@ -1057,7 +1058,6 @@ private fun ActivityRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
             .background(if (expanded) tokens.fg.copy(alpha = 0.06f) else Color.Transparent),
     ) {
         Row(
@@ -1120,7 +1120,7 @@ private fun ActivityRow(
                     bitmap = picture,
                     contentDescription = "attached photo",
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(6.dp)),
+                    modifier = Modifier.size(40.dp),
                 )
             }
             Spacer(Modifier.width(8.dp))
@@ -1159,8 +1159,7 @@ private fun ActivityRow(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 220.dp)
-                            .aspectRatio(picture.width.toFloat() / picture.height.coerceAtLeast(1))
-                            .clip(RoundedCornerShape(8.dp)),
+                            .aspectRatio(picture.width.toFloat() / picture.height.coerceAtLeast(1)),
                     )
                     Spacer(Modifier.height(10.dp))
                 }
@@ -1218,7 +1217,6 @@ private fun SwipeToDismissRow(tokens: ColorTokens, onDismiss: () -> Unit, conten
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(10.dp))
                     .background(tokens.fg.copy(alpha = 0.08f))
                     .padding(horizontal = 18.dp),
                 contentAlignment = alignment,
@@ -1261,7 +1259,6 @@ private fun InlineReplyField(tokens: ColorTokens, accent: Color, sender: String,
             maxLines = 4,
             modifier = Modifier
                 .weight(1f)
-                .clip(RoundedCornerShape(16.dp))
                 .background(tokens.fg.copy(alpha = 0.08f))
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             decorationBox = { inner ->

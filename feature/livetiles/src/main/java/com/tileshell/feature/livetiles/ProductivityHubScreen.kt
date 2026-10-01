@@ -22,6 +22,8 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -407,16 +409,14 @@ private fun TodayPage(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(tokens.fg.copy(alpha = 0.06f))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             onClick = { onOpenNote(latestNote.id) },
                         )
-                        .padding(12.dp),
+                        .padding(vertical = 4.dp),
                 ) {
-                    Text(preview.title, color = tokens.fg, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(preview.title, color = tokens.fg, fontSize = 20.sp, fontWeight = FontWeight.Light, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     if (preview.snippet.isNotBlank()) {
                         Text(preview.snippet, color = tokens.fgDim, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
@@ -425,7 +425,7 @@ private fun TodayPage(
         }
 
         item { SectionLabel("quick", tokens) }
-        item { QuickRowSection(quickItems, notes, lists, tokens, onRunQuick, onRemoveQuick, onAddQuick) }
+        item { QuickRowSection(quickItems, notes, lists, tokens, accent, onRunQuick, onRemoveQuick, onAddQuick) }
         item { Spacer(Modifier.height(24.dp)) }
     }
 }
@@ -490,21 +490,24 @@ private fun ScheduledTaskRow(
 @Composable
 private fun MeetingCard(meeting: UpcomingMeeting, now: Long, tokens: ColorTokens, accent: Color) {
     val context = LocalContext.current
+    // Flat, with an accent bar on the left like the calendar hub's events
+    // (Lumia drew no cards).
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(tokens.fg.copy(alpha = 0.06f))
+            .height(IntrinsicSize.Min)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = { openCalendarEvent(context, meeting.eventId) },
             )
-            .padding(12.dp),
+            .padding(vertical = 4.dp),
     ) {
+        Box(Modifier.width(3.dp).fillMaxHeight().background(accent))
+        Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(meeting.title.lowercase(), color = tokens.fg, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(meeting.title.lowercase(), color = tokens.fg, fontSize = 20.sp, fontWeight = FontWeight.Light, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
                 meetingTimeLabel(meeting.startMillis, meeting.endMillis, now) + (meeting.link?.let { " · ${it.provider}" } ?: ""),
                 color = tokens.fgDim,
@@ -521,7 +524,6 @@ private fun MeetingCard(meeting: UpcomingMeeting, now: Long, tokens: ColorTokens
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(16.dp))
                     .background(accent)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
@@ -562,6 +564,7 @@ private fun QuickRowSection(
     notes: List<NoteItem>,
     lists: List<TaskListSummary>,
     tokens: ColorTokens,
+    accent: Color,
     onRun: (QuickItem) -> Unit,
     onRemove: (QuickItem) -> Unit,
     onAdd: (QuickItem) -> Unit,
@@ -601,7 +604,7 @@ private fun QuickRowSection(
             }
             var menuOpen by remember(item) { mutableStateOf(false) }
             Box(modifier = Modifier.width(cellWidth)) {
-                QuickCell(iconKey, packageName, label, tokens, onClick = { onRun(item) }, onLongClick = { menuOpen = true })
+                QuickCell(iconKey, packageName, label, tokens, accent, onClick = { onRun(item) }, onLongClick = { menuOpen = true })
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(text = { Text("remove from quick") }, onClick = {
                         menuOpen = false
@@ -613,7 +616,7 @@ private fun QuickRowSection(
         if (missingBuiltIns.isNotEmpty()) {
             var addOpen by remember { mutableStateOf(false) }
             Box(modifier = Modifier.width(cellWidth)) {
-                QuickCell("plus", null, "add", tokens, onClick = { addOpen = true }, onLongClick = { addOpen = true })
+                QuickCell("plus", null, "add", tokens, accent, onClick = { addOpen = true }, onLongClick = { addOpen = true })
                 DropdownMenu(expanded = addOpen, onDismissRequest = { addOpen = false }) {
                     missingBuiltIns.forEach { builtIn ->
                         val name = when (builtIn) {
@@ -649,6 +652,7 @@ private fun QuickCell(
     packageName: String?,
     label: String,
     tokens: ColorTokens,
+    accent: Color,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
@@ -664,15 +668,17 @@ private fun QuickCell(
             )
             .padding(4.dp),
     ) {
+        // A small square tile, Lumia-style: accent with a white glyph, or
+        // an app's own icon.
         Box(
-            modifier = Modifier.size(48.dp).clip(CircleShape).background(tokens.fg.copy(alpha = 0.08f)),
+            modifier = Modifier.size(52.dp).background(if (packageName != null) Color.Transparent else accent),
             contentAlignment = Alignment.Center,
         ) {
             if (packageName != null) {
-                val icon = rememberAppIconBitmap(packageName, sizePx = iconPx(32.dp))
-                if (icon != null) Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(32.dp))
+                val icon = rememberAppIconBitmap(packageName, sizePx = iconPx(40.dp))
+                if (icon != null) Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(40.dp))
             } else if (iconKey != null) {
-                Icon(TileIcons[iconKey], contentDescription = null, tint = tokens.fg, modifier = Modifier.size(22.dp))
+                Icon(TileIcons[iconKey], contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
             }
         }
         Spacer(Modifier.height(4.dp))
@@ -778,7 +784,6 @@ private fun NotesPage(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(110.dp)
-                        .clip(RoundedCornerShape(8.dp))
                         .background(color)
                         .combinedClickable(
                             interactionSource = remember { MutableInteractionSource() },
@@ -920,21 +925,20 @@ private fun TaskListCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
-                .background(tokens.fg.copy(alpha = 0.06f))
                 .combinedClickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = onOpen,
                     onLongClick = { menuOpen = true },
                 )
-                .padding(12.dp),
+                .padding(vertical = 8.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     list.name.lowercase() + " · ${list.openCount} open",
                     color = tokens.fg,
-                    fontSize = 16.sp,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Light,
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

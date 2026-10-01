@@ -245,7 +245,6 @@ private fun BatteryWeekPage(samples: List<BatterySample>, nowMillis: Long, token
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .fillMaxHeight(0.75f * used / max + 0.01f)
-                                .clip(RoundedCornerShape(4.dp))
                                 .background(accent),
                         )
                         Spacer(Modifier.height(4.dp))
@@ -347,7 +346,7 @@ private fun BatterySection(text: String, tokens: ColorTokens) {
 private fun UsageBar(label: String, fraction: Float, color: Color, tokens: ColorTokens) {
     Text(label, color = tokens.fg, fontSize = 13.sp)
     Spacer(Modifier.height(4.dp))
-    Box(modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(tokens.fg.copy(alpha = 0.08f))) {
+    Box(modifier = Modifier.fillMaxWidth().height(8.dp).background(tokens.fg.copy(alpha = 0.08f))) {
         Box(modifier = Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).fillMaxHeight().background(color))
     }
 }

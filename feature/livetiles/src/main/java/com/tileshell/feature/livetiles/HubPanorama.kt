@@ -67,7 +67,10 @@ internal fun HubPanorama(
         color = tokens.fg,
         fontSize = 96.sp,
         fontWeight = FontWeight.ExtraLight,
-        letterSpacing = (-3).sp,
+        // Tightened for Latin titles only: on Devanagari ("पंचांग") the
+        // negative spacing threw off the measured width and cut the last
+        // letter off.
+        letterSpacing = if (title.all { it.code < 128 }) (-3).sp else 0.sp,
         lineHeight = 96.sp,
         lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
     )

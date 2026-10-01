@@ -157,36 +157,36 @@ fun PanchangSheet(
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-            Column(modifier = Modifier.padding(horizontal = 18.dp)) {
-                Spacer(Modifier.height(20.dp))
-                Text("tileshell", color = tokens.fgDim, fontSize = 14.sp)
-                Text("पंचांग", color = accent, fontSize = 48.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                Spacer(Modifier.height(10.dp))
-                if (settingsOpen) {
-                    Text("महत्त्वाचे दिवस निवडा", color = tokens.fg, fontSize = 20.sp, fontWeight = FontWeight.Light)
-                } else {
-                    Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                        PIVOTS.forEachIndexed { index, label ->
-                            Text(
-                                label,
-                                color = if (pagerState.currentPage == index) tokens.fg else tokens.fgDim,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Light,
-                                modifier = Modifier.clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                    onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
-                                ),
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(6.dp))
-            }
             if (settingsOpen) {
-                HighlightSettingsPage(settings ?: ObservanceSettings(), accent, tokens)
+                // The highlight choices as their own page, the way Lumia apps
+                // showed settings: the app's name small, over a large light title.
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "पंचांग",
+                        color = tokens.fg,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(start = 18.dp, top = 18.dp),
+                    )
+                    Text(
+                        "महत्त्वाचे दिवस",
+                        color = tokens.fg,
+                        fontSize = 44.sp,
+                        fontWeight = FontWeight.Light,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(start = 16.dp, bottom = 6.dp),
+                    )
+                    HighlightSettingsPage(settings ?: ObservanceSettings(), accent, tokens)
+                }
             } else {
-                HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+                HubPanorama(
+                    title = "पंचांग",
+                    sections = PIVOTS,
+                    pagerState = pagerState,
+                    tokens = tokens,
+                    modifier = Modifier.weight(1f),
+                ) { page ->
                     when (page) {
                         0 -> TodayPage(now, location, yearDays, tokens, dark, accent) { settingsOpen = true }
                         1 -> MonthPage(nowCal, yearDays, settings, location, tokens, dark, accent)
@@ -194,6 +194,13 @@ fun PanchangSheet(
                     }
                 }
             }
+            HubAppBar(
+                tokens = tokens,
+                actions = listOf(
+                    HubAppBarAction("back", "back", "मागे") { if (settingsOpen) settingsOpen = false else onDismiss() },
+                    HubAppBarAction("settings", "choose important days", "महत्त्वाचे दिवस") { settingsOpen = !settingsOpen },
+                ),
+            )
         }
     }
 }
@@ -235,7 +242,6 @@ private fun TodayPage(
                     modifier = Modifier
                         .padding(top = 10.dp)
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(6.dp))
                         .background(TileAccents.Amber.copy(alpha = 0.16f))
                         .padding(10.dp),
                 ) {
@@ -510,15 +516,5 @@ private fun grahanDetail(o: Observance): String? {
 
 @Composable
 private fun Pill(label: String, on: Boolean, accent: Color, tokens: ColorTokens, onClick: () -> Unit) {
-    Text(
-        label,
-        color = if (on) Color.White else tokens.fg,
-        fontSize = 14.sp,
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (on) accent else Color.Transparent)
-            .border(1.dp, if (on) accent else tokens.tileLine, RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 6.dp),
-    )
+    HubFilter(label, on, tokens, accent, onClick = onClick)
 }

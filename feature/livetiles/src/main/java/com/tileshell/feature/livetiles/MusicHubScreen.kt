@@ -797,26 +797,13 @@ private fun GaplessToggle(context: Context, accent: Color, tokens: ColorTokens) 
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text("overlap", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.weight(1f))
             TRACK_OVERLAP_CHOICES.forEach { ms ->
-                val selected = ms == overlap
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .padding(start = 6.dp)
-                        .background(if (selected) accent else Color.Transparent, RoundedCornerShape(12.dp))
-                        .border(1.dp, if (selected) accent else tokens.fgDim.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { LocalMusicPlayer.setOverlapMs(context, ms) },
-                        )
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
-                ) {
-                    Text(
-                        if (ms == 0) "none" else "${ms / 1000}s",
-                        color = if (selected) Color.White else tokens.fg,
-                        fontSize = 12.sp,
-                    )
-                }
+                HubFilter(
+                    label = if (ms == 0) "none" else "${ms / 1000}s",
+                    selected = ms == overlap,
+                    tokens = tokens,
+                    accent = accent,
+                    modifier = Modifier.padding(start = 8.dp),
+                ) { LocalMusicPlayer.setOverlapMs(context, ms) }
             }
         }
     }
@@ -2064,7 +2051,6 @@ private fun PlaylistNamePrompt(
             modifier = Modifier
                 .padding(32.dp)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
                 .background(tokens.sheet)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -2155,7 +2141,6 @@ private fun AddToPlaylistSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
                 .background(tokens.sheet)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -2397,25 +2382,10 @@ private fun CategoryChipRow(
             .horizontalScroll(rememberScrollState())
             .padding(horizontal = 18.dp)
             .padding(bottom = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         labels.forEach { label ->
-            val isSelected = label == selectedLabel
-            Text(
-                label,
-                color = if (isSelected) Color.White else tokens.fg,
-                fontSize = 12.sp,
-                maxLines = 1,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(if (isSelected) accent else tokens.chip)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { onSelect(label) },
-                    )
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-            )
+            HubFilter(label, label == selectedLabel, tokens, accent) { onSelect(label) }
         }
     }
 }

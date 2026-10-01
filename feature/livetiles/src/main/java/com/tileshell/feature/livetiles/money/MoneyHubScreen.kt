@@ -65,6 +65,7 @@ import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.colorTokens
 import com.tileshell.feature.livetiles.HubAppBar
+import com.tileshell.feature.livetiles.HubFilter
 import com.tileshell.feature.livetiles.HubPanorama
 import com.tileshell.feature.livetiles.HubAppBarAction
 import com.tileshell.feature.livetiles.NotificationAccess
@@ -217,7 +218,7 @@ private fun MoneyLockedPage(tokens: ColorTokens, accent: Color, autoPrompt: Bool
             "unlock",
             color = Color.White,
             fontSize = 15.sp,
-            modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(accent).clickable { unlock() }
+            modifier = Modifier.background(accent).clickable { unlock() }
                 .padding(horizontal = 28.dp, vertical = 10.dp),
         )
         Spacer(Modifier.height(20.dp))
@@ -278,19 +279,9 @@ private fun MoneyTransactionsPage(tokens: ColorTokens, accent: Color) {
         }
         if (hasCards) {
             item(key = "sections") {
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).border(1.dp, tokens.tileLine)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
                     listOf(false to "accounts & upi", true to "cards").forEach { (value, label) ->
-                        Text(
-                            label,
-                            color = if (cards == value) Color.White else tokens.fg,
-                            fontSize = 13.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .weight(1f)
-                                .background(if (cards == value) accent else Color.Transparent)
-                                .clickable { cards = value; filter = null; expanded = null }
-                                .padding(vertical = 8.dp),
-                        )
+                        HubFilter(label, cards == value, tokens, accent) { cards = value; filter = null; expanded = null }
                     }
                 }
             }
@@ -301,7 +292,6 @@ private fun MoneyTransactionsPage(tokens: ColorTokens, accent: Color) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
-                        .clip(RoundedCornerShape(8.dp))
                         .background(DUE.copy(alpha = 0.14f))
                         .padding(10.dp),
                 ) {
@@ -328,7 +318,6 @@ private fun MoneyTransactionsPage(tokens: ColorTokens, accent: Color) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
-                        .clip(RoundedCornerShape(8.dp))
                         .background(tokens.fg.copy(alpha = 0.06f))
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                 ) {
@@ -418,25 +407,17 @@ private fun MoneyTransactionsPage(tokens: ColorTokens, accent: Color) {
 
 @Composable
 private fun TotalCard(label: String, value: String, color: Color, tokens: ColorTokens, modifier: Modifier) {
-    Column(modifier = modifier.clip(RoundedCornerShape(8.dp)).background(tokens.fg.copy(alpha = 0.06f)).padding(10.dp)) {
-        Text(label, color = tokens.fgDim, fontSize = 12.sp)
-        Text(value, color = color, fontSize = 20.sp)
+    // Flat: a grey label over a large thin figure, as Lumia's data sense
+    // showed its totals.
+    Column(modifier = modifier.padding(vertical = 4.dp)) {
+        Text(label, color = tokens.fgDim, fontSize = 13.sp)
+        Text(value, color = color, fontSize = 30.sp, fontWeight = FontWeight.ExtraLight, maxLines = 1)
     }
 }
 
 @Composable
 private fun Chip(label: String, on: Boolean, accent: Color, tokens: ColorTokens, onClick: () -> Unit) {
-    Text(
-        label,
-        color = if (on) Color.White else tokens.fg,
-        fontSize = 13.sp,
-        modifier = Modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (on) accent else Color.Transparent)
-            .border(1.dp, if (on) accent else tokens.tileLine, RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 5.dp),
-    )
+    HubFilter(label, on, tokens, accent, onClick = onClick)
 }
 
 /** A transaction row: swipe either way to remove it, tap to show the full message. */
@@ -455,7 +436,6 @@ private fun SwipeableTxnRow(txn: MoneyTxn, expanded: Boolean, tokens: ColorToken
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(8.dp))
                     .background(DEBIT.copy(alpha = 0.18f))
                     .padding(horizontal = 16.dp),
                 contentAlignment = alignment,
@@ -487,7 +467,6 @@ private fun TxnDetails(txn: MoneyTxn, tokens: ColorTokens) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 10.dp)
-            .clip(RoundedCornerShape(8.dp))
             .background(tokens.fg.copy(alpha = 0.06f))
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
