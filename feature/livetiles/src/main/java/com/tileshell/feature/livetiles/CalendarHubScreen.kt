@@ -127,45 +127,16 @@ fun CalendarHubScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-            Column(modifier = Modifier.padding(horizontal = 18.dp)) {
-                Spacer(Modifier.height(20.dp))
-                Text(text = monthYearCaption, color = tokens.fgDim, fontSize = 14.sp)
-                // Was a fixed blue→purple gradient matching the mockup
-                // exactly — user-reported it should track the user's own
-                // chosen accent instead, same as the weather hub's own title.
-                Text(
-                    text = "calendar",
-                    color = accent,
-                    fontSize = 52.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Clip,
-                )
-                Spacer(Modifier.height(12.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    HUB_PIVOTS.forEachIndexed { index, label ->
-                        val selected = pagerState.currentPage == index
-                        Text(
-                            text = label,
-                            color = if (selected) tokens.fg else tokens.fgDim,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Light,
-                            modifier = Modifier.clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = { pagerScope.launch { pagerState.animateScrollToPage(index) } },
-                            ),
-                        )
-                    }
-                }
-                Spacer(Modifier.height(16.dp))
-            }
-
-            if (!granted) {
-                CalendarPermissionGate(tokens, accent)
-            } else {
-                HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
+            HubPanorama(
+                title = "calendar",
+                sections = HUB_PIVOTS,
+                pagerState = pagerState,
+                tokens = tokens,
+                modifier = Modifier.weight(1f),
+            ) { page ->
+                if (!granted) {
+                    CalendarPermissionGate(tokens, accent)
+                } else {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -176,7 +147,17 @@ fun CalendarHubScreen(
                         when (page) {
                             0 -> AgendaWeekPage(context, startOffsetDays = 0, tokens = tokens)
                             1 -> AgendaWeekPage(context, startOffsetDays = 7, tokens = tokens)
-                            else -> AgendaMonthPage(context, tokens)
+                            else -> {
+                                Text(
+                                    text = monthYearCaption.uppercase(),
+                                    color = accent,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    letterSpacing = 1.sp,
+                                    modifier = Modifier.padding(bottom = 8.dp),
+                                )
+                                AgendaMonthPage(context, tokens)
+                            }
                         }
                     }
                 }
@@ -186,9 +167,9 @@ fun CalendarHubScreen(
                 tokens = tokens,
                 actions = listOf(
                     HubAppBarAction("back", "back", onDismiss),
-                    HubAppBarAction("plus", "add event") { launchAddCalendarEvent(context) },
-                    HubAppBarAction("calendar", "open calendar app") { openCalendarApp(context) },
-                    HubAppBarAction("clock", "today") {
+                    HubAppBarAction("plus", "add event", "add") { launchAddCalendarEvent(context) },
+                    HubAppBarAction("calendar", "open calendar app", "calendar") { openCalendarApp(context) },
+                    HubAppBarAction("clock", "back to this week", "today") {
                         pagerScope.launch { pagerState.animateScrollToPage(0) }
                     },
                 ),

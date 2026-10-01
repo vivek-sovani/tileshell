@@ -128,71 +128,37 @@ fun WeatherHubScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-            Column(modifier = Modifier.padding(horizontal = 18.dp)) {
-                Spacer(Modifier.height(20.dp))
-                Text(text = "tileshell", color = tokens.fgDim, fontSize = 12.sp)
-                Text(
-                    text = "weather",
-                    color = accent,
-                    fontSize = 42.sp,
-                    fontWeight = FontWeight.Light,
-                    maxLines = 1,
-                    overflow = TextOverflow.Clip,
-                )
-                // The location itself, not a caption — real WP weather apps
-                // give the place its own prominent line right under the hub
-                // title (foreground weight, well above caption size), with
-                // "updated" folded into the today page instead of crowding it.
-                snapshot?.place?.ifBlank { null }?.let { place ->
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = place,
-                        color = tokens.fg,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Light,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Spacer(Modifier.height(16.dp))
-
-                // The pivot row — tap a label to jump there, same destination
-                // a swipe on the pager below reaches.
-                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    HUB_PIVOTS.forEachIndexed { index, label ->
-                        val selected = pagerState.currentPage == index
-                        Text(
-                            text = label,
-                            color = if (selected) tokens.fg else tokens.fgDim,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Light,
-                            modifier = Modifier.clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = { pagerScope.launch { pagerState.animateScrollToPage(index) } },
-                            ),
-                        )
-                    }
-                }
-                Spacer(Modifier.height(20.dp))
-            }
-
-            if (snapshot == null) {
-                Text(
-                    text = "no forecast yet",
-                    color = tokens.fgDim,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(horizontal = 18.dp),
-                )
-            } else {
-                HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 18.dp)
-                            .padding(bottom = 16.dp),
-                    ) {
+            HubPanorama(
+                title = "weather",
+                sections = HUB_PIVOTS,
+                pagerState = pagerState,
+                tokens = tokens,
+                modifier = Modifier.weight(1f),
+            ) { page ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 18.dp)
+                        .padding(bottom = 16.dp),
+                ) {
+                    if (snapshot == null) {
+                        Text(text = "no forecast yet", color = tokens.fgDim, fontSize = 15.sp)
+                    } else {
+                        // The place as a small accent caption, the way Lumia's
+                        // weather app labelled the forecast it was showing.
+                        snapshot.place.ifBlank { null }?.takeIf { page == 0 }?.let { place ->
+                            Text(
+                                text = place.uppercase(),
+                                color = accent,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = 1.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(bottom = 6.dp),
+                            )
+                        }
                         when (page) {
                             0 -> CurrentConditionsPage(snapshot, accent, tokens)
                             1 -> DailyForecastPage(snapshot.forecast, accent, tokens)
@@ -210,7 +176,7 @@ fun WeatherHubScreen(
                 tokens = tokens,
                 actions = listOf(
                     HubAppBarAction("back", "back", onDismiss),
-                    HubAppBarAction("refresh", "refresh") { WeatherRefreshWorker.refreshNow(context) },
+                    HubAppBarAction("refresh", "refresh forecast", "refresh") { WeatherRefreshWorker.refreshNow(context) },
                 ),
             )
         }
