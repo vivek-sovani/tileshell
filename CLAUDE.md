@@ -37,6 +37,19 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — favourites tile: choose and order who's on it, tap a person for quick actions.**
+  User-requested, designed first. In the hub's favourites page each starred contact has an
+  "on tile" / "add to tile" chip, explained by a note under the heading (a pin means "pin to Start",
+  and a bare checkbox didn't say what it checks); "arrange tile" lists who's on
+  the tile with drag-to-reorder (grip; TalkBack move up/down), − / +, and a dashed line where
+  the pinned tile's room runs out. Stored in settings as lookup keys (`favouritesTileOrder`,
+  URL-encoded in the codec, + `favouritesTileArranged`), so backups carry it; until arranged the
+  tile behaves as before. The tile measures how many rows fit (`FavouritesTileCapacity`, also
+  read by arrange), shows "+N more" (or "+N" on a 2-column tile) in its title row, and tapping
+  a person opens `FavouriteQuickSheet` (call → dialer, message, last-used chat app or WhatsApp
+  chat, contact card; "open favourites"). Title/empty space still open the hub (`claimTouches`
+  stops the short rows' stretched touch area stealing those taps); a hold still enters edit.
+  Pure logic in `FavouritesTile.kt` (`FavouritesTileTest`). Verified on the emulator end to end.
 - **`main` — music hub resumed on the phone speaker after Bluetooth reconnected.** User-reported
   after the pause-on-disconnect fix. The phone's `dumpsys audio` showed the sequence: Buds
   (LE Audio) dropped at 07:26 → BECOMING_NOISY → paused; car connected at 12:36 → resuming that

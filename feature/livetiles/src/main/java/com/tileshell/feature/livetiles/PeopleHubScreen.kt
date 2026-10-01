@@ -12,6 +12,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -79,6 +84,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tileshell.core.design.ColorTokens
+import com.tileshell.core.data.settings.SettingsRepository
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
@@ -578,6 +584,7 @@ private fun ContactRow(
     expanded: Boolean,
     onToggleExpand: () -> Unit,
     subtitle: String? = null,
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     var phone by remember(person.contactId) { mutableStateOf<String?>(null) }
     LaunchedEffect(expanded, person.contactId) {
@@ -600,7 +607,7 @@ private fun ContactRow(
         ) {
             ContactAvatar(person, size = 40.dp, fontSize = 13.sp)
             Spacer(Modifier.width(14.dp))
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     person.name.lowercase(),
                     color = tokens.fg,
@@ -612,6 +619,7 @@ private fun ContactRow(
                     Text(subtitle, color = tokens.fgDim, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
+            trailing?.invoke()
         }
         if (expanded) {
             // Spread evenly across the row's full width — user-reported "not
@@ -709,16 +717,51 @@ private fun FavouritesPage(context: android.content.Context, tokens: ColorTokens
     val messaged = remember(log, contacts) { matchMessaged(log, contacts).take(30) }
     val now = System.currentTimeMillis()
     var expandedId by remember { mutableStateOf<String?>(null) }
+    val settingsRepo = remember { SettingsRepository.create(context) }
+    val settings by settingsRepo.settings.collectAsStateWithLifecycle(initialValue = null)
+    val scope = rememberCoroutineScope()
+    var arranging by remember { mutableStateOf(false) }
+    val stars = favourites
+    val s = settings
+    // Who's on the favourites tile, in order (every starred contact until
+    // the user arranges it).
+    val tileKeys = if (stars == null || s == null) emptyList()
+        else favouritesTileKeys(stars, s.favouritesTileOrder, s.favouritesTileArranged)
+    val saveTileKeys: (List<String>) -> Unit = { keys -> scope.launch { settingsRepo.setFavouritesTile(keys) } }
+    if (arranging && stars != null && s != null) {
+        ArrangeFavouritesTile(
+            stars = stars,
+            tileKeys = tileKeys,
+            tokens = tokens,
+            accent = accent,
+            onChange = saveTileKeys,
+            onDone = { arranging = false },
+        )
+        return
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
     ) {
-        val stars = favourites
         if (stars == null) {
             item { Spacer(Modifier.height(1.dp)) }
             return@LazyColumn
         }
-        item { FavouritesHeader("favourites", tokens) }
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Box(Modifier.weight(1f)) { FavouritesHeader("favourites", tokens) }
+                if (stars.isNotEmpty()) {
+                    Text(
+                        "arrange tile",
+                        color = accent,
+                        fontSize = 14.sp,
+                        modifier = Modifier
+                            .clickable { arranging = true }
+                            .padding(top = 12.dp, bottom = 4.dp, start = 12.dp),
+                    )
+                }
+            }
+        }
         if (stars.isEmpty()) {
             item {
                 Text(
@@ -729,12 +772,26 @@ private fun FavouritesPage(context: android.content.Context, tokens: ColorTokens
                 )
             }
         } else {
+            item {
+                Text(
+                    "people marked \"on tile\" show on your pinned favourites tile. tap to add or remove them, and use arrange tile to set their order.",
+                    color = tokens.fgDim,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(bottom = 6.dp),
+                )
+            }
             items(stars, key = { "fav-${it.contactId}" }) { person ->
                 val key = "fav-${person.contactId}"
+                val onTile = person.lookupKey in tileKeys
                 ContactRow(
                     context, person, tokens, accent,
                     expanded = expandedId == key,
                     onToggleExpand = { expandedId = if (expandedId == key) null else key },
+                    trailing = {
+                        OnTileChip(onTile, tokens, accent) {
+                            saveTileKeys(if (onTile) tileKeys - person.lookupKey else tileKeys + person.lookupKey)
+                        }
+                    },
                 )
             }
         }
@@ -760,6 +817,44 @@ private fun FavouritesPage(context: android.content.Context, tokens: ColorTokens
             }
         }
         item { Spacer(Modifier.height(24.dp)) }
+    }
+}
+
+/**
+ * Whether a favourite shows on the pinned favourites tile, as a labelled chip:
+ * "on tile" (accent, ticked) or "add to tile" (outlined). Words rather than a
+ * bare symbol: a pin already means "pin to Start", and a lone checkbox didn't
+ * say what it checks.
+ */
+@Composable
+private fun OnTileChip(onTile: Boolean, tokens: ColorTokens, accent: Color, onToggle: () -> Unit) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .heightIn(min = 48.dp)
+            .toggleable(value = onTile, role = Role.Switch, onValueChange = { onToggle() })
+            .semantics { contentDescription = "show on the favourites tile" },
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .then(
+                    if (onTile) Modifier.background(accent)
+                    else Modifier.border(1.dp, tokens.fgDim),
+                )
+                .padding(horizontal = 10.dp, vertical = 5.dp),
+        ) {
+            if (onTile) {
+                Icon(TileIcons["check"], contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(4.dp))
+            }
+            Text(
+                if (onTile) "on tile" else "add to tile",
+                color = if (onTile) Color.White else tokens.fgDim,
+                fontSize = 12.sp,
+                maxLines = 1,
+            )
+        }
     }
 }
 

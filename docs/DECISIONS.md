@@ -10787,3 +10787,13 @@ that same player played on the phone speaker, while Apple Music played on the ca
 (seen in `dumpsys audio`). Rather than rely on the system re-routing a long-paused track, a
 noisy pause or any sink added/removed while paused marks the player stale, and resuming reopens
 a fresh player at the saved position. Costs a short re-prepare on resume; radio restarts live.
+
+## Favourites tile: user-chosen order, "+N more" in the title row, no in-tile scrolling
+A tile can't scroll (it would fight Start's own vertical scroll, as the widget stack did), so it
+shows as many people as its measured height fits and a "+N more" count; the full list is the
+hub. The count sits in the title row rather than a last row so it never costs a person. Who's
+on it is the user's own ordered pick of starred contacts (the chip + "arrange tile"), kept as
+contact lookup keys in settings; a labelled "on tile" / "add to tile" chip plus a one-line
+note replaced first a pin (which already means "pin to Start") and then a bare checkbox (which
+didn't say what it checked). Taps on a person use a short custom tap (≤400ms, release
+consumed) so the tile's long-press into edit mode still wins on a hold.

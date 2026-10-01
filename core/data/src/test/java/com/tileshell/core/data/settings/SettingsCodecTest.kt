@@ -332,6 +332,20 @@ class SettingsCodecTest {
     }
 
     @Test
+    fun `favourites tile order round-trips, keys with separators survive`() {
+        assertEquals(emptyList<String>(), LauncherSettings().favouritesTileOrder)
+        assertEquals(false, LauncherSettings().favouritesTileArranged)
+        val s = LauncherSettings(
+            favouritesTileOrder = listOf("0r1-ABC", "3789i2a.7f|odd", "with space\nline"),
+            favouritesTileArranged = true,
+        )
+        assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
+        // Arranged with nobody pinned is a real state (the tile shows a hint).
+        val empty = LauncherSettings(favouritesTileArranged = true)
+        assertEquals(empty, SettingsCodec.decode(SettingsCodec.encode(empty)))
+    }
+
+    @Test
     fun `taskAutoClearDaily defaults on, round-trips, and a bad value keeps default`() {
         assertEquals(true, LauncherSettings().taskAutoClearDaily)
         assertEquals(false, SettingsCodec.decode("taskAutoClearDaily=false").taskAutoClearDaily)

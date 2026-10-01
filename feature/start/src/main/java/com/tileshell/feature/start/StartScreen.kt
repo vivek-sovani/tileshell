@@ -257,6 +257,7 @@ import com.tileshell.feature.livetiles.NotificationCenter
 import com.tileshell.feature.livetiles.NotificationSnapshot
 import com.tileshell.feature.livetiles.NotificationTileFace
 import com.tileshell.feature.livetiles.OemBatteryGuard
+import com.tileshell.feature.livetiles.FavouriteQuickSheet
 import com.tileshell.feature.livetiles.PeopleHubNavigation
 import com.tileshell.feature.livetiles.PeopleHubPageTileFace
 import com.tileshell.feature.livetiles.ProductivityHubScreen
@@ -2225,6 +2226,17 @@ fun StartScreen(
 
         // After the productivity hub so, opened from it, the calendar and
         // people hubs sit on top, and back returns to productivity.
+        // A person tapped on the favourites tile.
+        val favouriteQuickActions by PeopleHubNavigation.quickActions.collectAsStateWithLifecycle()
+        FavouriteQuickSheet(
+            person = favouriteQuickActions,
+            dark = dark,
+            accentId = settings.accentId,
+            onDismiss = PeopleHubNavigation::dismissQuickActions,
+            onOpenFavourites = { viewModel.openPeopleHub("favourites") },
+            rightHalf = isLandscape,
+        )
+
         PeopleHubScreen(
             visible = peopleHubOpen,
             dark = dark,
@@ -7215,6 +7227,7 @@ private fun AppTileContent(
                     active = liveActive,
                     fallback = staticGlyph,
                     modifier = Modifier.fillMaxSize(),
+                    interactive = interactive,
                 )
             } else {
                 PeopleTileFace(

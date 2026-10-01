@@ -360,6 +360,15 @@ object TileIcons {
             p(line(5.0, 12.0, 19.0, 12.0)),
         ))
 
+        put("minus", vector("minus", p(line(5.0, 12.0, 19.0, 12.0))))
+
+        // Drag handle for reorderable lists: two columns of three dots.
+        put("grip", vector("grip",
+            p(circle(9.0, 6.0, 1.0)), p(circle(15.0, 6.0, 1.0)),
+            p(circle(9.0, 12.0, 1.0)), p(circle(15.0, 12.0, 1.0)),
+            p(circle(9.0, 18.0, 1.0)), p(circle(15.0, 18.0, 1.0)),
+        ))
+
         // Not in the prototype's icons.js (no favoriting concept there) —
         // hand-authored for the music hub's podcast/radio favorite toggle.
         // Solid, not stroked like the rest of the set (user-requested) — so,

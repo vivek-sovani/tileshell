@@ -226,6 +226,19 @@ object PeopleHubNavigation {
     fun consume() {
         _pendingPin.value = null
     }
+
+    /** A person tapped on the favourites tile: Start shows their quick-action
+     * sheet (call / message / chat app / contact) over the home screen. */
+    private val _quickActions = MutableStateFlow<PersonSummary?>(null)
+    val quickActions: StateFlow<PersonSummary?> = _quickActions.asStateFlow()
+
+    fun showQuickActions(person: PersonSummary) {
+        _quickActions.value = person
+    }
+
+    fun dismissQuickActions() {
+        _quickActions.value = null
+    }
 }
 
 /** One row on the People Hub's "what's new" page — a single pending

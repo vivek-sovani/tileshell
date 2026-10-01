@@ -2053,6 +2053,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      * the top.
      */
     fun goHome() {
+        com.tileshell.feature.livetiles.PeopleHubNavigation.dismissQuickActions()
         closePersonalize()
         closeAbout()
         closePersonalizeGuide()

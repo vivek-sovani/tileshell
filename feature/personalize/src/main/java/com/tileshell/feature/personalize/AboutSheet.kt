@@ -220,6 +220,7 @@ fun AboutSheet(
                     "people — all your contacts with quick call, message, and view; \"what's new\" gathers chats, messages, mail, and social notifications, with filters for each app",
                     "in what's new, tap a message to open its app, tap the small arrow to expand it and reply inline, mark read, or archive, and swipe it sideways to dismiss; bank and card messages stay out of it — they belong to money",
                     "people's favourites — your starred contacts, then who recently messaged you on whatsapp, sms and other chat apps, remembered by tileshell on this phone for 30 days",
+                    "pinned favourites tile — mark who shows on it with \"on tile\" and drag them into order with \"arrange tile\"; tap a person for call, message, their chat app or contact; \"+ n more\" opens the full list",
                     "people's apps page groups your chat, messages, mail, and social apps, most-used first (needs usage access) — pin it as a tile with inbox apps on the front and social apps on the back",
                     "productivity — today (next meeting with a join button, open tasks, latest note, quick actions), notes with optional titles, named task lists, and office, meeting and tool apps, most-used first",
                     "productivity's quick row is yours to arrange — long-press a note, list, or app to add it, long-press a shortcut to remove it; links to calendar and what's new sit there too",

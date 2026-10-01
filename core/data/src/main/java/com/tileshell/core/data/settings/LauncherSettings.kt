@@ -319,6 +319,11 @@ data class LauncherSettings(
     val quickPanelTileOrder: List<String> = emptyList(),
     /** Persisted Quick Panel tile sizes as `"id:cols"` tokens, pipe-separated in the codec. */
     val quickPanelTileSizes: List<String> = emptyList(),
+    /** Contact lookup keys shown on the People Hub favourites tile, in order. */
+    val favouritesTileOrder: List<String> = emptyList(),
+    /** False until the user pins/orders anyone: the tile then shows every
+     * starred contact (or recently messaged people) as before. */
+    val favouritesTileArranged: Boolean = false,
     /** Auto-clear completed tasks once a day (never touches unchecked tasks). */
     val taskAutoClearDaily: Boolean = true,
     /** How often stock tiles re-poll — see [LiveRefreshRate]. */
@@ -399,6 +404,12 @@ object SettingsCodec {
         append("hideStatusBar=").append(settings.hideStatusBar).append('\n')
         append("quickPanelOrder=").append(settings.quickPanelTileOrder.joinToString("|")).append('\n')
         append("quickPanelSizes=").append(settings.quickPanelTileSizes.joinToString("|")).append('\n')
+        // Lookup keys are opaque, so each is URL-encoded to keep "|" and
+        // newlines out of the line.
+        append("favTileOrder=").append(
+            settings.favouritesTileOrder.joinToString("|") { java.net.URLEncoder.encode(it, "UTF-8") },
+        ).append('\n')
+        append("favTileArranged=").append(settings.favouritesTileArranged).append('\n')
         append("taskAutoClearDaily=").append(settings.taskAutoClearDaily).append('\n')
         append("stockRefreshRate=").append(settings.stockRefreshRate.name).append('\n')
         append("commodityRefreshRate=").append(settings.commodityRefreshRate.name).append('\n')
@@ -454,6 +465,8 @@ object SettingsCodec {
         var hideStatusBar = d.hideStatusBar
         var quickPanelTileOrder = d.quickPanelTileOrder
         var quickPanelTileSizes = d.quickPanelTileSizes
+        var favouritesTileOrder = d.favouritesTileOrder
+        var favouritesTileArranged = d.favouritesTileArranged
         var taskAutoClearDaily = d.taskAutoClearDaily
         var stockRefreshRate = d.stockRefreshRate
         var commodityRefreshRate = d.commodityRefreshRate
@@ -527,6 +540,11 @@ object SettingsCodec {
                     else value.split("|").filter { it.isNotBlank() }
                 "quickPanelSizes" -> quickPanelTileSizes = if (value.isEmpty()) emptyList()
                     else value.split("|").filter { it.isNotBlank() }
+                "favTileOrder" -> favouritesTileOrder = if (value.isEmpty()) emptyList()
+                    else value.split("|").filter { it.isNotBlank() }.mapNotNull {
+                        runCatching { java.net.URLDecoder.decode(it, "UTF-8") }.getOrNull()
+                    }
+                "favTileArranged" -> favouritesTileArranged = value.toBooleanStrictOrNull() ?: favouritesTileArranged
                 "taskAutoClearDaily" -> taskAutoClearDaily =
                     value.toBooleanStrictOrNull() ?: taskAutoClearDaily
                 "stockRefreshRate" ->
@@ -587,6 +605,8 @@ object SettingsCodec {
             hideStatusBar = hideStatusBar,
             quickPanelTileOrder = quickPanelTileOrder,
             quickPanelTileSizes = quickPanelTileSizes,
+            favouritesTileOrder = favouritesTileOrder,
+            favouritesTileArranged = favouritesTileArranged,
             taskAutoClearDaily = taskAutoClearDaily,
             stockRefreshRate = stockRefreshRate,
             commodityRefreshRate = commodityRefreshRate,

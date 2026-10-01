@@ -1,6 +1,13 @@
 package com.tileshell.feature.livetiles
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.input.pointer.pointerInput
+import com.tileshell.core.data.settings.SettingsRepository
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -87,9 +94,11 @@ fun PeopleHubPageTileFace(
     active: Boolean,
     fallback: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    // False in edit mode: a tap on a favourite then selects the tile instead.
+    interactive: Boolean = true,
 ) {
     when (page) {
-        "favourites", "recent" -> FavouritesTileFace(size, fallback, modifier)
+        "favourites", "recent" -> FavouritesTileFace(size, interactive, fallback, modifier)
         "what's new" -> WhatsNewTileFace(size, active, fallback, modifier)
         "apps" -> PeopleAppsTileFace(size, active, fallback, modifier)
         else -> fallback()
@@ -97,37 +106,78 @@ fun PeopleHubPageTileFace(
 }
 
 @Composable
-private fun FavouritesTileFace(size: TileSize, fallback: @Composable () -> Unit, modifier: Modifier) {
+private fun FavouritesTileFace(size: TileSize, interactive: Boolean, fallback: @Composable () -> Unit, modifier: Modifier) {
     val context = LocalContext.current
-    val maxLines = linesFor(size)
-    // Starred contacts first; with none starred, people who recently messaged.
+    val settingsRepo = remember { SettingsRepository.create(context) }
+    val settings by settingsRepo.settings.collectAsStateWithLifecycle(initialValue = null)
+    val s = settings ?: return
     LaunchedEffect(Unit) { MessagedLog.ensureLoaded(context) }
     val log by MessagedLog.entries.collectAsStateWithLifecycle()
-    val people by produceState<List<PersonSummary>?>(initialValue = null, maxLines, log) {
+    // Pinned starred contacts in the user's order (every starred one until
+    // they've arranged the tile); with none starred, people who recently
+    // messaged, as before.
+    val people by produceState<List<PersonSummary>?>(
+        initialValue = null, s.favouritesTileOrder, s.favouritesTileArranged, log,
+    ) {
         value = withContext(Dispatchers.IO) {
-            queryFavouriteContacts(context, limit = maxLines).ifEmpty {
-                matchMessaged(log, queryAllContacts(context)).map { it.first }.take(maxLines)
+            val starred = queryFavouriteContacts(context)
+            if (starred.isEmpty() && !s.favouritesTileArranged) {
+                matchMessaged(log, queryAllContacts(context)).map { it.first }.take(MAX_FAVOURITE_ROWS)
+            } else {
+                favouritesTilePeople(starred, s.favouritesTileOrder, s.favouritesTileArranged)
             }
         }
     }
-    val list = people
-    if (list == null) return
-    if (list.isEmpty()) return fallback()
+    val list = people ?: return
+    if (list.isEmpty() && !s.favouritesTileArranged) return fallback()
     val color = LocalTileFaceColor.current
-    Box(modifier = modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(10.dp),
-            verticalArrangement = Arrangement.Top,
-        ) {
-            Text("favourites", color = color, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(6.dp))
-            // Real contact photos (user-requested: "recent... same thing" as
-            // what's new's real sender photos), same ContactAvatar the hub's
-            // own contact rows use — photo when present, else initials.
-            list.forEach { person ->
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        // As many rows as the tile's real height holds, so a bigger tile (or a
+        // 4-column grid) shows more people.
+        val capacity = ((maxHeight - FAVOURITE_HEADER_HEIGHT) / FAVOURITE_ROW_HEIGHT).toInt()
+            .coerceIn(0, MAX_FAVOURITE_ROWS)
+        LaunchedEffect(capacity) { FavouritesTileCapacity.report(context, capacity) }
+        val (shown, more) = favouritesTileSplit(list, capacity)
+        // A 2-column tile only has room for the count beside the title.
+        val wide = maxWidth >= 200.dp
+        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 6.dp)) {
+            // "+ N more" sits in the title row, so it never costs a person's
+            // row; tapping the title or empty space opens favourites (the
+            // tile's own tap).
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().height(22.dp).claimTouches(),
+            ) {
+                // On a 2-column tile the heart would squeeze "favourites"
+                // once "+N" is showing; the title names the tile anyway.
+                if (wide || more == 0) {
+                    Icon(TileIcons["heart"], contentDescription = null, tint = color, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(5.dp))
+                }
+                Text(
+                    "favourites",
+                    color = color,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                if (more > 0) {
+                    val label = if (wide) "+$more more ›" else "+$more"
+                    Text(label, color = color, fontSize = 12.sp, maxLines = 1)
+                }
+            }
+            if (list.isEmpty()) {
+                Text("pin people in favourites", color = color.copy(alpha = 0.8f), fontSize = 11.sp, maxLines = 2)
+            }
+            shown.forEach { person ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(vertical = 2.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(FAVOURITE_ROW_HEIGHT)
+                        .personTap(enabled = interactive) { PeopleHubNavigation.showQuickActions(person) },
                 ) {
                     ContactAvatar(person, size = 22.dp, fontSize = 9.sp)
                     Spacer(Modifier.width(6.dp))
@@ -140,10 +190,46 @@ private fun FavouritesTileFace(size: TileSize, fallback: @Composable () -> Unit,
                     )
                 }
             }
+            Spacer(Modifier.fillMaxWidth().weight(1f).claimTouches())
         }
-        PageIconCorner("heart")
     }
 }
+
+private const val MAX_FAVOURITE_ROWS = 8
+private val FAVOURITE_ROW_HEIGHT = 26.dp
+
+// Title row (22dp) plus the column's vertical padding (2 x 6dp).
+private val FAVOURITE_HEADER_HEIGHT = 34.dp
+
+/**
+ * A quick tap on a person's row. Lets the tile's own gestures win otherwise:
+ * a hold (the long-press into edit mode) or a scroll never fires it, and only
+ * the tap's own release is consumed, so the tile doesn't also open the hub.
+ */
+private fun Modifier.personTap(enabled: Boolean, onTap: () -> Unit): Modifier =
+    if (!enabled) this else pointerInput(onTap) {
+        val slop = 7.dp.toPx()
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            val up = withTimeoutOrNull(PERSON_TAP_MAX_MS) { waitForUpOrCancellation() } ?: return@awaitEachGesture
+            if ((up.position - down.position).getDistance() > slop) return@awaitEachGesture
+            up.consume()
+            onTap()
+        }
+    }
+
+/**
+ * Takes taps on the title row and the empty space below the list without
+ * consuming them, so the tile's own tap opens favourites. Without it, Compose
+ * stretches each 26dp person row's touch area toward 48dp, and a tap on the
+ * title just above the first row opened that person instead.
+ */
+private fun Modifier.claimTouches(): Modifier = pointerInput(Unit) {
+    awaitEachGesture { awaitFirstDown(requireUnconsumed = false) }
+}
+
+// Under the tile long-press (430ms+), so holding still enters edit mode.
+private const val PERSON_TAP_MAX_MS = 400L
 
 /** A small corner glyph identifying which People Hub page a pinned tile
  * shows — user-requested ("can we have icons for recent and what new"), so
