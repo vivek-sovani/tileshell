@@ -38,8 +38,8 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 - **`main` — personalize is a panorama.** User-requested, designed first. Sections: colours
-  (theme, accent, tile colour) → wallpaper (wallpaper, live photos) → tiles (tile style, sliders,
-  grid columns) → start (home style, arrangement, typography, folders & categories, edge strip) →
+  (theme, accent, tile colour, typography) → wallpaper (wallpaper, live photos) → tiles (tile style,
+  sliders, grid columns) → start (home style, arrangement, folders & categories, edge strip) →
   live (live tiles, refresh rates, feed & glance, news region) → system (permissions, hidden apps,
   status bar, android settings, backups, help, about). Every group's code moved over unchanged
   (`PERSONALIZE_SECTIONS`). Lumia controls: `SegCell`/theme choices/columns/typography are plain

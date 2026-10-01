@@ -504,6 +504,20 @@ fun PersonalizeSheet(
                             }
                             }
                         }
+                        // ---- typography ----
+                        SettingGroup(label = "typography", tokens.fgDim) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                                listOf(
+                                    FontStyle.SYSTEM to "system",
+                                    FontStyle.OUTFIT to "outfit",
+                                    FontStyle.NUNITO to "nunito",
+                                ).forEach { entry ->
+                                    val style = entry.first
+                                    val label = entry.second
+                                    HubFilter(label, fontStyle == style, tokens, accent) { onFontStyleChange(style) }
+                                }
+                            }
+                        }
                         }
                         1 -> { // wallpaper
                         // ---- wallpaper ----
@@ -1093,20 +1107,6 @@ fun PersonalizeSheet(
                         // pages (named sections + the trailing "main" page) — nothing to
                         // toggle here any more, "+ add page" just always works, like
                         // folders. See the guide sheet for how to add/rename/reorder. ----
-                        // ---- typography ----
-                        SettingGroup(label = "typography", tokens.fgDim) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                                listOf(
-                                    FontStyle.SYSTEM to "system",
-                                    FontStyle.OUTFIT to "outfit",
-                                    FontStyle.NUNITO to "nunito",
-                                ).forEach { entry ->
-                                    val style = entry.first
-                                    val label = entry.second
-                                    HubFilter(label, fontStyle == style, tokens, accent) { onFontStyleChange(style) }
-                                }
-                            }
-                        }
                         // ---- folders & categories ----
                         SettingGroup(label = "folders & categories", tokens.fgDim) {
                             Row(
