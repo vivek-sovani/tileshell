@@ -38,7 +38,8 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 
 ## Current status
 - **`main` — personalize: tiles before wallpaper; bing refresh, previews and reframe.** Section order
-  colours → tiles → wallpaper → start → live → glance → system. Photo and Bing show the wallpaper in
+  colours → tiles → wallpaper → start → live → glance → system. Arrangement (and lock layout) lives under
+  tiles, after grid columns. Photo and Bing show the wallpaper in
   use (`WallpaperPreview`, phone-shaped, framed as on Start, tap to reframe) with "adjust position";
   in Bing "select" it sits above the recent images. "refresh daily wallpaper" runs a forced fetch
   (`BingWallpaperWorker.refreshFromUser`, turns daily on, toasts new / already set / failed). Picking
