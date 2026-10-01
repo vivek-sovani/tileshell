@@ -176,9 +176,10 @@ fun PersonalizeSheet(
     onWallpaperSlideshowChange: (Boolean) -> Unit,
     wallpaperSlideshowIntervalMin: Int,
     onWallpaperSlideshowIntervalChange: (Int) -> Unit,
-    wallpaperSlideshowCount: Int,
+    wallpaperSlideshowUris: List<String>,
     onPickWallpaperSlideshowPhotos: () -> Unit,
     onClearWallpaperSlideshowPhotos: () -> Unit,
+    onRemoveWallpaperSlideshowPhoto: (String) -> Unit,
     tiledWallpaper: Boolean,
     onTiledWallpaperChange: (Boolean) -> Unit,
     borderlessTiles: Boolean,
@@ -208,7 +209,7 @@ fun PersonalizeSheet(
     onPickCustomWallpaper: () -> Unit,
     onClearWallpaper: () -> Unit,
     onResetTileStyle: () -> Unit,
-    photosSelected: Int,
+    photoUris: List<String>,
     onPickPhotos: () -> Unit,
     isDefaultLauncher: Boolean,
     onSetDefaultLauncher: () -> Unit,
@@ -243,6 +244,7 @@ fun PersonalizeSheet(
     hideStatusBar: Boolean,
     onHideStatusBarChange: (Boolean) -> Unit,
     onClearPhotos: () -> Unit,
+    onRemovePhoto: (String) -> Unit,
     /** Master on/off switch for live-tile flipping/updates. */
     liveTilesEnabled: Boolean,
     onLiveTilesEnabledChange: (Boolean) -> Unit,
@@ -614,24 +616,20 @@ fun PersonalizeSheet(
                                         }
                                     }
                                     Spacer(Modifier.height(10.dp))
-                                    WallpaperNavRow(
+                                    Text(
                                         "slideshow photos",
-                                        if (wallpaperSlideshowCount > 0) "$wallpaperSlideshowCount selected ›" else "choose ›",
-                                        accent, tokens, onPickWallpaperSlideshowPhotos,
+                                        color = tokens.fgDim,
+                                        fontSize = 14.sp,
+                                        modifier = Modifier.padding(bottom = 6.dp),
                                     )
-                                    if (wallpaperSlideshowCount > 0) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clickable(onClick = onClearWallpaperSlideshowPhotos)
-                                                .padding(vertical = 6.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                        ) {
-                                            Text(text = "clear slideshow photos", color = tokens.fgDim, fontSize = 14.sp)
-                                            Spacer(Modifier.weight(1f))
-                                            Text(text = "✕", color = tokens.fgDim, fontSize = 13.sp)
-                                        }
-                                    }
+                                    PhotoGrid(
+                                        uris = wallpaperSlideshowUris,
+                                        accent = accent,
+                                        tokens = tokens,
+                                        onAdd = onPickWallpaperSlideshowPhotos,
+                                        onRemove = onRemoveWallpaperSlideshowPhoto,
+                                        onRemoveAll = onClearWallpaperSlideshowPhotos,
+                                    )
                                 }
                                 WallpaperType.BING -> {
                                     WallpaperNavRow("recent bing wallpapers", "browse ›", accent, tokens, onBingHistory)
@@ -671,35 +669,14 @@ fun PersonalizeSheet(
                         }
                         // ---- live photos (FR-2 photos tile) ----
                         SettingGroup(label = "live photos", tokens.fgDim) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable(onClick = onPickPhotos)
-                                    .padding(vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(text = "choose photos", color = tokens.fg, fontSize = 14.sp)
-                                Spacer(Modifier.weight(1f))
-                                Text(
-                                    text = if (photosSelected > 0) "$photosSelected selected ›" else "pick ›",
-                                    color = if (photosSelected > 0) accent else tokens.fgDim,
-                                    fontSize = 13.sp,
-                                )
-                            }
-                            if (photosSelected > 0) {
-                                Spacer(Modifier.height(4.dp))
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable(onClick = onClearPhotos)
-                                        .padding(vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(text = "clear selected photos", color = tokens.fgDim, fontSize = 14.sp)
-                                    Spacer(Modifier.weight(1f))
-                                    Text(text = "✕", color = tokens.fgDim, fontSize = 13.sp)
-                                }
-                            }
+                            PhotoGrid(
+                                uris = photoUris,
+                                accent = accent,
+                                tokens = tokens,
+                                onAdd = onPickPhotos,
+                                onRemove = onRemovePhoto,
+                                onRemoveAll = onClearPhotos,
+                            )
                         }
                         }
                         2 -> { // tiles
@@ -1561,6 +1538,97 @@ fun PersonalizeSheet(
  * personalize is closed. */
 private object PersonalizeSectionMemory {
     var page = 0
+}
+
+/**
+ * Chosen photos as square thumbnails (user-requested), each with a × to remove
+ * it, then a "+" square that picks more and adds them. "remove all" below when
+ * there are any.
+ */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun PhotoGrid(
+    uris: List<String>,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+    onAdd: () -> Unit,
+    onRemove: (String) -> Unit,
+    onRemoveAll: () -> Unit,
+) {
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        uris.forEach { uri ->
+            androidx.compose.runtime.key(uri) {
+                Box(modifier = Modifier.size(PHOTO_THUMB)) {
+                    val bitmap = rememberPhotoThumbnail(uri)
+                    Box(Modifier.fillMaxSize().background(tokens.chip)) {
+                        if (bitmap != null) {
+                            androidx.compose.foundation.Image(
+                                bitmap = bitmap,
+                                contentDescription = null,
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    }
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .size(26.dp)
+                            .background(Color.Black.copy(alpha = 0.6f))
+                            .clickable(onClickLabel = "remove photo") { onRemove(uri) },
+                    ) {
+                        Icon(TileIcons["close"], contentDescription = "remove photo", tint = Color.White, modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
+        }
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(PHOTO_THUMB)
+                .border(2.dp, tokens.fgDim)
+                .clickable(onClickLabel = "add photos", onClick = onAdd),
+        ) {
+            Icon(TileIcons["plus"], contentDescription = "add photos", tint = accent, modifier = Modifier.size(28.dp))
+        }
+    }
+    if (uris.isNotEmpty()) {
+        Text(
+            "${uris.size} photo${if (uris.size == 1) "" else "s"} · remove all",
+            color = tokens.fgDim,
+            fontSize = 13.sp,
+            modifier = Modifier
+                .clickable(onClick = onRemoveAll)
+                .padding(top = 8.dp, bottom = 4.dp),
+        )
+    }
+}
+
+private val PHOTO_THUMB = 72.dp
+
+/** A small thumbnail of an imported photo, decoded off the main thread. */
+@Composable
+private fun rememberPhotoThumbnail(uri: String): ImageBitmap? {
+    val context = LocalContext.current
+    return produceState<ImageBitmap?>(null, uri) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                val parsed = android.net.Uri.parse(uri)
+                val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                context.contentResolver.openInputStream(parsed)?.use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
+                var sample = 1
+                while (bounds.outWidth / (sample * 2) >= 200 && bounds.outHeight / (sample * 2) >= 200) sample *= 2
+                val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+                context.contentResolver.openInputStream(parsed)?.use { android.graphics.BitmapFactory.decodeStream(it, null, opts) }
+                    ?.asImageBitmap()
+            }.getOrNull()
+        }
+    }.value
 }
 
 /** The personalize panorama's sections, in swipe order. */

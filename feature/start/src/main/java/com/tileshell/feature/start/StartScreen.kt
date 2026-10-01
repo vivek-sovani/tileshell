@@ -637,15 +637,16 @@ fun StartScreen(
     // picked photos are copied into private storage so the slideshow survives a
     // reboot without a persistable grant (MediaImport).
     val photosStore = remember(context) { PhotosStore.create(context) }
-    val photosCount = photosStore.data.collectAsStateWithLifecycle(initialValue = PhotosData())
-        .value.uris.size
+    val photoUris = photosStore.data.collectAsStateWithLifecycle(initialValue = PhotosData())
+        .value.uris
     val photosPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(),
     ) { uris ->
         if (uris.isNotEmpty()) {
             scope.launch {
                 val local = withContext(Dispatchers.IO) { MediaImport.importPhotos(context, uris) }
-                if (local.isNotEmpty()) photosStore.setUris(local)
+                // Added to the photos already chosen, not replacing them.
+                if (local.isNotEmpty()) photosStore.setUris(photosStore.read().uris + local)
             }
         }
     }
@@ -657,9 +658,9 @@ fun StartScreen(
     val wallpaperSlideshowStore = remember(context) {
         com.tileshell.feature.livetiles.WallpaperSlideshowStore.create(context)
     }
-    val wallpaperSlideshowCount = wallpaperSlideshowStore.data
+    val wallpaperSlideshowUris = wallpaperSlideshowStore.data
         .collectAsStateWithLifecycle(initialValue = com.tileshell.feature.livetiles.WallpaperSlideshowData())
-        .value.uris.size
+        .value.uris
     val wallpaperSlideshowPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(),
     ) { uris ->
@@ -667,8 +668,10 @@ fun StartScreen(
             scope.launch {
                 val local = withContext(Dispatchers.IO) { MediaImport.importWallpaperSlideshow(context, uris) }
                 if (local.isNotEmpty()) {
-                    wallpaperSlideshowStore.setUris(local)
-                    if (settings.wallpaperSlideshowEnabled) viewModel.setWallpaperSlide(local.first(), 0)
+                    val before = wallpaperSlideshowStore.read().uris
+                    wallpaperSlideshowStore.setUris(before + local)
+                    // The first photos chosen show at once, as a single wallpaper does.
+                    if (before.isEmpty() && settings.wallpaperSlideshowEnabled) viewModel.setWallpaperSlide(local.first(), 0)
                 }
             }
         }
@@ -1916,7 +1919,7 @@ fun StartScreen(
             onWallpaperSlideshowChange = viewModel::setWallpaperSlideshowEnabled,
             wallpaperSlideshowIntervalMin = settings.wallpaperSlideshowIntervalMin,
             onWallpaperSlideshowIntervalChange = viewModel::setWallpaperSlideshowInterval,
-            wallpaperSlideshowCount = wallpaperSlideshowCount,
+            wallpaperSlideshowUris = wallpaperSlideshowUris,
             onPickWallpaperSlideshowPhotos = {
                 wallpaperSlideshowPicker.launch(
                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
@@ -1926,6 +1929,12 @@ fun StartScreen(
                 scope.launch {
                     wallpaperSlideshowStore.setUris(emptyList())
                     withContext(Dispatchers.IO) { MediaImport.clearWallpaperSlideshow(context) }
+                }
+            },
+            onRemoveWallpaperSlideshowPhoto = { uri ->
+                scope.launch {
+                    wallpaperSlideshowStore.setUris(wallpaperSlideshowStore.read().uris - uri)
+                    withContext(Dispatchers.IO) { MediaImport.deleteImported(context, uri) }
                 }
             },
             tiledWallpaper = settings.tiledWallpaper,
@@ -1987,7 +1996,7 @@ fun StartScreen(
                 viewModel.resetTileStyle()
                 Toast.makeText(context, "tile style reset", Toast.LENGTH_SHORT).show()
             },
-            photosSelected = photosCount,
+            photoUris = photoUris,
             onPickPhotos = {
                 photosPicker.launch(
                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
@@ -1997,6 +2006,12 @@ fun StartScreen(
                 scope.launch {
                     photosStore.setUris(emptyList())
                     withContext(Dispatchers.IO) { MediaImport.clearPhotos(context) }
+                }
+            },
+            onRemovePhoto = { uri ->
+                scope.launch {
+                    photosStore.setUris(photosStore.read().uris - uri)
+                    withContext(Dispatchers.IO) { MediaImport.deleteImported(context, uri) }
                 }
             },
             isDefaultLauncher = isDefaultLauncher,

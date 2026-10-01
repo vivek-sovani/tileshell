@@ -39,13 +39,13 @@ object MediaImport {
     }
 
     /**
-     * Copies the picked live-photos into private storage, replacing the previous
-     * selection, and returns `file://` URIs to the copies (in pick order; failed
-     * copies are dropped). Call off the main thread.
+     * Copies the picked live-photos into private storage, alongside the ones
+     * already chosen (personalize shows them and adds to them), and returns
+     * `file://` URIs to the new copies (in pick order; failed copies are dropped).
+     * Call off the main thread.
      */
     fun importPhotos(context: Context, sources: List<Uri>): List<String> {
         val dir = File(context.filesDir, PHOTOS_DIR)
-        clearDir(dir)
         dir.mkdirs()
         val now = System.currentTimeMillis()
         return sources.mapIndexedNotNull { i, source ->
@@ -59,13 +59,12 @@ object MediaImport {
     }
 
     /**
-     * Copies the picked wallpaper-slideshow photos into private storage, replacing
-     * the previous selection, and returns `file://` URIs to the copies (in pick
-     * order; failed copies are dropped). Call off the main thread.
+     * Copies the picked wallpaper-slideshow photos into private storage, alongside
+     * the ones already chosen, and returns `file://` URIs to the new copies (in
+     * pick order; failed copies are dropped). Call off the main thread.
      */
     fun importWallpaperSlideshow(context: Context, sources: List<Uri>): List<String> {
         val dir = File(context.filesDir, WALLPAPER_SLIDESHOW_DIR)
-        clearDir(dir)
         dir.mkdirs()
         val now = System.currentTimeMillis()
         return sources.mapIndexedNotNull { i, source ->
@@ -76,6 +75,14 @@ object MediaImport {
     /** Deletes all imported wallpaper-slideshow photos (used by "clear slideshow photos"). */
     fun clearWallpaperSlideshow(context: Context) {
         clearDir(File(context.filesDir, WALLPAPER_SLIDESHOW_DIR))
+    }
+
+    /** Deletes one imported copy (a photo removed in personalize). Only files
+     * inside TileShell's own storage are touched. Call off the main thread. */
+    fun deleteImported(context: Context, uri: String) {
+        val path = runCatching { Uri.parse(uri).path }.getOrNull() ?: return
+        val file = File(path)
+        if (file.canonicalPath.startsWith(context.filesDir.canonicalPath)) file.delete()
     }
 
     private fun copy(context: Context, source: Uri, dest: File): Uri? = runCatching {

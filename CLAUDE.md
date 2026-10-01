@@ -37,6 +37,12 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — chosen photos are shown with add / remove.** User-requested. Slideshow photos and live
+  photos in personalize → wallpaper show as 72dp square thumbnails (`PhotoGrid`), each with a × that
+  removes that photo (store + its imported file, `MediaImport.deleteImported`, only inside filesDir),
+  then a "+" square that picks more and adds them (imports no longer clear the folder; the stores
+  append), and "n photos · remove all". The first slideshow photos still show at once. Checked on the
+  emulator (add two, remove one).
 - **`main` — personalize is a panorama.** User-requested, designed first. Sections: colours
   (theme, accent, tile colour, typography) → wallpaper (wallpaper, live photos) → tiles (tile style,
   sliders, grid columns) → start (home style, arrangement, folders & categories, edge strip) →
