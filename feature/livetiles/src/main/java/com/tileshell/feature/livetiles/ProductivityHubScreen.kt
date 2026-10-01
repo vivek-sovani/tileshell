@@ -412,7 +412,11 @@ private fun TodayPage(
             item { Text("no open tasks", color = tokens.fgDim, fontSize = 14.sp) }
         } else {
             items(openTasks, key = { "task-${it.id}" }) { task ->
-                TaskRow(task.text, done = false, tokens = tokens, accent = accent) {
+                TaskRow(
+                    task.text, done = false, tokens = tokens, accent = accent,
+                    reminder = task.remindAt?.let { reminderLine(it, task.repeat, now) },
+                    overdue = task.remindAt?.let { it <= now } == true,
+                ) {
                     scope.launch { tasksRepo.setDone(task.id, true) }
                 }
             }

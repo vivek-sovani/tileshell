@@ -38,7 +38,14 @@ private fun TaskEntity.toItem() = TaskItem(
 data class TaskListSummary(val id: String, val name: String, val openCount: Int)
 
 /** An unfinished task and the list it belongs to. */
-data class OpenTask(val id: Long, val text: String, val listId: String)
+data class OpenTask(
+    val id: Long,
+    val text: String,
+    val listId: String,
+    /** Reminder time, or null; null whenever reminders are switched off. */
+    val remindAt: Long? = null,
+    val repeat: TaskRepeat = TaskRepeat.Once,
+)
 
 /**
  * Source of truth for the Tasks live tile's checklist. Each pinned Tasks tile
@@ -129,7 +136,9 @@ class TaskRepository(
 
     /** Unfinished tasks across every list, newest first. */
     fun openTasks(limit: Int = 20): Flow<List<OpenTask>> =
-        lists.observeOpenTasks(limit).map { rows -> rows.map { OpenTask(it.id, it.text, it.listId) } }
+        lists.observeOpenTasks(limit).map { rows -> rows.map {
+            OpenTask(it.id, it.text, it.listId, it.remindAt.takeIf { TaskReminders.ENABLED }, TaskRepeat.decode(it.remindRepeat))
+        } }
 
     fun openCount(): Flow<Int> = lists.observeOpenCount()
 
