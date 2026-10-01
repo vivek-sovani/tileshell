@@ -775,7 +775,7 @@ private fun FavouritesPage(context: android.content.Context, tokens: ColorTokens
         } else {
             item {
                 Text(
-                    "people marked \"on tile\" show on your pinned favourites tile; tap to add or remove them.",
+                    "ticked people show on your pinned favourites tile; tap the square to add or remove them.",
                     color = tokens.fgDim,
                     fontSize = 13.sp,
                 )
@@ -808,39 +808,27 @@ private fun FavouritesPage(context: android.content.Context, tokens: ColorTokens
 }
 
 /**
- * Whether a favourite shows on the pinned favourites tile, as a labelled chip:
- * "on tile" (accent, ticked) or "add to tile" (outlined). Words rather than a
- * bare symbol: a pin already means "pin to Start", and a lone checkbox didn't
- * say what it checks.
+ * Whether a favourite shows on the pinned favourites tile: a small square like a
+ * mini tile, accent with a tick when on and an outline when off (user-chosen over
+ * a labelled chip, which looked bulky down a long list). The note above the list
+ * says what it does; the touch target stays 48dp.
  */
 @Composable
 internal fun OnTileChip(onTile: Boolean, tokens: ColorTokens, accent: Color, onToggle: () -> Unit) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-            .heightIn(min = 48.dp)
-            .toggleable(value = onTile, role = Role.Switch, onValueChange = { onToggle() })
+            .size(48.dp)
+            .toggleable(value = onTile, role = Role.Checkbox, onValueChange = { onToggle() })
             .semantics { contentDescription = "show on the favourites tile" },
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
+        Box(
+            contentAlignment = Alignment.Center,
             modifier = Modifier
-                .then(
-                    if (onTile) Modifier.background(accent)
-                    else Modifier.border(1.dp, tokens.fgDim),
-                )
-                .padding(horizontal = 10.dp, vertical = 5.dp),
+                .size(20.dp)
+                .then(if (onTile) Modifier.background(accent) else Modifier.border(1.5.dp, tokens.fgDim)),
         ) {
-            if (onTile) {
-                Icon(TileIcons["check"], contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                Spacer(Modifier.width(4.dp))
-            }
-            Text(
-                if (onTile) "on tile" else "add to tile",
-                color = if (onTile) Color.White else tokens.fgDim,
-                fontSize = 12.sp,
-                maxLines = 1,
-            )
+            if (onTile) Icon(TileIcons["check"], contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
         }
     }
 }
