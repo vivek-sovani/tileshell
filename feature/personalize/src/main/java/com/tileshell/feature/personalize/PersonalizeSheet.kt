@@ -922,14 +922,18 @@ fun PersonalizeSheet(
                                     }
                                 }
 
-                                Spacer(Modifier.height(14.dp))
-                                ToggleRow(
-                                    "gradient fill",
-                                    on = tileFill == TileFill.GRADIENT,
-                                    accent = accent,
-                                    tokens,
-                                    onChange = { on -> onTileFillChange(if (on) TileFill.GRADIENT else TileFill.FLAT) },
-                                )
+                                // Only where tiles have a colour to shade (solid or
+                                // transparent); behind tiles shows the wallpaper itself.
+                                if (!tiledWallpaper) {
+                                    Spacer(Modifier.height(14.dp))
+                                    ToggleRow(
+                                        "gradient fill",
+                                        on = tileFill == TileFill.GRADIENT,
+                                        accent = accent,
+                                        tokens,
+                                        onChange = { on -> onTileFillChange(if (on) TileFill.GRADIENT else TileFill.FLAT) },
+                                    )
+                                }
 
                             }
                             Spacer(Modifier.height(18.dp))
@@ -1007,18 +1011,20 @@ fun PersonalizeSheet(
                                         fontSize = 12.sp,
                                     )
                                 }
-                                Spacer(Modifier.height(6.dp))
-                                ToggleRow("lock layout", on = lockLayout, accent = accent, tokens, onLockLayoutChange)
-                                Text(
-                                    "when on, long-pressing a tile never opens edit mode — nothing can be moved, resized, or removed by accident",
-                                    color = tokens.fgDim,
-                                    fontSize = 12.sp,
-                                )
                             }
                         }
 
                         }
                         3 -> { // start
+                        // ---- lock layout ----
+                        SettingGroup(label = "layout", tokens.fgDim) {
+                            ToggleRow("lock layout", on = lockLayout, accent = accent, tokens, onLockLayoutChange)
+                            Text(
+                                "when on, long-pressing a tile never opens edit mode — nothing can be moved, resized, or removed by accident",
+                                color = tokens.fgDim,
+                                fontSize = 12.sp,
+                            )
+                        }
                         // ---- home style: windows-phone tiles vs. android-style icons ----
                         SettingGroup(label = "home style", tokens.fgDim) {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

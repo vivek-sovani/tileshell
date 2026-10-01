@@ -5009,7 +5009,7 @@ internal fun TileView(
                     // the actual sense of elevation this time.
                     borderless -> Modifier.background(Glass.raisedCardFill(darkTheme, transparency))
                     else -> if (glassFill != null) {
-                        Modifier.background(glassFill)
+                        Modifier.background(if (useTileGradient) tileGradientBrush(glassFill) else SolidColor(glassFill))
                     } else if (useTileGradient) {
                         Modifier.background(tileGradientBrush(accent))
                     } else {
@@ -8253,7 +8253,9 @@ private fun StackTileContent(
                                     dark = darkTheme,
                                 )
                                 borderless -> Modifier
-                                memberGlassFill != null -> Modifier.background(memberGlassFill)
+                                memberGlassFill != null -> Modifier.background(
+                                    if (useTileGradient) tileGradientBrush(memberGlassFill) else SolidColor(memberGlassFill),
+                                )
                                 useTileGradient -> Modifier.background(tileGradientBrush(memberAccent))
                                 else -> Modifier.background(memberAccent)
                             },
