@@ -130,6 +130,11 @@ object LocalMusicPlayer {
     private var audioManager: AudioManager? = null
     private var focusRequest: AudioFocusRequest? = null
     private var resumeOnFocusGain = false
+    // Set when the audio outputs changed while paused (Bluetooth or headphones
+    // came or went). A paused MediaPlayer can stay on the output it was opened
+    // on, so resuming it after the Buds dropped and the car connected played
+    // out of the phone. Resuming reopens a fresh player at the same position.
+    private var routeStale = false
 
     private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
         when (change) {
@@ -183,8 +188,9 @@ object LocalMusicPlayer {
         playAt(context, queue, startIndex)
     }
 
-    private fun playAt(context: Context, queue: List<PlayableAudio>, index: Int) {
+    private fun playAt(context: Context, queue: List<PlayableAudio>, index: Int, startAtMs: Long = 0L) {
         releasePlayerOnly()
+        routeStale = false
         val item = queue[index]
         _state.value = LocalPlayback(item = item, playing = false, queue = queue, queueIndex = index)
         val mp = newPlayer(context, item)
@@ -195,6 +201,7 @@ object LocalMusicPlayer {
         mp.setOnPreparedListener {
             prepared = true
             consecutiveErrors = 0
+            if (startAtMs > 0) runCatching { it.seekTo(startAtMs.toInt()) }
             runCatching { it.start() }
             _state.value = _state.value.copy(playing = true)
             // Here rather than in a UI effect so an episode auto-advanced
@@ -439,10 +446,37 @@ object LocalMusicPlayer {
                 mp.pause()
                 _state.value = _state.value.copy(playing = false)
             } else {
+                if (routeStale && reopenCurrent()) return
                 mp.start()
                 _state.value = _state.value.copy(playing = true)
             }
         }
+    }
+
+    /** Pauses for [android.media.AudioManager.ACTION_AUDIO_BECOMING_NOISY]: the
+     * output just went away, so the next resume reopens on the new one. */
+    fun pauseForNoisy() {
+        pause()
+        if (player != null) routeStale = true
+    }
+
+    /** An output device was added or removed. Only matters while paused; a
+     * playing player is moved by the system. */
+    fun onOutputsChanged() {
+        val mp = player ?: return
+        if (!runCatching { mp.isPlaying }.getOrDefault(false)) routeStale = true
+    }
+
+    /** Reopens the current item at its position so it plays on today's
+     * output; false if there's nothing to reopen. */
+    private fun reopenCurrent(): Boolean {
+        val context = appContext ?: return false
+        val s = _state.value
+        if (s.item == null || s.queueIndex !in s.queue.indices) return false
+        // Radio is live: start the stream afresh.
+        val position = if (s.item is PlayableAudio.RadioStream) 0L else positionMs()
+        playAt(context, s.queue, s.queueIndex, position)
+        return true
     }
 
     /**
@@ -473,6 +507,7 @@ object LocalMusicPlayer {
         val mp = player ?: return restartCurrent()
         resumeOnFocusGain = false
         if (!prepared) return
+        if (routeStale && !runCatching { mp.isPlaying }.getOrDefault(false) && reopenCurrent()) return
         runCatching {
             if (!mp.isPlaying) {
                 mp.start()

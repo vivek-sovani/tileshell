@@ -9,6 +9,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -16,7 +18,9 @@ import android.media.MediaMetadata
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -57,11 +61,32 @@ class LocalMusicPlaybackService : Service() {
      * standard signal for exactly this; it can't be declared in the manifest,
      * so it lives for as long as this service does, i.e. while something is
      * loaded. Paused, not stopped: the notification stays so it resumes with
-     * one tap.
+     * one tap. The next resume reopens the player, so it plays on whatever
+     * output is there by then (the car, the Buds) rather than the phone.
      */
     private val noisyReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) LocalMusicPlayer.pause()
+            if (intent.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) LocalMusicPlayer.pauseForNoisy()
+        }
+    }
+
+    /**
+     * Bluetooth or headphones connecting (or going) while paused: the paused
+     * player would otherwise resume on the output it was opened on.
+     * Registering reports the current devices once, which is skipped.
+     */
+    private var devicesPrimed = false
+    private val deviceCallback = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>) {
+            if (!devicesPrimed) {
+                devicesPrimed = true
+                return
+            }
+            if (added.any { it.isSink }) LocalMusicPlayer.onOutputsChanged()
+        }
+
+        override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>) {
+            if (removed.any { it.isSink }) LocalMusicPlayer.onOutputsChanged()
         }
     }
 
@@ -94,6 +119,8 @@ class LocalMusicPlaybackService : Service() {
             IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY),
             androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
         )
+        getSystemService(AudioManager::class.java)
+            ?.registerAudioDeviceCallback(deviceCallback, Handler(Looper.getMainLooper()))
 
         scope.launch {
             LocalMusicPlayer.state.collect { playback ->
@@ -169,6 +196,7 @@ class LocalMusicPlaybackService : Service() {
 
     override fun onDestroy() {
         runCatching { unregisterReceiver(noisyReceiver) }
+        runCatching { getSystemService(AudioManager::class.java)?.unregisterAudioDeviceCallback(deviceCallback) }
         scope.cancel()
         session?.release()
         session = null

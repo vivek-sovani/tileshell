@@ -37,6 +37,15 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — music hub resumed on the phone speaker after Bluetooth reconnected.** User-reported
+  after the pause-on-disconnect fix. The phone's `dumpsys audio` showed the sequence: Buds
+  (LE Audio) dropped at 07:26 → BECOMING_NOISY → paused; car connected at 12:36 → resuming that
+  same 5-hour-old paused `MediaPlayer` played out of the phone. A paused player can stay on the
+  output it was opened on. Now a noisy pause (`pauseForNoisy`) or any output device added or
+  removed while paused (`AudioDeviceCallback` in the service → `onOutputsChanged`) marks the
+  player stale, and the next resume (play button, headset/car play key, focus regain) reopens a
+  fresh player at the same position (`reopenCurrent`; radio restarts the live stream). Build +
+  tests green; release build installed on the phone, no crash. Not yet tried with the car/Buds.
 - **`main` — a reminder can be set while adding a task** (user-requested): a bell beside "add a
   task" opens the same "remind me" sheet; the pick shows under the field (with "remove") and is
   saved with the task (`TaskRepository.addTask(listId, text, remindAt, repeat)`). 5.0.0 AAB/APK

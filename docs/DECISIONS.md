@@ -10779,3 +10779,11 @@ a TileShell-kept log of who messaged, taken from the chat/SMS notifications the 
 Only senders matching a saved contact's name are shown (groups, businesses and unknown numbers
 aren't people rows). Old pinned "recent" tiles map to "favourites" in `PeopleHubTile.decode`, so
 no data migration is needed.
+
+## Music hub: reopen the player after the audio output changes while paused
+Pausing on ACTION_AUDIO_BECOMING_NOISY left a `MediaPlayer` paused for hours; when Bluetooth
+came back (a different device: Buds on LE Audio dropped, the car connected over A2DP), resuming
+that same player played on the phone speaker, while Apple Music played on the car seconds later
+(seen in `dumpsys audio`). Rather than rely on the system re-routing a long-paused track, a
+noisy pause or any sink added/removed while paused marks the player stale, and resuming reopens
+a fresh player at the saved position. Costs a short re-prepare on resume; radio restarts live.
