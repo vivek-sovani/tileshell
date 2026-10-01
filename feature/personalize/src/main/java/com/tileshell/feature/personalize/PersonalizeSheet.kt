@@ -177,6 +177,8 @@ fun PersonalizeSheet(
     bingRecentImages: @Composable () -> Unit = {},
     // Fetches today's Bing image again (bing "daily").
     onRefreshBing: () -> Unit = {},
+    // Choosing "photo": brings back the last photo set, else opens the picker.
+    onSelectPhotoType: (() -> Unit)? = null,
     // The current photo wallpaper, previewed under "photo", and its framing.
     customWallpaperUri: String? = null,
     wallpaperAlignX: Float = 0.5f,
@@ -560,7 +562,7 @@ fun PersonalizeSheet(
                                 if (type == currentWallpaper) return
                                 when (type) {
                                     WallpaperType.NONE -> onClearWallpaper()
-                                    WallpaperType.PHOTO -> onPickCustomWallpaper()
+                                    WallpaperType.PHOTO -> (onSelectPhotoType ?: onPickCustomWallpaper)()
                                     WallpaperType.SLIDESHOW -> onWallpaperSlideshowChange(true)
                                     WallpaperType.BING -> onBingWallpaperChange(true)
                                     WallpaperType.STOCK -> onSelectStockWallpaperType()

@@ -10818,4 +10818,6 @@ Reference ... but expected Integer"). Disassembly showed the method for Start's 
 shows past 256 registers, tipped over by unrelated changes (here the new hub app bar), so a newer R8
 (9.0.54), keep rules and removing `animateContentSize` didn't help. Fix: the hub screens moved out
 into their own composable (`HubScreensLayer`), shrinking that lambda. If a release build ever
-fails verification there again, move another self-contained block out the same way.
+fails verification there again, move another self-contained block out the same way. (Happened again
+when personalize's wallpaper callbacks were added inline; they now live as values defined before
+the layout and small top-level functions.)

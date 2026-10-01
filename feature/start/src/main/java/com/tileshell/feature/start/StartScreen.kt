@@ -602,6 +602,20 @@ fun StartScreen(
     // content, so there's nothing new to choose a target for.
     var pendingWallpaperPick by remember { mutableStateOf<PendingWallpaperPick?>(null) }
 
+    // The last photo set as wallpaper, with its framing, so choosing "photo"
+    // again after another type brings it back (user-requested).
+    LaunchedEffect(settings.customWallpaperUri, settings.wallpaperAlignX, settings.wallpaperAlignY, settings.wallpaperZoom) {
+        val uri = settings.customWallpaperUri
+        if (MediaImport.isImportedWallpaper(context, uri)) {
+            context.getSharedPreferences("tileshell.prefs", Context.MODE_PRIVATE).edit()
+                .putString(PREF_LAST_PHOTO, uri)
+                .putFloat(PREF_LAST_PHOTO_X, settings.wallpaperAlignX)
+                .putFloat(PREF_LAST_PHOTO_Y, settings.wallpaperAlignY)
+                .putFloat(PREF_LAST_PHOTO_ZOOM, settings.wallpaperZoom)
+                .apply()
+        }
+    }
+
     // An earlier day's Bing image (user-requested): downloaded first, then the
     // same reframe step a gallery photo gets, then "where to apply".
     fun pickBingImage(imageUrl: String) {
@@ -632,6 +646,20 @@ fun StartScreen(
             }
         }
     }
+
+    // Personalize → wallpaper callbacks, kept out of the main layout lambda
+    // below (it sits near the 256-register limit where R8 miscompiles it).
+    val bingPicked = settings.customWallpaperUri?.let { "bing_pick_" in it || ("bing_wallpaper" in it && !settings.bingWallpaper) } == true
+    val bingRecentImages: @Composable () -> Unit = {
+        BingRecentImages(colorTokens(dark), TileAccents.forId(settings.accentId)) { imageUrl -> pickBingImage(imageUrl) }
+    }
+    val onRefreshBing: () -> Unit = { refreshBingFromUser(context) }
+    val onSelectPhotoType: () -> Unit = {
+        if (!restoreLastPhotoWallpaper(context, viewModel, settings.wallpaperSyncTarget)) {
+            wallpaperPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        }
+    }
+
 
     // A photo shared into TileShell from another app (e.g. Gallery/Photos' own "share"
     // sheet) — MainActivity forwards it via viewModel.receiveSharedImage(uri) when it
@@ -1928,22 +1956,11 @@ fun StartScreen(
             bingWallpaper = settings.bingWallpaper,
             onBingWallpaperChange = viewModel::setBingWallpaper,
             onBingHistory = { bingHistoryOpen = true },
-            bingPicked = settings.customWallpaperUri?.let { "bing_pick_" in it || ("bing_wallpaper" in it && !settings.bingWallpaper) } == true,
-            bingRecentImages = {
-                BingRecentImages(colorTokens(dark), TileAccents.forId(settings.accentId)) { imageUrl -> pickBingImage(imageUrl) }
-            },
-            onRefreshBing = {
-                Toast.makeText(context, "getting today's bing wallpaper…", Toast.LENGTH_SHORT).show()
-                com.tileshell.feature.livetiles.BingWallpaperWorker.refreshFromUser(context) { outcome ->
-                    val message = when (outcome) {
-                        com.tileshell.feature.livetiles.BingWallpaperWorker.OUTCOME_NEW -> "today's bing wallpaper is set"
-                        com.tileshell.feature.livetiles.BingWallpaperWorker.OUTCOME_SAME -> "you already have today's bing wallpaper"
-                        else -> "couldn't get today's bing wallpaper, check your connection"
-                    }
-                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                }
-            },
+            bingPicked = bingPicked,
+            bingRecentImages = bingRecentImages,
+            onRefreshBing = onRefreshBing,
             customWallpaperUri = settings.customWallpaperUri,
+            onSelectPhotoType = onSelectPhotoType,
             wallpaperAlignX = settings.wallpaperAlignX,
             wallpaperAlignY = settings.wallpaperAlignY,
             onAdjustWallpaper = { if (settings.customWallpaperUri != null) adjustingWallpaper = true },
@@ -2674,6 +2691,42 @@ private const val FOLDER_CHILD_ID_PREFIX = "folderchild:"
  * into the matching `StartViewModel.*WithSync` call once a target is
  * picked; discarded with no effect at all if the chooser is dismissed.
  */
+/** "refresh daily wallpaper": fetches today's Bing image and says how it went. */
+private fun refreshBingFromUser(context: Context) {
+    Toast.makeText(context, "getting today's bing wallpaper…", Toast.LENGTH_SHORT).show()
+    com.tileshell.feature.livetiles.BingWallpaperWorker.refreshFromUser(context) { outcome ->
+        val message = when (outcome) {
+            com.tileshell.feature.livetiles.BingWallpaperWorker.OUTCOME_NEW -> "today's bing wallpaper is set"
+            com.tileshell.feature.livetiles.BingWallpaperWorker.OUTCOME_SAME -> "you already have today's bing wallpaper"
+            else -> "couldn't get today's bing wallpaper, check your connection"
+        }
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
+}
+
+/** Sets the last photo wallpaper again, with its framing; false if there is none. */
+private fun restoreLastPhotoWallpaper(
+    context: Context,
+    viewModel: StartViewModel,
+    target: com.tileshell.core.data.settings.WallpaperSyncTarget,
+): Boolean {
+    val prefs = context.getSharedPreferences("tileshell.prefs", Context.MODE_PRIVATE)
+    val last = prefs.getString(PREF_LAST_PHOTO, null)?.takeIf { MediaImport.exists(it) } ?: return false
+    viewModel.setCustomWallpaperWithSync(
+        last,
+        prefs.getFloat(PREF_LAST_PHOTO_X, 0.5f),
+        prefs.getFloat(PREF_LAST_PHOTO_Y, 0.5f),
+        prefs.getFloat(PREF_LAST_PHOTO_ZOOM, 1f),
+        target,
+    )
+    return true
+}
+
+private const val PREF_LAST_PHOTO = "last_photo_wallpaper"
+private const val PREF_LAST_PHOTO_X = "last_photo_wallpaper_x"
+private const val PREF_LAST_PHOTO_Y = "last_photo_wallpaper_y"
+private const val PREF_LAST_PHOTO_ZOOM = "last_photo_wallpaper_zoom"
+
 private sealed interface PendingWallpaperPick {
     data class Gradient(val id: String) : PendingWallpaperPick
     data class Photo(val uri: String, val alignX: Float, val alignY: Float, val zoom: Float) : PendingWallpaperPick

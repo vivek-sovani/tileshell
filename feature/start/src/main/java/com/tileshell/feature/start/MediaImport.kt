@@ -85,6 +85,16 @@ object MediaImport {
         if (file.canonicalPath.startsWith(context.filesDir.canonicalPath)) file.delete()
     }
 
+    /** True for a photo wallpaper imported by [importWallpaper] (not Bing or slideshow). */
+    fun isImportedWallpaper(context: Context, uri: String?): Boolean {
+        val path = uri?.let { runCatching { Uri.parse(it).path }.getOrNull() } ?: return false
+        return path.startsWith(File(context.filesDir, WALLPAPER_DIR).path)
+    }
+
+    /** Whether the file behind [uri] is still there. */
+    fun exists(uri: String): Boolean =
+        runCatching { Uri.parse(uri).path?.let { File(it).exists() } }.getOrNull() == true
+
     private fun copy(context: Context, source: Uri, dest: File): Uri? = runCatching {
         context.contentResolver.openInputStream(source)?.use { input ->
             dest.outputStream().use { output -> input.copyTo(output) }

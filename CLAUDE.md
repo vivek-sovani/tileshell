@@ -37,6 +37,11 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — choosing "photo" again brings back the last photo.** The last imported photo wallpaper
+  and its framing are remembered (`tileshell.prefs` `last_photo_wallpaper*`, the file stays in
+  `filesDir/wallpaper` until a new pick); "photo" restores it (`restoreLastPhotoWallpaper`), else
+  opens the picker; "change" always picks. Start's layout lambda hit R8's VerifyError again — the
+  new wallpaper callbacks moved out of it.
 - **`main` — personalize: tiles before wallpaper; bing refresh, previews and reframe.** Section order
   colours → tiles → wallpaper → start → live → glance → system. Arrangement lives under tiles, after grid
   columns; lock layout is its own "layout" group at the top of start. Gradient fill now also shades
