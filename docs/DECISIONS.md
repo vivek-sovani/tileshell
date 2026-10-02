@@ -11012,3 +11012,7 @@ crash or VerifyError since the install) and the emulator. The same move belongs 
   for +. Key gained `sub`, `display`, `functionColour` and `popup`.
 - **One-handed:** keys pushed right (or left) with the canvas's 66dp side panel — move
   to the other side, full size; letters 20sp there.
+- **Light keyboard: bottom bar buttons invisible** (user-reported). Android drew the
+  IME's own navigation bar buttons (switch keyboard, hide) white on the light keyboard.
+  The service now sets the IME window's light-navigation-bar appearance from the
+  keyboard's theme whenever it changes. Checked on the emulator in both themes.

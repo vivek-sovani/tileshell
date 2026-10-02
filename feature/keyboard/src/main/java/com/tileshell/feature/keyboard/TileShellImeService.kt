@@ -7,6 +7,7 @@ import android.os.Build
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.core.view.WindowCompat
 import android.view.inputmethod.EditorInfo
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.Lifecycle
@@ -84,8 +85,20 @@ class TileShellImeService : InputMethodService(), LifecycleOwner, SavedStateRegi
         return ComposeView(this).apply {
             setViewTreeLifecycleOwner(this@TileShellImeService)
             setViewTreeSavedStateRegistryOwner(this@TileShellImeService)
-            setContent { KeyboardScreen(controller, prefs, imeNavBarHeight.intValue) }
+            setContent {
+                KeyboardScreen(controller, prefs, imeNavBarHeight.intValue, onThemeChanged = ::applyNavBarAppearance)
+            }
         }
+    }
+
+    /**
+     * Android draws the keyboard's bottom bar (switch keyboard, hide) in white
+     * unless told the window is light; on the light keyboard that made them
+     * invisible. Follows the keyboard's own theme.
+     */
+    private fun applyNavBarAppearance(dark: Boolean) {
+        val w = window?.window ?: return
+        WindowCompat.getInsetsController(w, w.decorView).isAppearanceLightNavigationBars = !dark
     }
 
     /** The platform's `NavigationBarFrame` in the IME window, found by class name (it's hidden API). */

@@ -31,6 +31,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.draw.drawBehind
@@ -112,7 +113,12 @@ private const val REPEAT_START_MS = 400L
 private const val REPEAT_EVERY_MS = 50L
 
 @Composable
-internal fun KeyboardScreen(controller: KeyboardController, prefs: KeyboardPrefs, imeNavBarPx: Int = 0) {
+internal fun KeyboardScreen(
+    controller: KeyboardController,
+    prefs: KeyboardPrefs,
+    imeNavBarPx: Int = 0,
+    onThemeChanged: (dark: Boolean) -> Unit = {},
+) {
     val context = LocalContext.current
     val repository = remember { SettingsRepository.create(context) }
     val settings by repository.settings.collectAsState(initial = null)
@@ -124,6 +130,8 @@ internal fun KeyboardScreen(controller: KeyboardController, prefs: KeyboardPrefs
         KeyboardTheme.TILESHELL -> settings?.let { if (it.followSystemTheme) systemDark else it.dark } ?: systemDark
     }
     val colors = if (dark) KeyboardColors.Dark else KeyboardColors.Light
+    val themeChanged by rememberUpdatedState(onThemeChanged)
+    LaunchedEffect(dark) { themeChanged(dark) }
     val accent = TileAccents.forId(settings?.accentId)
     // Landscape: shorter keys, so the keyboard doesn't take most of the screen.
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
