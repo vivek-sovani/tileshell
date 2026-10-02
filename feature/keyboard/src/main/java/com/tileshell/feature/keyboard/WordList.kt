@@ -22,6 +22,9 @@ interface Lexicon {
 
     /** A fixed correction for a non-word ("im" → "I'm"), if any. */
     fun shortcut(lower: String): String? = null
+
+    /** Every word starting with [prefixLower], in no particular order (swipe typing). */
+    fun startingWith(prefixLower: String): Sequence<LexEntry> = completions(prefixLower, 200).asSequence()
 }
 
 /**
@@ -61,6 +64,14 @@ class WordList private constructor(
     }
 
     override fun shortcut(lower: String): String? = shortcuts[lower]
+
+    override fun startingWith(prefixLower: String): Sequence<LexEntry> = sequence {
+        var i = lowerBound(prefixLower)
+        while (i < size && startsWith(i, prefixLower)) {
+            if (!blocked[i]) yield(entry(i))
+            i++
+        }
+    }
 
     private fun entry(i: Int) = LexEntry(
         word = display[i] ?: keys.substring(starts[i], starts[i + 1]),

@@ -24,6 +24,9 @@ enum class StripMode {
 
     /** A password field: "incognito typing", nothing learned. */
     INCOGNITO,
+
+    /** The space bar is moving the cursor. */
+    CURSOR,
 }
 
 /**
@@ -57,6 +60,10 @@ class KeyboardController(
     var language by mutableStateOf(KeyboardLanguage.ENGLISH)
         private set
 
+    /** The space bar is being dragged to move the cursor: labels blank out. */
+    var cursorMode by mutableStateOf(false)
+        private set
+
     /** The globe key shows while more than one language can be typed here. */
     var languageKey by mutableStateOf(false)
         private set
@@ -79,6 +86,18 @@ class KeyboardController(
 
     /** The last autocorrect, while backspace (or tapping the original) can still undo it. */
     private var lastCorrection: Correction? = null
+
+    /** The last swiped word and its alternatives, while the strip can still swap it. */
+    private var lastSwipe: Swipe? = null
+
+    private data class Swipe(val words: List<String>, val chosen: String)
+
+    private val haptics by lazy { KeyHaptics(service) }
+
+    /** A swipe across letters can type a word here (English letters, no transliteration). */
+    val swipeEnabled: Boolean
+        get() = settings.swipe && layer == KeyboardLayer.LETTERS && !translit &&
+            fieldMode == FieldMode.NORMAL && lexicon != null
 
     /** A space the keyboard added after a picked word; punctuation typed next takes its place. */
     private var autoSpaced = false
@@ -236,7 +255,12 @@ class KeyboardController(
     fun onStripWord(word: StripWord) {
         val ic = service.currentInputConnection ?: return
         val undo = lastCorrection
+        val swiped = lastSwipe
         resetTransient()
+        if (swiped != null && word.text in swiped.words && replaceSwipe(swiped, word.text)) {
+            refresh()
+            return
+        }
         if (translit) {
             // Composing: the letters or a Devanagari spelling. Not composing (next
             // words): just insert it.
@@ -264,7 +288,92 @@ class KeyboardController(
     private fun resetTransient() {
         previousKeyWasSpace = false
         lastCorrection = null
+        lastSwipe = null
         autoSpaced = false
+    }
+
+    fun haptic(kind: HapticKind) {
+        if (settings.vibrate) haptics.play(kind, settings.haptic)
+    }
+
+    // ---- long press ----
+
+    fun popupOptions(key: Key): List<String> = KeyPopups.options(key, shift.upperCase, lettersOnly = translit)
+
+    /** A letter, digit or symbol picked from the long-press bar, typed as if its own key. */
+    fun onPopupChoice(option: String) {
+        // Already cased in the bar (casing it again from shift changes nothing).
+        onKey(Key(if (option.first().isLetter()) KeyKind.CHAR else KeyKind.SYMBOL, option))
+    }
+
+    // ---- space-bar cursor ----
+
+    fun beginCursor() {
+        commitTranslit(separator = "")
+        resetTransient()
+        cursorMode = true
+        refresh()
+    }
+
+    /** Moves the cursor [steps] characters (negative = left). */
+    fun moveCursor(steps: Int) {
+        val ic = service.currentInputConnection ?: return
+        val text = ic.getExtractedText(android.view.inputmethod.ExtractedTextRequest(), 0)
+        if (text?.text != null && text.selectionEnd >= 0) {
+            val end = text.startOffset + text.text.length
+            val at = (text.startOffset + text.selectionEnd + steps).coerceIn(0, end)
+            ic.setSelection(at, at)
+        } else {
+            val code = if (steps < 0) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT
+            repeat(kotlin.math.abs(steps)) { service.sendDownUpKeyEvents(code) }
+        }
+    }
+
+    fun endCursor() {
+        cursorMode = false
+        refresh()
+    }
+
+    // ---- swipe typing ----
+
+    /** Places the best word for a swipe; the alternatives go to the strip. */
+    fun onSwipe(path: List<Pt>, decoder: SwipeDecoder) {
+        val lex = lexicon ?: return
+        resetTransient()
+        val upper = shift
+        scope.launch {
+            val results = withContext(Dispatchers.Default) { decoder.decode(path, lex) }
+            if (results.isEmpty()) return@launch
+            val ic = service.currentInputConnection ?: return@launch
+            val words = results.map {
+                when (upper) {
+                    ShiftState.LOCKED -> it.word.uppercase()
+                    ShiftState.ONCE -> it.word.replaceFirstChar(Char::uppercaseChar)
+                    ShiftState.OFF -> it.word
+                }
+            }
+            val before = ic.getTextBeforeCursor(1, 0)
+            val lead = if (!before.isNullOrEmpty() && !before.last().isWhitespace() && before.last() !in OPENERS) " " else ""
+            ic.commitText(lead + words.first() + " ", 1)
+            lastSwipe = Swipe(words, words.first())
+            autoSpaced = true
+            haptic(HapticKind.CONFIRM)
+            refresh()
+        }
+    }
+
+    /** Swaps the swiped word for an alternative tapped in the strip. */
+    private fun replaceSwipe(s: Swipe, with: String): Boolean {
+        val ic = service.currentInputConnection ?: return false
+        val tail = s.chosen + " "
+        if (ic.getTextBeforeCursor(tail.length, 0)?.toString() != tail) return false
+        ic.beginBatchEdit()
+        ic.deleteSurroundingText(tail.length, 0)
+        ic.commitText("$with ", 1)
+        ic.endBatchEdit()
+        lastSwipe = s.copy(chosen = with)
+        autoSpaced = true
+        return true
     }
 
     // ---- मराठी / हिन्दी in English letters ----
@@ -450,6 +559,7 @@ class KeyboardController(
         stripJob?.cancel()
         val lex = lexicon
         stripMode = when {
+            cursorMode -> StripMode.CURSOR
             fieldMode == FieldMode.INCOGNITO -> StripMode.INCOGNITO
             fieldMode == FieldMode.NO_SUGGESTIONS -> StripMode.TOOLS
             translit -> StripMode.WORDS
@@ -465,6 +575,13 @@ class KeyboardController(
             return
         }
         if (lex == null) return
+        lastSwipe?.let { sw ->
+            if (before?.endsWith(sw.chosen + " ") == true) {
+                strip = sw.words.map { StripWord(it, StripWord.Kind.WORD, best = it == sw.chosen) }
+                return
+            }
+            lastSwipe = null
+        }
         // The undo offer lasts only while the corrected word is still right before
         // the cursor (the field may have changed it, or the cursor moved away).
         lastCorrection?.let { c ->
@@ -514,6 +631,9 @@ class KeyboardController(
     private companion object {
         const val CONTEXT_CHARS = 64
         val PUNCTUATION = setOf(".", ",", "!", "?", ";", ":")
+
+        /** No space is put before a swiped word right after these. */
+        const val OPENERS = "([{\"'“‘"
 
         /** Common sentence starts, shown before anything is typed. */
         val NEXT_WORDS_INDIC = mapOf(

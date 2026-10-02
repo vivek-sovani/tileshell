@@ -2,6 +2,8 @@
 <!-- Merged into the app only while tileshell.keyboard=true (the module is a
      dependency only then), so a build with the keyboard off has no IME. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Key feedback at the chosen strength (normal permission, granted at install). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
     <application>
         <!-- Exported: Android's keyboard list opens it from the Settings app. -->
         <activity

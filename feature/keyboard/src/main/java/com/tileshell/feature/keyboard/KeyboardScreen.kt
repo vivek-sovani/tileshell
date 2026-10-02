@@ -106,9 +106,6 @@ private const val PRESS_FLASH_MS = 140L
 private const val REPEAT_START_MS = 400L
 private const val REPEAT_EVERY_MS = 50L
 
-/** Whether key presses tick the haptic (keyboard settings → haptic feedback). */
-private val LocalKeyHaptics = staticCompositionLocalOf { true }
-
 @Composable
 internal fun KeyboardScreen(controller: KeyboardController, prefs: KeyboardPrefs) {
     val context = LocalContext.current
@@ -127,7 +124,7 @@ internal fun KeyboardScreen(controller: KeyboardController, prefs: KeyboardPrefs
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val keyHeight = if (landscape) 40.dp else 50.dp
 
-    CompositionLocalProvider(LocalKeyHaptics provides keyboard.vibrate) {
+    run {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -145,7 +142,7 @@ internal fun KeyboardScreen(controller: KeyboardController, prefs: KeyboardPrefs
                 if (controller.layer == KeyboardLayer.EMOJI) {
                     EmojiPanel(controller, colors, accent, keyHeight)
                 } else {
-                    KeyRows(controller, colors, accent, keyHeight)
+                    KeyArea(controller, colors, accent, keyHeight)
                 }
             }
         }
@@ -173,6 +170,11 @@ private fun Strip(controller: KeyboardController, colors: KeyboardColors, accent
                 Spacer(Modifier.width(8.dp))
                 BasicText("incognito typing", style = TextStyle(color = colors.secondary, fontSize = 14.sp))
             }
+            StripMode.CURSOR -> BasicText(
+                "slide on the space bar to move the cursor",
+                modifier = Modifier.weight(1f),
+                style = TextStyle(color = colors.secondary, fontSize = 15.sp, textAlign = TextAlign.Center),
+            )
             StripMode.TOOLS -> {
                 Spacer(Modifier.weight(1f))
                 SettingsTool(colors)
@@ -246,87 +248,8 @@ private fun SettingsTool(colors: KeyboardColors) {
     }
 }
 
-@Composable
-private fun KeyRows(controller: KeyboardController, colors: KeyboardColors, accent: Color, keyHeight: Dp) {
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        // 1 unit = (width − 9 gaps) ÷ 10 (the side padding is already outside).
-        val unit = (maxWidth - KEY_GAP * 9) / 10
-        Column(verticalArrangement = Arrangement.spacedBy(ROW_GAP)) {
-            for (row in KeyboardLayouts.rowsFor(controller.layer, controller.languageKey)) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = if (row.inset) (unit + KEY_GAP) / 2 else 0.dp),
-                    horizontalArrangement = Arrangement.spacedBy(KEY_GAP),
-                ) {
-                    for (key in row.keys) {
-                        KeyCell(key, controller, colors, accent, keyHeight)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RowScope.KeyCell(
-    key: Key,
-    controller: KeyboardController,
-    colors: KeyboardColors,
-    accent: Color,
-    keyHeight: Dp,
-) {
-    val shift = controller.shift
-    val label = when (key.kind) {
-        KeyKind.CHAR -> if (shift.upperCase) key.label.uppercase() else key.label
-        KeyKind.ENTER -> controller.enterAction.label ?: ""
-        KeyKind.SPACE -> controller.spaceLabel
-        else -> key.label
-    }
-    val description = when (key.kind) {
-        KeyKind.SHIFT -> when (shift) {
-            ShiftState.OFF -> "shift"
-            ShiftState.ONCE -> "shift, on"
-            ShiftState.LOCKED -> "caps lock"
-        }
-        KeyKind.ENTER -> controller.enterAction.label ?: "enter"
-        KeyKind.SPACE -> "space, ${controller.spaceLabel}"
-        KeyKind.LANGUAGE -> "switch language, now ${controller.language.nativeName}"
-        else -> label
-    }
-    val lit = key.kind == KeyKind.SHIFT && shift.upperCase
-    PressableKey(
-        modifier = Modifier.weight(key.units),
-        height = keyHeight,
-        base = if (key.isFunction) colors.functionKey else colors.letterKey,
-        accent = accent,
-        lit = lit,
-        description = description,
-        repeats = key.kind == KeyKind.BACKSPACE,
-        onPress = { controller.onKey(key) },
-        onRepeat = { controller.backspace() },
-    ) { pressed ->
-        val fg = if (pressed || lit) Color.White else if (key.kind == KeyKind.SPACE) colors.secondary else colors.text
-        when (key.kind) {
-            KeyKind.SHIFT -> KeyIcon(KeyGlyph.SHIFT, fg, filled = shift == ShiftState.LOCKED)
-            KeyKind.BACKSPACE -> KeyIcon(KeyGlyph.BACKSPACE, fg)
-            KeyKind.EMOJI -> KeyIcon(KeyGlyph.EMOJI, fg)
-            KeyKind.LANGUAGE -> KeyIcon(KeyGlyph.GLOBE, fg)
-            KeyKind.ENTER ->
-                if (controller.enterAction == EnterAction.NEW_LINE) {
-                    KeyIcon(KeyGlyph.ENTER, fg)
-                } else {
-                    KeyLabel(label, fg, 15, FontWeight.SemiBold)
-                }
-            KeyKind.CHAR, KeyKind.SYMBOL -> KeyLabel(label, fg, 22, FontWeight.Normal)
-            KeyKind.SPACE -> KeyLabel(label, fg, 13, FontWeight.Normal)
-            KeyKind.LAYER, KeyKind.PAGE -> KeyLabel(label, fg, 15, FontWeight.SemiBold)
-        }
-    }
-}
-
 /**
- * One square key. Acts on finger down (no wait for the lift, so quick
+ * One square key (the emoji panel's abcd and backspace). Acts on finger down (no wait for the lift, so quick
  * two-thumb typing lands in order), fills with the accent while held and for
  * at least [PRESS_FLASH_MS], ticks the keyboard haptic, and — for backspace —
  * repeats while held.
@@ -342,10 +265,10 @@ private fun PressableKey(
     repeats: Boolean,
     onPress: () -> Unit,
     onRepeat: () -> Unit,
+    onTouch: () -> Unit,
     content: @Composable (pressed: Boolean) -> Unit,
 ) {
-    val view = LocalView.current
-    val haptics = LocalKeyHaptics.current
+    val haptic by rememberUpdatedState(onTouch)
     val scope = rememberCoroutineScope()
     var held by remember { mutableStateOf(false) }
     var flashing by remember { mutableStateOf(false) }
@@ -356,7 +279,7 @@ private fun PressableKey(
         modifier = modifier
             .height(height)
             .background(if (pressed || lit) accent else base)
-            .pointerInput(repeats, haptics) {
+            .pointerInput(repeats) {
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false).consume()
                     held = true
@@ -365,7 +288,7 @@ private fun PressableKey(
                         delay(PRESS_FLASH_MS)
                         flashing = false
                     }
-                    if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    haptic()
                     press()
                     var repeater: Job? = null
                     if (repeats) {
@@ -394,7 +317,7 @@ private fun PressableKey(
 }
 
 @Composable
-private fun KeyLabel(text: String, color: Color, sizeSp: Int, weight: FontWeight) {
+internal fun KeyLabel(text: String, color: Color, sizeSp: Int, weight: FontWeight) {
     BasicText(
         text = text,
         maxLines = 1,
@@ -439,6 +362,7 @@ private fun EmojiPanel(controller: KeyboardController, colors: KeyboardColors, a
                 repeats = false,
                 onPress = { controller.backToLetters() },
                 onRepeat = {},
+                onTouch = { controller.haptic(HapticKind.KEY_TAP) },
             ) { pressed ->
                 KeyLabel("abcd", if (pressed) Color.White else colors.text, 15, FontWeight.SemiBold)
             }
@@ -453,6 +377,7 @@ private fun EmojiPanel(controller: KeyboardController, colors: KeyboardColors, a
                 repeats = true,
                 onPress = { controller.backspace() },
                 onRepeat = { controller.backspace() },
+                onTouch = { controller.haptic(HapticKind.KEY_TAP) },
             ) { pressed ->
                 KeyIcon(KeyGlyph.BACKSPACE, if (pressed) Color.White else colors.text)
             }
@@ -467,7 +392,7 @@ internal enum class KeyGlyph { SHIFT, BACKSPACE, ENTER, EMOJI, SETTINGS, LOCK, G
  * [background] fills the settings sliders' knobs so the line breaks behind them.
  */
 @Composable
-private fun KeyIcon(
+internal fun KeyIcon(
     glyph: KeyGlyph,
     color: Color,
     filled: Boolean = false,

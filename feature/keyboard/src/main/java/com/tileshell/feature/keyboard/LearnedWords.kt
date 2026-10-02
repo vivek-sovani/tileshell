@@ -114,6 +114,9 @@ class CombinedLexicon(private val words: Lexicon, private val learned: LearnedWo
         return merged.sortedByDescending { it.freq }.take(limit)
     }
 
+    override fun startingWith(prefixLower: String): Sequence<LexEntry> =
+        learned.completions(prefixLower, 200).asSequence() + words.startingWith(prefixLower)
+
     override fun shortcut(lower: String): String? =
         if (learned.isKnown(lower)) null else words.shortcut(lower)
 }

@@ -25,7 +25,7 @@ dark / light). The canvas's own 20-colour Metro grid is not used.
    *Deferred at the user's request:* the Devanagari मराठी key layout.
    The space bar's sideways drag is left free for phase 4's cursor control.
 4. **Gestures** — long-press accents + top-row digit hints, space-bar cursor drag,
-   swipe typing with accent trail, haptic strength.
+   swipe typing with accent trail, haptic strength. ✅ built
 5. **Panels** — full emoji (categories, recents, search), clipboard (1 h, pin),
    number/phone keypad, one-handed mode.
 6. **Voice** — SpeechRecognizer, microphone permission, privacy policy.

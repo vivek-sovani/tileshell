@@ -23,6 +23,9 @@ data class KeyboardSettings(
     val doubleSpacePeriod: Boolean = true,
     val keySound: Boolean = false,
     val vibrate: Boolean = true,
+    val haptic: HapticStrength = HapticStrength.MEDIUM,
+    /** Swipe across letters to type a word. */
+    val swipe: Boolean = true,
     /** Typed in English letters, written in Devanagari. English is always on. */
     val marathi: Boolean = true,
     val hindi: Boolean = false,
@@ -76,6 +79,8 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
             .putBoolean(PERIOD, next.doubleSpacePeriod)
             .putBoolean(SOUND, next.keySound)
             .putBoolean(VIBRATE, next.vibrate)
+            .putString(HAPTIC, next.haptic.name)
+            .putBoolean(SWIPE, next.swipe)
             .putBoolean(MARATHI, next.marathi)
             .putBoolean(HINDI, next.hindi)
             .putString(LANGUAGE, next.language.name)
@@ -94,6 +99,8 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
             doubleSpacePeriod = prefs.getBoolean(PERIOD, d.doubleSpacePeriod),
             keySound = prefs.getBoolean(SOUND, d.keySound),
             vibrate = prefs.getBoolean(VIBRATE, d.vibrate),
+            haptic = HapticStrength.entries.find { it.name == prefs.getString(HAPTIC, null) } ?: d.haptic,
+            swipe = prefs.getBoolean(SWIPE, d.swipe),
             marathi = prefs.getBoolean(MARATHI, d.marathi),
             hindi = prefs.getBoolean(HINDI, d.hindi),
             language = KeyboardLanguage.entries.find { it.name == prefs.getString(LANGUAGE, null) } ?: d.language,
@@ -109,6 +116,8 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
         private const val PERIOD = "double_space_period"
         private const val SOUND = "key_sound"
         private const val VIBRATE = "vibrate"
+        private const val HAPTIC = "haptic_strength"
+        private const val SWIPE = "swipe"
         private const val MARATHI = "lang_marathi"
         private const val HINDI = "lang_hindi"
         private const val LANGUAGE = "language"

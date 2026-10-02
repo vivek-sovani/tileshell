@@ -10917,3 +10917,32 @@ User-requested, from their "Metro Keyboard for Android" design canvas. Plan in
   than one language is on and the field allows them; space gives it one unit
   (4.5 -> 3.5). Tap = next language. This also frees the space bar's sideways drag
   for phase 4's cursor control, which the canvas wanted on the same gesture.
+
+## Keyboard phase 4 — gestures
+- **One touch handler for the whole key area** (`KeyArea`) instead of one per key: long
+  press, the space-bar drag and swiping all cross keys. Key bounds are recorded on
+  layout and hit-tested (a touch in a gap goes to the nearest key).
+- **Letters now type on lift** (phase 1 typed on touch) so a long press can still turn
+  into an accent, as other Android keyboards do. Touching a new key commits one still
+  held, so fast two-thumb typing keeps its order. Backspace and shift still act on
+  touch; backspace repeats.
+- **Long press** (350 ms): the canvas's bar above the key (36x48 cells, white border,
+  shadow); the finger slides along it, lift types the choice. Top row: its digit first
+  (also drawn in the key's corner), then accents; a few symbols have variants (₹ on $).
+  In Marathi/Hindi only the digit (accented Latin has no Devanagari spelling).
+- **Space-bar drag** (past 12dp) moves the cursor one character per 10dp, via
+  `setSelection` (arrow keys if the field gives no extracted text); labels blank out,
+  the space bar turns accent with ‹ ›, the strip says what's happening. Free since the
+  language switch moved to the globe key.
+- **Swipe typing:** a swipe starts once a press on a letter moves 0.8 of a key. The
+  path is resampled to 32 points and compared with each candidate word's ideal path
+  through its keys' centres (mean distance in key widths + a frequency term);
+  candidates start near the first point, end near the last, pass near every letter in
+  order, and are at least moderately common. The best word goes in (a space before it
+  if needed, one after); the strip offers the alternatives and swaps on tap. English
+  letters only, not in Marathi/Hindi or private fields; can be turned off.
+- **Haptic strength** light / medium / strong through the vibrator (the view's haptic
+  constants can't be scaled), marked as touch feedback so Android's own setting still
+  applies; adds the normal VIBRATE permission (keyboard module only).
+- Testing note: `adb shell` inside a `while read` loop eats the loop's input — give it
+  `</dev/null` when injecting a swipe path with `input motionevent`.

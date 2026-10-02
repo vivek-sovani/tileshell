@@ -130,6 +130,7 @@ private fun KeyboardSettingsScreen(prefs: KeyboardPrefs) {
         }
 
         Toggle("Show suggestion strip", settings.suggestions, accent, tokens) { on -> prefs.update { it.copy(suggestions = on) } }
+        Toggle("Swipe across letters to type", settings.swipe, accent, tokens) { on -> prefs.update { it.copy(swipe = on) } }
         Toggle("Autocorrect misspelt words", settings.autocorrect, accent, tokens) { on -> prefs.update { it.copy(autocorrect = on) } }
 
         Group("Autocorrect level", tokens) {
@@ -153,6 +154,26 @@ private fun KeyboardSettingsScreen(prefs: KeyboardPrefs) {
         Toggle("Double-tap space for a full stop", settings.doubleSpacePeriod, accent, tokens) { on -> prefs.update { it.copy(doubleSpacePeriod = on) } }
         Toggle("Key press sound", settings.keySound, accent, tokens) { on -> prefs.update { it.copy(keySound = on) } }
         Toggle("Haptic feedback on key press", settings.vibrate, accent, tokens) { on -> prefs.update { it.copy(vibrate = on) } }
+
+        Group("Haptic strength", tokens) {
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                for (h in HapticStrength.entries) {
+                    HubFilter(
+                        h.label,
+                        selected = settings.vibrate && settings.haptic == h,
+                        tokens = tokens,
+                        accent = accent,
+                    ) {
+                        prefs.update { it.copy(haptic = h, vibrate = true) }
+                        KeyHaptics(context).play(HapticKind.KEY_TAP, h)
+                    }
+                }
+            }
+            Note(
+                "A short tick on each key, a firmer pulse on long-press, and a soft double tap when a swiped word is placed.",
+                tokens,
+            )
+        }
 
         Group("Learned words", tokens) {
             Row(verticalAlignment = Alignment.CenterVertically) {

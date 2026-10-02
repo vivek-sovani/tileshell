@@ -37,6 +37,12 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`metro-keyboard` branch — keyboard phase 4: gestures.** One touch handler for the key
+  area (`KeyArea`): long press opens the accent bar (top row: digit first, shown in the
+  corner); dragging the space bar moves the cursor (labels blank, ‹ ›); swiping across
+  letters types a word (accent trail; alternatives in the strip, tap to swap). Letters
+  now type on lift. Haptic strength light/medium/strong (VIBRATE permission). Checked
+  on the emulator: á from the bar, cursor drag, swiped "home" → swapped to "hone".
 - **`metro-keyboard` branch — keyboard phase 3: Marathi and Hindi by transliteration.**
   Type in English letters (composing, underlined); the strip offers Devanagari spellings
   ranked by Tatoeba-derived word lists; space puts in the best; picks are remembered.
