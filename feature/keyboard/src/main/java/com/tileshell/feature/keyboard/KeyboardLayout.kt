@@ -66,6 +66,9 @@ enum class KeyboardLayer {
     /** Number and phone fields (canvas "Number & phone keypad"). */
     NUMPAD,
     CLIPBOARD,
+
+    /** Voice typing (canvas "Voice typing"). */
+    VOICE,
 }
 
 object KeyboardLayouts {
@@ -195,7 +198,7 @@ object KeyboardLayouts {
             KeyboardLayer.SYMBOLS_1 -> symbols1
             KeyboardLayer.SYMBOLS_2 -> symbols2
             KeyboardLayer.NUMPAD -> return numpad
-            KeyboardLayer.EMOJI, KeyboardLayer.CLIPBOARD -> return emptyList()
+            KeyboardLayer.EMOJI, KeyboardLayer.CLIPBOARD, KeyboardLayer.VOICE -> return emptyList()
         }
         if (!languageKey) return rows
         val bottom = rows.last().keys.flatMap { key ->

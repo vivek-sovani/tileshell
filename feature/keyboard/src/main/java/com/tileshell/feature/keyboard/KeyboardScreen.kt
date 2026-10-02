@@ -164,6 +164,7 @@ internal fun KeyboardScreen(
                     when (controller.layer) {
                         KeyboardLayer.EMOJI -> EmojiPanel(controller, colors, accent, keyHeight)
                         KeyboardLayer.CLIPBOARD -> ClipboardPanel(controller, colors, accent)
+                        KeyboardLayer.VOICE -> VoicePanel(controller, colors, accent)
                         else -> KeyArea(
                             controller, colors, accent, keyHeight,
                             letterSp = if (keyboard.oneHand == OneHand.OFF) 22 else 20,
@@ -193,7 +194,7 @@ private fun Strip(controller: KeyboardController, colors: KeyboardColors, accent
         when {
             controller.emojiSearch -> EmojiSearchStrip(controller, colors, accent)
             controller.layer == KeyboardLayer.EMOJI -> EmojiSearchBox(controller, colors)
-            controller.toolsOpen || controller.layer == KeyboardLayer.CLIPBOARD ->
+            controller.toolsOpen || controller.layer == KeyboardLayer.CLIPBOARD || controller.layer == KeyboardLayer.VOICE ->
                 ToolsRow(controller, colors, accent, oneHand)
             else -> when (controller.stripMode) {
                 StripMode.INCOGNITO -> {

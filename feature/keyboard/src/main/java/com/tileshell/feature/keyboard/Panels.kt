@@ -67,9 +67,11 @@ private fun Modifier.underline(on: Boolean, accent: Color): Modifier =
 @Composable
 internal fun ToolsRow(controller: KeyboardController, colors: KeyboardColors, accent: Color, oneHand: Boolean) {
     val clipboardOpen = controller.layer == KeyboardLayer.CLIPBOARD
+    val voiceOpen = controller.layer == KeyboardLayer.VOICE
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround, verticalAlignment = Alignment.CenterVertically) {
-        Tool(PanelIcon.MENU, "close tools", controller.toolsOpen && !clipboardOpen, colors, accent) { controller.toggleTools() }
+        Tool(PanelIcon.MENU, "close tools", controller.toolsOpen && !clipboardOpen && !voiceOpen, colors, accent) { controller.toggleTools() }
         Tool(PanelIcon.CLIPBOARD, "clipboard", clipboardOpen, colors, accent) { controller.toggleClipboard() }
+        Tool(PanelIcon.MIC, "voice typing", voiceOpen, colors, accent) { controller.toggleVoice() }
         if (controller.language.indic) {
             // Devanagari keys ↔ English letters for मराठी / हिन्दी.
             TextTool(if (controller.devanagariKeys) "abc" else "अ", if (controller.devanagariKeys) "type in English letters" else "Devanagari keys", colors) {
@@ -426,5 +428,64 @@ internal fun OneHandPanel(keysOnRight: Boolean, controller: KeyboardController, 
                 .semantics { contentDescription = "full-size keyboard" },
             contentAlignment = Alignment.Center,
         ) { PanelIconView(PanelIcon.FULL_SIZE, colors.text) }
+    }
+}
+
+/**
+ * The voice panel (canvas "Voice typing"): the big accent mic (tap to stop, or
+ * to listen again), "listening…" with what's heard so far, the language, and
+ * abcd back to the keys.
+ */
+@Composable
+internal fun VoicePanel(controller: KeyboardController, colors: KeyboardColors, accent: Color) {
+    val voice = controller.voice
+    val state = voice.state
+    val listening = state == VoiceState.Listening
+    Box(Modifier.fillMaxSize()) {
+        Column(
+            Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                Modifier
+                    .size(88.dp)
+                    .background(if (listening) accent else colors.functionKey, androidx.compose.foundation.shape.CircleShape)
+                    .clickable { controller.voiceTap() }
+                    .semantics { contentDescription = if (listening) "stop listening" else "start listening" },
+                contentAlignment = Alignment.Center,
+            ) { PanelIconView(PanelIcon.MIC, if (listening) Color.White else colors.text, size = 36.dp) }
+            val headline = when {
+                listening && voice.partial.isNotEmpty() -> voice.partial
+                listening -> "listening…"
+                state is VoiceState.Problem -> state.message
+                else -> "tap to speak"
+            }
+            BasicText(
+                headline,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                style = TextStyle(
+                    color = colors.text,
+                    fontSize = if (state is VoiceState.Problem) 17.sp else 26.sp,
+                    fontWeight = FontWeight.Light,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                ),
+            )
+            BasicText(
+                VoiceTyping.labelFor(controller.language) + if (listening) " · tap to stop" else "",
+                style = TextStyle(color = colors.secondary, fontSize = 13.sp),
+            )
+        }
+        Box(
+            Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 6.dp, bottom = 4.dp)
+                .size(64.dp, 44.dp)
+                .background(colors.functionKey)
+                .clickable { controller.closeVoice() }
+                .semantics { contentDescription = "letters" },
+            contentAlignment = Alignment.Center,
+        ) { KeyLabel("abcd", colors.text, 15, FontWeight.SemiBold) }
     }
 }

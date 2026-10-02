@@ -50,6 +50,7 @@ enum class PanelIcon(
     SPACE(listOf("M4.5 10 V15 H19.5 V10"), stroke = 1.8f),
     PIN(listOf("M9 4 H15 M10 4 V10 L7 13 H17 L14 10 V4 M12 13 V20"), stroke = 1.6f),
     CLOSE(listOf("M6 6 L18 18 M18 6 L6 18"), stroke = 1.8f),
+    MIC(listOf("M9 6 A3 3 0 0 1 15 6 V11 A3 3 0 0 1 9 11 Z", "M5.5 11.5 A6.5 6.5 0 0 0 18.5 11.5 M12 18 V21.5")),
 }
 
 @Composable

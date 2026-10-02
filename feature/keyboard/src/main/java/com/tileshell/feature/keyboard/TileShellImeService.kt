@@ -115,6 +115,11 @@ class TileShellImeService : InputMethodService(), LifecycleOwner, SavedStateRegi
         controller.onStartInput(info)
     }
 
+    override fun onFinishInputView(finishingInput: Boolean) {
+        super.onFinishInputView(finishingInput)
+        controller.onHidden()
+    }
+
     override fun onUpdateSelection(
         oldSelStart: Int,
         oldSelEnd: Int,

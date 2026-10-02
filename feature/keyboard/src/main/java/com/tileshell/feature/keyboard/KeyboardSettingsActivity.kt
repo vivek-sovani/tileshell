@@ -181,6 +181,15 @@ private fun KeyboardSettingsScreen(prefs: KeyboardPrefs) {
             tokens,
         )
 
+        Group("Voice typing", tokens) {
+            Note(
+                "The mic in the tools row types what you say in the current language — English (India), मराठी or हिन्दी. " +
+                    "It uses your phone's speech recognition (Google's on most phones), on the phone when its offline voice pack is installed. " +
+                    "TileShell keeps no recordings.",
+                tokens,
+            )
+        }
+
         Group("Learned words", tokens) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 BasicText(

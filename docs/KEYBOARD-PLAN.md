@@ -22,13 +22,13 @@ dark / light). The canvas's own 20-colour Metro grid is not used.
 3. **Marathi / Hindi** — transliteration (rule table → candidates, ranked by
    Marathi/Hindi word lists from Tatoeba, CC-BY 2.0 FR; learns picks; offline only);
    a globe key (beside emoji) switches languages. ✅ built (transliteration only)
-   *Deferred at the user's request:* the Devanagari मराठी key layout.
+   Devanagari (InScript) key layout added later at the user's request, switchable.
    The space bar's sideways drag is left free for phase 4's cursor control.
 4. **Gestures** — long-press accents + top-row digit hints, space-bar cursor drag,
    swipe typing with accent trail, haptic strength. ✅ built
 5. **Panels** — full emoji (categories, recents, search), clipboard (1 h, pin),
    number/phone keypad, one-handed mode. ✅ built
-6. **Voice** — SpeechRecognizer, microphone permission, privacy policy.
-   ⏸ deferred at the user's request (2026-10-02); no microphone permission is added.
+6. **Voice** — SpeechRecognizer, microphone permission, privacy policy. ✅ built
+   (brought back by the user the same day; privacy policy / Data safety still to do).
 7. **Release** — privacy policy / Data safety (no keystrokes leave the phone),
    TalkBack, about/guide, performance, on-device pass, release decision on the switch.

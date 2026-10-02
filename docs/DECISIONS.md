@@ -11068,3 +11068,17 @@ English but can switch.
   which is for English spellings); typed words are learned; no swipe on these keys.
 - `TypingRules.currentWord` counts vowel signs / virama (marks, not letters) as word
   characters, so a Devanagari word is found whole.
+
+## Voice typing (phase 6, brought back by the user)
+- Android's `SpeechRecognizer` (Google's recogniser on most phones), in the keyboard's
+  language: en-IN, mr-IN, hi-IN — Marathi/Hindi come back in Devanagari. Offline first
+  (`EXTRA_PREFER_OFFLINE`); if the phone has no offline pack for that language, it
+  retries online once (the emulator had none for Marathi and just failed).
+- The canvas's voice panel: 88dp accent mic (tap to stop and put the text in, or to
+  listen again), "listening…" then the words as they're heard, the language line,
+  abcd back. Mic in the tools row (menu · clipboard · voice · [अ] · one-handed ·
+  settings). Stops when the keyboard hides.
+- `RECORD_AUDIO` is asked for by `VoicePermissionActivity` (a keyboard can't ask);
+  the module also declares the RecognitionService `<queries>` Android 11+ needs.
+- TileShell keeps no audio; settings say so. **Release:** privacy policy and Play's
+  Data safety need a voice / microphone entry before this ships (phase 7).

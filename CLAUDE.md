@@ -37,6 +37,12 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`metro-keyboard` branch — Devanagari keys and voice typing.** InScript Devanagari
+  keyboard for मराठी/हिन्दी (settings switch + अ/abc in the tools row). Voice typing in
+  the current language (en-IN/mr-IN/hi-IN) with the canvas's voice panel; RECORD_AUDIO
+  asked by `VoicePermissionActivity`; offline first, online fallback. Names/compounds:
+  Marathi also loads Hindi's words, a names list, compound fallback (`NamesTest`).
+  Accuracy measured by `AccuracyEvalTest` (floors). Privacy policy needs a voice entry.
 - **`metro-keyboard` branch — keyboard phase 5: panels.** Tools row (menu icon at the start
   of an idle strip): clipboard, one-handed, settings. Emoji panel with the canvas's tabs,
   recents and name search (Unicode emoji-test.txt). Clipboard: an hour unless pinned,

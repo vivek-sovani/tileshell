@@ -85,6 +85,9 @@ class KeyboardController(
 
     private val clipStore by lazy { ClipStore(java.io.File(service.filesDir, "keyboard_clips.txt")) }
 
+    /** Voice typing, in the current language; the heard text goes in like a typed word. */
+    val voice by lazy { VoiceTyping(service) { text -> commitVoice(text) } }
+
     /** The space bar is being dragged to move the cursor: labels blank out. */
     var cursorMode by mutableStateOf(false)
         private set
@@ -180,6 +183,7 @@ class KeyboardController(
         resetTransient()
         toolsOpen = false
         emojiSearch = false
+        if (layer == KeyboardLayer.VOICE) voice.stop()
         language = effectiveLanguage()
         ensureLexicon(KeyboardLanguage.ENGLISH)
         ensureLexicon(language)
@@ -392,6 +396,53 @@ class KeyboardController(
             kotlinx.coroutines.delay(ClipStore.FRESH_MS)
             if (freshClip == text.trim()) freshClip = null
         }
+    }
+
+    // ---- voice typing ----
+
+    /** The tools row's mic: opens the voice panel and starts listening (again: back to the keys). */
+    fun toggleVoice() {
+        if (layer == KeyboardLayer.VOICE) {
+            closeVoice()
+            return
+        }
+        commitTranslit(separator = "")
+        resetTransient()
+        layer = KeyboardLayer.VOICE
+        voice.start(language)
+    }
+
+    /** The big mic: stop and put in what was heard, or listen (again). */
+    fun voiceTap() {
+        when (voice.state) {
+            VoiceState.Listening -> voice.finish()
+            else -> {
+                voice.clearProblem()
+                voice.start(language)
+            }
+        }
+    }
+
+    fun closeVoice() {
+        voice.stop()
+        voice.clearProblem()
+        layer = KeyboardLayer.LETTERS
+        toolsOpen = false
+    }
+
+    /** The keyboard was hidden: stop listening. */
+    fun onHidden() {
+        if (layer == KeyboardLayer.VOICE) closeVoice()
+    }
+
+    private fun commitVoice(text: String) {
+        val ic = service.currentInputConnection ?: return
+        val before = ic.getTextBeforeCursor(1, 0)
+        val lead = if (!before.isNullOrEmpty() && !before.last().isWhitespace() && before.last() !in OPENERS) " " else ""
+        ic.commitText(lead + text + " ", 1)
+        autoSpaced = true
+        haptic(HapticKind.CONFIRM)
+        refresh()
     }
 
     /** The tools row's अ / abc button: Devanagari keys ↔ English letters. */
