@@ -2228,6 +2228,7 @@ private fun PodcastsPage(context: Context, accent: Color, tokens: ColorTokens) {
     var categoryResults by remember { mutableStateOf<List<PodcastSearchResult>>(emptyList()) }
     var loadingCategory by remember { mutableStateOf(false) }
     var openFeedUrl by remember { mutableStateOf<String?>(null) }
+    var browseOpen by remember { mutableStateOf(false) }
     val categoryActive = selectedGenre != null || selectedCountry != null
 
     LaunchedEffect(query) {
@@ -2293,15 +2294,30 @@ private fun PodcastsPage(context: Context, accent: Color, tokens: ColorTokens) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        LibrarySearchField(query, { query = it }, "search podcasts", tokens)
-        if (query.isBlank()) {
-            CategoryChipRow(PODCAST_GENRES.map { it.label }, selectedGenre?.label, accent, tokens) { label ->
-                val genre = PODCAST_GENRES.first { it.label == label }
-                selectedGenre = if (selectedGenre == genre) null else genre
-            }
-            CategoryChipRow(PODCAST_COUNTRIES.map { it.label }, selectedCountry?.label, accent, tokens) { label ->
-                val country = PODCAST_COUNTRIES.first { it.label == label }
-                selectedCountry = if (selectedCountry == country) null else country
+        SearchBrowseToggle(
+            expanded = browseOpen,
+            onExpandedChange = { browseOpen = it },
+            placeholder = "search or browse podcasts",
+            summary = query.trim().ifBlank { null }
+                ?: listOfNotNull(selectedGenre?.label, selectedCountry?.label).joinToString(" · ").ifBlank { null },
+            onClear = {
+                query = ""
+                selectedGenre = null
+                selectedCountry = null
+            },
+            accent = accent,
+            tokens = tokens,
+        ) {
+            LibrarySearchField(query, { query = it }, "search podcasts", tokens)
+            if (query.isBlank()) {
+                CategoryChipRow(PODCAST_GENRES.map { it.label }, selectedGenre?.label, accent, tokens) { label ->
+                    val genre = PODCAST_GENRES.first { it.label == label }
+                    selectedGenre = if (selectedGenre == genre) null else genre
+                }
+                CategoryChipRow(PODCAST_COUNTRIES.map { it.label }, selectedCountry?.label, accent, tokens) { label ->
+                    val country = PODCAST_COUNTRIES.first { it.label == label }
+                    selectedCountry = if (selectedCountry == country) null else country
+                }
             }
         }
         when {
@@ -2326,7 +2342,7 @@ private fun PodcastsPage(context: Context, accent: Color, tokens: ColorTokens) {
                 onToggleSubscribe = ::toggleSubscribe,
             )
             subscriptions.isEmpty() && recents.isEmpty() ->
-                LibraryEmptyState("search, or pick a category above, to find podcasts", tokens)
+                LibraryEmptyState("tap search to find podcasts or pick a category", tokens)
             else -> Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -2365,6 +2381,87 @@ private fun PodcastsPage(context: Context, accent: Color, tokens: ColorTokens) {
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * The podcasts/radio tabs' search box and category filters, folded behind
+ * one search row (user-requested: in landscape the three filter rows filled
+ * the page and the list below had no room to scroll). Folded, the row names
+ * the active search or filters, with × to clear them; tapping it opens the
+ * box and filters, and "hide" folds them away again, keeping the choice so
+ * the results get the whole page.
+ */
+@Composable
+private fun SearchBrowseToggle(
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    placeholder: String,
+    summary: String?,
+    onClear: () -> Unit,
+    accent: Color,
+    tokens: ColorTokens,
+    content: @Composable () -> Unit,
+) {
+    if (expanded) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("search & browse", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.weight(1f))
+            Text(
+                "hide",
+                color = accent,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClickLabel = "hide search and categories",
+                    ) { onExpandedChange(false) }
+                    .padding(vertical = 4.dp, horizontal = 2.dp),
+            )
+        }
+        content()
+        return
+    }
+    Row(
+        modifier = Modifier
+            .padding(horizontal = 18.dp)
+            .padding(bottom = 12.dp)
+            .fillMaxWidth()
+            .height(44.dp)
+            .background(tokens.chip, shape = RoundedCornerShape(4.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClickLabel = "show search and categories",
+            ) { onExpandedChange(true) }
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(TileIcons["search"], contentDescription = null, tint = if (summary != null) accent else tokens.fgDim, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(
+            summary ?: placeholder,
+            color = if (summary != null) tokens.fg else tokens.fgDim,
+            fontSize = 14.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        if (summary != null) {
+            Icon(
+                TileIcons["close"],
+                contentDescription = "clear search and categories",
+                tint = tokens.fgDim,
+                modifier = Modifier.size(16.dp).clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClear,
+                ),
+            )
         }
     }
 }
@@ -2679,6 +2776,7 @@ private fun RadioPage(context: Context, accent: Color, tokens: ColorTokens) {
     var selectedCountry by remember { mutableStateOf<RadioCountry?>(null) }
     var categoryResults by remember { mutableStateOf<List<RadioStation>>(emptyList()) }
     var loadingCategory by remember { mutableStateOf(false) }
+    var browseOpen by remember { mutableStateOf(false) }
     val categoryActive = selectedGenre != null || selectedLanguage != null || selectedCountry != null
 
     LaunchedEffect(query) {
@@ -2708,17 +2806,33 @@ private fun RadioPage(context: Context, accent: Color, tokens: ColorTokens) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        LibrarySearchField(query, { query = it }, "search radio stations", tokens)
-        if (query.isBlank()) {
-            CategoryChipRow(RADIO_GENRES, selectedGenre, accent, tokens) { tag ->
-                selectedGenre = tag.takeUnless { it == selectedGenre }
-            }
-            CategoryChipRow(RADIO_LANGUAGES, selectedLanguage, accent, tokens) { lang ->
-                selectedLanguage = lang.takeUnless { it == selectedLanguage }
-            }
-            CategoryChipRow(RADIO_COUNTRIES.map { it.label }, selectedCountry?.label, accent, tokens) { label ->
-                val country = RADIO_COUNTRIES.first { it.label == label }
-                selectedCountry = if (selectedCountry == country) null else country
+        SearchBrowseToggle(
+            expanded = browseOpen,
+            onExpandedChange = { browseOpen = it },
+            placeholder = "search or browse radio stations",
+            summary = query.trim().ifBlank { null }
+                ?: listOfNotNull(selectedGenre, selectedLanguage, selectedCountry?.label).joinToString(" · ").ifBlank { null },
+            onClear = {
+                query = ""
+                selectedGenre = null
+                selectedLanguage = null
+                selectedCountry = null
+            },
+            accent = accent,
+            tokens = tokens,
+        ) {
+            LibrarySearchField(query, { query = it }, "search radio stations", tokens)
+            if (query.isBlank()) {
+                CategoryChipRow(RADIO_GENRES, selectedGenre, accent, tokens) { tag ->
+                    selectedGenre = tag.takeUnless { it == selectedGenre }
+                }
+                CategoryChipRow(RADIO_LANGUAGES, selectedLanguage, accent, tokens) { lang ->
+                    selectedLanguage = lang.takeUnless { it == selectedLanguage }
+                }
+                CategoryChipRow(RADIO_COUNTRIES.map { it.label }, selectedCountry?.label, accent, tokens) { label ->
+                    val country = RADIO_COUNTRIES.first { it.label == label }
+                    selectedCountry = if (selectedCountry == country) null else country
+                }
             }
         }
         when {
@@ -2729,7 +2843,7 @@ private fun RadioPage(context: Context, accent: Color, tokens: ColorTokens) {
             categoryActive && categoryResults.isEmpty() -> LibraryEmptyState("no matches", tokens)
             categoryActive -> RadioStationList(categoryResults, favorites, context, accent, tokens)
             favorites.isEmpty() && recents.isEmpty() ->
-                LibraryEmptyState("search, or pick a category above, to find radio stations", tokens)
+                LibraryEmptyState("tap search to find radio stations or pick a category", tokens)
             else -> RadioStationList(
                 favorites.map { it.toRadioStation() },
                 favorites,

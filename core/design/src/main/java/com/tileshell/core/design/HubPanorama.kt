@@ -1,5 +1,10 @@
 package com.tileshell.core.design
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -16,13 +21,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
@@ -88,7 +98,31 @@ fun HubPanorama(
     // release build failed Android's verifier at launch (VerifyError in
     // StartScreenKt).
     var widthPx by remember { mutableIntStateOf(0) }
-    Box(modifier = modifier.fillMaxSize().onSizeChanged { widthPx = it.width }) {
+    var heightPx by remember { mutableIntStateOf(0) }
+    // On a short screen (landscape) the title, with whatever sits under it
+    // (people's search), folds away while a section's list is scrolled up and
+    // comes back on a scroll down, so the list gets the room (user-requested).
+    // Portrait keeps it, as Lumia did.
+    val short = heightPx in 1 until widthPx
+    var titleHidden by remember { mutableStateOf(false) }
+    val titleScroll = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y < -2f) titleHidden = true
+                else if (available.y > 2f) titleHidden = false
+                return Offset.Zero
+            }
+        }
+    }
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .onSizeChanged {
+                widthPx = it.width
+                heightPx = it.height
+            }
+            .nestedScroll(titleScroll),
+    ) {
         val marginPx = with(density) { PANORAMA_MARGIN.toPx() }
         // A long title ("productivity") slides until most of it has shown; a
         // short one still drifts a quarter-screen, as Lumia's did.
@@ -96,23 +130,31 @@ fun HubPanorama(
         val pageSize = if (widthPx == 0) PageSize.Fill
             else PageSize.Fixed(minOf(with(density) { widthPx.toDp() } - PANORAMA_PEEK, PANORAMA_MAX_SECTION))
         Column(modifier = Modifier.fillMaxSize()) {
-            Box(modifier = Modifier.fillMaxWidth().clipToBounds()) {
-                Text(
-                    text = title,
-                    style = titleStyle,
-                    maxLines = 1,
-                    softWrap = false,
-                    modifier = Modifier
-                        .wrapContentWidth(Alignment.Start, unbounded = true)
-                        .padding(start = PANORAMA_MARGIN - 4.dp, top = 6.dp)
-                        .graphicsLayer {
-                            val last = (pagerState.pageCount - 1).coerceAtLeast(1)
-                            val position = pagerState.currentPage + pagerState.currentPageOffsetFraction
-                            translationX = -(position / last).coerceIn(0f, 1f) * travelPx
-                        },
-                )
+            AnimatedVisibility(
+                visible = !(short && titleHidden),
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut(),
+            ) {
+                Column {
+                    Box(modifier = Modifier.fillMaxWidth().clipToBounds()) {
+                        Text(
+                            text = title,
+                            style = titleStyle,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier
+                                .wrapContentWidth(Alignment.Start, unbounded = true)
+                                .padding(start = PANORAMA_MARGIN - 4.dp, top = 6.dp)
+                                .graphicsLayer {
+                                    val last = (pagerState.pageCount - 1).coerceAtLeast(1)
+                                    val position = pagerState.currentPage + pagerState.currentPageOffsetFraction
+                                    translationX = -(position / last).coerceIn(0f, 1f) * travelPx
+                                },
+                        )
+                    }
+                    belowTitle()
+                }
             }
-            belowTitle()
             HorizontalPager(
                 state = pagerState,
                 pageSize = pageSize,

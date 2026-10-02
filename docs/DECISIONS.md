@@ -10830,3 +10830,13 @@ notes/tasks editors) stay on Start's half. Full width alone would just make one 
 so `HubPanorama` caps a section at 400dp: portrait phones (≤456dp wide) are unchanged, while
 landscape shows about two sections with the next header peeking in — closer to a WP panorama.
 
+## Podcasts/radio filters fold away; hub titles fold in landscape
+User-reported: in landscape, the podcasts and radio tabs showed only the search box and the
+genre/language/country rows, so the list underneath couldn't scroll. The filters now sit behind
+one search row (in portrait too, for consistency), and "hide" keeps the chosen filter so the
+results get the whole page. For more room in general (user: "title pop up pop off"), a hub's
+title folds while the content scrolls up and comes back on a scroll down, but only when the
+panorama is wider than tall. Portrait keeps the always-visible Lumia title. Note: a section that
+doesn't scroll can't bring the title back by itself; the title returns once you scroll down in
+any section.
+

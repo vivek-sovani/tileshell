@@ -37,6 +37,13 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — landscape room for hub lists.** User-requested. Music's podcasts and radio tabs
+  fold the search box and category filter rows behind one "search or browse …" row
+  (`SearchBrowseToggle`). Tap it to open them; "hide" folds them again but keeps the choice. Folded,
+  the row shows the active search or filters with × to clear. In landscape, every hub's big title
+  (and people's search under it) folds away while a list scrolls up and returns on a scroll down
+  (`HubPanorama`, nested-scroll; portrait keeps the title). Checked on the emulator (release
+  build); installed on the phone.
 - **`main` — in landscape, hubs fill the whole screen.** User-requested: Start and glance stay
   half and half, but a hub (weather, music, people, calendar, productivity, battery, money,
   Panchang) now covers the full width instead of Start's half (`HubScreensLayer` passes
