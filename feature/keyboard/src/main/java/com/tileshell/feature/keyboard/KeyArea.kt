@@ -46,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -95,7 +96,14 @@ private data class Popup(val keyId: String, val options: List<String>, val left:
  * still held, so fast two-thumb typing keeps its order.
  */
 @Composable
-internal fun KeyArea(controller: KeyboardController, colors: KeyboardColors, accent: Color, keyHeight: Dp) {
+internal fun KeyArea(
+    controller: KeyboardController,
+    colors: KeyboardColors,
+    accent: Color,
+    keyHeight: Dp,
+    /** Letter size: 22 (spec), 20 in one-handed mode. */
+    letterSp: Int = 22,
+) {
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
     val rows = KeyboardLayouts.rowsFor(controller.layer, controller.languageKey)
@@ -316,6 +324,7 @@ internal fun KeyArea(controller: KeyboardController, colors: KeyboardColors, acc
                             colors = colors,
                             accent = accent,
                             topRowDigit = if (r == 0 && controller.layer == KeyboardLayer.LETTERS) KeyPopups.topRowDigits[key.label] else null,
+                            letterSp = letterSp,
                             modifier = Modifier.weight(key.units).height(keyHeight),
                         )
                     }
@@ -386,6 +395,7 @@ private fun KeyFace(
     accent: Color,
     topRowDigit: String?,
     modifier: Modifier,
+    letterSp: Int = 22,
 ) {
     val shift = controller.shift
     val cursor = controller.cursorMode
@@ -401,7 +411,7 @@ private fun KeyFace(
         KeyKind.CHAR -> if (shift.upperCase) key.label.uppercase() else key.label
         KeyKind.ENTER -> controller.enterAction.label ?: ""
         KeyKind.SPACE -> controller.spaceLabel
-        else -> key.label
+        else -> key.display ?: key.label
     }
     val description = when (key.kind) {
         KeyKind.SHIFT -> when (shift) {
@@ -436,8 +446,25 @@ private fun KeyFace(
             KeyKind.ENTER ->
                 if (controller.enterAction == EnterAction.NEW_LINE) KeyIcon(KeyGlyph.ENTER, fg)
                 else KeyLabel(label, fg, 15, FontWeight.SemiBold)
-            KeyKind.CHAR, KeyKind.SYMBOL -> KeyLabel(label, fg, 22, FontWeight.Normal)
-            KeyKind.SPACE -> KeyLabel(label, fg, 13, FontWeight.Normal)
+            KeyKind.CHAR, KeyKind.SYMBOL ->
+                if (controller.layer == KeyboardLayer.NUMPAD) {
+                    // The number pad: 24 digit, its phone letters under it.
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        KeyLabel(label, fg, 24, FontWeight.Normal)
+                        key.sub?.let {
+                            BasicText(
+                                it,
+                                modifier = Modifier.padding(top = 3.dp),
+                                style = TextStyle(color = if (hot) Color.White else colors.secondary, fontSize = 10.sp, letterSpacing = 0.08.em),
+                            )
+                        }
+                    }
+                } else {
+                    KeyLabel(label, fg, letterSp, FontWeight.Normal)
+                }
+            KeyKind.SPACE ->
+                if (controller.layer == KeyboardLayer.NUMPAD) PanelIconView(PanelIcon.SPACE, fg, size = 24.dp)
+                else KeyLabel(label, fg, 13, FontWeight.Normal)
             KeyKind.LAYER, KeyKind.PAGE -> KeyLabel(label, fg, 15, FontWeight.SemiBold)
         }
         if (topRowDigit != null) {

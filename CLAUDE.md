@@ -37,6 +37,13 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`metro-keyboard` branch — keyboard phase 5: panels.** Tools row (menu icon at the start
+  of an idle strip): clipboard, one-handed, settings. Emoji panel with the canvas's tabs,
+  recents and name search (Unicode emoji-test.txt). Clipboard: an hour unless pinned,
+  sensitive copies skipped, fresh-copy paste chip. Number pad for number/phone/date
+  fields. One-handed side panel. Checked on the emulator (tools, clip copy → chip →
+  panel → paste, emoji tabs, "mang" → 🥭, one-handed); number pad not yet seen on
+  screen. Installed on the phone; Start and the keyboard come up.
 - **`metro-keyboard` branch — swipe fixes.** "congrats" (rare in the AOSP list) now
   swipes: no frequency cut-off, a chat-words list, learning from strip picks, scoring
   tuned on sloppy paths (ends, length). Swipe works in मराठी / हिन्दी via romanised word

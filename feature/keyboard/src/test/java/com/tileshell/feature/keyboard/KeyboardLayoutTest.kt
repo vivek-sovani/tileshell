@@ -49,8 +49,16 @@ class KeyboardLayoutTest {
     }
 
     @Test
-    fun `emoji grid fills four rows of eight`() {
-        assertEquals(32, KeyboardLayouts.emoji.size)
+    fun `number pad is four by four with the phone letters`() {
+        val pad = KeyboardLayouts.numpad
+        assertEquals(listOf(4, 4, 4, 4), pad.map { it.keys.size })
+        assertEquals("ABC", pad[0].keys[1].sub)
+        assertEquals("WXYZ", pad[2].keys[2].sub)
+        assertEquals("*#", pad[3].keys[0].display)
+        assertEquals(KeyKind.ENTER, pad[3].keys[3].kind)
+        assertTrue(pad[0].keys[3].isFunction)
+        assertTrue("#" in KeyPopups.options(pad[3].keys[0], upper = false))
+        assertEquals(listOf("+"), KeyPopups.options(pad[3].keys[1], upper = false))
     }
 
     @Test

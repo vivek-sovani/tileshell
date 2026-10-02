@@ -1,6 +1,9 @@
 package com.tileshell.feature.keyboard
 
+import android.content.ClipDescription
+import android.content.ClipboardManager
 import android.inputmethodservice.InputMethodService
+import android.os.Build
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.runtime.mutableIntStateOf
@@ -42,6 +45,22 @@ class TileShellImeService : InputMethodService(), LifecycleOwner, SavedStateRegi
         savedStateController.performRestore(null)
         lifecycleRegistry.currentState = Lifecycle.State.RESUMED
         scope.launch { prefs.settings.drop(1).collect { controller.onSettingsChanged() } }
+        // Copies feed the clipboard panel; a keyboard in use may read the clipboard.
+        clipboard?.addPrimaryClipChangedListener(clipListener)
+    }
+
+    private val clipboard by lazy { getSystemService(ClipboardManager::class.java) }
+
+    private val clipListener = ClipboardManager.OnPrimaryClipChangedListener {
+        val cm = clipboard ?: return@OnPrimaryClipChangedListener
+        runCatching {
+            val description = cm.primaryClipDescription
+            // Password managers and others mark what mustn't be kept.
+            val sensitive = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                description?.extras?.getBoolean(ClipDescription.EXTRA_IS_SENSITIVE) == true
+            val text = cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(this)?.toString()
+            controller.onClipboardChanged(text, sensitive)
+        }
     }
 
     /**
@@ -100,6 +119,7 @@ class TileShellImeService : InputMethodService(), LifecycleOwner, SavedStateRegi
     override fun onEvaluateFullscreenMode(): Boolean = false
 
     override fun onDestroy() {
+        runCatching { clipboard?.removePrimaryClipChangedListener(clipListener) }
         scope.cancel()
         lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
         super.onDestroy()

@@ -27,7 +27,7 @@ dark / light). The canvas's own 20-colour Metro grid is not used.
 4. **Gestures** — long-press accents + top-row digit hints, space-bar cursor drag,
    swipe typing with accent trail, haptic strength. ✅ built
 5. **Panels** — full emoji (categories, recents, search), clipboard (1 h, pin),
-   number/phone keypad, one-handed mode.
+   number/phone keypad, one-handed mode. ✅ built
 6. **Voice** — SpeechRecognizer, microphone permission, privacy policy.
 7. **Release** — privacy policy / Data safety (no keystrokes leave the phone),
    TalkBack, about/guide, performance, on-device pass, release decision on the switch.

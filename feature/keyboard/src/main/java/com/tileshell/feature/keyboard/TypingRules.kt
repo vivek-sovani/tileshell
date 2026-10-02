@@ -139,10 +139,10 @@ object TypingRules {
         return t[t.length - 2].isLetterOrDigit()
     }
 
-    /** Number, phone and date fields open on the digits page. */
+    /** Number, phone and date fields open on the number pad. */
     fun startLayer(inputType: Int): KeyboardLayer = when (inputType and InputType.TYPE_MASK_CLASS) {
         InputType.TYPE_CLASS_NUMBER, InputType.TYPE_CLASS_PHONE, InputType.TYPE_CLASS_DATETIME ->
-            KeyboardLayer.SYMBOLS_1
+            KeyboardLayer.NUMPAD
         else -> KeyboardLayer.LETTERS
     }
 

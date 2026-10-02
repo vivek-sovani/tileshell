@@ -60,6 +60,31 @@ class KeyboardController(
     var language by mutableStateOf(KeyboardLanguage.ENGLISH)
         private set
 
+    /** The strip's tools row is open (the menu tool). */
+    var toolsOpen by mutableStateOf(false)
+        private set
+
+    var emojiTab by mutableStateOf(EmojiTab.SMILEYS)
+        private set
+
+    /** Typing a search into the emoji panel's box: keys go to [emojiQuery], not the field. */
+    var emojiSearch by mutableStateOf(false)
+        private set
+    var emojiQuery by mutableStateOf("")
+        private set
+    var emojiCatalog by mutableStateOf<EmojiCatalog?>(null)
+        private set
+
+    /** The clipboard panel's clips, newest first. */
+    var clips by mutableStateOf<List<Clip>>(emptyList())
+        private set
+
+    /** A copy made a moment ago, offered as a one-tap paste in the strip. */
+    var freshClip by mutableStateOf<String?>(null)
+        private set
+
+    private val clipStore by lazy { ClipStore(java.io.File(service.filesDir, "keyboard_clips.txt")) }
+
     /** The space bar is being dragged to move the cursor: labels blank out. */
     var cursorMode by mutableStateOf(false)
         private set
@@ -148,6 +173,8 @@ class KeyboardController(
         latin.clear()
         translitBest = null
         resetTransient()
+        toolsOpen = false
+        emojiSearch = false
         language = effectiveLanguage()
         ensureLexicon(KeyboardLanguage.ENGLISH)
         ensureLexicon(language)
@@ -192,6 +219,7 @@ class KeyboardController(
     }
 
     fun onKey(key: Key) {
+        if (emojiSearch && searchKey(key)) return
         val wasSpace = previousKeyWasSpace
         val undo = lastCorrection
         val spaced = autoSpaced
@@ -233,10 +261,7 @@ class KeyboardController(
             }
             KeyKind.PAGE -> layer =
                 if (layer == KeyboardLayer.SYMBOLS_1) KeyboardLayer.SYMBOLS_2 else KeyboardLayer.SYMBOLS_1
-            KeyKind.EMOJI -> {
-                commitTranslit(separator = "")
-                layer = KeyboardLayer.EMOJI
-            }
+            KeyKind.EMOJI -> openEmoji()
             KeyKind.LANGUAGE -> switchLanguage()
         }
         // Shift is only re-read from the text after an edit, so tapping shift sticks.
@@ -247,7 +272,136 @@ class KeyboardController(
         resetTransient()
         click(KeyKind.CHAR)
         commit(emoji)
+        prefs.addRecentEmoji(emoji)
         refresh()
+    }
+
+    // ---- emoji panel ----
+
+    fun openEmoji() {
+        commitTranslit(separator = "")
+        toolsOpen = false
+        emojiSearch = false
+        if (emojiCatalog == null) scope.launch { emojiCatalog = EmojiStore.catalog(service) }
+        emojiTab = if (prefs.recentEmoji().isNotEmpty()) EmojiTab.RECENT else EmojiTab.SMILEYS
+        layer = KeyboardLayer.EMOJI
+    }
+
+    fun selectEmojiTab(tab: EmojiTab) {
+        emojiTab = tab
+    }
+
+    /** The emoji in [tab]: the recent list from settings, the rest from the catalogue. */
+    fun emojiFor(tab: EmojiTab): List<String> =
+        if (tab == EmojiTab.RECENT) prefs.recentEmoji() else emojiCatalog?.tab(tab).orEmpty()
+
+    fun startEmojiSearch() {
+        emojiQuery = ""
+        emojiSearch = true
+        shift = ShiftState.OFF
+        layer = KeyboardLayer.LETTERS
+    }
+
+    fun endEmojiSearch() {
+        emojiSearch = false
+        emojiQuery = ""
+        layer = KeyboardLayer.EMOJI
+    }
+
+    /** Results for the search box, best first. */
+    val emojiResults: List<String>
+        get() = emojiCatalog?.search(emojiQuery).orEmpty()
+
+    /** Keys while searching emoji edit the query; false lets the key act normally. */
+    private fun searchKey(key: Key): Boolean {
+        click(key.kind)
+        when (key.kind) {
+            KeyKind.CHAR, KeyKind.SYMBOL -> emojiQuery += key.label.lowercase()
+            KeyKind.SPACE -> emojiQuery += " "
+            KeyKind.BACKSPACE -> emojiQuery = emojiQuery.dropLast(1)
+            KeyKind.ENTER, KeyKind.EMOJI -> endEmojiSearch()
+            KeyKind.SHIFT -> Unit
+            else -> {
+                emojiSearch = false
+                return false
+            }
+        }
+        return true
+    }
+
+    // ---- tools row, clipboard, one-handed ----
+
+    fun toggleTools() {
+        toolsOpen = !toolsOpen
+        if (!toolsOpen && layer == KeyboardLayer.CLIPBOARD) layer = KeyboardLayer.LETTERS
+    }
+
+    fun toggleClipboard() {
+        if (layer == KeyboardLayer.CLIPBOARD) {
+            layer = TypingRules.startLayer(inputType).let { if (it == KeyboardLayer.NUMPAD) it else KeyboardLayer.LETTERS }
+            return
+        }
+        commitTranslit(separator = "")
+        clips = clipStore.list(System.currentTimeMillis())
+        layer = KeyboardLayer.CLIPBOARD
+    }
+
+    fun pasteClip(text: String) {
+        commitTranslit(separator = "")
+        resetTransient()
+        commit(text)
+        freshClip = null
+        refresh()
+    }
+
+    fun togglePin(clip: Clip) {
+        clipStore.togglePin(clip.text)
+        clips = clipStore.list(System.currentTimeMillis())
+    }
+
+    fun deleteClip(clip: Clip) {
+        clipStore.delete(clip.text)
+        clips = clipStore.list(System.currentTimeMillis())
+        if (freshClip == clip.text) freshClip = null
+    }
+
+    fun clearClips() {
+        clipStore.clearUnpinned()
+        clips = clipStore.list(System.currentTimeMillis())
+        freshClip = null
+    }
+
+    /**
+     * Something was copied. Kept for the clipboard panel unless the copying app
+     * marked it sensitive (a password) or history is off; offered in the strip
+     * for a minute.
+     */
+    fun onClipboardChanged(text: String?, sensitive: Boolean) {
+        if (text.isNullOrBlank() || sensitive || !settings.clipboardHistory) return
+        val now = System.currentTimeMillis()
+        clipStore.add(text, now)
+        clips = clipStore.list(now)
+        freshClip = text.trim()
+        scope.launch {
+            kotlinx.coroutines.delay(ClipStore.FRESH_MS)
+            if (freshClip == text.trim()) freshClip = null
+        }
+    }
+
+    /** The tools row's one-handed button: on (keys to the right) / off. */
+    fun toggleOneHand() {
+        val next = if (settings.oneHand == OneHand.OFF) OneHand.RIGHT else OneHand.OFF
+        prefs.update { it.copy(oneHand = next) }
+    }
+
+    /** One-handed panel: move the keys to the other side. */
+    fun switchOneHandSide() {
+        val next = if (settings.oneHand == OneHand.LEFT) OneHand.RIGHT else OneHand.LEFT
+        prefs.update { it.copy(oneHand = next) }
+    }
+
+    fun fullSize() {
+        prefs.update { it.copy(oneHand = OneHand.OFF) }
     }
 
     fun backToLetters() {

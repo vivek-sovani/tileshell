@@ -87,10 +87,10 @@ class TypingRulesTest {
     }
 
     @Test
-    fun `number phone and date fields open on the digits page`() {
-        assertEquals(KeyboardLayer.SYMBOLS_1, TypingRules.startLayer(InputType.TYPE_CLASS_NUMBER))
-        assertEquals(KeyboardLayer.SYMBOLS_1, TypingRules.startLayer(InputType.TYPE_CLASS_PHONE))
-        assertEquals(KeyboardLayer.SYMBOLS_1, TypingRules.startLayer(InputType.TYPE_CLASS_DATETIME))
+    fun `number phone and date fields open on the number pad`() {
+        assertEquals(KeyboardLayer.NUMPAD, TypingRules.startLayer(InputType.TYPE_CLASS_NUMBER))
+        assertEquals(KeyboardLayer.NUMPAD, TypingRules.startLayer(InputType.TYPE_CLASS_PHONE))
+        assertEquals(KeyboardLayer.NUMPAD, TypingRules.startLayer(InputType.TYPE_CLASS_DATETIME))
         assertEquals(KeyboardLayer.LETTERS, TypingRules.startLayer(sentences))
     }
 

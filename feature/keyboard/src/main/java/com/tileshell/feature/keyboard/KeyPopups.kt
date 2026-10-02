@@ -41,7 +41,7 @@ object KeyPopups {
      * [lettersOnly] (मराठी / हिन्दी typed in English letters) offers just the
      * digit, since accented Latin letters have no Devanagari spelling.
      */
-    fun options(key: Key, upper: Boolean, lettersOnly: Boolean = false): List<String> = when (key.kind) {
+    fun options(key: Key, upper: Boolean, lettersOnly: Boolean = false): List<String> = key.popup ?: when (key.kind) {
         KeyKind.CHAR -> {
             val digit = topRowDigits[key.label]
             val letters = if (lettersOnly) emptyList() else accents[key.label].orEmpty()

@@ -29,10 +29,22 @@ enum class KeyKind {
     LANGUAGE,
 }
 
-data class Key(val kind: KeyKind, val label: String, val units: Float = 1f) {
+data class Key(
+    val kind: KeyKind,
+    val label: String,
+    val units: Float = 1f,
+    /** Small text under the label (the number pad's ABC, DEF…). */
+    val sub: String? = null,
+    /** Shown instead of [label] (the number pad's "*#" types *). */
+    val display: String? = null,
+    /** The darker function-key colour for a key that isn't a function kind. */
+    val functionColour: Boolean = false,
+    /** Long-press choices, instead of [KeyPopups]' defaults. */
+    val popup: List<String>? = null,
+) {
     /** Grey "function" key colour rather than the lighter letter-key colour. */
     val isFunction: Boolean
-        get() = kind in FUNCTION_KINDS
+        get() = functionColour || kind in FUNCTION_KINDS
 
     private companion object {
         val FUNCTION_KINDS = setOf(
@@ -48,7 +60,13 @@ data class KeyRow(val keys: List<Key>, val inset: Boolean = false) {
     val units: Float get() = keys.sumOf { it.units.toDouble() }.toFloat()
 }
 
-enum class KeyboardLayer { LETTERS, SYMBOLS_1, SYMBOLS_2, EMOJI }
+enum class KeyboardLayer {
+    LETTERS, SYMBOLS_1, SYMBOLS_2, EMOJI,
+
+    /** Number and phone fields (canvas "Number & phone keypad"). */
+    NUMPAD,
+    CLIPBOARD,
+}
 
 object KeyboardLayouts {
     const val SPACE_LABEL = "English"
@@ -103,6 +121,40 @@ object KeyboardLayouts {
     )
 
     /**
+     * Number and phone fields: the canvas's 4 × 4 pad — digits with their phone
+     * letters, then − / space / backspace / enter down the right; *# types *
+     * (hold for #, +, pauses), hold 0 for +.
+     */
+    val numpad: List<KeyRow> = listOf(
+        KeyRow(
+            listOf(
+                Key(KeyKind.SYMBOL, "1"), Key(KeyKind.SYMBOL, "2", sub = "ABC"), Key(KeyKind.SYMBOL, "3", sub = "DEF"),
+                Key(KeyKind.SYMBOL, "-", display = "−", functionColour = true, popup = emptyList()),
+            ),
+        ),
+        KeyRow(
+            listOf(
+                Key(KeyKind.SYMBOL, "4", sub = "GHI"), Key(KeyKind.SYMBOL, "5", sub = "JKL"), Key(KeyKind.SYMBOL, "6", sub = "MNO"),
+                Key(KeyKind.SPACE, "space", functionColour = true),
+            ),
+        ),
+        KeyRow(
+            listOf(
+                Key(KeyKind.SYMBOL, "7", sub = "PQRS"), Key(KeyKind.SYMBOL, "8", sub = "TUV"), Key(KeyKind.SYMBOL, "9", sub = "WXYZ"),
+                Key(KeyKind.BACKSPACE, "backspace"),
+            ),
+        ),
+        KeyRow(
+            listOf(
+                Key(KeyKind.SYMBOL, "*", display = "*#", functionColour = true, popup = listOf("#", "+", "(", ")", ",", ";", "/", "N")),
+                Key(KeyKind.SYMBOL, "0", sub = "+", popup = listOf("+")),
+                Key(KeyKind.SYMBOL, ".", functionColour = true, popup = listOf(",")),
+                Key(KeyKind.ENTER, "enter"),
+            ),
+        ),
+    )
+
+    /**
      * The rows for [layer]. With [languageKey] (more than one language on) the
      * bottom row gains the globe after emoji, and space gives it one unit.
      */
@@ -111,7 +163,8 @@ object KeyboardLayouts {
             KeyboardLayer.LETTERS -> letters
             KeyboardLayer.SYMBOLS_1 -> symbols1
             KeyboardLayer.SYMBOLS_2 -> symbols2
-            KeyboardLayer.EMOJI -> return emptyList()
+            KeyboardLayer.NUMPAD -> return numpad
+            KeyboardLayer.EMOJI, KeyboardLayer.CLIPBOARD -> return emptyList()
         }
         if (!languageKey) return rows
         val bottom = rows.last().keys.flatMap { key ->
@@ -123,12 +176,4 @@ object KeyboardLayouts {
         }
         return rows.dropLast(1) + KeyRow(bottom)
     }
-
-    /** The emoji grid from the canvas's emoji panel (categories come in phase 5). */
-    val emoji: List<String> = listOf(
-        "😀", "😂", "🥲", "😊", "😍", "🤔", "😴", "😎",
-        "🙏", "👍", "👏", "🙌", "💪", "🎉", "🔥", "✨",
-        "❤️", "🧡", "💛", "💚", "💙", "💜", "🌸", "🌼",
-        "☀️", "🌧️", "🍵", "🍛", "🥭", "🚗", "🏠", "📍",
-    )
 }

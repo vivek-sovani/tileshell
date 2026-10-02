@@ -10989,3 +10989,26 @@ crash or VerifyError since the install) and the emulator. The same move belongs 
   and short vowels alike, since a doubled letter doesn't move the finger), and
   `RomanizedLexicon` matches the swipe against those, putting in the Devanagari word;
   alternatives in the strip, tap to swap (and learn).
+
+## Keyboard phase 5 — panels
+- **Tools row** (canvas "No suggestions — tools"): menu, clipboard, one-handed, settings;
+  active one white with the accent bar. Reached from a menu icon at the start of the
+  strip whenever nothing is typed (the canvas shows next words *and* a tools row with
+  no switch between them, so the menu icon is that switch). Fields without suggestions
+  show the tools row directly. Voice joins in phase 6.
+- **Emoji panel:** Unicode's emoji-test.txt (fully-qualified, no skin-tone variants,
+  ~1,900) grouped into the canvas's tabs — smileys (+ people), nature, food, travel
+  (+ activities), symbols (+ objects, flags) — plus recent (32, newest first, opens
+  first once used). Emoji the phone's font can't draw are dropped (`Paint.hasGlyph`).
+  Search: tapping the box sends the keys to a query (not the field); every typed word
+  must start a word of the emoji's name; results in the strip.
+- **Clipboard:** copies seen while TileShell is the keyboard go to `keyboard_clips.txt`
+  (on the phone only), kept an hour unless pinned, 30 at most; text the copying app
+  marks sensitive (`ClipDescription.EXTRA_IS_SENSITIVE`) is never kept; a settings
+  switch turns history off. A copy in the last minute shows as a one-tap paste chip.
+  Hold a clip to pin or delete; "clear" keeps pinned ones.
+- **Number pad** for number, phone and date fields (was the digits page): the canvas's
+  4x4, phone letters under the digits; *# types * (hold for # + ( ) , ; / N), hold 0
+  for +. Key gained `sub`, `display`, `functionColour` and `popup`.
+- **One-handed:** keys pushed right (or left) with the canvas's 66dp side panel — move
+  to the other side, full size; letters 20sp there.

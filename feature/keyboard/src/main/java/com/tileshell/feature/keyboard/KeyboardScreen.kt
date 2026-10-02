@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -79,6 +80,8 @@ internal data class KeyboardColors(
     val functionKey: Color,
     val text: Color,
     val secondary: Color,
+    /** The one-handed side panel, a shade off the keyboard's ground. */
+    val panel: Color,
 ) {
     companion object {
         val Dark = KeyboardColors(
@@ -87,6 +90,7 @@ internal data class KeyboardColors(
             functionKey = Color(0xFF262626),
             text = Color.White,
             secondary = Color(0xFFA3A3A3),
+            panel = Color(0xFF101010),
         )
         val Light = KeyboardColors(
             background = Color(0xFFDADADA),
@@ -94,6 +98,7 @@ internal data class KeyboardColors(
             functionKey = Color(0xFFBFBFBF),
             text = Color.Black,
             secondary = Color(0xFF595959),
+            panel = Color(0xFFCCCCCC),
         )
     }
 }
@@ -138,19 +143,26 @@ internal fun KeyboardScreen(controller: KeyboardController, prefs: KeyboardPrefs
                     ),
                 ),
         ) {
-            Strip(controller, colors, accent)
+            Strip(controller, colors, accent, keyboard.oneHand != OneHand.OFF)
             val keysHeight = 2.dp + keyHeight * 4 + ROW_GAP * 3 + 12.dp
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(keysHeight)
-                    .padding(start = SIDE_PADDING, end = SIDE_PADDING, top = 2.dp, bottom = 12.dp),
-            ) {
-                if (controller.layer == KeyboardLayer.EMOJI) {
-                    EmojiPanel(controller, colors, accent, keyHeight)
-                } else {
-                    KeyArea(controller, colors, accent, keyHeight)
+            Row(Modifier.fillMaxWidth().height(keysHeight)) {
+                if (keyboard.oneHand == OneHand.RIGHT) OneHandPanel(keysOnRight = true, controller, colors)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .padding(start = SIDE_PADDING, end = SIDE_PADDING, top = 2.dp, bottom = 12.dp),
+                ) {
+                    when (controller.layer) {
+                        KeyboardLayer.EMOJI -> EmojiPanel(controller, colors, accent, keyHeight)
+                        KeyboardLayer.CLIPBOARD -> ClipboardPanel(controller, colors, accent)
+                        else -> KeyArea(
+                            controller, colors, accent, keyHeight,
+                            letterSp = if (keyboard.oneHand == OneHand.OFF) 22 else 20,
+                        )
+                    }
                 }
+                if (keyboard.oneHand == OneHand.LEFT) OneHandPanel(keysOnRight = false, controller, colors)
             }
         }
     }
@@ -162,7 +174,7 @@ internal fun KeyboardScreen(controller: KeyboardController, prefs: KeyboardPrefs
  * autocorrect, "incognito typing" in password fields, or the tools.
  */
 @Composable
-private fun Strip(controller: KeyboardController, colors: KeyboardColors, accent: Color) {
+private fun Strip(controller: KeyboardController, colors: KeyboardColors, accent: Color, oneHand: Boolean) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -170,31 +182,43 @@ private fun Strip(controller: KeyboardController, colors: KeyboardColors, accent
             .padding(horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        when (controller.stripMode) {
-            StripMode.INCOGNITO -> {
-                Spacer(Modifier.width(12.dp))
-                KeyIcon(KeyGlyph.LOCK, colors.secondary, iconSize = 18.dp)
-                Spacer(Modifier.width(8.dp))
-                BasicText("incognito typing", style = TextStyle(color = colors.secondary, fontSize = 14.sp))
-            }
-            StripMode.CURSOR -> BasicText(
-                "slide on the space bar to move the cursor",
-                modifier = Modifier.weight(1f),
-                style = TextStyle(color = colors.secondary, fontSize = 15.sp, textAlign = TextAlign.Center),
-            )
-            StripMode.TOOLS -> {
-                Spacer(Modifier.weight(1f))
-                SettingsTool(colors)
-            }
-            StripMode.WORDS -> {
-                Row(
-                    modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    for (word in controller.strip) StripWordCell(word, colors, accent) { controller.onStripWord(word) }
+        when {
+            controller.emojiSearch -> EmojiSearchStrip(controller, colors, accent)
+            controller.layer == KeyboardLayer.EMOJI -> EmojiSearchBox(controller, colors)
+            controller.toolsOpen || controller.layer == KeyboardLayer.CLIPBOARD ->
+                ToolsRow(controller, colors, accent, oneHand)
+            else -> when (controller.stripMode) {
+                StripMode.INCOGNITO -> {
+                    Spacer(Modifier.width(12.dp))
+                    KeyIcon(KeyGlyph.LOCK, colors.secondary, iconSize = 18.dp)
+                    Spacer(Modifier.width(8.dp))
+                    BasicText("incognito typing", style = TextStyle(color = colors.secondary, fontSize = 14.sp))
                 }
-                // Nothing typed yet: settings stays reachable beside the next words.
-                if (controller.strip.none { it.kind != StripWord.Kind.WORD || it.best }) SettingsTool(colors)
+                StripMode.CURSOR -> BasicText(
+                    "slide on the space bar to move the cursor",
+                    modifier = Modifier.weight(1f),
+                    style = TextStyle(color = colors.secondary, fontSize = 15.sp, textAlign = TextAlign.Center),
+                )
+                StripMode.TOOLS -> ToolsRow(controller, colors, accent, oneHand)
+                StripMode.WORDS -> {
+                    // Nothing typed yet: the tools stay a tap away, and a fresh copy
+                    // takes the next words' place.
+                    val idle = controller.strip.none { it.kind != StripWord.Kind.WORD || it.best }
+                    if (idle) MenuTool(controller, colors, accent)
+                    val fresh = controller.freshClip
+                    if (idle && fresh != null) {
+                        // As wide as its text, up to the room the strip has.
+                        Box(Modifier.weight(1f)) { FreshClipChip(fresh, colors) { controller.pasteClip(fresh) } }
+                    } else {
+                        Row(
+                            modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            for (word in controller.strip) StripWordCell(word, colors, accent) { controller.onStripWord(word) }
+                        }
+                    }
+                    if (idle) SettingsButton(colors)
+                }
             }
         }
     }
@@ -234,27 +258,6 @@ private fun StripWordCell(word: StripWord, colors: KeyboardColors, accent: Color
     }
 }
 
-@Composable
-private fun SettingsTool(colors: KeyboardColors) {
-    val context = LocalContext.current
-    Box(
-        modifier = Modifier
-            .size(width = 48.dp, height = 44.dp)
-            .clickable {
-                runCatching {
-                    context.startActivity(
-                        Intent(context, KeyboardSettingsActivity::class.java)
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                    )
-                }
-            }
-            .semantics { contentDescription = "keyboard settings" },
-        contentAlignment = Alignment.Center,
-    ) {
-        KeyIcon(KeyGlyph.SETTINGS, colors.secondary, filled = false, background = colors.background)
-    }
-}
-
 /**
  * One square key (the emoji panel's abcd and backspace). Acts on finger down (no wait for the lift, so quick
  * two-thumb typing lands in order), fills with the accent while held and for
@@ -262,7 +265,7 @@ private fun SettingsTool(colors: KeyboardColors) {
  * repeats while held.
  */
 @Composable
-private fun PressableKey(
+internal fun PressableKey(
     modifier: Modifier,
     height: Dp,
     base: Color,
@@ -335,61 +338,6 @@ internal fun KeyLabel(text: String, color: Color, sizeSp: Int, weight: FontWeigh
             textAlign = TextAlign.Center,
         ),
     )
-}
-
-/** The canvas's emoji grid, with abcd and backspace along the bottom. */
-@Composable
-private fun EmojiPanel(controller: KeyboardController, colors: KeyboardColors, accent: Color, keyHeight: Dp) {
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(ROW_GAP)) {
-        Column(Modifier.weight(1f).fillMaxWidth()) {
-            for (row in KeyboardLayouts.emoji.chunked(8)) {
-                Row(Modifier.weight(1f).fillMaxWidth()) {
-                    for (emoji in row) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxSize()
-                                .clickable { controller.onEmoji(emoji) },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            BasicText(emoji, style = TextStyle(fontSize = 24.sp))
-                        }
-                    }
-                }
-            }
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(KEY_GAP)) {
-            PressableKey(
-                modifier = Modifier.weight(1.5f),
-                height = keyHeight,
-                base = colors.functionKey,
-                accent = accent,
-                lit = false,
-                description = "letters",
-                repeats = false,
-                onPress = { controller.backToLetters() },
-                onRepeat = {},
-                onTouch = { controller.haptic(HapticKind.KEY_TAP) },
-            ) { pressed ->
-                KeyLabel("abcd", if (pressed) Color.White else colors.text, 15, FontWeight.SemiBold)
-            }
-            Spacer(Modifier.weight(7f))
-            PressableKey(
-                modifier = Modifier.weight(1.5f),
-                height = keyHeight,
-                base = colors.functionKey,
-                accent = accent,
-                lit = false,
-                description = "backspace",
-                repeats = true,
-                onPress = { controller.backspace() },
-                onRepeat = { controller.backspace() },
-                onTouch = { controller.haptic(HapticKind.KEY_TAP) },
-            ) { pressed ->
-                KeyIcon(KeyGlyph.BACKSPACE, if (pressed) Color.White else colors.text)
-            }
-        }
-    }
 }
 
 internal enum class KeyGlyph { SHIFT, BACKSPACE, ENTER, EMOJI, SETTINGS, LOCK, GLOBE }

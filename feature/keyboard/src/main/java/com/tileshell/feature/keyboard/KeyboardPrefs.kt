@@ -13,6 +13,9 @@ enum class KeyboardTheme(val label: String) {
     LIGHT("light"),
 }
 
+/** One-handed mode: the keys pushed to one side, the canvas's side panel on the other. */
+enum class OneHand { OFF, LEFT, RIGHT }
+
 /** The keyboard's settings page (canvas "Keyboard settings"). */
 data class KeyboardSettings(
     val theme: KeyboardTheme = KeyboardTheme.TILESHELL,
@@ -26,6 +29,9 @@ data class KeyboardSettings(
     val haptic: HapticStrength = HapticStrength.MEDIUM,
     /** Swipe across letters to type a word. */
     val swipe: Boolean = true,
+    val oneHand: OneHand = OneHand.OFF,
+    /** Keep copied text for the clipboard panel (an hour unless pinned). */
+    val clipboardHistory: Boolean = true,
     /** Typed in English letters, written in Devanagari. English is always on. */
     val marathi: Boolean = true,
     val hindi: Boolean = false,
@@ -81,11 +87,22 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
             .putBoolean(VIBRATE, next.vibrate)
             .putString(HAPTIC, next.haptic.name)
             .putBoolean(SWIPE, next.swipe)
+            .putString(ONE_HAND, next.oneHand.name)
+            .putBoolean(CLIPBOARD, next.clipboardHistory)
             .putBoolean(MARATHI, next.marathi)
             .putBoolean(HINDI, next.hindi)
             .putString(LANGUAGE, next.language.name)
             .apply()
         state.value = next
+    }
+
+    /** Emoji used lately, newest first (the emoji panel's "recent" tab). */
+    fun recentEmoji(): List<String> =
+        prefs.getString(EMOJI_RECENT, null)?.split('\u0001')?.filter { it.isNotEmpty() }.orEmpty()
+
+    fun addRecentEmoji(emoji: String) {
+        val next = EmojiCatalog.pushRecent(recentEmoji(), emoji)
+        prefs.edit().putString(EMOJI_RECENT, next.joinToString("\u0001")).apply()
     }
 
     private fun read(): KeyboardSettings {
@@ -101,6 +118,8 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
             vibrate = prefs.getBoolean(VIBRATE, d.vibrate),
             haptic = HapticStrength.entries.find { it.name == prefs.getString(HAPTIC, null) } ?: d.haptic,
             swipe = prefs.getBoolean(SWIPE, d.swipe),
+            oneHand = OneHand.entries.find { it.name == prefs.getString(ONE_HAND, null) } ?: d.oneHand,
+            clipboardHistory = prefs.getBoolean(CLIPBOARD, d.clipboardHistory),
             marathi = prefs.getBoolean(MARATHI, d.marathi),
             hindi = prefs.getBoolean(HINDI, d.hindi),
             language = KeyboardLanguage.entries.find { it.name == prefs.getString(LANGUAGE, null) } ?: d.language,
@@ -118,6 +137,9 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
         private const val VIBRATE = "vibrate"
         private const val HAPTIC = "haptic_strength"
         private const val SWIPE = "swipe"
+        private const val ONE_HAND = "one_hand"
+        private const val CLIPBOARD = "clipboard_history"
+        private const val EMOJI_RECENT = "emoji_recent"
         private const val MARATHI = "lang_marathi"
         private const val HINDI = "lang_hindi"
         private const val LANGUAGE = "language"

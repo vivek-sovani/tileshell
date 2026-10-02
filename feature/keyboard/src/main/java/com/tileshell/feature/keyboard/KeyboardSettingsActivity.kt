@@ -175,6 +175,12 @@ private fun KeyboardSettingsScreen(prefs: KeyboardPrefs) {
             )
         }
 
+        Toggle("Keep clipboard history", settings.clipboardHistory, accent, tokens) { on -> prefs.update { it.copy(clipboardHistory = on) } }
+        Note(
+            "Text you copy is kept for an hour (longer if pinned) in the clipboard panel, on this phone only. Passwords marked private by the app are never kept.",
+            tokens,
+        )
+
         Group("Learned words", tokens) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 BasicText(
