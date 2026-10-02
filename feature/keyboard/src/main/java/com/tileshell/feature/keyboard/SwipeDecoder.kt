@@ -40,7 +40,10 @@ class SwipeDecoder(
                 if (lower.length < 2 || entry.blocked) continue
                 if (lower.last() !in ends) continue
                 val keys = keyPath(lower) ?: continue
-                if (!followsPath(keys, user)) continue
+                // Every letter's key near the path — one may fall just outside on a
+                // long zigzag; it costs, but doesn't rule the word out.
+                val missed = missedKeys(keys, user)
+                if (missed > 1) continue
                 val idealPoints = keys.map { centres.getValue(it) }
                 val ideal = resample(idealPoints, SAMPLES)
                 // A long swipe isn't a short word whose path happens to share its shape.
@@ -51,6 +54,7 @@ class SwipeDecoder(
                 // Where a swipe starts and ends is the most deliberate part of it.
                 val ends = (dist(path.first(), ideal.first()) + dist(path.last(), ideal.last())) / keyWidth
                 val score = distance * DISTANCE_WEIGHT + ends * END_WEIGHT + lengthMismatch * LENGTH_WEIGHT +
+                    missed * MISSED_KEY_WEIGHT +
                     (255 - entry.freq) / 255f * FREQUENCY_WEIGHT
                 results += Result(word, score)
             }
@@ -72,15 +76,26 @@ class SwipeDecoder(
         return keys
     }
 
-    /** Every letter's key passes near the path, in order — a cheap filter before scoring. */
-    private fun followsPath(keys: List<Char>, user: List<Pt>): Boolean {
+    /**
+     * How many of the word's keys the path doesn't pass near, in order — a
+     * cheap filter before scoring. A missed key doesn't advance the search,
+     * so later letters can still be found.
+     */
+    private fun missedKeys(keys: List<Char>, user: List<Pt>): Int {
         var i = 0
+        var missed = 0
         for (k in keys) {
             val c = centres.getValue(k)
-            while (i < user.size && dist(user[i], c) > keyWidth * FOLLOW_RADIUS) i++
-            if (i == user.size) return false
+            var j = i
+            while (j < user.size && dist(user[j], c) > keyWidth * FOLLOW_RADIUS) j++
+            if (j == user.size) {
+                missed++
+                if (missed > 1) return missed
+            } else {
+                i = j
+            }
         }
-        return true
+        return missed
     }
 
     private fun nearKeys(p: Pt, radius: Float): List<Char> =
@@ -95,6 +110,7 @@ class SwipeDecoder(
         private const val DISTANCE_WEIGHT = 1f
         private const val FREQUENCY_WEIGHT = 0.6f
         private const val END_WEIGHT = 0.35f
+        private const val MISSED_KEY_WEIGHT = 0.4f
         private const val LENGTH_WEIGHT = 0.8f
 
         fun length(points: List<Pt>): Float = points.zipWithNext().sumOf { (a, b) -> dist(a, b).toDouble() }.toFloat()

@@ -22,6 +22,8 @@ class RomanizerTest {
         assertEquals("pune", mr("पुणे"))
         assertEquals("dnyan", mr("ज्ञान"))
         assertEquals("kshama", mr("क्षमा"))
+        assertEquals("jyeshth", mr("ज्येष्ठ"))
+        assertEquals("vividhatene", mr("विविधतेने"))
     }
 
     @Test
@@ -31,6 +33,14 @@ class RomanizerTest {
         assertEquals("main", hi("मैं"))
         assertEquals("jhanda", hi("झंडा"))
         assertEquals("zara", hi("ज़रा"))
+    }
+
+    @Test
+    fun `a learned word becomes swipeable`() {
+        val swipe = RomanizedLexicon(emptySequence(), KeyboardLanguage.MARATHI)
+        swipe.add(LexEntry("ज्येष्ठांना", 120))
+        assertEquals(listOf("ज्येष्ठांना"), swipe.devanagariFor("jyeshthanna"))
+        assertTrue(swipe.startingWith("j").any { it.word == "jyeshthanna" })
     }
 
     @Test
@@ -49,7 +59,10 @@ class RomanizerTest {
             }
         }
         val decoder = SwipeDecoder(centres, 100f)
-        for ((latin, deva) in listOf("namaskar" to "नमस्कार", "maza" to "माझा", "dhanyavad" to "धन्यवाद", "ahe" to "आहे")) {
+        for ((latin, deva) in listOf(
+            "namaskar" to "नमस्कार", "maza" to "माझा", "dhanyavad" to "धन्यवाद", "ahe" to "आहे",
+            "vividhatene" to "विविधतेने", "jyeshth" to "ज्येष्ठ",
+        )) {
             val path = latin.map { centres.getValue(it) }.zipWithNext().flatMap { (a, b) ->
                 (0 until 6).map { s -> Pt(a.x + (b.x - a.x) * s / 6f, a.y + (b.y - a.y) * s / 6f) }
             } + centres.getValue(latin.last())

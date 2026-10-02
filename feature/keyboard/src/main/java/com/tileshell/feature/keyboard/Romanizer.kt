@@ -25,17 +25,65 @@ object Romanizer {
     private val matras: Map<Char, String> = mapOf(
         'ा' to "a", 'ि' to "i", 'ी' to "i", 'ु' to "u", 'ू' to "u",
         'े' to "e", 'ै' to "ai", 'ो' to "o", 'ौ' to "au", 'ृ' to "ru",
-        'ॅ' to "e", 'ॉ' to "o",
+        // English words' vowels: bag (बॅग), shop (शॉप).
+        'ॅ' to "a", 'ॉ' to "o",
     )
 
     private val vowels: Map<Char, String> = mapOf(
         'अ' to "a", 'आ' to "a", 'इ' to "i", 'ई' to "i", 'उ' to "u", 'ऊ' to "u",
         'ए' to "e", 'ऐ' to "ai", 'ओ' to "o", 'औ' to "au", 'ऋ' to "ru",
-        'ऍ' to "e", 'ऑ' to "o", 'ॲ' to "a",
+        'ऍ' to "a", 'ऑ' to "o", 'ॲ' to "a",
     )
 
+    /** Marks an unwritten a in [spell]'s output, for [variants]. */
+    private const val SCHWA = '\u0000'
+
     /** The casual romanisation of [word]; null if it has letters outside Devanagari. */
-    fun romanize(word: String, lang: KeyboardLanguage): String? {
+    fun romanize(word: String, lang: KeyboardLanguage): String? = spell(word, lang)?.replace(SCHWA, 'a')
+
+    /**
+     * The spellings people type for [word]: every unwritten a spelled out
+     * ("apalyala"), and with the ones speech drops left out ("aplyala" —
+     * an a between a consonant and a consonant + vowel, past the first
+     * syllable, the usual Hindi / Marathi schwa deletion).
+     */
+    fun variants(word: String, lang: KeyboardLanguage): List<String> {
+        val marked = spell(word, lang) ?: return emptyList()
+        val full = marked.replace(SCHWA, 'a')
+        val sb = StringBuilder()
+        var seenVowel = false
+        for (i in marked.indices) {
+            val c = marked[i]
+            if (c == SCHWA) {
+                if (seenVowel && consonantThenVowel(marked, i + 1)) continue
+                sb.append('a')
+                seenVowel = true
+                continue
+            }
+            if (c in LATIN_VOWELS) seenVowel = true
+            sb.append(c)
+        }
+        return listOf(full, sb.toString()).distinct()
+    }
+
+    private val LATIN_VOWELS = setOf('a', 'e', 'i', 'o', 'u')
+
+    /**
+     * At [at]: one consonant sound (with an h, as kh, sh), maybe joined to a
+     * y / r / v / l (the ly of आपल्याला, "aplyala"), followed by a vowel.
+     */
+    private fun consonantThenVowel(s: String, at: Int): Boolean {
+        var i = at
+        if (i >= s.length || s[i] in LATIN_VOWELS || s[i] == SCHWA) return false
+        i++
+        if (i < s.length && s[i] == 'h') i++
+        if (i < s.length && s[i] in GLIDES && i + 1 < s.length && (s[i + 1] in LATIN_VOWELS)) i++
+        return i < s.length && (s[i] in LATIN_VOWELS || s[i] == SCHWA)
+    }
+
+    private val GLIDES = setOf('y', 'r', 'v', 'l')
+
+    private fun spell(word: String, lang: KeyboardLanguage): String? {
         val out = StringBuilder()
         var i = 0
         while (i < word.length) {
@@ -87,7 +135,7 @@ object Romanizer {
     private fun inherentA(word: String, i: Int, out: StringBuilder) {
         val n = word.getOrNull(i) ?: return
         if (n == VIRAMA || n in matras || n == '़') return
-        out.append('a')
+        out.append(SCHWA)
     }
 }
 
@@ -104,18 +152,36 @@ class RomanizedLexicon(words: Sequence<LexEntry>, lang: KeyboardLanguage) : Lexi
         val best = HashMap<String, Int>()
         for (e in words) {
             if (e.blocked) continue
-            val r = Romanizer.romanize(e.word, lang) ?: continue
-            devanagari.getOrPut(r) { ArrayList() } += e
-            best[r] = maxOf(best[r] ?: 0, e.freq)
+            for (r in Romanizer.variants(e.word, lang)) {
+                devanagari.getOrPut(r) { ArrayList() } += e
+                best[r] = maxOf(best[r] ?: 0, e.freq)
+            }
         }
         devanagari.values.forEach { list -> list.sortByDescending { it.freq } }
         latin = WordList.parse(best.entries.asSequence().map { "${it.key}\t${it.value}" })
     }
 
+    /** Words learned since the list was built (typed or picked), so they can be swiped too. */
+    private val added = HashMap<String, LexEntry>()
+    private val language = lang
+
     /** The Devanagari words spelled [romanized], most common first. */
     fun devanagariFor(romanized: String): List<String> = devanagari[romanized.lowercase()].orEmpty().map { it.word }
 
-    override fun lookup(lower: String) = latin.lookup(lower)
+    /** Adds a newly learned word. */
+    fun add(word: LexEntry) {
+        for (r in Romanizer.variants(word.word, language)) {
+            val list = devanagari.getOrPut(r) { ArrayList() }
+            if (list.none { it.word == word.word }) {
+                list += word
+                list.sortByDescending { it.freq }
+            }
+            if (latin.lookup(r) == null) added[r] = LexEntry(r, maxOf(word.freq, added[r]?.freq ?: 0))
+        }
+    }
+
+    override fun lookup(lower: String) = latin.lookup(lower) ?: added[lower]
     override fun completions(prefixLower: String, limit: Int) = latin.completions(prefixLower, limit)
-    override fun startingWith(prefixLower: String) = latin.startingWith(prefixLower)
+    override fun startingWith(prefixLower: String) =
+        latin.startingWith(prefixLower) + added.values.asSequence().filter { it.word.startsWith(prefixLower) }
 }

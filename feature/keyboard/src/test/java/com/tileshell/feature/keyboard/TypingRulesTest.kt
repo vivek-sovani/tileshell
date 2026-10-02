@@ -133,4 +133,17 @@ class TypingRulesTest {
         assertTrue(TypingRules.sentenceStart("ok\n"))
         assertFalse(TypingRules.sentenceStart("I met "))
     }
+
+    @Test
+    fun `marathi and hindi can be typed in search boxes and address bars, not passwords or email`() {
+        val search = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        assertTrue(TypingRules.languagesAllowed(search))
+        val url = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+        assertTrue(TypingRules.languagesAllowed(url))
+        assertTrue(TypingRules.isWebAddress(url))
+        assertFalse(TypingRules.isWebAddress(search))
+        assertFalse(TypingRules.languagesAllowed(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD))
+        assertFalse(TypingRules.languagesAllowed(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS))
+        assertFalse(TypingRules.languagesAllowed(InputType.TYPE_CLASS_NUMBER))
+    }
 }

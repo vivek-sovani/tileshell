@@ -23,6 +23,9 @@ interface Lexicon {
     /** A fixed correction for a non-word ("im" → "I'm"), if any. */
     fun shortcut(lower: String): String? = null
 
+    /** Some word starts with [prefixLower] (or is it). */
+    fun hasPrefix(prefixLower: String): Boolean = lookup(prefixLower) != null || completions(prefixLower, 1).isNotEmpty()
+
     /** Every word starting with [prefixLower], in no particular order (swipe typing). */
     fun startingWith(prefixLower: String): Sequence<LexEntry> = completions(prefixLower, 200).asSequence()
 }
@@ -67,6 +70,11 @@ class WordList private constructor(
 
     /** Every word (romanising the Marathi / Hindi lists for swipe typing). */
     fun entries(): Sequence<LexEntry> = (0 until size).asSequence().map(::entry)
+
+    override fun hasPrefix(prefixLower: String): Boolean {
+        val i = lowerBound(prefixLower)
+        return i < size && startsWith(i, prefixLower)
+    }
 
     override fun startingWith(prefixLower: String): Sequence<LexEntry> = sequence {
         var i = lowerBound(prefixLower)

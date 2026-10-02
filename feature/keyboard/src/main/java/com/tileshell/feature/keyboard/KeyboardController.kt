@@ -124,8 +124,8 @@ class KeyboardController(
 
     /** A swipe across letters can type a word here (in मराठी / हिन्दी, the Devanagari word). */
     val swipeEnabled: Boolean
-        get() = settings.swipe && layer == KeyboardLayer.LETTERS && fieldMode == FieldMode.NORMAL &&
-            (if (translit) language in swipeLexicons else lexicon != null)
+        get() = settings.swipe && layer == KeyboardLayer.LETTERS &&
+            (if (translit) languagesHere && language in swipeLexicons else fieldMode == FieldMode.NORMAL && lexicon != null)
 
     /** A space the keyboard added after a picked word; punctuation typed next takes its place. */
     private var autoSpaced = false
@@ -207,7 +207,7 @@ class KeyboardController(
 
     /** The globe key: the next (+1) language that's on. */
     fun switchLanguage(step: Int = 1) {
-        if (fieldMode != FieldMode.NORMAL || settings.languages.size < 2) return
+        if (!languagesHere || settings.languages.size < 2) return
         commitTranslit(separator = "")
         resetTransient()
         val next = settings.languageAfter(step)
@@ -573,7 +573,21 @@ class KeyboardController(
     private fun commitTranslit(separator: String) {
         if (latin.isEmpty()) return
         val best = translitBest ?: Transliterator.candidates(latin.toString(), language, lexicon).firstOrNull()
+        if (best != null) learnIndic(best, strong = false)
         finishTranslit((best ?: latin.toString()) + separator)
+    }
+
+    /**
+     * A मराठी / हिन्दी word put in that the list doesn't have: learned (twice, or
+     * once picked from the strip), and then offered and swipeable like the rest.
+     */
+    private fun learnIndic(word: String, strong: Boolean) {
+        if (!learnHere || word.length < 2) return
+        val lex = lexicon ?: return
+        if (lex.lookup(word) != null) return
+        val learned = KeyboardDictionary.learnedWords(service, language)
+        learned.learn(word, strong)
+        learned.entry(word)?.let { swipeLexicons[language]?.add(it) }
     }
 
     /** A strip word while composing: the letters as typed, or a Devanagari spelling. */
@@ -585,7 +599,7 @@ class KeyboardController(
         }
         if (learnHere) {
             KeyboardDictionary.translitPicks(service, language).remember(typed, word.text)
-            if (lexicon?.lookup(word.text) == null) KeyboardDictionary.learnedWords(service, language).learn(word.text, strong = true)
+            learnIndic(word.text, strong = true)
         }
         finishTranslit(word.text + " ")
     }
@@ -713,12 +727,20 @@ class KeyboardController(
     }
 
     /** Passwords, email and web addresses are always typed in English letters. */
+    /**
+     * The language a field opens in: the last one used, except where only
+     * English makes sense (passwords, email) and web addresses, which start in
+     * English but can be switched (a search typed into an address bar).
+     */
     private fun effectiveLanguage(): KeyboardLanguage =
-        if (fieldMode == FieldMode.NORMAL) settings.activeLanguage else KeyboardLanguage.ENGLISH
+        if (languagesHere && !TypingRules.isWebAddress(inputType)) settings.activeLanguage else KeyboardLanguage.ENGLISH
+
+    /** Marathi / Hindi can be typed in this field (any text field but passwords and email). */
+    private val languagesHere: Boolean get() = TypingRules.languagesAllowed(inputType)
 
     /** Re-reads the text round the cursor: auto capital and the strip. */
     private fun refresh() {
-        languageKey = fieldMode == FieldMode.NORMAL && settings.languages.size > 1
+        languageKey = languagesHere && settings.languages.size > 1 && layer != KeyboardLayer.NUMPAD
         val ic = service.currentInputConnection
         val before = ic?.getTextBeforeCursor(CONTEXT_CHARS, 0)
         if (shift != ShiftState.LOCKED) {
@@ -735,8 +757,9 @@ class KeyboardController(
         stripMode = when {
             cursorMode -> StripMode.CURSOR
             fieldMode == FieldMode.INCOGNITO -> StripMode.INCOGNITO
-            fieldMode == FieldMode.NO_SUGGESTIONS -> StripMode.TOOLS
+            // Typing मराठी / हिन्दी needs its spellings even where English gets no suggestions.
             translit -> StripMode.WORDS
+            fieldMode == FieldMode.NO_SUGGESTIONS -> StripMode.TOOLS
             !settings.suggestions || lex == null -> StripMode.TOOLS
             else -> StripMode.WORDS
         }

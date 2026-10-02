@@ -45,6 +45,17 @@ class TransliteratorTest {
     }
 
     @Test
+    fun `longer and clustered marathi words`() {
+        assertEquals("ज्येष्ठ", mr("jyeshth"))
+        assertEquals("विविधतेने", mr("vividhatene"))
+        assertEquals("राष्ट्र", mr("rashtra"))
+        assertEquals("स्पष्ट", mr("spasht"))
+        // Rules alone: sh before t / th is ष with ट / ठ.
+        assertEquals("ज्येष्ठ", Transliterator.candidates("jyeshth", KeyboardLanguage.MARATHI, null).first())
+        assertEquals("कष्ट", Transliterator.candidates("kasht", KeyboardLanguage.MARATHI, null).first())
+    }
+
+    @Test
     fun `hindi everyday words`() {
         assertEquals("क्या", hi("kya"))
         assertEquals("नहीं", hi("nahin"))

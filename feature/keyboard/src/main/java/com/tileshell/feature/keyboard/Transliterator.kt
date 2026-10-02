@@ -21,7 +21,12 @@ object Transliterator {
 
     private const val VIRAMA = "्"
     private const val ANUSVARA = "ं"
-    private const val BEAM = 48
+    private const val BEAM = 96
+
+    /** Spellings kept that aren't the start of any known word (new words, names). */
+    private const val BEAM_LITERAL = 12
+    private const val CHANDRABINDU = "\u0901"
+    private const val VISARGA = "\u0903"
     private const val REAL_WORD = 300f
     private const val COST_WEIGHT = 20f
 
@@ -53,36 +58,71 @@ object Transliterator {
         "oo" to Vowel(one("ऊ"), one("ू")),
         "U" to Vowel(one("ऊ"), one("ू")),
         "e" to Vowel(one("ए"), one("े")),
-        "ai" to Vowel(one("ऐ"), one("ै")),
-        "ei" to Vowel(one("ऐ"), one("ै")),
+        // "ai" is ऐ, or two vowels (आई, कई, मुंबई); "au" likewise (भाऊ, जाऊ).
+        "ai" to Vowel(
+            o("ऐ" to 0f, "आई" to 0.4f, "अई" to 0.9f, "आइ" to 0.9f),
+            o("ै" to 0f, "ाई" to 0.4f, "ई" to 0.5f, "ाइ" to 0.9f, "इ" to 0.9f),
+        ),
+        "ei" to Vowel(o("ऐ" to 0f, "एई" to 0.5f), o("ै" to 0f, "ेई" to 0.4f, "ेइ" to 0.8f)),
         "o" to Vowel(o("ओ" to 0f, "ऑ" to 1.2f), o("ो" to 0f, "ॉ" to 1.2f)),
-        "au" to Vowel(one("औ"), one("ौ")),
-        "ou" to Vowel(one("औ"), one("ौ")),
+        "au" to Vowel(
+            o("औ" to 0f, "आऊ" to 0.4f, "अऊ" to 0.9f, "आउ" to 0.9f),
+            o("ौ" to 0f, "ाऊ" to 0.4f, "ऊ" to 0.5f, "ाउ" to 0.9f, "उ" to 0.9f),
+        ),
+        "ou" to Vowel(o("औ" to 0f, "ओऊ" to 0.5f), o("ौ" to 0f, "ोऊ" to 0.4f, "ोउ" to 0.8f)),
+        // r + u after a consonant: joined (क्रु), the ृ sign (कृपया, पृथ्वी), or a full syllable (करू).
+        "ru" to Vowel(
+            o("रु" to 0f, "ऋ" to 0.6f, "रू" to 0.8f),
+            o("्रु" to 0f, "ृ" to 0.4f, "रु" to 0.6f, "्रू" to 0.9f, "रू" to 0.9f),
+            o("्रु" to 0.2f, "ृ" to 0.5f, "रू" to 0.4f, "रु" to 0.6f, "्रू" to 0.7f),
+        ),
         "Ru" to Vowel(one("ऋ"), one("ृ")),
         "R" to Vowel(one("ऋ"), one("ृ")),
     )
 
-    private fun consonants(lang: KeyboardLanguage): Map<String, List<Opt>> {
+    /**
+     * kh, ph, dh… are aspirates (ख, फ, ध), or a consonant then ह with the a
+     * between them unwritten (एकही typed "ekhi", अपहरण "apharan", दोपहर "dophar").
+     */
+    private val aspirateParts = mapOf(
+        "kh" to "क", "gh" to "ग", "ch" to "च", "jh" to "ज", "th" to "त", "dh" to "द",
+        "ph" to "प", "bh" to "ब", "sh" to "स",
+    )
+
+    private fun consonants(lang: KeyboardLanguage): Map<String, List<Opt>> =
+        baseConsonants(lang).mapValues { (key, options) ->
+            val base = aspirateParts[key] ?: return@mapValues options
+            options + Opt(base + "ह", 1.0f) + Opt(base + VIRAMA + "ह", 1.4f)
+        }
+
+    private fun baseConsonants(lang: KeyboardLanguage): Map<String, List<Opt>> {
         val marathi = lang == KeyboardLanguage.MARATHI
         return mapOf(
-            "ksh" to one("क्ष"), "x" to one("क्ष"),
+            "ksh" to o("क्ष" to 0f, "क्श" to 0.6f), "x" to one("क्ष"),
+            // sh before t / th is nearly always ष with ट / ठ (ज्येष्ठ, राष्ट्र, स्पष्ट).
+            "shth" to o("ष्ठ" to 0f, "श्थ" to 1.5f), "sht" to o("ष्ट" to 0f, "श्त" to 1.5f),
             "dny" to one("ज्ञ"), "gy" to o("ग्य" to 0f, "ज्ञ" to 0.5f),
             "chh" to one("छ"), "shh" to one("ष"),
-            "kh" to one("ख"), "gh" to one("घ"),
+            "kh" to if (marathi) one("ख") else o("ख" to 0f, "ख़" to 1.0f), "gh" to one("घ"),
             "ch" to o("च" to 0f, "छ" to 1f),
             "jh" to one("झ"),
             "th" to o("थ" to 0f, "ठ" to 1.2f), "Th" to one("ठ"),
-            "dh" to o("ध" to 0f, "ढ" to 1.2f), "Dh" to one("ढ"),
+            "dh" to if (marathi) o("ध" to 0f, "ढ" to 1.2f) else o("ध" to 0f, "ढ" to 1.2f, "ढ़" to 1.3f),
+            "Dh" to one("ढ"),
             "ph" to one("फ"), "bh" to one("भ"),
             "sh" to o("श" to 0f, "ष" to 1f), "Sh" to one("ष"),
-            "k" to one("क"), "q" to one("क"), "c" to one("क"),
-            "g" to one("ग"), "j" to one("ज"),
+            "k" to if (marathi) one("क") else o("क" to 0f, "क़" to 1.2f),
+            "q" to if (marathi) one("क") else o("क़" to 0f, "क" to 0.3f), "c" to one("क"),
+            "g" to if (marathi) one("ग") else o("ग" to 0f, "ग़" to 1.2f), "j" to one("ज"),
             "t" to o("त" to 0f, "ट" to 1.2f), "T" to one("ट"),
-            "d" to o("द" to 0f, "ड" to 1.2f), "D" to one("ड"),
+            // Hindi's ड़ (बड़ा, लड़की) is typed d.
+            "d" to if (marathi) o("द" to 0f, "ड" to 1.2f) else o("द" to 0f, "ड" to 1.2f, "ड़" to 1.0f),
+            "D" to one("ड"),
             "n" to o("न" to 0f, "ण" to 1.5f), "N" to one("ण"),
             "p" to one("प"),
             "f" to if (marathi) one("फ") else o("फ" to 0f, "फ़" to 0.5f),
-            "b" to one("ब"), "m" to one("म"), "y" to one("य"), "r" to one("र"),
+            "b" to one("ब"), "m" to one("म"), "y" to one("य"),
+            "r" to if (marathi) one("र") else o("र" to 0f, "ड़" to 1.4f),
             "l" to if (marathi) o("ल" to 0f, "ळ" to 1.5f) else one("ल"),
             "L" to if (marathi) one("ळ") else one("ल"),
             "v" to one("व"), "w" to one("व"),
@@ -100,7 +140,7 @@ object Transliterator {
         var i = 0
         while (i < latin.length) {
             var matched: Pair<Unit, Int>? = null
-            for (len in 3 downTo 1) {
+            for (len in 4 downTo 1) {
                 if (i + len > latin.length) continue
                 val piece = latin.substring(i, i + len)
                 for (key in listOf(piece, piece.lowercase())) {
@@ -134,10 +174,17 @@ object Transliterator {
         val nasal: Boolean,
     )
 
-    /** Possible Devanagari spellings of [latin], cheapest (most literal) first. */
-    fun spellings(latin: String, lang: KeyboardLanguage): List<Pair<String, Float>> {
+    /**
+     * Possible Devanagari spellings of [latin], cheapest (most literal) first.
+     * With a [lexicon], spellings that begin some real word survive the beam
+     * however many ambiguous letters they took (त्यांच्याकडे has six), so the
+     * list can rank them; a few literal ones are kept too, for new words.
+     */
+    fun spellings(latin: String, lang: KeyboardLanguage, lexicon: Lexicon? = null): List<Pair<String, Float>> {
         if (latin.isEmpty()) return emptyList()
         val units = tokenize(latin, consonants(lang))
+        // Hindi writes ँ often (हूँ, माँ, कहाँ); Marathi rarely (सँडविच).
+        val chandraCost = if (lang == KeyboardLanguage.HINDI) 0.2f else 0.8f
         var beam = listOf(State("", 0f, pending = false, nasal = false))
         units.forEachIndexed { index, unit ->
             val last = index == units.lastIndex
@@ -152,12 +199,18 @@ object Transliterator {
                             next += State(s.text + opt.text, s.cost + opt.cost + 0.8f, true, nasal)
                             if (s.nasal) {
                                 next += State(s.text.dropLast(1) + ANUSVARA + opt.text, s.cost + opt.cost + 0.3f, true, nasal)
+                                next += State(s.text.dropLast(1) + CHANDRABINDU + opt.text, s.cost + opt.cost + chandraCost, true, nasal)
                             }
                         } else {
                             next += State(s.text + opt.text, s.cost + opt.cost, true, nasal)
-                            // A final n after a vowel is usually nasal: nahin → नहीं, main → मैं.
+                            // A final n after a vowel is usually nasal: nahin → नहीं, main → मैं, maan → माँ.
                             if (last && nasal && s.text.isNotEmpty()) {
                                 next += State(s.text + ANUSVARA, s.cost + 0.4f, false, false)
+                                next += State(s.text + CHANDRABINDU, s.cost + 0.2f + chandraCost, false, false)
+                            }
+                            // h after a vowel can be the visarga (स्वतःला, दुःख).
+                            if (opt.text == "ह" && s.text.isNotEmpty()) {
+                                next += State(s.text + VISARGA, s.cost + 0.9f, false, false)
                             }
                         }
                     }
@@ -168,13 +221,26 @@ object Transliterator {
                             else -> unit.matra
                         }
                         for (opt in options) next += State(s.text + opt.text, s.cost + opt.cost, false, false)
+                        // Marathi writes English words' short a as ॅ / ॲ (bag → बॅग, camera → कॅमेरा).
+                        if (lang == KeyboardLanguage.MARATHI && unit === vowels["a"]) {
+                            next += State(s.text + if (s.pending) "ॅ" else "ॲ", s.cost + 1.1f, false, false)
+                        }
                     }
                     is Mark -> next += State(s.text + unit.text, s.cost, false, false)
                     is Other -> next += State(s.text + unit.text, s.cost, false, false)
                 }
             }
-            beam = next.groupBy { it.text }.map { (_, same) -> same.minBy { it.cost } }
-                .sortedBy { it.cost }.take(BEAM)
+            val unique = next.groupBy { it.text }.map { (_, same) -> same.minBy { it.cost } }.sortedBy { it.cost }
+            beam = if (lexicon == null) {
+                unique.take(BEAM)
+            } else {
+                // A pending न / म may still turn into ं (सगळ्यान + n → सगळ्यांन), so
+                // it counts as a word's start if that would be.
+                val (words, other) = unique.partition {
+                    lexicon.hasPrefix(it.text) || (it.nasal && lexicon.hasPrefix(it.text.dropLast(1) + ANUSVARA))
+                }
+                words.take(BEAM) + other.take(BEAM_LITERAL)
+            }
         }
         return beam.map { it.text to it.cost }
     }
@@ -192,7 +258,7 @@ object Transliterator {
         remembered: String? = null,
         limit: Int = 3,
     ): List<String> {
-        val spelled = spellings(latin, lang)
+        val spelled = spellings(latin, lang, lexicon)
         if (spelled.isEmpty()) return emptyList()
         val scored = spelled.map { (text, cost) ->
             val e = lexicon?.lookup(text)

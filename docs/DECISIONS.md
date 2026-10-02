@@ -11016,3 +11016,33 @@ crash or VerifyError since the install) and the emulator. The same move belongs 
   IME's own navigation bar buttons (switch keyboard, hide) white on the light keyboard.
   The service now sets the IME window's light-navigation-bar appearance from the
   keyboard's theme whenever it changes. Checked on the emulator in both themes.
+
+## Marathi / Hindi accuracy pass, measured
+User-reported: long words (विविधतेने) and clusters (ज्येष्ठ) failed in both swipe and
+typing. Instead of fixing examples one by one, `AccuracyEvalTest` now scores the most
+common words: 1,500 Marathi and Hindi words typed the way `Romanizer` spells them
+(every silent a written, and the casual way with them dropped), 600 swiped along
+sloppy paths, and 600 English swipes. Fixes, each driven by the misses it printed:
+- **Bigger lists:** Mozilla Common Voice's Marathi/Hindi sentences (CC0) added to
+  Tatoeba's: Marathi 25k → 38k words, Hindi 8k → 27k.
+- **Word-guided beam:** spellings that start a real word survive however many
+  ambiguous letters they took (a pending न / म counts if its ं form would); a dozen
+  literal ones are kept for new words. This alone fixed most long words.
+- **Rules:** sh+t / sh+th → ष्ट / ष्ठ; ai / au / ei / ou as one vowel or two (आई, भाऊ,
+  येईल); ru → ृ or ्रु (कृपया); kh, ph… also as a consonant + ह (एकही, अपहरण);
+  Hindi ड़ ढ़ क़ ख़ ग़ and ँ; visarga; Marathi ॅ / ॲ for English words typed with a
+  (bag → बॅग); ksh also क्श.
+- **Romanizer variants** for swipe: full and schwa-deleted ("apalyala", "aplyala",
+  dropping the a before a consonant + vowel, or a consonant + y/r/v/l + vowel).
+- **Swipe:** one letter's key may fall outside the path's reach (penalised, not
+  ruled out). New Marathi words typed or picked are learned and become swipeable.
+- Results (first / top three): Marathi typing 98.3 / 100, casual 98.2 / 99.9; Hindi
+  95.9 / 100, casual 95.7 / 99.9; Marathi swipe 98.8 / 99.7; English swipe 98.5 / 100.
+  The test fails below floors just under these.
+
+## Languages in search boxes
+User-reported: no language key in search fields. Search boxes often ask for no
+suggestions, and address bars are URI fields; both were treated as English-only. Now
+any text field but passwords and email allows Marathi/Hindi (globe key, the
+transliteration strip even where English gets no suggestions); address bars open in
+English but can switch.
