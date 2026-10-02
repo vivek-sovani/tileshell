@@ -11090,3 +11090,15 @@ permission, `VoicePermissionActivity` and the RecognitionService query moved to
 only while it's true (verified with aapt both ways); `BuildConfig.VOICE` hides the mic in
 the tools row and the settings note, and `toggleVoice` does nothing. The code stays, so
 turning it back on is one line (plus the privacy policy / Data safety entry it needs).
+
+## Devanagari keys in वर्णमाला order (user-chosen over InScript)
+User-reported: InScript lacked क्ष, ऋ and its letters were hard to find. Shown two
+options; the user picked the alphabet-order layout:
+- A **smart vowel row**: vowel signs (ा ि ी…) right after a consonant, full vowels
+  (आ इ ई… अं अ) anywhere else (`TypingRules.endsInConsonant`, key `independent`).
+- Consonants क…ह across three rows in chart order; then ळ क्ष ज्ञ त्र श्र ऋ ृ ः ँ.
+- Shift: Devanagari digits ० to ९, ॐ, and ॅ ॉ ऑ ॲ द्य र्‍ ़ ऽ ॰; consonants unchanged.
+- Hold a letter for its relatives (क → क्ष क़, ज → ज्ञ ज़, न → ण ञ ङ, र → ऋ ृ र्‍,
+  ल → ळ, श → श्र ष, ं → ँ ः…).
+- Six rows, so 42dp keys (34 in landscape): the keyboard is ~55dp taller only on
+  these keys.

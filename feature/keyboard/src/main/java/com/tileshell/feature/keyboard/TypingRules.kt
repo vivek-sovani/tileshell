@@ -110,6 +110,15 @@ object TypingRules {
         return type == Character.NON_SPACING_MARK.toInt() || type == Character.COMBINING_SPACING_MARK.toInt()
     }
 
+    /**
+     * The text ends in a Devanagari consonant that has no vowel sign yet (क,
+     * not का or क्) — where the smart vowel row offers vowel signs.
+     */
+    fun endsInConsonant(textBefore: CharSequence?): Boolean {
+        val c = textBefore?.lastOrNull() ?: return false
+        return c in '\u0915'..'\u0939' || c in '\u0958'..'\u095F' || c in '\u0978'..'\u097F' || c == '\u093C'
+    }
+
     /** True when [beforeWord] ends a sentence (or is empty): a capital there isn't a name. */
     fun sentenceStart(beforeWord: CharSequence): Boolean {
         val t = beforeWord.trimEnd { it == ' ' || it == '\t' }

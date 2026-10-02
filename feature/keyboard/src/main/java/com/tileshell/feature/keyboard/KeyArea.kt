@@ -414,7 +414,11 @@ private fun KeyFace(
     }
     val fg = if (hot) Color.White else if (key.kind == KeyKind.SPACE) colors.secondary else colors.text
     val label = when (key.kind) {
-        KeyKind.CHAR -> if (shift.upperCase && !controller.devanagariKeys) key.label.uppercase() else key.label
+        KeyKind.CHAR -> when {
+            key.independent != null && controller.fullVowels -> key.independent
+            shift.upperCase && !controller.devanagariKeys -> key.label.uppercase()
+            else -> key.label
+        }
         KeyKind.ENTER -> controller.enterAction.label ?: ""
         KeyKind.SPACE -> controller.spaceLabel
         else -> key.display ?: key.label

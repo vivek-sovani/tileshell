@@ -153,4 +153,14 @@ class TypingRulesTest {
         assertEquals("ज्येष्ठ", TypingRules.currentWord("ज्येष्ठ", null))
         assertEquals("", TypingRules.currentWord("नम", 'स'))
     }
+
+    @Test
+    fun `the vowel row offers signs only right after a consonant`() {
+        assertTrue(TypingRules.endsInConsonant("नम"))
+        assertFalse(TypingRules.endsInConsonant("नमा"))
+        assertFalse(TypingRules.endsInConsonant("नम्"))
+        assertFalse(TypingRules.endsInConsonant(""))
+        assertFalse(TypingRules.endsInConsonant("नमस्कार "))
+        assertTrue(TypingRules.endsInConsonant("ज़"))
+    }
 }

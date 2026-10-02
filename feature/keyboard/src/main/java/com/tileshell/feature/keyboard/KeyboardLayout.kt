@@ -41,6 +41,11 @@ data class Key(
     val functionColour: Boolean = false,
     /** Long-press choices, instead of [KeyPopups]' defaults. */
     val popup: List<String>? = null,
+    /**
+     * The smart vowel row: this key is the vowel sign [label] (ा) after a
+     * consonant, and the full vowel [independent] (आ) anywhere else.
+     */
+    val independent: String? = null,
 ) {
     /** Grey "function" key colour rather than the lighter letter-key colour. */
     val isFunction: Boolean
@@ -89,26 +94,55 @@ object KeyboardLayouts {
         ),
     )
 
+    /** One Devanagari key per character string (क्ष, ज्ञ are one key each), with its hold choices. */
+    private fun deva(vararg keys: String) = keys.map { Key(KeyKind.CHAR, it, popup = DEVANAGARI_HOLD[it]) }
+
+    /** Hold a letter for its relatives (क → क्ष, न → ण ञ ङ); the rest of the alphabet stays in plain sight. */
+    private val DEVANAGARI_HOLD: Map<String, List<String>> = mapOf(
+        "क" to listOf("क्ष", "क़"), "ख" to listOf("ख़"), "ग" to listOf("ग़"),
+        "ज" to listOf("ज्ञ", "ज़"), "ड" to listOf("ड़"), "ढ" to listOf("ढ़"), "फ" to listOf("फ़"),
+        "न" to listOf("ण", "ञ", "ङ"), "त" to listOf("त्र", "त्त"), "द" to listOf("द्य", "द्ध", "द्व"),
+        "र" to listOf("ऋ", "ृ", "र्\u200D"), "ल" to listOf("ळ"), "श" to listOf("श्र", "ष"),
+        "स" to listOf("स्त", "स्व"), "ह" to listOf("ह्म", "ह्य"),
+        "ं" to listOf("ँ", "ः"), "्" to listOf("ऽ"),
+    )
+
     /**
-     * मराठी / हिन्दी keys (canvas "Marathi layout"): the InScript arrangement —
-     * matras on the left, consonants on the right, । as the full stop. Shift
-     * gives the aspirated consonants and full vowels.
+     * The smart vowel row: vowel signs after a consonant, full vowels anywhere
+     * else (at the start of a word, after a vowel) — so there's one row to look
+     * at for any vowel.
+     */
+    private val vowelRow = KeyRow(
+        listOf("ा" to "आ", "ि" to "इ", "ी" to "ई", "ु" to "उ", "ू" to "ऊ", "े" to "ए", "ै" to "ऐ",
+            "ो" to "ओ", "ौ" to "औ", "ं" to "अं", "्" to "अ")
+            .map { (sign, full) -> Key(KeyKind.CHAR, sign, independent = full, popup = DEVANAGARI_HOLD[sign]) },
+    )
+
+    /**
+     * मराठी / हिन्दी keys in वर्णमाला order (user-chosen over InScript, which was
+     * hard to find letters on and lacked क्ष, ज्ञ, ऋ): the smart vowel row, the
+     * consonants क…ह as the alphabet chart runs, then ळ and the joined letters.
      */
     val devanagari: List<KeyRow> = listOf(
-        KeyRow(chars("ौैाीूबहगदजड")),
-        KeyRow(chars("ोे्िुपरकतचट")),
+        vowelRow,
+        KeyRow(deva("क", "ख", "ग", "घ", "ङ", "च", "छ", "ज", "झ", "ञ", "ट")),
+        KeyRow(deva("ठ", "ड", "ढ", "ण", "त", "थ", "द", "ध", "न", "प", "फ")),
+        KeyRow(deva("ब", "भ", "म", "य", "र", "ल", "व", "श", "ष", "स", "ह")),
         KeyRow(
-            listOf(Key(KeyKind.SHIFT, "shift", 1.5f)) + chars("ंमनवलसय") +
+            listOf(Key(KeyKind.SHIFT, "shift", 1.5f)) + deva("ळ", "क्ष", "ज्ञ", "त्र", "श्र", "ऋ", "ृ", "ः", "ँ") +
                 Key(KeyKind.BACKSPACE, "backspace", 1.5f),
         ),
         bottomRow("&123", stop = "।"),
     )
 
+    /** Shift: Devanagari digits on top, the rarer signs below; the consonants stay put. */
     val devanagariShift: List<KeyRow> = listOf(
-        KeyRow(chars("औऐआईऊभङघधझढ")),
-        KeyRow(chars("ओएअइउफऱखथछठ")),
+        KeyRow(deva("०", "१", "२", "३", "४", "५", "६", "७", "८", "९", "ॐ")),
+        devanagari[1],
+        devanagari[2],
+        devanagari[3],
         KeyRow(
-            listOf(Key(KeyKind.SHIFT, "shift", 1.5f)) + chars("ँणञळशषृ") +
+            listOf(Key(KeyKind.SHIFT, "shift", 1.5f)) + deva("ॅ", "ॉ", "ऑ", "ॲ", "द्य", "र्\u200D", "़", "ऽ", "॰") +
                 Key(KeyKind.BACKSPACE, "backspace", 1.5f),
         ),
         bottomRow("&123", stop = "।"),

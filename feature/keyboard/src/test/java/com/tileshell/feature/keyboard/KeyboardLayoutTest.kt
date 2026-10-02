@@ -77,15 +77,26 @@ class KeyboardLayoutTest {
     }
 
     @Test
-    fun `devanagari keys follow the canvas's InScript rows`() {
+    fun `devanagari keys run in varnamala order with every letter on the keys`() {
         val rows = KeyboardLayouts.rowsFor(KeyboardLayer.LETTERS, devanagariKeys = true)
-        assertEquals("ौैाीूबहगदजड", rows[0].keys.joinToString("") { it.label })
-        assertEquals("ोे्िुपरकतचट", rows[1].keys.joinToString("") { it.label })
-        assertEquals("।", rows[3].keys[4].label)
+        assertEquals(6, rows.size)
+        // The smart vowel row: signs, each with its full vowel.
+        assertEquals("ािीुूेैोौं्", rows[0].keys.joinToString("") { it.label })
+        assertEquals("आइईउऊएऐओऔअंअ", rows[0].keys.joinToString("") { it.independent ?: "" })
+        assertEquals("कखगघङचछजझञट", rows[1].keys.joinToString("") { it.label })
+        assertEquals("बभमयरलवशषसह", rows[3].keys.joinToString("") { it.label })
+        val all = rows.flatMap { r -> r.keys.map { it.label } }
+        for (letter in listOf("क्ष", "ज्ञ", "ऋ", "ळ", "त्र", "श्र", "ण", "ञ", "ङ", "ः", "ँ")) assertTrue(letter, letter in all)
+        assertEquals("।", rows[5].keys[4].label)
+        // Hold for relatives.
+        assertTrue("क्ष" in KeyPopups.options(rows[1].keys[0], upper = false))
+        assertTrue("ण" in KeyPopups.options(rows[2].keys[8], upper = false))
+        // Shift: digits on top, consonants unchanged.
         val shifted = KeyboardLayouts.rowsFor(KeyboardLayer.LETTERS, devanagariKeys = true, shifted = true)
-        assertEquals("औऐआईऊभङघधझढ", shifted[0].keys.joinToString("") { it.label })
+        assertEquals("०", shifted[0].keys[0].label)
+        assertEquals(rows[1], shifted[1])
         // The globe still fits in their bottom row.
         val withGlobe = KeyboardLayouts.rowsFor(KeyboardLayer.LETTERS, languageKey = true, devanagariKeys = true)
-        assertTrue(withGlobe[3].keys.any { it.kind == KeyKind.LANGUAGE })
+        assertTrue(withGlobe.last().keys.any { it.kind == KeyKind.LANGUAGE })
     }
 }

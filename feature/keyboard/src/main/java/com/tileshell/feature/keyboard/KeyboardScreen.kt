@@ -152,7 +152,12 @@ internal fun KeyboardScreen(
                 ),
         ) {
             Strip(controller, colors, accent, keyboard.oneHand != OneHand.OFF)
-            val keysHeight = 2.dp + keyHeight * 4 + ROW_GAP * 3 + 12.dp
+            // Devanagari keys: six rows (vowel row, three of consonants, joined
+            // letters, bottom), so shorter keys; the keyboard grows ~55dp.
+            val sixRows = controller.devanagariKeys && controller.layer == KeyboardLayer.LETTERS
+            val rows = if (sixRows) 6 else 4
+            val rowKeyHeight = if (sixRows) (if (landscape) 34.dp else 42.dp) else keyHeight
+            val keysHeight = 2.dp + rowKeyHeight * rows + ROW_GAP * (rows - 1) + 12.dp
             Row(Modifier.fillMaxWidth().height(keysHeight)) {
                 if (keyboard.oneHand == OneHand.RIGHT) OneHandPanel(keysOnRight = true, controller, colors)
                 Box(
@@ -166,7 +171,7 @@ internal fun KeyboardScreen(
                         KeyboardLayer.CLIPBOARD -> ClipboardPanel(controller, colors, accent)
                         KeyboardLayer.VOICE -> VoicePanel(controller, colors, accent)
                         else -> KeyArea(
-                            controller, colors, accent, keyHeight,
+                            controller, colors, accent, rowKeyHeight,
                             letterSp = if (keyboard.oneHand == OneHand.OFF) 22 else 20,
                         )
                     }

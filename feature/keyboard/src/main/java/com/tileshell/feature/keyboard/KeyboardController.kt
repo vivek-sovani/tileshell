@@ -104,6 +104,10 @@ class KeyboardController(
     var devanagariKeys by mutableStateOf(false)
         private set
 
+    /** The smart vowel row shows full vowels (no consonant just before the cursor). */
+    var fullVowels by mutableStateOf(true)
+        private set
+
     private val lexicons = HashMap<KeyboardLanguage, Lexicon>()
 
     /** मराठी / हिन्दी words by their English-letter spelling, for swipe typing. */
@@ -236,7 +240,7 @@ class KeyboardController(
         click(key.kind)
         when (key.kind) {
             KeyKind.CHAR -> when {
-                devanagariKeys -> commit(key.label)
+                devanagariKeys -> commit(if (fullVowels && key.independent != null) key.independent else key.label)
                 translit -> compose(if (shift.upperCase) key.label.uppercase() else key.label)
                 else -> commit(if (shift.upperCase) key.label.uppercase() else key.label)
             }
@@ -814,6 +818,7 @@ class KeyboardController(
         languageKey = languagesHere && settings.languages.size > 1 && layer != KeyboardLayer.NUMPAD
         val ic = service.currentInputConnection
         val before = ic?.getTextBeforeCursor(CONTEXT_CHARS, 0)
+        fullVowels = !TypingRules.endsInConsonant(before)
         if (shift != ShiftState.LOCKED) {
             // Devanagari has no capitals; in मराठी / हिन्दी shift is only for T, D, N…
             val auto = !language.indic && settings.autoCapitals && TypingRules.autoCapital(before, inputType)
