@@ -19,3 +19,8 @@ by tools/keyboard/build_wordlist.py (non-words dropped, offensive words kept as
 
 en_in_extra.txt is TileShell's own short list of Indian English words (places,
 festivals, food, common names) that the AOSP list lacks.
+
+mr_words.txt and hi_words.txt are word frequencies counted from Tatoeba's
+Marathi and Hindi sentences (https://tatoeba.org), used under CC-BY 2.0 FR,
+by tools/keyboard/build_indic_wordlist.py. mr_extra.txt and hi_extra.txt are
+TileShell's own short lists of places and festivals the sentences lack.

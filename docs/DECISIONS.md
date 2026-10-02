@@ -10890,3 +10890,25 @@ User-requested, from their "Metro Keyboard for Android" design canvas. Plan in
 - **Settings** keep keyboard-only choices in SharedPreferences `keyboard_prefs`; theme
   defaults to "match tileshell". `LumiaSwitch` moved from personalize to `:core:design`
   so both use it. Not included in TileShell backups (yet).
+
+## Keyboard phase 3 — Marathi and Hindi by transliteration
+- **Transliteration only**; the Devanagari key layout is deferred (user's call).
+- **Word lists from Tatoeba** (CC-BY 2.0 FR: credit only, no share-alike), counted by
+  `tools/keyboard/build_indic_wordlist.py`: ~25k Marathi and ~8k Hindi words, log-scaled
+  to the English list's 0-255 range; "Tom" (in thousands of Tatoeba sentences) dropped.
+  Chosen over CC-BY-SA subtitle/Wikipedia lists (share-alike on an app asset) and over
+  rules alone (can't tell dhanyavad from dhanyavd). Plus short hand-made place/festival
+  lists (Pune isn't in the Tatoeba Marathi).
+- **Rules** (`Transliterator`): longest match, exact case then lower (T/D/N/L/Sh pick
+  the retroflex letters); each ambiguity has a cost (t is t or T, mid a inherent or aa,
+  final a usually aa, final i/u usually long, n before a consonant or at the end can be
+  the anusvara, an unwritten a between consonants). Marathi z is jha (maza), Hindi z
+  is za with nukta. A 48-wide beam; real words rank first, then the most literal
+  spelling, then completions.
+- **Composing text** shows the Latin letters underlined in the field (as the canvas
+  draws it); space puts in the best spelling. A strip tap picks another one and is
+  remembered for those letters (`keyboard_translit_<lang>.txt`, on the phone only).
+- **Languages:** English always on; Marathi on and Hindi off by default; the space bar
+  reads "मराठी · abc"; a 40dp sideways swipe on it switches (the space goes in on lift
+  for that key only, so a swipe never types one). Password / email / web-address fields
+  always type English. No auto-capitals in Marathi/Hindi (shift is for T, D, N...).

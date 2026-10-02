@@ -37,6 +37,12 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`metro-keyboard` branch — keyboard phase 3: Marathi and Hindi by transliteration.**
+  Type in English letters (composing, underlined); the strip offers Devanagari spellings
+  ranked by Tatoeba-derived word lists; space puts in the best; picks are remembered.
+  Swipe the space bar to switch language; settings switch Marathi/Hindi on. Devanagari
+  key layout deferred (user's call). Checked on the emulator: namaskar, maza, switch
+  back to English, backspace while composing, picking an alternative.
 - **`metro-keyboard` branch — keyboard phase 2: suggestions and autocorrect.** Strip
   with the typed word, best guess underlined, completions; autocorrect on space or
   punctuation with backspace / tap-the-original undo; levels; i→I and usual capitals;

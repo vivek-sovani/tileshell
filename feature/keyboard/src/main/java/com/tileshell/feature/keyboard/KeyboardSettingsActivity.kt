@@ -85,8 +85,7 @@ private fun KeyboardSettingsScreen(prefs: KeyboardPrefs) {
         }
     }
     val accent = TileAccents.forId(launcher?.accentId)
-    val learned = remember { KeyboardDictionary.learnedWords(context) }
-    var learnedCount by remember { mutableIntStateOf(learned.size) }
+    var learnedCount by remember { mutableIntStateOf(KeyboardDictionary.learnedCount(context)) }
 
     Column(
         modifier = Modifier
@@ -167,7 +166,7 @@ private fun KeyboardSettingsScreen(prefs: KeyboardPrefs) {
                         "clear",
                         modifier = Modifier
                             .clickable {
-                                learned.clear()
+                                KeyboardDictionary.clearLearned(context)
                                 learnedCount = 0
                                 Toast.makeText(context, "learned words cleared", Toast.LENGTH_SHORT).show()
                             }
@@ -184,6 +183,13 @@ private fun KeyboardSettingsScreen(prefs: KeyboardPrefs) {
 
         Group("Typing languages", tokens) {
             BasicText("English (India)", style = TextStyle(color = tokens.fg, fontSize = 22.sp, fontWeight = FontWeight.Light))
+            LanguageRow("मराठी", settings.marathi, accent, tokens) { on -> prefs.update { it.copy(marathi = on) } }
+            LanguageRow("हिन्दी", settings.hindi, accent, tokens) { on -> prefs.update { it.copy(hindi = on) } }
+            Note(
+                "Type मराठी and हिन्दी in English letters — namaskar becomes नमस्कार when you press space. " +
+                    "Swipe the space bar left or right to switch language.",
+                tokens,
+            )
         }
     }
 }
@@ -211,6 +217,21 @@ private fun Toggle(label: String, on: Boolean, accent: Color, tokens: ColorToken
             )
             LumiaSwitch(on, accent, tokens, onChange)
         }
+    }
+}
+
+@Composable
+private fun LanguageRow(name: String, on: Boolean, accent: Color, tokens: ColorTokens, onChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable { onChange(!on) }.padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BasicText(
+            name,
+            modifier = Modifier.weight(1f),
+            style = TextStyle(color = tokens.fg, fontSize = 22.sp, fontWeight = FontWeight.Light),
+        )
+        LumiaSwitch(on, accent, tokens, onChange)
     }
 }
 

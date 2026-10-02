@@ -27,9 +27,14 @@ enum class StripMode {
 }
 
 /**
- * The keyboard's state (layer, shift, enter action, suggestion strip) and every
- * edit it makes through the service's current InputConnection. Compose reads
- * the state; key presses and strip taps come back here.
+ * The keyboard's state (layer, shift, enter action, language, suggestion
+ * strip) and every edit it makes through the service's current
+ * InputConnection. Compose reads the state; key presses and strip taps come
+ * back here.
+ *
+ * मराठी / हिन्दी are typed in English letters: they collect as composing text
+ * (underlined in the field), the strip offers Devanagari spellings, and space
+ * puts in the best one.
  */
 class KeyboardController(
     private val service: InputMethodService,
@@ -48,11 +53,25 @@ class KeyboardController(
     var strip by mutableStateOf<List<StripWord>>(emptyList())
         private set
 
-    private var lexicon: Lexicon? = null
+    /** The language being typed (English in fields where only English makes sense). */
+    var language by mutableStateOf(KeyboardLanguage.ENGLISH)
+        private set
+
+    /** The space bar's label: "English", "मराठी · abc". */
+    val spaceLabel: String
+        get() = if (language.indic) "${language.nativeName} · abc" else language.nativeName
+
+    private val lexicons = HashMap<KeyboardLanguage, Lexicon>()
     private var inputType = 0
     private var fieldMode = FieldMode.NO_SUGGESTIONS
     private var learnHere = false
     private var previousKeyWasSpace = false
+
+    /** English letters typed for a मराठी / हिन्दी word, shown as composing text. */
+    private val latin = StringBuilder()
+
+    /** The best Devanagari spelling of [latin], what space puts in. */
+    private var translitBest: String? = null
 
     /** The last autocorrect, while backspace (or tapping the original) can still undo it. */
     private var lastCorrection: Correction? = null
@@ -63,12 +82,25 @@ class KeyboardController(
 
     private val settings get() = prefs.settings.value
     private val audio by lazy { service.getSystemService(Context.AUDIO_SERVICE) as? AudioManager }
+    private val lexicon: Lexicon? get() = lexicons[language]
+    private val translit: Boolean get() = language.indic
 
     private data class Correction(val original: String, val replacement: String, val separator: String)
 
-    fun setLexicon(value: Lexicon) {
-        lexicon = value
-        refresh()
+    private val loading = HashSet<KeyboardLanguage>()
+
+    /** Loads [lang]'s word list the first time it's needed (off the main thread). */
+    private fun ensureLexicon(lang: KeyboardLanguage) {
+        if (lang in lexicons || !loading.add(lang)) return
+        scope.launch {
+            runCatching { KeyboardDictionary.lexicon(service, lang) }
+                .onSuccess {
+                    lexicons[lang] = it
+                    if (lang == language) refresh()
+                }
+                .onFailure { android.util.Log.w("TileShellKeyboard", "${lang.code} word list didn't load", it) }
+            loading.remove(lang)
+        }
     }
 
     fun onStartInput(info: EditorInfo?) {
@@ -79,17 +111,49 @@ class KeyboardController(
         fieldMode = TypingRules.fieldMode(inputType)
         learnHere = TypingRules.canLearn(inputType, imeOptions)
         shift = ShiftState.OFF
+        latin.clear()
+        translitBest = null
         resetTransient()
+        language = effectiveLanguage()
+        ensureLexicon(KeyboardLanguage.ENGLISH)
+        ensureLexicon(language)
         refresh()
     }
 
-    /** The cursor moved (typed text or a tap in the field). */
-    fun onSelectionChanged() {
+    /**
+     * The cursor moved. [composing] is false once the field no longer holds our
+     * composing text (a tap elsewhere, or the app took it): the letters are then
+     * left as they are.
+     */
+    fun onSelectionChanged(composing: Boolean) {
+        if (!composing && latin.isNotEmpty()) {
+            latin.clear()
+            translitBest = null
+        }
         refresh()
     }
 
     /** Settings changed (from the settings page). */
     fun onSettingsChanged() {
+        val lang = effectiveLanguage()
+        if (lang != language) {
+            commitTranslit(separator = "")
+            language = lang
+            ensureLexicon(lang)
+        }
+        refresh()
+    }
+
+    /** Space bar swiped: the next (+1) or previous (−1) language that's on. */
+    fun switchLanguage(step: Int) {
+        if (fieldMode != FieldMode.NORMAL || settings.languages.size < 2) return
+        commitTranslit(separator = "")
+        resetTransient()
+        val next = settings.languageAfter(step)
+        prefs.update { it.copy(language = next) }
+        language = next
+        ensureLexicon(next)
+        shift = ShiftState.OFF
         refresh()
     }
 
@@ -100,21 +164,45 @@ class KeyboardController(
         resetTransient()
         click(key.kind)
         when (key.kind) {
-            KeyKind.CHAR -> commit(if (shift.upperCase) key.label.uppercase() else key.label)
-            KeyKind.SYMBOL ->
-                if (key.label in PUNCTUATION) punctuation(key.label, spaced) else commit(key.label)
+            KeyKind.CHAR -> {
+                val ch = if (shift.upperCase) key.label.uppercase() else key.label
+                if (translit) compose(ch) else commit(ch)
+            }
+            KeyKind.SYMBOL -> when {
+                translit -> {
+                    commitTranslit(separator = "")
+                    commit(key.label)
+                }
+                key.label in PUNCTUATION -> punctuation(key.label, spaced)
+                else -> commit(key.label)
+            }
             KeyKind.SPACE -> {
-                space(wasSpace)
+                if (translit && latin.isNotEmpty()) {
+                    commitTranslit(separator = " ")
+                } else {
+                    space(wasSpace)
+                }
                 previousKeyWasSpace = true
             }
-            KeyKind.BACKSPACE -> if (undo == null || !undoCorrection(undo, keepSeparator = false)) deleteOne()
-            KeyKind.ENTER -> enter()
+            KeyKind.BACKSPACE -> when {
+                translit && latin.isNotEmpty() -> uncompose()
+                undo == null || !undoCorrection(undo, keepSeparator = false) -> deleteOne()
+            }
+            KeyKind.ENTER -> {
+                commitTranslit(separator = "")
+                enter()
+            }
             KeyKind.SHIFT -> shift = shift.tapped()
-            KeyKind.LAYER -> layer =
-                if (layer == KeyboardLayer.LETTERS) KeyboardLayer.SYMBOLS_1 else KeyboardLayer.LETTERS
+            KeyKind.LAYER -> {
+                commitTranslit(separator = "")
+                layer = if (layer == KeyboardLayer.LETTERS) KeyboardLayer.SYMBOLS_1 else KeyboardLayer.LETTERS
+            }
             KeyKind.PAGE -> layer =
                 if (layer == KeyboardLayer.SYMBOLS_1) KeyboardLayer.SYMBOLS_2 else KeyboardLayer.SYMBOLS_1
-            KeyKind.EMOJI -> layer = KeyboardLayer.EMOJI
+            KeyKind.EMOJI -> {
+                commitTranslit(separator = "")
+                layer = KeyboardLayer.EMOJI
+            }
         }
         // Shift is only re-read from the text after an edit, so tapping shift sticks.
         if (key.kind != KeyKind.SHIFT) refresh()
@@ -135,7 +223,7 @@ class KeyboardController(
     fun backspace() {
         resetTransient()
         click(KeyKind.BACKSPACE)
-        deleteOne()
+        if (translit && latin.isNotEmpty()) uncompose() else deleteOne()
         refresh()
     }
 
@@ -144,6 +232,14 @@ class KeyboardController(
         val ic = service.currentInputConnection ?: return
         val undo = lastCorrection
         resetTransient()
+        if (translit) {
+            // Composing: the letters or a Devanagari spelling. Not composing (next
+            // words): just insert it.
+            if (latin.isNotEmpty()) pickTranslit(word) else ic.commitText(word.text + " ", 1)
+            autoSpaced = true
+            refresh()
+            return
+        }
         if (word.kind == StripWord.Kind.UNDO) {
             if (undo != null) undoCorrection(undo, keepSeparator = true)
             refresh()
@@ -165,6 +261,54 @@ class KeyboardController(
         lastCorrection = null
         autoSpaced = false
     }
+
+    // ---- मराठी / हिन्दी in English letters ----
+
+    private fun compose(letter: String) {
+        latin.append(letter)
+        service.currentInputConnection?.setComposingText(latin, 1)
+    }
+
+    private fun uncompose() {
+        latin.setLength(latin.length - 1)
+        val ic = service.currentInputConnection ?: return
+        if (latin.isEmpty()) {
+            ic.setComposingText("", 1)
+            ic.finishComposingText()
+            translitBest = null
+        } else {
+            ic.setComposingText(latin, 1)
+        }
+    }
+
+    /** Puts in the best Devanagari spelling (or the letters, if there's none yet). */
+    private fun commitTranslit(separator: String) {
+        if (latin.isEmpty()) return
+        val best = translitBest ?: Transliterator.candidates(latin.toString(), language, lexicon).firstOrNull()
+        finishTranslit((best ?: latin.toString()) + separator)
+    }
+
+    /** A strip word while composing: the letters as typed, or a Devanagari spelling. */
+    private fun pickTranslit(word: StripWord) {
+        val typed = latin.toString()
+        if (word.kind == StripWord.Kind.TYPED) {
+            finishTranslit("$typed ")
+            return
+        }
+        if (learnHere) {
+            KeyboardDictionary.translitPicks(service, language).remember(typed, word.text)
+            if (lexicon?.lookup(word.text) == null) KeyboardDictionary.learnedWords(service, language).learn(word.text, strong = true)
+        }
+        finishTranslit(word.text + " ")
+    }
+
+    private fun finishTranslit(text: String) {
+        latin.clear()
+        translitBest = null
+        service.currentInputConnection?.commitText(text, 1)
+    }
+
+    // ---- English ----
 
     private fun commit(text: String) {
         service.currentInputConnection?.commitText(text, 1)
@@ -280,12 +424,17 @@ class KeyboardController(
         return TypingRules.currentWord(ic.getTextBeforeCursor(CONTEXT_CHARS, 0), after)
     }
 
+    /** Passwords, email and web addresses are always typed in English letters. */
+    private fun effectiveLanguage(): KeyboardLanguage =
+        if (fieldMode == FieldMode.NORMAL) settings.activeLanguage else KeyboardLanguage.ENGLISH
+
     /** Re-reads the text round the cursor: auto capital and the strip. */
     private fun refresh() {
         val ic = service.currentInputConnection
         val before = ic?.getTextBeforeCursor(CONTEXT_CHARS, 0)
         if (shift != ShiftState.LOCKED) {
-            val auto = settings.autoCapitals && TypingRules.autoCapital(before, inputType)
+            // Devanagari has no capitals; in मराठी / हिन्दी shift is only for T, D, N…
+            val auto = !translit && settings.autoCapitals && TypingRules.autoCapital(before, inputType)
             shift = if (auto) ShiftState.ONCE else ShiftState.OFF
         }
         refreshStrip(ic?.getTextAfterCursor(1, 0)?.firstOrNull(), before)
@@ -296,13 +445,20 @@ class KeyboardController(
         val lex = lexicon
         stripMode = when {
             fieldMode == FieldMode.INCOGNITO -> StripMode.INCOGNITO
-            !settings.suggestions || fieldMode == FieldMode.NO_SUGGESTIONS || lex == null -> StripMode.TOOLS
+            fieldMode == FieldMode.NO_SUGGESTIONS -> StripMode.TOOLS
+            translit -> StripMode.WORDS
+            !settings.suggestions || lex == null -> StripMode.TOOLS
             else -> StripMode.WORDS
         }
-        if (stripMode != StripMode.WORDS || lex == null) {
+        if (stripMode != StripMode.WORDS) {
             strip = emptyList()
             return
         }
+        if (translit) {
+            refreshTranslitStrip(lex)
+            return
+        }
+        if (lex == null) return
         // The undo offer lasts only while the corrected word is still right before
         // the cursor (the field may have changed it, or the cursor moved away).
         lastCorrection?.let { c ->
@@ -327,8 +483,36 @@ class KeyboardController(
         }
     }
 
+    /** "namaskar" (dim) · **नमस्कार** · alternatives — the canvas's transliteration strip. */
+    private fun refreshTranslitStrip(lex: Lexicon?) {
+        if (latin.isEmpty()) {
+            translitBest = null
+            strip = NEXT_WORDS_INDIC[language].orEmpty().map { StripWord(it, StripWord.Kind.WORD) }
+            return
+        }
+        val typed = latin.toString()
+        val lang = language
+        val remembered = KeyboardDictionary.translitPicks(service, lang)[typed]
+        stripJob = scope.launch {
+            val words = withContext(Dispatchers.Default) {
+                Transliterator.candidates(typed, lang, lex, remembered)
+            }
+            // Still the same letters (typing may have moved on).
+            if (latin.toString() != typed) return@launch
+            translitBest = words.firstOrNull()
+            strip = listOf(StripWord(typed, StripWord.Kind.TYPED)) +
+                words.mapIndexed { i, w -> StripWord(w, StripWord.Kind.WORD, best = i == 0) }
+        }
+    }
+
     private companion object {
         const val CONTEXT_CHARS = 64
         val PUNCTUATION = setOf(".", ",", "!", "?", ";", ":")
+
+        /** Common sentence starts, shown before anything is typed. */
+        val NEXT_WORDS_INDIC = mapOf(
+            KeyboardLanguage.MARATHI to listOf("मी", "आहे", "नाही", "का"),
+            KeyboardLanguage.HINDI to listOf("मैं", "है", "नहीं", "क्या"),
+        )
     }
 }

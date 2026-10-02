@@ -106,6 +106,9 @@ private const val PRESS_FLASH_MS = 140L
 private const val REPEAT_START_MS = 400L
 private const val REPEAT_EVERY_MS = 50L
 
+/** How far a sideways swipe on the space bar goes before it switches language. */
+private val SWIPE_DISTANCE = 40.dp
+
 /** Whether key presses tick the haptic (keyboard settings → haptic feedback). */
 private val LocalKeyHaptics = staticCompositionLocalOf { true }
 
@@ -280,6 +283,7 @@ private fun RowScope.KeyCell(
     val label = when (key.kind) {
         KeyKind.CHAR -> if (shift.upperCase) key.label.uppercase() else key.label
         KeyKind.ENTER -> controller.enterAction.label ?: ""
+        KeyKind.SPACE -> controller.spaceLabel
         else -> key.label
     }
     val description = when (key.kind) {
@@ -289,7 +293,7 @@ private fun RowScope.KeyCell(
             ShiftState.LOCKED -> "caps lock"
         }
         KeyKind.ENTER -> controller.enterAction.label ?: "enter"
-        KeyKind.SPACE -> "space"
+        KeyKind.SPACE -> "space, ${controller.spaceLabel}"
         else -> label
     }
     val lit = key.kind == KeyKind.SHIFT && shift.upperCase
@@ -303,6 +307,7 @@ private fun RowScope.KeyCell(
         repeats = key.kind == KeyKind.BACKSPACE,
         onPress = { controller.onKey(key) },
         onRepeat = { controller.backspace() },
+        onSwipe = if (key.kind == KeyKind.SPACE) controller::switchLanguage else null,
     ) { pressed ->
         val fg = if (pressed || lit) Color.White else if (key.kind == KeyKind.SPACE) colors.secondary else colors.text
         when (key.kind) {
@@ -326,7 +331,8 @@ private fun RowScope.KeyCell(
  * One square key. Acts on finger down (no wait for the lift, so quick
  * two-thumb typing lands in order), fills with the accent while held and for
  * at least [PRESS_FLASH_MS], ticks the keyboard haptic, and — for backspace —
- * repeats while held.
+ * repeats while held. A key with [onSwipe] (the space bar) acts on the lift
+ * instead, so a sideways swipe can switch language without typing a space.
  */
 @Composable
 private fun PressableKey(
@@ -339,9 +345,12 @@ private fun PressableKey(
     repeats: Boolean,
     onPress: () -> Unit,
     onRepeat: () -> Unit,
+    onSwipe: ((step: Int) -> Unit)? = null,
     content: @Composable (pressed: Boolean) -> Unit,
 ) {
     val view = LocalView.current
+    val swipe by rememberUpdatedState(onSwipe)
+    val swipeDistance = with(androidx.compose.ui.platform.LocalDensity.current) { SWIPE_DISTANCE.toPx() }
     val haptics = LocalKeyHaptics.current
     val scope = rememberCoroutineScope()
     var held by remember { mutableStateOf(false) }
@@ -353,9 +362,10 @@ private fun PressableKey(
         modifier = modifier
             .height(height)
             .background(if (pressed || lit) accent else base)
-            .pointerInput(repeats, haptics) {
+            .pointerInput(repeats, haptics, onSwipe != null) {
                 awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false).consume()
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
                     held = true
                     flashing = true
                     scope.launch {
@@ -363,6 +373,25 @@ private fun PressableKey(
                         flashing = false
                     }
                     if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    val swiper = swipe
+                    if (swiper != null) {
+                        // Tap → act on lift; sideways past SWIPE_DISTANCE → swipe instead.
+                        var swiped = false
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (!change.pressed) break
+                            val dx = change.position.x - down.position.x
+                            if (!swiped && kotlin.math.abs(dx) > swipeDistance) {
+                                swiped = true
+                                swiper(if (dx < 0) 1 else -1)
+                            }
+                            change.consume()
+                        }
+                        held = false
+                        if (!swiped) press()
+                        return@awaitEachGesture
+                    }
                     press()
                     var repeater: Job? = null
                     if (repeats) {

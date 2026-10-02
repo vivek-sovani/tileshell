@@ -23,7 +23,31 @@ data class KeyboardSettings(
     val doubleSpacePeriod: Boolean = true,
     val keySound: Boolean = false,
     val vibrate: Boolean = true,
-)
+    /** Typed in English letters, written in Devanagari. English is always on. */
+    val marathi: Boolean = true,
+    val hindi: Boolean = false,
+    /** The language last typed in; swiping the space bar moves through the ones on. */
+    val language: KeyboardLanguage = KeyboardLanguage.ENGLISH,
+) {
+    /** The languages the space bar cycles through, English first. */
+    val languages: List<KeyboardLanguage>
+        get() = buildList {
+            add(KeyboardLanguage.ENGLISH)
+            if (marathi) add(KeyboardLanguage.MARATHI)
+            if (hindi) add(KeyboardLanguage.HINDI)
+        }
+
+    /** The language now in use: the last one, if still on. */
+    val activeLanguage: KeyboardLanguage
+        get() = if (language in languages) language else KeyboardLanguage.ENGLISH
+
+    /** The next language on, [step] = +1 / −1, wrapping round. */
+    fun languageAfter(step: Int): KeyboardLanguage {
+        val list = languages
+        val i = list.indexOf(activeLanguage)
+        return list[Math.floorMod(i + step, list.size)]
+    }
+}
 
 /**
  * Keyboard-only settings in `keyboard_prefs` (accent and the default theme
@@ -52,6 +76,9 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
             .putBoolean(PERIOD, next.doubleSpacePeriod)
             .putBoolean(SOUND, next.keySound)
             .putBoolean(VIBRATE, next.vibrate)
+            .putBoolean(MARATHI, next.marathi)
+            .putBoolean(HINDI, next.hindi)
+            .putString(LANGUAGE, next.language.name)
             .apply()
         state.value = next
     }
@@ -67,6 +94,9 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
             doubleSpacePeriod = prefs.getBoolean(PERIOD, d.doubleSpacePeriod),
             keySound = prefs.getBoolean(SOUND, d.keySound),
             vibrate = prefs.getBoolean(VIBRATE, d.vibrate),
+            marathi = prefs.getBoolean(MARATHI, d.marathi),
+            hindi = prefs.getBoolean(HINDI, d.hindi),
+            language = KeyboardLanguage.entries.find { it.name == prefs.getString(LANGUAGE, null) } ?: d.language,
         )
     }
 
@@ -79,6 +109,9 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
         private const val PERIOD = "double_space_period"
         private const val SOUND = "key_sound"
         private const val VIBRATE = "vibrate"
+        private const val MARATHI = "lang_marathi"
+        private const val HINDI = "lang_hindi"
+        private const val LANGUAGE = "language"
 
         @Volatile private var instance: KeyboardPrefs? = null
 

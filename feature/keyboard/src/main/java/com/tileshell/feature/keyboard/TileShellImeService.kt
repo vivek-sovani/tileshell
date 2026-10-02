@@ -1,7 +1,6 @@
 package com.tileshell.feature.keyboard
 
 import android.inputmethodservice.InputMethodService
-import android.util.Log
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import androidx.compose.ui.platform.ComposeView
@@ -40,11 +39,6 @@ class TileShellImeService : InputMethodService(), LifecycleOwner, SavedStateRegi
         super.onCreate()
         savedStateController.performRestore(null)
         lifecycleRegistry.currentState = Lifecycle.State.RESUMED
-        scope.launch {
-            runCatching { KeyboardDictionary.lexicon(this@TileShellImeService) }
-                .onSuccess { controller.setLexicon(it) }
-                .onFailure { Log.w(TAG, "word list didn't load; suggestions off", it) }
-        }
         scope.launch { prefs.settings.drop(1).collect { controller.onSettingsChanged() } }
     }
 
@@ -74,7 +68,8 @@ class TileShellImeService : InputMethodService(), LifecycleOwner, SavedStateRegi
         candidatesEnd: Int,
     ) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
-        controller.onSelectionChanged()
+        // Our composing text ends at the cursor; anything else means it's gone.
+        controller.onSelectionChanged(composing = candidatesStart >= 0 && candidatesEnd == newSelEnd)
     }
 
     /** Landscape keeps the keyboard under the app instead of a full-screen text box. */
@@ -86,7 +81,4 @@ class TileShellImeService : InputMethodService(), LifecycleOwner, SavedStateRegi
         super.onDestroy()
     }
 
-    private companion object {
-        const val TAG = "TileShellKeyboard"
-    }
 }
