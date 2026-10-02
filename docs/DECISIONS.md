@@ -10946,3 +10946,15 @@ User-requested, from their "Metro Keyboard for Android" design canvas. Plan in
   applies; adds the normal VIBRATE permission (keyboard module only).
 - Testing note: `adb shell` inside a `while read` loop eats the loop's input — give it
   `</dev/null` when injecting a swipe path with `input motionevent`.
+
+## Release crash on the keyboard branch: Start's layout lambda hit R8's VerifyError again
+After phase 4 the release build crash-looped at launch on the phone (`VerifyError ...
+StartScreenKt ... register v6 has type Reference: java.lang.Integer but expected Integer`,
+in `StartScreen$lambda$518$lambda$517`, the main BoxWithConstraints layout lambda). No
+Start code had changed: adding the keyboard module shifted R8's whole-program
+optimisation and tipped that lambda (over 110 captured values) back over the edge, as
+happened before (see `HubScreensLayer`). Fix: the PersonalizeSheet call (~100 arguments,
+a dozen callbacks capturing the wallpaper/photo pickers and stores) moved into its own
+`PersonalizeSheetLayer` composable. Verified: release build launches on the phone (no
+crash or VerifyError since the install) and the emulator. The same move belongs on
+`main` too when this branch merges — that lambda is near the limit there as well.

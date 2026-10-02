@@ -14,6 +14,7 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -268,6 +269,7 @@ import com.tileshell.feature.livetiles.PeopleHubScreen
 import com.tileshell.feature.livetiles.PeopleTileFace
 import com.tileshell.feature.livetiles.PhotosData
 import com.tileshell.feature.livetiles.PhotosStore
+import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.feature.livetiles.PhotosTileFace
 import com.tileshell.feature.livetiles.SELECTABLE_COUNTRIES
 import com.tileshell.feature.livetiles.SportsLinks
@@ -1941,174 +1943,35 @@ fun StartScreen(
             apps.filter { it.packageName in hiddenPackages }.sortedBy { it.label.lowercase() }
         }
 
-        // Personalize sheet overlay (edit bar → personalize, FR-7).
-        PersonalizeSheet(
-            visible = personalizeVisible,
-            sessionOpen = personalizeOpen,
-            rightHalf = isLandscape,
+        // Personalize sheet overlay (edit bar → personalize, FR-7). Its own
+        // composable, out of this layout lambda — see [PersonalizeSheetLayer].
+        PersonalizeSheetLayer(
+            viewModel = viewModel,
+            settings = settings,
+            personalizeVisible = personalizeVisible,
+            personalizeOpen = personalizeOpen,
+            isLandscape = isLandscape,
             dark = dark,
-            followSystemTheme = settings.followSystemTheme,
-            onFollowSystemThemeChange = viewModel::setFollowSystemTheme,
-            accentId = settings.accentId,
-            glass = settings.glass,
-            transparency = settings.transparency,
-            blur = settings.blur,
-            wallpaperId = settings.wallpaperId,
-            customWallpaper = settings.customWallpaperUri != null,
             photoWallpaper = photoWallpaper,
-            bingWallpaper = settings.bingWallpaper,
-            onBingWallpaperChange = viewModel::setBingWallpaper,
-            onBingHistory = { bingHistoryOpen = true },
             bingPicked = bingPicked,
             bingRecentImages = bingRecentImages,
             onRefreshBing = onRefreshBing,
-            customWallpaperUri = settings.customWallpaperUri,
             onSelectPhotoType = onSelectPhotoType,
-            wallpaperAlignX = settings.wallpaperAlignX,
-            wallpaperAlignY = settings.wallpaperAlignY,
+            onBingHistory = { bingHistoryOpen = true },
             onAdjustWallpaper = { if (settings.customWallpaperUri != null) adjustingWallpaper = true },
-            wallpaperSlideshowEnabled = settings.wallpaperSlideshowEnabled,
-            onWallpaperSlideshowChange = viewModel::setWallpaperSlideshowEnabled,
-            wallpaperSlideshowIntervalMin = settings.wallpaperSlideshowIntervalMin,
-            onWallpaperSlideshowIntervalChange = viewModel::setWallpaperSlideshowInterval,
-            wallpaperSlideshowUris = wallpaperSlideshowUris,
-            onPickWallpaperSlideshowPhotos = {
-                wallpaperSlideshowPicker.launch(
-                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                )
-            },
-            onClearWallpaperSlideshowPhotos = {
-                scope.launch {
-                    wallpaperSlideshowStore.setUris(emptyList())
-                    viewModel.refreshWallpaperSlide(emptyList())
-                    withContext(Dispatchers.IO) { MediaImport.clearWallpaperSlideshow(context) }
-                }
-            },
-            onRemoveWallpaperSlideshowPhoto = { uri ->
-                scope.launch {
-                    val left = wallpaperSlideshowStore.read().uris - uri
-                    wallpaperSlideshowStore.setUris(left)
-                    viewModel.refreshWallpaperSlide(left)
-                    withContext(Dispatchers.IO) { MediaImport.deleteImported(context, uri) }
-                }
-            },
-            tiledWallpaper = settings.tiledWallpaper,
-            onTiledWallpaperChange = viewModel::setTiledWallpaper,
-            borderlessTiles = settings.borderlessTiles,
-            onBorderlessTilesChange = viewModel::setBorderlessTiles,
-            tileOutline = settings.tileOutline,
-            onTileOutlineChange = viewModel::setTileOutline,
-            feedEnabled = settings.feedEnabled,
-            onFeedEnabledChange = viewModel::setFeedEnabled,
-            feedNoBackground = settings.feedNoBackground,
-            onFeedNoBackgroundChange = viewModel::setFeedNoBackground,
-            userName = settings.userName,
-            onUserNameChange = viewModel::setUserName,
-            liveTilesEnabled = settings.liveTilesEnabled,
-            onLiveTilesEnabledChange = viewModel::setLiveTilesEnabled,
-            weatherRefreshRate = settings.weatherRefreshRate,
-            onWeatherRefreshRateChange = viewModel::setWeatherRefreshRate,
-            newsRefreshRate = settings.newsRefreshRate,
-            onNewsRefreshRateChange = viewModel::setNewsRefreshRate,
-            stockRefreshRate = settings.stockRefreshRate,
-            onStockRefreshRateChange = viewModel::setStockRefreshRate,
-            commodityRefreshRate = settings.commodityRefreshRate,
-            onCommodityRefreshRateChange = viewModel::setCommodityRefreshRate,
-            sportsRefreshRate = settings.sportsRefreshRate,
-            onSportsRefreshRateChange = viewModel::setSportsRefreshRate,
-            notificationsEnabled = notificationAccess,
-            onNotificationAccess = {
-                runCatching { context.startActivity(NotificationAccess.settingsIntent()) }
-                    .onFailure {
-                        Toast.makeText(context, "open settings to allow access", Toast.LENGTH_SHORT)
-                            .show()
-                    }
-            },
-            batteryOptimizationExempt = batteryExempt,
-            batteryGuidanceNote = OemBatteryGuard.guidanceNote(),
-            onBatteryExemption = { OemBatteryGuard.requestExemption(context) },
-            onSystemSettings = {
-                runCatching {
-                    context.startActivity(
-                        Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                    )
-                }
-            },
-            onThemeChange = viewModel::setTheme,
-            onAccentChange = viewModel::setAccent,
-            onGlassChange = viewModel::setGlass,
-            onTransparencyChange = viewModel::setTransparency,
-            onBlurChange = viewModel::setBlur,
             onWallpaperChange = { id -> pendingWallpaperPick = PendingWallpaperPick.Gradient(id) },
-            onSelectStockWallpaperType = { viewModel.setWallpaper(Wallpapers.all.first().id) },
-            onPickCustomWallpaper = {
-                wallpaperPicker.launch(
-                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                )
-            },
-            onClearWallpaper = viewModel::clearWallpaper,
-            onResetTileStyle = {
-                viewModel.resetTileStyle()
-                Toast.makeText(context, "tile style reset", Toast.LENGTH_SHORT).show()
-            },
+            wallpaperSlideshowUris = wallpaperSlideshowUris,
+            wallpaperSlideshowPicker = wallpaperSlideshowPicker,
+            wallpaperSlideshowStore = wallpaperSlideshowStore,
+            wallpaperPicker = wallpaperPicker,
             photoUris = photoUris,
-            onPickPhotos = {
-                photosPicker.launch(
-                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                )
-            },
-            onClearPhotos = {
-                scope.launch {
-                    photosStore.setUris(emptyList())
-                    withContext(Dispatchers.IO) { MediaImport.clearPhotos(context) }
-                }
-            },
-            onRemovePhoto = { uri ->
-                scope.launch {
-                    photosStore.setUris(photosStore.read().uris - uri)
-                    withContext(Dispatchers.IO) { MediaImport.deleteImported(context, uri) }
-                }
-            },
+            photosPicker = photosPicker,
+            photosStore = photosStore,
+            notificationAccess = notificationAccess,
+            batteryExempt = batteryExempt,
             isDefaultLauncher = isDefaultLauncher,
             onSetDefaultLauncher = onSetDefaultLauncher,
-            cornerRadius = settings.cornerRadius,
-            onCornerRadiusChange = viewModel::setCornerRadius,
-            tileGap = settings.tileGap,
-            onTileGapChange = viewModel::setTileGap,
-            tileColorSource = settings.tileColorSource,
-            onTileColorSourceChange = viewModel::setTileColorSource,
-            wallpaperAccentPreview = wallpaperAccentColor,
-            tileFill = settings.tileFill,
-            onTileFillChange = viewModel::setTileFill,
-            fontStyle = settings.fontStyle,
-            onFontStyleChange = viewModel::setFontStyle,
-            columns = settings.columns,
-            onColumnsChange = viewModel::setColumns,
-            tilePackMode = settings.tilePackMode,
-            onTilePackModeChange = viewModel::setTilePackMode,
-            homeStyle = settings.homeStyle,
-            onHomeStyleChange = viewModel::setHomeStyle,
-            iconShape = settings.iconShape,
-            onIconShapeChange = viewModel::setIconShape,
-            themedIcons = settings.themedIcons,
-            onThemedIconsChange = viewModel::setThemedIcons,
-            monochromeIconTint = settings.monochromeIconTint,
-            onMonochromeIconTintChange = viewModel::setMonochromeIconTint,
-            lockLayout = settings.lockLayout,
-            onLockLayoutChange = viewModel::setLockLayout,
-            hideStatusBar = settings.hideStatusBar,
-            onHideStatusBarChange = viewModel::setHideStatusBar,
-            onAbout = viewModel::openAbout,
-            onPersonalizeGuide = viewModel::openPersonalizeGuide,
-            onFolders = viewModel::openFolders,
-            onHiddenApps = viewModel::openHiddenApps,
-            edgeStripEnabled = settings.edgeStripEnabled,
-            onEdgeStrip = viewModel::openEdgeStrip,
-            onBackupRestore = viewModel::openBackup,
-            onPermissions = viewModel::openPermissions,
-            onNewsRegion = viewModel::openNewsRegion,
-            newsRegionCount = 1 + SELECTABLE_COUNTRIES.size,
-            onDismiss = viewModel::closePersonalize,
+            wallpaperAccentColor = wallpaperAccentColor,
         )
 
         // About sheet (personalize → about).
@@ -9049,5 +8912,213 @@ private fun HubScreensLayer(
         accentId = accentId,
         onDismiss = viewModel::closeCalendarHub,
         rightHalf = false,
+    )
+}
+
+/**
+ * The personalize sheet, drawn over Start. Like [HubScreensLayer], kept out of
+ * [StartScreen]'s main layout lambda: that lambda captures over a hundred
+ * values, and R8 miscompiled it again (VerifyError at launch, release only)
+ * once the keyboard module changed the app's overall optimisation — this call
+ * alone passes about a hundred arguments.
+ */
+@Composable
+private fun PersonalizeSheetLayer(
+    viewModel: StartViewModel,
+    settings: LauncherSettings,
+    personalizeVisible: Boolean,
+    personalizeOpen: Boolean,
+    isLandscape: Boolean,
+    dark: Boolean,
+    photoWallpaper: Boolean,
+    bingPicked: Boolean,
+    bingRecentImages: @Composable () -> Unit,
+    onRefreshBing: () -> Unit,
+    onSelectPhotoType: () -> Unit,
+    onBingHistory: () -> Unit,
+    onAdjustWallpaper: () -> Unit,
+    onWallpaperChange: (String) -> Unit,
+    wallpaperSlideshowUris: List<String>,
+    wallpaperSlideshowPicker: ManagedActivityResultLauncher<PickVisualMediaRequest, List<Uri>>,
+    wallpaperSlideshowStore: com.tileshell.feature.livetiles.WallpaperSlideshowStore,
+    wallpaperPicker: ManagedActivityResultLauncher<PickVisualMediaRequest, Uri?>,
+    photoUris: List<String>,
+    photosPicker: ManagedActivityResultLauncher<PickVisualMediaRequest, List<Uri>>,
+    photosStore: PhotosStore,
+    notificationAccess: Boolean,
+    batteryExempt: Boolean,
+    isDefaultLauncher: Boolean,
+    onSetDefaultLauncher: () -> Unit,
+    wallpaperAccentColor: Color,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    PersonalizeSheet(
+        visible = personalizeVisible,
+        sessionOpen = personalizeOpen,
+        rightHalf = isLandscape,
+        dark = dark,
+        followSystemTheme = settings.followSystemTheme,
+        onFollowSystemThemeChange = viewModel::setFollowSystemTheme,
+        accentId = settings.accentId,
+        glass = settings.glass,
+        transparency = settings.transparency,
+        blur = settings.blur,
+        wallpaperId = settings.wallpaperId,
+        customWallpaper = settings.customWallpaperUri != null,
+        photoWallpaper = photoWallpaper,
+        bingWallpaper = settings.bingWallpaper,
+        onBingWallpaperChange = viewModel::setBingWallpaper,
+        onBingHistory = onBingHistory,
+        bingPicked = bingPicked,
+        bingRecentImages = bingRecentImages,
+        onRefreshBing = onRefreshBing,
+        customWallpaperUri = settings.customWallpaperUri,
+        onSelectPhotoType = onSelectPhotoType,
+        wallpaperAlignX = settings.wallpaperAlignX,
+        wallpaperAlignY = settings.wallpaperAlignY,
+        onAdjustWallpaper = onAdjustWallpaper,
+        wallpaperSlideshowEnabled = settings.wallpaperSlideshowEnabled,
+        onWallpaperSlideshowChange = viewModel::setWallpaperSlideshowEnabled,
+        wallpaperSlideshowIntervalMin = settings.wallpaperSlideshowIntervalMin,
+        onWallpaperSlideshowIntervalChange = viewModel::setWallpaperSlideshowInterval,
+        wallpaperSlideshowUris = wallpaperSlideshowUris,
+        onPickWallpaperSlideshowPhotos = {
+            wallpaperSlideshowPicker.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+            )
+        },
+        onClearWallpaperSlideshowPhotos = {
+            scope.launch {
+                wallpaperSlideshowStore.setUris(emptyList())
+                viewModel.refreshWallpaperSlide(emptyList())
+                withContext(Dispatchers.IO) { MediaImport.clearWallpaperSlideshow(context) }
+            }
+        },
+        onRemoveWallpaperSlideshowPhoto = { uri ->
+            scope.launch {
+                val left = wallpaperSlideshowStore.read().uris - uri
+                wallpaperSlideshowStore.setUris(left)
+                viewModel.refreshWallpaperSlide(left)
+                withContext(Dispatchers.IO) { MediaImport.deleteImported(context, uri) }
+            }
+        },
+        tiledWallpaper = settings.tiledWallpaper,
+        onTiledWallpaperChange = viewModel::setTiledWallpaper,
+        borderlessTiles = settings.borderlessTiles,
+        onBorderlessTilesChange = viewModel::setBorderlessTiles,
+        tileOutline = settings.tileOutline,
+        onTileOutlineChange = viewModel::setTileOutline,
+        feedEnabled = settings.feedEnabled,
+        onFeedEnabledChange = viewModel::setFeedEnabled,
+        feedNoBackground = settings.feedNoBackground,
+        onFeedNoBackgroundChange = viewModel::setFeedNoBackground,
+        userName = settings.userName,
+        onUserNameChange = viewModel::setUserName,
+        liveTilesEnabled = settings.liveTilesEnabled,
+        onLiveTilesEnabledChange = viewModel::setLiveTilesEnabled,
+        weatherRefreshRate = settings.weatherRefreshRate,
+        onWeatherRefreshRateChange = viewModel::setWeatherRefreshRate,
+        newsRefreshRate = settings.newsRefreshRate,
+        onNewsRefreshRateChange = viewModel::setNewsRefreshRate,
+        stockRefreshRate = settings.stockRefreshRate,
+        onStockRefreshRateChange = viewModel::setStockRefreshRate,
+        commodityRefreshRate = settings.commodityRefreshRate,
+        onCommodityRefreshRateChange = viewModel::setCommodityRefreshRate,
+        sportsRefreshRate = settings.sportsRefreshRate,
+        onSportsRefreshRateChange = viewModel::setSportsRefreshRate,
+        notificationsEnabled = notificationAccess,
+        onNotificationAccess = {
+            runCatching { context.startActivity(NotificationAccess.settingsIntent()) }
+                .onFailure {
+                    Toast.makeText(context, "open settings to allow access", Toast.LENGTH_SHORT)
+                        .show()
+                }
+        },
+        batteryOptimizationExempt = batteryExempt,
+        batteryGuidanceNote = OemBatteryGuard.guidanceNote(),
+        onBatteryExemption = { OemBatteryGuard.requestExemption(context) },
+        onSystemSettings = {
+            runCatching {
+                context.startActivity(
+                    Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }
+        },
+        onThemeChange = viewModel::setTheme,
+        onAccentChange = viewModel::setAccent,
+        onGlassChange = viewModel::setGlass,
+        onTransparencyChange = viewModel::setTransparency,
+        onBlurChange = viewModel::setBlur,
+        onWallpaperChange = onWallpaperChange,
+        onSelectStockWallpaperType = { viewModel.setWallpaper(Wallpapers.all.first().id) },
+        onPickCustomWallpaper = {
+            wallpaperPicker.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+            )
+        },
+        onClearWallpaper = viewModel::clearWallpaper,
+        onResetTileStyle = {
+            viewModel.resetTileStyle()
+            Toast.makeText(context, "tile style reset", Toast.LENGTH_SHORT).show()
+        },
+        photoUris = photoUris,
+        onPickPhotos = {
+            photosPicker.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+            )
+        },
+        onClearPhotos = {
+            scope.launch {
+                photosStore.setUris(emptyList())
+                withContext(Dispatchers.IO) { MediaImport.clearPhotos(context) }
+            }
+        },
+        onRemovePhoto = { uri ->
+            scope.launch {
+                photosStore.setUris(photosStore.read().uris - uri)
+                withContext(Dispatchers.IO) { MediaImport.deleteImported(context, uri) }
+            }
+        },
+        isDefaultLauncher = isDefaultLauncher,
+        onSetDefaultLauncher = onSetDefaultLauncher,
+        cornerRadius = settings.cornerRadius,
+        onCornerRadiusChange = viewModel::setCornerRadius,
+        tileGap = settings.tileGap,
+        onTileGapChange = viewModel::setTileGap,
+        tileColorSource = settings.tileColorSource,
+        onTileColorSourceChange = viewModel::setTileColorSource,
+        wallpaperAccentPreview = wallpaperAccentColor,
+        tileFill = settings.tileFill,
+        onTileFillChange = viewModel::setTileFill,
+        fontStyle = settings.fontStyle,
+        onFontStyleChange = viewModel::setFontStyle,
+        columns = settings.columns,
+        onColumnsChange = viewModel::setColumns,
+        tilePackMode = settings.tilePackMode,
+        onTilePackModeChange = viewModel::setTilePackMode,
+        homeStyle = settings.homeStyle,
+        onHomeStyleChange = viewModel::setHomeStyle,
+        iconShape = settings.iconShape,
+        onIconShapeChange = viewModel::setIconShape,
+        themedIcons = settings.themedIcons,
+        onThemedIconsChange = viewModel::setThemedIcons,
+        monochromeIconTint = settings.monochromeIconTint,
+        onMonochromeIconTintChange = viewModel::setMonochromeIconTint,
+        lockLayout = settings.lockLayout,
+        onLockLayoutChange = viewModel::setLockLayout,
+        hideStatusBar = settings.hideStatusBar,
+        onHideStatusBarChange = viewModel::setHideStatusBar,
+        onAbout = viewModel::openAbout,
+        onPersonalizeGuide = viewModel::openPersonalizeGuide,
+        onFolders = viewModel::openFolders,
+        onHiddenApps = viewModel::openHiddenApps,
+        edgeStripEnabled = settings.edgeStripEnabled,
+        onEdgeStrip = viewModel::openEdgeStrip,
+        onBackupRestore = viewModel::openBackup,
+        onPermissions = viewModel::openPermissions,
+        onNewsRegion = viewModel::openNewsRegion,
+        newsRegionCount = 1 + SELECTABLE_COUNTRIES.size,
+        onDismiss = viewModel::closePersonalize,
     )
 }
