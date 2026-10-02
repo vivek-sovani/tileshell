@@ -10958,3 +10958,17 @@ a dozen callbacks capturing the wallpaper/photo pickers and stores) moved into i
 `PersonalizeSheetLayer` composable. Verified: release build launches on the phone (no
 crash or VerifyError since the install) and the emulator. The same move belongs on
 `main` too when this branch merges — that lambda is near the limit there as well.
+
+## Keyboard fixes from the first on-phone use (Samsung)
+- **Letters didn't type.** The phase-4 touch handler hit-tested against key bounds
+  reported by `onGloballyPositioned`. When the rows changed without keys moving (the
+  globe key appearing once a field opened, or &123), a fresh map was started but the
+  unmoved keys never reported again, so touches on them found no key. The emulator's
+  timing hid it. Now `KeyGeometry` computes every key's bounds from the layout itself
+  (the same sums the rows' weights make) — nothing to go stale; unit-tested.
+- **Bottom row under the navigation bar.** On Android 13+ the IME draws its own
+  navigation bar (switch keyboard / hide) inside its window; the emulator reported it
+  as a navigation-bar inset, Samsung didn't, so it covered the bottom row and took its
+  touches. The service finds the platform's `NavigationBarFrame` in its window (hidden
+  class, matched by name) and the keyboard pads by the larger of that and the inset.
+  It's measured just after first layout, so the very first open may shift once.

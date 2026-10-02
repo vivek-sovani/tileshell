@@ -37,6 +37,12 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`metro-keyboard` branch — on-phone fixes after phase 4.** Release build crashed at
+  launch (R8 VerifyError in Start's layout lambda, tipped over by the keyboard module):
+  PersonalizeSheet call moved to `PersonalizeSheetLayer`. Letters didn't type on the
+  phone (stale key bounds): `KeyGeometry` computes them. Samsung's IME navigation bar
+  covered the bottom row: padded by the measured `NavigationBarFrame`. All checked on
+  the phone (Samsung SM-S938B).
 - **`metro-keyboard` branch — keyboard phase 4: gestures.** One touch handler for the key
   area (`KeyArea`): long press opens the accent bar (top row: digit first, shown in the
   corner); dragging the space bar moves the cursor (labels blank, ‹ ›); swiping across

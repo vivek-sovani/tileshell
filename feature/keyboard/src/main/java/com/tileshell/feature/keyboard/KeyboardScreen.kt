@@ -24,7 +24,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.width
@@ -107,7 +107,7 @@ private const val REPEAT_START_MS = 400L
 private const val REPEAT_EVERY_MS = 50L
 
 @Composable
-internal fun KeyboardScreen(controller: KeyboardController, prefs: KeyboardPrefs) {
+internal fun KeyboardScreen(controller: KeyboardController, prefs: KeyboardPrefs, imeNavBarPx: Int = 0) {
     val context = LocalContext.current
     val repository = remember { SettingsRepository.create(context) }
     val settings by repository.settings.collectAsState(initial = null)
@@ -129,7 +129,14 @@ internal fun KeyboardScreen(controller: KeyboardController, prefs: KeyboardPrefs
             modifier = Modifier
                 .fillMaxWidth()
                 .background(colors.background)
-                .windowInsetsPadding(WindowInsets.navigationBars),
+                // Room for the navigation bar: the reported inset, or the bar Android
+                // draws inside the keyboard window, whichever is taller.
+                .padding(
+                    bottom = maxOf(
+                        WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+                        with(androidx.compose.ui.platform.LocalDensity.current) { imeNavBarPx.toDp() },
+                    ),
+                ),
         ) {
             Strip(controller, colors, accent)
             val keysHeight = 2.dp + keyHeight * 4 + ROW_GAP * 3 + 12.dp

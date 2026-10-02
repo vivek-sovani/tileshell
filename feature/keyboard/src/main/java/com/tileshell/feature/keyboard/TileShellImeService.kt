@@ -2,6 +2,8 @@ package com.tileshell.feature.keyboard
 
 import android.inputmethodservice.InputMethodService
 import android.view.View
+import android.view.ViewGroup
+import androidx.compose.runtime.mutableIntStateOf
 import android.view.inputmethod.EditorInfo
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.Lifecycle
@@ -42,16 +44,38 @@ class TileShellImeService : InputMethodService(), LifecycleOwner, SavedStateRegi
         scope.launch { prefs.settings.drop(1).collect { controller.onSettingsChanged() } }
     }
 
+    /**
+     * Height of the navigation bar Android draws inside the keyboard's own window
+     * (back / hide / switch keyboard, Android 13+). Some phones (Samsung) draw it
+     * over the input view without reporting it as an inset, which covered the
+     * bottom key row and took its touches; the keyboard pads by this instead.
+     */
+    private val imeNavBarHeight = mutableIntStateOf(0)
+
     override fun onCreateInputView(): View {
         window?.window?.decorView?.let { decor ->
             decor.setViewTreeLifecycleOwner(this)
             decor.setViewTreeSavedStateRegistryOwner(this)
+            decor.viewTreeObserver.addOnGlobalLayoutListener {
+                val bar = findNavigationBarFrame(decor)
+                val h = if (bar != null && bar.isShown) bar.height else 0
+                if (h != imeNavBarHeight.intValue) imeNavBarHeight.intValue = h
+            }
         }
         return ComposeView(this).apply {
             setViewTreeLifecycleOwner(this@TileShellImeService)
             setViewTreeSavedStateRegistryOwner(this@TileShellImeService)
-            setContent { KeyboardScreen(controller, prefs) }
+            setContent { KeyboardScreen(controller, prefs, imeNavBarHeight.intValue) }
         }
+    }
+
+    /** The platform's `NavigationBarFrame` in the IME window, found by class name (it's hidden API). */
+    private fun findNavigationBarFrame(view: View): View? {
+        if (view.javaClass.simpleName == "NavigationBarFrame") return view
+        if (view is ViewGroup) {
+            for (i in 0 until view.childCount) findNavigationBarFrame(view.getChildAt(i))?.let { return it }
+        }
+        return null
     }
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {

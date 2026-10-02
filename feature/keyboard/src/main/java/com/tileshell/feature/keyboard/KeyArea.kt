@@ -27,7 +27,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -36,8 +35,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.changedToDownIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -74,7 +71,7 @@ private val POPUP_INSET = 4.dp
 private val CURSOR_START = 12.dp
 private val CURSOR_STEP = 10.dp
 
-private class Touch(val keyId: String, val key: Key, val down: Offset, val downAt: Long) {
+private class Touch(val keyId: String, val key: Key, val box: KeyBox, val down: Offset, val downAt: Long) {
     var mode = Mode.PRESS
 
     /** The key already acted (backspace, shift, or an earlier key committed by a later one). */
@@ -102,51 +99,54 @@ internal fun KeyArea(controller: KeyboardController, colors: KeyboardColors, acc
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
     val rows = KeyboardLayouts.rowsFor(controller.layer, controller.languageKey)
-    val rects = remember(controller.layer, controller.languageKey) { HashMap<String, Pair<Key, Rect>>() }
     val lit = remember { mutableStateMapOf<String, Boolean>() }
     var popup by remember { mutableStateOf<Popup?>(null) }
     var trail by remember { mutableStateOf<List<Offset>>(emptyList()) }
-    var area by remember { mutableStateOf<LayoutCoordinates?>(null) }
 
     val ctl by rememberUpdatedState(controller)
-    val keyRects by rememberUpdatedState(rects)
+    val currentRows by rememberUpdatedState(rows)
+    val keyHeightPx = with(density) { keyHeight.toPx() }
 
     fun px(dp: Dp) = with(density) { dp.toPx() }
 
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
-            .onGloballyPositioned { area = it }
             .pointerInput(Unit) {
                 val touches = HashMap<PointerId, Touch>()
-                var decoderFor: Map<String, Pair<Key, Rect>>? = null
+                // Key bounds, recomputed whenever the rows or the area's width change.
+                var boxesFor: Pair<List<KeyRow>, Int>? = null
+                var boxes: List<List<KeyBox>> = emptyList()
                 var decoder: SwipeDecoder? = null
 
-                fun hit(p: Offset): Pair<String, Key>? {
-                    var best: Pair<String, Key>? = null
-                    var bestDist = Float.MAX_VALUE
-                    for ((id, kr) in keyRects) {
-                        val r = kr.second
-                        val dx = maxOf(r.left - p.x, 0f, p.x - r.right)
-                        val dy = maxOf(r.top - p.y, 0f, p.y - r.bottom)
-                        val d = dx * dx + dy * dy
-                        if (d < bestDist) {
-                            bestDist = d
-                            best = id to kr.first
-                        }
+                fun currentBoxes(): List<List<KeyBox>> {
+                    val k = currentRows to size.width
+                    if (boxesFor != k) {
+                        boxes = KeyGeometry.layout(currentRows, size.width.toFloat(), keyHeightPx, px(ROW_GAP), px(KEY_GAP))
+                        boxesFor = k
+                        decoder = null
                     }
-                    return best
+                    return boxes
+                }
+
+                fun hit(p: Offset): Triple<String, Key, KeyBox>? {
+                    val b = currentBoxes()
+                    val (r, i) = KeyGeometry.hit(b, p.x, p.y) ?: return null
+                    val key = currentRows[r].keys[i]
+                    return Triple(keyId(r, i, key), key, b[r][i])
                 }
 
                 fun swipeDecoder(): SwipeDecoder? {
-                    val map = keyRects
-                    if (decoderFor !== map) {
-                        val letters = map.values.filter { (k, _) -> k.kind == KeyKind.CHAR && k.label.length == 1 && k.label[0] in 'a'..'z' }
-                        val width = letters.firstOrNull()?.second?.width ?: return null
-                        decoder = SwipeDecoder(letters.associate { (k, r) -> k.label[0] to Pt(r.center.x, r.center.y) }, width)
-                        decoderFor = map
+                    val b = currentBoxes()
+                    decoder?.let { return it }
+                    val letters = currentRows.flatMapIndexed { r, row ->
+                        row.keys.mapIndexedNotNull { i, k ->
+                            if (k.kind == KeyKind.CHAR && k.label.length == 1 && k.label[0] in 'a'..'z') k to b[r][i] else null
+                        }
                     }
-                    return decoder
+                    val width = letters.firstOrNull()?.second?.width ?: return null
+                    return SwipeDecoder(letters.associate { (k, box) -> k.label[0] to Pt(box.centerX, box.centerY) }, width)
+                        .also { decoder = it }
                 }
 
                 fun light(id: String) {
@@ -167,18 +167,18 @@ internal fun KeyArea(controller: KeyboardController, colors: KeyboardColors, acc
                 }
 
                 fun openPopup(t: Touch, options: List<String>) {
-                    val r = keyRects[t.keyId]?.second ?: return
+                    val r = t.box
                     val width = options.size * px(POPUP_CELL_W) + (options.size - 1) * px(POPUP_GAP) + 2 * px(POPUP_INSET)
                     val height = px(POPUP_CELL_H) + 2 * px(POPUP_INSET)
-                    val left = (r.center.x - width / 2f).coerceIn(0f, (size.width - width).coerceAtLeast(0f))
+                    val left = (r.centerX - width / 2f).coerceIn(0f, (size.width - width).coerceAtLeast(0f))
                     val p = Popup(t.keyId, options, left, r.top - height - px(4.dp), 0)
-                    popup = p.copy(selected = popupIndex(p, r.center.x))
+                    popup = p.copy(selected = popupIndex(p, r.centerX))
                     t.mode = Touch.Mode.POPUP
                     ctl.haptic(HapticKind.LONG_PRESS)
                 }
 
                 fun onDown(id: PointerId, pos: Offset) {
-                    val (keyId, key) = hit(pos) ?: return
+                    val (keyId, key, box) = hit(pos) ?: return
                     // A new key commits a letter still held, keeping fast typing in order.
                     for (other in touches.values) {
                         if (other.mode == Touch.Mode.PRESS && !other.done && other.key.kind in TYPED_ON_LIFT) {
@@ -187,7 +187,7 @@ internal fun KeyArea(controller: KeyboardController, colors: KeyboardColors, acc
                             ctl.onKey(other.key)
                         }
                     }
-                    val t = Touch(keyId, key, pos, System.currentTimeMillis())
+                    val t = Touch(keyId, key, box, pos, System.currentTimeMillis())
                     touches[id] = t
                     light(keyId)
                     ctl.haptic(HapticKind.KEY_TAP)
@@ -230,7 +230,7 @@ internal fun KeyArea(controller: KeyboardController, colors: KeyboardColors, acc
                                 ctl.beginCursor()
                             } else if (t.key.kind == KeyKind.CHAR && ctl.swipeEnabled) {
                                 swipeDecoder() ?: return
-                                val w = keyRects[t.keyId]?.second?.width ?: return
+                                val w = t.box.width
                                 if (SwipeDecoder.isSwipe(Pt(t.down.x, t.down.y), Pt(pos.x, pos.y), w)) {
                                     t.timer?.cancel()
                                     t.mode = Touch.Mode.SWIPE
@@ -308,7 +308,7 @@ internal fun KeyArea(controller: KeyboardController, colors: KeyboardColors, acc
                     horizontalArrangement = Arrangement.spacedBy(KEY_GAP),
                 ) {
                     row.keys.forEachIndexed { i, key ->
-                        val id = "$r:$i:${key.kind}:${key.label}"
+                        val id = keyId(r, i, key)
                         KeyFace(
                             key = key,
                             pressed = lit[id] == true,
@@ -316,12 +316,7 @@ internal fun KeyArea(controller: KeyboardController, colors: KeyboardColors, acc
                             colors = colors,
                             accent = accent,
                             topRowDigit = if (r == 0 && controller.layer == KeyboardLayer.LETTERS) KeyPopups.topRowDigits[key.label] else null,
-                            modifier = Modifier
-                                .weight(key.units)
-                                .height(keyHeight)
-                                .onGloballyPositioned { coords ->
-                                    area?.let { a -> if (a.isAttached && coords.isAttached) rects[id] = key to a.localBoundingBoxOf(coords) }
-                                },
+                            modifier = Modifier.weight(key.units).height(keyHeight),
                         )
                     }
                 }
@@ -346,6 +341,8 @@ internal fun KeyArea(controller: KeyboardController, colors: KeyboardColors, acc
         popup?.let { p -> PopupBar(p, colors, accent) }
     }
 }
+
+private fun keyId(row: Int, index: Int, key: Key) = "$row:$index:${key.kind}:${key.label}"
 
 /** Keys that type on lift (and so may be committed early by the next key). */
 private val TYPED_ON_LIFT = setOf(KeyKind.CHAR, KeyKind.SYMBOL)
