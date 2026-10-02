@@ -10840,3 +10840,23 @@ panorama is wider than tall. Portrait keeps the always-visible Lumia title. Note
 doesn't scroll can't bring the title back by itself; the title returns once you scroll down in
 any section.
 
+
+## Keyboard phase 1 — Metro-style input method behind a release switch
+User-requested, from their "Metro Keyboard for Android" design canvas. Plan in
+`docs/KEYBOARD-PLAN.md` (transliteration moved up to phase 3 at the user's request).
+- **Release switch** `tileshell.keyboard` (gradle.properties): `:app` depends on
+  `:feature:keyboard` only while it's true, and the IME service is declared in the
+  module's own manifest — so off means no keyboard code and no input method in the
+  APK/AAB, not just hidden UI. `core/data` gets `BuildConfig.KEYBOARD`
+  (`KeyboardFeature.ENABLED`) for the personalize row, which needs no reference to the
+  module. (A second `manifest.srcFile` on the app's build types, the task-reminders
+  pattern, would have replaced that one, not merged with it.)
+- **Accent and theme are TileShell's**, not the canvas's 20-colour palette/cobalt default.
+- **Auto-capital follows the field's own flags** (CAP_SENTENCES / WORDS / CHARACTERS),
+  as Android keyboards do; a search box or email field never capitalises.
+- **Keys act on finger down** (in order for two-thumb rollover); the accent fill
+  lasts while held and at least 140 ms.
+- Symbol page 2 isn't drawn on the canvas — less common symbols, currencies (₹ first)
+  on the middle row.
+- `Settings.Secure.DEFAULT_INPUT_METHOD` stores the short form
+  (`com.tileshell/.feature…`); `KeyboardFeature.isSelected` parses the component.

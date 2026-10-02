@@ -13,6 +13,9 @@ android {
         // gradle.properties → tileshell.taskReminders; see TaskReminders.ENABLED.
         val taskReminders = providers.gradleProperty("tileshell.taskReminders").orNull?.toBoolean() ?: true
         buildConfigField("boolean", "TASK_REMINDERS", taskReminders.toString())
+        // gradle.properties → tileshell.keyboard; see KeyboardFeature.ENABLED.
+        val keyboard = providers.gradleProperty("tileshell.keyboard").orNull?.toBoolean() ?: false
+        buildConfigField("boolean", "KEYBOARD", keyboard.toString())
     }
 
     buildFeatures {

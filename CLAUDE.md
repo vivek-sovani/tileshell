@@ -37,6 +37,14 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`metro-keyboard` branch (not merged) — keyboard phase 1 of 7** (`docs/KEYBOARD-PLAN.md`).
+  New `:feature:keyboard` input method, behind the `tileshell.keyboard` release switch
+  (off = module not in the build). Letters / shift (once, caps lock) / auto-capital per
+  field flags / &123 two symbol pages / backspace repeat / double-space period / enter
+  follows the field's action / basic emoji grid; TileShell's accent and theme;
+  personalize → system "tileshell keyboard" row (turn on → choose). Build + unit tests
+  green, release build installs; **not yet seen on screen** (the emulator was in use
+  by another session).
 - **`main` — landscape room for hub lists.** User-requested. Music's podcasts and radio tabs
   fold the search box and category filter rows behind one "search or browse …" row
   (`SearchBrowseToggle`). Tap it to open them; "hide" folds them again but keeps the choice. Folded,

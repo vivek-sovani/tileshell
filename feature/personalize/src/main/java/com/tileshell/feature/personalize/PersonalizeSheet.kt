@@ -1428,6 +1428,7 @@ fun PersonalizeSheet(
                                         Text(text = "set ›", color = accent, fontSize = 13.sp)
                                     }
                                 }
+                                KeyboardRow(accent, tokens)
                                 ToggleRow("hide status bar", on = hideStatusBar, accent = accent, tokens, onHideStatusBarChange)
                                 Text(
                                     "hides the clock/battery/signal strip at the top of the screen — swipe down " +
