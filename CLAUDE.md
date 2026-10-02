@@ -37,6 +37,14 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`metro-keyboard` branch — keyboard phase 2: suggestions and autocorrect.** Strip
+  with the typed word, best guess underlined, completions; autocorrect on space or
+  punctuation with backspace / tap-the-original undo; levels; i→I and usual capitals;
+  on-device learned words; password fields show "incognito typing"; next words when
+  nothing is typed. Bundled AOSP en_GB list (Apache 2.0) + our Indian English list.
+  Keyboard settings page (Lumia; `LumiaSwitch` now in `:core:design`). Checked on the
+  emulator: teh→the with “teh” undo, backspace undo, "i am at pune" → "I am at Pune",
+  light theme, settings. Password field not yet seen on screen.
 - **`metro-keyboard` branch (not merged) — keyboard phase 1 of 7** (`docs/KEYBOARD-PLAN.md`).
   New `:feature:keyboard` input method, behind the `tileshell.keyboard` release switch
   (off = module not in the build). Letters / shift (once, caps lock) / auto-capital per

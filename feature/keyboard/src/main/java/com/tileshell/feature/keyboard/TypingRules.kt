@@ -31,7 +31,62 @@ enum class EnterAction(val label: String?, val imeAction: Int) {
     DONE("done", EditorInfo.IME_ACTION_DONE),
 }
 
+/** What the suggestion strip may do in the focused field. */
+enum class FieldMode {
+    /** Suggestions, autocorrect and learning. */
+    NORMAL,
+
+    /** Numbers, email addresses, web addresses, or a field that asks for none. */
+    NO_SUGGESTIONS,
+
+    /** Passwords: strip hidden, nothing learned. */
+    INCOGNITO,
+}
+
 object TypingRules {
+
+    fun fieldMode(inputType: Int): FieldMode {
+        val cls = inputType and InputType.TYPE_MASK_CLASS
+        val variation = inputType and InputType.TYPE_MASK_VARIATION
+        if (cls == InputType.TYPE_CLASS_NUMBER) {
+            return if (variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD) FieldMode.INCOGNITO else FieldMode.NO_SUGGESTIONS
+        }
+        if (cls != InputType.TYPE_CLASS_TEXT) return FieldMode.NO_SUGGESTIONS
+        return when (variation) {
+            InputType.TYPE_TEXT_VARIATION_PASSWORD,
+            InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
+            InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD -> FieldMode.INCOGNITO
+            InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS,
+            InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS,
+            InputType.TYPE_TEXT_VARIATION_URI -> FieldMode.NO_SUGGESTIONS
+            else ->
+                if (inputType and InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS != 0) FieldMode.NO_SUGGESTIONS
+                else FieldMode.NORMAL
+        }
+    }
+
+    /** New words are learned only in ordinary fields that don't ask for no learning (incognito tabs). */
+    fun canLearn(inputType: Int, imeOptions: Int): Boolean =
+        fieldMode(inputType) == FieldMode.NORMAL &&
+            imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING == 0
+
+    /**
+     * The word being typed: the letters (and inner apostrophes) right before the
+     * cursor. Empty when the cursor sits inside a word ([charAfter] is a letter).
+     */
+    fun currentWord(textBefore: CharSequence?, charAfter: Char?): String {
+        if (charAfter != null && charAfter.isLetterOrDigit()) return ""
+        val t = textBefore ?: return ""
+        var i = t.length
+        while (i > 0 && (t[i - 1].isLetter() || (t[i - 1] == '\'' && i - 1 > 0 && t[i - 2].isLetter()))) i--
+        return t.substring(i).trimStart('\'')
+    }
+
+    /** True when [beforeWord] ends a sentence (or is empty): a capital there isn't a name. */
+    fun sentenceStart(beforeWord: CharSequence): Boolean {
+        val t = beforeWord.trimEnd { it == ' ' || it == '\t' }
+        return t.isEmpty() || t.last() in SENTENCE_END || t.last() == '\n'
+    }
 
     /**
      * The enter key's job: a multi-line field, or one that asks for no enter

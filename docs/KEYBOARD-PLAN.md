@@ -15,8 +15,10 @@ dark / light). The canvas's own 20-colour Metro grid is not used.
    double-space ". ", enter follows the field's action, number fields open on
    digits, basic emoji grid, keyboard haptic, personalize → system row. ✅ built
 2. **Suggestions & autocorrect** — strip states, bundled English word list
-   (licence check), on-device learning, autocorrect with backspace undo, levels,
-   password fields hide the strip; keyboard settings page (Lumia switches).
+   (AOSP en_GB, Apache 2.0, + a short Indian English list), on-device learning,
+   autocorrect with backspace undo, levels, password fields hide the strip;
+   keyboard settings page (Lumia switches). ✅ built
+   *Phase 3 note:* AOSP has no Marathi/Hindi lists — another licensed source needed.
 3. **Marathi / Hindi** — Devanagari मराठी layout; transliteration (rule table →
    candidates, ranked by Marathi/Hindi word lists, learns picks, offline only);
    swipe the space bar to switch languages.

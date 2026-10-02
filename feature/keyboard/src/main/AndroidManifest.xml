@@ -3,6 +3,14 @@
      dependency only then), so a build with the keyboard off has no IME. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
+        <!-- Exported: Android's keyboard list opens it from the Settings app. -->
+        <activity
+            android:name=".KeyboardSettingsActivity"
+            android:exported="true"
+            android:label="@string/keyboard_settings"
+            android:taskAffinity="com.tileshell.keyboard.settings"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
         <service
             android:name=".TileShellImeService"
             android:exported="true"

@@ -10860,3 +10860,33 @@ User-requested, from their "Metro Keyboard for Android" design canvas. Plan in
   on the middle row.
 - `Settings.Secure.DEFAULT_INPUT_METHOD` stores the short form
   (`com.tileshell/.feature…`); `KeyboardFeature.isSelected` parses the component.
+
+## Keyboard phase 2 — suggestions and autocorrect
+- **Word list:** AOSP LatinIME `en_GB_wordlist.combined.gz` (Apache 2.0, ~157k words
+  with 0–255 frequencies; British spelling suits Indian English), converted by
+  `tools/keyboard/build_wordlist.py`: non-words dropped, offensive words kept as
+  "valid, never suggested" (so they aren't "corrected" either), and its correction
+  shortcuts filtered to non-words plus contractions much more common than the word
+  (dropped e.g. hid→his, nut→but). Plain-text asset: AGP unpacks a `.gz` asset and
+  renames it, and the APK compresses assets anyway. Plus `en_in_extra.txt`, our own
+  ~290 Indian words (places, festivals, food, common names, lakh/crore) — "pune"
+  would otherwise have been corrected.
+- **Packed in memory** (one sorted string + offsets + a frequency byte, ~2 MB) rather
+  than a map (~15 MB), because the keyboard runs in TileShell's own process.
+- **Corrections:** one edit (neighbouring-key slips, swaps, doubled letters cheap; a
+  missing apostrophe free, so dont→don't), two edits only on space, at higher levels,
+  and only if nothing one edit away is good enough. A capital typed mid-sentence is a
+  name and is left alone. Usual capitals come back (i→I, london→London).
+- **Best guess = what space puts in**: the typed word is underlined when it stays, dim
+  when it would be replaced. (The strip's underline uses one-edit corrections; space
+  can still reach a two-edit one, which then shows in the undo strip.)
+- **Undo:** backspace straight after, or tapping the quoted original, restores the
+  word and learns it. The offer lasts only while the corrected word is still right
+  before the cursor.
+- **Learning** stays on the phone (`files/keyboard_learned.txt`), twice = known, never
+  in password or "no personalized learning" fields; settings can clear it.
+- **Next words** (nothing typed) are the canvas's fixed I / the / will / see, with the
+  settings tool beside them so settings stays reachable; no bigram data yet.
+- **Settings** keep keyboard-only choices in SharedPreferences `keyboard_prefs`; theme
+  defaults to "match tileshell". `LumiaSwitch` moved from personalize to `:core:design`
+  so both use it. Not included in TileShell backups (yet).

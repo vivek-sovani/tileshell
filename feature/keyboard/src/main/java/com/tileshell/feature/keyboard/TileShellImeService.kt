@@ -1,6 +1,7 @@
 package com.tileshell.feature.keyboard
 
 import android.inputmethodservice.InputMethodService
+import android.util.Log
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import androidx.compose.ui.platform.ComposeView
@@ -12,6 +13,10 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
 
 /**
  * The TileShell keyboard: a Metro-style input method drawn with Compose.
@@ -24,7 +29,9 @@ class TileShellImeService : InputMethodService(), LifecycleOwner, SavedStateRegi
 
     private val lifecycleRegistry = LifecycleRegistry(this)
     private val savedStateController = SavedStateRegistryController.create(this)
-    private val controller = KeyboardController(this)
+    private val scope = MainScope()
+    private val prefs by lazy { KeyboardPrefs.get(this) }
+    private val controller by lazy { KeyboardController(this, prefs, scope) }
 
     override val lifecycle: Lifecycle get() = lifecycleRegistry
     override val savedStateRegistry: SavedStateRegistry get() = savedStateController.savedStateRegistry
@@ -33,6 +40,12 @@ class TileShellImeService : InputMethodService(), LifecycleOwner, SavedStateRegi
         super.onCreate()
         savedStateController.performRestore(null)
         lifecycleRegistry.currentState = Lifecycle.State.RESUMED
+        scope.launch {
+            runCatching { KeyboardDictionary.lexicon(this@TileShellImeService) }
+                .onSuccess { controller.setLexicon(it) }
+                .onFailure { Log.w(TAG, "word list didn't load; suggestions off", it) }
+        }
+        scope.launch { prefs.settings.drop(1).collect { controller.onSettingsChanged() } }
     }
 
     override fun onCreateInputView(): View {
@@ -43,7 +56,7 @@ class TileShellImeService : InputMethodService(), LifecycleOwner, SavedStateRegi
         return ComposeView(this).apply {
             setViewTreeLifecycleOwner(this@TileShellImeService)
             setViewTreeSavedStateRegistryOwner(this@TileShellImeService)
-            setContent { KeyboardScreen(controller) }
+            setContent { KeyboardScreen(controller, prefs) }
         }
     }
 
@@ -68,7 +81,12 @@ class TileShellImeService : InputMethodService(), LifecycleOwner, SavedStateRegi
     override fun onEvaluateFullscreenMode(): Boolean = false
 
     override fun onDestroy() {
+        scope.cancel()
         lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
         super.onDestroy()
+    }
+
+    private companion object {
+        const val TAG = "TileShellKeyboard"
     }
 }

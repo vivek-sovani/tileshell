@@ -93,4 +93,44 @@ class TypingRulesTest {
         assertEquals(KeyboardLayer.SYMBOLS_1, TypingRules.startLayer(InputType.TYPE_CLASS_DATETIME))
         assertEquals(KeyboardLayer.LETTERS, TypingRules.startLayer(sentences))
     }
+
+    @Test
+    fun `password fields are incognito, email and numbers get no suggestions`() {
+        val pw = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        assertEquals(FieldMode.INCOGNITO, TypingRules.fieldMode(pw))
+        val pin = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+        assertEquals(FieldMode.INCOGNITO, TypingRules.fieldMode(pin))
+        val email = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+        assertEquals(FieldMode.NO_SUGGESTIONS, TypingRules.fieldMode(email))
+        assertEquals(FieldMode.NO_SUGGESTIONS, TypingRules.fieldMode(InputType.TYPE_CLASS_PHONE))
+        val noSuggest = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        assertEquals(FieldMode.NO_SUGGESTIONS, TypingRules.fieldMode(noSuggest))
+        assertEquals(FieldMode.NORMAL, TypingRules.fieldMode(sentences))
+    }
+
+    @Test
+    fun `nothing is learned in incognito fields`() {
+        assertTrue(TypingRules.canLearn(sentences, 0))
+        assertFalse(TypingRules.canLearn(sentences, EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING))
+        val pw = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        assertFalse(TypingRules.canLearn(pw, 0))
+    }
+
+    @Test
+    fun `current word is the letters before the cursor`() {
+        assertEquals("mee", TypingRules.currentWord("see you at the mee", null))
+        assertEquals("don't", TypingRules.currentWord("I don't", null))
+        assertEquals("", TypingRules.currentWord("done ", null))
+        assertEquals("", TypingRules.currentWord("4", null))
+        assertEquals("", TypingRules.currentWord("mee", 't'))
+        assertEquals("word", TypingRules.currentWord("'word", null))
+    }
+
+    @Test
+    fun `sentence start`() {
+        assertTrue(TypingRules.sentenceStart(""))
+        assertTrue(TypingRules.sentenceStart("Done. "))
+        assertTrue(TypingRules.sentenceStart("ok\n"))
+        assertFalse(TypingRules.sentenceStart("I met "))
+    }
 }

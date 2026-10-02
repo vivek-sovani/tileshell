@@ -1762,77 +1762,7 @@ private fun ToggleRow(
     ) {
         Text(text = label, color = tokens.fg, fontSize = 17.sp, fontWeight = FontWeight.Light, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(12.dp))
-        LumiaSwitch(on, accent, tokens, onChange)
-    }
-}
-
-/**
- * Windows Phone 8's toggle (user-chosen): a thin outlined track whose inner bar
- * fills with the accent when on, and a tall solid thumb that stands out above
- * and below the track. The thumb can be dragged across (user-requested):
- * released past the middle it switches, otherwise it springs back. A tap on
- * the row still toggles, and the thumb slides either way.
- */
-@Composable
-private fun LumiaSwitch(
-    on: Boolean,
-    accent: Color,
-    tokens: com.tileshell.core.design.ColorTokens,
-    onChange: (Boolean) -> Unit,
-) {
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    // Track 44dp wide; the 10dp thumb travels its full width, overlapping the
-    // border at either end as WP's did. (Sized down from 52dp: read bulky.)
-    val travelPx = with(density) { 34.dp.toPx() }
-    val thumb = remember { androidx.compose.animation.core.Animatable(if (on) travelPx else 0f) }
-    var dragging by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    LaunchedEffect(on) { if (!dragging) thumb.animateTo(if (on) travelPx else 0f) }
-    // Fill and outline follow the thumb, so a drag past the middle previews it.
-    val lit = thumb.value > travelPx / 2f
-    Box(
-        modifier = Modifier
-            .width(44.dp)
-            .height(22.dp)
-            .pointerInput(on) {
-                detectHorizontalDragGestures(
-                    onDragStart = { dragging = true },
-                    onDragEnd = {
-                        dragging = false
-                        val nowOn = thumb.value > travelPx / 2f
-                        scope.launch { thumb.animateTo(if (nowOn) travelPx else 0f) }
-                        if (nowOn != on) onChange(nowOn)
-                    },
-                    onDragCancel = {
-                        dragging = false
-                        scope.launch { thumb.animateTo(if (on) travelPx else 0f) }
-                    },
-                ) { change, amount ->
-                    change.consume()
-                    scope.launch { thumb.snapTo((thumb.value + amount).coerceIn(0f, travelPx)) }
-                }
-            },
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        // Track: thin outline with an inner bar, filled up to the thumb when on.
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(16.dp)
-                .border(1.5.dp, if (lit) tokens.fg else tokens.fgDim)
-                .padding(3.dp),
-        ) {
-            val fillWidth = with(density) { (thumb.value).toDp() }
-            if (lit) Box(Modifier.width(fillWidth).fillMaxHeight().background(accent))
-        }
-        // Thumb: taller than the track.
-        Box(
-            modifier = Modifier
-                .offset { androidx.compose.ui.unit.IntOffset(thumb.value.toInt(), 0) }
-                .width(10.dp)
-                .fillMaxHeight()
-                .background(tokens.fg),
-        )
+        com.tileshell.core.design.LumiaSwitch(on, accent, tokens, onChange)
     }
 }
 

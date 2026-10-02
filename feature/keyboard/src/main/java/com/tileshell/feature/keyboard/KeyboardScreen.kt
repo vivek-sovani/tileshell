@@ -2,7 +2,6 @@ package com.tileshell.feature.keyboard
 
 import android.content.Intent
 import android.content.res.Configuration
-import android.provider.Settings
 import android.view.HapticFeedbackConstants
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -27,7 +26,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -100,49 +106,59 @@ private const val PRESS_FLASH_MS = 140L
 private const val REPEAT_START_MS = 400L
 private const val REPEAT_EVERY_MS = 50L
 
+/** Whether key presses tick the haptic (keyboard settings → haptic feedback). */
+private val LocalKeyHaptics = staticCompositionLocalOf { true }
+
 @Composable
-internal fun KeyboardScreen(controller: KeyboardController) {
+internal fun KeyboardScreen(controller: KeyboardController, prefs: KeyboardPrefs) {
     val context = LocalContext.current
     val repository = remember { SettingsRepository.create(context) }
     val settings by repository.settings.collectAsState(initial = null)
+    val keyboard by prefs.settings.collectAsState()
     val systemDark = isSystemInDarkTheme()
-    val dark = settings?.let { if (it.followSystemTheme) systemDark else it.dark } ?: systemDark
+    val dark = when (keyboard.theme) {
+        KeyboardTheme.DARK -> true
+        KeyboardTheme.LIGHT -> false
+        KeyboardTheme.TILESHELL -> settings?.let { if (it.followSystemTheme) systemDark else it.dark } ?: systemDark
+    }
     val colors = if (dark) KeyboardColors.Dark else KeyboardColors.Light
     val accent = TileAccents.forId(settings?.accentId)
     // Landscape: shorter keys, so the keyboard doesn't take most of the screen.
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val keyHeight = if (landscape) 40.dp else 50.dp
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(colors.background)
-            .windowInsetsPadding(WindowInsets.navigationBars),
-    ) {
-        Strip(colors)
-        val keysHeight = 2.dp + keyHeight * 4 + ROW_GAP * 3 + 12.dp
-        Box(
+    CompositionLocalProvider(LocalKeyHaptics provides keyboard.vibrate) {
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(keysHeight)
-                .padding(start = SIDE_PADDING, end = SIDE_PADDING, top = 2.dp, bottom = 12.dp),
+                .background(colors.background)
+                .windowInsetsPadding(WindowInsets.navigationBars),
         ) {
-            if (controller.layer == KeyboardLayer.EMOJI) {
-                EmojiPanel(controller, colors, accent, keyHeight)
-            } else {
-                KeyRows(controller, colors, accent, keyHeight)
+            Strip(controller, colors, accent)
+            val keysHeight = 2.dp + keyHeight * 4 + ROW_GAP * 3 + 12.dp
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(keysHeight)
+                    .padding(start = SIDE_PADDING, end = SIDE_PADDING, top = 2.dp, bottom = 12.dp),
+            ) {
+                if (controller.layer == KeyboardLayer.EMOJI) {
+                    EmojiPanel(controller, colors, accent, keyHeight)
+                } else {
+                    KeyRows(controller, colors, accent, keyHeight)
+                }
             }
         }
     }
 }
 
 /**
- * Suggestion strip. Suggestions arrive in phase 2; for now it carries the one
- * tool that already works, keyboard settings (Android's for now).
+ * The strip above the keys (canvas "Suggestion strip states"): suggestions with
+ * the best guess underlined in the accent, the quoted original after an
+ * autocorrect, "incognito typing" in password fields, or the tools.
  */
 @Composable
-private fun Strip(colors: KeyboardColors) {
-    val context = LocalContext.current
+private fun Strip(controller: KeyboardController, colors: KeyboardColors, accent: Color) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -150,23 +166,83 @@ private fun Strip(colors: KeyboardColors) {
             .padding(horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Spacer(Modifier.weight(1f))
-        Box(
-            modifier = Modifier
-                .size(width = 48.dp, height = 44.dp)
-                .clickable {
-                    runCatching {
-                        context.startActivity(
-                            Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                        )
-                    }
+        when (controller.stripMode) {
+            StripMode.INCOGNITO -> {
+                Spacer(Modifier.width(12.dp))
+                KeyIcon(KeyGlyph.LOCK, colors.secondary, iconSize = 18.dp)
+                Spacer(Modifier.width(8.dp))
+                BasicText("incognito typing", style = TextStyle(color = colors.secondary, fontSize = 14.sp))
+            }
+            StripMode.TOOLS -> {
+                Spacer(Modifier.weight(1f))
+                SettingsTool(colors)
+            }
+            StripMode.WORDS -> {
+                Row(
+                    modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    for (word in controller.strip) StripWordCell(word, colors, accent) { controller.onStripWord(word) }
                 }
-                .semantics { contentDescription = "keyboard settings" },
-            contentAlignment = Alignment.Center,
-        ) {
-            KeyIcon(KeyGlyph.SETTINGS, colors.secondary, filled = false, background = colors.background)
+                // Nothing typed yet: settings stays reachable beside the next words.
+                if (controller.strip.none { it.kind != StripWord.Kind.WORD || it.best }) SettingsTool(colors)
+            }
         }
+    }
+}
+
+@Composable
+private fun StripWordCell(word: StripWord, colors: KeyboardColors, accent: Color, onTap: () -> Unit) {
+    // The typed word is dim when space would replace it; the undo word always is.
+    val dim = word.kind == StripWord.Kind.UNDO || (word.kind == StripWord.Kind.TYPED && !word.best)
+    Box(
+        modifier = Modifier
+            .height(44.dp)
+            .clickable(onClick = onTap)
+            .then(
+                if (word.best) {
+                    Modifier.drawBehind {
+                        val h = 3.dp.toPx()
+                        drawRect(accent, topLeft = Offset(0f, size.height - h), size = Size(size.width, h))
+                    }
+                } else {
+                    Modifier
+                },
+            )
+            .padding(horizontal = 12.dp)
+            .semantics { contentDescription = if (word.kind == StripWord.Kind.UNDO) "undo, ${word.text}" else word.text },
+        contentAlignment = Alignment.Center,
+    ) {
+        BasicText(
+            text = word.text,
+            maxLines = 1,
+            style = TextStyle(
+                color = if (dim) colors.secondary else colors.text,
+                fontSize = 18.sp,
+                fontWeight = if (word.best) FontWeight.SemiBold else FontWeight.Normal,
+            ),
+        )
+    }
+}
+
+@Composable
+private fun SettingsTool(colors: KeyboardColors) {
+    val context = LocalContext.current
+    Box(
+        modifier = Modifier
+            .size(width = 48.dp, height = 44.dp)
+            .clickable {
+                runCatching {
+                    context.startActivity(
+                        Intent(context, KeyboardSettingsActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }
+            }
+            .semantics { contentDescription = "keyboard settings" },
+        contentAlignment = Alignment.Center,
+    ) {
+        KeyIcon(KeyGlyph.SETTINGS, colors.secondary, filled = false, background = colors.background)
     }
 }
 
@@ -266,6 +342,7 @@ private fun PressableKey(
     content: @Composable (pressed: Boolean) -> Unit,
 ) {
     val view = LocalView.current
+    val haptics = LocalKeyHaptics.current
     val scope = rememberCoroutineScope()
     var held by remember { mutableStateOf(false) }
     var flashing by remember { mutableStateOf(false) }
@@ -276,7 +353,7 @@ private fun PressableKey(
         modifier = modifier
             .height(height)
             .background(if (pressed || lit) accent else base)
-            .pointerInput(repeats) {
+            .pointerInput(repeats, haptics) {
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false).consume()
                     held = true
@@ -285,7 +362,7 @@ private fun PressableKey(
                         delay(PRESS_FLASH_MS)
                         flashing = false
                     }
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     press()
                     var repeater: Job? = null
                     if (repeats) {
@@ -380,15 +457,21 @@ private fun EmojiPanel(controller: KeyboardController, colors: KeyboardColors, a
     }
 }
 
-internal enum class KeyGlyph { SHIFT, BACKSPACE, ENTER, EMOJI, SETTINGS }
+internal enum class KeyGlyph { SHIFT, BACKSPACE, ENTER, EMOJI, SETTINGS, LOCK }
 
 /**
  * Monoline key glyphs, drawn from the canvas's 24-unit SVG paths (stroke 1.6).
  * [background] fills the settings sliders' knobs so the line breaks behind them.
  */
 @Composable
-private fun KeyIcon(glyph: KeyGlyph, color: Color, filled: Boolean = false, background: Color = Color.Transparent) {
-    Canvas(Modifier.size(if (glyph == KeyGlyph.SETTINGS) 22.dp else 24.dp)) {
+private fun KeyIcon(
+    glyph: KeyGlyph,
+    color: Color,
+    filled: Boolean = false,
+    background: Color = Color.Transparent,
+    iconSize: Dp = if (glyph == KeyGlyph.SETTINGS) 22.dp else 24.dp,
+) {
+    Canvas(Modifier.size(iconSize)) {
         val u = size.width / 24f
         val stroke = Stroke(width = 1.6f * u, cap = StrokeCap.Round, join = StrokeJoin.Round)
         fun p(vararg pts: Float): Path = Path().apply {
@@ -424,6 +507,17 @@ private fun KeyIcon(glyph: KeyGlyph, color: Color, filled: Boolean = false, back
                 drawPath(mouth, color, style = stroke)
                 drawCircle(color, radius = 0.9f * u, center = Offset(9.2f * u, 10f * u))
                 drawCircle(color, radius = 0.9f * u, center = Offset(14.8f * u, 10f * u))
+            }
+            KeyGlyph.LOCK -> {
+                val lockStroke = Stroke(width = 1.8f * u, join = StrokeJoin.Round)
+                drawPath(p(5f, 10.5f, 19f, 10.5f, 19f, 20.5f, 5f, 20.5f).apply { close() }, color, style = lockStroke)
+                val shackle = Path().apply {
+                    moveTo(8f * u, 10.5f * u)
+                    lineTo(8f * u, 7.5f * u)
+                    arcTo(androidx.compose.ui.geometry.Rect(8f * u, 3.5f * u, 16f * u, 11.5f * u), 180f, 180f, false)
+                    lineTo(16f * u, 10.5f * u)
+                }
+                drawPath(shackle, color, style = lockStroke)
             }
             KeyGlyph.SETTINGS -> {
                 drawSlider(7f, 9f, u, color, background, stroke)
