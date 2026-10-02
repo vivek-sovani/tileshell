@@ -146,7 +146,7 @@ class KeyboardController(
     private val audio by lazy { service.getSystemService(Context.AUDIO_SERVICE) as? AudioManager }
     private val lexicon: Lexicon? get() = lexicons[language]
     /** मराठी / हिन्दी typed in English letters, shown as composing text. */
-    private val translit: Boolean get() = language.indic && settings.translit
+    private val translit: Boolean get() = language.indic && settings.lettersNow
 
     private data class Correction(val original: String, val replacement: String, val separator: String)
 
@@ -219,14 +219,15 @@ class KeyboardController(
     }
 
     /** The globe key: the next (+1) language that's on. */
+    /** The globe key: the next mode — a language, and for Marathi / Hindi its style. */
     fun switchLanguage(step: Int = 1) {
-        if (!languagesHere || settings.languages.size < 2) return
+        if (!languagesHere || settings.modes.size < 2) return
         commitTranslit(separator = "")
         resetTransient()
-        val next = settings.languageAfter(step)
-        prefs.update { it.copy(language = next) }
-        language = next
-        ensureLexicon(next)
+        val next = settings.modeAfter(step)
+        prefs.update { it.copy(language = next.language, translit = if (next.language.indic) next.letters else it.translit) }
+        language = next.language
+        ensureLexicon(next.language)
         shift = ShiftState.OFF
         refresh()
     }
@@ -450,6 +451,9 @@ class KeyboardController(
         haptic(HapticKind.CONFIRM)
         refresh()
     }
+
+    /** Both Marathi / Hindi styles are on, so the tools row's अ / abc button can flip them. */
+    val bothStyles: Boolean get() = settings.styleLetters && settings.styleKeys
 
     /** The tools row's अ / abc button: Devanagari keys ↔ English letters. */
     fun toggleInputStyle() {
@@ -814,8 +818,8 @@ class KeyboardController(
 
     /** Re-reads the text round the cursor: auto capital and the strip. */
     private fun refresh() {
-        devanagariKeys = language.indic && !settings.translit
-        languageKey = languagesHere && settings.languages.size > 1 && layer != KeyboardLayer.NUMPAD
+        devanagariKeys = language.indic && !settings.lettersNow
+        languageKey = languagesHere && settings.modes.size > 1 && layer != KeyboardLayer.NUMPAD
         val ic = service.currentInputConnection
         val before = ic?.getTextBeforeCursor(CONTEXT_CHARS, 0)
         fullVowels = !TypingRules.endsInConsonant(before)

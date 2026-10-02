@@ -74,7 +74,7 @@ internal fun ToolsRow(controller: KeyboardController, colors: KeyboardColors, ac
         if (BuildConfig.VOICE) {
             Tool(PanelIcon.MIC, "voice typing", voiceOpen, colors, accent) { controller.toggleVoice() }
         }
-        if (controller.language.indic) {
+        if (controller.language.indic && controller.bothStyles) {
             // Devanagari keys ↔ English letters for मराठी / हिन्दी.
             TextTool(if (controller.devanagariKeys) "abc" else "अ", if (controller.devanagariKeys) "type in English letters" else "Devanagari keys", colors) {
                 controller.toggleInputStyle()

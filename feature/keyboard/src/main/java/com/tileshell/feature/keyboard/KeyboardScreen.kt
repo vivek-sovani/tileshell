@@ -153,10 +153,11 @@ internal fun KeyboardScreen(
         ) {
             Strip(controller, colors, accent, keyboard.oneHand != OneHand.OFF)
             // Devanagari keys: six rows (vowel row, three of consonants, joined
-            // letters, bottom), so shorter keys; the keyboard grows ~55dp.
+            // letters, bottom). 48dp keys — 42 was too small to hit reliably — so
+            // this keyboard is ~100dp taller than the English one.
             val sixRows = controller.devanagariKeys && controller.layer == KeyboardLayer.LETTERS
             val rows = if (sixRows) 6 else 4
-            val rowKeyHeight = if (sixRows) (if (landscape) 34.dp else 42.dp) else keyHeight
+            val rowKeyHeight = if (sixRows) (if (landscape) 36.dp else 48.dp) else keyHeight
             val keysHeight = 2.dp + rowKeyHeight * rows + ROW_GAP * (rows - 1) + 12.dp
             Row(Modifier.fillMaxWidth().height(keysHeight)) {
                 if (keyboard.oneHand == OneHand.RIGHT) OneHandPanel(keysOnRight = true, controller, colors)

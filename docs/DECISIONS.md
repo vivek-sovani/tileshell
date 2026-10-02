@@ -11102,3 +11102,12 @@ options; the user picked the alphabet-order layout:
   ल → ळ, श → श्र ष, ं → ँ ः…).
 - Six rows, so 42dp keys (34 in landscape): the keyboard is ~55dp taller only on
   these keys.
+- **Follow-up (user):** keys too small and rows too close — the top row fired by
+  accident. Devanagari keys are now 48dp (36 landscape), so that keyboard is ~100dp
+  taller than the English one; and every layout reads a touch 4dp lower when finding
+  the key, since a fingertip lands a little above where it's aimed.
+- **Follow-up (user): styles on the globe key.** Each Marathi/Hindi language comes in
+  two modes, English letters and Devanagari keys (`TypingMode`); the globe steps
+  English → मराठी · abc → मराठी → हिन्दी · abc → हिन्दी. Settings has a switch for each
+  style (one stays on) instead of the single "English letters" switch; the tools row's
+  अ / abc button shows only while both are on.

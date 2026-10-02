@@ -13,6 +13,9 @@ enum class KeyboardTheme(val label: String) {
     LIGHT("light"),
 }
 
+/** A language and, for Marathi / Hindi, how it's typed: English letters or Devanagari keys. */
+data class TypingMode(val language: KeyboardLanguage, val letters: Boolean)
+
 /** One-handed mode: the keys pushed to one side, the canvas's side panel on the other. */
 enum class OneHand { OFF, LEFT, RIGHT }
 
@@ -35,11 +38,41 @@ data class KeyboardSettings(
     /** Typed in English letters, written in Devanagari. English is always on. */
     val marathi: Boolean = true,
     val hindi: Boolean = false,
-    /** Marathi / Hindi typed in English letters (true) or on Devanagari keys (false). */
+    /** Marathi / Hindi typed in English letters (true) or on Devanagari keys (false), last used. */
     val translit: Boolean = true,
+    /** The two ways to type Marathi / Hindi offered on the globe key (at least one stays on). */
+    val styleLetters: Boolean = true,
+    val styleKeys: Boolean = true,
     /** The language last typed in; the globe key moves through the ones on. */
     val language: KeyboardLanguage = KeyboardLanguage.ENGLISH,
 ) {
+    /**
+     * What the globe key steps through: English, then each Marathi / Hindi in
+     * each style that's on — मराठी · abc (English letters), मराठी (Devanagari keys).
+     */
+    val modes: List<TypingMode>
+        get() = buildList {
+            add(TypingMode(KeyboardLanguage.ENGLISH, letters = true))
+            for (lang in languages.drop(1)) {
+                if (styleLetters || !styleKeys) add(TypingMode(lang, letters = true))
+                if (styleKeys) add(TypingMode(lang, letters = false))
+            }
+        }
+
+    /** The mode in use: the last language and style, if still on. */
+    val activeMode: TypingMode
+        get() = modes.firstOrNull { it.language == activeLanguage && (it.language == KeyboardLanguage.ENGLISH || it.letters == translit) }
+            ?: modes.firstOrNull { it.language == activeLanguage }
+            ?: modes.first()
+
+    /** Marathi / Hindi in English letters right now (else Devanagari keys). */
+    val lettersNow: Boolean get() = activeMode.letters
+
+    fun modeAfter(step: Int): TypingMode {
+        val list = modes
+        return list[Math.floorMod(list.indexOf(activeMode) + step, list.size)]
+    }
+
     /** The languages the space bar cycles through, English first. */
     val languages: List<KeyboardLanguage>
         get() = buildList {
@@ -52,12 +85,6 @@ data class KeyboardSettings(
     val activeLanguage: KeyboardLanguage
         get() = if (language in languages) language else KeyboardLanguage.ENGLISH
 
-    /** The next language on, [step] = +1 / −1, wrapping round. */
-    fun languageAfter(step: Int): KeyboardLanguage {
-        val list = languages
-        val i = list.indexOf(activeLanguage)
-        return list[Math.floorMod(i + step, list.size)]
-    }
 }
 
 /**
@@ -94,6 +121,8 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
             .putBoolean(MARATHI, next.marathi)
             .putBoolean(HINDI, next.hindi)
             .putBoolean(TRANSLIT, next.translit)
+            .putBoolean(STYLE_LETTERS, next.styleLetters)
+            .putBoolean(STYLE_KEYS, next.styleKeys)
             .putString(LANGUAGE, next.language.name)
             .apply()
         state.value = next
@@ -126,6 +155,8 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
             marathi = prefs.getBoolean(MARATHI, d.marathi),
             hindi = prefs.getBoolean(HINDI, d.hindi),
             translit = prefs.getBoolean(TRANSLIT, d.translit),
+            styleLetters = prefs.getBoolean(STYLE_LETTERS, d.styleLetters),
+            styleKeys = prefs.getBoolean(STYLE_KEYS, d.styleKeys),
             language = KeyboardLanguage.entries.find { it.name == prefs.getString(LANGUAGE, null) } ?: d.language,
         )
     }
@@ -147,6 +178,8 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
         private const val MARATHI = "lang_marathi"
         private const val HINDI = "lang_hindi"
         private const val TRANSLIT = "translit"
+        private const val STYLE_LETTERS = "style_letters"
+        private const val STYLE_KEYS = "style_keys"
         private const val LANGUAGE = "language"
 
         @Volatile private var instance: KeyboardPrefs? = null

@@ -224,18 +224,19 @@ private fun KeyboardSettingsScreen(prefs: KeyboardPrefs) {
             Note("Tap the globe key beside emoji to switch language.", tokens)
         }
 
-        Toggle("Type मराठी and हिन्दी in English letters", settings.translit, accent, tokens) { on ->
-            prefs.update { it.copy(translit = on) }
+        Group("How to type मराठी and हिन्दी", tokens) {
+            // At least one style stays on.
+            LanguageRow("English letters  ·  namaskar → नमस्कार", settings.styleLetters, accent, tokens) { on ->
+                if (on || settings.styleKeys) prefs.update { it.copy(styleLetters = on) }
+            }
+            LanguageRow("Devanagari keys  ·  क ख ग…", settings.styleKeys, accent, tokens) { on ->
+                if (on || settings.styleLetters) prefs.update { it.copy(styleKeys = on) }
+            }
+            Note(
+                "The globe key steps through each one that's on: English → मराठी · abc → मराठी → हिन्दी · abc → हिन्दी.",
+                tokens,
+            )
         }
-        Note(
-            if (settings.translit) {
-                "namaskar becomes नमस्कार when you press space. Off: Devanagari keys instead. " +
-                    "The tools row's अ / abc button switches too."
-            } else {
-                "Devanagari keys (InScript): vowel signs on the left, consonants on the right; shift for the rest."
-            },
-            tokens,
-        )
     }
 }
 

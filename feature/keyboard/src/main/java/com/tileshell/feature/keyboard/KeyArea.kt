@@ -58,6 +58,7 @@ import kotlin.math.roundToInt
 private val KEY_GAP = 6.dp
 private val ROW_GAP = 8.dp
 private const val PRESS_FLASH_MS = 140L
+private val TOUCH_BIAS = 4.dp
 private const val LONG_PRESS_MS = 350L
 private const val REPEAT_START_MS = 400L
 private const val REPEAT_EVERY_MS = 50L
@@ -144,7 +145,9 @@ internal fun KeyArea(
 
                 fun hit(p: Offset): Triple<String, Key, KeyBox>? {
                     val b = currentBoxes()
-                    val (r, i) = KeyGeometry.hit(b, p.x, p.y) ?: return null
+                    // A fingertip lands a little above where it's aimed; read it a touch lower,
+                    // so the row above doesn't fire by accident.
+                    val (r, i) = KeyGeometry.hit(b, p.x, p.y + px(TOUCH_BIAS)) ?: return null
                     val key = currentRows[r].keys[i]
                     return Triple(keyId(r, i, key), key, b[r][i])
                 }
