@@ -11082,3 +11082,11 @@ English but can switch.
   the module also declares the RecognitionService `<queries>` Android 11+ needs.
 - TileShell keeps no audio; settings say so. **Release:** privacy policy and Play's
   Data safety need a voice / microphone entry before this ships (phase 7).
+
+## Voice typing left out of releases (user's call)
+`tileshell.keyboardVoice=false` (gradle.properties, default off). The microphone
+permission, `VoicePermissionActivity` and the RecognitionService query moved to
+`feature/keyboard/src/voice/AndroidManifest.xml`, merged into the keyboard's build types
+only while it's true (verified with aapt both ways); `BuildConfig.VOICE` hides the mic in
+the tools row and the settings note, and `toggleVoice` does nothing. The code stays, so
+turning it back on is one line (plus the privacy policy / Data safety entry it needs).

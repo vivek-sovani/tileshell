@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Voice typing. Merged into the keyboard's build types only while
+     tileshell.keyboardVoice=true in gradle.properties; off, the app has no
+     microphone permission, no permission screen and no speech-service query. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Asked for the first time the mic is tapped (VoicePermissionActivity). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Android 11+: see the phone's speech recognition service. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+
+    <application>
+        <activity
+            android:name=".VoicePermissionActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity="com.tileshell.keyboard.voice"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+    </application>
+</manifest>

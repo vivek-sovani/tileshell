@@ -402,6 +402,8 @@ class KeyboardController(
 
     /** The tools row's mic: opens the voice panel and starts listening (again: back to the keys). */
     fun toggleVoice() {
+        // Voice typing is left out of builds with tileshell.keyboardVoice=false.
+        if (!BuildConfig.VOICE) return
         if (layer == KeyboardLayer.VOICE) {
             closeVoice()
             return

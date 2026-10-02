@@ -4,22 +4,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Key feedback at the chosen strength (normal permission, granted at install). -->
     <uses-permission android:name="android.permission.VIBRATE" />
-    <!-- Voice typing; asked for the first time the mic is tapped (VoicePermissionActivity). -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-
-    <!-- Android 11+: see the phone's speech recognition service. -->
-    <queries>
-        <intent>
-            <action android:name="android.speech.RecognitionService" />
-        </intent>
-    </queries>
     <application>
-        <activity
-            android:name=".VoicePermissionActivity"
-            android:exported="false"
-            android:excludeFromRecents="true"
-            android:taskAffinity="com.tileshell.keyboard.voice"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <!-- Exported: Android's keyboard list opens it from the Settings app. -->
         <activity
             android:name=".KeyboardSettingsActivity"

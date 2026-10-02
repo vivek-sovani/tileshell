@@ -10,8 +10,20 @@ android {
     namespace = "com.tileshell.feature.keyboard"
     compileSdk = 36
 
+    // Voice typing switch (gradle.properties → tileshell.keyboardVoice, off by default).
+    val voice = providers.gradleProperty("tileshell.keyboardVoice").orNull?.toBoolean() ?: false
+
     defaultConfig {
         minSdk = 26
+        buildConfigField("boolean", "VOICE", voice.toString())
+    }
+
+    // The microphone permission, permission screen and speech-service query live in
+    // their own manifest, merged only while voice is on.
+    if (voice) {
+        listOf("debug", "release").forEach { type ->
+            sourceSets.getByName(type).manifest.srcFile("src/voice/AndroidManifest.xml")
+        }
     }
 
     compileOptions {
@@ -25,6 +37,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
