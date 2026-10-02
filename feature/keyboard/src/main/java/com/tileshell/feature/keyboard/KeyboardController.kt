@@ -57,6 +57,10 @@ class KeyboardController(
     var language by mutableStateOf(KeyboardLanguage.ENGLISH)
         private set
 
+    /** The globe key shows while more than one language can be typed here. */
+    var languageKey by mutableStateOf(false)
+        private set
+
     /** The space bar's label: "English", "मराठी · abc". */
     val spaceLabel: String
         get() = if (language.indic) "${language.nativeName} · abc" else language.nativeName
@@ -144,8 +148,8 @@ class KeyboardController(
         refresh()
     }
 
-    /** Space bar swiped: the next (+1) or previous (−1) language that's on. */
-    fun switchLanguage(step: Int) {
+    /** The globe key: the next (+1) language that's on. */
+    fun switchLanguage(step: Int = 1) {
         if (fieldMode != FieldMode.NORMAL || settings.languages.size < 2) return
         commitTranslit(separator = "")
         resetTransient()
@@ -203,6 +207,7 @@ class KeyboardController(
                 commitTranslit(separator = "")
                 layer = KeyboardLayer.EMOJI
             }
+            KeyKind.LANGUAGE -> switchLanguage()
         }
         // Shift is only re-read from the text after an edit, so tapping shift sticks.
         if (key.kind != KeyKind.SHIFT) refresh()
@@ -430,6 +435,7 @@ class KeyboardController(
 
     /** Re-reads the text round the cursor: auto capital and the strip. */
     private fun refresh() {
+        languageKey = fieldMode == FieldMode.NORMAL && settings.languages.size > 1
         val ic = service.currentInputConnection
         val before = ic?.getTextBeforeCursor(CONTEXT_CHARS, 0)
         if (shift != ShiftState.LOCKED) {

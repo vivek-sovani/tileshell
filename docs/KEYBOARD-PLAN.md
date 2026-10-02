@@ -21,10 +21,9 @@ dark / light). The canvas's own 20-colour Metro grid is not used.
    *Phase 3 note:* AOSP has no Marathi/Hindi lists — another licensed source needed.
 3. **Marathi / Hindi** — transliteration (rule table → candidates, ranked by
    Marathi/Hindi word lists from Tatoeba, CC-BY 2.0 FR; learns picks; offline only);
-   swipe the space bar to switch languages. ✅ built (transliteration only)
+   a globe key (beside emoji) switches languages. ✅ built (transliteration only)
    *Deferred at the user's request:* the Devanagari मराठी key layout.
-   *To settle in phase 4:* the canvas has the space bar both switching language
-   (swipe) and moving the cursor (drag).
+   The space bar's sideways drag is left free for phase 4's cursor control.
 4. **Gestures** — long-press accents + top-row digit hints, space-bar cursor drag,
    swipe typing with accent trail, haptic strength.
 5. **Panels** — full emoji (categories, recents, search), clipboard (1 h, pin),

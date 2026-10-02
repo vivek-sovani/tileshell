@@ -52,4 +52,19 @@ class KeyboardLayoutTest {
     fun `emoji grid fills four rows of eight`() {
         assertEquals(32, KeyboardLayouts.emoji.size)
     }
+
+    @Test
+    fun `with more than one language the globe sits after emoji and space gives it a unit`() {
+        val bottom = KeyboardLayouts.rowsFor(KeyboardLayer.LETTERS, languageKey = true).last().keys
+        assertEquals(
+            listOf(KeyKind.LAYER, KeyKind.EMOJI, KeyKind.LANGUAGE, KeyKind.SYMBOL, KeyKind.SPACE, KeyKind.SYMBOL, KeyKind.ENTER),
+            bottom.map { it.kind },
+        )
+        assertEquals(3.5f, bottom.first { it.kind == KeyKind.SPACE }.units)
+        assertEquals(10.5f, bottom.sumOf { it.units.toDouble() }.toFloat())
+        assertTrue(bottom.first { it.kind == KeyKind.LANGUAGE }.isFunction)
+        // Symbols too; English only has no globe.
+        assertTrue(KeyboardLayouts.rowsFor(KeyboardLayer.SYMBOLS_1, true).last().keys.any { it.kind == KeyKind.LANGUAGE })
+        assertTrue(KeyboardLayouts.rowsFor(KeyboardLayer.LETTERS).last().keys.none { it.kind == KeyKind.LANGUAGE })
+    }
 }

@@ -106,9 +106,6 @@ private const val PRESS_FLASH_MS = 140L
 private const val REPEAT_START_MS = 400L
 private const val REPEAT_EVERY_MS = 50L
 
-/** How far a sideways swipe on the space bar goes before it switches language. */
-private val SWIPE_DISTANCE = 40.dp
-
 /** Whether key presses tick the haptic (keyboard settings → haptic feedback). */
 private val LocalKeyHaptics = staticCompositionLocalOf { true }
 
@@ -255,7 +252,7 @@ private fun KeyRows(controller: KeyboardController, colors: KeyboardColors, acce
         // 1 unit = (width − 9 gaps) ÷ 10 (the side padding is already outside).
         val unit = (maxWidth - KEY_GAP * 9) / 10
         Column(verticalArrangement = Arrangement.spacedBy(ROW_GAP)) {
-            for (row in KeyboardLayouts.rowsFor(controller.layer)) {
+            for (row in KeyboardLayouts.rowsFor(controller.layer, controller.languageKey)) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -294,6 +291,7 @@ private fun RowScope.KeyCell(
         }
         KeyKind.ENTER -> controller.enterAction.label ?: "enter"
         KeyKind.SPACE -> "space, ${controller.spaceLabel}"
+        KeyKind.LANGUAGE -> "switch language, now ${controller.language.nativeName}"
         else -> label
     }
     val lit = key.kind == KeyKind.SHIFT && shift.upperCase
@@ -307,13 +305,13 @@ private fun RowScope.KeyCell(
         repeats = key.kind == KeyKind.BACKSPACE,
         onPress = { controller.onKey(key) },
         onRepeat = { controller.backspace() },
-        onSwipe = if (key.kind == KeyKind.SPACE) controller::switchLanguage else null,
     ) { pressed ->
         val fg = if (pressed || lit) Color.White else if (key.kind == KeyKind.SPACE) colors.secondary else colors.text
         when (key.kind) {
             KeyKind.SHIFT -> KeyIcon(KeyGlyph.SHIFT, fg, filled = shift == ShiftState.LOCKED)
             KeyKind.BACKSPACE -> KeyIcon(KeyGlyph.BACKSPACE, fg)
             KeyKind.EMOJI -> KeyIcon(KeyGlyph.EMOJI, fg)
+            KeyKind.LANGUAGE -> KeyIcon(KeyGlyph.GLOBE, fg)
             KeyKind.ENTER ->
                 if (controller.enterAction == EnterAction.NEW_LINE) {
                     KeyIcon(KeyGlyph.ENTER, fg)
@@ -331,8 +329,7 @@ private fun RowScope.KeyCell(
  * One square key. Acts on finger down (no wait for the lift, so quick
  * two-thumb typing lands in order), fills with the accent while held and for
  * at least [PRESS_FLASH_MS], ticks the keyboard haptic, and — for backspace —
- * repeats while held. A key with [onSwipe] (the space bar) acts on the lift
- * instead, so a sideways swipe can switch language without typing a space.
+ * repeats while held.
  */
 @Composable
 private fun PressableKey(
@@ -345,12 +342,9 @@ private fun PressableKey(
     repeats: Boolean,
     onPress: () -> Unit,
     onRepeat: () -> Unit,
-    onSwipe: ((step: Int) -> Unit)? = null,
     content: @Composable (pressed: Boolean) -> Unit,
 ) {
     val view = LocalView.current
-    val swipe by rememberUpdatedState(onSwipe)
-    val swipeDistance = with(androidx.compose.ui.platform.LocalDensity.current) { SWIPE_DISTANCE.toPx() }
     val haptics = LocalKeyHaptics.current
     val scope = rememberCoroutineScope()
     var held by remember { mutableStateOf(false) }
@@ -362,10 +356,9 @@ private fun PressableKey(
         modifier = modifier
             .height(height)
             .background(if (pressed || lit) accent else base)
-            .pointerInput(repeats, haptics, onSwipe != null) {
+            .pointerInput(repeats, haptics) {
                 awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    down.consume()
+                    awaitFirstDown(requireUnconsumed = false).consume()
                     held = true
                     flashing = true
                     scope.launch {
@@ -373,25 +366,6 @@ private fun PressableKey(
                         flashing = false
                     }
                     if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                    val swiper = swipe
-                    if (swiper != null) {
-                        // Tap → act on lift; sideways past SWIPE_DISTANCE → swipe instead.
-                        var swiped = false
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                            if (!change.pressed) break
-                            val dx = change.position.x - down.position.x
-                            if (!swiped && kotlin.math.abs(dx) > swipeDistance) {
-                                swiped = true
-                                swiper(if (dx < 0) 1 else -1)
-                            }
-                            change.consume()
-                        }
-                        held = false
-                        if (!swiped) press()
-                        return@awaitEachGesture
-                    }
                     press()
                     var repeater: Job? = null
                     if (repeats) {
@@ -486,7 +460,7 @@ private fun EmojiPanel(controller: KeyboardController, colors: KeyboardColors, a
     }
 }
 
-internal enum class KeyGlyph { SHIFT, BACKSPACE, ENTER, EMOJI, SETTINGS, LOCK }
+internal enum class KeyGlyph { SHIFT, BACKSPACE, ENTER, EMOJI, SETTINGS, LOCK, GLOBE }
 
 /**
  * Monoline key glyphs, drawn from the canvas's 24-unit SVG paths (stroke 1.6).
@@ -536,6 +510,19 @@ private fun KeyIcon(
                 drawPath(mouth, color, style = stroke)
                 drawCircle(color, radius = 0.9f * u, center = Offset(9.2f * u, 10f * u))
                 drawCircle(color, radius = 0.9f * u, center = Offset(14.8f * u, 10f * u))
+            }
+            KeyGlyph.GLOBE -> {
+                val c = Offset(12f * u, 12f * u)
+                drawCircle(color, radius = 8.5f * u, center = c, style = stroke)
+                drawOval(
+                    color,
+                    topLeft = Offset(8.2f * u, 3.5f * u),
+                    size = Size(7.6f * u, 17f * u),
+                    style = stroke,
+                )
+                drawLine(color, Offset(3.5f * u, 12f * u), Offset(20.5f * u, 12f * u), strokeWidth = stroke.width)
+                drawLine(color, Offset(5f * u, 7.5f * u), Offset(19f * u, 7.5f * u), strokeWidth = stroke.width)
+                drawLine(color, Offset(5f * u, 16.5f * u), Offset(19f * u, 16.5f * u), strokeWidth = stroke.width)
             }
             KeyGlyph.LOCK -> {
                 val lockStroke = Stroke(width = 1.8f * u, join = StrokeJoin.Round)

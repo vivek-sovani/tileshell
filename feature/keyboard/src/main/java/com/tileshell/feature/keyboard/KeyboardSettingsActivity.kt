@@ -187,7 +187,7 @@ private fun KeyboardSettingsScreen(prefs: KeyboardPrefs) {
             LanguageRow("हिन्दी", settings.hindi, accent, tokens) { on -> prefs.update { it.copy(hindi = on) } }
             Note(
                 "Type मराठी and हिन्दी in English letters — namaskar becomes नमस्कार when you press space. " +
-                    "Swipe the space bar left or right to switch language.",
+                    "Tap the globe key beside emoji to switch language.",
                 tokens,
             )
         }

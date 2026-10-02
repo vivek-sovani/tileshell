@@ -26,7 +26,7 @@ data class KeyboardSettings(
     /** Typed in English letters, written in Devanagari. English is always on. */
     val marathi: Boolean = true,
     val hindi: Boolean = false,
-    /** The language last typed in; swiping the space bar moves through the ones on. */
+    /** The language last typed in; the globe key moves through the ones on. */
     val language: KeyboardLanguage = KeyboardLanguage.ENGLISH,
 ) {
     /** The languages the space bar cycles through, English first. */

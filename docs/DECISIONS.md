@@ -10912,3 +10912,8 @@ User-requested, from their "Metro Keyboard for Android" design canvas. Plan in
   reads "मराठी · abc"; a 40dp sideways swipe on it switches (the space goes in on lift
   for that key only, so a swipe never types one). Password / email / web-address fields
   always type English. No auto-capitals in Marathi/Hindi (shift is for T, D, N...).
+- **Follow-up, user-requested: a separate language key** replaces the space-bar swipe.
+  A globe after emoji in the bottom row (letters and symbols), there only when more
+  than one language is on and the field allows them; space gives it one unit
+  (4.5 -> 3.5). Tap = next language. This also frees the space bar's sideways drag
+  for phase 4's cursor control, which the canvas wanted on the same gesture.

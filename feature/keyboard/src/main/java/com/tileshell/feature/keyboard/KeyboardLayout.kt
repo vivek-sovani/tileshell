@@ -24,6 +24,9 @@ enum class KeyKind {
     /** 1/2 ↔ 2/2: the two symbol pages. */
     PAGE,
     EMOJI,
+
+    /** Globe: the next typing language. Only there when more than one is on. */
+    LANGUAGE,
 }
 
 data class Key(val kind: KeyKind, val label: String, val units: Float = 1f) {
@@ -34,7 +37,7 @@ data class Key(val kind: KeyKind, val label: String, val units: Float = 1f) {
     private companion object {
         val FUNCTION_KINDS = setOf(
             KeyKind.SHIFT, KeyKind.BACKSPACE, KeyKind.ENTER,
-            KeyKind.LAYER, KeyKind.PAGE, KeyKind.EMOJI,
+            KeyKind.LAYER, KeyKind.PAGE, KeyKind.EMOJI, KeyKind.LANGUAGE,
         )
     }
 }
@@ -99,11 +102,26 @@ object KeyboardLayouts {
         bottomRow("abcd"),
     )
 
-    fun rowsFor(layer: KeyboardLayer): List<KeyRow> = when (layer) {
-        KeyboardLayer.LETTERS -> letters
-        KeyboardLayer.SYMBOLS_1 -> symbols1
-        KeyboardLayer.SYMBOLS_2 -> symbols2
-        KeyboardLayer.EMOJI -> emptyList()
+    /**
+     * The rows for [layer]. With [languageKey] (more than one language on) the
+     * bottom row gains the globe after emoji, and space gives it one unit.
+     */
+    fun rowsFor(layer: KeyboardLayer, languageKey: Boolean = false): List<KeyRow> {
+        val rows = when (layer) {
+            KeyboardLayer.LETTERS -> letters
+            KeyboardLayer.SYMBOLS_1 -> symbols1
+            KeyboardLayer.SYMBOLS_2 -> symbols2
+            KeyboardLayer.EMOJI -> return emptyList()
+        }
+        if (!languageKey) return rows
+        val bottom = rows.last().keys.flatMap { key ->
+            when (key.kind) {
+                KeyKind.EMOJI -> listOf(key, Key(KeyKind.LANGUAGE, "language"))
+                KeyKind.SPACE -> listOf(key.copy(units = key.units - 1f))
+                else -> listOf(key)
+            }
+        }
+        return rows.dropLast(1) + KeyRow(bottom)
     }
 
     /** The emoji grid from the canvas's emoji panel (categories come in phase 5). */
