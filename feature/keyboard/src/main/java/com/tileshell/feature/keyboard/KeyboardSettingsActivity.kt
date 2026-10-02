@@ -212,12 +212,21 @@ private fun KeyboardSettingsScreen(prefs: KeyboardPrefs) {
             BasicText("English (India)", style = TextStyle(color = tokens.fg, fontSize = 22.sp, fontWeight = FontWeight.Light))
             LanguageRow("मराठी", settings.marathi, accent, tokens) { on -> prefs.update { it.copy(marathi = on) } }
             LanguageRow("हिन्दी", settings.hindi, accent, tokens) { on -> prefs.update { it.copy(hindi = on) } }
-            Note(
-                "Type मराठी and हिन्दी in English letters — namaskar becomes नमस्कार when you press space. " +
-                    "Tap the globe key beside emoji to switch language.",
-                tokens,
-            )
+            Note("Tap the globe key beside emoji to switch language.", tokens)
         }
+
+        Toggle("Type मराठी and हिन्दी in English letters", settings.translit, accent, tokens) { on ->
+            prefs.update { it.copy(translit = on) }
+        }
+        Note(
+            if (settings.translit) {
+                "namaskar becomes नमस्कार when you press space. Off: Devanagari keys instead. " +
+                    "The tools row's अ / abc button switches too."
+            } else {
+                "Devanagari keys (InScript): vowel signs on the left, consonants on the right; shift for the rest."
+            },
+            tokens,
+        )
     }
 }
 

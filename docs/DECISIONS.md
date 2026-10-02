@@ -11058,3 +11058,13 @@ English but can switch.
   short a of names (Burman); "ao" ends Marathi words in ाव (राव), Hindi in ाओ (जाओ).
 - `NamesTest` holds every word the user reported, typed and swiped; the accuracy
   evaluation was unchanged by these.
+
+## Devanagari keyboard (user-requested: "till typing matures")
+- The canvas's InScript layout (`KeyboardLayouts.devanagari` / `devanagariShift`) for
+  मराठी / हिन्दी when "Type मराठी and हिन्दी in English letters" is off; the tools row's
+  अ / abc button flips it on the spot. Space reads "मराठी" (no "· abc").
+- Keys type directly; no auto-shift (Devanagari has no capitals — shift is the other
+  half of the layout); the strip suggests from the language's list (no autocorrect,
+  which is for English spellings); typed words are learned; no swipe on these keys.
+- `TypingRules.currentWord` counts vowel signs / virama (marks, not letters) as word
+  characters, so a Devanagari word is found whole.

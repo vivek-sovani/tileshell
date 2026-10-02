@@ -75,4 +75,17 @@ class KeyboardLayoutTest {
         assertTrue(KeyboardLayouts.rowsFor(KeyboardLayer.SYMBOLS_1, true).last().keys.any { it.kind == KeyKind.LANGUAGE })
         assertTrue(KeyboardLayouts.rowsFor(KeyboardLayer.LETTERS).last().keys.none { it.kind == KeyKind.LANGUAGE })
     }
+
+    @Test
+    fun `devanagari keys follow the canvas's InScript rows`() {
+        val rows = KeyboardLayouts.rowsFor(KeyboardLayer.LETTERS, devanagariKeys = true)
+        assertEquals("ौैाीूबहगदजड", rows[0].keys.joinToString("") { it.label })
+        assertEquals("ोे्िुपरकतचट", rows[1].keys.joinToString("") { it.label })
+        assertEquals("।", rows[3].keys[4].label)
+        val shifted = KeyboardLayouts.rowsFor(KeyboardLayer.LETTERS, devanagariKeys = true, shifted = true)
+        assertEquals("औऐआईऊभङघधझढ", shifted[0].keys.joinToString("") { it.label })
+        // The globe still fits in their bottom row.
+        val withGlobe = KeyboardLayouts.rowsFor(KeyboardLayer.LETTERS, languageKey = true, devanagariKeys = true)
+        assertTrue(withGlobe[3].keys.any { it.kind == KeyKind.LANGUAGE })
+    }
 }

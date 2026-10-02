@@ -70,6 +70,12 @@ internal fun ToolsRow(controller: KeyboardController, colors: KeyboardColors, ac
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround, verticalAlignment = Alignment.CenterVertically) {
         Tool(PanelIcon.MENU, "close tools", controller.toolsOpen && !clipboardOpen, colors, accent) { controller.toggleTools() }
         Tool(PanelIcon.CLIPBOARD, "clipboard", clipboardOpen, colors, accent) { controller.toggleClipboard() }
+        if (controller.language.indic) {
+            // Devanagari keys ↔ English letters for मराठी / हिन्दी.
+            TextTool(if (controller.devanagariKeys) "abc" else "अ", if (controller.devanagariKeys) "type in English letters" else "Devanagari keys", colors) {
+                controller.toggleInputStyle()
+            }
+        }
         Tool(PanelIcon.ONE_HANDED, "one-handed mode", oneHand, colors, accent) { controller.toggleOneHand() }
         SettingsButton(colors)
     }
@@ -90,6 +96,22 @@ private fun Tool(icon: PanelIcon, description: String, active: Boolean, colors: 
         contentAlignment = Alignment.Center,
     ) {
         PanelIconView(icon, if (active) colors.text else colors.secondary, background = colors.background)
+    }
+}
+
+@Composable
+private fun TextTool(label: String, description: String, colors: KeyboardColors, onTap: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(width = 48.dp, height = 44.dp)
+            .clickable(onClick = onTap)
+            .semantics {
+                contentDescription = description
+                role = Role.Button
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        BasicText(label, style = TextStyle(color = colors.secondary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold))
     }
 }
 

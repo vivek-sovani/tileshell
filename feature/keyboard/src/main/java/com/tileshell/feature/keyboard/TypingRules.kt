@@ -96,11 +96,18 @@ object TypingRules {
      * cursor. Empty when the cursor sits inside a word ([charAfter] is a letter).
      */
     fun currentWord(textBefore: CharSequence?, charAfter: Char?): String {
-        if (charAfter != null && charAfter.isLetterOrDigit()) return ""
+        if (charAfter != null && (charAfter.isLetterOrDigit() || isWordChar(charAfter))) return ""
         val t = textBefore ?: return ""
         var i = t.length
-        while (i > 0 && (t[i - 1].isLetter() || (t[i - 1] == '\'' && i - 1 > 0 && t[i - 2].isLetter()))) i--
+        while (i > 0 && (isWordChar(t[i - 1]) || (t[i - 1] == '\'' && i - 1 > 0 && t[i - 2].isLetter()))) i--
         return t.substring(i).trimStart('\'')
+    }
+
+    /** A letter, or a Devanagari vowel sign / virama / anusvara (marks, not letters). */
+    private fun isWordChar(c: Char): Boolean {
+        if (c.isLetter()) return true
+        val type = Character.getType(c)
+        return type == Character.NON_SPACING_MARK.toInt() || type == Character.COMBINING_SPACING_MARK.toInt()
     }
 
     /** True when [beforeWord] ends a sentence (or is empty): a capital there isn't a name. */

@@ -106,7 +106,12 @@ internal fun KeyArea(
 ) {
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
-    val rows = KeyboardLayouts.rowsFor(controller.layer, controller.languageKey)
+    val rows = KeyboardLayouts.rowsFor(
+        controller.layer,
+        controller.languageKey,
+        devanagariKeys = controller.devanagariKeys,
+        shifted = controller.shift.upperCase,
+    )
     val lit = remember { mutableStateMapOf<String, Boolean>() }
     var popup by remember { mutableStateOf<Popup?>(null) }
     var trail by remember { mutableStateOf<List<Offset>>(emptyList()) }
@@ -324,7 +329,8 @@ internal fun KeyArea(
                             colors = colors,
                             accent = accent,
                             topRowDigit = if (r == 0 && controller.layer == KeyboardLayer.LETTERS) KeyPopups.topRowDigits[key.label] else null,
-                            letterSp = letterSp,
+                            // Devanagari keys: 11 to a row, so a size smaller (the canvas's 19).
+                            letterSp = if (controller.devanagariKeys) letterSp - 3 else letterSp,
                             modifier = Modifier.weight(key.units).height(keyHeight),
                         )
                     }
@@ -408,7 +414,7 @@ private fun KeyFace(
     }
     val fg = if (hot) Color.White else if (key.kind == KeyKind.SPACE) colors.secondary else colors.text
     val label = when (key.kind) {
-        KeyKind.CHAR -> if (shift.upperCase) key.label.uppercase() else key.label
+        KeyKind.CHAR -> if (shift.upperCase && !controller.devanagariKeys) key.label.uppercase() else key.label
         KeyKind.ENTER -> controller.enterAction.label ?: ""
         KeyKind.SPACE -> controller.spaceLabel
         else -> key.display ?: key.label

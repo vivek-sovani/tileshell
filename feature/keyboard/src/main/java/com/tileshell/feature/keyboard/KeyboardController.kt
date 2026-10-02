@@ -95,7 +95,11 @@ class KeyboardController(
 
     /** The space bar's label: "English", "मराठी · abc". */
     val spaceLabel: String
-        get() = if (language.indic) "${language.nativeName} · abc" else language.nativeName
+        get() = if (translit) "${language.nativeName} · abc" else language.nativeName
+
+    /** मराठी / हिन्दी on the Devanagari keys (settings: not in English letters). */
+    var devanagariKeys by mutableStateOf(false)
+        private set
 
     private val lexicons = HashMap<KeyboardLanguage, Lexicon>()
 
@@ -124,7 +128,7 @@ class KeyboardController(
 
     /** A swipe across letters can type a word here (in मराठी / हिन्दी, the Devanagari word). */
     val swipeEnabled: Boolean
-        get() = settings.swipe && layer == KeyboardLayer.LETTERS &&
+        get() = settings.swipe && layer == KeyboardLayer.LETTERS && !devanagariKeys &&
             (if (translit) languagesHere && language in swipeLexicons else fieldMode == FieldMode.NORMAL && lexicon != null)
 
     /** A space the keyboard added after a picked word; punctuation typed next takes its place. */
@@ -134,7 +138,8 @@ class KeyboardController(
     private val settings get() = prefs.settings.value
     private val audio by lazy { service.getSystemService(Context.AUDIO_SERVICE) as? AudioManager }
     private val lexicon: Lexicon? get() = lexicons[language]
-    private val translit: Boolean get() = language.indic
+    /** मराठी / हिन्दी typed in English letters, shown as composing text. */
+    private val translit: Boolean get() = language.indic && settings.translit
 
     private data class Correction(val original: String, val replacement: String, val separator: String)
 
@@ -226,9 +231,10 @@ class KeyboardController(
         resetTransient()
         click(key.kind)
         when (key.kind) {
-            KeyKind.CHAR -> {
-                val ch = if (shift.upperCase) key.label.uppercase() else key.label
-                if (translit) compose(ch) else commit(ch)
+            KeyKind.CHAR -> when {
+                devanagariKeys -> commit(key.label)
+                translit -> compose(if (shift.upperCase) key.label.uppercase() else key.label)
+                else -> commit(if (shift.upperCase) key.label.uppercase() else key.label)
             }
             KeyKind.SYMBOL -> when {
                 translit -> {
@@ -386,6 +392,12 @@ class KeyboardController(
             kotlinx.coroutines.delay(ClipStore.FRESH_MS)
             if (freshClip == text.trim()) freshClip = null
         }
+    }
+
+    /** The tools row's अ / abc button: Devanagari keys ↔ English letters. */
+    fun toggleInputStyle() {
+        commitTranslit(separator = "")
+        prefs.update { it.copy(translit = !it.translit) }
     }
 
     /** The tools row's one-handed button: on (keys to the right) / off. */
@@ -633,6 +645,11 @@ class KeyboardController(
             ic.endBatchEdit()
             return
         }
+        if (devanagariKeys) {
+            ic.commitText(" ", 1)
+            learnIndic(TypingRules.currentWord(before, null), strong = false)
+            return
+        }
         if (!autocorrectWord(before, " ")) {
             ic.commitText(" ", 1)
             learn(TypingRules.currentWord(before, null))
@@ -659,7 +676,7 @@ class KeyboardController(
      */
     private fun autocorrectWord(before: CharSequence?, separator: String): Boolean {
         val lex = lexicon ?: return false
-        if (!settings.autocorrect || fieldMode != FieldMode.NORMAL || before == null) return false
+        if (!settings.autocorrect || fieldMode != FieldMode.NORMAL || before == null || language.indic) return false
         val word = TypingRules.currentWord(before, null)
         if (word.isEmpty()) return false
         // A capital typed mid-sentence is a name: leave it.
@@ -740,12 +757,13 @@ class KeyboardController(
 
     /** Re-reads the text round the cursor: auto capital and the strip. */
     private fun refresh() {
+        devanagariKeys = language.indic && !settings.translit
         languageKey = languagesHere && settings.languages.size > 1 && layer != KeyboardLayer.NUMPAD
         val ic = service.currentInputConnection
         val before = ic?.getTextBeforeCursor(CONTEXT_CHARS, 0)
         if (shift != ShiftState.LOCKED) {
             // Devanagari has no capitals; in मराठी / हिन्दी shift is only for T, D, N…
-            val auto = !translit && settings.autoCapitals && TypingRules.autoCapital(before, inputType)
+            val auto = !language.indic && settings.autoCapitals && TypingRules.autoCapital(before, inputType)
             shift = if (auto) ShiftState.ONCE else ShiftState.OFF
         }
         refreshStrip(ic?.getTextAfterCursor(1, 0)?.firstOrNull(), before)
@@ -758,7 +776,7 @@ class KeyboardController(
             cursorMode -> StripMode.CURSOR
             fieldMode == FieldMode.INCOGNITO -> StripMode.INCOGNITO
             // Typing मराठी / हिन्दी needs its spellings even where English gets no suggestions.
-            translit -> StripMode.WORDS
+            translit || devanagariKeys -> StripMode.WORDS
             fieldMode == FieldMode.NO_SUGGESTIONS -> StripMode.TOOLS
             !settings.suggestions || lex == null -> StripMode.TOOLS
             else -> StripMode.WORDS
@@ -789,6 +807,10 @@ class KeyboardController(
             lastCorrection = null
         }
         val word = TypingRules.currentWord(before, after)
+        if (word.isEmpty() && devanagariKeys) {
+            strip = NEXT_WORDS_INDIC[language].orEmpty().map { StripWord(it, StripWord.Kind.WORD) }
+            return
+        }
         if (word.isEmpty()) {
             val upper = shift.upperCase
             strip = Suggester.NEXT_WORDS.map {
@@ -796,7 +818,8 @@ class KeyboardController(
             }
             return
         }
-        val autocorrect = settings.autocorrect
+        // No autocorrect on Devanagari keys: its corrections are for English spellings.
+        val autocorrect = settings.autocorrect && !devanagariKeys
         val level = settings.level
         stripJob = scope.launch {
             strip = withContext(Dispatchers.Default) { Suggester.strip(word, lex, level, autocorrect) }

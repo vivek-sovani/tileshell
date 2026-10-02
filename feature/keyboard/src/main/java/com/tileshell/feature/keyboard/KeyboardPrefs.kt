@@ -35,6 +35,8 @@ data class KeyboardSettings(
     /** Typed in English letters, written in Devanagari. English is always on. */
     val marathi: Boolean = true,
     val hindi: Boolean = false,
+    /** Marathi / Hindi typed in English letters (true) or on Devanagari keys (false). */
+    val translit: Boolean = true,
     /** The language last typed in; the globe key moves through the ones on. */
     val language: KeyboardLanguage = KeyboardLanguage.ENGLISH,
 ) {
@@ -91,6 +93,7 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
             .putBoolean(CLIPBOARD, next.clipboardHistory)
             .putBoolean(MARATHI, next.marathi)
             .putBoolean(HINDI, next.hindi)
+            .putBoolean(TRANSLIT, next.translit)
             .putString(LANGUAGE, next.language.name)
             .apply()
         state.value = next
@@ -122,6 +125,7 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
             clipboardHistory = prefs.getBoolean(CLIPBOARD, d.clipboardHistory),
             marathi = prefs.getBoolean(MARATHI, d.marathi),
             hindi = prefs.getBoolean(HINDI, d.hindi),
+            translit = prefs.getBoolean(TRANSLIT, d.translit),
             language = KeyboardLanguage.entries.find { it.name == prefs.getString(LANGUAGE, null) } ?: d.language,
         )
     }
@@ -142,6 +146,7 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
         private const val EMOJI_RECENT = "emoji_recent"
         private const val MARATHI = "lang_marathi"
         private const val HINDI = "lang_hindi"
+        private const val TRANSLIT = "translit"
         private const val LANGUAGE = "language"
 
         @Volatile private var instance: KeyboardPrefs? = null

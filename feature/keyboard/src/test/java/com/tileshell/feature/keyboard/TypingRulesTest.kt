@@ -146,4 +146,11 @@ class TypingRulesTest {
         assertFalse(TypingRules.languagesAllowed(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS))
         assertFalse(TypingRules.languagesAllowed(InputType.TYPE_CLASS_NUMBER))
     }
+
+    @Test
+    fun `devanagari words include their vowel signs`() {
+        assertEquals("नमस्कार", TypingRules.currentWord("आणि नमस्कार", null))
+        assertEquals("ज्येष्ठ", TypingRules.currentWord("ज्येष्ठ", null))
+        assertEquals("", TypingRules.currentWord("नम", 'स'))
+    }
 }

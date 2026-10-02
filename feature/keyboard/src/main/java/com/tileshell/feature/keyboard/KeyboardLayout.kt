@@ -74,15 +74,41 @@ object KeyboardLayouts {
     private fun chars(s: String) = s.map { Key(KeyKind.CHAR, it.toString()) }
     private fun symbols(s: String) = s.map { Key(KeyKind.SYMBOL, it.toString()) }
 
-    private fun bottomRow(switchLabel: String) = KeyRow(
+    /** The space key's label is the current language, filled in when drawn. */
+    private fun bottomRow(switchLabel: String, stop: String = ".") = KeyRow(
         listOf(
             Key(KeyKind.LAYER, switchLabel, 1.5f),
             Key(KeyKind.EMOJI, "emoji"),
             Key(KeyKind.SYMBOL, ","),
             Key(KeyKind.SPACE, SPACE_LABEL, 4.5f),
-            Key(KeyKind.SYMBOL, "."),
+            Key(KeyKind.SYMBOL, stop),
             Key(KeyKind.ENTER, "enter", 1.5f),
         ),
+    )
+
+    /**
+     * मराठी / हिन्दी keys (canvas "Marathi layout"): the InScript arrangement —
+     * matras on the left, consonants on the right, । as the full stop. Shift
+     * gives the aspirated consonants and full vowels.
+     */
+    val devanagari: List<KeyRow> = listOf(
+        KeyRow(chars("ौैाीूबहगदजड")),
+        KeyRow(chars("ोे्िुपरकतचट")),
+        KeyRow(
+            listOf(Key(KeyKind.SHIFT, "shift", 1.5f)) + chars("ंमनवलसय") +
+                Key(KeyKind.BACKSPACE, "backspace", 1.5f),
+        ),
+        bottomRow("&123", stop = "।"),
+    )
+
+    val devanagariShift: List<KeyRow> = listOf(
+        KeyRow(chars("औऐआईऊभङघधझढ")),
+        KeyRow(chars("ओएअइउफऱखथछठ")),
+        KeyRow(
+            listOf(Key(KeyKind.SHIFT, "shift", 1.5f)) + chars("ँणञळशषृ") +
+                Key(KeyKind.BACKSPACE, "backspace", 1.5f),
+        ),
+        bottomRow("&123", stop = "।"),
     )
 
     val letters: List<KeyRow> = listOf(
@@ -158,9 +184,14 @@ object KeyboardLayouts {
      * The rows for [layer]. With [languageKey] (more than one language on) the
      * bottom row gains the globe after emoji, and space gives it one unit.
      */
-    fun rowsFor(layer: KeyboardLayer, languageKey: Boolean = false): List<KeyRow> {
+    fun rowsFor(
+        layer: KeyboardLayer,
+        languageKey: Boolean = false,
+        devanagariKeys: Boolean = false,
+        shifted: Boolean = false,
+    ): List<KeyRow> {
         val rows = when (layer) {
-            KeyboardLayer.LETTERS -> letters
+            KeyboardLayer.LETTERS -> if (!devanagariKeys) letters else if (shifted) devanagariShift else devanagari
             KeyboardLayer.SYMBOLS_1 -> symbols1
             KeyboardLayer.SYMBOLS_2 -> symbols2
             KeyboardLayer.NUMPAD -> return numpad
