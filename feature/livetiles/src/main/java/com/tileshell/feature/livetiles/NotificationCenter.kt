@@ -276,8 +276,23 @@ object NotificationCenter {
     }
 
     fun publish(snapshot: NotificationSnapshot) {
-        _snapshot.value = snapshot
+        lastReal = snapshot
+        _snapshot.value = withDemo(snapshot)
     }
+
+    // Debug builds only (press screenshots): made-up notifications shown as if
+    // posted, on top of the real ones. Empty in every release.
+    @Volatile private var lastReal: NotificationSnapshot = NotificationSnapshot.EMPTY
+    @Volatile private var demo: NotificationSnapshot = NotificationSnapshot.EMPTY
+
+    fun setDemoNotifications(items: List<NotificationItem>) {
+        demo = summarizeNotifications(items)
+        _snapshot.value = withDemo(lastReal)
+    }
+
+    private fun withDemo(real: NotificationSnapshot): NotificationSnapshot =
+        if (demo === NotificationSnapshot.EMPTY) real
+        else NotificationSnapshot(real.badges + demo.badges, real.conversations + demo.conversations)
 
     /** Publishes the latest per-package tap actions (called alongside [publish]). */
     fun publishActions(actions: Map<String, TileNotificationAction>) {

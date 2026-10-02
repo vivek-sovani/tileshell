@@ -210,6 +210,7 @@ class MainActivity : ComponentActivity() {
      */
     /** A widget asking TileShell to open one of its hubs (the battery widget's tap). */
     private fun handleOpenHubIntent(intent: Intent) {
+        handleDebugPressIntent(intent)
         // A task reminder's notification / "open" → that task's list.
         intent.getStringExtra(com.tileshell.core.data.reminders.TaskReminders.EXTRA_OPEN_TASK_LIST)?.let { listId ->
             startViewModel.openTasks(listId)
@@ -220,6 +221,68 @@ class MainActivity : ComponentActivity() {
             "panchang" -> startViewModel.openPanchang()
         }
         intent.removeExtra(com.tileshell.feature.livetiles.widget.EXTRA_OPEN_HUB)
+    }
+
+    /**
+     * Debug builds only: press screenshots of the hubs. `debug.capture` turns
+     * whole-panorama PNG capture on or off ([com.tileshell.core.design.PanoramaCapture]),
+     * `debug.hub` opens a hub by name, `debug.demo_mail` shows made-up mail
+     * notifications. Ignored in a release (not debuggable).
+     */
+    private fun handleDebugPressIntent(intent: Intent) {
+        if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE == 0) return
+        if (intent.hasExtra("debug.capture")) {
+            com.tileshell.core.design.PanoramaCapture.enabled = intent.getBooleanExtra("debug.capture", false)
+        }
+        if (intent.getBooleanExtra("debug.demo_mail", false)) {
+            val now = System.currentTimeMillis()
+            val gmail = "com.google.android.gm"
+            val mail = listOf(
+                Triple("Ananya Kulkarni", "Q3 launch deck — final slides attached for review", 4L),
+                Triple("Rohan Mehta", "Flight to Bengaluru confirmed for Monday, 7:40 am", 38L),
+                Triple("Priya Nair", "Re: Saturday lunch — booked a table for six", 95L),
+                Triple("Kabir Shah", "Invoice #2041 paid, thanks!", 180L),
+            )
+            com.tileshell.feature.livetiles.NotificationCenter.setDemoNotifications(
+                mail.mapIndexed { i, (who, text, minutesAgo) ->
+                    com.tileshell.feature.livetiles.NotificationItem(
+                        packageName = gmail, title = who, text = text, isClearable = true,
+                        isGroupSummary = false, postTime = now - minutesAgo * 60_000, notificationKey = "demo-mail-$i",
+                    )
+                },
+            )
+        }
+        if (intent.getBooleanExtra("debug.demo_productivity", false)) {
+            val appContext = applicationContext
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                val tasks = com.tileshell.core.data.TaskRepository.create(appContext)
+                val launch = tasks.createList("launch")
+                listOf("send the press kit to media", "final check of store screenshots", "book the launch venue", "reply to partner emails")
+                    .forEach { tasks.addTask(launch, it) }
+                val home = tasks.createList("home")
+                listOf("buy diwali lights", "pay the electricity bill", "car service on the 20th")
+                    .forEach { tasks.addTask(home, it) }
+                val notes = com.tileshell.core.data.NoteRepository.create(appContext)
+                listOf(
+                    "launch talking points" to "live tiles, hubs, panorama\nmarathi and hindi keyboard\nprivacy: nothing leaves the phone",
+                    "gift ideas" to "kavya: watercolour set\nrohan: running shoes",
+                    "wifi at the office" to "network: guest-5g · ask reception for the code",
+                ).forEach { (title, text) ->
+                    val id = notes.createNote(text)
+                    notes.updateTitle(id, title)
+                }
+            }
+        }
+        when (intent.getStringExtra("debug.hub")) {
+            "weather" -> startViewModel.openWeatherHub(null)
+            "music" -> startViewModel.openMusicHub()
+            "calendar" -> startViewModel.openCalendarHub()
+            "people" -> startViewModel.openPeopleHub()
+            "productivity" -> startViewModel.openProductivityHub()
+            "battery" -> startViewModel.openBatteryHub()
+            "money" -> startViewModel.openMoneyHub()
+            "panchang" -> startViewModel.openPanchang()
+        }
     }
 
     private fun handleWallpaperTargetIntent(intent: Intent): Boolean {

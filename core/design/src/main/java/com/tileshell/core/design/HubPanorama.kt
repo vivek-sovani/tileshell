@@ -90,6 +90,13 @@ fun HubPanorama(
         lineHeight = 96.sp,
         lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
     )
+    if (PanoramaCapture.enabled) {
+        PanoramaCaptureLayout(
+            title, sections, tokens, titleStyle, PANORAMA_MAX_SECTION, PANORAMA_MARGIN,
+            modifier, belowTitle, section,
+        )
+        return
+    }
     val measurer = rememberTextMeasurer()
     val titleWidthPx = remember(title, titleStyle) { measurer.measure(title, titleStyle).size.width }
     val density = LocalDensity.current
