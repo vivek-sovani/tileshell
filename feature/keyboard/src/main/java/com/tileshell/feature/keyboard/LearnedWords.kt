@@ -49,6 +49,9 @@ class LearnedWords(private val file: File?) {
         return LexEntry(spellings[lower] ?: lower, freqFor(n))
     }
 
+    /** Every known learned word. */
+    fun known(): List<LexEntry> = counts.keys.mapNotNull(::entry)
+
     fun completions(prefixLower: String, limit: Int): List<LexEntry> =
         counts.entries.asSequence()
             .filter { it.value >= KNOWN_AT && it.key.startsWith(prefixLower) && it.key != prefixLower }
@@ -95,7 +98,7 @@ class LearnedWords(private val file: File?) {
 }
 
 /** The bundled word list plus the learned words. */
-class CombinedLexicon(private val words: Lexicon, private val learned: LearnedWords) : Lexicon {
+class CombinedLexicon(val words: Lexicon, val learned: LearnedWords) : Lexicon {
 
     override fun lookup(lower: String): LexEntry? {
         val bundled = words.lookup(lower)

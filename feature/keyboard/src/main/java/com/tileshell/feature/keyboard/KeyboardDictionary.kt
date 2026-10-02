@@ -17,8 +17,11 @@ object KeyboardDictionary {
 
     /** Bundled list + our short supplement for each language. */
     private val assets = mapOf(
-        // AOSP en_GB, plus Indian English the AOSP list lacks.
-        KeyboardLanguage.ENGLISH to listOf("keyboard/en_words.txt", "keyboard/en_in_extra.txt"),
+        // AOSP en_GB (built from formal writing), plus Indian English and everyday
+        // chat words it lacks or ranks low (congrats, ok, gonna, lol…).
+        KeyboardLanguage.ENGLISH to listOf(
+            "keyboard/en_words.txt", "keyboard/en_in_extra.txt", "keyboard/en_chat_extra.txt",
+        ),
         // From Tatoeba sentences, plus places and festivals they lack.
         KeyboardLanguage.MARATHI to listOf("keyboard/mr_words.txt", "keyboard/mr_extra.txt"),
         KeyboardLanguage.HINDI to listOf("keyboard/hi_words.txt", "keyboard/hi_extra.txt"),

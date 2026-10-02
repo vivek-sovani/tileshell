@@ -10972,3 +10972,20 @@ crash or VerifyError since the install) and the emulator. The same move belongs 
   touches. The service finds the platform's `NavigationBarFrame` in its window (hidden
   class, matched by name) and the keyboard pads by the larger of that and the inset.
   It's measured just after first layout, so the very first open may shift once.
+
+## Swipe fixes from on-phone use
+- **"congrats" never came out:** the AOSP list (formal writing) gives it 15/255 and the
+  decoder skipped words under 40. The cut-off is gone (frequency still weighs in), and
+  `en_chat_extra.txt` adds everyday chat words the list lacks or underrates (congrats,
+  ok, gonna, lol, btw, idk…) — also stops autocorrect "fixing" them. Tapping the meant
+  word after a swipe now learns it, so the same swipe gives it next time; a word both
+  learned and bundled keeps its better score.
+- **Scoring, tuned on deliberately sloppy paths** (corners cut, drift, wobble): start and
+  end points weigh extra (hello vs help), a path-length mismatch is penalised (a long
+  swipe isn't "tbd"), and the start/end/follow tolerances widened (1.2 / 1.5 / 1.3 key
+  widths) so a finger lifting early still leaves the word in the running.
+- **Swipe in मराठी / हिन्दी (user-requested):** `Romanizer` spells every word of the
+  Marathi/Hindi lists in casual English letters (नमस्कार → namaskar, माझा → maza; long
+  and short vowels alike, since a doubled letter doesn't move the finger), and
+  `RomanizedLexicon` matches the swipe against those, putting in the Devanagari word;
+  alternatives in the strip, tap to swap (and learn).

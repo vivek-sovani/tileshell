@@ -17,7 +17,8 @@ class SuggesterTest {
         @BeforeClass
         @JvmStatic
         fun load() {
-            val extra = File("src/main/assets/keyboard/en_in_extra.txt").readLines()
+            val extra = File("src/main/assets/keyboard/en_in_extra.txt").readLines() +
+                File("src/main/assets/keyboard/en_chat_extra.txt").readLines()
             words = File("src/main/assets/keyboard/en_words.txt").bufferedReader().useLines {
                 WordList.parse(it + extra.asSequence())
             }

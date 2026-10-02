@@ -73,6 +73,9 @@ class KeyboardController(
         get() = if (language.indic) "${language.nativeName} · abc" else language.nativeName
 
     private val lexicons = HashMap<KeyboardLanguage, Lexicon>()
+
+    /** मराठी / हिन्दी words by their English-letter spelling, for swipe typing. */
+    private val swipeLexicons = HashMap<KeyboardLanguage, RomanizedLexicon>()
     private var inputType = 0
     private var fieldMode = FieldMode.NO_SUGGESTIONS
     private var learnHere = false
@@ -94,10 +97,10 @@ class KeyboardController(
 
     private val haptics by lazy { KeyHaptics(service) }
 
-    /** A swipe across letters can type a word here (English letters, no transliteration). */
+    /** A swipe across letters can type a word here (in मराठी / हिन्दी, the Devanagari word). */
     val swipeEnabled: Boolean
-        get() = settings.swipe && layer == KeyboardLayer.LETTERS && !translit &&
-            fieldMode == FieldMode.NORMAL && lexicon != null
+        get() = settings.swipe && layer == KeyboardLayer.LETTERS && fieldMode == FieldMode.NORMAL &&
+            (if (translit) language in swipeLexicons else lexicon != null)
 
     /** A space the keyboard added after a picked word; punctuation typed next takes its place. */
     private var autoSpaced = false
@@ -120,6 +123,14 @@ class KeyboardController(
                 .onSuccess {
                     lexicons[lang] = it
                     if (lang == language) refresh()
+                    if (lang.indic) {
+                        val list = it.words as? WordList
+                        if (list != null) {
+                            swipeLexicons[lang] = withContext(Dispatchers.Default) {
+                                RomanizedLexicon(list.entries() + it.learned.known().asSequence(), lang)
+                            }
+                        }
+                    }
                 }
                 .onFailure { android.util.Log.w("TileShellKeyboard", "${lang.code} word list didn't load", it) }
             loading.remove(lang)
@@ -338,20 +349,27 @@ class KeyboardController(
 
     /** Places the best word for a swipe; the alternatives go to the strip. */
     fun onSwipe(path: List<Pt>, decoder: SwipeDecoder) {
-        val lex = lexicon ?: return
+        val indic = if (translit) swipeLexicons[language] ?: return else null
+        val lex = indic ?: lexicon ?: return
+        commitTranslit(separator = " ")
         resetTransient()
         val upper = shift
         scope.launch {
             val results = withContext(Dispatchers.Default) { decoder.decode(path, lex) }
-            if (results.isEmpty()) return@launch
-            val ic = service.currentInputConnection ?: return@launch
-            val words = results.map {
-                when (upper) {
-                    ShiftState.LOCKED -> it.word.uppercase()
-                    ShiftState.ONCE -> it.word.replaceFirstChar(Char::uppercaseChar)
-                    ShiftState.OFF -> it.word
+            val words = if (indic != null) {
+                // The Devanagari words behind the matched spellings.
+                results.flatMap { indic.devanagariFor(it.word) }.distinct().take(Suggester.STRIP_SIZE)
+            } else {
+                results.map {
+                    when (upper) {
+                        ShiftState.LOCKED -> it.word.uppercase()
+                        ShiftState.ONCE -> it.word.replaceFirstChar(Char::uppercaseChar)
+                        ShiftState.OFF -> it.word
+                    }
                 }
             }
+            if (words.isEmpty()) return@launch
+            val ic = service.currentInputConnection ?: return@launch
             val before = ic.getTextBeforeCursor(1, 0)
             val lead = if (!before.isNullOrEmpty() && !before.last().isWhitespace() && before.last() !in OPENERS) " " else ""
             ic.commitText(lead + words.first() + " ", 1)
@@ -373,6 +391,8 @@ class KeyboardController(
         ic.endBatchEdit()
         lastSwipe = s.copy(chosen = with)
         autoSpaced = true
+        // Picking the meant word teaches it, so the same swipe gives it next time.
+        if (learnHere) KeyboardDictionary.learnedWords(service, language).learn(with, strong = true)
         return true
     }
 
@@ -608,6 +628,14 @@ class KeyboardController(
 
     /** "namaskar" (dim) · **नमस्कार** · alternatives — the canvas's transliteration strip. */
     private fun refreshTranslitStrip(lex: Lexicon?) {
+        val before = service.currentInputConnection?.getTextBeforeCursor(CONTEXT_CHARS, 0)
+        lastSwipe?.let { sw ->
+            if (latin.isEmpty() && before?.endsWith(sw.chosen + " ") == true) {
+                strip = sw.words.map { StripWord(it, StripWord.Kind.WORD, best = it == sw.chosen) }
+                return
+            }
+            lastSwipe = null
+        }
         if (latin.isEmpty()) {
             translitBest = null
             strip = NEXT_WORDS_INDIC[language].orEmpty().map { StripWord(it, StripWord.Kind.WORD) }

@@ -65,6 +65,9 @@ class WordList private constructor(
 
     override fun shortcut(lower: String): String? = shortcuts[lower]
 
+    /** Every word (romanising the Marathi / Hindi lists for swipe typing). */
+    fun entries(): Sequence<LexEntry> = (0 until size).asSequence().map(::entry)
+
     override fun startingWith(prefixLower: String): Sequence<LexEntry> = sequence {
         var i = lowerBound(prefixLower)
         while (i < size && startsWith(i, prefixLower)) {

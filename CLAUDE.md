@@ -37,6 +37,10 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`metro-keyboard` branch — swipe fixes.** "congrats" (rare in the AOSP list) now
+  swipes: no frequency cut-off, a chat-words list, learning from strip picks, scoring
+  tuned on sloppy paths (ends, length). Swipe works in मराठी / हिन्दी via romanised word
+  lists (`Romanizer`, `RomanizedLexicon`). Seen working on the phone (नमस्कार swiped).
 - **`metro-keyboard` branch — on-phone fixes after phase 4.** Release build crashed at
   launch (R8 VerifyError in Start's layout lambda, tipped over by the keyboard module):
   PersonalizeSheet call moved to `PersonalizeSheetLayer`. Letters didn't type on the

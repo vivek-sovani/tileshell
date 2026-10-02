@@ -29,6 +29,7 @@ class SwipeDecoder(
     fun decode(path: List<Pt>, lexicon: Lexicon, limit: Int = 4): List<Result> {
         if (path.size < 2 || centres.isEmpty()) return emptyList()
         val user = resample(path, SAMPLES)
+        val userLength = length(path)
         val starts = nearKeys(path.first(), START_RADIUS)
         val ends = nearKeys(path.last(), END_RADIUS).toSet()
         val results = ArrayList<Result>()
@@ -36,17 +37,26 @@ class SwipeDecoder(
             for (entry in lexicon.startingWith(first.toString())) {
                 val word = entry.word
                 val lower = word.lowercase()
-                if (lower.length < 2 || entry.blocked || entry.freq < MIN_FREQ) continue
+                if (lower.length < 2 || entry.blocked) continue
                 if (lower.last() !in ends) continue
                 val keys = keyPath(lower) ?: continue
                 if (!followsPath(keys, user)) continue
-                val ideal = resample(keys.map { centres.getValue(it) }, SAMPLES)
+                val idealPoints = keys.map { centres.getValue(it) }
+                val ideal = resample(idealPoints, SAMPLES)
+                // A long swipe isn't a short word whose path happens to share its shape.
+                val lengthMismatch = kotlin.math.abs(
+                    kotlin.math.ln((userLength + keyWidth) / (length(idealPoints) + keyWidth)),
+                )
                 val distance = meanDistance(user, ideal) / keyWidth
-                val score = distance * DISTANCE_WEIGHT + (255 - entry.freq) / 255f * FREQUENCY_WEIGHT
+                // Where a swipe starts and ends is the most deliberate part of it.
+                val ends = (dist(path.first(), ideal.first()) + dist(path.last(), ideal.last())) / keyWidth
+                val score = distance * DISTANCE_WEIGHT + ends * END_WEIGHT + lengthMismatch * LENGTH_WEIGHT +
+                    (255 - entry.freq) / 255f * FREQUENCY_WEIGHT
                 results += Result(word, score)
             }
         }
-        return results.distinctBy { it.word.lowercase() }.sortedBy { it.score }.take(limit)
+        // A word can come twice (learned and bundled): keep its better score.
+        return results.sortedBy { it.score }.distinctBy { it.word.lowercase() }.take(limit)
     }
 
     /** The word's keys, a doubled letter counted once (the finger doesn't move). */
@@ -79,13 +89,15 @@ class SwipeDecoder(
 
     companion object {
         private const val SAMPLES = 32
-        private const val START_RADIUS = 0.9f
-        private const val END_RADIUS = 1.1f
-        private const val FOLLOW_RADIUS = 1.05f
-        /** Rare words would only crowd out the ones meant. */
-        private const val MIN_FREQ = 40
+        private const val START_RADIUS = 1.2f
+        private const val END_RADIUS = 1.5f
+        private const val FOLLOW_RADIUS = 1.3f
         private const val DISTANCE_WEIGHT = 1f
         private const val FREQUENCY_WEIGHT = 0.6f
+        private const val END_WEIGHT = 0.35f
+        private const val LENGTH_WEIGHT = 0.8f
+
+        fun length(points: List<Pt>): Float = points.zipWithNext().sumOf { (a, b) -> dist(a, b).toDouble() }.toFloat()
 
         fun dist(a: Pt, b: Pt): Float = hypot(a.x - b.x, a.y - b.y)
 
