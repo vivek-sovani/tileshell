@@ -443,9 +443,12 @@ private fun KeyFace(
             KeyKind.BACKSPACE -> KeyIcon(KeyGlyph.BACKSPACE, fg)
             KeyKind.EMOJI -> KeyIcon(KeyGlyph.EMOJI, fg)
             KeyKind.LANGUAGE -> KeyIcon(KeyGlyph.GLOBE, fg)
-            KeyKind.ENTER ->
-                if (controller.enterAction == EnterAction.NEW_LINE) KeyIcon(KeyGlyph.ENTER, fg)
-                else KeyLabel(label, fg, 15, FontWeight.SemiBold)
+            KeyKind.ENTER -> when (controller.enterAction) {
+                EnterAction.NEW_LINE -> KeyIcon(KeyGlyph.ENTER, fg)
+                // "search" didn't fit the key: a magnifier, as other keyboards show.
+                EnterAction.SEARCH -> PanelIconView(PanelIcon.SEARCH, fg, size = 24.dp)
+                else -> KeyLabel(label, fg, 15, FontWeight.SemiBold)
+            }
             KeyKind.CHAR, KeyKind.SYMBOL ->
                 if (controller.layer == KeyboardLayer.NUMPAD) {
                     // The number pad: 24 digit, its phone letters under it.
