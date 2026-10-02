@@ -37,42 +37,49 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
-- **`metro-keyboard` branch — Devanagari keys and voice typing.** InScript Devanagari
+- **`main` — the Metro keyboard is merged** (all 21 `metro-keyboard` commits, fast-forward,
+  2026-10-02; full build + 849 unit tests green on `main`). Release switches in
+  `gradle.properties`: `tileshell.keyboard=true` (set false to ship without it),
+  `tileshell.keyboardVoice=false` (no microphone). Still needed before shipping the
+  keyboard: privacy policy / Data safety (typing on the phone, clipboard and learned
+  words kept on the phone), word-list credits in About, a store-listing line. Plan and
+  phases: `docs/KEYBOARD-PLAN.md`; decisions: `docs/DECISIONS.md` ("Keyboard …").
+- **`main` (merged from `metro-keyboard`) — Devanagari keys and voice typing.** InScript Devanagari
   keyboard for मराठी/हिन्दी (settings switch + अ/abc in the tools row). Voice typing in
   the current language (en-IN/mr-IN/hi-IN) with the canvas's voice panel; RECORD_AUDIO
   asked by `VoicePermissionActivity`; offline first, online fallback. Names/compounds:
   Marathi also loads Hindi's words, a names list, compound fallback (`NamesTest`).
   Accuracy measured by `AccuracyEvalTest` (floors). Privacy policy needs a voice entry.
-- **`metro-keyboard` branch — keyboard phase 5: panels.** Tools row (menu icon at the start
+- **`main` (merged from `metro-keyboard`) — keyboard phase 5: panels.** Tools row (menu icon at the start
   of an idle strip): clipboard, one-handed, settings. Emoji panel with the canvas's tabs,
   recents and name search (Unicode emoji-test.txt). Clipboard: an hour unless pinned,
   sensitive copies skipped, fresh-copy paste chip. Number pad for number/phone/date
   fields. One-handed side panel. Checked on the emulator (tools, clip copy → chip →
   panel → paste, emoji tabs, "mang" → 🥭, one-handed); number pad not yet seen on
   screen. Installed on the phone; Start and the keyboard come up.
-- **`metro-keyboard` branch — swipe fixes.** "congrats" (rare in the AOSP list) now
+- **`main` (merged from `metro-keyboard`) — swipe fixes.** "congrats" (rare in the AOSP list) now
   swipes: no frequency cut-off, a chat-words list, learning from strip picks, scoring
   tuned on sloppy paths (ends, length). Swipe works in मराठी / हिन्दी via romanised word
   lists (`Romanizer`, `RomanizedLexicon`). Seen working on the phone (नमस्कार swiped).
-- **`metro-keyboard` branch — on-phone fixes after phase 4.** Release build crashed at
+- **`main` (merged from `metro-keyboard`) — on-phone fixes after phase 4.** Release build crashed at
   launch (R8 VerifyError in Start's layout lambda, tipped over by the keyboard module):
   PersonalizeSheet call moved to `PersonalizeSheetLayer`. Letters didn't type on the
   phone (stale key bounds): `KeyGeometry` computes them. Samsung's IME navigation bar
   covered the bottom row: padded by the measured `NavigationBarFrame`. All checked on
   the phone (Samsung SM-S938B).
-- **`metro-keyboard` branch — keyboard phase 4: gestures.** One touch handler for the key
+- **`main` (merged from `metro-keyboard`) — keyboard phase 4: gestures.** One touch handler for the key
   area (`KeyArea`): long press opens the accent bar (top row: digit first, shown in the
   corner); dragging the space bar moves the cursor (labels blank, ‹ ›); swiping across
   letters types a word (accent trail; alternatives in the strip, tap to swap). Letters
   now type on lift. Haptic strength light/medium/strong (VIBRATE permission). Checked
   on the emulator: á from the bar, cursor drag, swiped "home" → swapped to "hone".
-- **`metro-keyboard` branch — keyboard phase 3: Marathi and Hindi by transliteration.**
+- **`main` (merged from `metro-keyboard`) — keyboard phase 3: Marathi and Hindi by transliteration.**
   Type in English letters (composing, underlined); the strip offers Devanagari spellings
   ranked by Tatoeba-derived word lists; space puts in the best; picks are remembered.
   A globe key after emoji switches language (only when more than one is on); settings switch Marathi/Hindi on. Devanagari
   key layout deferred (user's call). Checked on the emulator: namaskar, maza, switch
   back to English, backspace while composing, picking an alternative.
-- **`metro-keyboard` branch — keyboard phase 2: suggestions and autocorrect.** Strip
+- **`main` (merged from `metro-keyboard`) — keyboard phase 2: suggestions and autocorrect.** Strip
   with the typed word, best guess underlined, completions; autocorrect on space or
   punctuation with backspace / tap-the-original undo; levels; i→I and usual capitals;
   on-device learned words; password fields show "incognito typing"; next words when
@@ -80,7 +87,7 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   Keyboard settings page (Lumia; `LumiaSwitch` now in `:core:design`). Checked on the
   emulator: teh→the with “teh” undo, backspace undo, "i am at pune" → "I am at Pune",
   light theme, settings. Password field not yet seen on screen.
-- **`metro-keyboard` branch (not merged) — keyboard phase 1 of 7** (`docs/KEYBOARD-PLAN.md`).
+- **`main` (merged from `metro-keyboard`) — keyboard phase 1 of 7** (`docs/KEYBOARD-PLAN.md`).
   New `:feature:keyboard` input method, behind the `tileshell.keyboard` release switch
   (off = module not in the build). Letters / shift (once, caps lock) / auto-capital per
   field flags / &123 two symbol pages / backspace repeat / double-space period / enter
