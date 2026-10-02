@@ -12,6 +12,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.ui.text.style.TextAlign
+import com.tileshell.core.data.KeyboardFeature
 import com.tileshell.core.design.TileIcons
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -158,6 +159,24 @@ private fun HubsIntro(accent: Color, onSetUp: () -> Unit, onKeep: () -> Unit) {
                     Text(hub.name, color = Color(0xFFF6F6F8), fontSize = 14.sp)
                     Text(hub.description, color = Color(0xFF9A9AA8), fontSize = 12.sp, lineHeight = 16.sp)
                 }
+            }
+        }
+    }
+    if (KeyboardFeature.ENABLED) {
+        Row(verticalAlignment = Alignment.Top) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(32.dp).background(accent)) {
+                Text("अ", color = Color.White, fontSize = 16.sp)
+            }
+            Column(modifier = Modifier.padding(start = 12.dp)) {
+                Text("windows phone-style keyboard · beta", color = Color(0xFFF6F6F8), fontSize = 14.sp)
+                Text(
+                    "a metro keyboard in your accent colour, with swipe typing, emoji and clipboard. type मराठी " +
+                        "and हिन्दी in english letters or on devanagari keys. turn it on in personalize › system › " +
+                        "tileshell keyboard.",
+                    color = Color(0xFF9A9AA8),
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                )
             }
         }
     }

@@ -643,7 +643,8 @@ android {
         //   notes, named task lists) and battery hubs; Panchang moonrise/moonset; a hub-centred
         //   multicolour default layout and a setup wizard (style, theme, colour, default/custom
         //   apps) on first run and reset; a full permissions sheet; refresh rates for weather,
-        //   news and widgets; 5 grid columns by default.
+        //   news and widgets; 5 grid columns by default. Re-cut 2026-10-02 with the TileShell
+        //   keyboard (beta): Metro keyboard, swipe, Marathi/Hindi transliteration + Devanagari keys.
         versionCode = 500
         versionName = "5.0.0"
     }

@@ -3,6 +3,7 @@ package com.tileshell.feature.personalize
 import android.content.Intent
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -76,7 +77,20 @@ internal fun KeyboardRow(accent: Color, tokens: ColorTokens) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = "tileshell keyboard", color = tokens.fg, fontSize = 14.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "tileshell keyboard", color = tokens.fg, fontSize = 14.sp)
+                Spacer(Modifier.width(8.dp))
+                // Still maturing (Marathi/Hindi typing especially), so it's labelled beta.
+                Text(
+                    text = "BETA",
+                    color = accent,
+                    fontSize = 10.sp,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier
+                        .border(1.dp, accent)
+                        .padding(horizontal = 5.dp, vertical = 1.dp),
+                )
+            }
             Text(text = subtitle, color = tokens.fgDim, fontSize = 12.sp)
         }
         Spacer(Modifier.width(8.dp))

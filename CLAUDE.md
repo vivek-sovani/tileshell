@@ -37,6 +37,14 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **v5.0.0 re-cut again (2026-10-02, still versionCode 500, not yet uploaded)** — now includes
+  the TileShell keyboard, labelled **beta** (personalize › system row with a BETA tag; About
+  "tileshell keyboard (beta)" group with word-list credits; a keyboard line on the what's-new
+  card). Store listing (full description 3362 chars, keywords), release blurb (498 chars),
+  Data safety note and privacy policy (md + hosted `docs/index.html`: `BIND_INPUT_METHOD` and
+  `VIBRATE` rows, a keyboard section, keyboard storage; still to publish) updated. Signed
+  AAB/APK + debug APK rebuilt in `release-out/tileshell-5.0.0-*`, same key (1a904ad5…), no
+  RECORD_AUDIO; installed on the phone, no crash.
 - **`main` — the Metro keyboard is merged** (all 21 `metro-keyboard` commits, fast-forward,
   2026-10-02; full build + 849 unit tests green on `main`). Release switches in
   `gradle.properties`: `tileshell.keyboard=true` (set false to ship without it),
