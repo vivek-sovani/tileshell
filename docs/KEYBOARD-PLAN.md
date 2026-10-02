@@ -29,5 +29,6 @@ dark / light). The canvas's own 20-colour Metro grid is not used.
 5. **Panels** — full emoji (categories, recents, search), clipboard (1 h, pin),
    number/phone keypad, one-handed mode. ✅ built
 6. **Voice** — SpeechRecognizer, microphone permission, privacy policy.
+   ⏸ deferred at the user's request (2026-10-02); no microphone permission is added.
 7. **Release** — privacy policy / Data safety (no keystrokes leave the phone),
    TalkBack, about/guide, performance, on-device pass, release decision on the switch.
