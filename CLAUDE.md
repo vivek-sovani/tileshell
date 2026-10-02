@@ -43,8 +43,10 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   field flags / &123 two symbol pages / backspace repeat / double-space period / enter
   follows the field's action / basic emoji grid; TileShell's accent and theme;
   personalize → system "tileshell keyboard" row (turn on → choose). Build + unit tests
-  green, release build installs; **not yet seen on screen** (the emulator was in use
-  by another session).
+  green. Checked on the emulator (release build) in Messages: auto-capital, "Hello. "
+  from double space, caps lock, both symbol pages, emoji in / backspace / abcd. The
+  emulator reports a hardware keyboard, so it needs `show_ime_with_hard_keyboard=1`
+  to show any non-Gboard keyboard.
 - **`main` — landscape room for hub lists.** User-requested. Music's podcasts and radio tabs
   fold the search box and category filter rows behind one "search or browse …" row
   (`SearchBrowseToggle`). Tap it to open them; "hide" folds them again but keeps the choice. Folded,
