@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -228,11 +229,36 @@ private fun TodayPage(
     val next = yearDays.orEmpty().filter { it.first > today }.take(3)
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)) {
         item {
+            // Today's tithi large, as on the tile (user-requested): the
+            // Devanagari tithi number with the paksha stacked beside it, then
+            // the tithi's name and month, then the day.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    PanchangDevanagari.tithiNumber(panchang.tithi),
+                    color = tokens.fg,
+                    fontSize = 72.sp,
+                    fontWeight = FontWeight.Light,
+                    lineHeight = 80.sp,
+                )
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    PanchangDevanagari.paksha(panchang.tithi.paksha).split(" ").forEach {
+                        Text(it, color = tokens.fgDim, fontSize = 17.sp, lineHeight = 22.sp)
+                    }
+                }
+            }
             Text(
-                "${PanchangDevanagari.vara(panchang.vara)} · ${PanchangDevanagari.paksha(panchang.tithi.paksha)} " +
-                    "${PanchangDevanagari.tithiName(panchang.tithi.name)} · ${PanchangDevanagari.month(panchang.month)}",
+                "${PanchangDevanagari.tithiName(panchang.tithi.name)} · ${PanchangDevanagari.month(panchang.month)}",
+                color = TileAccents.Amber,
+                fontSize = 30.sp,
+                fontWeight = FontWeight.Light,
+                lineHeight = 38.sp,
+            )
+            Text(
+                PanchangDevanagari.vara(panchang.vara),
                 color = tokens.fg,
                 fontSize = 17.sp,
+                modifier = Modifier.padding(top = 2.dp, bottom = 2.dp),
             )
             Text(
                 "नक्षत्र: ${PanchangDevanagari.nakshatra(panchang.nakshatra)} · शक ${PanchangDevanagari.digits(panchang.shakaSamvat)} · " +
