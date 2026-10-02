@@ -8911,6 +8911,10 @@ private fun PermissionsSheetHost(
  * Kept out of [StartScreen]'s main layout lambda so that lambda stays under
  * the 256 registers a dex method can address — past that, R8 miscompiled it
  * and the release build crashed at launch with a VerifyError.
+ *
+ * In landscape the hubs fill the whole screen (not Start's half, like the
+ * other sheets), so their panorama shows several sections side by side
+ * (user-requested). The favourites quick sheet stays on Start's half.
  */
 @Composable
 private fun HubScreensLayer(
@@ -8938,7 +8942,7 @@ private fun HubScreensLayer(
         accentId = accentId,
         location = weatherHubTarget?.location,
         onDismiss = viewModel::closeWeatherHub,
-        rightHalf = isLandscape,
+        rightHalf = false,
     )
 
     MusicHubScreen(
@@ -8946,7 +8950,7 @@ private fun HubScreensLayer(
         dark = dark,
         accentId = accentId,
         onDismiss = viewModel::closeMusicHub,
-        rightHalf = isLandscape,
+        rightHalf = false,
         initialPage = musicHubInitialPage,
     )
 
@@ -8987,7 +8991,7 @@ private fun HubScreensLayer(
         onOpenNotifications = { viewModel.openPeopleHub("what's new") },
         pinnedNoteIds = pinnedNoteIds,
         pinnedListIds = pinnedListIds,
-        rightHalf = isLandscape,
+        rightHalf = false,
         initialPage = productivityHubInitialPage,
     )
 
@@ -9009,7 +9013,7 @@ private fun HubScreensLayer(
         dark = dark,
         accentId = accentId,
         onDismiss = viewModel::closePeopleHub,
-        rightHalf = isLandscape,
+        rightHalf = false,
         initialPage = peopleHubInitialPage,
         onPinPage = viewModel::pinPeopleHubPage,
     )
@@ -9019,7 +9023,7 @@ private fun HubScreensLayer(
         dark = dark,
         accentId = accentId,
         onDismiss = viewModel::closeBatteryHub,
-        rightHalf = isLandscape,
+        rightHalf = false,
     )
 
     com.tileshell.feature.livetiles.PanchangSheet(
@@ -9027,7 +9031,7 @@ private fun HubScreensLayer(
         dark = dark,
         accentId = accentId,
         onDismiss = viewModel::closePanchang,
-        rightHalf = isLandscape,
+        rightHalf = false,
     )
 
     com.tileshell.feature.livetiles.money.MoneyHubScreen(
@@ -9036,7 +9040,7 @@ private fun HubScreensLayer(
         accentId = accentId,
         onDismiss = viewModel::closeMoneyHub,
         onPinHub = viewModel::pinMoneyHub,
-        rightHalf = isLandscape,
+        rightHalf = false,
     )
 
     CalendarHubScreen(
@@ -9044,6 +9048,6 @@ private fun HubScreensLayer(
         dark = dark,
         accentId = accentId,
         onDismiss = viewModel::closeCalendarHub,
-        rightHalf = isLandscape,
+        rightHalf = false,
     )
 }

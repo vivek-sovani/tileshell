@@ -36,6 +36,13 @@ import kotlinx.coroutines.launch
 /** How much of the next section shows at the right edge. */
 private val PANORAMA_PEEK = 56.dp
 
+/**
+ * Widest a section gets. A portrait phone's sections stay screen-wide less the
+ * peek; on a landscape screen (or a tablet) several sections show side by
+ * side, each about a phone's width, so more of the panorama is on screen.
+ */
+private val PANORAMA_MAX_SECTION = 400.dp
+
 /** Side margin of the title and section headers, matching the pages' own. */
 private val PANORAMA_MARGIN = 18.dp
 
@@ -87,7 +94,7 @@ fun HubPanorama(
         // short one still drifts a quarter-screen, as Lumia's did.
         val travelPx = maxOf(titleWidthPx + marginPx - widthPx * 0.7f, widthPx * 0.25f)
         val pageSize = if (widthPx == 0) PageSize.Fill
-            else PageSize.Fixed(with(density) { widthPx.toDp() } - PANORAMA_PEEK)
+            else PageSize.Fixed(minOf(with(density) { widthPx.toDp() } - PANORAMA_PEEK, PANORAMA_MAX_SECTION))
         Column(modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.fillMaxWidth().clipToBounds()) {
                 Text(

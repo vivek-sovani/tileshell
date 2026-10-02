@@ -10821,3 +10821,12 @@ into their own composable (`HubScreensLayer`), shrinking that lambda. If a relea
 fails verification there again, move another self-contained block out the same way. (Happened again
 when personalize's wallpaper callbacks were added inline; they now live as values defined before
 the layout and small top-level functions.)
+
+## Hubs fill the whole screen in landscape
+User-requested: in landscape, Start and glance split the screen, and hubs used to open over
+Start's half like every other sheet, which showed barely one panorama section. Hubs are full
+screens, not sheets, so they now take the whole width; small sheets (favourites quick actions,
+notes/tasks editors) stay on Start's half. Full width alone would just make one huge section,
+so `HubPanorama` caps a section at 400dp: portrait phones (≤456dp wide) are unchanged, while
+landscape shows about two sections with the next header peeking in — closer to a WP panorama.
+

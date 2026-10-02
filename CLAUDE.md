@@ -37,6 +37,12 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — in landscape, hubs fill the whole screen.** User-requested: Start and glance stay
+  half and half, but a hub (weather, music, people, calendar, productivity, battery, money,
+  Panchang) now covers the full width instead of Start's half (`HubScreensLayer` passes
+  `rightHalf = false`; the favourites quick sheet stays on the half). `HubPanorama` caps each
+  section at 400dp (`PANORAMA_MAX_SECTION`), so a portrait phone is unchanged while landscape
+  shows two sections plus the next one peeking in. Checked on the emulator (release build).
 - **`main` — personalize switches look and drag like Windows Phone 8's.** `LumiaSwitch` (user-chosen
   design A): thin outlined track, inner bar filling with the accent when on, a tall thumb standing
   above and below the track. Drag the
