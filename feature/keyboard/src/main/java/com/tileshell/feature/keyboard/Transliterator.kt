@@ -53,7 +53,8 @@ object Transliterator {
         "ii" to Vowel(one("ई"), one("ी")),
         "ee" to Vowel(one("ई"), one("ी")),
         "I" to Vowel(one("ई"), one("ी")),
-        "u" to Vowel(o("उ" to 0f, "ऊ" to 0.9f), o("ु" to 0f, "ू" to 0.9f), o("ू" to 0.2f, "ु" to 0.4f)),
+        // u is also the English-style short a of names (Burman → बर्मन).
+        "u" to Vowel(o("उ" to 0f, "ऊ" to 0.9f), o("ु" to 0f, "ू" to 0.9f, "" to 1.3f), o("ू" to 0.2f, "ु" to 0.4f)),
         "uu" to Vowel(one("ऊ"), one("ू")),
         "oo" to Vowel(one("ऊ"), one("ू")),
         "U" to Vowel(one("ऊ"), one("ू")),
@@ -75,6 +76,12 @@ object Transliterator {
             o("रु" to 0f, "ऋ" to 0.6f, "रू" to 0.8f),
             o("्रु" to 0f, "ृ" to 0.4f, "रु" to 0.6f, "्रू" to 0.9f, "रू" to 0.9f),
             o("्रु" to 0.2f, "ृ" to 0.5f, "रू" to 0.4f, "रु" to 0.6f, "्रू" to 0.7f),
+        ),
+        // ri after a consonant: joined (प्रिय), a full syllable (हरि), or ृ (कृष्ण, typed "krishna").
+        "ri" to Vowel(
+            o("रि" to 0f, "री" to 0.9f, "ऋ" to 0.6f),
+            o("्रि" to 0f, "ृ" to 0.6f, "रि" to 0.8f, "्री" to 0.9f, "री" to 1.7f),
+            o("्री" to 0f, "्रि" to 0.5f, "री" to 0.8f, "ृ" to 0.8f, "रि" to 1.3f),
         ),
         "Ru" to Vowel(one("ऋ"), one("ृ")),
         "R" to Vowel(one("ऋ"), one("ृ")),
@@ -134,8 +141,19 @@ object Transliterator {
 
     private val marks = mapOf("M" to ANUSVARA, "H" to "ः")
 
+    /** "ao": Marathi ends words in ाव (राव, गाव, नाव), Hindi in ाओ (जाओ, आओ). */
+    private fun aoVowel(lang: KeyboardLanguage): Vowel {
+        val marathi = lang == KeyboardLanguage.MARATHI
+        return Vowel(
+            o("आओ" to 0f, "आव" to 0.3f),
+            o("ाओ" to 0f, "ाव" to 0.3f, "ओ" to 0.8f),
+            if (marathi) o("ाव" to 0f, "ाओ" to 0.3f) else o("ाओ" to 0f, "ाव" to 0.3f),
+        )
+    }
+
     /** Splits typed letters into sounds, longest match first (exact case, then lower). */
-    private fun tokenize(latin: String, cons: Map<String, List<Opt>>): List<Unit> {
+    private fun tokenize(latin: String, cons: Map<String, List<Opt>>, lang: KeyboardLanguage): List<Unit> {
+        val ao = aoVowel(lang)
         val out = ArrayList<Unit>()
         var i = 0
         while (i < latin.length) {
@@ -145,6 +163,7 @@ object Transliterator {
                 val piece = latin.substring(i, i + len)
                 for (key in listOf(piece, piece.lowercase())) {
                     val unit: Unit? = marks[key]?.let(::Mark)
+                        ?: (if (key == "ao") ao else null)
                         ?: vowels[key]
                         ?: cons[key]?.let(::Cons)
                     if (unit != null) {
@@ -182,7 +201,7 @@ object Transliterator {
      */
     fun spellings(latin: String, lang: KeyboardLanguage, lexicon: Lexicon? = null): List<Pair<String, Float>> {
         if (latin.isEmpty()) return emptyList()
-        val units = tokenize(latin, consonants(lang))
+        val units = tokenize(latin, consonants(lang), lang)
         // Hindi writes ँ often (हूँ, माँ, कहाँ); Marathi rarely (सँडविच).
         val chandraCost = if (lang == KeyboardLanguage.HINDI) 0.2f else 0.8f
         var beam = listOf(State("", 0f, pending = false, nasal = false))
@@ -266,8 +285,12 @@ object Transliterator {
         }.sortedByDescending { it.second }
         val out = LinkedHashSet<String>()
         remembered?.let { out += it }
-        // Real words first; if none, the most literal spelling.
+        // Real words first; if none, a compound of real words (प्यारे + लाल), then
+        // the most literal spelling.
         for ((text, score) in scored) if (score > REAL_WORD / 2 && out.size < limit) out += text
+        if (lexicon != null && scored.none { it.second > REAL_WORD / 2 }) {
+            compound(latin, lang, lexicon)?.let { out += it }
+        }
         if (out.isEmpty()) out += scored.first().first
         // Longer words for one still being typed ("namask" → नमस्कार).
         if (lexicon != null) {
@@ -278,4 +301,47 @@ object Transliterator {
         for ((text, _) in scored) if (out.size < limit) out += text
         return out.toList()
     }
+
+    /**
+     * A word not in the list, spelled as two or three that are: names and
+     * compounds (pyarelal → प्यारे + लाल, rahuldev → राहुल + देव, natwarlal →
+     * नट + वर + लाल). Each part at least two letters; the split whose rarest part
+     * is most common wins. Null when no split is made of real words.
+     */
+    internal fun compound(latin: String, lang: KeyboardLanguage, lexicon: Lexicon, parts: Int = 3): String? {
+        val memo = HashMap<String, LexEntry?>()
+        fun word(part: String): LexEntry? = memo.getOrPut(part) {
+            spellings(part, lang, lexicon).asSequence()
+                .mapNotNull { (text, cost) -> lexicon.lookup(text)?.let { it to cost } }
+                .filter { (e, _) -> e.word.length >= 2 }
+                .maxByOrNull { (e, cost) -> e.freq - cost * COST_WEIGHT }?.first
+        }
+        var best: Pair<String, Int>? = null
+        fun search(rest: String, left: Int, built: String, rarest: Int) {
+            if (rest.isEmpty()) {
+                if (built.isNotEmpty() && (best == null || rarest > best!!.second)) best = built to rarest
+                return
+            }
+            // Another part must earn its place: three-way splits are a last resort.
+            if (left == 0) return
+            for (cut in MIN_PART..rest.length) {
+                if (rest.length - cut in 1 until MIN_PART) continue
+                val e = word(rest.substring(0, cut)) ?: continue
+                // Every part a reasonably common word, so names don't split into junk.
+                if (e.freq < MIN_PART_FREQ) continue
+                search(rest.substring(cut), left - 1, built + e.word, minOf(rarest, e.freq) - EXTRA_PART_COST)
+            }
+        }
+        if (latin.length < MIN_PART * 2) return null
+        for (cut in MIN_PART..latin.length - MIN_PART) {
+            val e = word(latin.substring(0, cut)) ?: continue
+            if (e.freq < MIN_PART_FREQ) continue
+            search(latin.substring(cut), parts - 1, e.word, e.freq)
+        }
+        return best?.first
+    }
+
+    private const val MIN_PART = 2
+    private const val MIN_PART_FREQ = 40
+    private const val EXTRA_PART_COST = 25
 }

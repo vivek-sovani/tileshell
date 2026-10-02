@@ -22,10 +22,21 @@ object KeyboardDictionary {
         KeyboardLanguage.ENGLISH to listOf(
             "keyboard/en_words.txt", "keyboard/en_in_extra.txt", "keyboard/en_chat_extra.txt",
         ),
-        // From Tatoeba sentences, plus places and festivals they lack.
-        KeyboardLanguage.MARATHI to listOf("keyboard/mr_words.txt", "keyboard/mr_extra.txt"),
-        KeyboardLanguage.HINDI to listOf("keyboard/hi_words.txt", "keyboard/hi_extra.txt"),
+        // From Tatoeba and Common Voice sentences, plus places, festivals and names.
+        KeyboardLanguage.MARATHI to listOf("keyboard/mr_words.txt", "keyboard/mr_extra.txt", "keyboard/names.txt"),
+        KeyboardLanguage.HINDI to listOf("keyboard/hi_words.txt", "keyboard/hi_extra.txt", "keyboard/names.txt"),
     )
+
+    /**
+     * Each language also knows the other's words, a little less common: Marathi
+     * text uses many Hindi words and names (नटवरलाल), and Hindi Marathi ones. The
+     * language's own spelling still wins where the two differ.
+     */
+    private val borrowed = mapOf(
+        KeyboardLanguage.MARATHI to listOf("keyboard/hi_words.txt", "keyboard/hi_extra.txt"),
+        KeyboardLanguage.HINDI to listOf("keyboard/mr_words.txt", "keyboard/mr_extra.txt"),
+    )
+    private const val BORROWED_WEIGHT = 0.8
 
     private val mutex = Mutex()
     private val words = HashMap<KeyboardLanguage, WordList>()
@@ -36,13 +47,25 @@ object KeyboardDictionary {
         val list = mutex.withLock {
             words[language] ?: run {
                 val files = assets.getValue(language)
-                val extra = files.drop(1).flatMap { context.assets.open(it).bufferedReader().readLines() }
+                val extra = files.drop(1).flatMap { context.assets.open(it).bufferedReader().readLines() } +
+                    borrowed[language].orEmpty().flatMap { name ->
+                        context.assets.open(name).bufferedReader().readLines().map(::weaken)
+                    }
                 context.assets.open(files.first()).bufferedReader().useLines { lines ->
                     WordList.parse(lines + extra.asSequence())
                 }
             }.also { words[language] = it }
         }
         CombinedLexicon(list, learnedWords(context, language))
+    }
+
+    /** A borrowed list's line with its frequency scaled down. */
+    internal fun weaken(line: String): String {
+        val tab = line.indexOf('\t')
+        if (tab < 0) return line
+        val end = line.indexOf('\t', tab + 1).let { if (it < 0) line.length else it }
+        val f = line.substring(tab + 1, end).toIntOrNull() ?: return line
+        return line.substring(0, tab + 1) + (f * BORROWED_WEIGHT).toInt() + line.substring(end)
     }
 
     fun learnedWords(context: Context, language: KeyboardLanguage = KeyboardLanguage.ENGLISH): LearnedWords =

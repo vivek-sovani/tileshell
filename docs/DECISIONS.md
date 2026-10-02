@@ -11046,3 +11046,15 @@ suggestions, and address bars are URI fields; both were treated as English-only.
 any text field but passwords and email allows Marathi/Hindi (globe key, the
 transliteration strip even where English gets no suggestions); address bars open in
 English but can switch.
+
+## Names and compounds (user-reported: नटवरलाल, लक्ष्मीकांत, प्यारेलाल, राहुलदेव, बर्मन, घोषाल, हरेराम)
+- Marathi's dictionary also loads Hindi's words (and Hindi Marathi's), at 0.8 of their
+  frequency, so the language's own spelling still wins (user-requested; नटवरलाल was
+  only in the Hindi list).
+- `names.txt`: ~190 common Indian names and name parts (लाल, देव, कांत, राम, surnames).
+- A word not in any list is tried as two or three real words (`Transliterator.compound`:
+  each part common, extra parts cost) — शिवप्रसाद, गोपालकृष्ण, आनंदराव.
+- Rules: "ri" after a consonant can be ृ (krishna → कृष्ण); "u" can be the English-style
+  short a of names (Burman); "ao" ends Marathi words in ाव (राव), Hindi in ाओ (जाओ).
+- `NamesTest` holds every word the user reported, typed and swiped; the accuracy
+  evaluation was unchanged by these.
