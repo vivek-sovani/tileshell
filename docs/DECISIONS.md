@@ -11240,3 +11240,10 @@ leaves it out (`setupExtraPackages`, tested). They come back as small tiles, aft
 not in their old sizes or folders — the old layout is in layout history (saved first, as
 before). The wording says so and the last button is "set up start" in the accent colour, not
 the red "reset". "Reset start layout" in personalize still starts over.
+
+## Wallpaper target chooser previews the new wallpaper (2026-10-03)
+User-reported: the "home screen / lock screen / home + lock screen" chooser showed Start's
+current wallpaper behind it, which was confusing. The picked wallpaper (gradient, or photo
+with its framing) now fills the screen behind the chooser, as Android's own wallpaper picker
+previews what it's about to set; a Bing image still downloading shows a plain backdrop.
+Cancel removes it and leaves everything as it was.

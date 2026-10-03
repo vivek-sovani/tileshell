@@ -2514,6 +2514,26 @@ fun StartScreen(
                 }
                 pendingWallpaperPick = null
             }
+            // The new wallpaper fills the screen behind the choice (user-reported:
+            // Start's current one showing there was confusing), as Android's own
+            // wallpaper picker previews the image it's about to set.
+            Box(Modifier.fillMaxSize().background(tokens.bg)) {
+                when (pick) {
+                    is PendingWallpaperPick.Gradient ->
+                        WallpaperBackground(gradient = Wallpapers.forId(pick.id), customWallpaperUri = null, blur = false, dark = dark)
+                    is PendingWallpaperPick.Photo -> WallpaperBackground(
+                        gradient = wallpaper,
+                        customWallpaperUri = pick.uri,
+                        blur = false,
+                        alignX = pick.alignX,
+                        alignY = pick.alignY,
+                        zoom = pick.zoom,
+                        dark = dark,
+                    )
+                    // Still downloading: a plain backdrop rather than the old wallpaper.
+                    is PendingWallpaperPick.Bing -> Unit
+                }
+            }
             // A plain custom Dialog, not Material3's AlertDialog — full
             // control over sizing instead of fighting its title/button-row
             // default chrome. Two separate cards (iOS/Android's classic
