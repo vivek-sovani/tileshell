@@ -110,6 +110,9 @@ class KeyboardController(
 
     private val lexicons = HashMap<KeyboardLanguage, Lexicon>()
 
+    /** English words as मराठी / हिन्दी write them (energy → एनर्जी). */
+    private val loanWords = HashMap<KeyboardLanguage, LoanWords>()
+
     /** मराठी / हिन्दी words by their English-letter spelling, for swipe typing. */
     private val swipeLexicons = HashMap<KeyboardLanguage, RomanizedLexicon>()
     private var inputType = 0
@@ -161,6 +164,8 @@ class KeyboardController(
                     lexicons[lang] = it
                     if (lang == language) refresh()
                     if (lang.indic) {
+                        runCatching { KeyboardDictionary.loanWords(service, lang) }.getOrNull()
+                            ?.let { loans -> loanWords[lang] = loans }
                         val list = it.words as? WordList
                         if (list != null) {
                             swipeLexicons[lang] = withContext(Dispatchers.Default) {
@@ -645,8 +650,10 @@ class KeyboardController(
     /** Puts in the best Devanagari spelling (or the letters, if there's none yet). */
     private fun commitTranslit(separator: String) {
         if (latin.isEmpty()) return
-        val best = translitBest ?: Transliterator.candidates(latin.toString(), language, lexicon).firstOrNull()
-        if (best != null) learnIndic(best, strong = false)
+        val typed = latin.toString()
+        val best = translitBest ?: translitCandidates(typed, language, lexicon, null).firstOrNull()
+        // An English word kept in English letters isn't a मराठी / हिन्दी word to learn.
+        if (best != null && best != typed) learnIndic(best, strong = false)
         finishTranslit((best ?: latin.toString()) + separator)
     }
 
@@ -908,15 +915,23 @@ class KeyboardController(
         val remembered = KeyboardDictionary.translitPicks(service, lang)[typed]
         stripJob = scope.launch {
             val words = withContext(Dispatchers.Default) {
-                Transliterator.candidates(typed, lang, lex, remembered)
+                translitCandidates(typed, lang, lex, remembered)
             }
             // Still the same letters (typing may have moved on).
             if (latin.toString() != typed) return@launch
             translitBest = words.firstOrNull()
-            strip = listOf(StripWord(typed, StripWord.Kind.TYPED)) +
-                words.mapIndexed { i, w -> StripWord(w, StripWord.Kind.WORD, best = i == 0) }
+            // An English word with no मराठी / हिन्दी spelling leads as typed.
+            val englishFirst = words.firstOrNull() == typed
+            strip = listOf(StripWord(typed, StripWord.Kind.TYPED, best = englishFirst)) +
+                words.filter { it != typed }.mapIndexed { i, w -> StripWord(w, StripWord.Kind.WORD, best = !englishFirst && i == 0) }
         }
     }
+
+    private fun translitCandidates(typed: String, lang: KeyboardLanguage, lex: Lexicon?, remembered: String?) =
+        Transliterator.candidates(
+            typed, lang, lex, remembered,
+            loans = loanWords[lang], english = lexicons[KeyboardLanguage.ENGLISH],
+        )
 
     private companion object {
         const val CONTEXT_CHARS = 64

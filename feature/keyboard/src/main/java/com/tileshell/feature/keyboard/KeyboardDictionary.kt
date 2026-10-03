@@ -42,6 +42,27 @@ object KeyboardDictionary {
     private val words = HashMap<KeyboardLanguage, WordList>()
     private val learned = HashMap<KeyboardLanguage, LearnedWords>()
     private val picks = HashMap<KeyboardLanguage, TranslitMemory>()
+    private val loans = HashMap<KeyboardLanguage, LoanWords>()
+
+    /**
+     * English words as [language] writes them (energy → एनर्जी). Marathi also
+     * offers Hindi's spelling after its own (पॉझिटिव्ह, then पॉजिटिव).
+     */
+    suspend fun loanWords(context: Context, language: KeyboardLanguage): LoanWords? {
+        if (!language.indic) return null
+        return withContext(Dispatchers.IO) {
+            mutex.withLock {
+                loans[language] ?: run {
+                    fun read(lang: KeyboardLanguage) =
+                        context.assets.open("keyboard/${lang.code}_loan.txt").bufferedReader().readLines().asSequence()
+                    LoanWords.parse(
+                        read(language),
+                        if (language == KeyboardLanguage.MARATHI) read(KeyboardLanguage.HINDI) else emptySequence(),
+                    )
+                }.also { loans[language] = it }
+            }
+        }
+    }
 
     suspend fun lexicon(context: Context, language: KeyboardLanguage): CombinedLexicon = withContext(Dispatchers.IO) {
         val list = mutex.withLock {

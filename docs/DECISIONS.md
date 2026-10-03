@@ -11127,3 +11127,21 @@ actually in use. Each type now keeps its own choice while another type is on:
 - stock: new `LauncherSettings.lastStockWallpaperId` (codec key `lastStockWallpaper`, so
   backups carry it). "none" keeps it and "stock" restores it instead of always choosing the
   first gradient.
+
+## Keyboard: English words typed in मराठी / हिन्दी (2026-10-03)
+User-requested: typing "energy", "positive", "negative" in transliteration mode should offer
+एनर्जी / पॉजिटिव / निगेटिव, the way the language writes the English word, not a
+letter-by-letter rendering. Letter rules can't do this (English spelling isn't phonetic), so
+`tools/keyboard/build_loanwords.py` spells each common English word (AOSP list freq ≥ 90, ~18k)
+from its CMU Pronouncing Dictionary pronunciation (BSD), producing costed variants; the
+variant the language's own word list has wins (most common, close to the sound, and not
+another English word's own spelling: data ≠ देता/डेट). Unlisted words get the cheapest
+variant, with each language's habits (Marathi ज़→झ and final व्ह, ॲ/ॅ; -ing → िंग; o-spelled
+vowels → ॉ). Assets `mr_loan.txt` / `hi_loan.txt` (~540 KB each); Marathi also offers
+Hindi's spelling second (पॉझिटिव्ह, then पॉजिटिव). `Transliterator.candidates` ranks an
+English word's spelling like a native word of freq 60, so a commoner native word still leads
+(ham → हम, main → मैं). Follow-up from the user: an English word with no मराठी / हिन्दी
+spelling (not in CMUdict, e.g. British "footballer", "organised") and no native match is
+offered as typed, in English letters, first — space puts it in and it isn't learned as a
+Devanagari word. Tested in `LoanWordsTest`; not exercised on screen (the emulator routed
+taps on the text field to its stylus handwriting).

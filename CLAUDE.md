@@ -37,6 +37,13 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — keyboard: English words in मराठी / हिन्दी spelling.** User-requested. Typing
+  "energy" / "positive" / "negative" in transliteration offers एनर्जी / पॉजिटिव (Marathi:
+  पॉझिटिव्ह first) / निगेटिव, from `mr_loan.txt` / `hi_loan.txt` built by
+  `tools/keyboard/build_loanwords.py` (CMU Pronouncing Dictionary, checked against each
+  language's word list; `LoanWords`). An English word with no such spelling stays in English
+  letters. Unit-tested (`LoanWordsTest`); not yet typed on screen. Context-aware next words
+  (good → morning by time of day) assessed as feasible, not built — awaiting the user's go-ahead.
 - **`main` — wallpaper types keep their own choice.** User-reported: after "none" the photo
   wallpaper could be gone. A new photo pick no longer deletes the current one before the crop
   and "where to apply" steps (`MediaImport.pruneWallpapers` runs only once the new photo is in

@@ -470,11 +470,11 @@ fun AboutSheet(
                     items = listOf(
                         "a metro-style keyboard in your accent colour and theme — turn it on in personalize · system · tileshell keyboard",
                         "suggestions, autocorrect that learns your words, and wordflow — swipe across letters to type",
-                        "type मराठी or हिन्दी two ways: spell it in english letters (\"namaskar\" → नमस्कार), or use devanagari keys in varnamala order — the globe key steps through english, मराठी and हिन्दी",
+                        "type मराठी or हिन्दी two ways: spell it in english letters (\"namaskar\" → नमस्कार, \"energy\" → एनर्जी), or use devanagari keys in varnamala order — the globe key steps through english, मराठी and हिन्दी",
                         "emoji with search, clipboard history, a number pad for number fields, one-handed mode, and hold space to move the cursor",
                         "everything you type, learn or copy stays on your phone — the keyboard never connects to the internet",
                         "beta: marathi and hindi typing is still improving",
-                        "word lists from the android open source project (apache 2.0), tatoeba (cc-by 2.0 fr) and mozilla common voice (cc0)",
+                        "word lists from the android open source project (apache 2.0), tatoeba (cc-by 2.0 fr) and mozilla common voice (cc0); english words in मराठी / हिन्दी spelling from the cmu pronouncing dictionary (bsd)",
                     ),
                 )
             }

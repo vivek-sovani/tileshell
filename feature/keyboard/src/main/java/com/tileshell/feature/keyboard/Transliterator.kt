@@ -265,10 +265,14 @@ object Transliterator {
     }
 
     /**
-     * The strip's Devanagari words for [latin], best first: real words (from
-     * [lexicon], most common first, nearer the literal spelling first) ahead of
-     * rule-only spellings; a spelling picked for these letters before ([remembered])
-     * leads. Then a couple of longer words for a word still being typed.
+     * The strip's words for [latin], best first: real words (from [lexicon],
+     * most common first, nearer the literal spelling first) ahead of rule-only
+     * spellings; a spelling picked for these letters before ([remembered]) leads.
+     * An English word is offered as मराठी / हिन्दी write it ([loans]: energy →
+     * एनर्जी) unless a common native word reads the same; an English word with no
+     * such spelling ([english] has it, [loans] doesn't) is offered as typed, in
+     * English letters, first. Then a couple of longer words for a word still
+     * being typed.
      */
     fun candidates(
         latin: String,
@@ -276,15 +280,30 @@ object Transliterator {
         lexicon: Lexicon?,
         remembered: String? = null,
         limit: Int = 3,
+        loans: LoanWords? = null,
+        english: Lexicon? = null,
     ): List<String> {
         val spelled = spellings(latin, lang, lexicon)
         if (spelled.isEmpty()) return emptyList()
-        val scored = spelled.map { (text, cost) ->
+        val loanSpellings = loans?.get(latin).orEmpty()
+        val byText = HashMap<String, Float>()
+        for ((text, cost) in spelled) {
             val e = lexicon?.lookup(text)
-            text to if (e != null) REAL_WORD + e.freq - cost * COST_WEIGHT else -cost * COST_WEIGHT
-        }.sortedByDescending { it.second }
+            byText[text] = if (e != null) REAL_WORD + e.freq - cost * COST_WEIGHT else -cost * COST_WEIGHT
+        }
+        // Each further spelling of the English word a little behind the first.
+        loanSpellings.forEachIndexed { i, text ->
+            val freq = maxOf(lexicon?.lookup(text)?.freq ?: 0, LOAN_FREQ) - i
+            byText[text] = maxOf(byText[text] ?: Float.NEGATIVE_INFINITY, REAL_WORD + freq)
+        }
+        val scored = byText.entries.map { it.key to it.value }.sortedByDescending { it.second }
         val out = LinkedHashSet<String>()
         remembered?.let { out += it }
+        val englishWord = loanSpellings.isEmpty() &&
+            english?.lookup(latin.lowercase())?.let { !it.blocked && it.freq >= ENGLISH_MIN_FREQ } == true
+        // No मराठी / हिन्दी spelling of an English word, and no native word reads
+        // the same ("namaskar" is in the English list too): the English word itself.
+        if (englishWord && scored.none { it.second > REAL_WORD / 2 }) out += latin
         // Real words first; if none, a compound of real words (प्यारे + लाल), then
         // the most literal spelling.
         for ((text, score) in scored) if (score > REAL_WORD / 2 && out.size < limit) out += text
@@ -292,11 +311,14 @@ object Transliterator {
             compound(latin, lang, lexicon)?.let { out += it }
         }
         if (out.isEmpty()) out += scored.first().first
-        // Longer words for one still being typed ("namask" → नमस्कार).
+        // Longer words for one still being typed ("namask" → नमस्कार, "ener" → एनर्जी).
         if (lexicon != null) {
             for ((prefix, _) in spelled.take(2)) {
                 for (c in lexicon.completions(prefix, 2)) if (out.size < limit) out += c.word
             }
+        }
+        if (loans != null && latin.length >= MIN_LOAN_PREFIX) {
+            for (c in loans.completions(latin, 1)) if (out.size < limit) out += c
         }
         for ((text, _) in scored) if (out.size < limit) out += text
         return out.toList()
@@ -340,6 +362,13 @@ object Transliterator {
         }
         return best?.first
     }
+
+    /** An English word's spelling ranks like a native word this common (a commoner native one wins). */
+    private const val LOAN_FREQ = 60
+
+    /** How common an English word must be to be offered in English letters. */
+    private const val ENGLISH_MIN_FREQ = 60
+    private const val MIN_LOAN_PREFIX = 3
 
     private const val MIN_PART = 2
     private const val MIN_PART_FREQ = 40
