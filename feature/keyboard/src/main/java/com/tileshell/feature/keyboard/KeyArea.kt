@@ -112,6 +112,7 @@ internal fun KeyArea(
         controller.languageKey,
         devanagariKeys = controller.devanagariKeys,
         shifted = controller.shift.upperCase,
+        devanagariDigits = controller.devanagariDigits,
     )
     val lit = remember { mutableStateMapOf<String, Boolean>() }
     var popup by remember { mutableStateOf<Popup?>(null) }
@@ -331,7 +332,11 @@ internal fun KeyArea(
                             controller = controller,
                             colors = colors,
                             accent = accent,
-                            topRowDigit = if (r == 0 && controller.layer == KeyboardLayer.LETTERS) KeyPopups.topRowDigits[key.label] else null,
+                            topRowDigit = if (r == 0 && controller.layer == KeyboardLayer.LETTERS) {
+                                KeyPopups.topRowDigits[key.label]?.let { KeyboardLayouts.localDigits(it, controller.devanagariDigits) }
+                            } else {
+                                null
+                            },
                             // Devanagari keys: 11 to a row, so a size smaller (the canvas's 19).
                             letterSp = if (controller.devanagariKeys) letterSp - 3 else letterSp,
                             modifier = Modifier.weight(key.units).height(keyHeight),

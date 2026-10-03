@@ -11220,3 +11220,11 @@ User-requested: a full stop typed after spaces goes onto the last word. . , ! ? 
 out the spaces (not line breaks) between them and a word, number, closing bracket / quote or
 emoji, then add one space after: "hello  ." → "hello. ". Before, only a space the keyboard
 itself had added was taken out (`TypingRules.spacesBeforePunctuation`).
+
+## Keyboard: Devanagari digits in मराठी / हिन्दी (2026-10-03)
+User-requested: numbers typed in Marathi or Hindi are ०–९. In those languages (both the
+English-letters and the Devanagari-keys styles) the &123 page's digit row, the top row's corner
+digits and their long-press type ०–९ (`KeyboardLayouts.localDigits`; ० holds ° like 0). The
+number pad (number, phone, date fields) keeps 0–9 — apps read those as numbers (OTPs, phone
+numbers, amounts) — and so do fields where the keyboard is English only (passwords, email,
+web addresses). The Devanagari keys' shift page already had ०–९.

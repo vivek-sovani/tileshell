@@ -567,7 +567,11 @@ class KeyboardController(
 
     // ---- long press ----
 
-    fun popupOptions(key: Key): List<String> = KeyPopups.options(key, shift.upperCase, lettersOnly = translit)
+    fun popupOptions(key: Key): List<String> =
+        KeyPopups.options(key, shift.upperCase, lettersOnly = translit, devanagariDigits = devanagariDigits)
+
+    /** मराठी / हिन्दी type ०–९ (not in number pads, passwords, email or web addresses). */
+    val devanagariDigits: Boolean get() = language.indic && languagesHere
 
     /** A letter, digit or symbol picked from the long-press bar, typed as if its own key. */
     fun onPopupChoice(option: String) {

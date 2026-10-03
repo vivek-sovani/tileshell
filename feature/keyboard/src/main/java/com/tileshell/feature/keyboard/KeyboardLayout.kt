@@ -79,6 +79,11 @@ enum class KeyboardLayer {
 object KeyboardLayouts {
     const val SPACE_LABEL = "English"
 
+    /** 0–9 as ०–९ when [devanagari] (मराठी / हिन्दी), else [text] as it is. */
+    fun localDigits(text: String, devanagari: Boolean): String =
+        if (!devanagari || text.none { it in '0'..'9' }) text
+        else String(CharArray(text.length) { i -> text[i].let { c -> if (c in '0'..'9') '०' + (c - '0') else c } })
+
     private fun chars(s: String) = s.map { Key(KeyKind.CHAR, it.toString()) }
     private fun symbols(s: String) = s.map { Key(KeyKind.SYMBOL, it.toString()) }
 
@@ -226,13 +231,18 @@ object KeyboardLayouts {
         languageKey: Boolean = false,
         devanagariKeys: Boolean = false,
         shifted: Boolean = false,
+        devanagariDigits: Boolean = false,
     ): List<KeyRow> {
-        val rows = when (layer) {
+        val plain = when (layer) {
             KeyboardLayer.LETTERS -> if (!devanagariKeys) letters else if (shifted) devanagariShift else devanagari
             KeyboardLayer.SYMBOLS_1 -> symbols1
             KeyboardLayer.SYMBOLS_2 -> symbols2
+            // Number and phone fields keep 0–9: apps read them as numbers.
             KeyboardLayer.NUMPAD -> return numpad
             KeyboardLayer.EMOJI, KeyboardLayer.CLIPBOARD, KeyboardLayer.VOICE -> return emptyList()
+        }
+        val rows = if (!devanagariDigits) plain else plain.map { row ->
+            row.copy(keys = row.keys.map { k -> if (k.kind == KeyKind.SYMBOL) k.copy(label = localDigits(k.label, true)) else k })
         }
         if (!languageKey) return rows
         val bottom = rows.last().keys.flatMap { key ->

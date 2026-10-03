@@ -36,4 +36,11 @@ class KeyPopupsTest {
         assertTrue("₹" in KeyPopups.options(Key(KeyKind.SYMBOL, "$"), upper = false))
         assertTrue("?" in KeyPopups.options(Key(KeyKind.SYMBOL, "."), upper = false))
     }
+
+    @Test
+    fun `long press gives the devanagari digit in marathi and hindi`() {
+        assertEquals("१", KeyPopups.options(Key(KeyKind.CHAR, "q"), upper = false, lettersOnly = true, devanagariDigits = true).first())
+        assertEquals("1", KeyPopups.options(Key(KeyKind.CHAR, "q"), upper = false).first())
+        assertEquals(listOf("°"), KeyPopups.options(Key(KeyKind.SYMBOL, "०"), upper = false))
+    }
 }

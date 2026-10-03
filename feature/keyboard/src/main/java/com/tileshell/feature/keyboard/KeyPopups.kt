@@ -41,14 +41,15 @@ object KeyPopups {
      * [lettersOnly] (मराठी / हिन्दी typed in English letters) offers just the
      * digit, since accented Latin letters have no Devanagari spelling.
      */
-    fun options(key: Key, upper: Boolean, lettersOnly: Boolean = false): List<String> = key.popup ?: when (key.kind) {
+    fun options(key: Key, upper: Boolean, lettersOnly: Boolean = false, devanagariDigits: Boolean = false): List<String> = key.popup ?: when (key.kind) {
         KeyKind.CHAR -> {
-            val digit = topRowDigits[key.label]
+            val digit = topRowDigits[key.label]?.let { KeyboardLayouts.localDigits(it, devanagariDigits) }
             val letters = if (lettersOnly) emptyList() else accents[key.label].orEmpty()
                 .map { if (upper) it.uppercase() else it }
             listOfNotNull(digit) + letters
         }
-        KeyKind.SYMBOL -> symbols[key.label].orEmpty()
+        // ० holds ° as 0 does.
+        KeyKind.SYMBOL -> symbols[key.label.map { if (it in '०'..'९') '0' + (it - '०') else it }.joinToString("")].orEmpty()
         else -> emptyList()
     }
 }

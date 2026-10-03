@@ -47,7 +47,9 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   (Tatoeba's joiner no longer splits ऱ्य words), "shetrafal" → क्षेत्रफळ, लिंगोबा (ं before a
   consonant), दिनचर्या (no junk compound splits). Word lists add Marathi / Hindi Wikipedia
   (CC BY-SA 4.0; 158k / 146k words; swipe uses freq ≥ 40 only). Punctuation goes onto the last
-  word, taking out spaces in between. Checked on the emulator.
+  word, taking out spaces in between. In मराठी / हिन्दी the &123 digits, the top row's corner
+  digits and their long-press are ०–९ (number pads, passwords, email, web addresses keep 0–9).
+  Checked on the emulator; installed on the phone.
 - **`main` — keyboard: emoji in the suggestion strip.** "pizza" → 🍕, "lol" → 😂 in the
   strip's last place (`EmojiWords`, `emoji_words.txt` from Unicode CLDR by
   `tools/keyboard/build_emoji_words.py`); tapping it puts in "pizza 🍕". Emoji search's cursor

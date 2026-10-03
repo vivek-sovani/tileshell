@@ -99,4 +99,18 @@ class KeyboardLayoutTest {
         val withGlobe = KeyboardLayouts.rowsFor(KeyboardLayer.LETTERS, languageKey = true, devanagariKeys = true)
         assertTrue(withGlobe.last().keys.any { it.kind == KeyKind.LANGUAGE })
     }
+
+    @Test
+    fun `marathi and hindi show devanagari digits, number pads keep 0-9`() {
+        assertEquals("१२३ abc ०", KeyboardLayouts.localDigits("123 abc 0", true))
+        assertEquals("123", KeyboardLayouts.localDigits("123", false))
+        val symbols = KeyboardLayouts.rowsFor(KeyboardLayer.SYMBOLS_1, devanagariDigits = true)
+        assertEquals("१२३४५६७८९०", symbols.first().keys.joinToString("") { it.label })
+        val pad = KeyboardLayouts.rowsFor(KeyboardLayer.NUMPAD, devanagariDigits = true)
+        assertEquals("1", pad.first().keys.first().label)
+        assertEquals(
+            "1234567890",
+            KeyboardLayouts.rowsFor(KeyboardLayer.SYMBOLS_1).first().keys.joinToString("") { it.label },
+        )
+    }
 }
