@@ -615,6 +615,25 @@ fun StartScreen(
                 .putFloat(PREF_LAST_PHOTO_Y, settings.wallpaperAlignY)
                 .putFloat(PREF_LAST_PHOTO_ZOOM, settings.wallpaperZoom)
                 .apply()
+            // Older photos go only once a new one is actually in use: a pick
+            // dismissed at the crop or "where to apply" step leaves this one intact.
+            withContext(Dispatchers.IO) { MediaImport.pruneWallpapers(context, keep = uri!!) }
+        }
+    }
+
+    // Likewise the Bing day picked under "select", so "bing" brings that day back;
+    // turning "daily" on forgets it.
+    LaunchedEffect(settings.customWallpaperUri, settings.bingWallpaper, settings.wallpaperSlideshowEnabled, settings.wallpaperAlignX, settings.wallpaperAlignY, settings.wallpaperZoom) {
+        val uri = settings.customWallpaperUri
+        val prefs = context.getSharedPreferences("tileshell.prefs", Context.MODE_PRIVATE)
+        when {
+            settings.bingWallpaper -> prefs.edit().remove(PREF_LAST_BING_PICK).apply()
+            !settings.wallpaperSlideshowEnabled && uri != null && "bing_pick_" in uri ->
+                prefs.edit().putString(PREF_LAST_BING_PICK, uri)
+                    .putFloat(PREF_LAST_BING_PICK_X, settings.wallpaperAlignX)
+                    .putFloat(PREF_LAST_BING_PICK_Y, settings.wallpaperAlignY)
+                    .putFloat(PREF_LAST_BING_PICK_ZOOM, settings.wallpaperZoom)
+                    .apply()
         }
     }
 
@@ -658,6 +677,9 @@ fun StartScreen(
         BingRecentImages(colorTokens(dark), TileAccents.forId(settings.accentId)) { imageUrl -> pickBingImage(imageUrl) }
     }
     val onRefreshBing: () -> Unit = { refreshBingFromUser(context) }
+    val onSelectBingType: () -> Unit = {
+        if (!restoreLastBingPick(context, viewModel, settings.wallpaperSyncTarget)) viewModel.setBingWallpaper(true)
+    }
     val onSelectPhotoType: () -> Unit = {
         if (!restoreLastPhotoWallpaper(context, viewModel, settings.wallpaperSyncTarget)) {
             wallpaperPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
@@ -1957,6 +1979,7 @@ fun StartScreen(
             bingRecentImages = bingRecentImages,
             onRefreshBing = onRefreshBing,
             onSelectPhotoType = onSelectPhotoType,
+            onSelectBingType = onSelectBingType,
             onBingHistory = { bingHistoryOpen = true },
             onAdjustWallpaper = { if (settings.customWallpaperUri != null) adjustingWallpaper = true },
             onWallpaperChange = { id -> pendingWallpaperPick = PendingWallpaperPick.Gradient(id) },
@@ -2597,6 +2620,32 @@ private fun restoreLastPhotoWallpaper(
     return true
 }
 
+/** Sets the last Bing day picked under "select" again; false if there is none. */
+private fun restoreLastBingPick(
+    context: Context,
+    viewModel: StartViewModel,
+    target: com.tileshell.core.data.settings.WallpaperSyncTarget,
+): Boolean {
+    val prefs = context.getSharedPreferences("tileshell.prefs", Context.MODE_PRIVATE)
+    val last = prefs.getString(PREF_LAST_BING_PICK, null)?.takeIf { MediaImport.exists(it) }
+    if (last == null) {
+        prefs.edit().remove(PREF_LAST_BING_PICK).apply()
+        return false
+    }
+    viewModel.setCustomWallpaperWithSync(
+        last,
+        prefs.getFloat(PREF_LAST_BING_PICK_X, 0.5f),
+        prefs.getFloat(PREF_LAST_BING_PICK_Y, 0.5f),
+        prefs.getFloat(PREF_LAST_BING_PICK_ZOOM, 1f),
+        target,
+    )
+    return true
+}
+
+private const val PREF_LAST_BING_PICK = "last_bing_pick"
+private const val PREF_LAST_BING_PICK_X = "last_bing_pick_x"
+private const val PREF_LAST_BING_PICK_Y = "last_bing_pick_y"
+private const val PREF_LAST_BING_PICK_ZOOM = "last_bing_pick_zoom"
 private const val PREF_LAST_PHOTO = "last_photo_wallpaper"
 private const val PREF_LAST_PHOTO_X = "last_photo_wallpaper_x"
 private const val PREF_LAST_PHOTO_Y = "last_photo_wallpaper_y"
@@ -8935,6 +8984,7 @@ private fun PersonalizeSheetLayer(
     bingRecentImages: @Composable () -> Unit,
     onRefreshBing: () -> Unit,
     onSelectPhotoType: () -> Unit,
+    onSelectBingType: () -> Unit,
     onBingHistory: () -> Unit,
     onAdjustWallpaper: () -> Unit,
     onWallpaperChange: (String) -> Unit,
@@ -8975,6 +9025,7 @@ private fun PersonalizeSheetLayer(
         onRefreshBing = onRefreshBing,
         customWallpaperUri = settings.customWallpaperUri,
         onSelectPhotoType = onSelectPhotoType,
+        onSelectBingType = onSelectBingType,
         wallpaperAlignX = settings.wallpaperAlignX,
         wallpaperAlignY = settings.wallpaperAlignY,
         onAdjustWallpaper = onAdjustWallpaper,
@@ -9051,7 +9102,12 @@ private fun PersonalizeSheetLayer(
         onTransparencyChange = viewModel::setTransparency,
         onBlurChange = viewModel::setBlur,
         onWallpaperChange = onWallpaperChange,
-        onSelectStockWallpaperType = { viewModel.setWallpaper(Wallpapers.all.first().id) },
+        // The gradient chosen before (kept while another type was on), else the first.
+        onSelectStockWallpaperType = {
+            val ids = Wallpapers.all.map { it.id }
+            val last = listOf(settings.lastStockWallpaperId, settings.wallpaperId).firstOrNull { it in ids }
+            viewModel.setWallpaper(last ?: ids.first())
+        },
         onPickCustomWallpaper = {
             wallpaperPicker.launch(
                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),

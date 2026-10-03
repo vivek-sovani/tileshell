@@ -17,6 +17,7 @@ class SettingsCodecTest {
             transparency = 0.3f,
             blur = true,
             wallpaperId = "ocean",
+            lastStockWallpaperId = "ember",
             customWallpaperUri = "content://media/external/images/42",
             bingWallpaper = true,
             tiledWallpaper = true,

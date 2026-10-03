@@ -24,18 +24,24 @@ object MediaImport {
     private const val WALLPAPER_SLIDESHOW_DIR = "wallpaper_slideshow"
 
     /**
-     * Copies a picked wallpaper image into private storage, replacing any previous
-     * one, and returns a `file://` URI to the copy (null if the copy failed). The
+     * Copies a picked wallpaper image into private storage, beside the one in use
+     * (that one is only removed by [pruneWallpapers] once the new pick is applied,
+     * so dismissing the crop or "where to apply" step never loses it), and returns a `file://` URI to the copy (null if the copy failed). The
      * filename is timestamped so the URI changes on each pick — this busts the
      * bitmap cache keyed on the URI string, so re-picking actually re-decodes.
      * Call off the main thread.
      */
     fun importWallpaper(context: Context, source: Uri): Uri? {
         val dir = File(context.filesDir, WALLPAPER_DIR)
-        clearDir(dir)
         dir.mkdirs()
         val dest = File(dir, "wp_${System.currentTimeMillis()}.jpg")
         return copy(context, source, dest)
+    }
+
+    /** Deletes every imported photo wallpaper except [keep] (the one in use). Call off the main thread. */
+    fun pruneWallpapers(context: Context, keep: String) {
+        val keepPath = runCatching { Uri.parse(keep).path?.let { File(it).canonicalPath } }.getOrNull() ?: return
+        File(context.filesDir, WALLPAPER_DIR).listFiles()?.forEach { if (it.canonicalPath != keepPath) it.delete() }
     }
 
     /**

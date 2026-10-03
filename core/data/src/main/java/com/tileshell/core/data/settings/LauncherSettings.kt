@@ -209,6 +209,9 @@ data class LauncherSettings(
     val transparency: Float = 0.55f,
     val blur: Boolean = false,
     val wallpaperId: String = "none",
+    /** The stock gradient last chosen, kept while another wallpaper type is on so
+     * picking "stock" again brings it back ("" = none chosen yet). */
+    val lastStockWallpaperId: String = "",
     val customWallpaperUri: String? = null,
     val bingWallpaper: Boolean = false,
     val wallpaperSyncTarget: WallpaperSyncTarget = WallpaperSyncTarget.NONE,
@@ -378,6 +381,7 @@ object SettingsCodec {
         append("transparency=").append(settings.transparency).append('\n')
         append("blur=").append(settings.blur).append('\n')
         append("wallpaper=").append(settings.wallpaperId).append('\n')
+        append("lastStockWallpaper=").append(settings.lastStockWallpaperId).append('\n')
         append("customWallpaper=").append(settings.customWallpaperUri.orEmpty()).append('\n')
         append("bingWallpaper=").append(settings.bingWallpaper).append('\n')
         append("wallpaperSyncTarget=").append(settings.wallpaperSyncTarget.name).append('\n')
@@ -435,6 +439,7 @@ object SettingsCodec {
         var transparency = d.transparency
         var blur = d.blur
         var wallpaperId = d.wallpaperId
+        var lastStockWallpaperId = d.lastStockWallpaperId
         var customWallpaperUri = d.customWallpaperUri
         var bingWallpaper = d.bingWallpaper
         var wallpaperSyncTarget = d.wallpaperSyncTarget
@@ -494,6 +499,7 @@ object SettingsCodec {
                 "transparency" -> value.toFloatOrNull()?.let { transparency = it.coerceIn(0f, 1f) }
                 "blur" -> blur = value.toBooleanStrictOrNull() ?: blur
                 "wallpaper" -> if (value.isNotEmpty()) wallpaperId = value
+                "lastStockWallpaper" -> lastStockWallpaperId = value
                 "customWallpaper" -> customWallpaperUri = value.ifEmpty { null }
                 "bingWallpaper" -> bingWallpaper = value.toBooleanStrictOrNull() ?: bingWallpaper
                 "wallpaperSyncTarget" ->
@@ -572,6 +578,7 @@ object SettingsCodec {
             transparency = transparency,
             blur = blur,
             wallpaperId = wallpaperId,
+            lastStockWallpaperId = lastStockWallpaperId,
             customWallpaperUri = customWallpaperUri,
             bingWallpaper = bingWallpaper,
             wallpaperSyncTarget = wallpaperSyncTarget,

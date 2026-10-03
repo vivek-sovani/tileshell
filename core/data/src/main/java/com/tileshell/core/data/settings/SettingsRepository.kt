@@ -108,6 +108,7 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
     suspend fun setWallpaper(wallpaperId: String) {
         store.updateData {
             it.copy(wallpaperId = wallpaperId, customWallpaperUri = null, bingWallpaper = false,
+                lastStockWallpaperId = if (wallpaperId != "none") wallpaperId else it.lastStockWallpaperId,
                 wallpaperSlideshowEnabled = false,
                 wallpaperAlignX = 0.5f, wallpaperAlignY = 0.5f, wallpaperZoom = 1f)
         }
@@ -186,10 +187,15 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         }
     }
 
-    /** Remove all wallpaper (custom/Bing/slideshow photo + gradient), leaving the theme bg colour. */
+    /**
+     * Remove all wallpaper (custom/Bing/slideshow photo + gradient), leaving the theme bg colour.
+     * The gradient in use is remembered ([LauncherSettings.lastStockWallpaperId]) so "stock"
+     * brings it back; the photo and slides are kept by their own stores.
+     */
     suspend fun clearWallpaper() {
         store.updateData {
-            it.copy(wallpaperId = "none", customWallpaperUri = null, bingWallpaper = false,
+            it.copy(wallpaperId = "none",
+                lastStockWallpaperId = if (it.wallpaperId != "none") it.wallpaperId else it.lastStockWallpaperId, customWallpaperUri = null, bingWallpaper = false,
                 wallpaperSlideshowEnabled = false)
         }
     }

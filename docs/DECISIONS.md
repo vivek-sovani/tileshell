@@ -11111,3 +11111,19 @@ options; the user picked the alphabet-order layout:
   English → मराठी · abc → मराठी → हिन्दी · abc → हिन्दी. Settings has a switch for each
   style (one stays on) instead of the single "English letters" switch; the tools row's
   अ / abc button shows only while both are on.
+
+## Wallpaper types keep their own choice (2026-10-03)
+User-reported: "when I set wallpaper to none, the photo wallpaper disappears — all wallpaper
+options should be independent of each other." Choosing photo → none → photo already restored
+the last photo, but the photo could still be lost: `MediaImport.importWallpaper` emptied
+`filesDir/wallpaper` the moment a *new* photo was picked, before the crop and "where to apply"
+steps — dismissing either left the photo in use without its file. Picks now land beside the
+current one; `MediaImport.pruneWallpapers` removes the older files only after a new photo is
+actually in use. Each type now keeps its own choice while another type is on:
+- photo: last photo + framing (`last_photo_wallpaper*`, as before);
+- slides: their own store (unchanged);
+- bing: a day picked under "select" (`last_bing_pick*` in `tileshell.prefs`) comes back when
+  "bing" is tapped again; turning "daily" on forgets it;
+- stock: new `LauncherSettings.lastStockWallpaperId` (codec key `lastStockWallpaper`, so
+  backups carry it). "none" keeps it and "stock" restores it instead of always choosing the
+  first gradient.

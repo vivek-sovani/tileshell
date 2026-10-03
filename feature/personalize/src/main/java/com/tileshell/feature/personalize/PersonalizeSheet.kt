@@ -186,6 +186,8 @@ fun PersonalizeSheet(
     photoWallpaper: Boolean? = null,
     // Choosing "photo": brings back the last photo set, else opens the picker.
     onSelectPhotoType: (() -> Unit)? = null,
+    /** "bing" tapped: brings back the day picked before, else turns daily on. */
+    onSelectBingType: (() -> Unit)? = null,
     // The current photo wallpaper, previewed under "photo", and its framing.
     customWallpaperUri: String? = null,
     wallpaperAlignX: Float = 0.5f,
@@ -571,7 +573,7 @@ fun PersonalizeSheet(
                                     WallpaperType.NONE -> onClearWallpaper()
                                     WallpaperType.PHOTO -> (onSelectPhotoType ?: onPickCustomWallpaper)()
                                     WallpaperType.SLIDESHOW -> onWallpaperSlideshowChange(true)
-                                    WallpaperType.BING -> onBingWallpaperChange(true)
+                                    WallpaperType.BING -> onSelectBingType?.invoke() ?: onBingWallpaperChange(true)
                                     WallpaperType.STOCK -> onSelectStockWallpaperType()
                                 }
                             }

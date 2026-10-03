@@ -37,6 +37,12 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — wallpaper types keep their own choice.** User-reported: after "none" the photo
+  wallpaper could be gone. A new photo pick no longer deletes the current one before the crop
+  and "where to apply" steps (`MediaImport.pruneWallpapers` runs only once the new photo is in
+  use). "Stock" brings back the last gradient (`lastStockWallpaperId`) instead of the first,
+  and "bing" brings back a day picked under "select". Checked on the emulator (none ↔
+  photo/stock); build + tests green; not yet on the phone.
 - **v5.0.0 re-cut again (2026-10-02, still versionCode 500, not yet uploaded)** — now includes
   the TileShell keyboard, labelled **beta** (personalize › system row with a BETA tag; About
   "tileshell keyboard (beta)" group with word-list credits; a keyboard line on the what's-new
