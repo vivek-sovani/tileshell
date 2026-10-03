@@ -11145,3 +11145,30 @@ spelling (not in CMUdict, e.g. British "footballer", "organised") and no native 
 offered as typed, in English letters, first — space puts it in and it isn't learned as a
 Devanagari word. Tested in `LoanWordsTest`; not exercised on screen (the emulator routed
 taps on the text field to its stylus handwriting).
+
+## Keyboard: next words from context (2026-10-03)
+User-requested ("good" → morning / afternoon / evening by time, or by the sentence), after a
+feasibility check: an on-device language model is too big and slow for a keyboard, so it's
+word n-grams plus the user's own habits, all offline.
+- `tools/keyboard/build_ngrams.py` counts which words follow one word and two words across
+  Tatoeba's English (2M sentences), Marathi and Hindi sentences plus Common Voice's (CC-BY /
+  CC0), pairs never across a comma or sentence end, followers only from the language's word
+  list, Tatoeba's stock names (Tom, Mary…) never offered. Two-word contexts are kept only
+  where they predict differently from the last word alone. Assets `en_next.txt` (1.7 MB),
+  `mr_next.txt`, `hi_next.txt` (~0.5 MB each); `NextWords` keeps the file as one string with
+  line offsets (binary search) instead of a map, since the keyboard lives in the launcher's
+  process.
+- Time of day: "good" / शुभ opening a phrase gets the current greeting first (morning 4–11,
+  afternoon 12–16, evening 17–20, night otherwise), then the rest of the day in order; not
+  mid-sentence ("a good idea").
+- The user's own pairs (`LearnedPairs`, `keyboard_pairs[_mr|_hi].txt`, newest 2,000, offered
+  after being used twice) lead the tables. Only a word the keyboard itself just put in (space,
+  a strip pick, a swiped or transliterated word) is learned, so moving the cursor through text
+  never teaches anything; never in password / no-learning fields; cleared with learned words.
+- Used three ways: the idle strip (replacing the fixed I / the / will / see and मी / आहे…,
+  which remain the fallback; trimmed to what fits beside the two icons), the word being typed
+  ("good mor" → morning leads its completions), and transliteration ranking (+60).
+- Space bar in transliteration reads "abc-मराठी" / "abc-हिंदी" (user-requested), was
+  "मराठी · abc".
+Checked on the emulator: energy → एनर्जी, positive → पॉझिटिव्ह / पॉजिटिव, मला → माहीत …,
+"Good" at 3 pm → afternoon / evening / night, thank → you, "yo" after "for" → your.

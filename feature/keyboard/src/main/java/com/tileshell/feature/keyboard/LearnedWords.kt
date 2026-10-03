@@ -126,3 +126,90 @@ class CombinedLexicon(val words: Lexicon, val learned: LearnedWords) : Lexicon {
     override fun shortcut(lower: String): String? =
         if (learned.isKnown(lower)) null else words.shortcut(lower)
 }
+
+/**
+ * Which word the user puts after which ("see you" → "soon", "मी" → "घरी"), so
+ * their own habits lead the next-word strip. Only words the keyboard itself
+ * just put in are counted (never text the cursor merely passes), only where
+ * learning is allowed (not passwords or "no learning" fields). Kept only on
+ * the phone (`keyboard_pairs.txt`, `previous<TAB>next<TAB>count`), cleared with
+ * the learned words.
+ */
+class LearnedPairs(private val file: File?) {
+
+    private val counts = LinkedHashMap<String, Int>()
+    private val spellings = HashMap<String, String>()
+
+    init {
+        file?.takeIf { it.exists() }?.let { f ->
+            runCatching { f.readLines() }.getOrDefault(emptyList()).forEach { line ->
+                val parts = line.split('\t')
+                val n = parts.getOrNull(2)?.toIntOrNull()
+                if (parts.size == 3 && parts[0].isNotBlank() && parts[1].isNotBlank() && n != null) {
+                    val key = key(parts[0], parts[1])
+                    counts[key] = n.coerceIn(1, MAX_COUNT)
+                    spellings[key] = parts[1]
+                }
+            }
+        }
+    }
+
+    val size: Int get() = counts.size
+
+    /** [next] was put in right after [previous]. */
+    fun learn(previous: String, next: String) {
+        if (!usable(previous) || !usable(next)) return
+        val key = key(previous, next)
+        val n = ((counts.remove(key) ?: 0) + 1).coerceAtMost(MAX_COUNT)
+        counts[key] = n // re-inserted: the newest last, so the oldest go first when full
+        if (next != next.lowercase() || key !in spellings) spellings[key] = next
+        while (counts.size > MAX_PAIRS) {
+            val oldest = counts.keys.first()
+            counts.remove(oldest)
+            spellings.remove(oldest)
+        }
+        save()
+    }
+
+    /** What the user has put after [previous] at least twice, most often first. */
+    fun after(previous: String, limit: Int): List<String> {
+        val prefix = previous.lowercase() + "\t"
+        return counts.entries.asSequence()
+            .filter { it.key.startsWith(prefix) && it.value >= SEEN_AT }
+            .sortedByDescending { it.value }
+            .take(limit)
+            .map { spellings[it.key] ?: it.key.substring(prefix.length) }
+            .toList()
+    }
+
+    fun clear() {
+        counts.clear()
+        spellings.clear()
+        save()
+    }
+
+    private fun usable(w: String) = w.length in 1..MAX_LENGTH && w.none { it.isWhitespace() || it.isDigit() || it == '\t' }
+
+    private fun key(previous: String, next: String) = previous.lowercase() + "\t" + next.lowercase()
+
+    private fun save() {
+        val f = file ?: return
+        runCatching {
+            val tmp = File(f.parentFile, f.name + ".tmp")
+            tmp.writeText(
+                counts.entries.joinToString("") {
+                    val previous = it.key.substringBefore('\t')
+                    "$previous\t${spellings[it.key] ?: it.key.substringAfter('\t')}\t${it.value}\n"
+                },
+            )
+            tmp.renameTo(f)
+        }
+    }
+
+    private companion object {
+        const val SEEN_AT = 2
+        const val MAX_COUNT = 50
+        const val MAX_PAIRS = 2_000
+        const val MAX_LENGTH = 32
+    }
+}

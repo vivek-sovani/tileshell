@@ -86,6 +86,7 @@ private fun KeyboardSettingsScreen(prefs: KeyboardPrefs) {
     }
     val accent = TileAccents.forId(launcher?.accentId)
     var learnedCount by remember { mutableIntStateOf(KeyboardDictionary.learnedCount(context)) }
+    var learnedPairs by remember { mutableIntStateOf(KeyboardDictionary.learnedPairCount(context)) }
 
     Column(
         modifier = Modifier
@@ -197,13 +198,14 @@ private fun KeyboardSettingsScreen(prefs: KeyboardPrefs) {
                     modifier = Modifier.weight(1f),
                     style = TextStyle(color = tokens.fg, fontSize = 26.sp, fontWeight = FontWeight.Light),
                 )
-                if (learnedCount > 0) {
+                if (learnedCount > 0 || learnedPairs > 0) {
                     BasicText(
                         "clear",
                         modifier = Modifier
                             .clickable {
                                 KeyboardDictionary.clearLearned(context)
                                 learnedCount = 0
+                                learnedPairs = 0
                                 Toast.makeText(context, "learned words cleared", Toast.LENGTH_SHORT).show()
                             }
                             .padding(vertical = 12.dp, horizontal = 4.dp),
@@ -212,7 +214,7 @@ private fun KeyboardSettingsScreen(prefs: KeyboardPrefs) {
                 }
             }
             Note(
-                "Names and words the keyboard didn't know, kept only on this phone. Password fields never add to it.",
+                "Names and words the keyboard didn't know, and which words you put after which (for next-word suggestions), kept only on this phone. Password fields never add to it.",
                 tokens,
             )
         }
@@ -233,7 +235,7 @@ private fun KeyboardSettingsScreen(prefs: KeyboardPrefs) {
                 if (on || settings.styleLetters) prefs.update { it.copy(styleKeys = on) }
             }
             Note(
-                "The globe key steps through each one that's on: English → मराठी · abc → मराठी → हिन्दी · abc → हिन्दी.",
+                "The globe key steps through each one that's on: English → abc-मराठी → मराठी → abc-हिंदी → हिन्दी.",
                 tokens,
             )
         }

@@ -48,7 +48,7 @@ data class KeyboardSettings(
 ) {
     /**
      * What the globe key steps through: English, then each Marathi / Hindi in
-     * each style that's on — मराठी · abc (English letters), मराठी (Devanagari keys).
+     * each style that's on — abc-मराठी (English letters), मराठी (Devanagari keys).
      */
     val modes: List<TypingMode>
         get() = buildList {

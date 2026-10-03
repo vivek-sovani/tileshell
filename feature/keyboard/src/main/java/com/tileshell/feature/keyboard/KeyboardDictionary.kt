@@ -43,6 +43,22 @@ object KeyboardDictionary {
     private val learned = HashMap<KeyboardLanguage, LearnedWords>()
     private val picks = HashMap<KeyboardLanguage, TranslitMemory>()
     private val loans = HashMap<KeyboardLanguage, LoanWords>()
+    private val nextWords = HashMap<KeyboardLanguage, NextWords>()
+    private val pairs = HashMap<KeyboardLanguage, LearnedPairs>()
+
+    /** Which words usually come next in [language] (`<code>_next.txt`). */
+    suspend fun nextWords(context: Context, language: KeyboardLanguage): NextWords = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            nextWords[language] ?: NextWords.parse(
+                context.assets.open("keyboard/${language.code}_next.txt").bufferedReader().readText(),
+            ).also { nextWords[language] = it }
+        }
+    }
+
+    /** The user's own word pairs in [language]. */
+    fun learnedPairs(context: Context, language: KeyboardLanguage): LearnedPairs = synchronized(pairs) {
+        pairs.getOrPut(language) { LearnedPairs(file(context, "keyboard_pairs", language)) }
+    }
 
     /**
      * English words as [language] writes them (energy → एनर्जी). Marathi also
@@ -103,11 +119,14 @@ object KeyboardDictionary {
     fun clearLearned(context: Context) {
         for (lang in KeyboardLanguage.entries) {
             learnedWords(context, lang).clear()
+            learnedPairs(context, lang).clear()
             if (lang.indic) translitPicks(context, lang).clear()
         }
     }
 
     fun learnedCount(context: Context): Int = KeyboardLanguage.entries.sumOf { learnedWords(context, it).size }
+
+    fun learnedPairCount(context: Context): Int = KeyboardLanguage.entries.sumOf { learnedPairs(context, it).size }
 
     /** English keeps its original file name; others get a language suffix. */
     private fun file(context: Context, base: String, language: KeyboardLanguage) = File(

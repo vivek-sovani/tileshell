@@ -96,9 +96,9 @@ class KeyboardController(
     var languageKey by mutableStateOf(false)
         private set
 
-    /** The space bar's label: "English", "मराठी · abc". */
+    /** The space bar's label: "English", "abc-मराठी" / "abc-हिंदी" (English letters), "मराठी" (Devanagari keys). */
     val spaceLabel: String
-        get() = if (translit) "${language.nativeName} · abc" else language.nativeName
+        get() = if (translit) "abc-${if (language == KeyboardLanguage.HINDI) "हिंदी" else language.nativeName}" else language.nativeName
 
     /** मराठी / हिन्दी on the Devanagari keys (settings: not in English letters). */
     var devanagariKeys by mutableStateOf(false)
@@ -112,6 +112,12 @@ class KeyboardController(
 
     /** English words as मराठी / हिन्दी write them (energy → एनर्जी). */
     private val loanWords = HashMap<KeyboardLanguage, LoanWords>()
+
+    /** Which words usually come next, per language. */
+    private val nextTables = HashMap<KeyboardLanguage, NextWords>()
+
+    /** A word was just put in: the next refresh learns it as following the word before. */
+    private var learnPairNext = false
 
     /** मराठी / हिन्दी words by their English-letter spelling, for swipe typing. */
     private val swipeLexicons = HashMap<KeyboardLanguage, RomanizedLexicon>()
@@ -162,6 +168,9 @@ class KeyboardController(
             runCatching { KeyboardDictionary.lexicon(service, lang) }
                 .onSuccess {
                     lexicons[lang] = it
+                    runCatching { KeyboardDictionary.nextWords(service, lang) }
+                        .onSuccess { table -> nextTables[lang] = table }
+                        .onFailure { e -> android.util.Log.w("TileShellKeyboard", "${lang.code} next words didn't load", e) }
                     if (lang == language) refresh()
                     if (lang.indic) {
                         runCatching { KeyboardDictionary.loanWords(service, lang) }.getOrNull()
@@ -508,6 +517,7 @@ class KeyboardController(
             // Composing: the letters or a Devanagari spelling. Not composing (next
             // words): just insert it.
             if (latin.isNotEmpty()) pickTranslit(word) else ic.commitText(word.text + " ", 1)
+            learnPairNext = true
             autoSpaced = true
             refresh()
             return
@@ -524,6 +534,7 @@ class KeyboardController(
             replaceWord(typed, word.text, " ")
             if (word.kind == StripWord.Kind.TYPED) learn(typed)
         }
+        learnPairNext = true
         autoSpaced = true
         refresh()
     }
@@ -605,6 +616,7 @@ class KeyboardController(
             val before = ic.getTextBeforeCursor(1, 0)
             val lead = if (!before.isNullOrEmpty() && !before.last().isWhitespace() && before.last() !in OPENERS) " " else ""
             ic.commitText(lead + words.first() + " ", 1)
+            learnPairNext = true
             lastSwipe = Swipe(words, words.first())
             autoSpaced = true
             haptic(HapticKind.CONFIRM)
@@ -687,6 +699,7 @@ class KeyboardController(
     private fun finishTranslit(text: String) {
         latin.clear()
         translitBest = null
+        learnPairNext = true
         service.currentInputConnection?.commitText(text, 1)
     }
 
@@ -713,6 +726,7 @@ class KeyboardController(
             ic.endBatchEdit()
             return
         }
+        learnPairNext = true
         if (devanagariKeys) {
             ic.commitText(" ", 1)
             learnIndic(TypingRules.currentWord(before, null), strong = false)
@@ -840,6 +854,11 @@ class KeyboardController(
 
     private fun refreshStrip(after: Char?, before: CharSequence?) {
         stripJob?.cancel()
+        if (learnPairNext) {
+            learnPairNext = false
+            val ctx = NextWords.context(before)
+            if (learnHere && ctx.size == 2) KeyboardDictionary.learnedPairs(service, language).learn(ctx[0], ctx[1])
+        }
         val lex = lexicon
         stripMode = when {
             cursorMode -> StripMode.CURSOR
@@ -877,12 +896,15 @@ class KeyboardController(
         }
         val word = TypingRules.currentWord(before, after)
         if (word.isEmpty() && devanagariKeys) {
-            strip = NEXT_WORDS_INDIC[language].orEmpty().map { StripWord(it, StripWord.Kind.WORD) }
+            val next = fitIdle(predictions(before).ifEmpty { NEXT_WORDS_INDIC[language].orEmpty() })
+            strip = next.map { StripWord(it, StripWord.Kind.WORD) }
             return
         }
         if (word.isEmpty()) {
             val upper = shift.upperCase
-            strip = Suggester.NEXT_WORDS.map {
+            // "I" stays a capital; the rest as the list writes them.
+            val next = fitIdle(predictions(before).map { lex.lookup(it)?.word ?: it }.ifEmpty { Suggester.NEXT_WORDS })
+            strip = next.map {
                 StripWord(if (upper) it.replaceFirstChar(Char::uppercaseChar) else it, StripWord.Kind.WORD)
             }
             return
@@ -890,8 +912,9 @@ class KeyboardController(
         // No autocorrect on Devanagari keys: its corrections are for English spellings.
         val autocorrect = settings.autocorrect && !devanagariKeys
         val level = settings.level
+        val next = predictions(withoutCurrentWord(before), PREDICT_FOR_RANKING)
         stripJob = scope.launch {
-            strip = withContext(Dispatchers.Default) { Suggester.strip(word, lex, level, autocorrect) }
+            strip = withContext(Dispatchers.Default) { Suggester.strip(word, lex, level, autocorrect, next) }
         }
     }
 
@@ -907,15 +930,17 @@ class KeyboardController(
         }
         if (latin.isEmpty()) {
             translitBest = null
-            strip = NEXT_WORDS_INDIC[language].orEmpty().map { StripWord(it, StripWord.Kind.WORD) }
+            val next = fitIdle(predictions(before).ifEmpty { NEXT_WORDS_INDIC[language].orEmpty() })
+            strip = next.map { StripWord(it, StripWord.Kind.WORD) }
             return
         }
         val typed = latin.toString()
         val lang = language
         val remembered = KeyboardDictionary.translitPicks(service, lang)[typed]
+        val next = predictions(withoutCurrentWord(before), PREDICT_FOR_RANKING)
         stripJob = scope.launch {
             val words = withContext(Dispatchers.Default) {
-                translitCandidates(typed, lang, lex, remembered)
+                translitCandidates(typed, lang, lex, remembered, next)
             }
             // Still the same letters (typing may have moved on).
             if (latin.toString() != typed) return@launch
@@ -927,14 +952,60 @@ class KeyboardController(
         }
     }
 
-    private fun translitCandidates(typed: String, lang: KeyboardLanguage, lex: Lexicon?, remembered: String?) =
-        Transliterator.candidates(
-            typed, lang, lex, remembered,
-            loans = loanWords[lang], english = lexicons[KeyboardLanguage.ENGLISH],
+    private fun translitCandidates(
+        typed: String,
+        lang: KeyboardLanguage,
+        lex: Lexicon?,
+        remembered: String?,
+        next: List<String> = emptyList(),
+    ) = Transliterator.candidates(
+        typed, lang, lex, remembered,
+        loans = loanWords[lang], english = lexicons[KeyboardLanguage.ENGLISH], next = next,
+    )
+
+    /**
+     * The usual next words after the text before the cursor in the current
+     * language: the greeting for the time of day, the user's own pairs, then the
+     * bundled tables.
+     */
+    private fun predictions(before: CharSequence?, limit: Int = Suggester.STRIP_SIZE): List<String> {
+        val ctx = NextWords.context(before)
+        if (ctx.isEmpty()) return emptyList()
+        return NextWords.predict(
+            ctx,
+            nextTables[language],
+            KeyboardDictionary.learnedPairs(service, language),
+            language,
+            java.time.LocalTime.now().hour,
+            limit,
         )
+    }
+
+    /**
+     * As many next words as fit beside the strip's two icons (afternoon,
+     * evening, night — "morning" would be cut off), always at least one.
+     */
+    private fun fitIdle(words: List<String>): List<String> {
+        var used = 0
+        return words.filterIndexed { i, w ->
+            used += w.length + IDLE_WORD_PADDING
+            i == 0 || used <= IDLE_STRIP_CHARS
+        }
+    }
+
+    /** The text before the word being typed (its letters dropped), for that word's context. */
+    private fun withoutCurrentWord(before: CharSequence?): CharSequence? =
+        before?.toString()?.dropLastWhile { it.isLetter() || it == '\'' || it in '\u0900'..'\u097F' }
 
     private companion object {
         const val CONTEXT_CHARS = 64
+
+        /** How many likely next words rank the word being typed. */
+        const val PREDICT_FOR_RANKING = 12
+
+        /** The idle strip's width in characters, and each word's padding in the same units. */
+        const val IDLE_STRIP_CHARS = 34
+        const val IDLE_WORD_PADDING = 3
         val PUNCTUATION = setOf(".", ",", "!", "?", ";", ":")
 
         /** No space is put before a swiped word right after these. */

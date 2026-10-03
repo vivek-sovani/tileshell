@@ -145,7 +145,7 @@ hindi keyboard, transliteration
 - Audio / Voice
 
 ### TileShell keyboard (beta)
-Not "collected" in Play's sense: nothing typed leaves the phone. Learned words, the
+Not "collected" in Play's sense: nothing typed leaves the phone. Learned words and word pairs, the
 Marathi/Hindi spelling memory and clipboard history are kept in TileShell's own storage,
 can be cleared from the keyboard's settings, and are removed with the app. Password
 fields are never learned and never kept in clipboard history. The keyboard makes no

@@ -42,8 +42,14 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   पॉझिटिव्ह first) / निगेटिव, from `mr_loan.txt` / `hi_loan.txt` built by
   `tools/keyboard/build_loanwords.py` (CMU Pronouncing Dictionary, checked against each
   language's word list; `LoanWords`). An English word with no such spelling stays in English
-  letters. Unit-tested (`LoanWordsTest`); not yet typed on screen. Context-aware next words
-  (good → morning by time of day) assessed as feasible, not built — awaiting the user's go-ahead.
+  letters. Unit-tested (`LoanWordsTest`); typed on the emulator.
+- **`main` — keyboard: next words from context.** Word pairs / triples from Tatoeba + Common
+  Voice (`tools/keyboard/build_ngrams.py` → `en_next.txt`, `mr_next.txt`, `hi_next.txt`,
+  `NextWords`), "good" / शुभ → the greeting for the time of day, and the user's own pairs
+  (`LearnedPairs`, on the phone only, cleared with learned words). Fills the idle strip, lifts
+  the likely word while typing and in transliteration. Space bar reads "abc-मराठी" / "abc-हिंदी".
+  Privacy policy (md + hosted `docs/index.html`, still to publish) and About updated. Checked
+  on the emulator; not yet on the phone.
 - **`main` — wallpaper types keep their own choice.** User-reported: after "none" the photo
   wallpaper could be gone. A new photo pick no longer deletes the current one before the crop
   and "where to apply" steps (`MediaImport.pruneWallpapers` runs only once the new photo is in

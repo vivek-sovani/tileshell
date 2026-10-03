@@ -282,6 +282,7 @@ object Transliterator {
         limit: Int = 3,
         loans: LoanWords? = null,
         english: Lexicon? = null,
+        next: List<String> = emptyList(),
     ): List<String> {
         val spelled = spellings(latin, lang, lexicon)
         if (spelled.isEmpty()) return emptyList()
@@ -296,6 +297,8 @@ object Transliterator {
             val freq = maxOf(lexicon?.lookup(text)?.freq ?: 0, LOAN_FREQ) - i
             byText[text] = maxOf(byText[text] ?: Float.NEGATIVE_INFINITY, REAL_WORD + freq)
         }
+        // A word the context makes likely (मला → माहीत) moves up.
+        for (w in next) byText[w]?.let { if (it > REAL_WORD / 2) byText[w] = it + NEXT_BONUS }
         val scored = byText.entries.map { it.key to it.value }.sortedByDescending { it.second }
         val out = LinkedHashSet<String>()
         remembered?.let { out += it }
@@ -311,7 +314,11 @@ object Transliterator {
             compound(latin, lang, lexicon)?.let { out += it }
         }
         if (out.isEmpty()) out += scored.first().first
-        // Longer words for one still being typed ("namask" → नमस्कार, "ener" → एनर्जी).
+        // Longer words for one still being typed ("namask" → नमस्कार, "ener" → एनर्जी),
+        // the context's likely ones first.
+        for ((prefix, _) in spelled.take(2)) {
+            for (w in next) if (w.length > prefix.length && w.startsWith(prefix) && out.size < limit) out += w
+        }
         if (lexicon != null) {
             for ((prefix, _) in spelled.take(2)) {
                 for (c in lexicon.completions(prefix, 2)) if (out.size < limit) out += c.word
@@ -369,6 +376,9 @@ object Transliterator {
     /** How common an English word must be to be offered in English letters. */
     private const val ENGLISH_MIN_FREQ = 60
     private const val MIN_LOAN_PREFIX = 3
+
+    /** How much a word the context makes likely moves up. */
+    private const val NEXT_BONUS = 60f
 
     private const val MIN_PART = 2
     private const val MIN_PART_FREQ = 40

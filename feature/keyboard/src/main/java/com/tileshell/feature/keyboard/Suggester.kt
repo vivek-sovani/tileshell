@@ -61,9 +61,17 @@ object Suggester {
 
     /**
      * The strip for the word being typed: the typed word first, then the best
-     * guess and other completions / near words, at most [STRIP_SIZE].
+     * guess and other completions / near words, at most [STRIP_SIZE]. Words the
+     * context makes likely ([next], best first: "good mor" → morning) lead the
+     * completions.
      */
-    fun strip(typed: String, lexicon: Lexicon, level: AutocorrectLevel, autocorrect: Boolean): List<StripWord> {
+    fun strip(
+        typed: String,
+        lexicon: Lexicon,
+        level: AutocorrectLevel,
+        autocorrect: Boolean,
+        next: List<String> = emptyList(),
+    ): List<StripWord> {
         val lower = typed.lowercase()
         val fix = if (autocorrect) correction(typed, lexicon, level, secondEdits = false) else null
         val known = lexicon.lookup(lower) != null
@@ -81,8 +89,10 @@ object Suggester {
             .map { applyCase(typed, it.word) }
         val near = if (known) emptyList() else candidates(lower, lexicon, level, secondEdits = false)
             .take(STRIP_SIZE).map { applyCase(typed, it.entry.word) }
+        val expected = next.filter { it.length > lower.length && it.lowercase().startsWith(lower) }
+            .map { applyCase(typed, lexicon.lookup(it.lowercase())?.word ?: it) }
         // Completions lead while a word is being typed; near words fill in.
-        (completions.take(2) + near.take(2) + completions.drop(2) + near.drop(2)).forEach { add(it) }
+        (expected.take(2) + completions.take(2) + near.take(2) + completions.drop(2) + near.drop(2)).forEach { add(it) }
         return out
     }
 

@@ -109,7 +109,8 @@ DataStore):
   time and repeat), and music favourites,
   playlists and recently played podcasts/stations
 - **TileShell keyboard (beta), only if you use it** — words and names it learns from your
-  typing (never from password fields), how you like to spell Marathi and Hindi words in
+  typing, and which words you put after which (for next-word suggestions; never from password
+  fields), how you like to spell Marathi and Hindi words in
   English letters, recently used emoji, and clipboard history (text you copy, kept for an hour
   unless you pin it; text an app marks as private, such as a password, is never kept). Clear
   learned words or turn clipboard history off in the keyboard's settings. Never transmitted
