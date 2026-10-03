@@ -61,9 +61,6 @@ A–Z jump grid and instant search, recent and new apps with badges. Long-press 
 ★ PERSONALIZATION
 14 accents or one from your wallpaper · multicolour tiles · dark/light/auto · glass, widget-card or borderless tiles · blur · photo, slideshow or daily Bing wallpapers · fonts, corners and spacing · built-in guide.
 
-★ TILESHELL KEYBOARD (BETA)
-A Metro-style keyboard in your accent colour: suggestions, autocorrect that learns, swipe typing, emoji, clipboard history and one-handed mode. Type Marathi or Hindi by spelling in English letters (namaskar → नमस्कार) or on Devanagari keys. Everything you type stays on your phone.
-
 ★ BACKUP & RESTORE
 Auto-save, a visual layout history, and export to a file for your next phone.
 
@@ -73,7 +70,7 @@ No accounts. No analytics. No ads. Your data stays on your phone. Online feature
 Requires Android 8.0 or higher.
 ```
 
-*(3362 chars, under Play's 4 000 limit.)*
+*(3050 chars, under Play's 4 000 limit.)*
 
 ### Category
 Personalization
@@ -83,8 +80,7 @@ Everyone
 
 ### Tags / Keywords
 launcher, windows phone, live tiles, start screen, personalization, home screen,
-widget, tiles, windows mobile, wp8, wp10, metro, fluent, keyboard, marathi keyboard,
-hindi keyboard, transliteration
+widget, tiles, windows mobile, wp8, wp10, metro, fluent, hubs, panchang
 
 ---
 
@@ -144,13 +140,9 @@ hindi keyboard, transliteration
 - Device or other IDs
 - Audio / Voice
 
-### TileShell keyboard (beta)
-Not "collected" in Play's sense: nothing typed leaves the phone. Learned words and word pairs, the
-Marathi/Hindi spelling memory and clipboard history are kept in TileShell's own storage,
-can be cleared from the keyboard's settings, and are removed with the app. Password
-fields are never learned and never kept in clipboard history. The keyboard makes no
-network requests. Voice typing is off in this build (`tileshell.keyboardVoice=false`),
-so no RECORD_AUDIO permission is requested.
+*The TileShell keyboard is held back from 5.0.0 (`tileshell.keyboard=false`), so it has no
+Data safety entry; its notes are in git history (commit before "keyboard held back") for when
+it ships.*
 
 ### Encryption in transit?
 **Yes** — all network requests (Open-Meteo, RSS feeds) use HTTPS.
@@ -181,8 +173,6 @@ original format as the historical record, unchanged). Still capped at Play's 500
 TileShell 5.0.0
 
 New features:
-• Windows Phone-style keyboard (beta)
-  with Marathi & Hindi
 • Hubs: weather, music, calendar, people,
   productivity, battery & money
 • Music: library, podcasts, radio, gapless
@@ -196,13 +186,15 @@ New features:
 Bugs fixed:
 • Lower battery use from live tiles
 • Bluetooth music: buttons, reconnect
+• Each wallpaper type keeps your pick
 ```
 
-*(Character count 498, under Play's 500 limit.)*
+*(Character count 475, under Play's 500 limit.)*
 
 ### Full changelog since v4.5.0
 
-**Keyboard (folded in 2026-10-02, still versionCode 500):** TileShell keyboard (beta), a
+**Keyboard — held back from the 5.0.0 release (2026-10-03, `tileshell.keyboard=false`), to
+ship once it's in good shape; the notes below describe it for then.** TileShell keyboard (beta), a
 Windows Phone / Metro-style keyboard in the accent colour — suggestions, autocorrect that
 learns, swipe typing, emoji with search, clipboard history, number pad, one-handed mode,
 space-bar cursor; Marathi and Hindi by English-letter transliteration or Devanagari keys

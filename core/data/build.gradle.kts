@@ -13,9 +13,14 @@ android {
         // gradle.properties → tileshell.taskReminders; see TaskReminders.ENABLED.
         val taskReminders = providers.gradleProperty("tileshell.taskReminders").orNull?.toBoolean() ?: true
         buildConfigField("boolean", "TASK_REMINDERS", taskReminders.toString())
-        // gradle.properties → tileshell.keyboard; see KeyboardFeature.ENABLED.
+    }
+
+    buildTypes {
+        // gradle.properties → tileshell.keyboard (release builds; debug always has the
+        // keyboard, as the app module does); see KeyboardFeature.ENABLED.
         val keyboard = providers.gradleProperty("tileshell.keyboard").orNull?.toBoolean() ?: false
-        buildConfigField("boolean", "KEYBOARD", keyboard.toString())
+        getByName("debug") { buildConfigField("boolean", "KEYBOARD", "true") }
+        getByName("release") { buildConfigField("boolean", "KEYBOARD", keyboard.toString()) }
     }
 
     buildFeatures {

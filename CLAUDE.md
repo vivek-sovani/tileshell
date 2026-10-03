@@ -73,6 +73,15 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   use). "Stock" brings back the last gradient (`lastStockWallpaperId`) instead of the first,
   and "bing" brings back a day picked under "select". Checked on the emulator (none ↔
   photo/stock); build + tests green; not yet on the phone.
+- **v5.0.0 re-cut without the keyboard (2026-10-03, still versionCode 500, not yet
+  uploaded).** User's call: the keyboard isn't ready. `tileshell.keyboard=false` — release
+  builds leave it out (no IME service, VIBRATE, assets; About / personalize / what's-new
+  mentions hidden); debug builds always include it for work on it (`-Ptileshell.keyboard=true`
+  for a release-signed test build). Store listing, keywords, release blurb (475 chars), Data
+  safety and privacy policy (md + hosted `docs/index.html`, still to publish) have no keyboard.
+  Signed AAB/APK + debug APK re-cut in `release-out/tileshell-5.0.0-*`, same key (1a904ad5…);
+  includes today's wallpaper, setup and chooser fixes. Not installed on the phone (it would
+  remove the keyboard the phone is using).
 - **v5.0.0 re-cut again (2026-10-02, still versionCode 500, not yet uploaded)** — now includes
   the TileShell keyboard, labelled **beta** (personalize › system row with a BETA tag; About
   "tileshell keyboard (beta)" group with word-list credits; a keyboard line on the what's-new

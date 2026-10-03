@@ -45,14 +45,10 @@
   <tr><td><code>REQUEST_IGNORE_BATTERY_OPTIMIZATIONS</code></td><td>Nothing read; keeps live updates running while the screen is off</td><td>Not read; no data transmitted</td></tr>
   <tr><td><code>INTERNET</code></td><td>Weather, news, stock, commodity and sports data, podcasts, radio streams and wallpapers</td><td>Sent to the services in §2</td></tr>
   <tr><td><code>BIND_ACCESSIBILITY_SERVICE</code> (optional)</td><td>Used only to perform system actions you trigger: lock screen, recents, and opening the notification shade or quick settings with an edge swipe</td><td>Not read; no data transmitted</td></tr>
-  <tr><td><code>BIND_INPUT_METHOD</code> — TileShell keyboard (beta, optional)</td><td>Only when you turn the TileShell keyboard on in Android's keyboard settings and choose it: the text you type into the field you're typing in, and text you copy (for clipboard history). See "TileShell keyboard" below</td><td>Stays on device</td></tr>
-  <tr><td><code>VIBRATE</code></td><td>Nothing read; a short buzz on key presses in the TileShell keyboard (turn off in its settings)</td><td>Not read; no data transmitted</td></tr>
 </table>
 <p>TileShell does <strong>not</strong> access call logs, SMS/MMS bodies, microphone, camera, or files beyond photos you explicitly pick for the wallpaper and live-photos slideshow and the music on your device.</p>
 
 
-<h3 style="font-size:1rem;margin-bottom:4px;">TileShell keyboard (beta)</h3>
-<p>The TileShell keyboard is optional and works only after you turn it on in Android's keyboard settings and choose it. Android shows its own warning at that step, as it does for every keyboard, because a keyboard sees what you type. The TileShell keyboard never connects to the internet: nothing you type, learn or copy is sent anywhere. It has no voice typing and does not use the microphone. Its word lists ship with the app.</p>
 
 <h2>2. Third-party services</h2>
 <h3 style="font-size:1rem;margin-bottom:4px;">Open-Meteo (weather)</h3>
@@ -87,7 +83,6 @@
   <li><strong>Task reminders</strong> — the date, time and repeat you set on tasks, never transmitted</li>
   <li><strong>Money transactions</strong> read from bank and payment notifications — kept for one year, clearable from the Money hub, never transmitted</li>
   <li><strong>Notes and task lists</strong> you create in the Productivity hub, and music favourites, playlists and recently played podcasts/stations</li>
-  <li><strong>TileShell keyboard (beta), only if you use it</strong> — words and names it learns from your typing, and which words you put after which (for next-word suggestions; never from password fields), how you like to spell Marathi and Hindi words in English letters, recently used emoji, and clipboard history (text you copy, kept for an hour, or longer if you pin it; text an app marks as private, such as a password, is never kept). Clear learned words or turn clipboard history off in the keyboard's settings. Never transmitted</li>
 </ul>
 <p>None of this data is backed up to the developer's servers. Android's standard auto-backup to Google may back it up according to your device's backup settings.</p>
 

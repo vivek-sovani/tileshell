@@ -11247,3 +11247,16 @@ current wallpaper behind it, which was confusing. The picked wallpaper (gradient
 with its framing) now fills the screen behind the chooser, as Android's own wallpaper picker
 previews what it's about to set; a Bing image still downloading shows a plain backdrop.
 Cancel removes it and leaves everything as it was.
+
+## Keyboard held back from the 5.0.0 release (2026-10-03)
+User's call: the keyboard isn't mature enough to release yet. `tileshell.keyboard=false`, so
+release builds leave `:feature:keyboard` out entirely (no input-method service, no VIBRATE, no
+keyboard assets — the release APK is 3.3 MB, was 5.7 MB) and `KeyboardFeature.ENABLED` is
+false, hiding the personalize row, the About group and the what's-new line (the guide never
+mentioned it). Debug builds now always include it (`debugImplementation`, core:data's debug
+`KEYBOARD = true`) so work on it continues; a release build for testing it can pass
+`-Ptileshell.keyboard=true`. Play material updated: the listing's keyboard section and
+keywords, the release blurb's keyboard line (blurb now 475 chars, with "Each wallpaper type
+keeps your pick"), the Data safety keyboard note, and the privacy policy's BIND_INPUT_METHOD /
+VIBRATE rows, keyboard section and stored-data bullet (md + hosted `docs/index.html`) — all in
+git history for when it ships. 5.0.0 AAB/APK re-cut without it in `release-out/`.

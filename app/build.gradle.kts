@@ -742,10 +742,12 @@ dependencies {
     implementation(project(":feature:applist"))
     implementation(project(":feature:personalize"))
     implementation(project(":feature:system"))
-    // Keyboard kill switch (gradle.properties → tileshell.keyboard). Off, the module —
-    // and the input-method service its manifest declares — is not in the build at all.
+    // Keyboard switch (gradle.properties → tileshell.keyboard), for release builds: off,
+    // the module — and the input-method service its manifest declares — is not in the
+    // build at all. Debug builds always have it, so it can be worked on.
+    debugImplementation(project(":feature:keyboard"))
     if (providers.gradleProperty("tileshell.keyboard").orNull?.toBoolean() == true) {
-        implementation(project(":feature:keyboard"))
+        releaseImplementation(project(":feature:keyboard"))
     }
 
     implementation(libs.androidx.core.ktx)

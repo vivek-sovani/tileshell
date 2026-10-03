@@ -36,20 +36,11 @@ simply stays inactive when a permission is denied.
 | `WRITE_SETTINGS` (special access) | Nothing read; lets the Quick Panel change screen brightness and timeout | Not read; no data transmitted |
 | `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Nothing read; keeps live updates running while the screen is off | Not read; no data transmitted |
 | `BIND_ACCESSIBILITY_SERVICE` (optional) | Used only to perform system actions you trigger: lock screen, recents, and opening the notification shade or quick settings with an edge swipe | Not read; no data transmitted |
-| `BIND_INPUT_METHOD` — TileShell keyboard (beta, optional) | Only when you turn the TileShell keyboard on in Android's keyboard settings and choose it: the text you type into the field you're typing in, and text you copy (for clipboard history). See "TileShell keyboard" below | Stays on device |
-| `VIBRATE` | Nothing read; a short buzz on key presses in the TileShell keyboard (turn off in its settings) | Not read; no data transmitted |
 
 TileShell does **not** access call logs, SMS/MMS bodies, microphone, camera, files
 (beyond photos you explicitly pick for the wallpaper and live-photos slideshow), or any
 other sensitive system data.
 
-
-### TileShell keyboard (beta)
-The TileShell keyboard is optional and works only after you turn it on in Android's keyboard
-settings and choose it. Android shows its own warning at that step, as it does for every
-keyboard, because a keyboard sees what you type. The TileShell keyboard never connects to the
-internet: nothing you type, learn or copy is sent anywhere. It has no voice typing and does not
-use the microphone. Its word lists ship with the app.
 
 ---
 
@@ -108,12 +99,6 @@ DataStore):
 - **Notes and task lists** you create in the Productivity hub, with any task reminders (date,
   time and repeat), and music favourites,
   playlists and recently played podcasts/stations
-- **TileShell keyboard (beta), only if you use it** — words and names it learns from your
-  typing, and which words you put after which (for next-word suggestions; never from password
-  fields), how you like to spell Marathi and Hindi words in
-  English letters, recently used emoji, and clipboard history (text you copy, kept for an hour
-  unless you pin it; text an app marks as private, such as a password, is never kept). Clear
-  learned words or turn clipboard history off in the keyboard's settings. Never transmitted
 
 None of this data is backed up to the developer's servers. Android's standard auto-
 backup to Google may back it up according to your device's backup settings (you control
