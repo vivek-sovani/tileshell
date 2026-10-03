@@ -17,7 +17,13 @@ import collections, re, sys
 
 lang, words_path, out_path, sources = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4:]
 EN = lang == 'en'
-WORD = re.compile(r"[a-z]+(?:'[a-z]+)?") if EN else re.compile(r'[ऀ-ॣॱ-ॿ]+')
+WORD = re.compile(r"[a-z]+(?:'[a-z]+)?") if EN else re.compile('[\u0900-\u0963\u0971-\u097F\u200c\u200d]+')
+ZWJ, ZWNJ = '\u200d', '\u200c'
+
+
+def normalize(w):
+    """Marathi's eyelash ra (र्‍ with a joiner) as ऱ्, as build_indic_wordlist.py does."""
+    return w.replace('र्' + ZWJ, 'ऱ्').replace(ZWJ, '').replace(ZWNJ, '').strip('्')
 SENTENCE_SPLIT = re.compile(r'[.!?।॥;:]+')
 START = '^'
 
@@ -50,7 +56,7 @@ for src in sources:
         for sentence in SENTENCE_SPLIT.split(text):
             # A comma breaks a phrase: no pairs across it.
             for n, phrase in enumerate(sentence.split(',')):
-                tokens = WORD.findall(phrase)
+                tokens = [t for t in (normalize(w) for w in WORD.findall(phrase)) if t]
                 if not tokens:
                     continue
                 seq = ([START] if n == 0 else []) + tokens

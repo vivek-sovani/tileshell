@@ -141,6 +141,16 @@ object Transliterator {
 
     private val marks = mapOf("M" to ANUSVARA, "H" to "ः")
 
+    /** A nasal before these stays a joined letter, not ं (कन्या, जन्म, अन्न, वाङ्मय). */
+    private const val NASAL_STAYS_BEFORE = "यरवलळमनण"
+    private const val NASAL_JOIN_COST = 0.3f
+
+    /** "sh" starting a word may be क्ष, as many say it: shetra → क्षेत्र, shan → क्षण. */
+    private val KSHA = Opt("क्ष", 1.0f)
+
+    private fun consOptions(unit: Cons, index: Int, lang: KeyboardLanguage): List<Opt> =
+        if (index == 0 && unit.options.any { it.text == "श" }) unit.options + KSHA else unit.options
+
     /** "ao": Marathi ends words in ाव (राव, गाव, नाव), Hindi in ाओ (जाओ, आओ). */
     private fun aoVowel(lang: KeyboardLanguage): Vowel {
         val marathi = lang == KeyboardLanguage.MARATHI
@@ -210,15 +220,24 @@ object Transliterator {
             val next = ArrayList<State>()
             for (s in beam) {
                 when (unit) {
-                    is Cons -> for (opt in unit.options) {
+                    is Cons -> for (opt in consOptions(unit, index, lang)) {
                         val nasal = opt.text == "न" || opt.text == "म"
                         if (s.pending) {
+                            // n / m before a consonant is usually ं (लिंग, पंख, संध्या, अंबर), but
+                            // stays joined before y, r, v, l, m, n (कन्या, जन्म, अन्न).
+                            val joinedNasal = s.nasal && opt.text.first() in NASAL_STAYS_BEFORE
+                            val joinCost = if (s.nasal && !joinedNasal) NASAL_JOIN_COST else 0f
                             // Joined (क्ष), or the unwritten a between them (समझा).
-                            next += State(s.text + VIRAMA + opt.text, s.cost + opt.cost, true, nasal)
+                            next += State(s.text + VIRAMA + opt.text, s.cost + opt.cost + joinCost, true, nasal)
                             next += State(s.text + opt.text, s.cost + opt.cost + 0.8f, true, nasal)
                             if (s.nasal) {
-                                next += State(s.text.dropLast(1) + ANUSVARA + opt.text, s.cost + opt.cost + 0.3f, true, nasal)
+                                val anusvaraCost = if (joinedNasal) 0.3f else 0f
+                                next += State(s.text.dropLast(1) + ANUSVARA + opt.text, s.cost + opt.cost + anusvaraCost, true, nasal)
                                 next += State(s.text.dropLast(1) + CHANDRABINDU + opt.text, s.cost + opt.cost + chandraCost, true, nasal)
+                            }
+                            // Marathi's eyelash ra before y / h: दुसऱ्या, ऱ्हस्व.
+                            if (lang == KeyboardLanguage.MARATHI && s.text.endsWith("र") && (opt.text == "य" || opt.text == "ह")) {
+                                next += State(s.text.dropLast(1) + "ऱ" + VIRAMA + opt.text, s.cost + opt.cost + 0.5f, true, nasal)
                             }
                         } else {
                             next += State(s.text + opt.text, s.cost + opt.cost, true, nasal)
@@ -345,27 +364,27 @@ object Transliterator {
                 .filter { (e, _) -> e.word.length >= 2 }
                 .maxByOrNull { (e, cost) -> e.freq - cost * COST_WEIGHT }?.first
         }
+        fun part(piece: String): LexEntry? =
+            word(piece)?.takeIf { it.freq >= MIN_PART_FREQ } // reasonably common, so names don't split into junk
         var best: Pair<String, Int>? = null
-        fun search(rest: String, left: Int, built: String, rarest: Int) {
-            if (rest.isEmpty()) {
-                if (built.isNotEmpty() && (best == null || rarest > best!!.second)) best = built to rarest
-                return
-            }
+        fun consider(pieces: List<String>) {
+            // A part after the first starts with a consonant (rahul + dev, pyare + lal);
+            // one starting with a vowel is a split mid-word (ling + oba → लिंगओब).
+            if (pieces.drop(1).any { it.first().lowercaseChar() in "aeiou" }) return
+            val entries = pieces.map { part(it) ?: return }
             // Another part must earn its place: three-way splits are a last resort.
-            if (left == 0) return
-            for (cut in MIN_PART..rest.length) {
-                if (rest.length - cut in 1 until MIN_PART) continue
-                val e = word(rest.substring(0, cut)) ?: continue
-                // Every part a reasonably common word, so names don't split into junk.
-                if (e.freq < MIN_PART_FREQ) continue
-                search(rest.substring(cut), left - 1, built + e.word, minOf(rarest, e.freq) - EXTRA_PART_COST)
-            }
+            val score = entries.minOf { it.freq } - EXTRA_PART_COST * (entries.size - 1)
+            if (best == null || score > best!!.second) best = entries.joinToString("") { it.word } to score
         }
-        if (latin.length < MIN_PART * 2) return null
-        for (cut in MIN_PART..latin.length - MIN_PART) {
-            val e = word(latin.substring(0, cut)) ?: continue
-            if (e.freq < MIN_PART_FREQ) continue
-            search(latin.substring(cut), parts - 1, e.word, e.freq)
+        val n = latin.length
+        for (cut in MIN_PART..n - MIN_PART) consider(listOf(latin.substring(0, cut), latin.substring(cut)))
+        // Three parts each need three letters, so दिन + चार + या doesn't stand in for दिनचर्या.
+        if (parts >= 3) {
+            for (a in MIN_PART_OF_THREE..n - 2 * MIN_PART_OF_THREE) {
+                for (b in a + MIN_PART_OF_THREE..n - MIN_PART_OF_THREE) {
+                    consider(listOf(latin.substring(0, a), latin.substring(a, b), latin.substring(b)))
+                }
+            }
         }
         return best?.first
     }
@@ -381,6 +400,7 @@ object Transliterator {
     private const val NEXT_BONUS = 60f
 
     private const val MIN_PART = 2
+    private const val MIN_PART_OF_THREE = 3
     private const val MIN_PART_FREQ = 40
     private const val EXTRA_PART_COST = 25
 }

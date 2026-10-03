@@ -176,6 +176,23 @@ object TypingRules {
         return t[t.length - 2].isLetterOrDigit()
     }
 
+    /**
+     * How many spaces to take out before a . , ! ? ; or : so it sits on the
+     * word ("hello  ." → "hello."): the spaces (not line breaks) right before the
+     * cursor, when a word, number, closing bracket / quote or emoji comes before
+     * them. 0 when there are none, or nothing word-like before them.
+     */
+    fun spacesBeforePunctuation(textBefore: CharSequence?): Int {
+        val t = textBefore ?: return 0
+        var n = 0
+        while (n < t.length && t[t.length - 1 - n] == ' ') n++
+        if (n == 0 || n == t.length) return 0
+        val c = t[t.length - 1 - n]
+        val attaches = c.isLetterOrDigit() || c in '\u0900'..'\u097F' || c in ")]}\"'”’" ||
+            Character.isSurrogate(c) || Character.getType(c) == Character.OTHER_SYMBOL.toInt()
+        return if (attaches) n else 0
+    }
+
     /** Number, phone and date fields open on the number pad. */
     fun startLayer(inputType: Int): KeyboardLayer = when (inputType and InputType.TYPE_MASK_CLASS) {
         InputType.TYPE_CLASS_NUMBER, InputType.TYPE_CLASS_PHONE, InputType.TYPE_CLASS_DATETIME ->

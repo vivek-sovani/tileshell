@@ -21,6 +21,7 @@ VIRAMA, ANUSVARA = '्', 'ं'
 BEAM = 64
 MAX_KNOWN_COST = 1.0
 COST_WEIGHT = 60
+SECOND_SHARE = 0.6
 
 # Everyday words the pronouncing dictionary lacks.
 EXTRA = {
@@ -104,7 +105,7 @@ def vowel_options(ph, stress, hint, final):
         h = hint if hint and len(hint) == 1 else 'a'
         o = {
             # Indian English says the spelled vowel: mobile → मोबाइल, police → पुलिस / पोलीस.
-            'i': [('इ', 'ि', 0), ('अ', '', 0.4), ('आइ', 'ाइ', 0.9), ('आई', 'ाई', 0.9)],
+            'i': [('इ', 'ि', 0), ('अ', '', 0.4), ('आइ', 'ाइ', 0.4), ('आई', 'ाई', 0.4)],
             'o': [('अ', '', 0), ('ओ', 'ो', 0.3), ('उ', 'ु', 0.6)],
             'u': [('अ', '', 0), ('उ', 'ु', 0.5)],
             'e': [('अ', '', 0), ('ए', 'े', 0.4)],
@@ -224,7 +225,10 @@ def choose(word, options, owner):
         reverse=True,
     )
     if known:
-        return [t for _, t in known[:2]]
+        first = known[0][1]
+        # A second spelling only when it's nearly as common (नेगेटिव / निगेटिव), not a stray one.
+        second = [t for _, t in known[1:2] if own[t] >= SECOND_SHARE * own[first]]
+        return [first] + second
     return [options[0][0]]
 
 

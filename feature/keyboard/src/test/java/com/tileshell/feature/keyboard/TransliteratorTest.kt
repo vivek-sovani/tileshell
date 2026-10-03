@@ -94,4 +94,19 @@ class TransliteratorTest {
         val ms = (System.nanoTime() - start) / 50 / 1_000_000.0
         assertTrue("took $ms ms", ms < 30)
     }
+
+    @Test
+    fun `marathi eyelash ra, ksha said as sha, nasal before a consonant`() {
+        // Tatoeba writes दुसऱ्या with a joiner; the list keeps it whole now.
+        assertEquals("दुसऱ्याला", mr("dusryala"))
+        assertEquals("दुसऱ्या", mr("dusrya"))
+        assertEquals("क्षेत्रफळ", mr("shetrafal"))
+        assertEquals("क्षेत्रफळ", mr("kshetrafal"))
+        assertEquals("लिंगोबा", mr("lingoba"))
+        assertEquals("दिनचर्या", mr("dincharya"))
+        assertEquals("दिनचर्या", mr("dinacharya"))
+        // Still joined before y / m: कन्या, जन्म.
+        assertEquals("कन्या", mr("kanya"))
+        assertEquals("जन्म", mr("janma"))
+    }
 }

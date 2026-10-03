@@ -163,4 +163,19 @@ class TypingRulesTest {
         assertFalse(TypingRules.endsInConsonant("नमस्कार "))
         assertTrue(TypingRules.endsInConsonant("ज़"))
     }
+
+    @Test
+    fun `punctuation sits on the word, taking out the spaces before it`() {
+        assertEquals(1, TypingRules.spacesBeforePunctuation("hello "))
+        assertEquals(3, TypingRules.spacesBeforePunctuation("hello   "))
+        assertEquals(1, TypingRules.spacesBeforePunctuation("नमस्कार "))
+        assertEquals(1, TypingRules.spacesBeforePunctuation("call me (later) "))
+        assertEquals(1, TypingRules.spacesBeforePunctuation("pizza 🍕 "))
+        // Nothing to take out, or nothing word-like before the spaces.
+        assertEquals(0, TypingRules.spacesBeforePunctuation("hello"))
+        assertEquals(0, TypingRules.spacesBeforePunctuation("   "))
+        assertEquals(0, TypingRules.spacesBeforePunctuation("line\n "))
+        assertEquals(0, TypingRules.spacesBeforePunctuation("wait - "))
+        assertEquals(0, TypingRules.spacesBeforePunctuation(null))
+    }
 }

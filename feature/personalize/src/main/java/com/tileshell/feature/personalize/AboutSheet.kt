@@ -475,7 +475,7 @@ fun AboutSheet(
                         "emoji with search, and the emoji for the word you type in the strip (\"pizza\" → 🍕), clipboard history, a number pad for number fields, one-handed mode, and hold space to move the cursor",
                         "everything you type, learn or copy stays on your phone — the keyboard never connects to the internet",
                         "beta: marathi and hindi typing is still improving",
-                        "word lists from the android open source project (apache 2.0), tatoeba (cc-by 2.0 fr, also for next words) and mozilla common voice (cc0); english words in मराठी / हिन्दी spelling from the cmu pronouncing dictionary (bsd)",
+                        "word lists from the android open source project (apache 2.0), tatoeba (cc-by 2.0 fr, also for next words), mozilla common voice (cc0) and marathi and hindi wikipedia (cc by-sa 4.0); english words in मराठी / हिन्दी spelling from the cmu pronouncing dictionary (bsd)",
                     ),
                 )
             }

@@ -43,6 +43,11 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   `tools/keyboard/build_loanwords.py` (CMU Pronouncing Dictionary, checked against each
   language's word list; `LoanWords`). An English word with no such spelling stays in English
   letters. Unit-tested (`LoanWordsTest`); typed on the emulator.
+- **`main` — keyboard: Marathi / Hindi spelling fixes and bigger word lists.** दुसऱ्याला
+  (Tatoeba's joiner no longer splits ऱ्य words), "shetrafal" → क्षेत्रफळ, लिंगोबा (ं before a
+  consonant), दिनचर्या (no junk compound splits). Word lists add Marathi / Hindi Wikipedia
+  (CC BY-SA 4.0; 158k / 146k words; swipe uses freq ≥ 40 only). Punctuation goes onto the last
+  word, taking out spaces in between. Checked on the emulator.
 - **`main` — keyboard: emoji in the suggestion strip.** "pizza" → 🍕, "lol" → 😂 in the
   strip's last place (`EmojiWords`, `emoji_words.txt` from Unicode CLDR by
   `tools/keyboard/build_emoji_words.py`); tapping it puts in "pizza 🍕". Emoji search's cursor

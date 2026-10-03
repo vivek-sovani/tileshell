@@ -11187,3 +11187,36 @@ after it ("pizza 🍕 ") — the word isn't lost, and it counts as a recent emoj
 can't draw are left out.
 Also user-reported: the emoji search box's cursor stood after the "search emoji" placeholder;
 it now stands before it while empty, after the query once typing.
+
+## Keyboard: Marathi / Hindi words that didn't come up (2026-10-03)
+User-reported: dusryala → दुसऱ्याला, क्षेत्रफळ, लिंगोबा, दिनचर्या didn't come up first.
+Four causes, all fixed:
+- **The word list split eyelash-ra words.** Tatoeba writes ऱ्य as र + ् + ZWJ + य (851
+  sentences); `build_indic_wordlist.py`'s Devanagari-only pattern broke words at the joiner,
+  so दुसऱ्या (92 uses) was counted as "दुसर्" + "या". The joiner is now kept and normalised to
+  ऱ् (U+0931 + virama); `build_ngrams.py` does the same. The transliterator offers ऱ्य / ऱ्ह
+  after a vowel in Marathi (cost 0.5), so the list picks दुसऱ्या over the sentences' bare
+  दुसर्या while Sanskrit words keep र्य (कार्य, सूर्य).
+- **Too few words.** The everyday sentences (Tatoeba + Common Voice) lack many common words
+  (दिनचर्या, लिंगोबा…). Marathi and Hindi Wikipedia now add up to 120k words each (seen ≥ 5
+  times), ranked below the everyday words (max freq 150 vs 230): Marathi 30k → 158k words,
+  Hindi → 146k. CC BY-SA 4.0, so the two lists are shared under it (NOTICE, About). Swipe
+  typing romanises only words of freq ≥ 40 (`SWIPE_MIN_FREQ`, about today's size) — every
+  word romanised would cost tens of MB; transliteration uses the full list. `mr_loan` /
+  `hi_loan` rebuilt against the bigger lists (a second spelling only when ≥ 0.6 as common;
+  "mobile"'s ाइ made cheaper so मोबाइल beats a stray मोबिल).
+- **क्ष said as "sh".** Many type क्षेत्रफळ as "shetrafal": a word-initial "sh" may now be क्ष
+  (cost 1.0), so the list decides (क्षण, क्षमा too).
+- **n before a consonant.** Joined न्ग (लिन्गोबा) was preferred to ं. Now ं is preferred
+  before every consonant except य र व ल ळ म न ण (कन्या, जन्म, अन्न stay joined).
+- **Junk splits.** With no word matching, a three-way split (दिन + चार + या for "dincharya")
+  or a split before a vowel (लिंग + ओब for "lingoba") won. Three-way splits now need three
+  letters per part, and no part after the first may start with a vowel (names still split:
+  rahul + dev, pyare + lal, nat + war + lal).
+Not handled: "dusyala" without the r (a dropped letter, not a spelling).
+
+## Keyboard: punctuation sits on the word (2026-10-03)
+User-requested: a full stop typed after spaces goes onto the last word. . , ! ? ; : now take
+out the spaces (not line breaks) between them and a word, number, closing bracket / quote or
+emoji, then add one space after: "hello  ." → "hello. ". Before, only a space the keyboard
+itself had added was taken out (`TypingRules.spacesBeforePunctuation`).

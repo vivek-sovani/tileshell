@@ -181,7 +181,12 @@ class KeyboardController(
                         val list = it.words as? WordList
                         if (list != null) {
                             swipeLexicons[lang] = withContext(Dispatchers.Default) {
-                                RomanizedLexicon(list.entries() + it.learned.known().asSequence(), lang)
+                                // The commoner words only: the full list (with Wikipedia's) would
+                                // cost tens of MB romanised; transliteration still has every word.
+                                RomanizedLexicon(
+                                    list.entries().filter { e -> e.freq >= SWIPE_MIN_FREQ } + it.learned.known().asSequence(),
+                                    lang,
+                                )
                             }
                         }
                     }
@@ -752,9 +757,11 @@ class KeyboardController(
     private fun punctuation(mark: String, spaced: Boolean) {
         val ic = service.currentInputConnection ?: return
         val before = ic.getTextBeforeCursor(CONTEXT_CHARS, 0)
-        if (spaced && before?.endsWith(" ") == true) {
+        // The mark sits on the word, whoever put the spaces in: "hello  ." → "hello. ".
+        val spaces = TypingRules.spacesBeforePunctuation(before)
+        if (spaces > 0 || (spaced && before?.endsWith(" ") == true)) {
             ic.beginBatchEdit()
-            ic.deleteSurroundingText(1, 0)
+            ic.deleteSurroundingText(maxOf(spaces, 1), 0)
             ic.commitText("$mark ", 1)
             ic.endBatchEdit()
             return
@@ -1033,6 +1040,9 @@ class KeyboardController(
 
         /** How many likely next words rank the word being typed. */
         const val PREDICT_FOR_RANKING = 12
+
+        /** मराठी / हिन्दी words this common or more can be swiped. */
+        const val SWIPE_MIN_FREQ = 40
 
         /** The idle strip's width in characters, and each word's padding in the same units. */
         const val IDLE_STRIP_CHARS = 34
