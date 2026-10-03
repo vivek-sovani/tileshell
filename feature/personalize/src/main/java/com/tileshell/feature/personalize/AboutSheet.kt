@@ -469,7 +469,7 @@ fun AboutSheet(
                     tokens = tokens,
                     items = listOf(
                         "a metro-style keyboard in your accent colour and theme — turn it on in personalize · system · tileshell keyboard",
-                        "suggestions, autocorrect that learns your words, and swipe typing",
+                        "suggestions, autocorrect that learns your words, and wordflow — swipe across letters to type",
                         "type मराठी or हिन्दी two ways: spell it in english letters (\"namaskar\" → नमस्कार), or use devanagari keys in varnamala order — the globe key steps through english, मराठी and हिन्दी",
                         "emoji with search, clipboard history, a number pad for number fields, one-handed mode, and hold space to move the cursor",
                         "everything you type, learn or copy stays on your phone — the keyboard never connects to the internet",

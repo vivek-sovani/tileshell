@@ -130,7 +130,7 @@ private fun KeyboardSettingsScreen(prefs: KeyboardPrefs) {
         }
 
         Toggle("Show suggestion strip", settings.suggestions, accent, tokens) { on -> prefs.update { it.copy(suggestions = on) } }
-        Toggle("Swipe across letters to type", settings.swipe, accent, tokens) { on -> prefs.update { it.copy(swipe = on) } }
+        Toggle("Wordflow — swipe across letters to type", settings.swipe, accent, tokens) { on -> prefs.update { it.copy(swipe = on) } }
         Toggle("Autocorrect misspelt words", settings.autocorrect, accent, tokens) { on -> prefs.update { it.copy(autocorrect = on) } }
 
         Group("Autocorrect level", tokens) {
