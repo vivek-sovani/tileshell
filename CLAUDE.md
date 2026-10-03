@@ -43,6 +43,10 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   `tools/keyboard/build_loanwords.py` (CMU Pronouncing Dictionary, checked against each
   language's word list; `LoanWords`). An English word with no such spelling stays in English
   letters. Unit-tested (`LoanWordsTest`); typed on the emulator.
+- **`main` — "set up start with hubs" keeps the apps already pinned.** From the 5.0.0
+  what's-new card, the setup adds the apps on Start after the default layout ("default") or
+  lists them first and ticked ("custom"); button "set up start", not red "reset". "Reset start
+  layout" still starts over. Checked on the emulator (card → setup → Start laid out).
 - **`main` — keyboard: Marathi / Hindi spelling fixes and bigger word lists.** दुसऱ्याला
   (Tatoeba's joiner no longer splits ऱ्य words), "shetrafal" → क्षेत्रफळ, लिंगोबा (ं before a
   consonant), दिनचर्या (no junk compound splits). Word lists add Marathi / Hindi Wikipedia

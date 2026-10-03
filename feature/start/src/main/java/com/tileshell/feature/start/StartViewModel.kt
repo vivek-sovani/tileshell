@@ -522,6 +522,15 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val setupDefaultPackages: StateFlow<Set<String>> = _setupDefaultPackages.asStateFlow()
 
     /**
+     * The apps already pinned on Start, in Start's order, kept when the hubs
+     * update card's "set up start with hubs" lays Start out again (user-requested):
+     * pre-ticked in the custom list and added after the default layout. Empty for
+     * "reset start layout", which starts over.
+     */
+    private val _setupPinnedPackages = MutableStateFlow<List<String>>(emptyList())
+    val setupPinnedPackages: StateFlow<List<String>> = _setupPinnedPackages.asStateFlow()
+
+    /**
      * True while the one-shot "what's new in this version" card is open — see
      * [WhatsNewSheet] and [WhatsNewPrefs]. Set in [init], only ever for a
      * device that has already run TileShell before (never on a genuinely
@@ -542,7 +551,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     fun setUpWithHubs() {
         dismissWhatsNew()
         saveLayoutSnapshot(label = "before hubs setup")
-        openResetSetup()
+        openResetSetup(keepPinned = true)
     }
 
     fun setAppList(value: Boolean) {
@@ -1472,22 +1481,20 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     internal fun finishStartSetup(style: HomeStyle, theme: SetupTheme, multicolor: Boolean, custom: Boolean, picked: Set<String>) {
         val reset = _setupReset.value
         val defaults = _setupDefaultPackages.value
+        val pinned = _setupPinnedPackages.value
         val installed = apps.value
         HomeStyleWizardPrefs.markShown(getApplication())
         // A new install has nothing to be told is new.
         WhatsNewPrefs.markSeen(getApplication(), WHATS_NEW_VERSION_CODE)
         _homeStyleWizardOpen.value = false
         _setupReset.value = false
+        _setupPinnedPackages.value = emptyList()
         viewModelScope.launch(writeContext) {
             val rewrite = reset || custom
             if (rewrite) {
                 val removed = if (custom) defaults - picked else emptySet()
-                val extras = if (custom) {
-                    installed.filter { it.packageName in picked && it.packageName !in defaults }
-                        .distinctBy { it.packageName }
-                } else {
-                    emptyList()
-                }
+                val byPackage = installed.associateBy { it.packageName }
+                val extras = setupExtraPackages(custom, picked, pinned, defaults).mapNotNull { byPackage[it] }
                 repository.resetLayout(removed, extras)
                 migrateSettingsTile()
                 // The default layout is laid out for the default column count.
@@ -1511,12 +1518,21 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** The real apps pinned on Start (top-level tiles, then folders' apps), in Start's order. */
+    private fun pinnedAppPackages(tiles: List<TileModel>): List<String> = tiles.flatMap { tile ->
+        when (tile) {
+            is TileModel.App -> listOf(tile.packageName)
+            is TileModel.Folder -> tile.children.map { it.packageName }
+        }
+    }.filter { it.isNotBlank() }.distinct()
+
     /** "reset start layout": runs the setup wizard again from its first step. */
-    fun openResetSetup() {
+    fun openResetSetup(keepPinned: Boolean = false) {
         _backupOpen.value = false
         _personalizeOpen.value = false
         _setupReset.value = true
         viewModelScope.launch(writeContext) {
+            _setupPinnedPackages.value = if (keepPinned) pinnedAppPackages(repository.tiles.first()) else emptyList()
             _setupDefaultPackages.value = repository.defaultAppPackages()
             _homeStyleWizardOpen.value = true
         }

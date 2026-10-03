@@ -26,4 +26,19 @@ class SetupAppRowsTest {
         val rows = setupAppRows(apps, setOf("com.phone"), " AM ")
         assertEquals(listOf("com.amazon", "com.camera"), rows.map { it.packageName })
     }
+
+    @Test
+    fun `setting up with hubs keeps the apps already on start, in their order`() {
+        val defaults = setOf("phone", "camera")
+        val pinned = listOf("whatsapp", "camera", "bank", "phone")
+        // "default" apps: the pinned ones the default layout doesn't already have.
+        assertEquals(listOf("whatsapp", "bank"), setupExtraPackages(false, emptySet(), pinned, defaults))
+        // "custom": ticked ones, pinned first in Start's order; an unticked pinned app goes.
+        assertEquals(
+            listOf("bank", "maps", "zoom"),
+            setupExtraPackages(true, setOf("bank", "zoom", "maps", "camera"), pinned, defaults),
+        )
+        // "reset start layout" keeps nothing that wasn't ticked.
+        assertEquals(emptyList<String>(), setupExtraPackages(false, emptySet(), emptyList(), defaults))
+    }
 }

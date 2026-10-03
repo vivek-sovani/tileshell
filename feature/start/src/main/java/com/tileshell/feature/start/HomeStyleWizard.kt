@@ -337,16 +337,19 @@ internal fun StartSetupWizard(
     defaultPackages: Set<String>,
     onFinish: (style: HomeStyle, theme: SetupTheme, multicolor: Boolean, custom: Boolean, picked: Set<String>) -> Unit,
     onCancel: () -> Unit,
+    /** Apps already on Start that stay (the hubs update card): ticked and listed first. */
+    pinnedPackages: Set<String> = emptySet(),
 ) {
+    val preselected = defaultPackages + pinnedPackages
     var step by rememberSaveable { mutableStateOf(SetupStep.STYLE) }
     var style by rememberSaveable { mutableStateOf(initialStyle) }
     var multicolor by rememberSaveable { mutableStateOf(initialMulticolor) }
     var theme by rememberSaveable { mutableStateOf(initialTheme) }
     var custom by rememberSaveable { mutableStateOf(false) }
     var picked by remember { mutableStateOf<Set<String>?>(null) }
-    // Pre-tick the defaults once they've loaded.
-    LaunchedEffect(defaultPackages) {
-        if (picked == null && defaultPackages.isNotEmpty()) picked = defaultPackages
+    // Pre-tick the defaults (and apps already on Start) once they've loaded.
+    LaunchedEffect(preselected) {
+        if (picked == null && preselected.isNotEmpty()) picked = preselected
     }
 
     BackHandler {
@@ -372,6 +375,7 @@ internal fun StartSetupWizard(
             onMulticolor = { multicolor = it },
             custom = custom,
             onCustom = { custom = it },
+            keepsPinned = pinnedPackages.isNotEmpty(),
             onBack = { step = SetupStep.STYLE },
             onNext = {
                 if (custom) step = SetupStep.APPS
@@ -382,14 +386,15 @@ internal fun StartSetupWizard(
             reset = reset,
             accent = accent,
             apps = apps,
-            defaultPackages = defaultPackages,
-            picked = picked ?: defaultPackages,
+            defaultPackages = preselected,
+            picked = picked ?: preselected,
             onToggle = { pkg ->
-                val cur = picked ?: defaultPackages
+                val cur = picked ?: preselected
                 picked = if (pkg in cur) cur - pkg else cur + pkg
             },
             onBack = { step = SetupStep.SETUP },
-            onDone = { onFinish(style, theme, multicolor, true, picked ?: defaultPackages) },
+            onDone = { onFinish(style, theme, multicolor, true, picked ?: preselected) },
+            keepsPinned = pinnedPackages.isNotEmpty(),
         )
     }
 }
@@ -469,6 +474,7 @@ private fun SetupChoiceScreen(
     onCustom: (Boolean) -> Unit,
     onBack: () -> Unit,
     onNext: () -> Unit,
+    keepsPinned: Boolean = false,
 ) = WizardFrame {
     WizardBackRow(onBack)
     Text(if (reset) "reset start layout · step 2 of 2" else "step 2 of 2", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
@@ -532,7 +538,11 @@ private fun SetupChoiceScreen(
     SelectableCard(!custom, accent, Modifier.fillMaxWidth(), onClick = { onCustom(false) }) {
         Column {
             Text("default", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-            Text("hubs, live tiles and common apps", color = WizardDim, fontSize = 13.sp)
+            Text(
+                if (keepsPinned) "hubs, live tiles and common apps, plus the apps on your start now" else "hubs, live tiles and common apps",
+                color = WizardDim,
+                fontSize = 13.sp,
+            )
         }
     }
     Spacer(Modifier.height(10.dp))
@@ -546,7 +556,11 @@ private fun SetupChoiceScreen(
     Spacer(Modifier.weight(1f))
     if (reset && !custom) {
         Text(
-            "this replaces your current start. save a snapshot first if you may want it back.",
+            if (keepsPinned) {
+                "start is laid out again with your apps added after the hubs. your current layout is saved to layout history."
+            } else {
+                "this replaces your current start. save a snapshot first if you may want it back."
+            },
             color = WizardDim,
             fontSize = 13.sp,
         )
@@ -555,10 +569,12 @@ private fun SetupChoiceScreen(
     WizardButton(
         text = when {
             custom -> "next"
+            keepsPinned -> "set up start"
             reset -> "reset"
             else -> "start"
         },
-        color = if (reset && !custom) ResetRed else accent,
+        // Red only when it replaces Start; keeping the apps there isn't a reset.
+        color = if (reset && !custom && !keepsPinned) ResetRed else accent,
         onClick = onNext,
     )
 }
@@ -573,6 +589,7 @@ private fun SetupAppsScreen(
     onToggle: (String) -> Unit,
     onBack: () -> Unit,
     onDone: () -> Unit,
+    keepsPinned: Boolean = false,
 ) = WizardFrame {
     var query by rememberSaveable { mutableStateOf("") }
     val rows = remember(apps, defaultPackages, query) { setupAppRows(apps, defaultPackages, query) }
@@ -608,13 +625,25 @@ private fun SetupAppsScreen(
     Spacer(Modifier.height(12.dp))
     if (reset) {
         Text(
-            "this replaces your current start. save a snapshot first if you may want it back.",
+            if (keepsPinned) {
+                "the apps on your start now are ticked. your current layout is saved to layout history."
+            } else {
+                "this replaces your current start. save a snapshot first if you may want it back."
+            },
             color = WizardDim,
             fontSize = 13.sp,
         )
         Spacer(Modifier.height(12.dp))
     }
-    WizardButton(if (reset) "reset" else "done", if (reset) ResetRed else accent, onDone)
+    WizardButton(
+        when {
+            keepsPinned -> "set up start"
+            reset -> "reset"
+            else -> "done"
+        },
+        if (reset && !keepsPinned) ResetRed else accent,
+        onDone,
+    )
 }
 
 @Composable
@@ -659,4 +688,15 @@ internal fun setupAppRows(apps: List<AppEntry>, defaultPackages: Set<String>, qu
         .distinctBy { it.packageName }
         .filter { q.isEmpty() || it.label.lowercase().contains(q) }
         .sortedWith(compareBy<AppEntry>({ it.packageName !in defaultPackages }, { it.label.lowercase() }))
+}
+
+/**
+ * The apps the setup adds after the default layout, in order: with [custom], the
+ * ticked ones (those already on Start first, in Start's order); otherwise the
+ * apps already [pinned] (the hubs update card keeps them). Never a default
+ * layout app, which is there already. Pure, unit-tested.
+ */
+internal fun setupExtraPackages(custom: Boolean, picked: Set<String>, pinned: List<String>, defaults: Set<String>): List<String> {
+    val wanted = if (custom) pinned.filter { it in picked } + picked.sorted() else pinned
+    return wanted.distinct().filter { it !in defaults }
 }

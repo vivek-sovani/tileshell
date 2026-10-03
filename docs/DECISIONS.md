@@ -11228,3 +11228,15 @@ digits and their long-press type ०–९ (`KeyboardLayouts.localDigits`; ० h
 number pad (number, phone, date fields) keeps 0–9 — apps read those as numbers (OTPs, phone
 numbers, amounts) — and so do fields where the keyboard is English only (passwords, email,
 web addresses). The Devanagari keys' shift page already had ०–९.
+
+## Hubs update card: "set up start with hubs" keeps the apps already pinned (2026-10-03)
+User-requested. The 5.0.0 what's-new card's "set up start with hubs" ran the same setup as
+"reset start layout", which replaced Start with the default layout and dropped every app the
+user had pinned. Now, opened from the card (`openResetSetup(keepPinned = true)`), the setup
+remembers the apps on Start (top-level app tiles, then folders' apps, in Start's order;
+contacts and hubs have no package and aren't counted): "default" adds them after the default
+layout, and "custom" lists them first and ticked ("show those as selected"), so unticking one
+leaves it out (`setupExtraPackages`, tested). They come back as small tiles, after the hubs,
+not in their old sizes or folders — the old layout is in layout history (saved first, as
+before). The wording says so and the last button is "set up start" in the accent colour, not
+the red "reset". "Reset start layout" in personalize still starts over.

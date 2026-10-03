@@ -2390,6 +2390,7 @@ fun StartScreen(
         if (homeStyleWizardOpen) {
             val setupReset by viewModel.setupReset.collectAsStateWithLifecycle()
             val setupDefaults by viewModel.setupDefaultPackages.collectAsStateWithLifecycle()
+            val setupPinned by viewModel.setupPinnedPackages.collectAsStateWithLifecycle()
             StartSetupWizard(
                 reset = setupReset,
                 initialStyle = settings.homeStyle,
@@ -2404,6 +2405,7 @@ fun StartScreen(
                 defaultPackages = setupDefaults,
                 onFinish = viewModel::finishStartSetup,
                 onCancel = viewModel::skipHomeStyleWizard,
+                pinnedPackages = setupPinned.toSet(),
             )
         }
 
