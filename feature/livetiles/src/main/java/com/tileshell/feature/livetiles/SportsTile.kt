@@ -1,6 +1,7 @@
 package com.tileshell.feature.livetiles
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,9 +31,9 @@ import com.tileshell.core.data.SportsSnapshot
 import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.fetchCricketMatchDetail
 import com.tileshell.core.data.fetchMatchDetail
-import com.tileshell.core.data.fetchRecentCricketMatchForTeam
+import com.tileshell.core.data.fetchRecentCricketMatchesForTeam
 import com.tileshell.core.data.fetchSportsSchedule
-import com.tileshell.core.data.pickRelevantMatch
+import com.tileshell.core.data.relevantMatches
 import com.tileshell.core.data.settings.LiveRefreshRate
 import com.tileshell.core.data.settings.resolveMs
 import com.tileshell.core.data.snapshotFor
@@ -68,6 +69,34 @@ fun sportsStateLabel(state: String): String = when (state) {
     "in" -> "live"
     "post" -> "final"
     else -> "upcoming"
+}
+
+/**
+ * The status line under a score: always the match's day first, then ESPN's
+ * own status and which match it is ("30 sep · Result · 3rd ODI · West Indies
+ * tour of India", "today · Final · Final · Asian Games"), so an old result can't pass
+ * for today's (user-requested). Pure, unit-tested.
+ */
+fun sportsStatusLine(
+    snapshot: SportsSnapshot,
+    nowMillis: Long = System.currentTimeMillis(),
+    zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
+): String {
+    val status = snapshot.statusDetail.ifBlank { sportsStateLabel(snapshot.state) }
+    val day = if (snapshot.epochMillis > 0L) {
+        val date = java.time.Instant.ofEpochMilli(snapshot.epochMillis).atZone(zone).toLocalDate()
+        val today = java.time.Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDate()
+        when (date) {
+            today -> "today"
+            today.minusDays(1) -> "yesterday"
+            today.plusDays(1) -> "tomorrow"
+            else -> "${date.dayOfMonth} ${date.month.name.take(3).lowercase()}"
+        }
+    } else {
+        null
+    }
+    // The day first: it's what the line must never lose to an ellipsis.
+    return listOfNotNull(day, status, snapshot.matchLabel).joinToString(" · ")
 }
 
 /**
@@ -125,66 +154,76 @@ fun SportsTileFace(
         return
     }
 
-    var snapshot by remember(leagueSlug, teamId) { mutableStateOf<SportsSnapshot?>(null) }
-    var detail by remember(leagueSlug, teamId) { mutableStateOf<SportsMatchDetail?>(null) }
+    // Every match of the team's today (a national side can play two at once:
+    // India's Asian Games T20 and the senior side's ODI share one ESPN id), each
+    // with its own detail; they take turns, one per flip.
+    var matches by remember(leagueSlug, teamId) { mutableStateOf<List<Pair<SportsSnapshot, SportsMatchDetail?>>>(emptyList()) }
+    var turn by remember(leagueSlug, teamId) { mutableStateOf(0) }
     LaunchedEffect(leagueSlug, teamId, active, refreshRate) {
         if (!active) return@LaunchedEffect
         while (true) {
             // Cricket has no per-team schedule endpoint (see CRICKET_LEAGUE_SLUG's
-            // own doc comment) — fetchRecentCricketMatchForTeam checks today's
+            // own doc comment) — fetchRecentCricketMatchesForTeam checks today's
             // live/imminent cross-tournament feed first, then walks backward day
             // by day when that's empty, since a finished match otherwise drops
             // out of that feed within about a day (verified live).
             val relevant = if (leagueSlug == CRICKET_LEAGUE_SLUG) {
-                fetchRecentCricketMatchForTeam(teamId, System.currentTimeMillis())
+                fetchRecentCricketMatchesForTeam(teamId, System.currentTimeMillis())
             } else {
-                pickRelevantMatch(fetchSportsSchedule(leagueSlug, teamId), System.currentTimeMillis())
+                relevantMatches(fetchSportsSchedule(leagueSlug, teamId), System.currentTimeMillis())
             }
-            val matchDetail = relevant?.let { ev ->
-                if (leagueSlug == CRICKET_LEAGUE_SLUG) {
+            matches = relevant.map { ev ->
+                val matchDetail = if (leagueSlug == CRICKET_LEAGUE_SLUG) {
                     ev.leagueId?.let { fetchCricketMatchDetail(it, ev.id) }
                 } else {
                     fetchMatchDetail(leagueSlug, ev.id)
                 }
+                // The schedule call's own score is never trustworthy for a soccer
+                // team (see scoreOf's doc comment) — patch in the summary call's
+                // always-inline number once it's back.
+                val resolvedHome = matchDetail?.homeScore
+                val resolvedAway = matchDetail?.awayScore
+                val corrected = if (resolvedHome != null && resolvedAway != null) {
+                    ev.copy(homeScore = resolvedHome, awayScore = resolvedAway)
+                } else {
+                    ev
+                }
+                snapshotFor(corrected, teamId) to matchDetail
             }
-            detail = matchDetail
-            // The schedule call's own score is never trustworthy for a soccer
-            // team (see scoreOf's doc comment) — patch in the summary call's
-            // always-inline number once it's back.
-            val resolvedHome = matchDetail?.homeScore
-            val resolvedAway = matchDetail?.awayScore
-            val corrected = if (resolvedHome != null && resolvedAway != null) {
-                relevant?.copy(homeScore = resolvedHome, awayScore = resolvedAway)
-            } else {
-                relevant
-            }
-            snapshot = corrected?.let { snapshotFor(it, teamId) }
-            matchDetail?.webUrl?.let { SportsLinks.set(tileId, it) }
             delayUntilNextRefresh(refreshRate.resolveMs(SPORTS_REFRESH_MS))
         }
     }
+    // The next match each time the tile turns back to its front.
+    LaunchedEffect(flipped, matches.size) {
+        if (!flipped && matches.size > 1) turn = (turn + 1) % matches.size
+    }
 
-    val current = snapshot
-    if (current == null) {
+    val shown = matches.getOrNull(turn % matches.size.coerceAtLeast(1))
+    if (shown == null) {
         NoDataFace(size, teamLabel, modifier)
         return
     }
+    val (current, detail) = shown
+    // A tap opens the match on screen.
+    LaunchedEffect(current, detail) { detail?.webUrl?.let { SportsLinks.set(tileId, it) } }
 
-    FlipTile(
-        flipped = flipped,
-        modifier = modifier.fillMaxSize(),
-        front = { SportsFront(current, size) },
-        back = {
-            SportsBack(
-                snapshot = current,
-                teamLabel = teamLabel,
-                scorerLines = detail?.contributorLines.orEmpty(),
-                battingLines = detail?.battingLines.orEmpty(),
-                bowlingLines = detail?.bowlingLines.orEmpty(),
-                size = size,
-            )
-        },
-    )
+    Box(modifier = modifier.fillMaxSize()) {
+        FlipTile(
+            flipped = flipped,
+            modifier = Modifier.fillMaxSize(),
+            front = { SportsFront(current, size, turn = if (matches.size > 1) "${turn % matches.size + 1}/${matches.size}" else null) },
+            back = {
+                SportsBack(
+                    snapshot = current,
+                    teamLabel = teamLabel,
+                    scorerLines = detail?.contributorLines.orEmpty(),
+                    battingLines = detail?.battingLines.orEmpty(),
+                    bowlingLines = detail?.bowlingLines.orEmpty(),
+                    size = size,
+                )
+            },
+        )
+    }
 }
 
 @Composable
@@ -242,7 +281,9 @@ private fun NoDataFace(size: TileSize, teamLabel: String, modifier: Modifier) {
  * columns there.
  */
 @Composable
-private fun SportsFront(snapshot: SportsSnapshot, size: TileSize) {
+private fun SportsFront(snapshot: SportsSnapshot, size: TileSize, turn: String? = null) {
+    // "1/2 · today · Live · …" — which of today's matches, its day, its state.
+    val status = listOfNotNull(turn, sportsStatusLine(snapshot)).joinToString(" · ")
     val narrow = size.narrowLive
     val short = size.shortLive
     val tier = sportsSizeTier(size)
@@ -272,7 +313,7 @@ private fun SportsFront(snapshot: SportsSnapshot, size: TileSize) {
                 textAlign = TextAlign.Center,
             )
             Text(
-                text = sportsStateLabel(snapshot.state),
+                text = status,
                 color = FaceText.copy(alpha = 0.82f),
                 fontSize = 11.sp,
                 maxLines = 1,
@@ -303,7 +344,13 @@ private fun SportsFront(snapshot: SportsSnapshot, size: TileSize) {
         }
     }
     Column(modifier = Modifier.fillMaxSize().padding(if (short) 6.dp else if (tier == SportsSizeTier.EXTRA_LARGE) 16.dp else 11.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        // Side by side only with room for both scores: two cricket scores
+        // ("351/7" and "172/2 (23.5/50 ov)") ran into each other on a 2×2 tile.
+        val stacked = size.cols <= 2 || maxOf(snapshot.teamScore.length, snapshot.opponentScore.length) > SIDE_BY_SIDE_MAX_CHARS
+        if (stacked) {
+            TeamScoreRow(snapshot.teamAbbr.ifBlank { snapshot.teamName }, snapshot.teamScore, abbrSize, scoreSize)
+            TeamScoreRow(snapshot.opponentAbbr.ifBlank { snapshot.opponentName }, snapshot.opponentScore, abbrSize, scoreSize)
+        } else Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             TeamScoreColumn(
                 abbr = snapshot.teamAbbr.ifBlank { snapshot.teamName },
                 scoreLines = splitInningsScore(snapshot.teamScore),
@@ -321,7 +368,7 @@ private fun SportsFront(snapshot: SportsSnapshot, size: TileSize) {
         }
         Spacer(Modifier.weight(1f))
         Text(
-            text = snapshot.statusDetail.ifBlank { sportsStateLabel(snapshot.state) },
+            text = status,
             color = FaceText.copy(alpha = 0.82f),
             fontSize = if (short) 10.sp else if (tier == SportsSizeTier.EXTRA_LARGE) 15.sp else 12.sp,
             maxLines = if (roomyOrBigger) 2 else 1,
@@ -336,6 +383,32 @@ private fun SportsFront(snapshot: SportsSnapshot, size: TileSize) {
         }
     }
 }
+
+/** One side on its own row: "IND" then its latest innings' score, for tiles without room for two columns. */
+@Composable
+private fun TeamScoreRow(abbr: String, score: String, abbrSize: TextUnit, scoreSize: TextUnit) {
+    Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = abbr,
+            color = FaceText.copy(alpha = 0.82f),
+            fontSize = abbrSize,
+            maxLines = 1,
+            modifier = Modifier.padding(end = 6.dp, bottom = 2.dp),
+        )
+        Text(
+            text = splitInningsScore(score).last(),
+            color = FaceText,
+            fontSize = scoreSize,
+            fontWeight = FontWeight.Light,
+            letterSpacing = (-0.5).sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** Longest score that still fits beside the other on a wide tile. */
+private const val SIDE_BY_SIDE_MAX_CHARS = 12
 
 @Composable
 private fun TeamScoreColumn(
@@ -408,7 +481,7 @@ private fun SportsBack(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = snapshot.statusDetail.ifBlank { sportsStateLabel(snapshot.state) },
+                text = sportsStatusLine(snapshot),
                 color = FaceText.copy(alpha = 0.65f),
                 fontSize = if (narrow) 11.sp else if (tier == SportsSizeTier.EXTRA_LARGE) 16.sp else 13.sp,
                 maxLines = 2,
@@ -429,7 +502,7 @@ private fun SportsBack(
         modifier = Modifier.fillMaxSize().padding(if (big) 12.dp else if (short) 6.dp else 9.dp),
     ) {
         Text(
-            text = snapshot.statusDetail.ifBlank { sportsStateLabel(snapshot.state) },
+            text = sportsStatusLine(snapshot),
             color = FaceText.copy(alpha = 0.6f),
             fontSize = if (tier == SportsSizeTier.EXTRA_LARGE) 14.sp else if (big) 12.sp else 11.sp,
             maxLines = 1,

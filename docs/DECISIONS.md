@@ -11288,3 +11288,25 @@ also "towards your <bank> card"). Capture and tests share `parseMoneyMessage`.
   stays "nothing" (amounts on Start are opt-in).
 Checked on the emulator with test SMS (spend, statement + minimum reminder, a second card's
 due, a paid statement): parts, merged bill, order, paid mark, payments total and the tile.
+
+## Sports: every match a team plays today, each with its date (2026-10-03)
+User-reported: India's Asian Games T20 final against Pakistan (10:00 IST, finished) never
+showed on the sports tile or widget; India vs West Indies did, and looked like a match from
+days before. ESPN gives every India men's side one team id, so the senior side's 3rd ODI
+(live from 14:00) and the Asian Games side's final were both "India", and `pickRelevantMatch`
+showed only one — live first — so the final vanished once the ODI started.
+- `relevantMatches`: every match of the team's live, finished within 18 h or starting within
+  18 h (live first, then newest result, then soonest fixture; at most 3), else the old single
+  pick. Cricket: `fetchRecentCricketMatchesForTeam` (the 30-day look-back stays for a team
+  with nothing today). The tile takes turns, the next match each time it flips back to its
+  front ("1/2 · …"); the widget shows the next one each refresh and keeps polling while any is
+  live.
+- Which match and when, always (user: "check date of match always"): cricket events carry a
+  label from ESPN's description and tournament (`cricketMatchLabel`: "3rd ODI · West Indies
+  tour of India", "Final · Asian Games"), and `sportsStatusLine` puts the day first —
+  today / yesterday / tomorrow / "30 sep" — then the status and label, on the tile and widget.
+- On a tile ≤ 2 columns wide, or with a long score, each side gets its own row ("IND 351/7",
+  "WI 173/2 (24.1/50 ov)"): side by side, two cricket scores ran into one ("351/7172/2").
+ESPN's feed listed the India–West Indies match as the 3rd ODI on 3 Oct 2026, live; the user
+reported it wasn't live today — not reproducible from ESPN's data, flagged back to the user.
+Checked on the emulator (India followed: the ODI and the final take turns, dated).

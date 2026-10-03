@@ -43,6 +43,10 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   `tools/keyboard/build_loanwords.py` (CMU Pronouncing Dictionary, checked against each
   language's word list; `LoanWords`). An English word with no such spelling stays in English
   letters. Unit-tested (`LoanWordsTest`); typed on the emulator.
+- **`main` — sports: every match a team plays today, dated.** India's Asian Games final and
+  the senior ODI share one ESPN id; the tile/widget showed only the live one. Now they take
+  turns (`relevantMatches`, "1/2"), each labelled ("3rd ODI · West Indies tour of India") with
+  its day first ("today · Live · …"); scores stack on narrow tiles. Checked on the emulator.
 - **`main` — money cards: spends, bills due, payments.** A card bill payment (bank debit or
   "payment received towards your … card", which was misread as a spend) is never spending.
   A statement and its reminders are one bill (same card + due date, else amount), listed by due

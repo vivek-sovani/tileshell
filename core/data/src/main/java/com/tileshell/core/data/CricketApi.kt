@@ -90,9 +90,10 @@ suspend fun fetchCricketMatches(dateYyyymmdd: String? = null): List<SportsMatchE
             for (l in 0 until leagues.length()) {
                 val league = leagues.getJSONObject(l)
                 val leagueId = league.optString("id").ifEmpty { null }
+                val leagueName = league.optString("name")
                 val leagueEvents = league.optJSONArray("events") ?: continue
                 for (e in 0 until leagueEvents.length()) {
-                    parseCricketEvent(leagueEvents.getJSONObject(e), leagueId)?.let { events.add(it) }
+                    parseCricketEvent(leagueEvents.getJSONObject(e), leagueId, leagueName)?.let { events.add(it) }
                 }
             }
         }
@@ -136,9 +137,22 @@ private val lookbackCache = ConcurrentHashMap<String, CricketLookback>()
 
 private const val CRICKET_LOOKBACK_TTL_MS = 6L * 60 * 60 * 1000
 
-suspend fun fetchRecentCricketMatchForTeam(teamId: String, nowMillis: Long, maxDaysBack: Int = 30): SportsMatchEvent? {
+suspend fun fetchRecentCricketMatchForTeam(teamId: String, nowMillis: Long, maxDaysBack: Int = 30): SportsMatchEvent? =
+    fetchRecentCricketMatchesForTeam(teamId, nowMillis, maxDaysBack).firstOrNull()
+
+/**
+ * A followed cricket team's matches worth showing now ([relevantMatches]:
+ * every one live or from today, as a national side can play two at once),
+ * else its most recent result, walked back as [fetchRecentCricketMatchForTeam]
+ * describes.
+ */
+suspend fun fetchRecentCricketMatchesForTeam(teamId: String, nowMillis: Long, maxDaysBack: Int = 30): List<SportsMatchEvent> {
     val today = fetchCricketMatches().filter { it.homeId == teamId || it.awayId == teamId }
-    pickRelevantMatch(today, nowMillis)?.let { return it }
+    relevantMatches(today, nowMillis).takeIf { it.isNotEmpty() }?.let { return it }
+    return listOfNotNull(lookBackForCricketMatch(teamId, nowMillis, maxDaysBack))
+}
+
+private suspend fun lookBackForCricketMatch(teamId: String, nowMillis: Long, maxDaysBack: Int): SportsMatchEvent? {
 
     lookbackCache[teamId]
         ?.takeIf { nowMillis - it.resolvedAtMillis in 0 until CRICKET_LOOKBACK_TTL_MS }
@@ -166,7 +180,7 @@ suspend fun fetchRecentCricketMatchForTeam(teamId: String, nowMillis: Long, maxD
     return null
 }
 
-private fun parseCricketEvent(ev: JSONObject, leagueId: String?): SportsMatchEvent? {
+private fun parseCricketEvent(ev: JSONObject, leagueId: String?, leagueName: String = ""): SportsMatchEvent? {
     val epochMillis = parseEspnInstant(ev.optString("date")) ?: return null
     val competitors = ev.optJSONArray("competitors") ?: return null
     if (competitors.length() < 2) return null
@@ -190,8 +204,28 @@ private fun parseCricketEvent(ev: JSONObject, leagueId: String?): SportsMatchEve
         awayName = away.optString("displayName"),
         awayScore = away.optString("score", "-"),
         leagueId = leagueId,
+        matchLabel = cricketMatchLabel(ev.optString("description"), leagueName),
     )
 }
+/**
+ * Which match a cricket event is, from ESPN's description ("3rd ODI (D/N),
+ * West Indies tour of India at New Chandigarh, Oct 3 2026") and its
+ * tournament's name: "3rd ODI · West Indies tour of India", "Final · Asian
+ * Games". Without it, today's ODI read like one from days before (user-
+ * reported). Null when neither is known. Pure, unit-tested.
+ */
+fun cricketMatchLabel(description: String, leagueName: String): String? {
+    val match = description.substringBefore(",").replace(Regex("""\s*\((?:D/N|N)\)"""), "").trim()
+        .takeIf { it.isNotEmpty() && !it.contains(" at ") }
+    val league = leagueName
+        .replace(Regex("""\b\d{4}(?:/\d{2,4})?\b"""), "")
+        .replace(Regex("""\s*(?:Men's|Women's)?\s*Cricket\s+Competition""", RegexOption.IGNORE_CASE), "")
+        .replace(Regex("""\s+"""), " ")
+        .trim()
+        .takeIf { it.isNotEmpty() }
+    return listOfNotNull(match, league).joinToString(" · ").ifEmpty { null }
+}
+
 
 /**
  * Live scorecard detail for a cricket match: the not-out batsmen (currently

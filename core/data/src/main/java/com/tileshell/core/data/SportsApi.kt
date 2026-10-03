@@ -39,6 +39,8 @@ data class SportsMatchEvent(
     // the tournament's own league id, unlike a club sport's fixed leagueSlug,
     // so this is how fetchMatchDetail knows what to ask for.
     val leagueId: String? = null,
+    /** Which match this is, when the feed says ("3rd ODI · West Indies tour of India"): cricket only. */
+    val matchLabel: String? = null,
 )
 
 /**
@@ -83,6 +85,10 @@ data class SportsSnapshot(
     val opponentScore: String,
     val state: String,
     val statusDetail: String,
+    /** See [SportsMatchEvent.matchLabel]. */
+    val matchLabel: String? = null,
+    /** When the match started, so a result from another day can say which. */
+    val epochMillis: Long = 0L,
 )
 
 /**
@@ -98,6 +104,32 @@ fun pickRelevantMatch(events: List<SportsMatchEvent>, nowMillis: Long): SportsMa
         ?.let { return it }
     return events.filter { it.epochMillis > nowMillis }.minByOrNull { it.epochMillis }
 }
+
+/**
+ * Every match of the team's worth showing now, not just one: a national
+ * side can play two at once (user-reported: India's Asian Games T20 against
+ * Pakistan finished while the senior side's Test against the West Indies was
+ * live — ESPN gives both the same team id, and [pickRelevantMatch]'s "live
+ * first" hid the T20 all day). Live ones first, then those finished within
+ * [SAME_DAY_MS] (newest first), then those starting within it (soonest
+ * first), at most [MAX_RELEVANT_MATCHES]; when there are none, the one
+ * [pickRelevantMatch] would show. Pure, unit-tested.
+ */
+fun relevantMatches(events: List<SportsMatchEvent>, nowMillis: Long): List<SportsMatchEvent> {
+    val live = events.filter { it.state == "in" }.sortedByDescending { it.epochMillis }
+    val finished = events.filter { it.state == "post" && it.epochMillis <= nowMillis && nowMillis - it.epochMillis <= SAME_DAY_MS }
+        .sortedByDescending { it.epochMillis }
+    val upcoming = events.filter { it.state != "in" && it.state != "post" && it.epochMillis > nowMillis && it.epochMillis - nowMillis <= SAME_DAY_MS }
+        .sortedBy { it.epochMillis }
+    val today = (live + finished + upcoming).distinctBy { it.id }.take(MAX_RELEVANT_MATCHES)
+    return today.ifEmpty { listOfNotNull(pickRelevantMatch(events, nowMillis)) }
+}
+
+/** How far from now a finished or upcoming match still counts as today's. */
+const val SAME_DAY_MS = 18L * 60 * 60 * 1000
+
+/** At most this many matches take turns on one tile. */
+const val MAX_RELEVANT_MATCHES = 3
 
 /**
  * Reframes [event] from the perspective of the team identified by [ourId]
@@ -117,6 +149,8 @@ fun snapshotFor(event: SportsMatchEvent, ourId: String): SportsSnapshot {
         opponentScore = if (weAreHome) event.awayScore else event.homeScore,
         state = event.state,
         statusDetail = event.statusDetail,
+        matchLabel = event.matchLabel,
+        epochMillis = event.epochMillis,
     )
 }
 

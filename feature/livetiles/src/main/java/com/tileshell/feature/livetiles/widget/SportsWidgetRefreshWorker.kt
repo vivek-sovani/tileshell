@@ -21,9 +21,9 @@ import com.tileshell.core.data.SPORTS_STATE_LIVE
 import com.tileshell.core.data.SportsTile
 import com.tileshell.core.data.fetchCricketMatchDetail
 import com.tileshell.core.data.fetchMatchDetail
-import com.tileshell.core.data.fetchRecentCricketMatchForTeam
+import com.tileshell.core.data.fetchRecentCricketMatchesForTeam
 import com.tileshell.core.data.fetchSportsSchedule
-import com.tileshell.core.data.pickRelevantMatch
+import com.tileshell.core.data.relevantMatches
 import com.tileshell.core.data.shouldFetchSports
 import com.tileshell.core.data.snapshotFor
 import com.tileshell.core.data.splitInningsScore
@@ -243,20 +243,26 @@ class SportsWidgetRefreshWorker(
             views.setTextViewText(R.id.widget_back_team, selection.teamLabel)
             views.setTextViewText(R.id.widget_back_league, leagueName)
 
-            val relevant = if (selection.leagueSlug == CRICKET_LEAGUE_SLUG) {
-                fetchRecentCricketMatchForTeam(selection.teamId, System.currentTimeMillis())
+            // Every match of the team's today — a national side can play two at
+            // once (India's Asian Games T20 and the senior ODI share one ESPN id) —
+            // shown in turn, the next one on each refresh.
+            val todays = if (selection.leagueSlug == CRICKET_LEAGUE_SLUG) {
+                fetchRecentCricketMatchesForTeam(selection.teamId, System.currentTimeMillis())
             } else {
-                pickRelevantMatch(fetchSportsSchedule(selection.leagueSlug, selection.teamId), System.currentTimeMillis())
+                relevantMatches(fetchSportsSchedule(selection.leagueSlug, selection.teamId), System.currentTimeMillis())
             }
+            val relevant = todays.takeIf { it.isNotEmpty() }?.let { it[nextSportsTurn(context, appWidgetId, it.size)] }
 
             // Remember what we just learned so the next periodic tick can decide
             // whether it needs to fetch at all — a finished or not-yet-started
             // match means there is nothing to poll for (see shouldFetchSports).
+            // Any of today's matches still live keeps it polling.
+            val pollFor = todays.firstOrNull { it.state == "in" } ?: relevant
             WidgetSportsStateStore.record(
                 context = context,
                 appWidgetId = appWidgetId,
-                state = relevant?.state,
-                kickoffMillis = relevant?.epochMillis,
+                state = pollFor?.state,
+                kickoffMillis = pollFor?.epochMillis,
                 fetchedAtMillis = System.currentTimeMillis(),
             )
 
@@ -312,7 +318,7 @@ class SportsWidgetRefreshWorker(
                 setScoreLines(views, R.id.widget_team_score, R.id.widget_team_score_2, snapshot.teamScore, onAccent)
                 setScoreLines(views, R.id.widget_opp_score, R.id.widget_opp_score_2, snapshot.opponentScore, onAccent)
             }
-            views.setTextViewText(R.id.widget_status, snapshot.statusDetail.ifBlank { sportsStateLabel(snapshot.state) })
+            views.setTextViewText(R.id.widget_status, com.tileshell.feature.livetiles.sportsStatusLine(snapshot))
 
             if (!compact) {
                 MEMBER_LINE_IDS.forEachIndexed { index, id ->
@@ -378,4 +384,14 @@ class SportsWidgetRefreshWorker(
             }
         }
     }
+}
+
+/** Which of [count] matches a sports widget shows this time: the next one each refresh. */
+private fun nextSportsTurn(context: android.content.Context, appWidgetId: Int, count: Int): Int {
+    if (count <= 1) return 0
+    val prefs = context.getSharedPreferences("tileshell.prefs", android.content.Context.MODE_PRIVATE)
+    val key = "sports_widget_turn_$appWidgetId"
+    val turn = (prefs.getInt(key, -1) + 1) % count
+    prefs.edit().putInt(key, turn).apply()
+    return turn
 }

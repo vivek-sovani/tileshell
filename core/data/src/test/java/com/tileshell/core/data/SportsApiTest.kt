@@ -327,4 +327,41 @@ class ParseSoccerScorersTest {
     fun `no keyEvents field yields an empty list`() {
         assertEquals(emptyList<String>(), parseSoccerScorers(JSONObject()))
     }
+
+}
+
+class RelevantMatchesTest {
+    private fun ev(id: String, at: Long, state: String) = SportsMatchEvent(
+        id = id, epochMillis = at, state = state, statusDetail = "",
+        homeId = "6", homeAbbr = "IND", homeName = "India", homeScore = "",
+        awayId = "7", awayAbbr = "PAK", awayName = "Pakistan", awayScore = "",
+    )
+
+    @Test
+    fun `a team's two matches today both show, live first`() {
+        val hour = 3_600_000L
+        val now = 100 * hour
+        // India's Asian Games T20 finished this morning; the senior ODI is live.
+        val t20 = ev("t20", now - 10 * hour, "post")
+        val odi = ev("odi", now - 6 * hour, "in")
+        val lastWeek = ev("old", now - 150 * hour, "post")
+        val tomorrowNight = ev("next", now + 30 * hour, "pre")
+        assertEquals(listOf("odi", "t20"), relevantMatches(listOf(lastWeek, t20, odi, tomorrowNight), now).map { it.id })
+        // Nothing today: the one pickRelevantMatch would show.
+        assertEquals(listOf("old"), relevantMatches(listOf(lastWeek, tomorrowNight), now).map { it.id })
+        assertEquals(emptyList<SportsMatchEvent>(), relevantMatches(emptyList(), now))
+    }
+
+    @Test
+    fun `which cricket match it is`() {
+        assertEquals(
+            "3rd ODI · West Indies tour of India",
+            cricketMatchLabel("3rd ODI (D/N), West Indies tour of India at New Chandigarh, Oct 3 2026", "West Indies tour of India 2026/27"),
+        )
+        assertEquals(
+            "Final · Asian Games",
+            cricketMatchLabel("Final, Asian Games Men's Cricket Competition at Nisshin, Oct 3 2026", "Asian Games Men's Cricket Competition"),
+        )
+        assertEquals(null, cricketMatchLabel("", ""))
+    }
 }
