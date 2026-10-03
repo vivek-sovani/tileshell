@@ -63,15 +63,23 @@ fun MoneyTileFace(size: TileSize, active: Boolean, modifier: Modifier = Modifier
             flipped = !flipped
         }
     }
-    val showDetails = settings?.tileDetails == MoneyTileDetails.LAST_PAYMENT_AND_RECEIPT
+    val details = settings?.tileDetails
+    val bills = remember(txns, details) {
+        if (details == MoneyTileDetails.BILLS_DUE) dueBills(groupCardMessages(txns.filter(::isCardTxn))).filterNot { it.paid } else emptyList()
+    }
     FlipTile(
         flipped = flipped,
         modifier = modifier.fillMaxSize(),
         front = {
-            if (showDetails && size != TileSize.SMALL) {
-                MoneyDetailsFront(txns.firstOrNull { !it.credit && !it.alert }, txns.firstOrNull { it.credit && !it.alert }, size)
-            } else {
-                MoneyGlyphFront(size)
+            when {
+                size == TileSize.SMALL -> MoneyGlyphFront(size)
+                details == MoneyTileDetails.LAST_PAYMENT_AND_RECEIPT -> MoneyDetailsFront(
+                    txns.firstOrNull { !it.credit && !it.alert && !isCardBillPayment(it) },
+                    txns.firstOrNull { it.credit && !it.alert },
+                    size,
+                )
+                details == MoneyTileDetails.BILLS_DUE -> MoneyBillsFront(bills, size)
+                else -> MoneyGlyphFront(size)
             }
         },
         back = { MoneyAppsBack(payment, size) },
@@ -100,6 +108,41 @@ private fun MoneyDetailsFront(paid: MoneyTxn?, received: MoneyTxn?, size: TileSi
         MoneyLine("last paid", paid, "−", color, big)
         MoneyLine("last received", received, "+", color, big)
         Text("money", color = color, fontSize = 12.sp)
+    }
+}
+
+/** The card bills still to pay, soonest due first: amount, card, when it's due. */
+@Composable
+private fun MoneyBillsFront(bills: List<DueBill>, size: TileSize) {
+    val color = LocalTileFaceColor.current
+    val big = size.rows >= 2
+    // One bill per row of tile height, two on a short wide tile.
+    val fits = (size.rows.coerceAtLeast(1)).coerceAtMost(4)
+    Column(modifier = Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.SpaceBetween) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (bills.isEmpty()) {
+                Text("no bills due", color = color, fontSize = if (big) 15.sp else 13.sp)
+            }
+            bills.take(fits).forEach { bill ->
+                val t = bill.group.latest
+                Column {
+                    Text(
+                        "${formatRupees(bill.amountPaise)} ${listOfNotNull(t.bank, t.account?.let { "·$it" }).joinToString(" ")}",
+                        color = color,
+                        fontSize = if (big) 15.sp else 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(dueLabel(bill), color = color.copy(alpha = 0.8f), fontSize = 10.sp, maxLines = 1)
+                }
+            }
+        }
+        Text(
+            if (bills.size > fits) "money · +${bills.size - fits} more bills" else "money",
+            color = color,
+            fontSize = 12.sp,
+            maxLines = 1,
+        )
     }
 }
 

@@ -233,19 +233,35 @@ private fun MoneyTransactionsPage(tokens: ColorTokens, accent: Color) {
     val txns by MoneyStore.transactions.collectAsStateWithLifecycle()
     val access = rememberNotificationAccess()
     var filter by remember { mutableStateOf<String?>(null) }
-    // "accounts & upi" or "cards": card transactions and card alerts (bill
-    // due, statement) get their own section.
+    // "accounts & upi" or "cards": card transactions and card alerts get their
+    // own section, in three parts — spends, bills due, bills paid.
     var cards by remember { mutableStateOf(false) }
-    val hasCards = remember(txns) { txns.any(::isCardTxn) }
-    val section = remember(txns, cards, hasCards) { txns.filter { !hasCards || isCardTxn(it) == cards } }
+    var cardTab by remember { mutableStateOf(CardKind.SPEND) }
+    val cardTxns = remember(txns) { txns.filter(::isCardTxn) }
+    val hasCards = cardTxns.isNotEmpty()
+    val section = remember(txns, cardTxns, cards, cardTab) {
+        when {
+            !hasCards -> txns
+            !cards -> txns.filterNot(::isCardTxn)
+            else -> cardTxns.filter { cardKind(it) == cardTab }
+        }
+    }
     val filters = remember(section) { moneyFilters(section) }
     val shown = remember(section, filter) { section.filter { filter == null || moneyFilterKey(it, filter!!) } }
-    val month = remember(shown) { monthTotals(shown.filterNot { it.alert }) }
-    val latestDue = remember(section, cards) { if (cards) section.firstOrNull { it.alert && !it.credit } else null }
+    // A card bill payment moves your own money: never "spent".
+    val month = remember(shown) { monthTotals(shown.filterNot { it.alert || isCardBillPayment(it) }) }
+    // Bills due, statement and reminders as one, soonest first; paid ones last.
+    val bills = remember(cardTxns) { dueBills(groupCardMessages(cardTxns)) }
+    val nextBill = bills.firstOrNull { !it.paid }
+    val showCards = hasCards && cards
+    val payments = remember(shown, showCards, cardTab) {
+        if (showCards && cardTab == CardKind.PAYMENT) groupCardMessages(shown) else emptyList()
+    }
+    val shownBills = remember(bills, filter) { bills.filter { filter == null || moneyFilterKey(it.group.latest, filter!!) } }
     var expanded by remember { mutableStateOf<MoneyTxn?>(null) }
     var confirmClear by remember { mutableStateOf(false) }
-    // The last swiped-away transaction, offered back for a few seconds.
-    var removed by remember { mutableStateOf<MoneyTxn?>(null) }
+    // The last swiped-away row (a bill or payment may be several messages), offered back for a few seconds.
+    var removed by remember { mutableStateOf<List<MoneyTxn>?>(null) }
     LaunchedEffect(removed) {
         if (removed != null) {
             delay(5_000)
@@ -286,29 +302,58 @@ private fun MoneyTransactionsPage(tokens: ColorTokens, accent: Color) {
                 }
             }
         }
-        latestDue?.let { due ->
+        if (showCards) {
+            item(key = "card-parts") {
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                    listOf(CardKind.SPEND to "spends", CardKind.DUE to "due", CardKind.PAYMENT to "payments").forEach { (value, label) ->
+                        HubFilter(label, cardTab == value, tokens, accent) { cardTab = value; filter = null; expanded = null }
+                    }
+                }
+            }
+        }
+        // The next bill to pay, on the other card parts; tap for the bills.
+        if (showCards && cardTab != CardKind.DUE) nextBill?.let { bill ->
             item(key = "due") {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
                         .background(DUE.copy(alpha = 0.14f))
+                        .clickable { cardTab = CardKind.DUE; filter = null; expanded = null }
                         .padding(10.dp),
                 ) {
-                    Text(
-                        "${due.counterparty} · ${listOfNotNull(due.bank, due.account?.let { "·$it" }).joinToString(" ").ifBlank { "card" }}",
-                        color = tokens.fgDim,
-                        fontSize = 12.sp,
-                    )
-                    Text(formatRupees(due.amountPaise), color = DUE, fontSize = 20.sp)
-                    Text("from the latest card message · ${dayLabel(due.time)}", color = tokens.fgDim, fontSize = 11.sp)
+                    Text("next bill · ${cardName(bill.group.latest)}", color = tokens.fgDim, fontSize = 12.sp)
+                    Text(formatRupees(bill.amountPaise), color = DUE, fontSize = 20.sp)
+                    Text(dueLabel(bill), color = tokens.fgDim, fontSize = 11.sp)
                 }
             }
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                TotalCard(if (cards) "spent on cards · ${month.label}" else "spent · ${month.label}", formatRupees(month.spent), DEBIT, tokens, Modifier.weight(1f))
-                TotalCard("received · ${month.label}", formatRupees(month.received), CREDIT, tokens, Modifier.weight(1f))
+                when {
+                    !showCards -> {
+                        TotalCard("spent · ${month.label}", formatRupees(month.spent), DEBIT, tokens, Modifier.weight(1f))
+                        TotalCard("received · ${month.label}", formatRupees(month.received), CREDIT, tokens, Modifier.weight(1f))
+                    }
+                    cardTab == CardKind.SPEND -> {
+                        TotalCard("spent on cards · ${month.label}", formatRupees(month.spent), DEBIT, tokens, Modifier.weight(1f))
+                        TotalCard("refunds · ${month.label}", formatRupees(month.received), CREDIT, tokens, Modifier.weight(1f))
+                    }
+                    cardTab == CardKind.DUE -> TotalCard(
+                        "to pay",
+                        formatRupees(shownBills.filterNot { it.paid }.sumOf { it.amountPaise }),
+                        DUE,
+                        tokens,
+                        Modifier.weight(1f),
+                    )
+                    else -> TotalCard(
+                        "bills paid · ${month.label}",
+                        formatRupees(paidThisMonth(payments)),
+                        CREDIT,
+                        tokens,
+                        Modifier.weight(1f),
+                    )
+                }
             }
         }
         if (removed != null) {
@@ -321,14 +366,19 @@ private fun MoneyTransactionsPage(tokens: ColorTokens, accent: Color) {
                         .background(tokens.fg.copy(alpha = 0.06f))
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                 ) {
-                    Text("transaction removed", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    Text(
+                        if ((removed?.size ?: 0) > 1) "${removed!!.size} messages removed" else "transaction removed",
+                        color = tokens.fgDim,
+                        fontSize = 13.sp,
+                        modifier = Modifier.weight(1f),
+                    )
                     Text(
                         "undo",
                         color = accent,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.clickable {
-                            removed?.let { MoneyStore.restore(context, it) }
+                            removed?.forEach { MoneyStore.restore(context, it) }
                             removed = null
                         },
                     )
@@ -337,9 +387,15 @@ private fun MoneyTransactionsPage(tokens: ColorTokens, accent: Color) {
         }
         if (txns.isNotEmpty()) {
             item(key = "summary") {
+                val rows = when {
+                    showCards && cardTab == CardKind.DUE -> shownBills.size
+                    showCards && cardTab == CardKind.PAYMENT -> payments.size
+                    else -> shown.size
+                }
+                val noun = if (showCards && cardTab == CardKind.DUE) "bill" else if (showCards && cardTab == CardKind.PAYMENT) "payment" else "transaction"
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
                     Text(
-                        "${shown.size} transaction${if (shown.size == 1) "" else "s"} · swipe to remove, tap for the message",
+                        "$rows $noun${if (rows == 1) "" else "s"} · swipe to remove, tap for the message",
                         color = tokens.fgDim,
                         fontSize = 12.sp,
                         modifier = Modifier.weight(1f),
@@ -361,7 +417,62 @@ private fun MoneyTransactionsPage(tokens: ColorTokens, accent: Color) {
                 }
             }
         }
-        if (shown.isEmpty()) {
+        if (showCards && cardTab == CardKind.DUE) {
+            if (shownBills.isEmpty()) {
+                item {
+                    Text(
+                        "no bills due yet. card statements and payment reminders show up here, one row per bill.",
+                        color = tokens.fgDim,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(vertical = 12.dp),
+                    )
+                }
+            }
+            shownBills.forEach { bill ->
+                val txn = bill.group.latest
+                item(key = "b-${txn.time}-${txn.amountPaise}") {
+                    SwipeableTxnRow(
+                        txn = txn,
+                        expanded = expanded == txn,
+                        tokens = tokens,
+                        onTap = { expanded = if (expanded == txn) null else txn },
+                        onDismiss = {
+                            if (expanded == txn) expanded = null
+                            removed = bill.group.members
+                            bill.group.members.forEach { MoneyStore.remove(context, it) }
+                        },
+                        row = { BillRow(bill, tokens) },
+                        details = bill.group.members.sortedBy { it.time },
+                    )
+                }
+            }
+        } else if (showCards && cardTab == CardKind.PAYMENT) {
+            var lastPayDay = ""
+            payments.forEach { group ->
+                val txn = group.latest
+                val day = dayLabel(txn.time)
+                if (day != lastPayDay) {
+                    lastPayDay = day
+                    item(key = "pd-$day-${txn.time}") { Text(day, color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)) }
+                }
+                item(key = "p-${txn.time}-${txn.amountPaise}") {
+                    SwipeableTxnRow(
+                        txn = txn,
+                        expanded = expanded == txn,
+                        tokens = tokens,
+                        onTap = { expanded = if (expanded == txn) null else txn },
+                        onDismiss = {
+                            if (expanded == txn) expanded = null
+                            removed = group.members
+                            group.members.forEach { MoneyStore.remove(context, it) }
+                        },
+                        row = { PaymentRow(group, tokens) },
+                        details = group.members.sortedBy { it.time },
+                    )
+                }
+            }
+        }
+        if (shown.isEmpty() && !(showCards && cardTab == CardKind.DUE)) {
             item {
                 Text(
                     "no transactions yet. new bank messages and payment notifications show up here as they arrive — older messages can't be read.",
@@ -372,7 +483,7 @@ private fun MoneyTransactionsPage(tokens: ColorTokens, accent: Color) {
             }
         }
         var lastDay = ""
-        shown.forEach { txn ->
+        if (!showCards || cardTab == CardKind.SPEND) shown.forEach { txn ->
             val day = dayLabel(txn.time)
             if (day != lastDay) {
                 lastDay = day
@@ -386,7 +497,7 @@ private fun MoneyTransactionsPage(tokens: ColorTokens, accent: Color) {
                     onTap = { expanded = if (expanded == txn) null else txn },
                     onDismiss = {
                         if (expanded == txn) expanded = null
-                        removed = txn
+                        removed = listOf(txn)
                         MoneyStore.remove(context, txn)
                     },
                 )
@@ -422,7 +533,16 @@ private fun Chip(label: String, on: Boolean, accent: Color, tokens: ColorTokens,
 
 /** A transaction row: swipe either way to remove it, tap to show the full message. */
 @Composable
-private fun SwipeableTxnRow(txn: MoneyTxn, expanded: Boolean, tokens: ColorTokens, onTap: () -> Unit, onDismiss: () -> Unit) {
+private fun SwipeableTxnRow(
+    txn: MoneyTxn,
+    expanded: Boolean,
+    tokens: ColorTokens,
+    onTap: () -> Unit,
+    onDismiss: () -> Unit,
+    row: @Composable () -> Unit = { TxnRow(txn, tokens) },
+    /** The messages shown when tapped (a bill: its statement and reminders, oldest first). */
+    details: List<MoneyTxn> = listOf(txn),
+) {
     val state = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             if (value != SwipeToDismissBoxValue.Settled) onDismiss()
@@ -454,8 +574,8 @@ private fun SwipeableTxnRow(txn: MoneyTxn, expanded: Boolean, tokens: ColorToken
                     onClick = onTap,
                 ),
         ) {
-            TxnRow(txn, tokens)
-            if (expanded) TxnDetails(txn, tokens)
+            row()
+            if (expanded) details.forEach { TxnDetails(it, tokens) }
         }
     }
 }
@@ -511,6 +631,84 @@ private fun TxnRow(txn: MoneyTxn, tokens: ColorTokens) {
             )
         }
     }
+}
+
+/** A bill: the card, its due date, the statement and reminders it was read from, the amount. */
+@Composable
+private fun BillRow(bill: DueBill, tokens: ColorTokens) {
+    val t = bill.group.latest
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(cardName(t), color = tokens.fg, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(dueLabel(bill), color = if (bill.paid) tokens.fgDim else DUE, fontSize = 12.sp, maxLines = 1)
+            Text(billSources(bill), color = tokens.fgDim, fontSize = 12.sp, maxLines = 1)
+        }
+        Text(
+            formatRupees(bill.amountPaise),
+            color = if (bill.paid) tokens.fgDim else DUE,
+            fontSize = 15.sp,
+        )
+    }
+}
+
+/** A card bill paid: the card or bank, how many messages told of it, the amount. */
+@Composable
+private fun PaymentRow(group: CardGroup, tokens: ColorTokens) {
+    val t = group.latest
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text("card bill paid", color = tokens.fg, fontSize = 15.sp, maxLines = 1)
+            Text(
+                listOfNotNull(
+                    listOfNotNull(t.bank, t.account?.let { "·$it" }).joinToString(" ").ifBlank { null },
+                    clock(t.time),
+                    if (group.members.size > 1) "${group.members.size} messages" else null,
+                ).joinToString(" · "),
+                color = tokens.fgDim,
+                fontSize = 12.sp,
+                maxLines = 1,
+            )
+        }
+        Text(formatRupees(t.amountPaise), color = CREDIT, fontSize = 15.sp)
+    }
+}
+
+private fun cardName(t: MoneyTxn): String =
+    listOfNotNull(t.bank, t.account?.let { "·$it" }).joinToString(" ").ifBlank { "card" } + " card"
+
+/** "statement 3 oct · 2 reminders" — the messages a bill was read from. */
+internal fun billSources(bill: DueBill): String = listOfNotNull(
+    bill.statement?.let { "statement ${SimpleDateFormat("d MMM", Locale.ENGLISH).format(Date(it.time)).lowercase()}" },
+    when (bill.reminders) {
+        0 -> null
+        1 -> "1 reminder"
+        else -> "${bill.reminders} reminders"
+    },
+).joinToString(" · ")
+
+/** "due 15 oct · in 3 days", "due today", "overdue by 2 days", "paid". Pure, unit-tested. */
+internal fun dueLabel(bill: DueBill, today: java.time.LocalDate = java.time.LocalDate.now()): String {
+    val date = bill.dueDate
+    val day = date?.let { "due ${it.dayOfMonth} ${it.month.name.take(3).lowercase()}" }
+    if (bill.paid) return listOfNotNull("paid", day).joinToString(" · ")
+    if (date == null) return "due date not in the message"
+    val days = java.time.temporal.ChronoUnit.DAYS.between(today, date)
+    return when {
+        days == 0L -> "due today"
+        days == 1L -> "$day · tomorrow"
+        days > 1 -> "$day · in $days days"
+        days == -1L -> "overdue by 1 day · $day"
+        else -> "overdue by ${-days} days · $day"
+    }
+}
+
+/** This month's card bill payments, each payment once. Pure, unit-tested. */
+internal fun paidThisMonth(payments: List<CardGroup>, now: Long = System.currentTimeMillis()): Long {
+    val cal = Calendar.getInstance().apply { timeInMillis = now }
+    return payments.filter {
+        val c = Calendar.getInstance().apply { timeInMillis = it.latest.time }
+        c.get(Calendar.YEAR) == cal.get(Calendar.YEAR) && c.get(Calendar.MONTH) == cal.get(Calendar.MONTH)
+    }.sumOf { it.latest.amountPaise }
 }
 
 @Composable
@@ -570,7 +768,11 @@ private fun MoneySettingsPage(settings: MoneySettings, tokens: ColorTokens, acce
             Text("show on tile", color = tokens.fg, fontSize = 15.sp)
             Spacer(Modifier.height(6.dp))
             Row(modifier = Modifier.fillMaxWidth().border(1.dp, tokens.tileLine)) {
-                listOf(MoneyTileDetails.NOTHING to "nothing", MoneyTileDetails.LAST_PAYMENT_AND_RECEIPT to "last payment & receipt").forEach { (value, label) ->
+                listOf(
+                    MoneyTileDetails.NOTHING to "nothing",
+                    MoneyTileDetails.LAST_PAYMENT_AND_RECEIPT to "payments",
+                    MoneyTileDetails.BILLS_DUE to "bills due",
+                ).forEach { (value, label) ->
                     val on = settings.tileDetails == value
                     Text(
                         label,

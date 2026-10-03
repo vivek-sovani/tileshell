@@ -315,7 +315,7 @@ fun PersonalizeGuideSheet(
                     "productivity: long-press a note, list, or app to add it to the quick row; long-press a quick shortcut to remove it",
                     "pin a note or task list from productivity to give it its own start tile; pin people's apps page for an apps tile",
                     "money: add it from \"add live tiles\"; transactions start appearing as new bank sms and payment notifications arrive (older messages can't be read)",
-                    "money · settings (the gear in its bar): what the tile shows (nothing, or your last payment and receipt), the fingerprint/screen-lock lock, reading bank messages on or off, and clearing the history",
+                    "money · settings (the gear in its bar): what the tile shows (nothing, your last payment and receipt, or the card bills still to pay), the fingerprint/screen-lock lock, reading bank messages on or off, and clearing the history",
                 ),
             )
 

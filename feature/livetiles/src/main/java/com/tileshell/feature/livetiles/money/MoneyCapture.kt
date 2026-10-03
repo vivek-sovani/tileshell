@@ -40,9 +40,7 @@ object MoneyCapture {
             if (seen.containsKey(seenKey)) return
             seen[seenKey] = Unit
         }
-        val txn = parseMoneyTxn(title, text, sbn.packageName, time)
-            ?: parseCardAlert(title, text, sbn.packageName, time)
-            ?: return
+        val txn = parseMoneyMessage(title, text, sbn.packageName, time) ?: return
         MoneyStore.add(context, txn)
     }
 

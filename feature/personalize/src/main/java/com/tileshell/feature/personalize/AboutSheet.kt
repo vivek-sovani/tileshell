@@ -232,7 +232,7 @@ fun AboutSheet(
                     "battery — today's charge curve with screen on and off, a week's history, per-app screen time, and details like temperature, health, and current",
                     "money — your bank and upi transactions, read from new bank sms and payment-app notifications and kept only on this phone, with monthly spent and received, filters per account, upi and cards, and the last balance your bank sent",
                     "money's transactions are locked behind your fingerprint, face or screen lock; its apps page lists your payment, banking, and credit and debit card apps, and the tile can show your last payment and receipt, with payment apps on the back",
-                    "money splits transactions into accounts & upi and cards; card bill-due, statement and payment-received messages show under cards, with the latest amount due",
+                    "money splits transactions into accounts & upi and cards; cards have spends, bills due and payments — a statement and its reminders are one bill, listed by due date and marked paid once a card payment comes in; paying a card bill never counts as spending",
                     "in money's transactions, tap one to read the full message, swipe it away to remove it (with undo), or clear them all",
                 ),
             )

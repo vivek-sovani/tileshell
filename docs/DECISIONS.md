@@ -11260,3 +11260,31 @@ keywords, the release blurb's keyboard line (blurb now 475 chars, with "Each wal
 keeps your pick"), the Data safety keyboard note, and the privacy policy's BIND_INPUT_METHOD /
 VIBRATE rows, keyboard section and stored-data bullet (md + hosted `docs/index.html`) — all in
 git history for when it ships. 5.0.0 AAB/APK re-cut without it in `release-out/`.
+
+## Money: cards as spends, bills due and payments (2026-10-03)
+User-reported: a card bill payment showed as a card expense. Two causes: the bank's side
+("…debited towards your credit card…") was a card transaction counted as spent, and
+"Payment of Rs X received towards your SBI Card" was read by `parseMoneyTxn` as a debit
+("payment of") before `parseCardAlert` could see it — now rejected there (`isCardPaymentReceived`,
+also "towards your <bank> card"). Capture and tests share `parseMoneyMessage`.
+- Cards has three parts (`cardKind`): **spends** (purchases; "spent on cards" + refunds),
+  **due** (statements and reminders), **payments** (payment-received alerts and bank / app
+  messages paying a card bill). A card bill payment is never in a "spent" total (it would count
+  the purchases twice) nor the tile's "last paid".
+- **One bill per statement** (user asked how two events are handled): a statement and the
+  reminders after it are one bill when they're for the same card and name the same due date —
+  so a reminder quoting the minimum or what's left still joins — or, when a message names no
+  date, the same amount; within 35 days, so next month's bill is its own
+  (`groupCardMessages`). The bill's amount is the statement's total, else the newest reminder's;
+  the row shows "statement 1 oct · 2 reminders".
+- **By due date** (user-requested): `dueDateOf` reads "due on 15-Oct-26", "15/10/2026" (day
+  first), "on or before 15th October", "Oct 15, 2026", ISO; no year → the next such date. Bills
+  list unpaid soonest first, undated after, paid last ("due 15 oct · in 3 days", "overdue by 2
+  days", "paid"). Paid = a card payment of at least the amount after the first message (same
+  card when both name one). The bank's debit and the card's "received" for one payment (same
+  amount within 3 days) are one payment row.
+- **On the tile** (user-requested): "show on tile" gains "bills due" (the middle choice is now
+  "payments"), listing the unpaid bills — amount, card, when due — one per tile row. Default
+  stays "nothing" (amounts on Start are opt-in).
+Checked on the emulator with test SMS (spend, statement + minimum reminder, a second card's
+due, a paid statement): parts, merged bill, order, paid mark, payments total and the tile.

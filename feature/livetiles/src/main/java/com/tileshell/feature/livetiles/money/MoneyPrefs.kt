@@ -6,7 +6,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /** What the money tile's front shows. */
-enum class MoneyTileDetails { NOTHING, LAST_PAYMENT_AND_RECEIPT }
+enum class MoneyTileDetails {
+    NOTHING,
+    LAST_PAYMENT_AND_RECEIPT,
+
+    /** The card bills still to pay, soonest due first. */
+    BILLS_DUE,
+}
 
 data class MoneySettings(
     val tileDetails: MoneyTileDetails = MoneyTileDetails.NOTHING,

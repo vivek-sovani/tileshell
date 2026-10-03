@@ -43,6 +43,11 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   `tools/keyboard/build_loanwords.py` (CMU Pronouncing Dictionary, checked against each
   language's word list; `LoanWords`). An English word with no such spelling stays in English
   letters. Unit-tested (`LoanWordsTest`); typed on the emulator.
+- **`main` — money cards: spends, bills due, payments.** A card bill payment (bank debit or
+  "payment received towards your … card", which was misread as a spend) is never spending.
+  A statement and its reminders are one bill (same card + due date, else amount), listed by due
+  date (`dueDateOf`) with "in 3 days" / "overdue" / "paid"; the tile can show "bills due".
+  `CardBillsTest`. Checked on the emulator with test SMS.
 - **`main` — the wallpaper target chooser shows the new wallpaper behind it** (was Start's
   current one). Checked on the emulator.
 - **`main` — "set up start with hubs" keeps the apps already pinned.** From the 5.0.0

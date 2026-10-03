@@ -33,6 +33,101 @@ fun isCardTxn(t: MoneyTxn): Boolean {
 
 private val CARD_HINTS = listOf("credit card", "debit card", "card ending", "card no", "card xx", "card **", "cc ending")
 
+/** A card issuer confirming a bill payment ("payment … received towards your … card"). */
+private fun isCardPaymentReceived(lower: String): Boolean =
+    "payment" in lower && ("received" in lower || "thank you" in lower) &&
+        (CARD_HINTS.any { it in lower } || TOWARDS_CARD.containsMatchIn(lower))
+
+/** "towards your SBI card", "towards your ICICI Bank credit card". */
+private val TOWARDS_CARD = Regex("""towards\s+(?:your\s+)?(?:[a-z]+\s+){0,3}card""")
+
+/**
+ * A notification read as a transaction, or else as a card alert (statement,
+ * bill due, payment received), or null — what [MoneyCapture] stores.
+ */
+fun parseMoneyMessage(title: String, text: String, sourcePackage: String, time: Long): MoneyTxn? =
+    parseMoneyTxn(title, text, sourcePackage, time) ?: parseCardAlert(title, text, sourcePackage, time)
+
+/** The parts of the cards section: what was spent, bills due, bills paid. */
+enum class CardKind { SPEND, DUE, PAYMENT }
+
+/** A card bill paid from a bank account or a payment app ("…debited towards your credit card…"). */
+private val BILL_PAY_HINTS = listOf(
+    "card bill", "cc bill", "credit card payment", "credit card bill", "towards your credit card",
+    "towards credit card", "towards your card", "payment to credit card", "payment to your credit card",
+    "credit card dues", "card dues",
+)
+
+/**
+ * Which part of the cards section [t] belongs to: a statement or bill-due
+ * message is DUE, a "payment received" alert or a bank / app message paying
+ * a card bill is PAYMENT (moving your own money, not spending), anything
+ * else on a card is a SPEND. Pure, unit-tested.
+ */
+fun cardKind(t: MoneyTxn): CardKind = when {
+    t.alert && t.counterparty == "card payment received" -> CardKind.PAYMENT
+    t.alert -> CardKind.DUE
+    t.message.lowercase().let { m -> BILL_PAY_HINTS.any { it in m } || TOWARDS_CARD.containsMatchIn(m) } -> CardKind.PAYMENT
+    else -> CardKind.SPEND
+}
+
+/** A card bill payment: not spending, so left out of every "spent" total. */
+fun isCardBillPayment(t: MoneyTxn): Boolean = isCardTxn(t) && cardKind(t) == CardKind.PAYMENT
+
+/** Several messages about one bill, shown as one row: the newest, and how many there were. */
+data class CardGroup(val latest: MoneyTxn, val members: List<MoneyTxn>)
+
+/** Reminders for one bill: same card, same amount, within this long of each other. */
+const val DUE_GROUP_WINDOW_MS = 35L * 86_400_000L
+
+/** One payment told twice — the bank's debit and the card's "received" — within this long. */
+const val PAYMENT_GROUP_WINDOW_MS = 3L * 86_400_000L
+
+/**
+ * Card messages as rows, newest first. Bills due: a statement and the
+ * reminders after it are one bill — same card, and the same due date (or,
+ * when a message names none, the same amount), within [DUE_GROUP_WINDOW_MS]
+ * (next month's bill, even of the same amount, is its own). A reminder that
+ * quotes the minimum or what's left still joins its statement by due date.
+ * Payments:
+ * the same amount within [PAYMENT_GROUP_WINDOW_MS] is one row (the bank
+ * names its account, the card its own number, so the amount is what
+ * matches). Spends stay one row each. Pure, unit-tested.
+ */
+fun groupCardMessages(txns: List<MoneyTxn>, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): List<CardGroup> {
+    val groups = ArrayList<MutableList<MoneyTxn>>()
+    val dueDates = HashMap<MoneyTxn, java.time.LocalDate?>()
+    fun due(t: MoneyTxn) = dueDates.getOrPut(t) {
+        dueDateOf(t.message, java.time.Instant.ofEpochMilli(t.time).atZone(zone).toLocalDate())
+    }
+    fun sameBill(a: MoneyTxn, b: MoneyTxn): Boolean {
+        if (cardLabel(a) != cardLabel(b)) return false
+        val da = due(a)
+        val db = due(b)
+        return if (da != null && db != null) da == db else a.amountPaise == b.amountPaise
+    }
+    for (t in txns.sortedByDescending { it.time }) {
+        val kind = cardKind(t)
+        val group = when (kind) {
+            CardKind.SPEND -> null
+            CardKind.DUE -> groups.firstOrNull { g ->
+                cardKind(g.first()) == CardKind.DUE && g.any { sameBill(it, t) } &&
+                    g.last().time - t.time <= DUE_GROUP_WINDOW_MS
+            }
+            CardKind.PAYMENT -> groups.firstOrNull { g ->
+                val first = g.first()
+                cardKind(first) == CardKind.PAYMENT && first.amountPaise == t.amountPaise &&
+                    g.last().time - t.time <= PAYMENT_GROUP_WINDOW_MS
+            }
+        }
+        if (group != null) group += t else groups += mutableListOf(t)
+    }
+    return groups.map { CardGroup(it.first(), it.toList()) }
+}
+
+/** The card a due message is about: its last digits, else its bank. */
+private fun cardLabel(t: MoneyTxn): String = t.account ?: t.bank.orEmpty()
+
 private val CARD_ALERT_OTP = listOf("otp", "one time password", "verification code")
 
 /**
@@ -44,7 +139,7 @@ fun parseCardAlert(title: String, text: String, sourcePackage: String, time: Lon
     val body = text.trim()
     if (body.isEmpty()) return null
     val lower = body.lowercase()
-    val cardish = CARD_HINTS.any { it in lower } || " cc " in " $lower " ||
+    val cardish = CARD_HINTS.any { it in lower } || " cc " in " $lower " || TOWARDS_CARD.containsMatchIn(lower) ||
         ("card" in lower && (MASKED.containsMatchIn(body) || ACCOUNT.containsMatchIn(body)))
     if (!cardish) return null
     if (CARD_ALERT_OTP.any { it in lower }) return null
@@ -124,6 +219,9 @@ fun parseMoneyTxn(title: String, text: String, sourcePackage: String, time: Long
     if (body.isEmpty()) return null
     val all = "$title $body".lowercase()
     if (REJECT_WORDS.any { it in all }) return null
+    // "Payment of Rs 800 received towards your SBI Card": a card bill paid, which
+    // parseCardAlert reads — not a spend ("payment of" would make it one).
+    if (isCardPaymentReceived(body.lowercase())) return null
 
     val amountMatch = AMOUNT.find(body) ?: return null
     val amount = rupeesToPaise(amountMatch.groupValues[1]) ?: return null
@@ -287,4 +385,98 @@ fun moneyAppKind(packageName: String, label: String): MoneyAppKind? {
     if (BANK_WORDS.any(::hasWord)) return MoneyAppKind.BANK
     if (PAYMENT_WORDS.any(::hasWord)) return MoneyAppKind.PAYMENT
     return null
+}
+
+private val MONTHS = listOf("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+
+/** Where a due date is named: "due on", "due by", "due date:", "on or before", "pay by". */
+private val DUE_CUE = Regex("""(?:due\s+(?:date\s*)?(?:on|by|is|:|-)?|on\s+or\s+before|pay(?:ment)?\s+by|before)\s*:?\s*""", RegexOption.IGNORE_CASE)
+
+/** 15-Oct-26, 15 Oct 2026, 15th October, 15-OCT. */
+private val DAY_MONTH = Regex("""^(\d{1,2})(?:st|nd|rd|th)?[\s\-/.,]*([A-Za-z]{3,9})\.?(?:[\s\-/.,]*(\d{4}|\d{2}))?""")
+
+/** Oct 15, 2026 / October 15. */
+private val MONTH_DAY = Regex("""^([A-Za-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(\d{4}))?""")
+
+/** 15/10/2026, 15-10-26, 15.10.2026 (Indian day-first). */
+private val NUMERIC = Regex("""^(\d{1,2})[/\-.](\d{1,2})(?:[/\-.](\d{4}|\d{2}))?""")
+
+/** 2026-10-15. */
+private val ISO = Regex("""^(\d{4})-(\d{1,2})-(\d{1,2})""")
+
+/**
+ * The due date a bill message names ("payment due on 15-Oct-26", "due by
+ * 15/10/2026", "on or before 15th Oct"), or null. A date without a year is
+ * the next one on or after a few weeks before [received]. Pure, unit-tested.
+ */
+fun dueDateOf(message: String, received: java.time.LocalDate): java.time.LocalDate? {
+    for (cue in DUE_CUE.findAll(message)) {
+        val rest = message.substring(cue.range.last + 1).take(30).trim()
+        parseDate(rest, received)?.let { return it }
+    }
+    return null
+}
+
+private fun parseDate(s: String, received: java.time.LocalDate): java.time.LocalDate? {
+    fun month(name: String): Int? = MONTHS.indexOf(name.lowercase().take(3)).takeIf { it >= 0 }?.plus(1)
+    fun year(y: String?): Int? = y?.toIntOrNull()?.let { if (it < 100) 2000 + it else it }
+    val (d, m, y) = ISO.find(s)?.let { Triple(it.groupValues[3].toInt(), it.groupValues[2].toInt(), it.groupValues[1].toInt()) }
+        ?: DAY_MONTH.find(s)?.let { r -> month(r.groupValues[2])?.let { Triple(r.groupValues[1].toInt(), it, year(r.groupValues[3].ifEmpty { null })) } }
+        ?: MONTH_DAY.find(s)?.let { r -> month(r.groupValues[1])?.let { Triple(r.groupValues[2].toInt(), it, year(r.groupValues[3].ifEmpty { null })) } }
+        ?: NUMERIC.find(s)?.let { Triple(it.groupValues[1].toInt(), it.groupValues[2].toInt(), year(it.groupValues[3].ifEmpty { null })) }
+        ?: return null
+    if (m !in 1..12 || d !in 1..31) return null
+    return runCatching {
+        if (y != null) {
+            java.time.LocalDate.of(y, m, d)
+        } else {
+            // No year: the first such date from a few weeks before the message on.
+            val start = received.minusDays(DUE_DATE_LOOKBACK_DAYS)
+            val thisYear = java.time.LocalDate.of(start.year, m, d)
+            if (thisYear.isBefore(start)) thisYear.plusYears(1) else thisYear
+        }
+    }.getOrNull()
+}
+
+private const val DUE_DATE_LOOKBACK_DAYS = 20L
+
+/**
+ * A bill due, read from its statement and reminders: the amount (the
+ * statement's total when there is one, else the newest reminder's), the due
+ * date, the statement if it came, how many reminders, and whether a card
+ * payment since covers it.
+ */
+data class DueBill(
+    val group: CardGroup,
+    val dueDate: java.time.LocalDate?,
+    val paid: Boolean,
+    val amountPaise: Long = group.latest.amountPaise,
+    val statement: MoneyTxn? = null,
+    val reminders: Int = group.members.size,
+)
+
+/**
+ * The bills due in [groups] (from [groupCardMessages]) in the order to deal
+ * with them: unpaid ones by due date, soonest first (those without a date
+ * after, newest first), then paid ones. A bill is paid when a card payment
+ * of at least its amount came after its first reminder (on the same card,
+ * when both name one). Pure, unit-tested.
+ */
+fun dueBills(groups: List<CardGroup>, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): List<DueBill> {
+    val payments = groups.filter { cardKind(it.latest) == CardKind.PAYMENT }.flatMap { it.members }
+    fun date(t: Long) = java.time.Instant.ofEpochMilli(t).atZone(zone).toLocalDate()
+    val bills = groups.filter { cardKind(it.latest) == CardKind.DUE }.map { g ->
+        val due = g.members.firstNotNullOfOrNull { dueDateOf(it.message, date(it.time)) }
+        val statement = g.members.filter { it.counterparty == "statement" }.maxByOrNull { it.time }
+        val amount = statement?.amountPaise ?: g.latest.amountPaise
+        val since = g.members.minOf { it.time }
+        val paid = payments.any { p ->
+            p.time >= since && p.amountPaise >= amount &&
+                (p.account == null || g.latest.account == null || !p.alert || p.account == g.latest.account)
+        }
+        DueBill(g, due, paid, amount, statement, g.members.count { it !== statement })
+    }
+    return bills.sortedWith(
+        compareBy<DueBill>({ it.paid }, { it.dueDate == null }, { it.dueDate }, { -it.group.latest.time }),
+    )
 }
