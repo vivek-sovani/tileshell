@@ -43,6 +43,10 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   `tools/keyboard/build_loanwords.py` (CMU Pronouncing Dictionary, checked against each
   language's word list; `LoanWords`). An English word with no such spelling stays in English
   letters. Unit-tested (`LoanWordsTest`); typed on the emulator.
+- **`main` — keyboard: emoji in the suggestion strip.** "pizza" → 🍕, "lol" → 😂 in the
+  strip's last place (`EmojiWords`, `emoji_words.txt` from Unicode CLDR by
+  `tools/keyboard/build_emoji_words.py`); tapping it puts in "pizza 🍕". Emoji search's cursor
+  stands before its placeholder. Checked on the emulator.
 - **`main` — keyboard: next words from context.** Word pairs / triples from Tatoeba + Common
   Voice (`tools/keyboard/build_ngrams.py` → `en_next.txt`, `mr_next.txt`, `hi_next.txt`,
   `NextWords`), "good" / शुभ → the greeting for the time of day, and the user's own pairs

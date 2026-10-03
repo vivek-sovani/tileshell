@@ -22,4 +22,18 @@ internal object EmojiStore {
             }.also { catalog = it }
         }
     }
+
+    @Volatile private var words: EmojiWords? = null
+
+    /** Which emoji a typed word stands for ("pizza" → 🍕), those this phone can draw. */
+    suspend fun words(context: Context): EmojiWords = withContext(Dispatchers.IO) {
+        words ?: mutex.withLock {
+            words ?: run {
+                val paint = Paint()
+                context.assets.open("keyboard/emoji_words.txt").bufferedReader().useLines { lines ->
+                    EmojiWords(lines) { paint.hasGlyph(it) }
+                }
+            }.also { words = it }
+        }
+    }
 }

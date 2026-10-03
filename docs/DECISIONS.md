@@ -11172,3 +11172,18 @@ word n-grams plus the user's own habits, all offline.
   "मराठी · abc".
 Checked on the emulator: energy → एनर्जी, positive → पॉझिटिव्ह / पॉजिटिव, मला → माहीत …,
 "Good" at 3 pm → afternoon / evening / night, thank → you, "yo" after "for" → your.
+
+## Keyboard: emoji in the suggestion strip (2026-10-03)
+User-requested: a typed word with a matching emoji offers it in the strip ("pizza" → 🍕).
+`tools/keyboard/build_emoji_words.py` builds `emoji_words.txt` (word → one emoji, ~2,800
+words) from Unicode CLDR's English emoji annotations. CLDR's keywords are loose ("small" is
+the shrimp's keyword, "middle" 🖕's), so a common English word (AOSP freq ≥ 120) gets an emoji
+only when it's the emoji's whole name (school 🏫, train 🚆) or in a short hand list of chat
+words (love ❤️, lol 😂, thanks 🙏, birthday 🎂, cricket 🏏, diwali 🪔); rarer words may use an
+exact keyword, only rare ones a word of a longer name; function words never; 🖕 never. A
+plural finds its singular's ("pizzas"). The emoji takes the strip's last place (also while
+transliterating, matched on the English letters). Tapping it keeps the word and adds the emoji
+after it ("pizza 🍕 ") — the word isn't lost, and it counts as a recent emoji. Emoji the phone
+can't draw are left out.
+Also user-reported: the emoji search box's cursor stood after the "search emoji" placeholder;
+it now stands before it while empty, after the query once typing.

@@ -21,6 +21,18 @@ data class StripWord(
         /** The quoted original right after an autocorrect: tap to undo. */
         UNDO,
         WORD,
+
+        /** The emoji the typed word stands for ("pizza" → 🍕): tap to put it in after the word. */
+        EMOJI,
+    }
+
+    companion object {
+        /** [strip] with [emoji] in its last place (or added, if there's room). */
+        fun withEmoji(strip: List<StripWord>, emoji: String?, size: Int = Suggester.STRIP_SIZE): List<StripWord> {
+            if (emoji == null || strip.isEmpty() || strip.any { it.kind == Kind.EMOJI }) return strip
+            val kept = if (strip.size >= size) strip.take(size - 1) else strip
+            return kept + StripWord(emoji, Kind.EMOJI)
+        }
     }
 }
 

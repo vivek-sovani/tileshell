@@ -71,3 +71,35 @@ class EmojiCatalog(lines: Sequence<String>, canDraw: (String) -> Boolean = { tru
             (listOf(emoji) + recent.filter { it != emoji }).take(RECENT_MAX)
     }
 }
+
+/**
+ * The emoji a typed word stands for ("pizza" → 🍕, "lol" → 😂), offered in the
+ * suggestion strip. From Unicode CLDR's keywords by
+ * `tools/keyboard/build_emoji_words.py` (`assets/keyboard/emoji_words.txt`,
+ * `word<TAB>emoji`): a common word only where the emoji is named exactly that,
+ * plus everyday chat words.
+ */
+class EmojiWords(lines: Sequence<String>, canDraw: (String) -> Boolean = { true }) {
+
+    private val map = HashMap<String, String>()
+
+    init {
+        for (line in lines) {
+            val tab = line.indexOf('\t')
+            if (tab <= 0) continue
+            val emoji = line.substring(tab + 1).substringBefore(' ').trim()
+            if (emoji.isNotEmpty() && canDraw(emoji)) map[line.substring(0, tab)] = emoji
+        }
+    }
+
+    val size: Int get() = map.size
+
+    /** The emoji for [word] (any case; a plural too: "pizzas" → 🍕), or null. */
+    operator fun get(word: String): String? {
+        val lower = word.lowercase()
+        if (lower.length < 2) return null
+        return map[lower]
+            ?: lower.takeIf { it.length > 3 && it.endsWith("es") }?.let { map[it.dropLast(2)] }
+            ?: lower.takeIf { it.length > 3 && it.endsWith('s') }?.let { map[it.dropLast(1)] }
+    }
+}

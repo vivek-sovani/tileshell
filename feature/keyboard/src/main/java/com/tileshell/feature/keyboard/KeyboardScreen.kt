@@ -258,7 +258,13 @@ private fun StripWordCell(word: StripWord, colors: KeyboardColors, accent: Color
                 },
             )
             .padding(horizontal = 12.dp)
-            .semantics { contentDescription = if (word.kind == StripWord.Kind.UNDO) "undo, ${word.text}" else word.text },
+            .semantics {
+                contentDescription = when (word.kind) {
+                    StripWord.Kind.UNDO -> "undo, ${word.text}"
+                    StripWord.Kind.EMOJI -> "emoji ${word.text}"
+                    else -> word.text
+                }
+            },
         contentAlignment = Alignment.Center,
     ) {
         BasicText(
@@ -266,7 +272,7 @@ private fun StripWordCell(word: StripWord, colors: KeyboardColors, accent: Color
             maxLines = 1,
             style = TextStyle(
                 color = if (dim) colors.secondary else colors.text,
-                fontSize = 18.sp,
+                fontSize = if (word.kind == StripWord.Kind.EMOJI) 22.sp else 18.sp,
                 fontWeight = if (word.best) FontWeight.SemiBold else FontWeight.Normal,
             ),
         )

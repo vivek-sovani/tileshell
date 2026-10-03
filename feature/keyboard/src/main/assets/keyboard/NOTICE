@@ -63,3 +63,9 @@ en_next.txt, mr_next.txt and hi_next.txt (which words usually come next) are
 counted by tools/keyboard/build_ngrams.py from Tatoeba's English, Marathi and
 Hindi sentences (https://tatoeba.org), CC-BY 2.0 FR, and Mozilla Common Voice's
 Marathi and Hindi sentence collections, CC0 1.0.
+
+emoji_words.txt (the emoji a typed word stands for) is built by
+tools/keyboard/build_emoji_words.py from Unicode CLDR's English emoji annotations
+(https://github.com/unicode-org/cldr, common/annotations/en.xml), © Unicode, Inc.,
+under the Unicode License (https://www.unicode.org/license.txt), with TileShell's own
+short list of everyday chat words.

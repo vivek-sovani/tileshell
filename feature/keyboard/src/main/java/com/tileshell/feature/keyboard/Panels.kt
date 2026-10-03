@@ -209,13 +209,16 @@ internal fun EmojiSearchStrip(controller: KeyboardController, colors: KeyboardCo
             verticalAlignment = Alignment.CenterVertically,
         ) {
             val q = controller.emojiQuery
+            val cursor = @Composable { Box(Modifier.padding(horizontal = 1.dp).width(2.dp).height(18.dp).background(accent)) }
+            // The cursor sits where typing goes: before the placeholder, after the query.
+            if (q.isEmpty()) cursor()
             BasicText(
                 if (q.isEmpty()) "search emoji" else q,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = TextStyle(color = if (q.isEmpty()) colors.secondary else colors.text, fontSize = 15.sp),
             )
-            Box(Modifier.padding(start = 1.dp).width(2.dp).height(18.dp).background(accent))
+            if (q.isNotEmpty()) cursor()
         }
         LazyRow(Modifier.weight(1f).padding(start = 4.dp)) {
             items(controller.emojiResults) { e ->

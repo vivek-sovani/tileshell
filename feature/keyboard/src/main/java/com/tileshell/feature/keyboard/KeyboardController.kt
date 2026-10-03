@@ -73,6 +73,9 @@ class KeyboardController(
     var emojiQuery by mutableStateOf("")
         private set
     var emojiCatalog by mutableStateOf<EmojiCatalog?>(null)
+
+    /** Which emoji a typed word stands for ("pizza" → 🍕). */
+    private var emojiWords: EmojiWords? = null
         private set
 
     /** The clipboard panel's clips, newest first. */
@@ -205,6 +208,9 @@ class KeyboardController(
         language = effectiveLanguage()
         ensureLexicon(KeyboardLanguage.ENGLISH)
         ensureLexicon(language)
+        if (emojiWords == null) {
+            scope.launch { emojiWords = runCatching { EmojiStore.words(service) }.getOrNull() }
+        }
         refresh()
     }
 
@@ -509,6 +515,10 @@ class KeyboardController(
         val undo = lastCorrection
         val swiped = lastSwipe
         resetTransient()
+        if (word.kind == StripWord.Kind.EMOJI) {
+            putWordAndEmoji(word.text)
+            return
+        }
         if (swiped != null && word.text in swiped.words && replaceSwipe(swiped, word.text)) {
             refresh()
             return
@@ -792,6 +802,23 @@ class KeyboardController(
         ic.endBatchEdit()
     }
 
+    /** The strip's emoji: the word (as typed, or its मराठी / हिन्दी spelling), then the emoji. */
+    private fun putWordAndEmoji(emoji: String) {
+        if (translit && latin.isNotEmpty()) {
+            val typed = latin.toString()
+            val word = translitBest ?: typed
+            if (word != typed) learnIndic(word, strong = false)
+            finishTranslit("$word $emoji ")
+        } else {
+            val typed = typedWord()
+            if (typed.isEmpty()) commit("$emoji ") else replaceWord(typed, "$typed $emoji", " ")
+            if (typed.isNotEmpty()) learn(typed)
+        }
+        prefs.addRecentEmoji(emoji)
+        autoSpaced = true
+        refresh()
+    }
+
     /** A word kept as typed that the list doesn't know: learned (twice = known). */
     private fun learn(word: String) {
         if (!learnHere || word.length < 2) return
@@ -914,7 +941,8 @@ class KeyboardController(
         val level = settings.level
         val next = predictions(withoutCurrentWord(before), PREDICT_FOR_RANKING)
         stripJob = scope.launch {
-            strip = withContext(Dispatchers.Default) { Suggester.strip(word, lex, level, autocorrect, next) }
+            val words = withContext(Dispatchers.Default) { Suggester.strip(word, lex, level, autocorrect, next) }
+            strip = if (devanagariKeys) words else StripWord.withEmoji(words, emojiWords?.get(word))
         }
     }
 
@@ -947,8 +975,11 @@ class KeyboardController(
             translitBest = words.firstOrNull()
             // An English word with no मराठी / हिन्दी spelling leads as typed.
             val englishFirst = words.firstOrNull() == typed
-            strip = listOf(StripWord(typed, StripWord.Kind.TYPED, best = englishFirst)) +
-                words.filter { it != typed }.mapIndexed { i, w -> StripWord(w, StripWord.Kind.WORD, best = !englishFirst && i == 0) }
+            strip = StripWord.withEmoji(
+                listOf(StripWord(typed, StripWord.Kind.TYPED, best = englishFirst)) +
+                    words.filter { it != typed }.mapIndexed { i, w -> StripWord(w, StripWord.Kind.WORD, best = !englishFirst && i == 0) },
+                emojiWords?.get(typed),
+            )
         }
     }
 
