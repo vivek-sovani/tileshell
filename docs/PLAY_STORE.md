@@ -129,7 +129,7 @@ widget, tiles, windows mobile, wp8, wp10, metro, fluent, hubs, panchang
 | Processed ephemerally? | No — stored in local DataStore |
 | Why collected? | App functionality (recent apps; most-used ordering; Battery hub screen time) |
 
-#### Financial info — Purchase history / Other financial info
+#### Financial info — Purchase history / Other financial info (not User payment info: only account / card last 4 digits; not Credit score)
 | Field | Answer |
 |---|---|
 | Collected? | Yes — bank, UPI and card transactions, card statements and bill reminders (amount, due date, account last 4 digits, balance) read from new notifications, kept on the device for one year |
@@ -138,10 +138,10 @@ widget, tiles, windows mobile, wp8, wp10, metro, fluent, hubs, panchang
 | Processed ephemerally? | No — stored in the app's own files |
 | Why collected? | App functionality (Money hub transactions and bills due) |
 
-#### Messages — SMS or MMS / Other in-app messages
+#### Messages — Emails / SMS or MMS / Other in-app messages
 | Field | Answer |
 |---|---|
-| Collected? | Yes — the text of new notifications (sender and snippet), only with notification access; no SMS or call-log permission, the inbox is never read |
+| Collected? | Yes — the text of new notifications (sender and snippet) from mail, SMS and chat apps, only with notification access; no SMS or call-log permission, the inbox is never read |
 | Shared? | No — stays on device |
 | Required or optional? | Optional (notification access) |
 | Processed ephemerally? | Mostly — previews are shown live; the names of people who message you are kept 30 days for "recently messaged" |
