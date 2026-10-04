@@ -226,7 +226,7 @@ private val HUB_INTROS = listOf(
     HubIntro("people", "people", "teal", "chats, messages and mail in one list — reply inline, swipe to dismiss"),
     HubIntro("productivity", "productivity", "purple", "your next meeting with a join button, notes, and task lists with reminders"),
     HubIntro("battery", "battery", "lime", "drain rate, time left, today's curve and screen time per app"),
-    HubIntro("money", "money", "green", "bank and upi transactions from new bank sms, locked with your fingerprint — add it from add live tiles"),
+    HubIntro("money", "money", "green", "bank, upi and card transactions from new bank sms, and card bills by due date, locked with your fingerprint — add it from add live tiles"),
 )
 
 /** True while [WHATS_NEW_VERSION_CODE] is the hubs release, whose card offers the hubs setup. */
@@ -284,7 +284,7 @@ private val WHATS_NEW_FEATURES = listOf(
     "task reminders: a date, time and repeat on any task, ringing with a banner or a toast on start",
     "people favourites: your starred contacts in your own order and who recently messaged you, on a tile with call, message and chat buttons",
     "battery tile, hub and widget, from tileshell's own battery log",
-    "money: bank and upi transactions from new bank sms and payment notifications, locked with your fingerprint, plus your payment and banking apps",
+    "money: bank, upi and card transactions from new bank sms and payment notifications, and card bills by due date, locked with your fingerprint, plus your payment and banking apps",
     "weather shows a moon at night, plus sunrise, sunset and uv index; panchang shows moonrise and moonset",
     "reset start layout now runs a quick setup — tiles or icons, theme, one colour or multicolour, and your apps",
     "every permission, and refresh rates for weather, news, stocks and sports, each in one place",

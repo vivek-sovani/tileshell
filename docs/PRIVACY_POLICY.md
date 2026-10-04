@@ -1,7 +1,7 @@
 # TileShell — Privacy Policy
 
 *Effective date: 2026-06-18*  
-*Last updated: 2026-10-02*
+*Last updated: 2026-10-04*
 
 ---
 
@@ -26,7 +26,7 @@ simply stays inactive when a permission is denied.
 | `ACTIVITY_RECOGNITION` | Your phone's built-in step-counter sensor reading, for the Steps tile/card. Asked only the first time you add a Steps tile or card, not at first launch. | Stays on device |
 | `NOTIFICATION_LISTENER` (special access) | Notification titles and snippets for badges and Mail/Messages live tiles; the names of people who message you in chat and SMS apps, remembered for 30 days for the People hub's "recently messaged" | Stays on device |
 | `INTERNET` | Weather forecast fetches, news RSS feeds, wallpaper URLs | Sent to Open-Meteo and each RSS source (see §2) |
-| `NOTIFICATION_LISTENER` — Money hub (optional, on by default once you open it) | New bank SMS (as shown by your messages app) and payment-app notifications, to record transactions: amount, debit or credit, merchant or person, account last 4 digits, method (UPI, card, NEFT…), and balance. Only new notifications; SMS history is never read. OTPs and promotions are ignored. Turn off with "read bank messages" in the Money hub's settings. | Stays on device |
+| `NOTIFICATION_LISTENER` — Money hub (optional, on by default once you open it) | New bank SMS (as shown by your messages app) and payment-app notifications, to record transactions: amount, debit or credit, merchant or person, account last 4 digits, method (UPI, card, NEFT…), and balance. Card statements, bill-due reminders (amount and due date) and card bill payments too, shown as bills due by date. Only new notifications; SMS history is never read. OTPs and promotions are ignored. The Money tile shows amounts only if you choose it. Turn off with "read bank messages" in the Money hub's settings. | Stays on device |
 | `USE_BIOMETRIC` | Nothing read; asks for your fingerprint, face or screen lock before showing the Money hub's transactions | Not read; no data transmitted |
 | `PACKAGE_USAGE_STATS` (usage access, special access) | How often each app was opened over the last 30 days, and per-app screen time, to sort the People and Productivity hubs' apps pages by most used and to show screen time in the Battery hub | Stays on device |
 | `READ_MEDIA_AUDIO` | Music files, albums and playlists on your device, for the Music hub library | Stays on device |
@@ -36,10 +36,17 @@ simply stays inactive when a permission is denied.
 | `WRITE_SETTINGS` (special access) | Nothing read; lets the Quick Panel change screen brightness and timeout | Not read; no data transmitted |
 | `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Nothing read; keeps live updates running while the screen is off | Not read; no data transmitted |
 | `BIND_ACCESSIBILITY_SERVICE` (optional) | Used only to perform system actions you trigger: lock screen, recents, and opening the notification shade or quick settings with an edge swipe | Not read; no data transmitted |
+| `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `WAKE_LOCK` | Nothing read; keeps music, podcasts and radio you started playing with the screen off, with controls in the notification shade | Not read; no data transmitted |
+| `READ_EXTERNAL_STORAGE` (Android 12 and older only) | Music files on your device for the Music hub, as `READ_MEDIA_AUDIO` does on newer Android | Stays on device |
+| `SET_WALLPAPER` | Nothing read; sets the photo or wallpaper you choose on your home and/or lock screen | Not read; no data transmitted |
+| `REQUEST_DELETE_PACKAGES` | Nothing read; opens Android's own uninstall prompt when you choose "uninstall" on an app | Not read; no data transmitted |
+| `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE` | Whether you're online and Wi-Fi is on, for the Quick Panel and to skip fetches while offline | Not read beyond on/off; no data transmitted |
+| `BIND_DEVICE_ADMIN` (optional, Android 8–9 only) | Used only to lock the screen when you ask, on Android versions without the accessibility lock action | Not read; no data transmitted |
 
-TileShell does **not** access call logs, SMS/MMS bodies, microphone, camera, files
-(beyond photos you explicitly pick for the wallpaper and live-photos slideshow), or any
-other sensitive system data.
+TileShell holds **no** SMS or call-log permission and never reads your SMS inbox or call
+log — bank messages are seen only as notifications, as described above. It does not use
+the microphone or camera, and reads no files beyond photos you explicitly pick for the
+wallpaper and live-photos slideshow and the music on your device.
 
 
 ---

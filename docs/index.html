@@ -20,7 +20,7 @@
 <body>
 
 <h1>TileShell — Privacy Policy</h1>
-<p class="meta">Effective date: 2026-06-18 &nbsp;·&nbsp; Last updated: 2026-10-02</p>
+<p class="meta">Effective date: 2026-06-18 &nbsp;·&nbsp; Last updated: 2026-10-04</p>
 
 <h2>Summary</h2>
 <p>TileShell is a launcher (home-screen replacement) for Android. It does not have a server backend, does not create user accounts, and does not transmit personal data to the developer. All personalisation data (layout, settings, photos) stays on your device.</p>
@@ -35,7 +35,7 @@
   <tr><td><code>ACTIVITY_RECOGNITION</code></td><td>Your phone's built-in step-counter sensor reading, for the Steps tile and widget. Asked only when you add one.</td><td>Stays on device</td></tr>
   <tr><td><code>READ_MEDIA_AUDIO</code></td><td>Music files, albums and playlists on your device, for the Music hub library</td><td>Stays on device</td></tr>
   <tr><td><code>NOTIFICATION_LISTENER</code> (special access)</td><td>Notification titles, snippets and attached images for badges, message previews and the People hub's "what's new"; the names of people who message you in chat and SMS apps, kept 30 days for "recently messaged"; replies you type are sent back through the posting app's own notification</td><td>Stays on device</td></tr>
-  <tr><td><code>NOTIFICATION_LISTENER</code> — Money hub</td><td>New bank SMS (as shown by your messages app) and payment-app notifications, to record transactions: amount, debit or credit, merchant or person, account last 4 digits, method and balance. Only new notifications — SMS history is never read. OTPs and promotions are ignored. Can be turned off in the Money hub's settings.</td><td>Stays on device</td></tr>
+  <tr><td><code>NOTIFICATION_LISTENER</code> — Money hub</td><td>New bank SMS (as shown by your messages app) and payment-app notifications, to record transactions: amount, debit or credit, merchant or person, account last 4 digits, method and balance. Card statements, bill-due reminders (amount and due date) and card bill payments too, shown as bills due by date. Only new notifications — SMS history is never read. OTPs and promotions are ignored. The Money tile shows amounts only if you choose it. Can be turned off in the Money hub's settings.</td><td>Stays on device</td></tr>
   <tr><td><code>USE_BIOMETRIC</code></td><td>Nothing read; asks for your fingerprint, face or screen lock before showing the Money hub's transactions</td><td>Not read; no data transmitted</td></tr>
   <tr><td><code>PACKAGE_USAGE_STATS</code> (usage access, special access)</td><td>How often each app was opened over the last 30 days, and per-app screen time, to sort the People and Productivity hubs' apps pages and to show screen time in the Battery hub</td><td>Stays on device</td></tr>
   <tr><td><code>POST_NOTIFICATIONS</code></td><td>Nothing read; shows the Music hub's playback controls and your task reminders in the notification shade</td><td>Not read; no data transmitted</td></tr>
@@ -45,8 +45,14 @@
   <tr><td><code>REQUEST_IGNORE_BATTERY_OPTIMIZATIONS</code></td><td>Nothing read; keeps live updates running while the screen is off</td><td>Not read; no data transmitted</td></tr>
   <tr><td><code>INTERNET</code></td><td>Weather, news, stock, commodity and sports data, podcasts, radio streams and wallpapers</td><td>Sent to the services in §2</td></tr>
   <tr><td><code>BIND_ACCESSIBILITY_SERVICE</code> (optional)</td><td>Used only to perform system actions you trigger: lock screen, recents, and opening the notification shade or quick settings with an edge swipe</td><td>Not read; no data transmitted</td></tr>
+  <tr><td><code>FOREGROUND_SERVICE</code>, <code>FOREGROUND_SERVICE_MEDIA_PLAYBACK</code>, <code>WAKE_LOCK</code></td><td>Nothing read; keeps music, podcasts and radio you started playing with the screen off, with controls in the notification shade</td><td>Not read; no data transmitted</td></tr>
+  <tr><td><code>READ_EXTERNAL_STORAGE</code> (Android 12 and older only)</td><td>Music files on your device for the Music hub, as <code>READ_MEDIA_AUDIO</code> does on newer Android</td><td>Stays on device</td></tr>
+  <tr><td><code>SET_WALLPAPER</code></td><td>Nothing read; sets the photo or wallpaper you choose on your home and/or lock screen</td><td>Not read; no data transmitted</td></tr>
+  <tr><td><code>REQUEST_DELETE_PACKAGES</code></td><td>Nothing read; opens Android's own uninstall prompt when you choose "uninstall" on an app</td><td>Not read; no data transmitted</td></tr>
+  <tr><td><code>ACCESS_NETWORK_STATE</code>, <code>ACCESS_WIFI_STATE</code></td><td>Whether you're online and Wi-Fi is on, for the Quick Panel and to skip fetches while offline</td><td>Not read beyond on/off; no data transmitted</td></tr>
+  <tr><td><code>BIND_DEVICE_ADMIN</code> (optional, Android 8–9 only)</td><td>Used only to lock the screen when you ask, on Android versions without the accessibility lock action</td><td>Not read; no data transmitted</td></tr>
 </table>
-<p>TileShell does <strong>not</strong> access call logs, SMS/MMS bodies, microphone, camera, or files beyond photos you explicitly pick for the wallpaper and live-photos slideshow and the music on your device.</p>
+<p>TileShell holds <strong>no</strong> SMS or call-log permission and never reads your SMS inbox or call log — bank messages are seen only as notifications, as described above. It does not use the microphone or camera, and reads no files beyond photos you explicitly pick for the wallpaper and live-photos slideshow and the music on your device.</p>
 
 
 

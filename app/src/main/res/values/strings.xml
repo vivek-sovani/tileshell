@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">tileshell</string>
-    <string name="lock_accessibility_service_description">Lets TileShell lock the screen from the Start screen while keeping fingerprint unlock available.</string>
+    <string name="lock_accessibility_service_description">Lets TileShell lock the screen (keeping fingerprint unlock available), open recent apps from its edge strip, and open the notification shade when you swipe down from the screen edge — only when you ask. It does not read your screen, other apps or what you type.</string>
 </resources>

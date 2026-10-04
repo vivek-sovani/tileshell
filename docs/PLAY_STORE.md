@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*v3.0.0 listing draft — update before each release*
+*Updated for v5.0.0 (2026-10-04) — see the Play Console checklist below*
 
 ---
 
@@ -34,7 +34,7 @@ Tap a tile for its full-screen hub, with swipeable pages:
 • People — chats, SMS and mail in one list, with inline reply
 • Productivity — next meeting with a join button, notes and task lists
 • Battery — drain, time left, daily curve and screen time per app
-• Money — bank, UPI and card transactions from new bank SMS, locked with your fingerprint
+• Money — bank, UPI and card transactions from new bank SMS, card bills by due date, locked with your fingerprint
 Music, People, Productivity and Money gather their related apps in one apps page.
 
 ★ PANCHANG
@@ -70,7 +70,7 @@ No accounts. No analytics. No ads. Your data stays on your phone. Online feature
 Requires Android 8.0 or higher.
 ```
 
-*(3050 chars, under Play's 4 000 limit.)*
+*(3074 chars, under Play's 4 000 limit.)*
 
 ### Category
 Personalization
@@ -123,33 +123,117 @@ widget, tiles, windows mobile, wp8, wp10, metro, fluent, hubs, panchang
 #### App activity — App interactions
 | Field | Answer |
 |---|---|
-| Collected? | Yes — recently launched apps (capped at 12, local only) |
+| Collected? | Yes — recently launched apps (capped at 12), and with usage access how often apps are opened and per-app screen time (local only) |
 | Shared? | No |
-| Required or optional? | Core functionality (Recent apps section in App List) |
+| Required or optional? | Recent apps: core (App List "recent"); usage: optional (usage access) |
 | Processed ephemerally? | No — stored in local DataStore |
-| Why collected? | App functionality (Recent / newly installed apps section) |
+| Why collected? | App functionality (recent apps; most-used ordering; Battery hub screen time) |
+
+#### Financial info — Purchase history / Other financial info
+| Field | Answer |
+|---|---|
+| Collected? | Yes — bank, UPI and card transactions, card statements and bill reminders (amount, due date, account last 4 digits, balance) read from new notifications, kept on the device for one year |
+| Shared? | No — stays on device, never transmitted |
+| Required or optional? | Optional (Money hub; "read bank messages" can be turned off) |
+| Processed ephemerally? | No — stored in the app's own files |
+| Why collected? | App functionality (Money hub transactions and bills due) |
+
+#### Messages — SMS or MMS / Other in-app messages
+| Field | Answer |
+|---|---|
+| Collected? | Yes — the text of new notifications (sender and snippet), only with notification access; no SMS or call-log permission, the inbox is never read |
+| Shared? | No — stays on device |
+| Required or optional? | Optional (notification access) |
+| Processed ephemerally? | Mostly — previews are shown live; the names of people who message you are kept 30 days for "recently messaged" |
+| Why collected? | App functionality (badges, message tiles, People hub, Money hub) |
+
+#### Audio — Music files
+| Field | Answer |
+|---|---|
+| Collected? | Yes — the music on the device (titles, albums, playlists) |
+| Shared? | No — stays on device |
+| Required or optional? | Optional (Music hub) |
+| Processed ephemerally? | Yes — read from Android's media library when shown |
+| Why collected? | App functionality (Music hub library and playback) |
+
+#### Health and fitness — Fitness info
+| Field | Answer |
+|---|---|
+| Collected? | Yes — the phone's step-counter reading |
+| Shared? | No — stays on device |
+| Required or optional? | Optional (Steps tile / card) |
+| Processed ephemerally? | No — today's count kept for the tile |
+| Why collected? | App functionality (Steps tile) |
 
 ### Data types NOT collected
-- Personal information (name, email, phone, address, SSN)
-- Financial information
-- Health and fitness
-- Messages / SMS content
-- Photos or videos *selected by user* for wallpaper are stored **on-device only**
+- Personal information (name, email, phone, address, government IDs)
+- Photos or videos — photos *you pick* for wallpaper are copied into the app's own storage, on-device only
 - Files and docs
 - Web browsing
 - Device or other IDs
-- Audio / Voice
+- Audio recordings / voice (no microphone permission)
+- Precise location
+
+*Everything above except location stays on the phone. It is declared anyway, as 4.5.0 did for
+contacts and calendar, so the form matches the privacy policy line for line. Only approximate
+location is shared (with Open-Meteo).*
 
 *The TileShell keyboard is held back from 5.0.0 (`tileshell.keyboard=false`), so it has no
 Data safety entry; its notes are in git history (commit before "keyboard held back") for when
 it ships.*
 
 ### Encryption in transit?
-**Yes** — all network requests (Open-Meteo, RSS feeds) use HTTPS.
+**Yes** — all network requests (Open-Meteo, RSS feeds, ESPN, Yahoo Finance, Bing, podcasts, Radio Browser) use HTTPS.
 
 ### Can users request data deletion?
 **Yes** — all data is stored locally on the device. Uninstalling TileShell removes all
 data. Users can also clear app data via Android Settings at any time.
+
+---
+
+## Play Console checklist for 5.0.0 (rejection risks)
+
+Built 2026-10-04: versionCode 500 (Play has 450), targetSdk 36, release-signed (upload key
+cert SHA-256 1a904ad5…), keyboard left out. Permissions new since 4.5.0:
+`FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `PACKAGE_USAGE_STATS`, `POST_NOTIFICATIONS`,
+`READ_MEDIA_AUDIO`, `READ_EXTERNAL_STORAGE` (≤ Android 12), `SCHEDULE_EXACT_ALARM`,
+`USE_BIOMETRIC` — each in the privacy policy (§1) and the accessibility disclosure.
+
+1. **Privacy policy** — https://vivek-sovani.github.io/tileshell/ (GitHub Pages from
+   `main`/docs; live once pushed). Lists every permission in the APK; no longer claims SMS isn't
+   accessed (bank messages are read as notifications — the old line contradicted the Money hub).
+2. **Data safety** — answer as the section above: approximate location shared with
+   Open-Meteo; contacts, calendar, app interactions, financial info, messages, music files and
+   fitness collected on-device only, not shared; HTTPS only (no cleartext allowed); deletion by
+   uninstall / clear data. New since 4.5.0: financial info, messages, music files, fitness.
+3. **Accessibility API declaration** — the prominent disclosure was updated (Quick Panel lock
+   tile, card bills). **Re-record the demo video** from this build: open the disclosure, scroll
+   slowly, pause on every bullet (2.2.0/2.2.1 were rejected when a too-fast video hid the
+   contacts and calendar bullets), tap "Go to Settings", enable, then lock the screen from the
+   Quick Panel tile and open the shade with a left-edge swipe. The service's own description
+   now names all three actions.
+4. **Foreground service declaration** (new) — type `mediaPlayback`: music, podcasts and radio
+   the user starts in the Music hub keep playing with the screen off, with media controls in the
+   notification; stops when the user pauses or closes it. Attach a short video: start a song,
+   turn the screen off, show the notification controls.
+5. **Exact alarms** — `SCHEDULE_EXACT_ALARM` only (not `USE_EXACT_ALARM`), granted by the user
+   in "Alarms & reminders" for task reminders; no declaration form. If asked: user-set task
+   reminders that must ring at the set minute.
+6. **Financial features declaration** — TileShell provides no banking, loans, payments,
+   investments or crypto. The Money hub only lists the user's own bank / card messages on the
+   phone (an expense tracker). Pick the personal-finance / money-management option if the form
+   offers one, else "no financial features"; never claim loans or payments.
+7. **Health apps declaration** (if shown) — step count from the phone's sensor for the Steps
+   tile only; no health data stored off the phone or shared. Same as 4.5.0.
+8. **Contacts** — `READ_CONTACTS` needs no declaration yet (enforcement is for targetSdk 37+,
+   2027-01-27).
+9. **Usage access / device admin / battery exemption** — usage access and battery exemption
+   are user-granted special access, explained in the policy; the device-admin receiver (screen
+   lock on Android 8–9) and battery exemption shipped in 4.5.0 unchanged.
+10. **Store listing** — description 3074 / 4000 chars, release notes under 500 (below), no
+    keyboard mentions; app icon and screenshots use original glyphs, no Microsoft assets.
+    Consider adding hub screenshots (not required).
+11. **Upload** — `release-out/tileshell-5.0.0-release.aab` (signed; Play App Signing re-signs).
 
 ---
 
@@ -177,21 +261,30 @@ New features:
   productivity, battery & money
 • Music: library, podcasts, radio, gapless
 • People: messages, mail, favourites tile
-• Money: bank, UPI & card payments
+• Money: bank, UPI & card bills by due date
 • Panchang: festivals, ekadashi, grahan
 • Task reminders with repeat
-• Quick setup on first run
-• Permissions & refresh rates
+• Quick setup keeps your pinned apps
 
 Bugs fixed:
 • Lower battery use from live tiles
 • Bluetooth music: buttons, reconnect
+• Sports: today's matches, dated
 • Each wallpaper type keeps your pick
 ```
 
-*(Character count 475, under Play's 500 limit.)*
+*(Character count 497, under Play's 500 limit.)*
 
 ### Full changelog since v4.5.0
+
+**Folded in 2026-10-03/04 (still versionCode 500):** Money hub cards split into spends, bills
+due and payments — a statement and its reminders are one bill, listed by due date, marked paid
+when a card payment arrives; a card bill payment never counts as spending; the money tile can
+show bills due. Sports tile and widget show every match a team plays today (India's Asian Games
+final and the senior ODI share one ESPN id), each with its day and which match it is. "Set up
+start with hubs" keeps the apps already on Start. The wallpaper target chooser shows the new
+wallpaper behind it, and each wallpaper type keeps its own choice. Privacy policy, Data safety
+answers and the accessibility disclosure brought in line with every permission in the build.
 
 **Keyboard — held back from the 5.0.0 release (2026-10-03, `tileshell.keyboard=false`), to
 ship once it's in good shape; the notes below describe it for then.** TileShell keyboard (beta), a

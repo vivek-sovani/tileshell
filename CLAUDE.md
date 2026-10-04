@@ -82,6 +82,16 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   use). "Stock" brings back the last gradient (`lastStockWallpaperId`) instead of the first,
   and "bing" brings back a day picked under "select". Checked on the emulator (none ↔
   photo/stock); build + tests green; not yet on the phone.
+- **v5.0.0 release-ready (2026-10-04, versionCode 500, not yet uploaded).** Re-cut with
+  everything through the sports fix, keyboard left out. Rejection review: privacy policy (md +
+  hosted, pushed) now lists every permission in the APK (music service, wallpaper, uninstall,
+  network state, device admin added) and no longer claims SMS isn't accessed; the money row
+  covers card bills. Data safety answers declare all on-device data consistently (financial
+  info, messages, music, fitness added). Accessibility disclosure and service description
+  match what the service does (Quick Panel lock tile). `docs/PLAY_STORE.md` has a Play Console
+  checklist (re-record the accessibility video; new foreground-service `mediaPlayback`
+  declaration; financial features; exact alarms), release blurb 497 chars, description 3074.
+  Signed AAB/APK + debug APK in `release-out/tileshell-5.0.0-*`, key 1a904ad5….
 - **v5.0.0 re-cut without the keyboard (2026-10-03, still versionCode 500, not yet
   uploaded).** User's call: the keyboard isn't ready. `tileshell.keyboard=false` — release
   builds leave it out (no IME service, VIBRATE, assets; About / personalize / what's-new

@@ -330,8 +330,8 @@ private fun AccessibilityDisclosureDialog(onConfirm: () -> Unit, onDismiss: () -
             Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState())) {
                 Text(
                     "TileShell's Accessibility Service is used for one narrow purpose only: " +
-                    "locking the screen (long-press the settings icon), opening recent apps " +
-                    "(edge strip), and opening the system notification shade " +
+                    "locking the screen (the lock tile in the Quick Panel), opening recent " +
+                    "apps (edge strip), and opening the system notification shade " +
                     "(swipe down from the left screen edge). It never reads your screen " +
                     "content, other apps, or keystrokes.\n\n" +
                     "Separately from Accessibility — and only if you grant each permission — " +
@@ -356,7 +356,8 @@ private fun AccessibilityDisclosureDialog(onConfirm: () -> Unit, onDismiss: () -
                     "screen time. Stays on this device.\n\n" +
                     "• Bank and payment notifications — new bank SMS and payment-app notices are " +
                     "read to list your transactions in the Money hub (amount, merchant, account " +
-                    "last 4 digits, balance). Stays on this device.\n\n" +
+                    "last 4 digits, balance), and card statements and bill reminders (amount, " +
+                    "due date) to list bills due. Stays on this device.\n\n" +
                     "• Music files on your device — Music hub library. Stays on this device.\n\n" +
                     "• Step count — Steps tile, from the phone's step sensor. Stays on this " +
                     "device.\n\n" +
