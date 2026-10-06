@@ -18,7 +18,8 @@ internal object AutoMediaItems {
     fun artUri(packageName: String, art: AutoArt?): Uri? = when (art) {
         null -> null
         is AutoArt.LocalAlbum -> Uri.parse("content://${artAuthority(packageName)}/album/${art.albumId}")
-        is AutoArt.Remote -> Uri.parse(art.url)
+        is AutoArt.Remote -> Uri.Builder().scheme("content").authority(artAuthority(packageName))
+            .appendPath("remote").appendPath(art.url).build()
     }
 
     fun rootExtras() = Bundle().apply {

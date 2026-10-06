@@ -20,6 +20,8 @@ class AutoMediaIdTest {
         roundTrip(AutoMediaId.Show("https://x.com/feed?a=1&b=/2"))
         roundTrip(AutoMediaId.Episode("https://x.com/f|g", "guid:1/2 3"))
         roundTrip(AutoMediaId.Station("abc/def"))
+        roundTrip(AutoMediaId.PlayLatest("https://x.com/f?a=b/c"))
+        roundTrip(AutoMediaId.EpisodesPage("https://x.com/f", 3))
         roundTrip(AutoMediaId.Message("no_access"))
     }
 
@@ -32,7 +34,7 @@ class AutoMediaIdTest {
     }
 
     @Test fun malformedIdsAreNull() {
-        listOf("", "nope", "album", "album/x", "album/1/2", "tab/zzz", "lib/other", "track/album%2F1", "root/x")
+        listOf("", "nope", "album", "album/x", "album/1/2", "tab/zzz", "lib/other", "track/album%2F1", "root/x", "more/x/0", "more/x/y")
             .forEach { assertNull(it, AutoMediaId.parse(it)) }
     }
 

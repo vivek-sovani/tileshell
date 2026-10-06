@@ -30,6 +30,8 @@ sealed class AutoMediaId {
     data class PlayAll(val container: AutoMediaId) : AutoMediaId()
     data class Shuffle(val container: AutoMediaId) : AutoMediaId()
     data class Show(val feedUrl: String) : AutoMediaId()
+    data class EpisodesPage(val feedUrl: String, val page: Int) : AutoMediaId()
+    data class PlayLatest(val feedUrl: String) : AutoMediaId()
     data class Episode(val feedUrl: String, val guid: String) : AutoMediaId()
     data class Station(val stationId: String) : AutoMediaId()
     data class Message(val kind: String) : AutoMediaId()
@@ -47,6 +49,8 @@ sealed class AutoMediaId {
         is PlayAll -> "all/${enc(container.encode())}"
         is Shuffle -> "shuffle/${enc(container.encode())}"
         is Show -> "show/${enc(feedUrl)}"
+        is EpisodesPage -> "more/${enc(feedUrl)}/$page"
+        is PlayLatest -> "latest/${enc(feedUrl)}"
         is Episode -> "episode/${enc(feedUrl)}/${enc(guid)}"
         is Station -> "station/${enc(stationId)}"
         is Message -> "msg/${enc(kind)}"
@@ -77,6 +81,8 @@ sealed class AutoMediaId {
                 "all" -> if (p.size == 2) container(p[1])?.let { PlayAll(it) } else null
                 "shuffle" -> if (p.size == 2) container(p[1])?.let { Shuffle(it) } else null
                 "show" -> if (p.size == 2) Show(dec(p[1])) else null
+                "more" -> if (p.size == 3) p[2].toInt().takeIf { it > 0 }?.let { EpisodesPage(dec(p[1]), it) } else null
+                "latest" -> if (p.size == 2) PlayLatest(dec(p[1])) else null
                 "episode" -> if (p.size == 3) Episode(dec(p[1]), dec(p[2])) else null
                 "station" -> if (p.size == 2) Station(dec(p[1])) else null
                 "msg" -> if (p.size == 2) Message(dec(p[1])) else null

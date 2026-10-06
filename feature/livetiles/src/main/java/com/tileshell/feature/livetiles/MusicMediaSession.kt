@@ -51,7 +51,13 @@ object MusicMediaSession {
                     val id = mediaId?.let { AutoMediaId.parse(it) } ?: return
                     scope.launch {
                         val request = runCatching { AutoBrowseTree.resolvePlay(id, LocalLibrarySource(context)) }.getOrNull()
-                        if (request != null) LocalMusicPlayer.playQueue(context, request.tracks, request.startIndex)
+                        when (request) {
+                            is AutoPlayRequest.Tracks -> LocalMusicPlayer.playQueue(context, request.tracks, request.startIndex)
+                            is AutoPlayRequest.Episodes ->
+                                LocalMusicPlayer.playEpisodes(context, request.show, request.episodes, request.startIndex)
+                            is AutoPlayRequest.Station -> LocalMusicPlayer.playStation(context, request.station, request.favorites)
+                            null -> Unit
+                        }
                     }
                 }
             })
