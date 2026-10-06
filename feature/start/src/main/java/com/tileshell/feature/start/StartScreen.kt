@@ -787,6 +787,10 @@ fun StartScreen(
         ActivityResultContracts.CreateDocument("application/json"),
     ) { uri -> uri?.let { viewModel.exportBackup(it) } }
 
+    val autoExportFolderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { uri -> uri?.let { viewModel.setAutoExportFolder(it) } }
+
     val backupRestoreLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri -> uri?.let { viewModel.importBackup(it) } }
@@ -2100,13 +2104,16 @@ fun StartScreen(
             rightHalf = isLandscape,
         )
 
-        // Backup & restore sheet (personalize → manage backups).
-        BackupRestoreSheet(
+        // Backup & restore sheet (personalize → manage backups). Its own composable,
+        // like the hubs below: this layout lambda is near the dex register limit.
+        BackupSheetLayer(
+            viewModel = viewModel,
             visible = backupVisible,
             dark = dark,
             accentId = settings.accentId,
-            onDismiss = viewModel::closeBackup,
-            onOpenHistory = viewModel::openHistory,
+            autoBackupEnabled = settings.autoBackupEnabled,
+            autoBackupIntervalHours = settings.autoBackupIntervalHours,
+            isLandscape = isLandscape,
             onSaveSnapshot = {
                 viewModel.closeBackup()
                 viewModel.closePersonalize()
@@ -2114,12 +2121,7 @@ fun StartScreen(
             },
             onExportBackup = { backupExportLauncher.launch("tileshell-backup.json") },
             onRestoreBackup = { restoreConfirmPending = true },
-            onResetLayout = viewModel::openResetSetup,
-            autoBackupEnabled = settings.autoBackupEnabled,
-            autoBackupIntervalHours = settings.autoBackupIntervalHours,
-            onAutoBackupEnabled = viewModel::setAutoBackupEnabled,
-            onAutoBackupInterval = viewModel::setAutoBackupInterval,
-            rightHalf = isLandscape,
+            onChooseExportFolder = { autoExportFolderLauncher.launch(null) },
         )
 
         // The hubs live in their own composable (not inline here): this
@@ -9198,5 +9200,45 @@ private fun PersonalizeSheetLayer(
         onNewsRegion = viewModel::openNewsRegion,
         newsRegionCount = 1 + SELECTABLE_COUNTRIES.size,
         onDismiss = viewModel::closePersonalize,
+    )
+}
+
+
+/** The backup & restore sheet with everything it needs from the view model. */
+@Composable
+private fun BackupSheetLayer(
+    viewModel: StartViewModel,
+    visible: Boolean,
+    dark: Boolean,
+    accentId: String,
+    autoBackupEnabled: Boolean,
+    autoBackupIntervalHours: Int,
+    isLandscape: Boolean,
+    onSaveSnapshot: () -> Unit,
+    onExportBackup: () -> Unit,
+    onRestoreBackup: () -> Unit,
+    onChooseExportFolder: () -> Unit,
+) {
+    val autoExport by viewModel.autoExport.collectAsStateWithLifecycle()
+    BackupRestoreSheet(
+        visible = visible,
+        dark = dark,
+        accentId = accentId,
+        onDismiss = viewModel::closeBackup,
+        onOpenHistory = viewModel::openHistory,
+        onSaveSnapshot = onSaveSnapshot,
+        onExportBackup = onExportBackup,
+        onRestoreBackup = onRestoreBackup,
+        onResetLayout = viewModel::openResetSetup,
+        autoBackupEnabled = autoBackupEnabled,
+        autoBackupIntervalHours = autoBackupIntervalHours,
+        onAutoBackupEnabled = viewModel::setAutoBackupEnabled,
+        onAutoBackupInterval = viewModel::setAutoBackupInterval,
+        autoExport = autoExport,
+        onChooseExportFolder = onChooseExportFolder,
+        onAutoExportEnabled = viewModel::setAutoExportEnabled,
+        onAutoExportInterval = viewModel::setAutoExportInterval,
+        onAutoExportNow = viewModel::runAutoExportNow,
+        rightHalf = isLandscape,
     )
 }

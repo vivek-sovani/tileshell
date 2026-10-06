@@ -3,6 +3,24 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Backup completeness + auto-export to a folder (5.1.0)
+
+User-requested after an audit found the manual export missed glance widget layout (half-width,
+stacks), notes, tasks, music favourites and small preferences. All added as optional JSON keys
+(version stays 1; a missing `notes`/`tasks` key means "leave the phone's as is", an empty list
+means "none"). Wallpaper image files are not copied (user's call). Rolling snapshots stay
+layout + settings.
+
+Auto-export (user's choice, off by default): the user picks a folder once with Android's folder
+picker (`OpenDocumentTree`, persistable grant, works with Drive); a WorkManager job writes
+`tileshell-auto-<date>-<time>.json` (the same file as "export layout", `BackupExporter`) daily or
+weekly and keeps the newest 5, deleting only files matching that name. Settings live in
+`tileshell.prefs` (`AutoExportPrefs`), not in `LauncherSettings`, because a folder grant is per
+device and must not travel inside a backup. Turning it on or choosing a folder runs once at
+once; the periodic job has an initial delay so it doesn't double-run. Failures (folder removed,
+access lost) are shown under the switch, never retried in a loop. Android 11+ refuses the root
+of storage and Downloads, so the user picks a subfolder (e.g. Documents).
+
 ## Android Auto (5.1.0): one shared session, Library + Playlists + Podcasts + Radio, no queue or progress
 
 User-requested; plan in `docs/ANDROID-AUTO-PLAN.md`, designs shown first. What was decided

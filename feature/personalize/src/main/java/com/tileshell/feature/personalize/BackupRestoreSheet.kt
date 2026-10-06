@@ -38,6 +38,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tileshell.core.data.AutoExportNaming
+import com.tileshell.core.data.AutoExportState
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.colorTokens
@@ -63,6 +65,11 @@ fun BackupRestoreSheet(
     autoBackupIntervalHours: Int,
     onAutoBackupEnabled: (Boolean) -> Unit,
     onAutoBackupInterval: (Int) -> Unit,
+    autoExport: AutoExportState,
+    onChooseExportFolder: () -> Unit,
+    onAutoExportEnabled: (Boolean) -> Unit,
+    onAutoExportInterval: (Int) -> Unit,
+    onAutoExportNow: () -> Unit,
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -205,6 +212,15 @@ fun BackupRestoreSheet(
 
                     WallpaperNavRow("export layout", "save ›", accent, tokens, onExportBackup)
                     WallpaperNavRow("restore from file", "open ›", accent, tokens, onRestoreBackup)
+                    AutoExportSection(
+                        state = autoExport,
+                        accent = accent,
+                        tokens = tokens,
+                        onChooseFolder = onChooseExportFolder,
+                        onEnabled = onAutoExportEnabled,
+                        onInterval = onAutoExportInterval,
+                        onNow = onAutoExportNow,
+                    )
                     Spacer(Modifier.height(10.dp))
                     Text(
                         text = "tip: save the exported file to google drive (or another cloud folder) " +
@@ -243,5 +259,85 @@ fun BackupRestoreSheet(
                 }
             }
         }
+    }
+}
+
+/**
+ * "auto-export to a folder": pick a folder once (Drive and other cloud folders
+ * work) and TileShell saves a dated full backup there on a schedule, keeping
+ * the newest few. The same file as "export layout".
+ */
+@Composable
+private fun AutoExportSection(
+    state: AutoExportState,
+    accent: Color,
+    tokens: com.tileshell.core.design.ColorTokens,
+    onChooseFolder: () -> Unit,
+    onEnabled: (Boolean) -> Unit,
+    onInterval: (Int) -> Unit,
+    onNow: () -> Unit,
+) {
+    val summary = when {
+        state.folderUri == null -> "off · choose a folder to start"
+        !state.enabled -> "off · folder: ${state.folderName ?: "chosen"}"
+        else -> (if (state.intervalDays <= 1) "daily" else "weekly") +
+            " · keeps the last ${AutoExportState.KEEP} · ${state.folderName ?: "chosen folder"}"
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = "auto-export to a folder", color = tokens.fg, fontSize = 14.sp)
+            Text(text = summary, color = tokens.fgDim, fontSize = 12.sp, lineHeight = 17.sp)
+        }
+        Switch(
+            checked = state.enabled && state.folderUri != null,
+            onCheckedChange = { on ->
+                // Nothing to turn on until a folder is chosen.
+                if (on && state.folderUri == null) onChooseFolder() else onEnabled(on)
+            },
+            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = accent),
+        )
+    }
+    WallpaperNavRow(
+        "folder",
+        if (state.folderUri == null) "choose ›" else "change ›",
+        accent, tokens, onChooseFolder,
+    )
+    if (state.ready) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(text = "how often", color = tokens.fgDim, fontSize = 12.sp)
+            Spacer(Modifier.weight(1f))
+            listOf(1 to "daily", 7 to "weekly").forEach { (days, label) ->
+                val selected = (state.intervalDays <= 1) == (days == 1)
+                Text(
+                    text = label,
+                    color = if (selected) Color.White else tokens.fgDim,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .background(
+                            if (selected) accent else tokens.fgDim.copy(alpha = 0.12f),
+                            RoundedCornerShape(4.dp),
+                        )
+                        .clickable { onInterval(days) }
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+            }
+        }
+        WallpaperNavRow("export now", "save ›", accent, tokens, onNow)
+    }
+    AutoExportNaming.statusLine(state, System.currentTimeMillis())?.let {
+        Text(
+            text = it,
+            color = if (state.lastError != null) accent else tokens.fgDim,
+            fontSize = 12.sp,
+            lineHeight = 17.sp,
+            modifier = Modifier.padding(top = 2.dp),
+        )
     }
 }

@@ -37,6 +37,13 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — auto-export to a folder (folded into 5.1.0).** User-chosen, off by default: personalize →
+  manage backups → "auto-export to a folder" (switch, folder picker, daily/weekly, export now,
+  status line). `AutoExportWorker` writes a dated full backup (`BackupExporter`, same file as
+  manual export) via the Storage Access Framework and keeps the newest 5 (`AutoExportNaming`,
+  tested); settings in `AutoExportPrefs` (tileshell.prefs, not in backups). Sheet moved into
+  `BackupSheetLayer` (register limit). Checked on the emulator: folder picked, file written,
+  status shown, retention kept 5; release build/R8 launch checked separately.
 - **`main` — manual backup now covers notes, tasks, music data and more (folded into 5.1.0).** A
   completeness audit found gaps. Export/restore (`StartViewModel.exportBackup`/`importBackup`,
   `BackupManager`; additive JSON keys, version still 1, older files restore as before) now also

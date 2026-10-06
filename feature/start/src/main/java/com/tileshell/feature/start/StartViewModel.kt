@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
+import android.content.Intent
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -19,6 +20,8 @@ import com.tileshell.core.data.AppIconCache
 import com.tileshell.core.data.AppCategories
 import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.BackupFeedSource
+import com.tileshell.core.data.AutoExportPrefs
+import com.tileshell.core.data.AutoExportState
 import com.tileshell.core.data.BackupManager
 import com.tileshell.core.data.BackupWidget
 import com.tileshell.core.data.CachedScreenshotPrefs
@@ -668,6 +671,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val debouncedSettingWrites = settingWrites.debounce(SETTING_WRITE_DEBOUNCE_MS)
 
     init {
+        // Re-arm the scheduled auto-export (a no-op unless the user turned it on).
+        AutoExportScheduler.sync(application)
         // Background refreshes follow the "live data refresh" rates.
         viewModelScope.launch(Dispatchers.IO) {
             settingsRepository.settings
@@ -2524,28 +2529,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 val application = getApplication<Application>()
-                val (tiles, folders, children, sections) = repository.tilesForBackup()
-                val currentSettings = settingsRepository.settings.first()
-                val hiddenApps = HiddenApps.hidden(application).first()
-                val feed = feedStore.read()
-                val widgets = WidgetStore.create(application).read().widgets
-                val photoUris = PhotosStore.create(application).read().uris
-                val wallpaperUris = WallpaperSlideshowStore.create(application).read().uris
-                val content = UserContentBackup.read(application)
-                val json = BackupManager.buildBackupJson(
-                    tiles, folders, children, currentSettings,
-                    hiddenApps = hiddenApps,
-                    feedSources = feed.sources.map { BackupFeedSource(it.url, it.name, it.category, it.enabled) },
-                    feedRegions = feed.regions,
-                    widgets = widgets.map { BackupWidget(it.widgetId, it.heightDp, it.widthDp, it.halfWidth, it.stackId) },
-                    photoUris = photoUris,
-                    wallpaperSlideshowUris = wallpaperUris,
-                    sections = sections,
-                    notes = content.notes,
-                    taskLists = content.taskLists,
-                    tasks = content.tasks,
-                    extras = BackupExtras.export(application),
-                )
+                val json = BackupExporter.buildJson(application)
                 application.contentResolver
                     .openOutputStream(uri)?.use { it.write(json.encodeToByteArray()) }
                 _backupMessage.tryEmit("backup saved")
@@ -2684,6 +2668,54 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             settingsRepository.setAutoBackupEnabled(enabled)
         }
+    }
+
+    // ---- auto-export to a folder (see AutoExport.kt) ------------------------
+
+    val autoExport: StateFlow<AutoExportState> = AutoExportPrefs.state(application)
+
+    /** The folder the user picked: keep access across restarts, remember it, and turn the schedule on. */
+    fun setAutoExportFolder(uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val app = getApplication<Application>()
+            val granted = runCatching {
+                app.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+            }.isSuccess
+            if (!granted) {
+                _backupMessage.tryEmit("couldn't use that folder")
+                return@launch
+            }
+            AutoExportPrefs.update(app) {
+                it.copy(
+                    enabled = true,
+                    folderUri = uri.toString(),
+                    folderName = AutoExportWriter.folderName(app, uri),
+                    lastError = null,
+                )
+            }
+            AutoExportScheduler.sync(app)
+            AutoExportScheduler.runNow(app)
+        }
+    }
+
+    fun setAutoExportEnabled(enabled: Boolean) {
+        val app = getApplication<Application>()
+        AutoExportPrefs.update(app) { it.copy(enabled = enabled) }
+        AutoExportScheduler.sync(app)
+        if (enabled && AutoExportPrefs.current(app).ready) AutoExportScheduler.runNow(app)
+    }
+
+    fun setAutoExportInterval(days: Int) {
+        val app = getApplication<Application>()
+        AutoExportPrefs.update(app) { it.copy(intervalDays = if (days <= 1) 1 else 7) }
+        AutoExportScheduler.sync(app)
+    }
+
+    fun runAutoExportNow() {
+        AutoExportScheduler.runNow(getApplication())
     }
 
     fun setEdgeStripEnabled(enabled: Boolean) {

@@ -28,6 +28,7 @@ android {
 
 dependencies {
     implementation(project(":core:data"))
+    implementation(libs.androidx.work.runtime.ktx) // auto-export schedule
     implementation(project(":core:design"))
     implementation(project(":feature:livetiles"))
     implementation(project(":feature:applist"))

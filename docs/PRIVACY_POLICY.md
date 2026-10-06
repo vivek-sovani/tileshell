@@ -113,6 +113,10 @@ DataStore):
   time and repeat), and music favourites,
   playlists and recently played podcasts/stations
 
+You can export a backup file of this data (including notes and tasks) from Personalize, and
+optionally have TileShell save one automatically to a folder you choose (for example in Google
+Drive). The files go only to that folder, which you pick and can change or stop at any time.
+
 None of this data is backed up to the developer's servers. Android's standard auto-
 backup to Google may back it up according to your device's backup settings (you control
 this in Android Settings → Google → Backup).
