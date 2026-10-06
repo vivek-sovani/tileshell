@@ -1111,7 +1111,7 @@ private fun ActivityRow(
                 Image(
                     bitmap = picture,
                     contentDescription = "attached photo",
-                    contentScale = ContentScale.Crop,
+                    contentScale = ContentScale.Fit,
                     modifier = Modifier.size(40.dp),
                 )
             }
@@ -1144,14 +1144,16 @@ private fun ActivityRow(
         if (expanded) {
             Column(modifier = Modifier.padding(start = 66.dp, end = 10.dp, bottom = 10.dp)) {
                 if (picture != null) {
+                    // The whole photo, at its own proportions (no crop); a very
+                    // tall one is scaled down to fit under the height cap.
                     Image(
                         bitmap = picture,
                         contentDescription = "attached photo",
-                        contentScale = ContentScale.Crop,
+                        contentScale = ContentScale.Fit,
+                        alignment = Alignment.CenterStart,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 220.dp)
-                            .aspectRatio(picture.width.toFloat() / picture.height.coerceAtLeast(1)),
+                            .heightIn(max = 420.dp),
                     )
                     Spacer(Modifier.height(10.dp))
                 }

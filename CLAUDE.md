@@ -43,7 +43,8 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   (chat, newest 5), `EXTRA_BIG_TEXT` and `EXTRA_TEXT_LINES`, capped at 1000 chars, into
   `NotificationItem.fullText` → `ConversationItem` → `ActivityEntry`. Collapsed rows show 2 lines
   (was 1); expanded rows show the full text (up to 20 lines). Live tile faces still use the short
-  snippet. Other hubs don't list notifications. Build + tests green; 5.1.0 re-cut (same
+  snippet. A notification's attached photo now shows whole (`ContentScale.Fit`, expanded up to 420dp
+  tall, collapsed thumbnail letterboxed), not cropped. Other hubs don't list notifications. Build + tests green; 5.1.0 re-cut (same
   versionCode, never uploaded); not yet seen on a real notification.
 - **`main` — Android Auto, sessions 3–5 of 5: v5.1.0 code-complete (versionCode 510, not built for
   release / not uploaded).** Podcasts and Radio tabs (Favorites + Recently played groups, show →
