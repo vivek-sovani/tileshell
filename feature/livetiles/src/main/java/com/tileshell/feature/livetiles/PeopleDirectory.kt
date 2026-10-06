@@ -257,6 +257,8 @@ data class ActivityEntry(
     val category: PeopleCategory = PeopleCategory.CHAT,
     val quickActions: Set<QuickAction> = emptySet(),
     val fullText: String = "",
+    /** Unique per row; several rows share one [notificationKey] when a chat's messages are split. */
+    val rowId: String = notificationKey,
 )
 
 /**
@@ -399,18 +401,7 @@ fun recentActivity(
             }
         }
         .flatMap { (packageName, preview, kind) ->
-            peopleItems(preview).map { item ->
-                ActivityEntry(
-                    packageName = packageName,
-                    sender = item.sender,
-                    snippet = item.snippet,
-                    postTime = item.postTime,
-                    notificationKey = item.notificationKey,
-                    category = kind,
-                    quickActions = item.quickActions,
-                    fullText = item.fullText,
-                )
-            }
+            peopleItems(preview).flatMap { item -> rowsFor(packageName, item, kind) }
         }
         .sortedByDescending { it.postTime }
         .take(limit)
@@ -463,5 +454,43 @@ fun activityAgo(postTimeMillis: Long, nowMillis: Long = System.currentTimeMillis
         deltaMinutes < 60 -> "$deltaMinutes min ago"
         deltaMinutes < 1_440 -> "${deltaMinutes / 60} hr ago"
         else -> "${deltaMinutes / 1_440} day${if (deltaMinutes / 1_440 == 1L) "" else "s"} ago"
+    }
+}
+
+/**
+ * One row per message when an app packs two or more into a single
+ * notification (a group chat's recent messages, an inbox-style list), newest
+ * first, up to [MAX_MESSAGE_ROWS]; otherwise the notification's own single
+ * row. Rows from one notification share its key, so reply / mark read /
+ * dismiss still act on that notification. Pure.
+ */
+internal fun rowsFor(packageName: String, item: ConversationItem, kind: PeopleCategory): List<ActivityEntry> {
+    val messages = item.messages.filter { it.text.isNotBlank() }
+    if (messages.size < 2) {
+        return listOf(
+            ActivityEntry(
+                packageName = packageName,
+                sender = item.sender,
+                snippet = item.snippet,
+                postTime = item.postTime,
+                notificationKey = item.notificationKey,
+                category = kind,
+                quickActions = item.quickActions,
+                fullText = item.fullText,
+            ),
+        )
+    }
+    return messages.asReversed().take(MAX_MESSAGE_ROWS).mapIndexed { index, m ->
+        ActivityEntry(
+            packageName = packageName,
+            sender = m.sender ?: item.sender,
+            snippet = m.text,
+            // Without a message time, keep the app's own order just below the notification's time.
+            postTime = if (m.time > 0L) m.time else item.postTime - index,
+            notificationKey = item.notificationKey,
+            category = kind,
+            quickActions = item.quickActions,
+            rowId = "${item.notificationKey}#$index",
+        )
     }
 }

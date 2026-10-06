@@ -29,6 +29,13 @@ import kotlinx.coroutines.flow.asStateFlow
  *   children — dropped so a 3-message thread counts as 3, not 4.
  * @property postTime when it was posted; the newest per package wins the preview.
  */
+/**
+ * One message inside a single notification (a chat's recent messages, or an
+ * inbox-style list's lines). [sender] is already a display label; null for a
+ * line that names nobody. [time] is 0 when the app didn't say.
+ */
+data class NotificationMessage(val sender: String?, val text: String, val time: Long = 0L)
+
 data class NotificationItem(
     val packageName: String,
     val title: String?,
@@ -40,6 +47,8 @@ data class NotificationItem(
     val quickActions: Set<QuickAction> = emptySet(),
     /** The whole message when it is longer than [text] (see [fullNotificationText]). */
     val fullText: String? = null,
+    /** The separate messages the app packed into this one notification (oldest first). */
+    val messages: List<NotificationMessage> = emptyList(),
 )
 
 /**
@@ -104,6 +113,7 @@ data class ConversationItem(
     val quickActions: Set<QuickAction> = emptySet(),
     /** The whole message when longer than [snippet]; blank when the snippet is all of it. */
     val fullText: String = "",
+    val messages: List<NotificationMessage> = emptyList(),
 )
 
 /**
@@ -198,6 +208,7 @@ fun summarizeNotifications(items: List<NotificationItem>): NotificationSnapshot 
                     postTime = it.postTime,
                     quickActions = it.quickActions,
                     fullText = it.fullText.orEmpty(),
+                    messages = it.messages,
                 )
             },
         )

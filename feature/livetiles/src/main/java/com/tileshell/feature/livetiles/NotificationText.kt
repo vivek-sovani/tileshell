@@ -31,3 +31,21 @@ internal fun fullNotificationText(
     if (chosen == short) return null
     return if (chosen.length > MAX_FULL_NOTIFICATION_TEXT) chosen.take(MAX_FULL_NOTIFICATION_TEXT - 1).trimEnd() + "…" else chosen
 }
+
+/** How many of one notification's messages get their own row in the People hub. */
+internal const val MAX_MESSAGE_ROWS = 5
+
+/**
+ * What to call a message's sender on its own row: the person's name, with the
+ * group's name after it for a group chat ("asha · family"). Falls back to the
+ * notification's own title when the message names nobody. Pure.
+ */
+internal fun messageSenderLabel(person: String?, conversationTitle: String?, isGroup: Boolean, fallbackTitle: String): String {
+    val who = person?.trim().orEmpty()
+    val group = conversationTitle?.trim().orEmpty()
+    return when {
+        who.isEmpty() -> group.ifEmpty { fallbackTitle.trim() }
+        isGroup && group.isNotEmpty() && !who.equals(group, ignoreCase = true) -> "$who · $group"
+        else -> who
+    }
+}

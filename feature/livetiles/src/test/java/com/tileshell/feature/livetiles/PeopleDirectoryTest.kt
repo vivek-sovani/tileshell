@@ -251,3 +251,41 @@ class ActivityAgoTest {
         assertEquals("", activityAgo(0L, nowMillis = 5000L))
     }
 }
+
+class SplitMessagesTest {
+    private fun item(messages: List<NotificationMessage>, key: String = "k1", postTime: Long = 1000L) =
+        ConversationItem(sender = "Family", snippet = "2 new messages", notificationKey = key, postTime = postTime, messages = messages)
+
+    @Test fun twoMessagesBecomeTwoRowsNewestFirstSharingTheNotificationKey() {
+        val rows = rowsFor(
+            "com.whatsapp",
+            item(listOf(NotificationMessage("asha · family", "hello", 100), NotificationMessage("raj · family", "dinner?", 200))),
+            PeopleCategory.CHAT,
+        )
+        assertEquals(listOf("dinner?", "hello"), rows.map { it.snippet })
+        assertEquals(listOf("raj · family", "asha · family"), rows.map { it.sender })
+        assertEquals(listOf(200L, 100L), rows.map { it.postTime })
+        assertEquals(listOf("k1", "k1"), rows.map { it.notificationKey })
+        assertEquals(2, rows.map { it.rowId }.toSet().size)
+    }
+
+    @Test fun oneMessageKeepsTheSingleRow() {
+        val rows = rowsFor("p", item(listOf(NotificationMessage("a", "only", 5))), PeopleCategory.CHAT)
+        assertEquals(1, rows.size)
+        assertEquals("2 new messages", rows[0].snippet)
+        assertEquals("k1", rows[0].rowId)
+    }
+
+    @Test fun messagesWithoutTimesKeepTheirOrderAndSenderFallsBackToTheTitle() {
+        val rows = rowsFor("p", item(listOf(NotificationMessage(null, "one"), NotificationMessage(null, "two"), NotificationMessage(null, "three"))), PeopleCategory.MAIL)
+        assertEquals(listOf("three", "two", "one"), rows.map { it.snippet })
+        assertEquals(listOf(1000L, 999L, 998L), rows.map { it.postTime })
+        assertEquals(setOf("Family"), rows.map { it.sender }.toSet())
+    }
+
+    @Test fun cappedAtFiveRowsAndBlankLinesIgnored() {
+        val many = (1..9).map { NotificationMessage("a", "m$it", it.toLong()) } + NotificationMessage("a", "  ", 99)
+        val rows = rowsFor("p", item(many), PeopleCategory.CHAT)
+        assertEquals(listOf("m9", "m8", "m7", "m6", "m5"), rows.map { it.snippet })
+    }
+}

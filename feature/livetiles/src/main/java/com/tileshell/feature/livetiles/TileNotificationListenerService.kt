@@ -280,7 +280,39 @@ private fun StatusBarNotification.toItem(): NotificationItem? {
             messages = chatMessageTexts(extras),
             lines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.map { it.toString() }.orEmpty(),
         ),
+        messages = separateMessages(extras),
     )
+}
+
+/**
+ * The separate messages inside one notification: a chat's recent messages
+ * (MessagingStyle), else an inbox-style list's lines. Only worth showing as
+ * rows when there are two or more.
+ */
+@Suppress("DEPRECATION")
+private fun separateMessages(extras: android.os.Bundle): List<NotificationMessage> {
+    val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
+    val conversation = extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)?.toString()
+    val isGroup = extras.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION, false)
+    val chat = extras.getParcelableArray(Notification.EXTRA_MESSAGES)
+        ?.filterIsInstance<android.os.Bundle>()
+        ?.mapNotNull { b ->
+            val text = b.getCharSequence("text")?.toString()?.trim().orEmpty()
+            if (text.isEmpty()) return@mapNotNull null
+            val person = b.getCharSequence("sender")?.toString()
+                ?: (b.get("sender_person") as? android.os.Bundle)?.getCharSequence("name")?.toString()
+            NotificationMessage(
+                sender = messageSenderLabel(person, conversation ?: title, isGroup, title),
+                text = text,
+                time = b.getLong("time", 0L),
+            )
+        }
+        .orEmpty()
+    if (chat.isNotEmpty()) return chat
+    return extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
+        ?.map { it.toString().trim() }?.filter { it.isNotEmpty() }
+        ?.map { NotificationMessage(sender = null, text = it) }
+        .orEmpty()
 }
 
 /** A chat notification's recent messages (MessagingStyle), oldest first. */

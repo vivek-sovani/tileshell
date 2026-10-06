@@ -38,3 +38,19 @@ class NotificationTextTest {
     @Test fun blankPartsAreIgnored() =
         assertEquals("real", fullNotificationText("r", "   ", listOf("", "real"), emptyList()))
 }
+
+class MessageSenderLabelTest {
+    @Test fun groupChatNamesThePersonAndTheGroup() =
+        assertEquals("Asha · Family", messageSenderLabel("Asha", "Family", true, "Family"))
+
+    @Test fun oneToOneChatUsesJustThePerson() =
+        assertEquals("Asha", messageSenderLabel("Asha", "Asha", false, "Asha"))
+
+    @Test fun personWhoIsTheGroupNameIsNotRepeated() =
+        assertEquals("family", messageSenderLabel("family", "Family", true, "x"))
+
+    @Test fun missingPersonFallsBackToTheConversationThenTheTitle() {
+        assertEquals("Family", messageSenderLabel(null, "Family", true, "t"))
+        assertEquals("title", messageSenderLabel(" ", null, false, " title "))
+    }
+}

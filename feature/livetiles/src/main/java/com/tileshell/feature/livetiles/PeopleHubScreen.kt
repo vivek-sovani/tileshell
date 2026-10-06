@@ -910,13 +910,15 @@ private fun WhatsNewPage(
                     )
                 }
             } else {
-                items(entries, key = { "activity-${it.notificationKey.ifBlank { it.packageName + it.postTime }}" }) { entry ->
-                    val key = entry.notificationKey
+                items(entries, key = { "activity-${it.rowId.ifBlank { it.packageName + it.postTime }}" }) { entry ->
+                    // Expansion is per row; actions below use the notification's own key
+                    // (rows split from one chat notification share it).
+                    val key = entry.rowId
                     SwipeToDismissRow(
                         tokens = tokens,
                         onDismiss = {
                             if (expandedKey == key) expandedKey = null
-                            NotificationCenter.clearKeys(listOf(key).filter { it.isNotEmpty() })
+                            NotificationCenter.clearKeys(listOf(entry.notificationKey).filter { it.isNotEmpty() })
                         },
                     ) {
                         ActivityRow(
@@ -927,7 +929,7 @@ private fun WhatsNewPage(
                             onToggle = { expandedKey = if (expandedKey == key || key.isEmpty()) null else key },
                             onOpenApp = {
                                 expandedKey = null
-                                NotificationCenter.reportDisplayedKey(entry.packageName, key)
+                                NotificationCenter.reportDisplayedKey(entry.packageName, entry.notificationKey)
                                 if (!NotificationCenter.openAndClear(context, entry.packageName)) {
                                     openApp(context, entry.packageName)
                                 }

@@ -37,6 +37,17 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — People hub "what's new" lists a chat's messages one by one (folded into 5.1.0).** User-
+  reported: a group chat's two messages showed as one consolidated row (one notification holds
+  them). The listener now reads the messages inside a notification (`EXTRA_MESSAGES`, else inbox
+  `EXTRA_TEXT_LINES`) into `NotificationItem.messages`; `recentActivity` → `rowsFor` splits two or
+  more into one row each, newest first, up to 5, sender "person · group" for group chats
+  (`messageSenderLabel`). Rows share the notification's key, so reply / mark read / open / swipe
+  act on that notification (a swipe clears all its rows); expansion is per row (`ActivityEntry.rowId`).
+  Start tiles, badges and counts still use one entry per notification. Unit-tested
+  (`SplitMessagesTest`, `MessageSenderLabelTest`); not seen with a real chat notification (the
+  emulator can't post as WhatsApp). Group summaries are still dropped — an app that posts only a
+  summary shows nothing.
 - **`main` — auto-export to a folder (folded into 5.1.0).** User-chosen, off by default: personalize →
   manage backups → "auto-export to a folder" (switch, folder picker, daily/weekly, export now,
   status line). `AutoExportWorker` writes a dated full backup (`BackupExporter`, same file as
