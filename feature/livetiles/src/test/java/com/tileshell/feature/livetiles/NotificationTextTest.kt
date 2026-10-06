@@ -54,3 +54,12 @@ class MessageSenderLabelTest {
         assertEquals("title", messageSenderLabel(" ", null, false, " title "))
     }
 }
+
+class PhotoSizedTest {
+    @Test fun smallLargeIconsAreAvatarsAndBigOnesArePhotos() {
+        assertEquals(false, isPhotoSized(128, 128))
+        assertEquals(false, isPhotoSized(256, 300))
+        assertEquals(true, isPhotoSized(400, 200))
+        assertEquals(true, isPhotoSized(300, 720))
+    }
+}

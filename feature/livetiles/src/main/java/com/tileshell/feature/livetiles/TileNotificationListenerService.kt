@@ -226,13 +226,28 @@ private fun StatusBarNotification.tilePackageName(): String =
  */
 private fun StatusBarNotification.extractImages(context: Context): NotificationImages {
     val n = notification ?: return NotificationImages()
-    val picture = (n.extras?.get(Notification.EXTRA_PICTURE) as? Bitmap)
-        ?.downscaleIfNeeded(MAX_NOTIFICATION_IMAGE_PX)
-    val avatar = n.getLargeIcon()
+    val extras = n.extras
+    val avatarFull = n.getLargeIcon()
         ?.let { icon -> runCatching { icon.loadDrawable(context)?.toBitmap() }.getOrNull() }
+    // The shared photo: a big-picture bitmap, else (Android 12+ apps that pass an
+    // Icon) the picture icon, else a large icon that is really a photo (an app like
+    // Pinterest puts the pin there). A small large icon is just the sender's avatar.
+    val picture = ((extras?.get(Notification.EXTRA_PICTURE) as? Bitmap)
+        ?: (extras?.get(EXTRA_PICTURE_ICON) as? android.graphics.drawable.Icon)
+            ?.let { icon -> runCatching { icon.loadDrawable(context)?.toBitmap() }.getOrNull() }
+        ?: avatarFull?.takeIf { isPhotoSized(it.width, it.height) })
         ?.downscaleIfNeeded(MAX_NOTIFICATION_IMAGE_PX)
+    val avatar = avatarFull?.downscaleIfNeeded(MAX_NOTIFICATION_IMAGE_PX)
     return NotificationImages(avatar = avatar, picture = picture)
 }
+
+/** `Notification.EXTRA_PICTURE_ICON` (API 31); a plain string so it also compiles and runs below that. */
+private const val EXTRA_PICTURE_ICON = "android.pictureIcon"
+
+/** A large icon this big is a photo, not an avatar. Pure. */
+internal fun isPhotoSized(width: Int, height: Int): Boolean = maxOf(width, height) >= PHOTO_MIN_PX
+
+internal const val PHOTO_MIN_PX = 400
 
 private const val MAX_NOTIFICATION_IMAGE_PX = 600
 

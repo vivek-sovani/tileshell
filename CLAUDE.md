@@ -37,6 +37,12 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — notification photos: more apps' pictures are found (folded into 5.1.0).** User-reported:
+  Pinterest notifications showed no photo. The listener only read `EXTRA_PICTURE`. It now also reads
+  `android.pictureIcon` (apps passing an Icon, Android 12+) and treats a photo-sized large icon
+  (≥ 400px, `isPhotoSized`) as the picture, keeping small ones as avatars. Unit-tested; not seen
+  with a real Pinterest notification (none was active when checked) — if it still shows nothing,
+  that notification likely carries the image only in custom RemoteViews, which can't be read.
 - **`main` — add / move / drop apps on the People, Money and Productivity apps pages (folded into 5.1.0).**
   User-requested after Pinterest and CRED were missing. An "edit apps" app-bar button on each
   hub's apps page: "+" per section (installed-app picker with search and section chips),
