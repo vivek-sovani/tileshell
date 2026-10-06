@@ -3,6 +3,19 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Hub apps: one app in several sections; one tile per app shows its notifications (5.1.0)
+
+User follow-ups. (1) CRED is both a payment and a card app, so the apps pages now let an app be
+in several sections: the picker's chips are multi-select, "+" adds to extra sections, ✕ takes an
+app off just the section it was tapped in, and dragging moves it from one section to another
+(its other sections stay). `HubAppChoice` is now `added` / `removed` per section (plus the older
+`dropped` = off every section; the first build's `p|` lines read as adds). `peopleSectionsFor`,
+`moneyAppKinds` and `productivityApps` return every section; the pinned tiles list an app once.
+(2) Amazon, Amazon Pay and Amazon Now are launcher entries of one package, so all three pinned
+tiles showed the same badge and message. Notifications are per package, so now only the tile for
+the app's main launcher entry (else the first pinned) shows the badge and live notification face
+(`notificationMutedTileIds`, `LocalNotificationMuted`); the others stay plain.
+
 ## Hub apps pages: add, move and drop apps (People, Money, Productivity) — 5.1.0
 
 User-reported: Pinterest (social) wasn't in People and CRED wasn't in Money's apps — the lists are

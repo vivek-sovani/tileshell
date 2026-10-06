@@ -118,6 +118,7 @@ internal fun HubAppsPage(
 
     val scroll = rememberScrollState()
     var dragPackage by remember { mutableStateOf<String?>(null) }
+    var dragFrom by remember { mutableStateOf<String?>(null) }
     var dragPosition by remember { mutableStateOf(Offset.Zero) }
     var containerBounds by remember { mutableStateOf(Rect.Zero) }
     val sectionBounds = remember { mutableStateMapOf<String, Rect>() }
@@ -127,14 +128,15 @@ internal fun HubAppsPage(
 
     fun finishDrag() {
         val pkg = dragPackage
-        if (pkg != null) {
+        val from = dragFrom
+        if (pkg != null && from != null) {
             val target = sectionUnder(dragPosition)
-            val current = apps.firstOrNull { it.packageName == pkg }?.section
-            if (target != null && target != current) {
-                HubAppChoices.update(context, kind) { it.place(pkg, target) }
+            if (target != null && target != from) {
+                HubAppChoices.update(context, kind) { it.move(pkg, from, target) }
             }
         }
         dragPackage = null
+        dragFrom = null
     }
 
     // Scrolls the page while a drag is held near its top or bottom edge.
@@ -191,17 +193,21 @@ internal fun HubAppsPage(
                                         AppCell(
                                             app = app,
                                             editing = editing,
-                                            dragging = dragPackage == app.packageName,
+                                            dragging = dragPackage == app.packageName && dragFrom == section.key,
                                             tokens = tokens,
                                             accent = accent,
                                             longPressLabel = longPressLabel,
                                             onOpen = { onOpen(app.packageName) },
                                             onLongPress = { onLongPress(app.packageName) },
-                                            onDrop = { HubAppChoices.update(context, kind) { it.drop(app.packageName) } },
-                                            onDragStart = { rootPosition -> dragPackage = app.packageName; dragPosition = rootPosition },
+                                            onDrop = { HubAppChoices.update(context, kind) { it.removeFrom(app.packageName, section.key) } },
+                                            onDragStart = { rootPosition ->
+                                                dragPackage = app.packageName
+                                                dragFrom = section.key
+                                                dragPosition = rootPosition
+                                            },
                                             onDragBy = { dragPosition += it },
                                             onDragEnd = ::finishDrag,
-                                            onDragCancel = { dragPackage = null },
+                                            onDragCancel = { dragPackage = null; dragFrom = null },
                                         )
                                     }
                                 }
@@ -212,14 +218,14 @@ internal fun HubAppsPage(
                 }
             }
             if (editing) {
-                if (choice.dropped.isNotEmpty()) {
-                    val n = choice.dropped.size
+                if (choice.takenOff.isNotEmpty()) {
+                    val n = choice.takenOff.size
                     Text(
                         "$n app${if (n == 1) "" else "s"} taken off this page · show again",
                         color = accent,
                         fontSize = 13.sp,
                         modifier = Modifier
-                            .clickable { HubAppChoices.update(context, kind) { it.restoreDropped() } }
+                            .clickable { HubAppChoices.update(context, kind) { it.restoreRemoved() } }
                             .padding(start = 6.dp, top = 16.dp),
                     )
                 }
@@ -261,12 +267,14 @@ internal fun HubAppsPage(
         AddHubAppsDialog(
             sectionDefs = sectionDefs,
             initialSection = start,
-            existing = apps.map { it.packageName }.toSet(),
+            existingBySection = sections.associate { it.key to it.apps.map { app -> app.packageName }.toSet() },
             tokens = tokens,
             accent = accent,
             onDismiss = { addTarget = null },
-            onAdd = { packages, section ->
-                HubAppChoices.update(context, kind) { c -> packages.fold(c) { acc, pkg -> acc.place(pkg, section) } }
+            onAdd = { packages, targets ->
+                HubAppChoices.update(context, kind) { c ->
+                    packages.fold(c) { acc, pkg -> targets.fold(acc) { inner, section -> inner.addTo(pkg, section) } }
+                }
                 addTarget = null
             },
         )
@@ -401,21 +409,25 @@ internal fun installedLauncherApps(context: android.content.Context): List<Pair<
 private fun AddHubAppsDialog(
     sectionDefs: List<Pair<String, String>>,
     initialSection: String,
-    existing: Set<String>,
+    existingBySection: Map<String, Set<String>>,
     tokens: ColorTokens,
     accent: Color,
     onDismiss: () -> Unit,
-    onAdd: (List<String>, String) -> Unit,
+    onAdd: (List<String>, Set<String>) -> Unit,
 ) {
     val context = LocalContext.current
     val installed by produceState<List<Pair<String, String>>?>(initialValue = null) {
         value = withContext(Dispatchers.IO) { installedLauncherApps(context) }
     }
     var query by remember { mutableStateOf("") }
-    var section by remember { mutableStateOf(initialSection) }
+    // An app can go into several sections (CRED is a payment app and a card app).
+    var sectionsPicked by remember { mutableStateOf(setOf(initialSection)) }
     var picked by remember { mutableStateOf(setOf<String>()) }
-    val shown = remember(installed, query, existing) {
-        installed.orEmpty().filter { (pkg, label) -> pkg !in existing && label.contains(query.trim(), ignoreCase = true) }
+    // Hide apps that are already in every section ticked below.
+    val shown = remember(installed, query, sectionsPicked, existingBySection) {
+        installed.orEmpty().filter { (pkg, label) ->
+            sectionsPicked.any { pkg !in existingBySection[it].orEmpty() } && label.contains(query.trim(), ignoreCase = true)
+        }
     }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -427,7 +439,7 @@ private fun AddHubAppsDialog(
                 .padding(16.dp),
         ) {
             Text(
-                "add apps to ${sectionDefs.firstOrNull { it.first == section }?.second ?: ""}",
+                "add apps",
                 color = tokens.fg,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Light,
@@ -480,17 +492,18 @@ private fun AddHubAppsDialog(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            Text("section", color = tokens.fgDim, fontSize = 12.sp)
+            Text("add to (tick more than one if it fits)", color = tokens.fgDim, fontSize = 12.sp)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 4.dp)) {
                 sectionDefs.forEach { (key, title) ->
-                    val on = key == section
+                    val on = key in sectionsPicked
                     Text(
                         title,
                         color = if (on) Color.White else tokens.fg,
                         fontSize = 13.sp,
                         modifier = Modifier
                             .background(if (on) accent else tokens.fg.copy(alpha = 0.1f))
-                            .clickable { section = key }
+                            // At least one section stays ticked.
+                            .clickable { sectionsPicked = if (on && sectionsPicked.size > 1) sectionsPicked - key else sectionsPicked + key }
                             .padding(horizontal = 10.dp, vertical = 5.dp),
                     )
                 }
@@ -509,7 +522,7 @@ private fun AddHubAppsDialog(
                             if (picked.isEmpty()) {
                                 Toast.makeText(context, "tick the apps to add", Toast.LENGTH_SHORT).show()
                             } else {
-                                onAdd(picked.toList(), section)
+                                onAdd(picked.toList(), sectionsPicked)
                             }
                         }
                         .padding(8.dp),

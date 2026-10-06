@@ -83,7 +83,8 @@ fun PhotosTileFace(
     // The gallery app's newest notification, if any. Only consulted for standalone
     // tiles (a stack member never flips to a notification).
     val snapshot by NotificationCenter.snapshot.collectAsState()
-    val preview = if (forcedIndex == null && packageName.isNotBlank()) {
+    val muted = LocalNotificationMuted.current
+    val preview = if (forcedIndex == null && packageName.isNotBlank() && !muted) {
         snapshot.conversationFor(packageName)
     } else {
         null

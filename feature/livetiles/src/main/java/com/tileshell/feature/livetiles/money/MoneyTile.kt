@@ -49,7 +49,7 @@ fun MoneyTileFace(size: TileSize, active: Boolean, modifier: Modifier = Modifier
     LaunchedEffect(Unit) { MoneyStore.ensureLoaded(context) }
     val settings by MoneyPrefs.settings(context).collectAsStateWithLifecycle()
     val txns by MoneyStore.transactions.collectAsStateWithLifecycle()
-    val payment = rememberMoneyApps()?.filter { it.kind == MoneyAppKind.PAYMENT }.orEmpty()
+    val payment = rememberMoneyApps()?.filter { it.kind == MoneyAppKind.PAYMENT }.orEmpty().distinctBy { it.packageName }
 
     var flipped by remember { mutableStateOf(false) }
     val canFlip = payment.isNotEmpty() && size != TileSize.SMALL

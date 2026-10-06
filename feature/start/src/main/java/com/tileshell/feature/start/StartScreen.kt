@@ -3699,6 +3699,7 @@ private fun StartPage(
                 },
             )
 
+            val mutedNotificationTiles = rememberNotificationMutedTileIds(augmentedById.values)
             DenseTileGrid(
                 tiles = render.specs,
                 columns = columns,
@@ -3725,6 +3726,9 @@ private fun StartPage(
                 } else {
                     null
                 }
+                androidx.compose.runtime.CompositionLocalProvider(
+                    com.tileshell.feature.livetiles.LocalNotificationMuted provides (model.id in mutedNotificationTiles),
+                ) {
                 Box(
                     modifier = Modifier
                         .offset { if (dragging) dragOffset.value else slotState.value }
@@ -3755,7 +3759,8 @@ private fun StartPage(
                     // extracted once so the icons-mode branch can't drift from
                     // tile mode's own wiring for the same gestures.
                     val badgeCount = when (model) {
-                        is TileModel.App -> tileBadgeCount(model.packageName, model.activityName, notifications)
+                        is TileModel.App ->
+                            if (model.id in mutedNotificationTiles) 0 else tileBadgeCount(model.packageName, model.activityName, notifications)
                         // A folder aggregates the unread counts of its children,
                         // so a folder of mail/chat apps surfaces a single summed
                         // badge (de-duped by package — multiple activities of one
@@ -4030,6 +4035,7 @@ private fun StartPage(
                             onMove = onMoveAction,
                         )
                     }
+                }
                 }
             }
             } // end key(block.sectionId) [inner]

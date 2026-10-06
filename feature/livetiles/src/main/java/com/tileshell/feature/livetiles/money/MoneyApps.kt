@@ -19,13 +19,13 @@ internal fun installedMoneyApps(context: Context): List<MoneyApp> = runCatching 
     val pm = context.packageManager
     val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
     pm.queryIntentActivities(intent, 0)
-        .mapNotNull { info ->
-            val pkg = info.activityInfo?.packageName ?: return@mapNotNull null
-            if (pkg == context.packageName) return@mapNotNull null
+        .flatMap { info ->
+            val pkg = info.activityInfo?.packageName ?: return@flatMap emptyList<MoneyApp>()
+            if (pkg == context.packageName) return@flatMap emptyList<MoneyApp>()
             val label = info.loadLabel(pm).toString()
-            moneyAppKind(pkg, label)?.let { MoneyApp(pkg, label, it) }
+            moneyAppKinds(pkg, label).map { MoneyApp(pkg, label, it) }
         }
-        .distinctBy { it.packageName }
+        .distinctBy { it.packageName to it.kind }
 }.getOrDefault(emptyList())
 
 /** Installed money apps, most used first (when usage access is on), then by name. Null while loading. */

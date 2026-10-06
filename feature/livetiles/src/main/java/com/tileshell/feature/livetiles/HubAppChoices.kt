@@ -14,44 +14,75 @@ enum class HubKind(val key: String) {
 
 /**
  * What the user changed on one hub's apps page, on top of the built-in app
- * lists: [placed] puts an app into a section (a newly added app, or a built-in
- * one moved) as `package → section key`; [dropped] takes an app off the page.
- * An app is in at most one of the two. Pure, so it is unit-tested.
+ * lists. An app can be in several sections (CRED is both a payment app and a
+ * card app): [added] puts it into more sections, [removed] takes it out of
+ * sections, and [dropped] is the older "off every section" form. The sections
+ * an app is in are its built-in ones plus [added] minus [removed]
+ * ([sectionsOf]). Pure, so it is unit-tested.
  */
 data class HubAppChoice(
-    val placed: Map<String, String> = emptyMap(),
+    val added: Map<String, Set<String>> = emptyMap(),
+    val removed: Map<String, Set<String>> = emptyMap(),
     val dropped: Set<String> = emptySet(),
 ) {
-    val isEmpty: Boolean get() = placed.isEmpty() && dropped.isEmpty()
+    val isEmpty: Boolean get() = added.isEmpty() && removed.isEmpty() && dropped.isEmpty()
 
-    fun place(packageName: String, section: String) =
-        copy(placed = placed + (packageName to section), dropped = dropped - packageName)
+    /** Every package taken off at least one section (for "n apps taken off this page"). */
+    val takenOff: Set<String> get() = removed.keys + dropped
 
-    fun drop(packageName: String) =
-        copy(placed = placed - packageName, dropped = dropped + packageName)
+    fun sectionsOf(packageName: String, builtIn: Set<String>): Set<String> =
+        if (packageName in dropped) emptySet() else (builtIn + added[packageName].orEmpty()) - removed[packageName].orEmpty()
 
-    /** Brings every dropped app back (to wherever it normally is). */
-    fun restoreDropped() = copy(dropped = emptySet())
+    fun addTo(packageName: String, section: String) = copy(
+        added = added.withSection(packageName, section),
+        removed = removed.withoutSection(packageName, section),
+        dropped = dropped - packageName,
+    )
+
+    fun removeFrom(packageName: String, section: String) = copy(
+        added = added.withoutSection(packageName, section),
+        removed = removed.withSection(packageName, section),
+    )
+
+    /** Moves an app out of [from] and into [to] (it stays in its other sections). */
+    fun move(packageName: String, from: String, to: String) =
+        if (from == to) this else removeFrom(packageName, from).addTo(packageName, to)
+
+    /** Brings every taken-off app back (to wherever it normally is). */
+    fun restoreRemoved() = copy(removed = emptyMap(), dropped = emptySet())
+
+    private fun Map<String, Set<String>>.withSection(pkg: String, section: String) = this + (pkg to (this[pkg].orEmpty() + section))
+
+    private fun Map<String, Set<String>>.withoutSection(pkg: String, section: String): Map<String, Set<String>> {
+        val left = this[pkg].orEmpty() - section
+        return if (left.isEmpty()) this - pkg else this + (pkg to left)
+    }
 }
 
-/** One line per choice: `p|<package>|<SECTION>` or `d|<package>`. Tolerant of junk lines. */
+/**
+ * One line per choice: `a|<package>|<SECTION>` (added to a section),
+ * `r|<package>|<SECTION>` (taken off one), `d|<package>` (off every section).
+ * `p|…` is the older "placed in" form and reads as an add. Tolerant of junk lines.
+ */
 object HubAppChoiceCodec {
     fun encode(choice: HubAppChoice): String =
-        (choice.placed.map { (pkg, section) -> "p|$pkg|$section" } + choice.dropped.map { "d|$it" }).joinToString("\n")
+        (choice.added.flatMap { (pkg, set) -> set.sorted().map { "a|$pkg|$it" } } +
+            choice.removed.flatMap { (pkg, set) -> set.sorted().map { "r|$pkg|$it" } } +
+            choice.dropped.map { "d|$it" }).joinToString("\n")
 
     fun decode(text: String?): HubAppChoice {
-        var placed = emptyMap<String, String>()
-        var dropped = emptySet<String>()
+        var choice = HubAppChoice()
         text.orEmpty().lineSequence().forEach { line ->
             val parts = line.trim().split('|')
             when {
-                parts.size == 3 && parts[0] == "p" && parts[1].isNotEmpty() && parts[2].isNotEmpty() ->
-                    placed = placed + (parts[1] to parts[2])
-                parts.size == 2 && parts[0] == "d" && parts[1].isNotEmpty() -> dropped = dropped + parts[1]
+                parts.size == 3 && parts[0] in setOf("a", "p") && parts[1].isNotEmpty() && parts[2].isNotEmpty() ->
+                    choice = choice.copy(added = choice.added + (parts[1] to (choice.added[parts[1]].orEmpty() + parts[2])))
+                parts.size == 3 && parts[0] == "r" && parts[1].isNotEmpty() && parts[2].isNotEmpty() ->
+                    choice = choice.copy(removed = choice.removed + (parts[1] to (choice.removed[parts[1]].orEmpty() + parts[2])))
+                parts.size == 2 && parts[0] == "d" && parts[1].isNotEmpty() -> choice = choice.copy(dropped = choice.dropped + parts[1])
             }
         }
-        // An app can't be both; a drop wins over a stale placement.
-        return HubAppChoice(placed - dropped, dropped)
+        return choice
     }
 }
 

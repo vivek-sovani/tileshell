@@ -332,11 +332,13 @@ private val PEOPLE_APP_CATEGORIES: Map<String, PeopleCategory> = buildMap {
 }
 
 /** [packageName]'s [PeopleCategory], or null when it isn't a people app. */
-fun peopleCategoryFor(packageName: String): PeopleCategory? {
+fun peopleCategoryFor(packageName: String): PeopleCategory? = peopleSectionsFor(packageName).firstOrNull()
+
+/** Every People section [packageName] is in (built-in plus what the user added, minus what they took off), in display order. */
+fun peopleSectionsFor(packageName: String): List<PeopleCategory> {
     val choice = HubAppChoices.current(HubKind.PEOPLE)
-    if (packageName in choice.dropped) return null
-    choice.placed[packageName]?.let { name -> PeopleCategory.entries.find { it.name == name }?.let { return it } }
-    return PEOPLE_APP_CATEGORIES[packageName]
+    val names = choice.sectionsOf(packageName, setOfNotNull(PEOPLE_APP_CATEGORIES[packageName]?.name))
+    return PeopleCategory.entries.filter { it.name in names }
 }
 
 /** The built-in category, ignoring anything the user added, moved or dropped. */
@@ -349,7 +351,7 @@ internal val PEOPLE_BUILT_IN_PACKAGES: Set<String> get() = PEOPLE_APP_CATEGORIES
 val PEOPLE_APP_PACKAGES: Set<String>
     get() {
         val choice = HubAppChoices.current(HubKind.PEOPLE)
-        return (PEOPLE_APP_CATEGORIES.keys - choice.dropped) + choice.placed.keys
+        return (PEOPLE_APP_CATEGORIES.keys + choice.added.keys).filter { peopleSectionsFor(it).isNotEmpty() }.toSet()
     }
 
 /** An installed people app, for the apps page and the pinned apps tile. */
@@ -376,9 +378,9 @@ fun peopleApps(
     badges: Map<String, Int>,
     opens: Map<String, Int> = emptyMap(),
 ): List<PeopleApp> =
-    installed.mapNotNull { (packageName, label) ->
-        val category = peopleCategoryFor(packageName)?.takeIf { it in PEOPLE_APP_GROUPS } ?: return@mapNotNull null
-        PeopleApp(packageName, label, category, badges[packageName] ?: 0)
+    installed.flatMap { (packageName, label) ->
+        peopleSectionsFor(packageName).filter { it in PEOPLE_APP_GROUPS }
+            .map { category -> PeopleApp(packageName, label, category, badges[packageName] ?: 0) }
     }.sortedWith(
         compareByDescending<PeopleApp> { opens[it.packageName] ?: 0 }
             .thenByDescending { it.badge }

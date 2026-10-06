@@ -64,7 +64,7 @@ fun ProductivityTileFace(size: TileSize, active: Boolean, modifier: Modifier = M
     val dueCount = reminderTasks.count { isReminderDue(it.remindAt, it.snoozeAt, it.done, now) }
     val nextTask = nextScheduled(reminderTasks, { it.remindAt }, { it.snoozeAt }, now)
         ?.let { "${reminderShortWhen(it.snoozeAt ?: it.remindAt!!, now)} · ${it.text}" }
-    val apps = rememberProductivityApps().orEmpty()
+    val apps = rememberProductivityApps().orEmpty().distinctBy { it.packageName }
 
     var flipped by remember { mutableStateOf(false) }
     val canFlip = apps.isNotEmpty() && size.rows >= 2

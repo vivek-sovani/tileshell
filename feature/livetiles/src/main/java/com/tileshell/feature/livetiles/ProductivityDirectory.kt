@@ -83,8 +83,14 @@ val PRODUCTIVITY_APP_PACKAGES: Set<String>
         val choice = HubAppChoices.current(HubKind.PRODUCTIVITY)
         // The built-in mail apps, whatever the People hub's own choices are.
         val mail = PEOPLE_BUILT_IN_PACKAGES.filter { builtInPeopleCategory(it) == PeopleCategory.MAIL }
-        return (PRODUCTIVITY_APP_CATEGORIES.keys + mail - choice.dropped) + choice.placed.keys
+        return (PRODUCTIVITY_APP_CATEGORIES.keys + mail + choice.added.keys)
+            .filter { choice.sectionsOf(it, setOfNotNull(builtInProductivityCategory(it)?.name)).isNotEmpty() }
+            .toSet()
     }
+
+private fun builtInProductivityCategory(packageName: String): ProductivityCategory? =
+    PRODUCTIVITY_APP_CATEGORIES[packageName]
+        ?: if (builtInPeopleCategory(packageName) == PeopleCategory.MAIL) ProductivityCategory.MAIL else null
 
 /** An installed productivity app for the hub's apps page and tile. */
 data class ProductivityApp(
@@ -103,15 +109,12 @@ fun productivityApps(
     opens: Map<String, Int> = emptyMap(),
     tools: Set<String> = emptySet(),
 ): List<ProductivityApp> =
-    installed.mapNotNull { (packageName, label) ->
-        val choice = HubAppChoices.current(HubKind.PRODUCTIVITY)
-        if (packageName in choice.dropped) return@mapNotNull null
-        val placed = choice.placed[packageName]?.let { name -> ProductivityCategory.entries.find { it.name == name } }
-        val category = placed
-            ?: PRODUCTIVITY_APP_CATEGORIES[packageName]
+    installed.flatMap { (packageName, label) ->
+        val builtIn = PRODUCTIVITY_APP_CATEGORIES[packageName]
             ?: if (builtInPeopleCategory(packageName) == PeopleCategory.MAIL) ProductivityCategory.MAIL else null
-            ?: if (packageName in tools) ProductivityCategory.TOOLS else return@mapNotNull null
-        ProductivityApp(packageName, label, category)
+            ?: if (packageName in tools) ProductivityCategory.TOOLS else null
+        val names = HubAppChoices.current(HubKind.PRODUCTIVITY).sectionsOf(packageName, setOfNotNull(builtIn?.name))
+        ProductivityCategory.entries.filter { it.name in names }.map { ProductivityApp(packageName, label, it) }
     }.sortedWith(compareByDescending<ProductivityApp> { opens[it.packageName] ?: 0 }.thenBy { it.label.lowercase() })
 
 /** [apps] grouped in [ProductivityCategory] order, empty groups dropped. Pure. */

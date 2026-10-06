@@ -69,7 +69,8 @@ fun ConversationTileFace(
     modifier: Modifier = Modifier,
 ) {
     val snapshot by NotificationCenter.snapshot.collectAsState()
-    val preview = snapshot.conversationFor(packageName) ?: return fallback()
+    val muted = LocalNotificationMuted.current
+    val preview = snapshot.conversationFor(packageName).takeUnless { muted } ?: return fallback()
     val itemImages by NotificationCenter.itemImages.collectAsState()
     val fallbackImages by NotificationCenter.images.collectAsState()
 

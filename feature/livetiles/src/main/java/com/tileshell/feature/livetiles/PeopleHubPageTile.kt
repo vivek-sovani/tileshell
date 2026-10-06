@@ -346,7 +346,7 @@ private fun PeopleAppsTileFace(size: TileSize, active: Boolean, fallback: @Compo
     val installed = rememberInstalledPeopleApps() ?: return
     val snapshot by NotificationCenter.snapshot.collectAsStateWithLifecycle()
     val opens = rememberAppOpenCounts()
-    val apps = remember(installed, snapshot, opens) { peopleApps(installed, snapshot.badges, opens) }
+    val apps = remember(installed, snapshot, opens) { peopleApps(installed, snapshot.badges, opens).distinctBy { it.packageName } }
     val (inbox, social) = remember(apps) { apps.partition { it.category != PeopleCategory.SOCIAL } }
     if (apps.isEmpty()) return fallback()
 

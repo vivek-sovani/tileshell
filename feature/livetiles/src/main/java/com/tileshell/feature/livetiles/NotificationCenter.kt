@@ -223,6 +223,15 @@ fun summarizeNotifications(items: List<NotificationItem>): NotificationSnapshot 
  * — it is rebuilt from `getActiveNotifications()` whenever the listener (re)binds,
  * so there is nothing to persist.
  */
+/**
+ * True for a Start tile that must not show its package's notifications: when
+ * several tiles are pinned for one app (Amazon, Amazon Pay and Amazon Now are
+ * all `in.amazon.mShop.android.shopping`), only one of them — the app's main
+ * launcher entry — shows the badge and live notification face, instead of all
+ * of them repeating the same message.
+ */
+val LocalNotificationMuted = androidx.compose.runtime.compositionLocalOf { false }
+
 object NotificationCenter {
     private val _snapshot = MutableStateFlow(NotificationSnapshot.EMPTY)
     val snapshot: StateFlow<NotificationSnapshot> = _snapshot.asStateFlow()

@@ -373,10 +373,17 @@ private val BANK_WORDS = listOf(
  * from a known package list plus label words. A known payment package wins
  * over a bank-sounding label. Pure, unit-tested.
  */
-fun moneyAppKind(packageName: String, label: String): MoneyAppKind? {
+fun moneyAppKind(packageName: String, label: String): MoneyAppKind? = moneyAppKinds(packageName, label).firstOrNull()
+
+/** Every money section an app is in: its built-in one plus what the user added, minus what they took off. */
+fun moneyAppKinds(packageName: String, label: String): List<MoneyAppKind> {
     val choice = com.tileshell.feature.livetiles.HubAppChoices.current(com.tileshell.feature.livetiles.HubKind.MONEY)
-    if (packageName in choice.dropped) return null
-    choice.placed[packageName]?.let { name -> MoneyAppKind.entries.find { it.name == name }?.let { return it } }
+    val names = choice.sectionsOf(packageName, setOfNotNull(builtInMoneyAppKind(packageName, label)?.name))
+    return MoneyAppKind.entries.filter { it.name in names }
+}
+
+/** The built-in kind, ignoring the user's choices. */
+internal fun builtInMoneyAppKind(packageName: String, label: String): MoneyAppKind? {
     if (packageName in CARD_PACKAGES) return MoneyAppKind.CARD
     if (packageName in PAYMENT_PACKAGES) return MoneyAppKind.PAYMENT
     val l = label.lowercase()

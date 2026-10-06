@@ -37,6 +37,14 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — an app can be in several hub sections; sub-apps of one package no longer repeat notifications (folded into 5.1.0).**
+  CRED can be both a payment and a card app (`HubAppChoice` added/removed per section; picker
+  chips multi-select; ✕ per section; drag moves between sections). Amazon / Amazon Pay / Amazon
+  Now (one package, three launcher entries) all showed the same badge and message: only the main
+  launcher entry's tile (else the first) now shows them (`notificationMutedTileIds` in
+  `NotificationOwnership.kt`, `LocalNotificationMuted` read by the notification faces). Unit-tested;
+  not seen on a real Amazon notification. Still open: how money notifications should be grouped
+  by transaction / bill due / paid (asked the user).
 - **`main` — notification photos: more apps' pictures are found (folded into 5.1.0).** User-reported:
   Pinterest notifications showed no photo. The listener only read `EXTRA_PICTURE`. It now also reads
   `android.pictureIcon` (apps passing an Icon, Android 12+) and treats a photo-sized large icon
