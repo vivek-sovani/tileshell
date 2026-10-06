@@ -95,3 +95,8 @@ private val Context.radioFavoritesStore: DataStore<List<FavoriteStation>> by dat
     fileName = "radio_favorites.pb",
     serializer = FavoriteStationSerializer,
 )
+
+/** Backup restore: replaces the whole favourites list. */
+internal suspend fun replaceRadioFavorites(context: Context, stations: List<FavoriteStation>) {
+    context.applicationContext.radioFavoritesStore.updateData { stations }
+}

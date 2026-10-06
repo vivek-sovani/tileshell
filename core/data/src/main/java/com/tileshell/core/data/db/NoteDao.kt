@@ -2,6 +2,7 @@ package com.tileshell.core.data.db
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
@@ -25,4 +26,14 @@ interface NoteDao {
 
     @Query("DELETE FROM notes WHERE id = :id")
     suspend fun delete(id: Long)
+
+    // Backup and restore.
+    @Query("SELECT * FROM notes ORDER BY id")
+    suspend fun allOnce(): List<NoteEntity>
+
+    @Query("DELETE FROM notes")
+    suspend fun clearAll()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(notes: List<NoteEntity>)
 }

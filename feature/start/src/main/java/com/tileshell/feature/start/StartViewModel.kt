@@ -39,6 +39,7 @@ import com.tileshell.core.data.NoteRepository
 import com.tileshell.core.data.StickyNoteTile
 import com.tileshell.core.data.TaskListTile
 import com.tileshell.core.data.TaskRepository
+import com.tileshell.core.data.UserContentBackup
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.hasNotesTile
 import com.tileshell.core.data.isPersonalizeTile
@@ -56,12 +57,14 @@ import com.tileshell.feature.livetiles.FeedRefreshWorker
 import com.tileshell.feature.livetiles.FeedSource
 import com.tileshell.feature.livetiles.FeedStore
 import com.tileshell.feature.livetiles.PhotosStore
+import com.tileshell.feature.livetiles.BackupExtras
 import com.tileshell.feature.livetiles.WallpaperSlideshowStore
 import com.tileshell.feature.livetiles.WeatherRefreshWorker
 import com.tileshell.feature.livetiles.queryProfileName
 import com.tileshell.feature.start.feed.HostedWidget
 import com.tileshell.feature.start.feed.WidgetData
 import com.tileshell.feature.start.feed.WidgetStore
+import com.tileshell.feature.start.feed.clearLoneStacks
 import com.tileshell.feature.start.feed.isRestorableWidgetId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -2528,15 +2531,20 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
                 val widgets = WidgetStore.create(application).read().widgets
                 val photoUris = PhotosStore.create(application).read().uris
                 val wallpaperUris = WallpaperSlideshowStore.create(application).read().uris
+                val content = UserContentBackup.read(application)
                 val json = BackupManager.buildBackupJson(
                     tiles, folders, children, currentSettings,
                     hiddenApps = hiddenApps,
                     feedSources = feed.sources.map { BackupFeedSource(it.url, it.name, it.category, it.enabled) },
                     feedRegions = feed.regions,
-                    widgets = widgets.map { BackupWidget(it.widgetId, it.heightDp, it.widthDp) },
+                    widgets = widgets.map { BackupWidget(it.widgetId, it.heightDp, it.widthDp, it.halfWidth, it.stackId) },
                     photoUris = photoUris,
                     wallpaperSlideshowUris = wallpaperUris,
                     sections = sections,
+                    notes = content.notes,
+                    taskLists = content.taskLists,
+                    tasks = content.tasks,
+                    extras = BackupExtras.export(application),
                 )
                 application.contentResolver
                     .openOutputStream(uri)?.use { it.write(json.encodeToByteArray()) }
@@ -2578,10 +2586,16 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 WidgetStore.create(application).replaceAll(
-                    WidgetData(liveWidgets.map { HostedWidget(it.widgetId, it.heightDp, it.widthDp) }),
+                    WidgetData(
+                        clearLoneStacks(
+                            liveWidgets.map { HostedWidget(it.widgetId, it.heightDp, it.widthDp, it.halfWidth, it.stackId) },
+                        ),
+                    ),
                 )
                 PhotosStore.create(application).setUris(backup.photoUris)
                 WallpaperSlideshowStore.create(application).setUris(backup.wallpaperSlideshowUris)
+                UserContentBackup.replace(application, backup.notes, backup.taskLists, backup.tasks)
+                BackupExtras.restore(application, backup.extras)
                 _backupMessage.tryEmit("layout restored")
             }.onFailure {
                 _backupMessage.tryEmit("restore failed")

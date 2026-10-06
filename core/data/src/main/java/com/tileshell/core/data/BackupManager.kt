@@ -2,7 +2,10 @@ package com.tileshell.core.data
 
 import com.tileshell.core.data.db.FolderChildEntity
 import com.tileshell.core.data.db.FolderEntity
+import com.tileshell.core.data.db.NoteEntity
 import com.tileshell.core.data.db.SectionEntity
+import com.tileshell.core.data.db.TaskEntity
+import com.tileshell.core.data.db.TaskListEntity
 import com.tileshell.core.data.db.TileEntity
 import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.core.data.settings.SettingsCodec
@@ -17,7 +20,14 @@ import org.json.JSONObject
 data class BackupFeedSource(val url: String, val name: String, val category: String, val enabled: Boolean)
 
 /** A hosted feed widget, mirroring `feature.start.feed.HostedWidget` — see [BackupFeedSource]. */
-data class BackupWidget(val widgetId: Int, val heightDp: Int, val widthDp: Int)
+data class BackupWidget(
+    val widgetId: Int,
+    val heightDp: Int,
+    val widthDp: Int,
+    // Added later (absent in older files → full width, not stacked).
+    val halfWidth: Boolean = false,
+    val stackId: Int? = null,
+)
 
 /**
  * Serialized snapshot of the Start layout + settings for export/import. Most
@@ -46,6 +56,16 @@ data class BackupData(
     // an older file still restores fine (every tile just lands unsectioned,
     // the same as it always would have).
     val sections: List<SectionEntity> = emptyList(),
+    // User content in the database. Null = the file predates it (or it is a
+    // layout snapshot), so a restore must leave what is on the phone alone;
+    // an empty list means "there really were none".
+    val notes: List<NoteEntity>? = null,
+    val taskLists: List<TaskListEntity>? = null,
+    val tasks: List<TaskEntity>? = null,
+    // Domains owned by the feature modules (podcasts, radio, music history,
+    // small preferences), each encoded by its own codec as one string. Keys
+    // the restoring build doesn't know are ignored.
+    val extras: Map<String, String> = emptyMap(),
 )
 
 /**
@@ -89,6 +109,10 @@ object BackupManager {
         photoUris: List<String> = emptyList(),
         wallpaperSlideshowUris: List<String> = emptyList(),
         sections: List<SectionEntity> = emptyList(),
+        notes: List<NoteEntity>? = null,
+        taskLists: List<TaskListEntity>? = null,
+        tasks: List<TaskEntity>? = null,
+        extras: Map<String, String> = emptyMap(),
     ): String = JSONObject().apply {
         put("version", CURRENT_VERSION)
         put("settings", SettingsCodec.encode(settings))
@@ -171,11 +195,57 @@ object BackupManager {
                     put("widgetId", w.widgetId)
                     put("heightDp", w.heightDp)
                     put("widthDp", w.widthDp)
+                    put("halfWidth", w.halfWidth)
+                    w.stackId?.let { put("stackId", it) }
                 })
             }
         })
         put("photoUris", JSONArray(photoUris))
         put("wallpaperSlideshowUris", JSONArray(wallpaperSlideshowUris))
+        notes?.let { list ->
+            put("notes", JSONArray().also { arr ->
+                list.forEach { n ->
+                    arr.put(JSONObject().apply {
+                        put("id", n.id)
+                        put("text", n.text)
+                        put("title", n.title)
+                        put("updatedAt", n.updatedAt)
+                    })
+                }
+            })
+        }
+        taskLists?.let { list ->
+            put("taskLists", JSONArray().also { arr ->
+                list.forEach { l ->
+                    arr.put(JSONObject().apply {
+                        put("id", l.id)
+                        put("name", l.name)
+                        put("createdAt", l.createdAt)
+                    })
+                }
+            })
+        }
+        tasks?.let { list ->
+            put("tasks", JSONArray().also { arr ->
+                list.forEach { t ->
+                    arr.put(JSONObject().apply {
+                        put("id", t.id)
+                        put("text", t.text)
+                        put("done", t.done)
+                        put("listId", t.listId)
+                        put("position", t.position)
+                        put("createdAt", t.createdAt)
+                        t.remindAt?.let { put("remindAt", it) }
+                        put("remindRepeat", t.remindRepeat)
+                        t.remindSnoozeAt?.let { put("remindSnoozeAt", it) }
+                        put("remindFired", t.remindFired)
+                    })
+                }
+            })
+        }
+        if (extras.isNotEmpty()) {
+            put("extras", JSONObject().also { o -> extras.forEach { (k, v) -> o.put(k, v) } })
+        }
     }.toString()
 
     /**
@@ -322,6 +392,8 @@ object BackupManager {
                     widgetId = o.getInt("widgetId"),
                     heightDp = o.getInt("heightDp"),
                     widthDp = o.optInt("widthDp", 0),
+                    halfWidth = o.optBoolean("halfWidth", false),
+                    stackId = if (o.has("stackId")) o.getInt("stackId") else null,
                 )
             }
         } ?: emptyList()
@@ -346,10 +418,51 @@ object BackupManager {
             }
         } ?: emptyList()
 
+        val notes = root.optJSONArray("notes")?.let { arr ->
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                NoteEntity(
+                    id = o.getLong("id"),
+                    text = o.optString("text", ""),
+                    updatedAt = o.optLong("updatedAt", 0L),
+                    title = o.optString("title", ""),
+                )
+            }
+        }
+
+        val taskLists = root.optJSONArray("taskLists")?.let { arr ->
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                TaskListEntity(id = o.getString("id"), name = o.optString("name", ""), createdAt = o.optLong("createdAt", 0L))
+            }
+        }
+
+        val tasks = root.optJSONArray("tasks")?.let { arr ->
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                TaskEntity(
+                    id = o.getLong("id"),
+                    text = o.optString("text", ""),
+                    done = o.optBoolean("done", false),
+                    listId = o.optString("listId", "default"),
+                    position = o.optInt("position", 0),
+                    createdAt = o.optLong("createdAt", 0L),
+                    remindAt = if (o.has("remindAt")) o.getLong("remindAt") else null,
+                    remindRepeat = o.optString("remindRepeat", ""),
+                    remindSnoozeAt = if (o.has("remindSnoozeAt")) o.getLong("remindSnoozeAt") else null,
+                    remindFired = o.optBoolean("remindFired", false),
+                )
+            }
+        }
+
+        val extras = root.optJSONObject("extras")?.let { o ->
+            o.keys().asSequence().associateWith { o.getString(it) }
+        } ?: emptyMap()
+
         return BackupData(
             tiles, folders, folderChildren, settings,
             hiddenApps, feedSources, feedRegions, widgets, photoUris, wallpaperSlideshowUris,
-            sections,
+            sections, notes, taskLists, tasks, extras,
         )
     }
 }

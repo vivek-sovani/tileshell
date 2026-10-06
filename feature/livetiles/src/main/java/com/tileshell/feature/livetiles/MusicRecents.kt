@@ -157,3 +157,10 @@ private val Context.recentStationsStore: DataStore<List<FavoriteStation>> by dat
     fileName = "radio_recents.pb",
     serializer = RecentStationSerializer,
 )
+
+/** Backup restore: replaces the recently played episodes and stations. */
+internal suspend fun replaceMusicRecents(context: Context, episodes: List<RecentEpisode>?, stations: List<FavoriteStation>?) {
+    val app = context.applicationContext
+    episodes?.let { app.recentEpisodesStore.updateData { _ -> it } }
+    stations?.let { app.recentStationsStore.updateData { _ -> it } }
+}

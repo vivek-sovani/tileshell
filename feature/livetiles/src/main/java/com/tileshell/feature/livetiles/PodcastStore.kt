@@ -96,3 +96,8 @@ private val Context.podcastStore: DataStore<List<PodcastSubscription>> by dataSt
     fileName = "podcast_subscriptions.pb",
     serializer = PodcastSubscriptionSerializer,
 )
+
+/** Backup restore: replaces the whole subscription list. */
+internal suspend fun replacePodcastSubscriptions(context: Context, subs: List<PodcastSubscription>) {
+    context.applicationContext.podcastStore.updateData { subs }
+}

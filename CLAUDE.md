@@ -37,6 +37,18 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — manual backup now covers notes, tasks, music data and more (folded into 5.1.0).** A
+  completeness audit found gaps. Export/restore (`StartViewModel.exportBackup`/`importBackup`,
+  `BackupManager`; additive JSON keys, version still 1, older files restore as before) now also
+  carry: glance widgets' half-width + stack (`BackupWidget`, lone stacks cleared on restore);
+  notes, task lists, tasks with reminders (ids kept so sticky-note tiles and alarms line up;
+  `UserContentBackup`, `null` = file predates it → left alone; reminders re-synced);
+  `extras` (`BackupExtras`): podcast subscriptions, radio favourites, recents, music history and a
+  whitelist of small prefs (Money, Panchang, productivity quick row; Money/Panchang caches
+  reloaded). Not included by choice: wallpaper image files; automatic rolling snapshots stay
+  layout + settings only. Tests: `BackupManagerTest`, `BackupExtrasTest`, `ClearLoneStacksTest`.
+  Checked on the emulator: restored a crafted file (note, tasks, podcast, radio, prefs all in
+  place) and exported again (all keys present).
 - **`main` — People hub "what's new" shows the whole notification (folded into 5.1.0, versionCode 510).**
   User-reported: long messages were cut. The listener kept only `EXTRA_TEXT` (often a one-line
   preview); `fullNotificationText` (pure, `NotificationTextTest`) now also reads `EXTRA_MESSAGES`

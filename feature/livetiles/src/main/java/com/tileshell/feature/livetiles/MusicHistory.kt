@@ -226,3 +226,8 @@ private val Context.musicHistoryStore: DataStore<List<PlayedTrack>> by dataStore
     fileName = "music_history.pb",
     serializer = PlayedTrackSerializer,
 )
+
+/** Backup restore: replaces the history of what was played in other apps. */
+internal suspend fun replaceMusicHistory(context: Context, items: List<PlayedTrack>) {
+    context.applicationContext.musicHistoryStore.updateData { items }
+}

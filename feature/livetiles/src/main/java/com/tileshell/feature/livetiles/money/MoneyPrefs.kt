@@ -37,6 +37,11 @@ object MoneyPrefs {
         return _settings.asStateFlow()
     }
 
+    /** Re-reads the stored values (after a backup restore wrote them). */
+    fun reload(context: Context) {
+        _settings.value = read(context)
+    }
+
     fun current(context: Context): MoneySettings = _settings.value ?: read(context).also { _settings.value = it }
 
     fun update(context: Context, transform: (MoneySettings) -> MoneySettings) {

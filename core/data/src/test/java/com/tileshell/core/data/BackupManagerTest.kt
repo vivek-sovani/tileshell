@@ -2,7 +2,10 @@ package com.tileshell.core.data
 
 import com.tileshell.core.data.db.FolderChildEntity
 import com.tileshell.core.data.db.FolderEntity
+import com.tileshell.core.data.db.NoteEntity
 import com.tileshell.core.data.db.SectionEntity
+import com.tileshell.core.data.db.TaskEntity
+import com.tileshell.core.data.db.TaskListEntity
 import com.tileshell.core.data.db.TileEntity
 import com.tileshell.core.data.settings.FontStyle
 import com.tileshell.core.data.settings.LauncherSettings
@@ -384,5 +387,71 @@ class BackupManagerTest {
             sampleSections.map { if (it.id == "s1") it.copy(label = "office") else it },
         )
         assertNotEquals(before, after)
+    }
+
+    // ---- user content, glance widget details and feature extras
+
+    private fun roundTrip(
+        widgets: List<BackupWidget> = emptyList(),
+        notes: List<NoteEntity>? = null,
+        taskLists: List<TaskListEntity>? = null,
+        tasks: List<TaskEntity>? = null,
+        extras: Map<String, String> = emptyMap(),
+    ) = BackupManager.parseBackup(
+        BackupManager.buildBackupJson(
+            sampleTiles, emptyList(), emptyList(), sampleSettings,
+            widgets = widgets, notes = notes, taskLists = taskLists, tasks = tasks, extras = extras,
+        ),
+    )
+
+    @Test fun glanceWidgetsKeepWidthClassAndStack() {
+        val widgets = listOf(
+            BackupWidget(12, 200, 0, halfWidth = true, stackId = 12),
+            BackupWidget(13, 200, 0, halfWidth = true, stackId = 12),
+            BackupWidget(-1, 150, 0),
+        )
+        assertEquals(widgets, roundTrip(widgets = widgets).widgets)
+    }
+
+    @Test fun oldWidgetLinesWithoutNewFieldsStillParse() {
+        val json = BackupManager.buildBackupJson(sampleTiles, emptyList(), emptyList(), sampleSettings)
+            .replace("\"widgets\":[]", "\"widgets\":[{\"widgetId\":5,\"heightDp\":100,\"widthDp\":0}]")
+        assertEquals(listOf(BackupWidget(5, 100, 0)), BackupManager.parseBackup(json).widgets)
+    }
+
+    @Test fun notesAndTasksRoundTripWithTheirIds() {
+        val notes = listOf(NoteEntity(7, "milk\neggs", 1000L, "list"), NoteEntity(9, "", 2000L))
+        val lists = listOf(TaskListEntity("list-1", "work", 5L))
+        val tasks = listOf(
+            TaskEntity(3, "call", done = true, listId = "list-1", position = 0, createdAt = 10L),
+            TaskEntity(
+                4, "pay bill", listId = "list-1", position = 1, createdAt = 11L,
+                remindAt = 99L, remindRepeat = "weekly", remindSnoozeAt = 120L, remindFired = true,
+            ),
+        )
+        val back = roundTrip(notes = notes, taskLists = lists, tasks = tasks)
+        assertEquals(notes, back.notes)
+        assertEquals(lists, back.taskLists)
+        assertEquals(tasks, back.tasks)
+    }
+
+    @Test fun backupWithoutUserContentLeavesItNull() {
+        val back = roundTrip()
+        assertNull(back.notes)
+        assertNull(back.taskLists)
+        assertNull(back.tasks)
+    }
+
+    @Test fun emptyUserContentIsDifferentFromAbsent() {
+        val back = roundTrip(notes = emptyList(), tasks = emptyList())
+        assertEquals(emptyList<NoteEntity>(), back.notes)
+        assertEquals(emptyList<TaskEntity>(), back.tasks)
+        assertNull(back.taskLists)
+    }
+
+    @Test fun extrasRoundTripIncludingLinesAndQuotes() {
+        val extras = mapOf("podcastSubscriptions" to "a|b\nc|\"d\"", "pref.money_lock" to "b:true")
+        assertEquals(extras, roundTrip(extras = extras).extras)
+        assertEquals(emptyMap<String, String>(), roundTrip().extras)
     }
 }

@@ -75,3 +75,17 @@ class WidgetCodecTest {
         )
     }
 }
+
+class ClearLoneStacksTest {
+    @Test fun aStackLeftWithOneMemberBecomesAPlainCard() {
+        val out = clearLoneStacks(
+            listOf(HostedWidget(1, 100, stackId = 7), HostedWidget(2, 100, stackId = 8), HostedWidget(3, 100, stackId = 8)),
+        )
+        assertEquals(listOf(null, 8, 8), out.map { it.stackId })
+    }
+
+    @Test fun healthyStacksAndPlainWidgetsAreUntouched() {
+        val list = listOf(HostedWidget(1, 100), HostedWidget(2, 100, stackId = 5), HostedWidget(3, 100, stackId = 5))
+        assertEquals(list, clearLoneStacks(list))
+    }
+}

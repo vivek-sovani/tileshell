@@ -53,4 +53,14 @@ interface TaskListDao {
 
     @Query("SELECT COUNT(*) FROM tasks WHERE done = 0")
     fun observeOpenCount(): Flow<Int>
+
+    // Backup and restore.
+    @Query("SELECT * FROM task_lists ORDER BY createdAt")
+    suspend fun allOnce(): List<TaskListEntity>
+
+    @Query("DELETE FROM task_lists")
+    suspend fun clearAll()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(lists: List<TaskListEntity>)
 }

@@ -2,6 +2,7 @@ package com.tileshell.core.data.db
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
@@ -59,4 +60,14 @@ interface TaskDao {
 
     @Query("UPDATE tasks SET remindSnoozeAt = :at, remindFired = 0 WHERE id = :id")
     suspend fun snoozeReminder(id: Long, at: Long)
+
+    // Backup and restore.
+    @Query("SELECT * FROM tasks ORDER BY id")
+    suspend fun allOnce(): List<TaskEntity>
+
+    @Query("DELETE FROM tasks")
+    suspend fun clearAll()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(tasks: List<TaskEntity>)
 }

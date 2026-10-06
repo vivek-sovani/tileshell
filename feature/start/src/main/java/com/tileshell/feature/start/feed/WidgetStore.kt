@@ -118,6 +118,12 @@ internal fun orphanedHostWidgetIds(hostIds: List<Int>, current: List<HostedWidge
 internal fun isRestorableWidgetId(widgetId: Int, isBound: (Int) -> Boolean): Boolean =
     widgetId in BUILTIN_WIDGET_IDS || isBound(widgetId)
 
+/** A stack needs two or more members; a lone member (its partner wasn't restorable) goes back to a plain card. */
+internal fun clearLoneStacks(widgets: List<HostedWidget>): List<HostedWidget> {
+    val lone = widgets.groupBy { it.stackId }.filter { (id, members) -> id != null && members.size == 1 }.keys
+    return if (lone.isEmpty()) widgets else widgets.map { if (it.stackId in lone) it.copy(stackId = null) else it }
+}
+
 internal fun stripStaleNegativeIds(current: List<HostedWidget>): List<HostedWidget> {
     val kept = current.filter { it.widgetId >= 0 || it.widgetId in BUILTIN_WIDGET_IDS }
     if (kept.size == current.size) return current
