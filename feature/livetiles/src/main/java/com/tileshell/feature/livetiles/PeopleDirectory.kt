@@ -332,11 +332,25 @@ private val PEOPLE_APP_CATEGORIES: Map<String, PeopleCategory> = buildMap {
 }
 
 /** [packageName]'s [PeopleCategory], or null when it isn't a people app. */
-fun peopleCategoryFor(packageName: String): PeopleCategory? = PEOPLE_APP_CATEGORIES[packageName]
+fun peopleCategoryFor(packageName: String): PeopleCategory? {
+    val choice = HubAppChoices.current(HubKind.PEOPLE)
+    if (packageName in choice.dropped) return null
+    choice.placed[packageName]?.let { name -> PeopleCategory.entries.find { it.name == name }?.let { return it } }
+    return PEOPLE_APP_CATEGORIES[packageName]
+}
+
+/** The built-in category, ignoring anything the user added, moved or dropped. */
+internal fun builtInPeopleCategory(packageName: String): PeopleCategory? = PEOPLE_APP_CATEGORIES[packageName]
+
+internal val PEOPLE_BUILT_IN_PACKAGES: Set<String> get() = PEOPLE_APP_CATEGORIES.keys
 
 /** Every package [PEOPLE_APP_CATEGORIES] knows, for the apps page's
  * installed-app lookup. */
-val PEOPLE_APP_PACKAGES: Set<String> get() = PEOPLE_APP_CATEGORIES.keys
+val PEOPLE_APP_PACKAGES: Set<String>
+    get() {
+        val choice = HubAppChoices.current(HubKind.PEOPLE)
+        return (PEOPLE_APP_CATEGORIES.keys - choice.dropped) + choice.placed.keys
+    }
 
 /** An installed people app, for the apps page and the pinned apps tile. */
 data class PeopleApp(

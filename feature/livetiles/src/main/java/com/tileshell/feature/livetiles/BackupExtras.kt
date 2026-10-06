@@ -25,6 +25,7 @@ object BackupExtras {
         "money_tile_details", "money_lock", "money_read_bank_messages",
         "panchang_highlights", "panchang_festivals", "panchang_custom_tithis", "panchang_grahan",
         "productivity_quick_items",
+        "hub_apps_people", "hub_apps_money", "hub_apps_productivity",
     )
 
     suspend fun export(context: Context): Map<String, String> {
@@ -73,6 +74,7 @@ object BackupExtras {
             edit.commit()
             // These two keep a copy in memory; refresh it so the hubs show the restored choice now.
             MoneyPrefs.reload(app)
+            HubAppChoices.reload(app)
             PanchangPrefs.reload(app)
         }
     }

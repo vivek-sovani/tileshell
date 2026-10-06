@@ -3,6 +3,25 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Hub apps pages: add, move and drop apps (People, Money, Productivity) — 5.1.0
+
+User-reported: Pinterest (social) wasn't in People and CRED wasn't in Money's apps — the lists are
+built-in package tables. Each hub's apps page now has an "edit" app-bar button: "+" at the end of
+every section opens an installed-app picker (search, tick, section chips), hold-and-drag moves an
+app between sections (the section under the finger highlights; the page auto-scrolls near its
+edges), and ✕ drops an app from the page. The page keeps its 4-column grid. A footer in edit
+mode offers "show again" for dropped apps and "reset this page to defaults".
+
+Choices are `HubAppChoice` per hub (`placed`: package → section, `dropped`), kept in memory by
+`HubAppChoices` and saved in `tileshell.prefs` (`hub_apps_<hub>`), and carried by the manual
+backup / auto-export (`BackupExtras`). They change the hub's own definitions, not just the page:
+`peopleCategoryFor` / `PEOPLE_APP_PACKAGES` (so an added app's notifications appear in "what's
+new" and a dropped one's don't), `moneyAppKind` (an added app counts as a payment / bank / card
+app for transaction capture; a dropped one is no longer read), and `productivityApps`.
+Productivity's built-in mail apps come from People's *built-in* table, so dropping Gmail from
+People doesn't drop it from Productivity. Money caution: dropping a payment app stops
+TileShell reading its notifications for transactions.
+
 ## Backup completeness + auto-export to a folder (5.1.0)
 
 User-requested after an audit found the manual export missed glance widget layout (half-width,

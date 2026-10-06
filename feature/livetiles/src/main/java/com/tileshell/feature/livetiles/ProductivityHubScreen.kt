@@ -152,6 +152,8 @@ fun ProductivityHubScreen(
     BackHandler(enabled = visible) { onDismiss() }
 
     val pagerState = rememberPagerState(pageCount = { PRODUCTIVITY_PIVOTS.size })
+    var appsEditing by remember { mutableStateOf(false) }
+    LaunchedEffect(pagerState.currentPage) { if (pagerState.currentPage != 3) appsEditing = false }
     val pagerScope = rememberCoroutineScope()
     LaunchedEffect(visible, initialPage) {
         if (visible && initialPage != null) {
@@ -257,7 +259,7 @@ fun ProductivityHubScreen(
                     2 -> TasksPage(tokens, accent, lists, tasksRepo, pinnedListIds, onOpenTaskList, onPinTaskList, onDeleteTaskList) {
                         addToQuick(QuickItem.TaskList(it))
                     }
-                    else -> ProductivityAppsPage(tokens, accent) { addToQuick(QuickItem.App(it)) }
+                    else -> ProductivityAppsPage(tokens, accent, appsEditing) { addToQuick(QuickItem.App(it)) }
                 }
             }
 
@@ -274,6 +276,11 @@ fun ProductivityHubScreen(
                         HubAppBarAction("plus", "new list", "new list") {
                             scope.launch { onOpenTaskList(tasksRepo.createList("")) }
                         },
+                    )
+                    3 -> listOf(
+                        HubAppBarAction("back", "back", onDismiss),
+                        HubAppBarAction(if (appsEditing) "check" else "edit", "edit apps", if (appsEditing) "done" else "edit apps") { appsEditing = !appsEditing },
+                        HubAppBarAction("pin", "pin productivity to start", "pin to start", onPinHub),
                     )
                     else -> listOf(
                         HubAppBarAction("back", "back", onDismiss),
@@ -1035,23 +1042,23 @@ private fun TaskRow(
 // ---- apps ------------------------------------------------------------------
 
 @Composable
-private fun ProductivityAppsPage(tokens: ColorTokens, accent: Color, onAddToQuick: (String) -> Unit) {
+private fun ProductivityAppsPage(tokens: ColorTokens, accent: Color, editing: Boolean, onAddToQuick: (String) -> Unit) {
     val context = LocalContext.current
     val apps = rememberProductivityApps() ?: return
     val usageGranted = rememberUsageAccess()
-    val groups = remember(apps) { groupProductivityApps(apps) }
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(4),
-        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
-        contentPadding = PaddingValues(bottom = 32.dp),
-    ) {
-        if (groups.isEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Text("no office, mail, meeting or tool apps found", color = tokens.fgDim, fontSize = 14.sp, modifier = Modifier.padding(6.dp))
-            }
-        }
-        if (!usageGranted && groups.isNotEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
+    HubAppsPage(
+        kind = HubKind.PRODUCTIVITY,
+        sectionDefs = ProductivityCategory.entries.map { it.name to it.label },
+        apps = apps.map { HubPageApp(it.packageName, it.label, it.category.name) },
+        editing = editing,
+        tokens = tokens,
+        accent = accent,
+        emptyText = "no office, mail, meeting or tool apps found",
+        onOpen = { openApp(context, it) },
+        longPressLabel = "add to quick",
+        onLongPress = onAddToQuick,
+        header = {
+            if (!usageGranted && apps.isNotEmpty()) {
                 Text(
                     "sort by most used · allow usage access",
                     color = accent,
@@ -1066,48 +1073,8 @@ private fun ProductivityAppsPage(tokens: ColorTokens, accent: Color, onAddToQuic
                         .padding(start = 6.dp, top = 4.dp, bottom = 4.dp),
                 )
             }
-        }
-        groups.forEach { (category, list) ->
-            item(key = "group-${category.name}", span = { GridItemSpan(maxLineSpan) }) {
-                Text(category.label, color = tokens.fgDim, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 6.dp, top = 8.dp))
-            }
-            items(list.size, key = { "app-${list[it].packageName}" }) { index ->
-                val app = list[index]
-                ProductivityAppCell(app, tokens, onLongClick = { onAddToQuick(app.packageName) }) { openApp(context, app.packageName) }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun ProductivityAppCell(app: ProductivityApp, tokens: ColorTokens, onLongClick: () -> Unit, onClick: () -> Unit) {
-    val icon = rememberAppIconBitmap(app.packageName, sizePx = iconPx(40.dp))
-    var menuOpen by remember { mutableStateOf(false) }
-    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-        DropdownMenuItem(text = { Text("add to quick") }, onClick = {
-            menuOpen = false
-            onLongClick()
-        })
-    }
-    Column(
-        modifier = Modifier
-            .padding(4.dp)
-            .combinedClickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-                onLongClick = { menuOpen = true },
-            )
-            .padding(vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Box(modifier = Modifier.size(40.dp)) {
-            if (icon != null) Image(bitmap = icon, contentDescription = null, modifier = Modifier.fillMaxSize())
-        }
-        Spacer(Modifier.height(3.dp))
-        Text(app.label.lowercase(), color = tokens.fg, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
+        },
+    )
 }
 
 /**
@@ -1118,7 +1085,8 @@ private fun ProductivityAppCell(app: ProductivityApp, tokens: ColorTokens, onLon
 internal fun rememberProductivityApps(): List<ProductivityApp>? {
     val context = LocalContext.current
     val opens = rememberAppOpenCounts()
-    val installed by produceState<Pair<Map<String, String>, Set<String>>?>(initialValue = null) {
+    val choices by remember { HubAppChoices.state(context) }.collectAsState()
+    val installed by produceState<Pair<Map<String, String>, Set<String>>?>(initialValue = null, choices) {
         value = withContext(Dispatchers.IO) {
             val pm = context.packageManager
             val tools = resolvedToolPackages(context)
@@ -1130,7 +1098,7 @@ internal fun rememberProductivityApps(): List<ProductivityApp>? {
         }
     }
     val (apps, tools) = installed ?: return null
-    return remember(apps, tools, opens) { productivityApps(apps, opens, tools) }
+    return remember(apps, tools, opens, choices) { productivityApps(apps, opens, tools) }
 }
 
 /** A section heading with a link on the right ("calendar ›", "what's new ›"). */

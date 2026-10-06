@@ -68,6 +68,9 @@ import com.tileshell.core.design.ColorTokens
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.colorTokens
+import com.tileshell.feature.livetiles.HubAppsPage
+import com.tileshell.feature.livetiles.HubKind
+import com.tileshell.feature.livetiles.HubPageApp
 import com.tileshell.feature.livetiles.NotificationAccess
 import com.tileshell.feature.livetiles.openApp
 import com.tileshell.feature.livetiles.rememberAppIconBitmap
@@ -123,6 +126,8 @@ fun MoneyHubScreen(
 
     BackHandler(enabled = visible) { if (settingsOpen) settingsOpen = false else onDismiss() }
     val pagerState = rememberPagerState(pageCount = { MONEY_PIVOTS.size })
+    var appsEditing by remember { mutableStateOf(false) }
+    LaunchedEffect(pagerState.currentPage) { if (pagerState.currentPage != 1) appsEditing = false }
     val pagerScope = rememberCoroutineScope()
 
     SheetStage(rightHalf = rightHalf, modifier = modifier) {
@@ -169,17 +174,21 @@ fun MoneyHubScreen(
                             val locked = (settings?.lockTransactions ?: true) && !unlocked && MoneyLock.isDeviceSecure(context)
                             if (locked) MoneyLockedPage(tokens, accent, autoPrompt = visible) { unlocked = true } else MoneyTransactionsPage(tokens, accent)
                         }
-                        else -> MoneyAppsPage(tokens)
+                        else -> MoneyAppsPage(tokens, accent, appsEditing)
                     }
                 }
             }
             HubAppBar(
                 tokens = tokens,
-                actions = listOf(
-                    HubAppBarAction("back", "back") { if (settingsOpen) settingsOpen = false else onDismiss() },
-                    HubAppBarAction("settings", "money settings", "settings") { settingsOpen = !settingsOpen },
-                    HubAppBarAction("pin", "pin money to start", "pin to start", onPinHub),
-                ),
+                actions = buildList {
+                    add(HubAppBarAction("back", "back") { if (settingsOpen) settingsOpen = false else onDismiss() })
+                    if (!settingsOpen && pagerState.currentPage == 1) {
+                        add(HubAppBarAction(if (appsEditing) "check" else "edit", "edit apps", if (appsEditing) "done" else "edit apps") { appsEditing = !appsEditing })
+                    } else {
+                        add(HubAppBarAction("settings", "money settings", "settings") { settingsOpen = !settingsOpen })
+                    }
+                    add(HubAppBarAction("pin", "pin money to start", "pin to start", onPinHub))
+                },
             )
         }
     }
@@ -712,42 +721,24 @@ internal fun paidThisMonth(payments: List<CardGroup>, now: Long = System.current
 }
 
 @Composable
-private fun MoneyAppsPage(tokens: ColorTokens) {
-    val apps = rememberMoneyApps()
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
-        if (apps != null && apps.isEmpty()) {
-            item { Text("no payment, banking or card apps found", color = tokens.fgDim, fontSize = 13.sp) }
-        }
-        listOf(MoneyAppKind.PAYMENT to "payment & wallets", MoneyAppKind.BANK to "banking", MoneyAppKind.CARD to "credit & debit cards").forEach { (kind, title) ->
-            val list = apps.orEmpty().filter { it.kind == kind }
-            if (list.isNotEmpty()) {
-                item { Text(title, color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp, bottom = 6.dp)) }
-                list.chunked(4).forEach { row ->
-                    item(key = "${kind.name}-${row.first().packageName}") { AppGridRow(row, tokens) }
-                }
-            }
-        }
-        item { Text("most used first · tap to open", color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(vertical = 14.dp)) }
-    }
-}
-
-@Composable
-private fun AppGridRow(apps: List<MoneyApp>, tokens: ColorTokens) {
+private fun MoneyAppsPage(tokens: ColorTokens, accent: Color, editing: Boolean) {
     val context = LocalContext.current
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-        apps.forEach { app ->
-            Column(
-                modifier = Modifier.weight(1f).clickable { openApp(context, app.packageName) },
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                val icon = rememberAppIconBitmap(app.packageName, sizePx = com.tileshell.feature.livetiles.iconPx(48.dp))
-                if (icon != null) Image(icon, null, modifier = Modifier.size(48.dp)) else Box(Modifier.size(48.dp))
-                Spacer(Modifier.height(4.dp))
-                Text(app.label.lowercase(), color = tokens.fg, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-        repeat(4 - apps.size) { Spacer(Modifier.weight(1f)) }
-    }
+    val apps = rememberMoneyApps() ?: return
+    HubAppsPage(
+        kind = HubKind.MONEY,
+        sectionDefs = listOf(
+            MoneyAppKind.PAYMENT.name to "payment & wallets",
+            MoneyAppKind.BANK.name to "banking",
+            MoneyAppKind.CARD.name to "credit & debit cards",
+        ),
+        apps = apps.map { HubPageApp(it.packageName, it.label, it.kind.name) },
+        editing = editing,
+        tokens = tokens,
+        accent = accent,
+        emptyText = "no payment, banking or card apps found",
+        onOpen = { openApp(context, it) },
+        header = {},
+    )
 }
 
 @Composable

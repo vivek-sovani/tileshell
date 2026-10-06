@@ -257,7 +257,7 @@ original format as the historical record, unchanged). Still capped at Play's 500
 
 ### Play-facing blurb (500 chars max)
 ```
-New: Android Auto. Your music library, playlists, favourite podcasts (with episodes) and favourite radio stations show on the car screen, with recently played under each. Ask the assistant to play a show, station, artist or song; the heart button favourites what's playing. Fixed: long messages in People "what's new" show in full and group-chat messages show one by one; backup includes notes, tasks and favourites; new auto-export to a folder.
+New: Android Auto. Your music library, playlists, favourite podcasts (with episodes) and favourite radio stations show on the car screen, with recently played under each; ask the assistant to play a show, station, artist or song. Also new: add, move or remove apps on the People, Money and Productivity pages; group-chat messages listed one by one; backup now includes notes, tasks and favourites, with optional auto-export to a folder.
 ```
 
 ### Play Console checklist for 5.1.0 (Android Auto)

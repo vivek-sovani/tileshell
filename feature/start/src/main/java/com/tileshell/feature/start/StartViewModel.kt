@@ -673,6 +673,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     init {
         // Re-arm the scheduled auto-export (a no-op unless the user turned it on).
         AutoExportScheduler.sync(application)
+        com.tileshell.feature.livetiles.HubAppChoices.ensureLoaded(application)
         // Background refreshes follow the "live data refresh" rates.
         viewModelScope.launch(Dispatchers.IO) {
             settingsRepository.settings

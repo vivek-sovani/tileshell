@@ -374,6 +374,9 @@ private val BANK_WORDS = listOf(
  * over a bank-sounding label. Pure, unit-tested.
  */
 fun moneyAppKind(packageName: String, label: String): MoneyAppKind? {
+    val choice = com.tileshell.feature.livetiles.HubAppChoices.current(com.tileshell.feature.livetiles.HubKind.MONEY)
+    if (packageName in choice.dropped) return null
+    choice.placed[packageName]?.let { name -> MoneyAppKind.entries.find { it.name == name }?.let { return it } }
     if (packageName in CARD_PACKAGES) return MoneyAppKind.CARD
     if (packageName in PAYMENT_PACKAGES) return MoneyAppKind.PAYMENT
     val l = label.lowercase()

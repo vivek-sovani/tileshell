@@ -3,6 +3,7 @@ package com.tileshell.feature.livetiles.money
 import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -31,7 +32,8 @@ internal fun installedMoneyApps(context: Context): List<MoneyApp> = runCatching 
 @Composable
 internal fun rememberMoneyApps(): List<MoneyApp>? {
     val context = LocalContext.current
-    val installed by produceState<List<MoneyApp>?>(initialValue = null) {
+    val choices by remember { com.tileshell.feature.livetiles.HubAppChoices.state(context) }.collectAsState()
+    val installed by produceState<List<MoneyApp>?>(initialValue = null, choices) {
         value = withContext(Dispatchers.IO) { installedMoneyApps(context) }
     }
     val opens = rememberAppOpenCounts()

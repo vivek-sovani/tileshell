@@ -37,6 +37,15 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — add / move / drop apps on the People, Money and Productivity apps pages (folded into 5.1.0).**
+  User-requested after Pinterest and CRED were missing. An "edit apps" app-bar button on each
+  hub's apps page: "+" per section (installed-app picker with search and section chips),
+  hold-and-drag between sections (`HubAppsPage`, shared; 4-column grid kept), ✕ to drop,
+  "show again" / "reset this page". Choices (`HubAppChoices`, `hub_apps_*` prefs, in backups) feed
+  `peopleCategoryFor`, `moneyAppKind` and `productivityApps`, so added apps also count for
+  what's new and money capture. Unit-tested (`HubAppChoicesTest`); checked on the emulator for
+  People (add two apps, drag Chrome to chat, drop Drive, choices persisted) and Productivity (edit
+  mode); Money uses the same page but wasn't opened. Not checked: the pinned apps tiles after a change.
 - **`main` — People hub "what's new" lists a chat's messages one by one (folded into 5.1.0).** User-
   reported: a group chat's two messages showed as one consolidated row (one notification holds
   them). The listener now reads the messages inside a notification (`EXTRA_MESSAGES`, else inbox

@@ -58,6 +58,7 @@ class TileNotificationListenerService : NotificationListenerService() {
 
     override fun onCreate() {
         super.onCreate()
+        HubAppChoices.ensureLoaded(applicationContext)
         // This service keeps TileShell's process alive, which is what lets the
         // battery log hear screen on/off and plug/unplug as they happen.
         BatteryLog.ensureStarted(this)

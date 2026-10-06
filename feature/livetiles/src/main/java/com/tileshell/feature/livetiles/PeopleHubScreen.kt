@@ -66,6 +66,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -152,6 +153,9 @@ fun PeopleHubScreen(
     val pagerState = rememberPagerState(pageCount = { HUB_PIVOTS.size })
     val pagerScope = rememberCoroutineScope()
     var searchOpen by remember { mutableStateOf(false) }
+    var appsEditing by remember { mutableStateOf(false) }
+    // Editing belongs to the apps page; leaving it ends editing.
+    LaunchedEffect(pagerState.currentPage) { if (pagerState.currentPage != HUB_PIVOTS.indexOf("apps")) appsEditing = false }
     var query by remember { mutableStateOf("") }
     var savedWhatsNewApp by remember { mutableStateOf(loadWhatsNewFilter(context)) }
     val snapshot by NotificationCenter.snapshot.collectAsStateWithLifecycle()
@@ -212,7 +216,7 @@ fun PeopleHubScreen(
                             saveWhatsNewFilter(context, it)
                         }
                         2 -> FavouritesPage(context, tokens, accent)
-                        else -> PeopleAppsPage(context, tokens, accent, snapshot)
+                        else -> PeopleAppsPage(context, tokens, accent, snapshot, appsEditing)
                     }
                 }
             }
@@ -250,7 +254,11 @@ fun PeopleHubScreen(
                         listOf(
                             HubAppBarAction("back", "back", onDismiss),
                             HubAppBarAction("pin", "pin this page to start", "pin to start") { onPinPage(page, page) },
-                            HubAppBarAction("people", "open contacts app", "contacts") { openContactsApp(context) },
+                            if (page == "apps") {
+                                HubAppBarAction(if (appsEditing) "check" else "edit", "edit apps", if (appsEditing) "done" else "edit apps") { appsEditing = !appsEditing }
+                            } else {
+                                HubAppBarAction("people", "open contacts app", "contacts") { openContactsApp(context) }
+                            },
                         )
                     }
                 },
@@ -1343,29 +1351,26 @@ private fun PeopleAppsPage(
     tokens: ColorTokens,
     accent: Color,
     snapshot: NotificationSnapshot,
+    editing: Boolean,
 ) {
     val installed = rememberInstalledPeopleApps() ?: return
     val usageGranted = rememberUsageAccess()
     val opens = rememberAppOpenCounts()
-    val groups = remember(installed, snapshot, opens) { groupPeopleApps(peopleApps(installed, snapshot.badges, opens)) }
-
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(4),
-        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
-        contentPadding = PaddingValues(bottom = 32.dp),
-    ) {
-        if (groups.isEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Text(
-                    "no chat, messaging, mail or social apps found",
-                    color = tokens.fgDim,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 24.dp),
-                )
-            }
-        }
-        if (!usageGranted && groups.isNotEmpty()) {
-            item(key = "usage-access", span = { GridItemSpan(maxLineSpan) }) {
+    val choices by remember { HubAppChoices.state(context) }.collectAsState()
+    val apps = remember(installed, snapshot, opens, choices) {
+        peopleApps(installed, snapshot.badges, opens).map { HubPageApp(it.packageName, it.label, it.category.name, it.badge) }
+    }
+    HubAppsPage(
+        kind = HubKind.PEOPLE,
+        sectionDefs = PEOPLE_APP_GROUPS.map { it.name to it.label },
+        apps = apps,
+        editing = editing,
+        tokens = tokens,
+        accent = accent,
+        emptyText = "no chat, messaging, mail or social apps found",
+        onOpen = { openApp(context, it) },
+        header = {
+            if (!usageGranted && apps.isNotEmpty()) {
                 Text(
                     text = "sort by most used · allow usage access",
                     color = accent,
@@ -1380,68 +1385,8 @@ private fun PeopleAppsPage(
                         .padding(start = 6.dp, top = 4.dp, bottom = 4.dp),
                 )
             }
-        }
-        groups.forEach { (category, apps) ->
-            item(key = "group-${category.name}", span = { GridItemSpan(maxLineSpan) }) {
-                Text(
-                    category.label,
-                    color = tokens.fgDim,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(start = 6.dp, top = 8.dp),
-                )
-            }
-            gridItems(apps, key = { "app-${it.packageName}" }) { app ->
-                PeopleAppCell(app, tokens, accent) { openApp(context, app.packageName) }
-            }
-        }
-    }
-}
-
-/** One app in the apps grid: its icon with an unread badge, label below.
- * Compact (4 columns, 40dp icons — user-requested), a denser take on the
- * music hub's apps cell. */
-@Composable
-private fun PeopleAppCell(app: PeopleApp, tokens: ColorTokens, accent: Color, onClick: () -> Unit) {
-    val icon = rememberAppIconBitmap(app.packageName, sizePx = iconPx(40.dp))
-    Column(
-        modifier = Modifier
-            .padding(4.dp)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            )
-            .padding(vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Box(modifier = Modifier.size(46.dp), contentAlignment = Alignment.Center) {
-            if (icon != null) {
-                Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(40.dp))
-            }
-            if (app.badge > 0) {
-                Text(
-                    text = if (app.badge > 99) "99+" else app.badge.toString(),
-                    color = Color.White,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(accent)
-                        .padding(horizontal = 5.dp),
-                )
-            }
-        }
-        Spacer(Modifier.height(3.dp))
-        Text(
-            text = app.label.lowercase(),
-            color = tokens.fg,
-            fontSize = 11.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
+        },
+    )
 }
 
 /**
@@ -1452,7 +1397,8 @@ private fun PeopleAppCell(app: PeopleApp, tokens: ColorTokens, accent: Color, on
 @Composable
 internal fun rememberInstalledPeopleApps(): Map<String, String>? {
     val context = LocalContext.current
-    val installed by produceState<Map<String, String>?>(initialValue = null) {
+    val choices by remember { HubAppChoices.state(context) }.collectAsState()
+    val installed by produceState<Map<String, String>?>(initialValue = null, choices) {
         value = withContext(Dispatchers.IO) {
             val pm = context.packageManager
             PEOPLE_APP_PACKAGES.mapNotNull { packageName ->

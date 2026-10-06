@@ -79,7 +79,12 @@ private val PRODUCTIVITY_APP_CATEGORIES: Map<String, ProductivityCategory> = bui
 /** Every package the apps page looks for: the productivity list plus the
  * People Hub's mail apps (user-requested: mail belongs here too). */
 val PRODUCTIVITY_APP_PACKAGES: Set<String>
-    get() = PRODUCTIVITY_APP_CATEGORIES.keys + PEOPLE_APP_PACKAGES.filter { peopleCategoryFor(it) == PeopleCategory.MAIL }
+    get() {
+        val choice = HubAppChoices.current(HubKind.PRODUCTIVITY)
+        // The built-in mail apps, whatever the People hub's own choices are.
+        val mail = PEOPLE_BUILT_IN_PACKAGES.filter { builtInPeopleCategory(it) == PeopleCategory.MAIL }
+        return (PRODUCTIVITY_APP_CATEGORIES.keys + mail - choice.dropped) + choice.placed.keys
+    }
 
 /** An installed productivity app for the hub's apps page and tile. */
 data class ProductivityApp(
@@ -99,8 +104,12 @@ fun productivityApps(
     tools: Set<String> = emptySet(),
 ): List<ProductivityApp> =
     installed.mapNotNull { (packageName, label) ->
-        val category = PRODUCTIVITY_APP_CATEGORIES[packageName]
-            ?: if (peopleCategoryFor(packageName) == PeopleCategory.MAIL) ProductivityCategory.MAIL else null
+        val choice = HubAppChoices.current(HubKind.PRODUCTIVITY)
+        if (packageName in choice.dropped) return@mapNotNull null
+        val placed = choice.placed[packageName]?.let { name -> ProductivityCategory.entries.find { it.name == name } }
+        val category = placed
+            ?: PRODUCTIVITY_APP_CATEGORIES[packageName]
+            ?: if (builtInPeopleCategory(packageName) == PeopleCategory.MAIL) ProductivityCategory.MAIL else null
             ?: if (packageName in tools) ProductivityCategory.TOOLS else return@mapNotNull null
         ProductivityApp(packageName, label, category)
     }.sortedWith(compareByDescending<ProductivityApp> { opens[it.packageName] ?: 0 }.thenBy { it.label.lowercase() })
