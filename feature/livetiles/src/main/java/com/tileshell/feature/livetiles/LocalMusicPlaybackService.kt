@@ -27,6 +27,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URL
@@ -108,7 +109,11 @@ class LocalMusicPlaybackService : Service() {
             ?.registerAudioDeviceCallback(deviceCallback, Handler(Looper.getMainLooper()))
 
         scope.launch {
-            LocalMusicPlayer.state.collect { playback ->
+            combine(
+                LocalMusicPlayer.state,
+                PodcastStore.subscriptions(this@LocalMusicPlaybackService),
+                RadioFavoritesStore.favorites(this@LocalMusicPlaybackService),
+            ) { playback, subs, stations -> Triple(playback, subs, stations) }.collect { (playback, subs, stations) ->
                 val item = playback.item
                 if (item == null) {
                     stopForegroundCompat()
@@ -142,6 +147,18 @@ class LocalMusicPlaybackService : Service() {
                                     0L
                                 }),
                         )
+                        .apply {
+                            // A heart for shows and stations (a library track has none).
+                            MusicMediaSession.isFavorite(item, subs, stations)?.let { fav ->
+                                addCustomAction(
+                                    PlaybackStateCompat.CustomAction.Builder(
+                                        MusicMediaSession.ACTION_TOGGLE_FAVORITE,
+                                        if (fav) "Remove favorite" else "Favorite",
+                                        if (fav) R.drawable.ic_auto_favorite_filled else R.drawable.ic_auto_favorite,
+                                    ).build(),
+                                )
+                            }
+                        }
                         .setState(
                             if (playback.playing) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED,
                             // Real position, so the lock screen / Bluetooth device
