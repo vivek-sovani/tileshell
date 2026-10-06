@@ -48,6 +48,12 @@
             </intent-filter>
         </service>
 
+        <!-- Album art for Android Auto (see AutoArtProvider). -->
+        <provider
+            android:name=".AutoArtProvider"
+            android:authorities="${applicationId}.autoart"
+            android:exported="true" />
+
         <!--
             Home-screen widgets (S32 pilot + S33 rollout, plain RemoteViews —
             no Compose rendering). Each receiver must be exported=true: the

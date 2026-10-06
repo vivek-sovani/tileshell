@@ -129,7 +129,8 @@ class LocalMusicPlaybackService : Service() {
                 mediaSession.setPlaybackState(
                     PlaybackStateCompat.Builder()
                         .setActions(
-                            PlaybackStateCompat.ACTION_PLAY or
+                            MusicMediaSession.IDLE_ACTIONS or
+                                PlaybackStateCompat.ACTION_PLAY or
                                 PlaybackStateCompat.ACTION_PAUSE or
                                 PlaybackStateCompat.ACTION_PLAY_PAUSE or
                                 PlaybackStateCompat.ACTION_SKIP_TO_NEXT or
@@ -186,7 +187,7 @@ class LocalMusicPlaybackService : Service() {
         // The session is shared with the car's browser service, so it is
         // switched off here, not released.
         session?.apply {
-            setPlaybackState(PlaybackStateCompat.Builder().setState(PlaybackStateCompat.STATE_NONE, 0L, 0f).build())
+            setPlaybackState(MusicMediaSession.idleState())
             isActive = false
         }
         session = null

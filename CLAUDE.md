@@ -37,6 +37,13 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — Android Auto, session 2 of 5.** Browse tree for Library and Playlists:
+  `AutoMediaId` (tested id format), `AutoBrowseTree` (pure; four tabs, Artists/Albums/All songs,
+  play all / shuffle, 200-row cap, one message row instead of an empty list), `LocalLibrarySource`,
+  `AutoMediaItems`, `AutoArtProvider` (album art for the car; callers checked by
+  `AutoCallerPolicy`). The session advertises play-from-media-id even when idle and
+  `onPlayFromMediaId` queues the container. 22 Auto unit tests green. Podcasts / Radio tabs show
+  a placeholder until session 3. Not yet seen in a car / DHU.
 - **`main` — Android Auto, session 1 of 5 (5.1.0 work, `docs/ANDROID-AUTO-PLAN.md`).** The music
   hub now has one shared `MediaSessionCompat` (`MusicMediaSession`) that outlives playback, and
   `LocalMusicPlaybackService` uses it instead of creating its own (notification, lock screen and
