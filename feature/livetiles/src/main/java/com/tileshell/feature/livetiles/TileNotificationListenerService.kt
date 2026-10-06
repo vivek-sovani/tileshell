@@ -274,8 +274,22 @@ private fun StatusBarNotification.toItem(): NotificationItem? {
         postTime = postTime,
         notificationKey = key,
         quickActions = quickActions,
+        fullText = fullNotificationText(
+            text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString(),
+            bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString(),
+            messages = chatMessageTexts(extras),
+            lines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.map { it.toString() }.orEmpty(),
+        ),
     )
 }
+
+/** A chat notification's recent messages (MessagingStyle), oldest first. */
+@Suppress("DEPRECATION")
+private fun chatMessageTexts(extras: android.os.Bundle): List<String> =
+    extras.getParcelableArray(Notification.EXTRA_MESSAGES)
+        ?.filterIsInstance<android.os.Bundle>()
+        ?.mapNotNull { it.getCharSequence("text")?.toString() }
+        .orEmpty()
 
 private fun StatusBarNotification.toActionRow(): NotificationActionRow =
     NotificationActionRow(

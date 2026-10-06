@@ -646,7 +646,8 @@ android {
         //   news and widgets; 5 grid columns by default. Re-cut 2026-10-02 with the TileShell
         //   keyboard (beta): Metro keyboard, swipe, Marathi/Hindi transliteration + Devanagari keys.
         //   5.1.0 (510): Android Auto — TileShell Music in the car (library, playlists, podcasts
-        //   and radio with favorites + recently played, podcast episodes, voice search).
+        //   and radio with favorites + recently played, podcast episodes, voice search); People hub
+        //   "what's new" shows a notification's full text (big text / chat messages) when expanded.
         versionCode = 510
         versionName = "5.1.0"
     }

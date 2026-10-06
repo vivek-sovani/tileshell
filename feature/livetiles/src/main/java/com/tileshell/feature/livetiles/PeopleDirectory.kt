@@ -256,6 +256,7 @@ data class ActivityEntry(
     val notificationKey: String,
     val category: PeopleCategory = PeopleCategory.CHAT,
     val quickActions: Set<QuickAction> = emptySet(),
+    val fullText: String = "",
 )
 
 /**
@@ -407,6 +408,7 @@ fun recentActivity(
                     notificationKey = item.notificationKey,
                     category = kind,
                     quickActions = item.quickActions,
+                    fullText = item.fullText,
                 )
             }
         }

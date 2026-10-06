@@ -37,6 +37,14 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — People hub "what's new" shows the whole notification (folded into 5.1.0, versionCode 510).**
+  User-reported: long messages were cut. The listener kept only `EXTRA_TEXT` (often a one-line
+  preview); `fullNotificationText` (pure, `NotificationTextTest`) now also reads `EXTRA_MESSAGES`
+  (chat, newest 5), `EXTRA_BIG_TEXT` and `EXTRA_TEXT_LINES`, capped at 1000 chars, into
+  `NotificationItem.fullText` → `ConversationItem` → `ActivityEntry`. Collapsed rows show 2 lines
+  (was 1); expanded rows show the full text (up to 20 lines). Live tile faces still use the short
+  snippet. Other hubs don't list notifications. Build + tests green; 5.1.0 re-cut (same
+  versionCode, never uploaded); not yet seen on a real notification.
 - **`main` — Android Auto, sessions 3–5 of 5: v5.1.0 code-complete (versionCode 510, not built for
   release / not uploaded).** Podcasts and Radio tabs (Favorites + Recently played groups, show →
   episodes newest first, "Play latest", 20 per page), voice search (`AutoVoiceSearch`: favourite

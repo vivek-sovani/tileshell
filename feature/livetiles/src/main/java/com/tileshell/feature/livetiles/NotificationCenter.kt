@@ -38,6 +38,8 @@ data class NotificationItem(
     val postTime: Long,
     val notificationKey: String = "",
     val quickActions: Set<QuickAction> = emptySet(),
+    /** The whole message when it is longer than [text] (see [fullNotificationText]). */
+    val fullText: String? = null,
 )
 
 /**
@@ -100,6 +102,8 @@ data class ConversationItem(
     val notificationKey: String = "",
     val postTime: Long = 0L,
     val quickActions: Set<QuickAction> = emptySet(),
+    /** The whole message when longer than [snippet]; blank when the snippet is all of it. */
+    val fullText: String = "",
 )
 
 /**
@@ -193,6 +197,7 @@ fun summarizeNotifications(items: List<NotificationItem>): NotificationSnapshot 
                     notificationKey = it.notificationKey,
                     postTime = it.postTime,
                     quickActions = it.quickActions,
+                    fullText = it.fullText.orEmpty(),
                 )
             },
         )

@@ -1096,11 +1096,13 @@ private fun ActivityRow(
             Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(entry.sender.lowercase(), color = tokens.fg, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // Collapsed: two lines. Expanded: the whole message (the full
+                // text the app posted, not just its one-line preview).
                 Text(
-                    entry.snippet,
+                    if (expanded) entry.fullText.ifBlank { entry.snippet } else entry.snippet,
                     color = tokens.fgDim,
                     fontSize = 13.sp,
-                    maxLines = if (expanded) 4 else 1,
+                    maxLines = if (expanded) 20 else 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
