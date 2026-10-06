@@ -210,7 +210,10 @@ fun AppListScreen(
                                     // the app (and clears it), matching Start tile taps. Falls
                                     // back to a plain launch when nothing is pending.
                                     if (!NotificationCenter.openAndClear(context, app.packageName)) {
+                                        run {
+                                        NotificationCenter.clearPackage(app.packageName)
                                         AppLauncher.launch(context, app.packageName, app.activityName)
+                                    }
                                     }
                                 },
                                 onPin = { viewModel.pin(app, activeSectionId) },
@@ -245,7 +248,10 @@ fun AppListScreen(
                                 if (app.packageName.isBlank()) {
                                     onOpenPersonalize()
                                 } else {
-                                    AppLauncher.launch(context, app.packageName, app.activityName)
+                                    run {
+                                        NotificationCenter.clearPackage(app.packageName)
+                                        AppLauncher.launch(context, app.packageName, app.activityName)
+                                    }
                                 }
                             },
                             onPin = {

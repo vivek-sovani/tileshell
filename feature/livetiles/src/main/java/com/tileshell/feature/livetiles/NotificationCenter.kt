@@ -417,6 +417,18 @@ object NotificationCenter {
         return opened
     }
 
+    /**
+     * Opening an app clears its count: cancels the app's dismissable notifications
+     * without opening any of them. Used when a tile that never shows message
+     * content (a small tile, an icon) launches the app — `openAndClear` would jump
+     * into a specific message, which those tiles must not do.
+     */
+    fun clearPackage(packageName: String) {
+        val keys = actions[packageName]?.keys.orEmpty()
+        if (keys.isEmpty()) return
+        listener?.let { service -> runCatching { service.cancelNotifications(keys.toTypedArray()) } }
+    }
+
     private fun sendContentIntent(context: Context, intent: PendingIntent): Boolean = runCatching {
         if (Build.VERSION.SDK_INT >= 34) {
             val options = ActivityOptions.makeBasic()

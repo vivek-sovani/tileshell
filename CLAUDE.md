@@ -37,6 +37,11 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — opening an app clears its notification count, even from a small tile (folded into 5.1.0).**
+  User-reported. A small tile / icon deliberately never opens a specific message, so it only
+  launched the app and left the badge. `NotificationCenter.clearPackage` now cancels the app's
+  dismissable notifications (no message opened) when a small tile, an icon, a folder child or an
+  app-list row launches the app. Not seen on a real notification.
 - **`main` — an app can be in several hub sections; sub-apps of one package no longer repeat notifications (folded into 5.1.0).**
   CRED can be both a payment and a card app (`HubAppChoice` added/removed per section; picker
   chips multi-select; ✕ per section; drag moves between sections). Amazon / Amazon Pay / Amazon

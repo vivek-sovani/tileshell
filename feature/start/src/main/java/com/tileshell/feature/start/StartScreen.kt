@@ -8549,6 +8549,8 @@ private fun onTileClick(context: Context, tile: TileModel, homeStyle: HomeStyle 
                 // the app's notifications. Falls through to a normal launch when the
                 // app has nothing pending or the notification had no content intent.
                 if (showsLiveMessageContent && NotificationCenter.openAndClear(context, tile.packageName)) return
+                // Opening the app clears its count, even on a small tile or icon.
+                NotificationCenter.clearPackage(tile.packageName)
                 if (!AppLauncher.launch(context, tile.packageName, tile.activityName)) {
                     Toast.makeText(
                         context,
@@ -8633,6 +8635,7 @@ private fun launchFolderChild(context: Context, child: FolderChild) {
         // displayAsIcon override (always false; see FolderChild.asTileModel's
         // own doc comment), so only its own size matters here.
         if (child.size != TileSize.SMALL && NotificationCenter.openAndClear(context, child.packageName)) return
+        NotificationCenter.clearPackage(child.packageName)
         if (!AppLauncher.launch(context, child.packageName, child.activityName)) {
             Toast.makeText(context, "couldn't open ${child.label ?: "app"}", Toast.LENGTH_SHORT).show()
         }
