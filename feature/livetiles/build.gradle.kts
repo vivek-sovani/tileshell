@@ -36,6 +36,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.datastore)
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.media) // MediaBrowserServiceCompat for Android Auto
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)

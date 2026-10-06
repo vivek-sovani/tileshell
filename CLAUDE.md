@@ -37,6 +37,15 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — Android Auto, session 1 of 5 (5.1.0 work, `docs/ANDROID-AUTO-PLAN.md`).** The music
+  hub now has one shared `MediaSessionCompat` (`MusicMediaSession`) that outlives playback, and
+  `LocalMusicPlaybackService` uses it instead of creating its own (notification, lock screen and
+  Bluetooth controls unchanged). New exported `AutoMediaBrowserService` (empty browse tree for now;
+  only Android Auto, the assistant, the system and TileShell may connect — `AutoCallerPolicy`,
+  `AutoCallerPolicyTest`). `androidx.media:media` added. Checked on the emulator: a track plays,
+  session active/PLAYING with metadata, notification up, media-key stop removes the notification
+  and service and deactivates the session. Not yet visible in the car (no browse tree, no
+  `automotive_app_desc`) — sessions 2–5.
 - **`main` — keyboard: English words in मराठी / हिन्दी spelling.** User-requested. Typing
   "energy" / "positive" / "negative" in transliteration offers एनर्जी / पॉजिटिव (Marathi:
   पॉझिटिव्ह first) / निगेटिव, from `mr_loan.txt` / `hi_loan.txt` built by

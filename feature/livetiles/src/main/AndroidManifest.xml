@@ -35,6 +35,20 @@
             android:foregroundServiceType="mediaPlayback" />
 
         <!--
+            What Android Auto browses and controls: the music hub's shared
+            media session (MusicMediaSession). Exported because the car's host
+            app is another package; AutoCallerPolicy rejects every other caller
+            in onGetRoot.
+        -->
+        <service
+            android:name=".AutoMediaBrowserService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
+        </service>
+
+        <!--
             Home-screen widgets (S32 pilot + S33 rollout, plain RemoteViews —
             no Compose rendering). Each receiver must be exported=true: the
             update broadcast comes from the system/host launcher, a different
