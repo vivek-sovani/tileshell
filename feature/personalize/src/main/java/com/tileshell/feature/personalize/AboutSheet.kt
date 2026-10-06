@@ -213,6 +213,7 @@ fun AboutSheet(
                     "music, people, productivity and money each have an apps page gathering the related apps on your phone in one place",
                     "weather — now, hourly, and daily forecast; max/min, feels like, wind, humidity, uv index, sunrise and sunset; a moon at night",
                     "music — your own music library with albums, playlists (create and edit real device playlists), shuffle, and background playback; podcasts and internet radio with favourites and recents; history of what you played in other apps",
+                    "android auto — your music, playlists, favourite podcasts (with their episodes) and favourite radio stations show on the car screen, with recently played under each; ask the assistant to play a show, station, artist or song on tileshell",
                     "music pauses by itself when bluetooth or headphones disconnect, and a headset's play, pause, next and previous buttons control it",
                     "now playing has a progress bar you can tap or drag, jumps of 10 seconds back and 30 forward for tracks and podcasts, and share in the corner of the favourites line — a track as its file, a podcast episode or radio station as its link",
                     "gapless playback for your own music, with an overlap of 1, 2 or 3 seconds so tracks cross-fade instead of pausing between them",

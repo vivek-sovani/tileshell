@@ -645,8 +645,10 @@ android {
         //   apps) on first run and reset; a full permissions sheet; refresh rates for weather,
         //   news and widgets; 5 grid columns by default. Re-cut 2026-10-02 with the TileShell
         //   keyboard (beta): Metro keyboard, swipe, Marathi/Hindi transliteration + Devanagari keys.
-        versionCode = 500
-        versionName = "5.0.0"
+        //   5.1.0 (510): Android Auto — TileShell Music in the car (library, playlists, podcasts
+        //   and radio with favorites + recently played, podcast episodes, voice search).
+        versionCode = 510
+        versionName = "5.1.0"
     }
 
     // Task reminders kill switch (gradle.properties → tileshell.taskReminders).
@@ -656,6 +658,14 @@ android {
     if (taskReminders) {
         listOf("debug", "release").forEach { type ->
             sourceSets.getByName(type).manifest.srcFile("src/taskReminders/AndroidManifest.xml")
+        }
+    }
+
+    // Android Auto switch (gradle.properties → tileshell.androidAuto): the car-listing
+    // meta-data lives in its own manifest, merged only while the switch is on.
+    if (providers.gradleProperty("tileshell.androidAuto").orNull?.toBoolean() != false) {
+        listOf("debug", "release").forEach { type ->
+            sourceSets.getByName(type).manifest.srcFile("src/androidAuto/AndroidManifest.xml")
         }
     }
 

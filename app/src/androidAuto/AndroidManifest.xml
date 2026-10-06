@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android Auto: this entry is what makes TileShell Music appear in the car.
+     Merged into the debug/release build types only while
+     tileshell.androidAuto=true in gradle.properties. The browser service and
+     its caller checks stay in :feature:livetiles either way. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+    </application>
+</manifest>

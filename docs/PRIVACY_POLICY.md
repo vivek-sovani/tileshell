@@ -69,6 +69,12 @@ Stock and commodity tiles and widgets fetch prices from Yahoo Finance; sports ti
 widgets fetch scores from ESPN. Each request contains only the symbol or league/team you
 picked — no personal data.
 
+### Android Auto
+If you use TileShell Music in Android Auto, the car screen shows your music library, playlists,
+favourite podcasts and stations from this phone. Android Auto (Google) is the only app, besides
+the system and TileShell itself, that can browse or control it. TileShell does not send any of
+this anywhere, and voice requests are handled by your assistant, not by TileShell.
+
 ### Podcasts and internet radio
 The Music hub searches podcasts through the Apple iTunes Search API and radio stations
 through the Radio Browser directory (radio-browser.info), then streams from each show's or

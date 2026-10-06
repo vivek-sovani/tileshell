@@ -1,5 +1,9 @@
 # Android Auto support — v5.1.0 plan
 
+> **Status (sessions 1–5 done):** built as planned, with the deviations listed in
+> `docs/DECISIONS.md` ("Android Auto (5.1.0)"): no queue list, no episode progress, episodes
+> queue newest first. Still to do: DHU / real-car pass and the Play steps below.
+
 User-requested. TileShell Music (the music hub's local library, podcasts and radio) shows up as a
 media app on the Android Auto car screen. 5.0.0 is already live on Play, so this ships as **5.1.0
 (versionCode 510)**, on its own, because Play reviews Android Auto apps separately.

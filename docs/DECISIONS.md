@@ -3,6 +3,33 @@
 Decisions made when the spec/prototype was ambiguous, per CLAUDE.md workflow
 rule 4. Newest first.
 
+## Android Auto (5.1.0): one shared session, Library + Playlists + Podcasts + Radio, no queue or progress
+
+User-requested; plan in `docs/ANDROID-AUTO-PLAN.md`, designs shown first. What was decided
+where the plan was silent or turned out wrong:
+
+- **Library:** `androidx.media` `MediaBrowserServiceCompat`, not Media3 (would replace
+  `LocalMusicPlayer`). One `MusicMediaSession` outlives playback; `LocalMusicPlaybackService`
+  only updates it and shows its notification.
+- **Episode queue direction:** an episode queues the show newest first from the picked episode,
+  so "next" is the next older one (the plan's "newer ones after Play latest" made no sense for
+  the newest episode). "Play latest" starts at the newest.
+- **No episode progress / "played" state** in the car: TileShell stores no per-episode position
+  anywhere, so the list shows age and length only. A recently played episode restarts.
+- **No queue (`setQueue`) or "up next" list:** `LocalMusicPlayer` can't jump to an item, only
+  next/previous. Left out rather than half-built.
+- **Lists capped at 200 rows** (songs show a message pointing at voice search); episodes page
+  20 at a time with "More episodes".
+- **Album and podcast/radio art goes through `AutoArtProvider`** (exported, callers checked by
+  `AutoCallerPolicy`), because Android Auto can't read MediaStore and remote art is safer
+  fetched once, shrunk and cached by the phone (https only, 3 MB cap).
+- **Caller check:** only Android Auto, the assistant, the system and TileShell, and the claimed
+  package must belong to the calling uid. No signature check (package-for-uid is enough here).
+- **Switch:** `tileshell.androidAuto=false` removes only the car-listing meta-data
+  (`app/src/androidAuto/`); the browser service stays but is unreachable by the car.
+- **Not verified on a car or the Desktop Head Unit** (none available): browse tree and play paths
+  are unit-tested; the session and notification were checked on the emulator.
+
 ## Monochrome icons + "original" icon shape: circle → square → no plate → square → settled on rounded
 
 User-reported, four times in a row, each pinpointing exactly what was wrong

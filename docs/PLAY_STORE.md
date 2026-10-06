@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*Updated for v5.0.0 (2026-10-04) — see the Play Console checklist below*
+*Updated for v5.1.0 (Android Auto) — release notes and checklist below*
 
 ---
 
@@ -250,6 +250,26 @@ cert SHA-256 1a904ad5…), keyboard left out. Permissions new since 4.5.0:
 labeled sections — "New features:" and "Bugs fixed:" — each a short bulleted list, replacing the older
 "• New: / • Improved: / • Fixed:" per-line style used in every entry before this one (those keep their
 original format as the historical record, unchanged). Still capped at Play's 500-character limit.*
+
+## Release notes (v5.1.0)
+
+*Android Auto. versionCode 510. Not yet built/uploaded — see the checklist below.*
+
+### Play-facing blurb (500 chars max)
+```
+New: Android Auto. Your music library, playlists, favourite podcasts (with episodes) and favourite radio stations show on the car screen, with recently played under each. Ask the assistant to play a show, station, artist or song. Podcast and radio favourites can be changed from the car with the heart button.
+```
+
+### Play Console checklist for 5.1.0 (Android Auto)
+- [ ] Add **Android Auto** to the app's form factors (Release → Setup → Advanced settings).
+- [ ] Upload to **closed testing** first and wait for the Android for Cars review result before production.
+- [ ] Reviewer notes: TileShell is a launcher whose Music hub is a full media app. Grant "music access" when asked; steps: play a song, open a favourite podcast show and play an episode, play a favourite radio station.
+- [ ] Test on the Desktop Head Unit (or a real car) before upload — none was available when this was built.
+- [ ] Data safety: no new data collected; re-read the form. Privacy policy has an Android Auto section (md + `docs/index.html`, publish the hosted page).
+- [ ] Foreground service `mediaPlayback` declaration unchanged.
+- [ ] If the review blocks the release, set `tileshell.androidAuto=false` in `gradle.properties` and ship the rest without it.
+
+---
 
 ## Release notes (v5.0.0)
 

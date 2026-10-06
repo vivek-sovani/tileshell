@@ -37,6 +37,16 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — Android Auto, sessions 3–5 of 5: v5.1.0 code-complete (versionCode 510, not built for
+  release / not uploaded).** Podcasts and Radio tabs (Favorites + Recently played groups, show →
+  episodes newest first, "Play latest", 20 per page), voice search (`AutoVoiceSearch`: favourite
+  shows → stations → artists → albums → songs; empty query shuffles), heart button on now playing
+  for shows/stations, art via `AutoArtProvider` (album + remote), `automotive_app_desc` + car
+  meta-data behind `tileshell.androidAuto` (`app/src/androidAuto/`, verified in the merged
+  manifest both ways), About + privacy policy (md + hosted `docs/index.html`, to publish) +
+  `docs/PLAY_STORE.md` 5.1.0 notes/checklist + DECISIONS. All unit tests green. **Not checked in a
+  car or the Desktop Head Unit** (not installed here) — do that before uploading; no queue list or
+  episode progress in the car (see DECISIONS).
 - **`main` — Android Auto, session 2 of 5.** Browse tree for Library and Playlists:
   `AutoMediaId` (tested id format), `AutoBrowseTree` (pure; four tabs, Artists/Albums/All songs,
   play all / shuffle, 200-row cap, one message row instead of an empty list), `LocalLibrarySource`,
