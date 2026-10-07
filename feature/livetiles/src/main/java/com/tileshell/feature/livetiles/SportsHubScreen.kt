@@ -407,7 +407,7 @@ private fun matchStatus(match: HubMatch, nowMillis: Long): String {
 @Composable
 private fun ScoreLine(name: String, score: String, state: String, tokens: ColorTokens, size: androidx.compose.ui.unit.TextUnit) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 2.dp)) {
-        Text(name, color = tokens.fg, fontSize = size, fontWeight = FontWeight.Light, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(name, color = tokens.fg, fontSize = size, fontWeight = FontWeight.Light, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(10.dp))
         if (state != "pre") {
             Text(splitInningsScore(score).lastOrNull() ?: score, color = tokens.fg, fontSize = size, fontWeight = FontWeight.Light, maxLines = 1)

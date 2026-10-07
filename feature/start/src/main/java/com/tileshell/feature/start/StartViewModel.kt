@@ -767,6 +767,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
                     com.tileshell.feature.livetiles.widget.RefreshRateScheduler.sync(getApplication(), s)
                 }
         }
+        // Clear ongoing timer notifications left by a session that ended while
+        // the app was updated or killed (they would keep counting down).
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { com.tileshell.core.data.clock.ClockSessions.dropStaleNotifications(getApplication()) }
+        }
         viewModelScope.launch(writeContext) {
             // A freshly seeded layout starts in multicolour (user-approved
             // default), so its group colours show.
