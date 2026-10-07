@@ -109,4 +109,72 @@ class MarketsHubTest {
         assertEquals(60_000L, marketsRefreshDelayMs(listOf("^GSPC", "^NSEI"), 60_000L, tuesdayNoonIst))
         assertEquals(60_000L, marketsRefreshDelayMs(emptyList(), 60_000L, tuesdayNoonIst))
     }
+
+    private val watch = listOf(
+        WatchSymbol("RELIANCE.NS", "Reliance Industries"), WatchSymbol("TCS.NS", "Tata Consultancy Services"),
+        WatchSymbol("HDFCBANK.NS", "HDFC Bank"), WatchSymbol("INFY.NS", "Infosys"), WatchSymbol("ITC.NS", "ITC"),
+        WatchSymbol("GC=F", "Gold"), WatchSymbol("SI=F", "Silver"), WatchSymbol("USDINR=X", "USD / INR"),
+    )
+
+    @Test
+    fun `kinds in the watchlist keep a fixed order and skip empty ones`() {
+        assertEquals(listOf("stocks", "commodities", "currencies"), watchKinds(watch))
+        assertEquals(listOf("commodities"), watchKinds(listOf(WatchSymbol("GC=F", "Gold"))))
+        assertEquals(emptyList<String>(), watchKinds(emptyList()))
+    }
+
+    @Test
+    fun `a tile shows the marked symbols of its kind in watchlist order`() {
+        val marked = listOf("INFY.NS", "RELIANCE.NS", "GC=F")
+        assertEquals(listOf("RELIANCE.NS", "INFY.NS"), tileSymbols("stocks", watch, marked).map { it.symbol })
+        assertEquals(listOf("GC=F"), tileSymbols("commodities", watch, marked).map { it.symbol })
+    }
+
+    @Test
+    fun `a tile with nothing marked shows the first few of its kind`() {
+        assertEquals(listOf("RELIANCE.NS", "TCS.NS", "HDFCBANK.NS"), tileSymbols("stocks", watch, emptyList()).map { it.symbol })
+        assertEquals(listOf("USDINR=X"), tileSymbols("currencies", watch, listOf("GC=F")).map { it.symbol })
+        assertEquals(emptyList<WatchSymbol>(), tileSymbols("crypto", watch, emptyList()))
+    }
+
+    @Test
+    fun `marks for symbols no longer on the watchlist are ignored`() {
+        assertEquals(listOf("RELIANCE.NS", "TCS.NS", "HDFCBANK.NS"), tileSymbols("stocks", watch, listOf("GONE.NS")).map { it.symbol })
+    }
+
+    @Test
+    fun `a tile is capped`() {
+        val many = (1..20).map { WatchSymbol("S$it.NS", "S$it") }
+        assertEquals(MAX_TILE_SYMBOLS, tileSymbols("stocks", many, many.map { it.symbol }).size)
+    }
+
+    @Test
+    fun `the indices tile defaults to the NIFTY 50`() {
+        assertEquals(listOf("^NSEI"), tileIndices(null).map { it.symbol })
+        assertEquals(listOf("^NSEI"), tileIndices(emptyList()).map { it.symbol })
+        assertEquals(listOf("^BSESN", "^GSPC"), tileIndices(listOf("^GSPC", "^BSESN", "^UNKNOWN")).map { it.symbol })
+    }
+
+    @Test
+    fun `toggling a mark adds then removes it`() {
+        val once = toggleMarked(emptyList(), "TCS.NS")
+        assertEquals(listOf("TCS.NS"), once)
+        assertEquals(emptyList<String>(), toggleMarked(once, "TCS.NS"))
+    }
+
+    @Test
+    fun `tile labels use the name when short and the ticker when long`() {
+        assertEquals("HDFC Bank", tileLabel(WatchSymbol("HDFCBANK.NS", "HDFC Bank")))
+        assertEquals("RELIANCE", tileLabel(WatchSymbol("RELIANCE.NS", "Reliance Industries")))
+        assertEquals("USD / INR", tileLabel(WatchSymbol("USDINR=X", "USD / INR")))
+        assertEquals("USDINR", tileLabel(WatchSymbol("USDINR=X", "US dollar to Indian rupee")))
+    }
+
+    @Test
+    fun `a markets tile's kind round trips and anything else is the indices tile`() {
+        WATCH_KINDS.forEach { assertEquals(it, MarketsTile.decode(MarketsTile.encode(it))) }
+        assertEquals(MarketsTile.INDICES, MarketsTile.decode(""))
+        assertEquals(MarketsTile.INDICES, MarketsTile.decode("markets:nonsense"))
+        assertEquals(MarketsTile.INDICES, MarketsTile.decode("sports:x|y|z"))
+    }
 }

@@ -36,6 +36,7 @@ import com.tileshell.core.data.Section
 import com.tileshell.core.data.SettingsAppMigration
 import com.tileshell.core.data.CalendarSystemTile
 import com.tileshell.core.data.CommodityTile
+import com.tileshell.core.data.MarketsTile
 import com.tileshell.core.data.SportsTile
 import com.tileshell.core.data.StockTile
 import com.tileshell.core.data.NoteRepository
@@ -367,12 +368,18 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         _marketsHubOpen.value = false
     }
 
-    /** Pin the markets hub's own tile. */
-    fun pinMarketsHub() {
+    /**
+     * Pin a markets tile: [kind] is "indices" (the hub's own tile, showing the
+     * indices marked on tile) or a watchlist kind ("stocks", "commodities",
+     * "currencies", "crypto"), each its own tile showing what's marked of it.
+     * One of each kind at most.
+     */
+    fun pinMarketsTile(kind: String) {
         viewModelScope.launch(writeContext) {
-            val exists = tiles.value.any { it is TileModel.App && it.iconKey == "markets" }
-            val result = if (!exists && repository.addDefaultTile("markets", activePageSectionId)) PinResult.PINNED else PinResult.ALREADY_ON_START
-            _pinMessage.tryEmit(pinOutcomeText(result, "markets"))
+            val exists = tiles.value.any { it is TileModel.App && it.iconKey == "markets" && MarketsTile.decode(it.activityName) == kind }
+            val activity = if (kind == MarketsTile.INDICES) null else MarketsTile.encode(kind)
+            val result = if (!exists && repository.addDefaultTile("markets", activePageSectionId, activity)) PinResult.PINNED else PinResult.ALREADY_ON_START
+            _pinMessage.tryEmit(pinOutcomeText(result, if (kind == MarketsTile.INDICES) "markets" else kind))
         }
     }
 

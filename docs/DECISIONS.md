@@ -11473,3 +11473,20 @@ Not done: a whole-sport tile (the sports tile needs a team); fall of wickets and
 (ESPN has none for cricket); American football / baseball detail only checked against the generic
 box-score shape, not against a live game.
 
+## Markets hub: kinds, "on tile" marks and a tile per kind (2026-10-07)
+
+User-requested. The watchlist filter lost "all" (it also clipped "currencies" on a narrow phone):
+it shows the kinds the list has (stocks, commodities, currencies, crypto; `watchKinds`), wrapping if
+need be, defaulting to the first. Every watchlist row and every index has an "on tile" box
+(▣ / ▢): marks live in `tileshell.prefs` (`markets_tile_symbols`, `markets_tile_indices`; in
+backups). Tiles: the hub's own tile ("indices", the existing `markets` tile, now showing the marked
+indices, NIFTY 50 until one is marked) and a stocks / commodities / currencies / crypto tile each
+showing the marked entries of that kind, or the first three when none is (`tileSymbols`,
+`tileIndices`). All are the `markets` icon key; the kind is in the tile's `activityName`
+(`MarketsTile`, "markets:stocks"), so no schema change, and they read the marks and the watchlist
+live, so editing either updates the tile. One of each kind at most; the hub's pin button pins the
+tile for what's showing (the kind chosen, else indices) and the "···" menu pins the others. Tile
+rows: name and change on a 2-column tile, price too from 3 columns, one entry shown big; arrows
+(▲ ▼) so direction reads without colour on a coloured tile. Refresh unchanged (stock rate,
+rests when markets are shut).
+

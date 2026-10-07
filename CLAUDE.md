@@ -41,7 +41,7 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   mockups for markets, sports, news and orders (the last two not built yet). Markets: watchlist
   (own symbols, search to add) -> indices (day line) -> movers (ranked among the sector baskets,
   not the whole market); refreshes while open at the stock rate, resting when markets are shut;
-  tile shows the NIFTY 50. Sports (reworked once on request): two pages, live (today's matches,
+  each watchlist entry and index has an "on tile" mark, and stocks / commodities / currencies / crypto / markets (indices) tiles show just what is marked (`MarketsTile`, kind in `activityName`). Sports (reworked once on request): two pages, live (today's matches,
   with kick-off times) and results (last week / month), each for "my teams" or "my sports";
   the user marks several sports and teams (`SportsFavoritesStore`); tapping a match opens its
   status and scorecard (cricket crease and bowling figures, football events and stats, a box

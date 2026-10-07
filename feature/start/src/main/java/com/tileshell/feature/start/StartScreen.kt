@@ -7253,7 +7253,7 @@ private fun AppTileContent(
             return
         }
         LiveFace.MARKETS -> {
-            com.tileshell.feature.livetiles.MarketsTileFace(size = tile.size, active = liveActive, refreshRate = stockRefreshRate, modifier = Modifier.fillMaxSize())
+            com.tileshell.feature.livetiles.MarketsTileFace(size = tile.size, active = liveActive, kind = com.tileshell.core.data.MarketsTile.decode(tile.activityName), refreshRate = stockRefreshRate, modifier = Modifier.fillMaxSize())
             return
         }
         LiveFace.SPORTSHUB -> {
@@ -9016,7 +9016,7 @@ private fun HubScreensLayer(
         accentId = accentId,
         refreshRate = hubSettings.stockRefreshRate,
         onDismiss = viewModel::closeMarketsHub,
-        onPinHub = viewModel::pinMarketsHub,
+        onPinTile = viewModel::pinMarketsTile,
         rightHalf = false,
     )
 

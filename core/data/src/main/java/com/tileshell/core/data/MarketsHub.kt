@@ -107,3 +107,58 @@ fun watchKind(symbol: String): String = when {
 }
 
 private fun clean(s: String) = s.replace('\t', ' ').replace('\n', ' ').trim()
+
+/** The watchlist's kinds, in the order the hub's filters and tiles use them. */
+val WATCH_KINDS: List<String> = listOf("stocks", "commodities", "currencies", "crypto")
+
+/** The kinds the watchlist actually has something in. */
+fun watchKinds(watch: List<WatchSymbol>): List<String> = WATCH_KINDS.filter { kind -> watch.any { watchKind(it.symbol) == kind } }
+
+/** How many symbols a markets tile can show at most. */
+const val MAX_TILE_SYMBOLS = 8
+
+/** How many a tile shows when none of its kind is marked: enough that a freshly pinned tile isn't empty. */
+const val DEFAULT_TILE_SYMBOLS = 3
+
+/**
+ * What a stocks / commodities / currencies / crypto tile shows: the watchlist
+ * entries of [kind] the user marked "on tile", in watchlist order; with none
+ * marked, the first few of that kind. Marks for symbols since removed from the
+ * watchlist are ignored. Pure.
+ */
+fun tileSymbols(kind: String, watch: List<WatchSymbol>, marked: Collection<String>): List<WatchSymbol> {
+    val ofKind = watch.filter { watchKind(it.symbol) == kind }
+    val picked = ofKind.filter { it.symbol in marked }
+    return (picked.ifEmpty { ofKind.take(DEFAULT_TILE_SYMBOLS) }).take(MAX_TILE_SYMBOLS)
+}
+
+/** What the markets (indices) tile shows: the marked indices, or the NIFTY 50 when none (or nothing was ever saved, [marked] null). */
+fun tileIndices(marked: Collection<String>?): List<MarketIndex> =
+    MARKET_INDICES.filter { marked != null && it.symbol in marked }.ifEmpty { MARKET_INDICES.take(1) }.take(MAX_TILE_SYMBOLS)
+
+/** Marks [symbol] if it isn't, unmarks it if it is. */
+fun toggleMarked(marked: List<String>, symbol: String): List<String> = if (symbol in marked) marked - symbol else marked + symbol
+
+/** A short name for a tile row: the company name when it fits, else the ticker without its exchange suffix. */
+fun tileLabel(item: WatchSymbol, maxChars: Int = 12): String =
+    if (item.displayName.length <= maxChars) item.displayName
+    else item.symbol.removeSuffix(".NS").removeSuffix(".BO").removeSuffix("=X").removeSuffix("=F").take(maxChars)
+
+/**
+ * A markets tile's kind in its `activityName`: "indices" (the hub's own tile,
+ * also what a blank name means), "stocks", "commodities", "currencies" or
+ * "crypto". Blank-package tile, no schema change, like the other hub tiles.
+ */
+object MarketsTile {
+    const val ICON_KEY = "markets"
+    const val INDICES = "indices"
+    private const val PREFIX = "markets:"
+
+    fun encode(kind: String): String = PREFIX + kind
+
+    fun decode(activityName: String): String {
+        val kind = activityName.removePrefix(PREFIX).takeIf { activityName.startsWith(PREFIX) } ?: return INDICES
+        return if (kind in WATCH_KINDS) kind else INDICES
+    }
+}
+

@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -55,7 +57,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.MARKET_INDICES
+import com.tileshell.core.data.MarketsTile
 import com.tileshell.core.data.POPULAR_WATCH_SYMBOLS
+import com.tileshell.core.data.watchKinds
 import com.tileshell.core.data.StockQuote
 import com.tileshell.core.data.StockSearchResult
 import com.tileshell.core.data.WatchSymbol
@@ -113,7 +117,7 @@ fun MarketsHubScreen(
     accentId: String,
     refreshRate: LiveRefreshRate,
     onDismiss: () -> Unit,
-    onPinHub: () -> Unit,
+    onPinTile: (String) -> Unit,
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -131,6 +135,12 @@ fun MarketsHubScreen(
     var adding by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
     var refreshTick by remember { mutableIntStateOf(0) }
+    val markedSymbols by MarketsTileMarks.symbolsFlow(context).collectAsState()
+    val markedIndices by MarketsTileMarks.indicesFlow(context).collectAsState()
+    // The watchlist is filtered by kind (no "all"); the first kind it has is the default.
+    val kinds = remember(watch) { watchKinds(watch) }
+    var kindChoice by remember { mutableStateOf<String?>(null) }
+    val kind = kindChoice?.takeIf { it in kinds } ?: kinds.firstOrNull()
 
     BackHandler(enabled = visible) {
         if (adding) adding = false else onDismiss()
@@ -173,12 +183,13 @@ fun MarketsHubScreen(
                         }
                     } else {
                         WatchlistPage(
-                            watch, watchQuotes, editing, tokens, accent,
+                            watch, watchQuotes, editing, kinds, kind, { kindChoice = it }, markedSymbols, tokens, accent,
                             onRemove = { MarketsWatchlist.remove(context, it) },
+                            onToggleMark = { MarketsTileMarks.toggleSymbol(context, it) },
                             onAdd = { adding = true },
                         )
                     }
-                    1 -> IndicesPage(indexQuotes, visible && pagerState.currentPage == 1, tokens, accent)
+                    1 -> IndicesPage(indexQuotes, visible && pagerState.currentPage == 1, markedIndices ?: listOf("^NSEI"), { MarketsTileMarks.toggleIndex(context, it) }, tokens, accent)
                     else -> MoversPage(visible && pagerState.currentPage == 2, active, refreshTick, refreshRate, tokens, accent)
                 }
             }
@@ -195,11 +206,20 @@ fun MarketsHubScreen(
                         add(HubAppBarAction(if (editing) "check" else "edit", "edit watchlist", if (editing) "done" else "edit") { editing = !editing })
                     }
                     add(HubAppBarAction("refresh", "refresh prices", "refresh") { refreshTick++ })
-                    add(HubAppBarAction("pin", "pin markets to start", "pin to start", onPinHub))
+                    // Pins the tile for what is showing: the kind chosen on the watchlist, else the markets (indices) tile.
+                    val pinKind = if (pagerState.currentPage == 0 && !adding) kind else null
+                    add(
+                        HubAppBarAction("pin", "pin ${pinKind ?: "markets"} tile to start", "pin ${pinKind ?: "markets"}") {
+                            onPinTile(pinKind ?: MarketsTile.INDICES)
+                        },
+                    )
                 },
-                menuItems = listOf(
-                    HubAppBarAction("refresh", "reset watchlist", "reset watchlist") { MarketsWatchlist.reset(context); editing = false },
-                ),
+                menuItems = buildList {
+                    val current = if (pagerState.currentPage == 0 && !adding) kind else null
+                    kinds.filter { it != current }.forEach { k -> add(HubAppBarAction("pin", "pin $k tile", "pin $k tile") { onPinTile(k) }) }
+                    if (current != null) add(HubAppBarAction("pin", "pin markets tile", "pin indices tile") { onPinTile(MarketsTile.INDICES) })
+                    add(HubAppBarAction("refresh", "reset watchlist", "reset watchlist") { MarketsWatchlist.reset(context); editing = false })
+                },
             )
         }
     }
@@ -246,21 +266,26 @@ private fun openQuotePage(context: Context, symbol: String) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun WatchlistPage(
     watch: List<WatchSymbol>,
     quotes: Map<String, StockQuote>,
     editing: Boolean,
+    kinds: List<String>,
+    kind: String?,
+    onKind: (String) -> Unit,
+    marked: List<String>,
     tokens: ColorTokens,
     accent: Color,
     onRemove: (String) -> Unit,
+    onToggleMark: (String) -> Unit,
     onAdd: () -> Unit,
 ) {
     val context = LocalContext.current
-    var kind by remember { mutableStateOf("all") }
-    val kinds = remember(watch) { listOf("all") + watch.map { watchKind(it.symbol) }.distinct() }
-    val shown = remember(watch, kind) { watch.filter { kind == "all" || watchKind(it.symbol) == kind } }
-    if (kind != "all" && kind !in kinds) kind = "all"
+    val shown = remember(watch, kind) { watch.filter { watchKind(it.symbol) == kind } }
+    // Marked ones are what the tile shows; with none marked it shows the first few of the kind.
+    val noneMarked = remember(shown, marked) { shown.none { it.symbol in marked } }
 
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
         if (watch.isEmpty()) {
@@ -274,37 +299,55 @@ private fun WatchlistPage(
             }
             return@LazyColumn
         }
-        if (kinds.size > 2) {
+        if (kinds.size > 1) {
             item(key = "kinds") {
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                    kinds.forEach { k -> HubFilter(k, kind == k, tokens, accent) { kind = k } }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                    kinds.forEach { k -> HubFilter(k, kind == k, tokens, accent) { onKind(k) } }
                 }
             }
         }
+        item(key = "tile-hint") {
+            Text(
+                if (noneMarked) "the $kind tile shows the first few. tap ▢ to choose which."
+                else "▣ is on the $kind tile. tap to add or remove.",
+                color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
+            )
+        }
         items(shown, key = { it.symbol }) { item ->
             val q = quotes[item.symbol]
+            val on = item.symbol in marked
             MarketRow(
                 title = item.displayName,
                 subtitle = marketSubtitle(item.symbol, q),
                 quote = q,
                 currency = q?.currency.orEmpty(),
                 tokens = tokens,
-                trailing = if (editing) {
-                    {
+                trailing = {
+                    TileMark(on, accent, tokens) { onToggleMark(item.symbol) }
+                    if (editing) {
                         Text(
                             "✕",
                             color = tokens.fgDim,
                             fontSize = 18.sp,
-                            modifier = Modifier.clickable { onRemove(item.symbol) }.padding(start = 14.dp, top = 6.dp, bottom = 6.dp),
+                            modifier = Modifier.clickable { onRemove(item.symbol) }.padding(start = 6.dp, top = 6.dp, bottom = 6.dp),
                         )
                     }
-                } else {
-                    null
                 },
                 onClick = { if (!editing) openQuotePage(context, item.symbol) },
             )
         }
     }
+}
+
+/** "On tile": filled when the tile shows this one. */
+@Composable
+private fun TileMark(on: Boolean, accent: Color, tokens: ColorTokens, onClick: () -> Unit) {
+    Text(
+        if (on) "▣" else "▢",
+        color = if (on) accent else tokens.fgDim,
+        fontSize = 20.sp,
+        modifier = Modifier.clickable(onClick = onClick).padding(start = 12.dp, top = 6.dp, bottom = 6.dp, end = 2.dp),
+    )
 }
 
 private fun marketSubtitle(symbol: String, quote: StockQuote?): String {
@@ -319,7 +362,7 @@ private fun MarketRow(
     quote: StockQuote?,
     currency: String,
     tokens: ColorTokens,
-    trailing: (@Composable () -> Unit)? = null,
+    trailing: (@Composable androidx.compose.foundation.layout.RowScope.() -> Unit)? = null,
     selected: Boolean = false,
     accent: Color = Color.Unspecified,
     onClick: () -> Unit,
@@ -353,7 +396,7 @@ private fun MarketRow(
                     Text("···", color = tokens.fgDim, fontSize = 17.sp)
                 }
             }
-            trailing?.invoke()
+            trailing?.invoke(this)
         }
         Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(tokens.sheetLine))
     }
@@ -407,7 +450,7 @@ private fun PickRow(title: String, subtitle: String, tokens: ColorTokens, onClic
 }
 
 @Composable
-private fun IndicesPage(quotes: Map<String, StockQuote>, enabled: Boolean, tokens: ColorTokens, accent: Color) {
+private fun IndicesPage(quotes: Map<String, StockQuote>, enabled: Boolean, marked: List<String>, onToggleMark: (String) -> Unit, tokens: ColorTokens, accent: Color) {
     var selected by remember { mutableStateOf(MARKET_INDICES.first().symbol) }
     val spark by produceState(emptyList<Double>(), selected, enabled) {
         value = emptyList()
@@ -436,6 +479,12 @@ private fun IndicesPage(quotes: Map<String, StockQuote>, enabled: Boolean, token
                 )
             }
         }
+        item(key = "tile-hint") {
+            Text(
+                "▣ is on the markets tile. tap to add or remove.",
+                color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(bottom = 2.dp),
+            )
+        }
         items(MARKET_INDICES, key = { it.symbol }) { index ->
             val iq = quotes[index.symbol]
             MarketRow(
@@ -446,6 +495,7 @@ private fun IndicesPage(quotes: Map<String, StockQuote>, enabled: Boolean, token
                 tokens = tokens,
                 selected = index.symbol == selected,
                 accent = accent,
+                trailing = { TileMark(index.symbol in marked, accent, tokens) { onToggleMark(index.symbol) } },
                 onClick = { selected = index.symbol },
             )
         }
