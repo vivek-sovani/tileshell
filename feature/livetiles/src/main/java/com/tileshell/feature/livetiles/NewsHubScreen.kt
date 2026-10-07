@@ -43,6 +43,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.core.view.WindowCompat
@@ -149,6 +151,19 @@ fun NewsHubScreen(
     var statusTick by remember { mutableIntStateOf(0) }
     var liveRegion by remember { mutableStateOf<String?>(null) }
     var settingsOpen by remember { mutableStateOf(false) }
+    // The keyboard belongs to the text boxes of the sub screens only: it goes when they close and when the hub does,
+    // so it never comes up on Start behind a field that no longer exists.
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+    LaunchedEffect(visible, picking, settingsOpen) {
+        if (!visible || (!picking && !settingsOpen)) {
+            keyboard?.hide()
+            focusManager.clearFocus(force = true)
+        }
+    }
+    DisposableEffect(Unit) { onDispose { keyboard?.hide() } }
+    val turned = LocalConfiguration.current.orientation
+    LaunchedEffect(turned) { if (!picking && !settingsOpen) keyboard?.hide() }
     var playing by remember { mutableStateOf<LiveChannel?>(null) }
     var fullscreenHide by remember { mutableStateOf<(() -> Unit)?>(null) }
 
@@ -566,6 +581,8 @@ private fun ChannelPicker(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     val all = remember(followed) {
         followed + (listOf(INDIA_COUNTRY_CODE) + SELECTABLE_COUNTRIES.map { it.code } + INTERNATIONAL_REGION_CODE).filter { c -> followed.none { it.equals(c, true) } }
     }
@@ -638,11 +655,13 @@ private fun ChannelPicker(
                                         NewsLivePrefs.addCustom(context, LiveChannel(handle, typed.trim().removePrefix("@").ifBlank { handle }, "", region), current)
                                         typed = ""
                                         adding = false
+                                        keyboard?.hide()
+                                        focusManager.clearFocus(force = true)
                                         onChanged()
                                     }
                                 },
                             )
-                            Text("cancel", color = tokens.fgDim, fontSize = 15.sp, modifier = Modifier.clickable { typed = ""; adding = false })
+                            Text("cancel", color = tokens.fgDim, fontSize = 15.sp, modifier = Modifier.clickable { typed = ""; adding = false; keyboard?.hide(); focusManager.clearFocus(force = true) })
                         }
                     }
                 }
@@ -683,6 +702,9 @@ private fun LivePlayer(
         val decor = activity.window.decorView as ViewGroup
         val view = WebView(activity).apply {
             setBackgroundColor(android.graphics.Color.BLACK)
+            // The picture takes touches but never keyboard focus (a focused page could bring the keyboard up on Start).
+            isFocusable = false
+            isFocusableInTouchMode = false
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
@@ -737,10 +759,13 @@ private fun LivePlayer(
         web = view
         onDispose {
             leaveFullscreen?.invoke()
+            view.clearFocus()
             decor.removeView(view)
             view.stopLoading()
             view.destroy()
             web = null
+            // Nothing on the window may leave the keyboard asking to show once the video is gone.
+            WindowInsetsControllerCompat(activity.window, decor).hide(WindowInsetsCompat.Type.ime())
         }
     }
     // Lay the WebView over the slot (in window coordinates) whenever either is ready or moves.
@@ -805,6 +830,8 @@ private fun NewsSettingsScreen(feed: FeedData, tokens: ColorTokens, accent: Colo
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val store = remember { FeedStore.create(context) }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     fun change(block: suspend () -> Unit) {
         scope.launch(Dispatchers.IO) {
             block()
@@ -907,6 +934,8 @@ private fun NewsSettingsScreen(feed: FeedData, tokens: ColorTokens, accent: Colo
                             if (u.startsWith("http", ignoreCase = true)) {
                                 change { store.addSource(u, "") }
                                 url = ""
+                                keyboard?.hide()
+                                focusManager.clearFocus(force = true)
                             } else {
                                 Toast.makeText(context, "a feed address starts with http", Toast.LENGTH_SHORT).show()
                             }
