@@ -85,7 +85,7 @@ import com.tileshell.feature.livetiles.primaryPhoneNumber
 import com.tileshell.feature.livetiles.rememberAppIconBitmap
 import com.tileshell.feature.livetiles.rememberTileBitmap
 import com.tileshell.feature.livetiles.searchContacts
-import com.tileshell.feature.start.feed.rememberRemoteImage
+import com.tileshell.feature.livetiles.rememberRemoteImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext

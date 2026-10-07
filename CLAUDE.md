@@ -37,6 +37,17 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — news hub: top stories, topics, saved and live tv by country (folded into 5.1.0, not uploaded).**
+  User-requested, designed first. A panorama over the stored feed (`NewsHubScreen`, tile `newshub`): a
+  lead story with its picture then headlines, topics (the feed's categories), saved stories (☆, kept on the
+  phone, `NewsMarks`) and live tv. Opened stories turn grey. Live tv links out to YouTube
+  (`youtube.com/@handle/live`, no player, no permission): the page lists the channels of the countries
+  followed in news settings (`LIVE_CHANNELS`, probed 2026-10-07; a country without any starts empty), "+"
+  picks channels or adds one by its YouTube name (`news_live_chosen` / `news_live_custom`, in backups),
+  and the on-air flag and thumbnail are read from YouTube's page only when the page shows or on refresh.
+  The hub reads the stored news and asks the feed worker to refresh on open and on the button; nothing
+  polls. `rememberRemoteImage` moved to `:feature:livetiles`. Unit-tested (`NewsHubTest`); privacy policy
+  (md + hosted), About and DECISIONS updated. Release build compiles; not yet seen on a device.
 - **`main` — clock hub (folded into 5.1.0, not uploaded).** User-requested, designed twice. Alarms
   (a dial with the system's next alarm as an arc; the Clock app owns and rings alarms), world clocks with
   day/night strips, timers with a ring, a stopwatch, and timer sets (parts of steps, a "rest" step; a short

@@ -69,6 +69,13 @@ Stock and commodity tiles and widgets fetch prices from Yahoo Finance; sports ti
 widgets fetch scores from ESPN. Each request contains only the symbol or league/team you
 picked — no personal data.
 
+### Live news channels
+The news hub's live tv page opens a news channel's live stream in YouTube (or your browser). When
+the page is shown, TileShell fetches each listed channel's public YouTube page to see whether it is
+on air; the request carries only the channel's name, no personal data. The channels you choose are
+stored on the phone (and in exported backups); saved stories are stored only on the phone and are
+not exported. Google's own privacy policy applies to what YouTube receives when you open a channel.
+
 ### Android Auto
 If you use TileShell Music in Android Auto, the car screen shows your music library, playlists,
 favourite podcasts and stations from this phone. Android Auto (Google) is the only app, besides

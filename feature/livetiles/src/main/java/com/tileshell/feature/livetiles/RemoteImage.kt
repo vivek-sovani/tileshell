@@ -1,4 +1,4 @@
-package com.tileshell.feature.start.feed
+package com.tileshell.feature.livetiles
 
 import android.content.Context
 import android.graphics.Bitmap

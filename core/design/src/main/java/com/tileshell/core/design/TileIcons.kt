@@ -686,6 +686,15 @@ object TileIcons {
             p("M12 3v3"),
         ))
 
+        // A folded newspaper: the news hub.
+        put("newshub", vector("newshub",
+            p("M4 5h13v13a1 1 0 0 0 1 1H6a2 2 0 0 1-2-2z"),
+            p("M17 9h3v8a2 2 0 0 1-2 2"),
+            p("M7 9h7"),
+            p("M7 12h7"),
+            p("M7 15h4"),
+        ))
+
         // Three bars on a baseline: the markets hub, distinct from "stock"'s
         // single trend line.
         put("markets", vector("markets",

@@ -96,6 +96,7 @@ import com.tileshell.core.data.FeedUsagePrefs
 import com.tileshell.core.data.shouldRefreshFeedOnOpen
 import com.tileshell.feature.livetiles.CalendarFace
 import com.tileshell.feature.livetiles.FeedArticle
+import com.tileshell.feature.livetiles.rememberRemoteImage
 import com.tileshell.feature.livetiles.FeedData
 import com.tileshell.feature.livetiles.FeedRefreshWorker
 import com.tileshell.feature.livetiles.FeedStore

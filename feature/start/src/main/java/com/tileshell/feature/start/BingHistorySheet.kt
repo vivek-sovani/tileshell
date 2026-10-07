@@ -46,7 +46,7 @@ import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.colorTokens
 import com.tileshell.feature.livetiles.BingImage
 import com.tileshell.feature.livetiles.fetchBingImages
-import com.tileshell.feature.start.feed.rememberRemoteImage
+import com.tileshell.feature.livetiles.rememberRemoteImage
 
 /**
  * Slide-up viewer of the last several days of Microsoft Bing wallpapers (Bing keeps

@@ -11564,3 +11564,39 @@ ended was dropped when next read, but its ongoing countdown notification stayed 
 on the phone). `dropStaleNotifications` now cancels every ongoing timer notification with no live
 session, when sessions are first read and whenever the hub opens.
 
+
+
+## News hub: top stories, topics, saved and live tv by country (2026-10-07)
+
+User-requested, designed first (mockups for the four pages and for the channel picker). The hub
+(`NewsHubScreen`, tile icon key `newshub`) is a panorama over what the feed already keeps
+(`FeedStore`): **top stories** (the newest story with a picture as a lead, then headlines),
+**my topics** (the same stories filtered by the feed's own categories), **saved** and **live tv**.
+It reads the stored news and only asks the feed worker for a refresh when opened and on the refresh
+button; nothing polls. The glance page's news list is unchanged. Stories open in the browser.
+
+**Saved and read** (`NewsMarks`, `files/saved_news.txt`, `read_news.txt`): the star saves a story (200
+kept, newest first), opened stories turn grey (600 links remembered). Kept on the phone only and not
+in backups, like other article history.
+
+**Live tv: link out, no player.** Probed YouTube on 2026-10-07: `youtube.com/@handle/live` always
+points at a channel's current stream and most news channels in the countries tried were live.
+Tapping a row opens that link (YouTube app or browser): no player library, no API key, no new
+permission, nothing to declare in Play. Embedding was rejected (many news channels block it) and so
+was playing their direct streams (a media player dependency for a few channels). The on-air flag and
+thumbnail come from the first 600 kB of the channel's page (`parseLiveStatus`: `"isLiveNow":true`
+and the first `videoId`), read only when the live tv page is shown and on refresh, four at a time. It
+is YouTube's own page, not an API, so a failed or changed read just shows "tap to open". **Country:**
+the page shows the regions followed in the news settings (`FeedData.regions`, International when none),
+and the picker lists those first with "+ more countries"; `LIVE_CHANNELS` carries probed starter
+channels for India (English, Hindi, Marathi, business), US, UK, Australia, Canada, Germany, France,
+Japan, Singapore, UAE, Pakistan, Indonesia, Philippines, Mexico, Spain, Italy and International; a
+country without an entry (Brazil, Bangladesh, South Africa, Nigeria) starts empty and the user adds a
+channel by its YouTube name (Geo News and Samaa TV for Pakistan were not seen live in the probe and
+may show "off air"). Until a choice is made each followed region shows its starter set; the first
+toggle freezes that set as the explicit choice (`news_live_chosen`, `news_live_custom` in
+`tileshell.prefs`, so backups carry them). A handle in two regions (DW News) shows in both.
+
+Moved `rememberRemoteImage` (article thumbnails with a disk cache) from `:feature:start` to
+`:feature:livetiles` so the hub can use it. Unit-tested (`NewsHubTest`). The tile shows the newest
+headlines from the stored feed; no live face loop.
