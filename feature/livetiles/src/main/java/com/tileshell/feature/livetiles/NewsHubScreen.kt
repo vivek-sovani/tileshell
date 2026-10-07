@@ -240,6 +240,20 @@ fun NewsHubScreen(
                     pagerState = pagerState,
                     tokens = tokens,
                     modifier = Modifier.weight(1f),
+                    pinned = {
+                        // The video sits here, under the title and outside the sliding pages (inside one it stays black).
+                        val playingNow = playing
+                        val playingId = playingNow?.let { statuses[it.handle]?.videoId }
+                        if (playingNow != null && playingId != null) {
+                            BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp), contentAlignment = Alignment.TopStart) {
+                                // The full width, but never more than ~45% of the height (landscape), so the list keeps room.
+                                val width = minOf(maxWidth, maxHeight * 0.45f * 16f / 9f).coerceAtLeast(200.dp)
+                                Box(modifier = Modifier.width(width)) {
+                                    LivePlayer(playingNow, playingId, tokens, accent, onClose = { playing = null }, onFullscreen = { hide -> fullscreenHide = hide }, context = context)
+                                }
+                            }
+                        }
+                    },
                 ) { page ->
                     when (page) {
                         0 -> TopStoriesPage(articles, read, saved.map { it.link }.toSet(), nowMs, tokens, accent, context)
@@ -256,7 +270,6 @@ fun NewsHubScreen(
                             onChoose = { picking = true },
                             playing = playing,
                             onPlay = { playing = it },
-                            onFullscreen = { hide -> fullscreenHide = hide },
                             context = context,
                         )
                     }
@@ -479,22 +492,9 @@ private fun LiveTvPage(
     onChoose: () -> Unit,
     playing: LiveChannel?,
     onPlay: (LiveChannel?) -> Unit,
-    onFullscreen: ((() -> Unit)?) -> Unit,
     context: Context,
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-    // The player sits under the page's heading, above the list (not in it), so it is on screen however far the list is scrolled.
-    val playingId = playing?.let { statuses[it.handle]?.videoId }
-    if (playing != null && playingId != null) {
-        BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp), contentAlignment = Alignment.TopStart) {
-            // The page's width, but never more than ~60% of its height (landscape), so the list stays usable.
-            val width = minOf(maxWidth, maxHeight * 0.6f * 16f / 9f).coerceAtLeast(200.dp)
-            Box(modifier = Modifier.width(width)) {
-                LivePlayer(playing, playingId, tokens, accent, onClose = { onPlay(null) }, onFullscreen = onFullscreen, context = context)
-            }
-        }
-    }
-    LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
         item(key = "regions") { RegionChips(regions, region, tokens, accent, onRegion) }
         item(key = "note") {
             Text(
@@ -518,7 +518,6 @@ private fun LiveTvPage(
                 if (status?.live == true && status.videoId != null) onPlay(c) else openLink(context, liveUrl(c.handle))
             }
         }
-    }
     }
 }
 

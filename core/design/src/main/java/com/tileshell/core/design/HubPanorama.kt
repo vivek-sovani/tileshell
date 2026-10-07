@@ -76,6 +76,9 @@ fun HubPanorama(
     tokens: ColorTokens,
     modifier: Modifier = Modifier,
     belowTitle: @Composable ColumnScope.() -> Unit = {},
+    // Always shown between the title and the sections, outside the pager and never folded with the title (a video
+    // must not sit inside the sliding pages: their movement leaves it black).
+    pinned: @Composable ColumnScope.() -> Unit = {},
     section: @Composable (index: Int) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -162,6 +165,7 @@ fun HubPanorama(
                     belowTitle()
                 }
             }
+            pinned()
             HorizontalPager(
                 state = pagerState,
                 pageSize = pageSize,
