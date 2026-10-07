@@ -194,9 +194,10 @@ fun MarketsHubScreen(
                             onRemove = { MarketsWatchlist.remove(context, it) },
                             onToggleMark = { MarketsTileMarks.toggleSymbol(context, it) },
                             onAdd = { k -> addKind = k; adding = true },
+                            onPin = onPinTile,
                         )
                     }
-                    1 -> IndicesPage(indexQuotes, visible && pagerState.currentPage == 1, markedIndices ?: listOf("^NSEI"), { MarketsTileMarks.toggleIndex(context, it) }, tokens, accent)
+                    1 -> IndicesPage(indexQuotes, visible && pagerState.currentPage == 1, markedIndices ?: listOf("^NSEI"), { MarketsTileMarks.toggleIndex(context, it) }, tokens, accent, { onPinTile(MarketsTile.INDICES) })
                     else -> MoversPage(visible && pagerState.currentPage == 2, active, refreshTick, refreshRate, tokens, accent)
                 }
             }
@@ -292,6 +293,7 @@ private fun WatchlistPage(
     onRemove: (String) -> Unit,
     onToggleMark: (String) -> Unit,
     onAdd: (String) -> Unit,
+    onPin: (String) -> Unit,
 ) {
     val context = LocalContext.current
     val shown = remember(watch, kind) { watch.filter { watchKind(it.symbol) == kind } }
@@ -351,6 +353,11 @@ private fun WatchlistPage(
         item(key = "add-kind") {
             val k = kind ?: "stocks"
             Text("+ add a ${kindLabel(k)}", color = accent, fontSize = 15.sp, modifier = Modifier.padding(vertical = 12.dp).clickable { onAdd(k) })
+        }
+        // And one pin per section: this section's tile on Start.
+        item(key = "pin-kind") {
+            val k = kind ?: "stocks"
+            Text("pin the $k tile to start ›", color = accent, fontSize = 15.sp, modifier = Modifier.padding(bottom = 12.dp).clickable { onPin(k) })
         }
     }
 }
@@ -478,7 +485,7 @@ private fun PickRow(title: String, subtitle: String, tokens: ColorTokens, onClic
 }
 
 @Composable
-private fun IndicesPage(quotes: Map<String, StockQuote>, enabled: Boolean, marked: List<String>, onToggleMark: (String) -> Unit, tokens: ColorTokens, accent: Color) {
+private fun IndicesPage(quotes: Map<String, StockQuote>, enabled: Boolean, marked: List<String>, onToggleMark: (String) -> Unit, tokens: ColorTokens, accent: Color, onPin: () -> Unit) {
     var selected by remember { mutableStateOf(MARKET_INDICES.first().symbol) }
     val spark by produceState(emptyList<Double>(), selected, enabled) {
         value = emptyList()
@@ -526,6 +533,9 @@ private fun IndicesPage(quotes: Map<String, StockQuote>, enabled: Boolean, marke
                 trailing = { TileMark(index.symbol in marked, accent, tokens) { onToggleMark(index.symbol) } },
                 onClick = { selected = index.symbol },
             )
+        }
+        item(key = "pin-indices") {
+            Text("pin the markets tile to start ›", color = accent, fontSize = 15.sp, modifier = Modifier.padding(vertical = 12.dp).clickable { onPin() })
         }
     }
 }

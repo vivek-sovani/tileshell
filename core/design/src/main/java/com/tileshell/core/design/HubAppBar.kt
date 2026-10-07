@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -68,7 +69,10 @@ fun HubAppBar(
             .fillMaxWidth()
             .background(tokens.sheet),
     ) {
-        Box(modifier = Modifier.fillMaxWidth()) {
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            // Buttons shrink to leave the "···" corner (and a matching space on the left) clear, so the
+            // last button is never under it on a narrow screen.
+            val buttonWidth = minOf(64.dp, (maxWidth - 104.dp - 12.dp * (actions.size - 1).coerceAtLeast(0)) / actions.size.coerceAtLeast(1))
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp, bottom = if (expanded) 6.dp else 8.dp),
@@ -77,7 +81,7 @@ fun HubAppBar(
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
-                            .width(64.dp)
+                            .width(buttonWidth)
                             .clickable {
                                 expanded = false
                                 action.onClick()
