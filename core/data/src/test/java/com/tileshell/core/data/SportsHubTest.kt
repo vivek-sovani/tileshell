@@ -1,95 +1,139 @@
 package com.tileshell.core.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.ZoneId
 
 class SportsHubTest {
 
-    private val now = 1_800_000_000_000L
+    private val now = 1_800_000_000_000L // 2027-01-15 08:00 UTC
     private val hour = 3_600_000L
+    private val day = 24 * hour
 
-    private fun match(id: String, state: String, at: Long, league: String = "soccer/eng.1") = HubMatch(
-        SportsMatchEvent(
-            id = id, epochMillis = at, state = state, statusDetail = "", homeId = "1", homeAbbr = "H", homeName = "Home",
-            homeScore = "0", awayId = "2", awayAbbr = "A", awayName = "Away", awayScore = "0",
-        ),
-        leagueSlug = league, leagueName = "League",
-    )
-
-    @Test
-    fun `live comes first then upcoming then finished`() {
-        val m = listOf(
-            match("done", "post", now - 3 * hour),
-            match("soon", "pre", now + 2 * hour),
-            match("live", "in", now - hour),
-        )
-        assertEquals(listOf("live", "soon", "done"), hubLiveMatches(m, now).map { it.event.id })
-    }
-
-    @Test
-    fun `matches outside the same-day window are left off the live page`() {
-        val m = listOf(match("old", "post", now - 40 * hour), match("later", "pre", now + 40 * hour))
-        assertEquals(emptyList<String>(), hubLiveMatches(m, now).map { it.event.id })
-    }
-
-    @Test
-    fun `a match listed twice shows once`() {
-        val m = listOf(match("a", "in", now), match("a", "in", now))
-        assertEquals(1, hubLiveMatches(m, now).size)
-    }
-
-    @Test
-    fun `same id in different leagues are different matches`() {
-        val m = listOf(match("1", "in", now, "soccer/eng.1"), match("1", "in", now, "soccer/esp.1"))
-        assertEquals(2, hubLiveMatches(m, now).size)
-    }
-
-    @Test
-    fun `week fixtures are the unplayed ones in the next seven days, soonest first`() {
-        val day = 24 * hour
-        val m = listOf(
-            match("d3", "pre", now + 3 * day),
-            match("d1", "pre", now + day),
-            match("d9", "pre", now + 9 * day),
-            match("played", "post", now - day),
-        )
-        assertEquals(listOf("d1", "d3"), hubFixtures(m, FixtureTab.WEEK, now).map { it.event.id })
-    }
-
-    @Test
-    fun `results are the finished games newest first`() {
-        val m = listOf(match("r1", "post", now - 5 * hour), match("r2", "post", now - hour), match("up", "pre", now + hour))
-        assertEquals(listOf("r2", "r1"), hubFixtures(m, FixtureTab.RESULTS, now).map { it.event.id })
-    }
-
-    @Test
-    fun `today means the same calendar day in the given zone`() {
-        val noon = 1_800_000_000_000L - (1_800_000_000_000L % (24 * hour)) + 12 * hour
-        val m = listOf(match("same", "pre", noon + 3 * hour), match("next", "pre", noon + 20 * hour))
-        assertEquals(listOf("same"), hubFixtures(m, FixtureTab.TODAY, noon).map { it.event.id })
-    }
-
-    @Test
-    fun `result letter reads plain scores and skips cricket innings`() {
-        fun snap(ours: String, theirs: String, state: String = "post") =
-            SportsSnapshot(true, "A", "A", ours, "B", "B", theirs, state, "")
-        assertEquals("W", resultLetter(snap("3", "1")))
-        assertEquals("L", resultLetter(snap("0", "2")))
-        assertEquals("D", resultLetter(snap("1", "1")))
-        assertNull(resultLetter(snap("247/4", "250/9")))
-        assertNull(resultLetter(snap("3", "1", state = "in")))
-    }
-
-    private fun teamMatch(id: String, state: String, at: Long, home: String, away: String, league: String = "soccer/eng.1") = HubMatch(
+    private fun match(
+        id: String, state: String, at: Long, home: String = "1", away: String = "2",
+        league: String = "soccer/eng.1", homeScore: String = "1", awayScore: String = "0",
+    ) = HubMatch(
         SportsMatchEvent(
             id = id, epochMillis = at, state = state, statusDetail = "", homeId = home, homeAbbr = "H", homeName = "Home",
-            homeScore = "1", awayId = away, awayAbbr = "A", awayName = "Away", awayScore = "0",
+            homeScore = homeScore, awayId = away, awayAbbr = "A", awayName = "Away", awayScore = awayScore,
         ),
         leagueSlug = league, leagueName = "League",
     )
 
     private fun team(league: String, id: String) = SportsTile.Selection(league, id, "Team $id")
+
+    // --- live page ---------------------------------------------------------------
+
+    @Test
+    fun `today lists live first, then scheduled soonest first, then finished newest first`() {
+        val m = listOf(
+            match("done1", "post", now - 4 * hour),
+            match("done2", "post", now - 2 * hour),
+            match("later", "pre", now + 5 * hour),
+            match("soon", "pre", now + hour),
+            match("live", "in", now - hour),
+        )
+        assertEquals(listOf("live", "soon", "later", "done2", "done1"), hubTodayMatches(m, now).map { it.event.id })
+    }
+
+    @Test
+    fun `a match in play stays even when it began on an earlier day`() {
+        val m = listOf(match("test", "in", now - 3 * day), match("old", "post", now - 3 * day))
+        assertEquals(listOf("test"), hubTodayMatches(m, now).map { it.event.id })
+    }
+
+    @Test
+    fun `today is the calendar day in the user's zone`() {
+        // now is 08:00 UTC; at +5:30 it is 13:30 on the 15th. 20:00 UTC on the 14th is 01:30 on the 15th there.
+        val offset = 5 * hour + 30 * 60_000L
+        val m = listOf(
+            match("early", "post", now - 12 * hour),
+            match("yesterdayThere", "post", now - 20 * hour),
+        )
+        assertEquals(listOf("early"), hubTodayMatches(m, now, offset).map { it.event.id })
+    }
+
+    @Test
+    fun `a match listed twice shows once and the same id in two leagues is two matches`() {
+        assertEquals(1, hubTodayMatches(listOf(match("a", "in", now), match("a", "in", now)), now).size)
+        assertEquals(2, hubTodayMatches(listOf(match("1", "in", now, league = "soccer/eng.1"), match("1", "in", now, league = "soccer/esp.1")), now).size)
+    }
+
+    // --- scopes ------------------------------------------------------------------
+
+    @Test
+    fun `my teams shows only games a favourite team plays`() {
+        val fav = SportsFavorites(listOf("soccer/eng.1"), listOf(team("soccer/eng.1", "359")))
+        assertTrue(inScope(match("a", "in", now, home = "359"), HubScope.MY_TEAMS, fav))
+        assertTrue(inScope(match("b", "in", now, away = "359"), HubScope.MY_TEAMS, fav))
+        assertFalse(inScope(match("c", "in", now), HubScope.MY_TEAMS, fav))
+        assertFalse(inScope(match("d", "in", now, home = "359", league = "soccer/esp.1"), HubScope.MY_TEAMS, fav))
+    }
+
+    @Test
+    fun `my sports shows every game of the favourite sports`() {
+        val fav = SportsFavorites(listOf("soccer/eng.1"))
+        assertTrue(inScope(match("a", "in", now), HubScope.MY_SPORTS, fav))
+        assertFalse(inScope(match("b", "in", now, league = "basketball/nba"), HubScope.MY_SPORTS, fav))
+    }
+
+    @Test
+    fun `my sports is everything until a sport is marked`() {
+        assertTrue(inScope(match("a", "in", now, league = "basketball/nba"), HubScope.MY_SPORTS, SportsFavorites()))
+    }
+
+    // --- results page ------------------------------------------------------------
+
+    @Test
+    fun `results are finished games inside the window, newest first`() {
+        val m = listOf(
+            match("week", "post", now - 6 * day),
+            match("recent", "post", now - hour),
+            match("month", "post", now - 20 * day),
+            match("ancient", "post", now - 40 * day),
+            match("live", "in", now - hour),
+            match("next", "pre", now + hour),
+        )
+        assertEquals(listOf("recent", "week"), hubResults(m, ResultsRange.WEEK, now).map { it.event.id })
+        assertEquals(listOf("recent", "week", "month"), hubResults(m, ResultsRange.MONTH, now).map { it.event.id })
+    }
+
+    @Test
+    fun `result days run from today back, as yyyyMMdd`() {
+        // 2027-01-15 08:00 UTC
+        assertEquals(listOf("20270115", "20270114", "20270113"), resultDays(now, 3))
+        assertEquals(30, resultDays(now, 30).distinct().size)
+        // Across a month boundary.
+        assertEquals("20261231", resultDays(now, 16).last())
+    }
+
+    @Test
+    fun `result days follow the user's zone`() {
+        // 22:00 UTC on the 15th is already the 16th at +5:30.
+        val lateUtc = now + 14 * hour
+        assertEquals("20270115", resultDays(lateUtc, 1).first())
+        assertEquals("20270116", resultDays(lateUtc, 1, 5 * hour + 30 * 60_000L).first())
+    }
+
+    // --- kick-off label ------------------------------------------------------------
+
+    @Test
+    fun `kick-off reads day and local time`() {
+        val zone = ZoneId.of("Asia/Kolkata")
+        val nowIst = java.time.ZonedDateTime.of(2026, 10, 7, 14, 0, 0, 0, zone).toInstant().toEpochMilli()
+        fun at(d: Int, h: Int, min: Int) = java.time.ZonedDateTime.of(2026, 10, d, h, min, 0, 0, zone).toInstant().toEpochMilli()
+        assertEquals("today 7:30 pm", kickoffLabel(at(7, 19, 30), nowIst, zone))
+        assertEquals("tomorrow 1 am", kickoffLabel(at(8, 1, 0), nowIst, zone))
+        assertEquals("today 12 pm", kickoffLabel(at(7, 12, 0), nowIst, zone))
+        assertEquals("12 oct 12:15 am", kickoffLabel(at(12, 0, 15), nowIst, zone))
+        assertEquals("yesterday 9 pm", kickoffLabel(at(6, 21, 0), nowIst, zone))
+    }
+
+    // --- favourites ----------------------------------------------------------------
 
     @Test
     fun `marking a team also marks its sport, unmarking a sport drops its teams`() {
@@ -121,72 +165,13 @@ class SportsHubTest {
     }
 
     @Test
-    fun `live page shows only favourite sports, favourite teams first`() {
-        val m = listOf(
-            teamMatch("a", "in", now - hour, "1", "2", "soccer/eng.1"),
-            teamMatch("b", "in", now - 2 * hour, "359", "9", "soccer/eng.1"),
-            teamMatch("c", "in", now - hour, "5", "6", "basketball/nba"),
-        )
-        val fav = SportsFavorites(sports = listOf("soccer/eng.1"), teams = listOf(team("soccer/eng.1", "359")))
-        assertEquals(listOf("b", "a"), hubFavoriteMatches(m, fav, now).map { it.event.id })
-    }
-
-    @Test
-    fun `live page shows everything when nothing is marked`() {
-        val m = listOf(teamMatch("a", "in", now, "1", "2", "soccer/eng.1"), teamMatch("c", "in", now, "5", "6", "basketball/nba"))
-        assertEquals(2, hubFavoriteMatches(m, SportsFavorites(), now).size)
-    }
-
-    @Test
-    fun `team history is its finished games newest first`() {
-        val m = listOf(
-            teamMatch("old", "post", now - 50 * hour, "359", "9"),
-            teamMatch("new", "post", now - 5 * hour, "9", "359"),
-            teamMatch("other", "post", now - hour, "1", "2"),
-            teamMatch("next", "pre", now + hour, "359", "9"),
-        )
-        assertEquals(listOf("new", "old"), teamHistory(m, "359", now).map { it.event.id })
-        assertEquals(1, teamHistory(m, "359", now, limit = 1).size)
-    }
-
-    @Test
-    fun `sport results are finished games in favourite sports within the window`() {
-        val day = 24 * hour
-        val m = listOf(
-            teamMatch("keep", "post", now - day, "1", "2", "soccer/eng.1"),
-            teamMatch("tooOld", "post", now - 5 * day, "1", "2", "soccer/eng.1"),
-            teamMatch("otherSport", "post", now - day, "1", "2", "basketball/nba"),
-            teamMatch("live", "in", now, "1", "2", "soccer/eng.1"),
-        )
-        assertEquals(listOf("keep"), recentSportResults(m, listOf("soccer/eng.1"), now).map { it.event.id })
-    }
-
-    private fun ev(state: String, at: Long) = teamMatch("e$at", state, at, "1", "2").event
-
-    @Test
-    fun `hub refreshes at the user's rate while something is live`() {
-        assertEquals(90_000L, hubSportsRefreshDelayMs(listOf(ev("in", now - hour)), now, 90_000L))
-    }
-
-    @Test
-    fun `hub waits for the run-up to the next kick-off`() {
-        val kickoff = now + 2 * hour
-        assertEquals(2 * hour - SPORTS_PREGAME_WAKE_MS, hubSportsRefreshDelayMs(listOf(ev("pre", kickoff)), now, 90_000L))
-    }
-
-    @Test
-    fun `hub is back at the user's rate once the kick-off is close`() {
-        assertEquals(90_000L, hubSportsRefreshDelayMs(listOf(ev("pre", now + 10 * 60_000L)), now, 90_000L))
-    }
-
-    @Test
-    fun `hub is idle with nothing live or ahead`() {
-        assertEquals(SPORTS_IDLE_REFRESH_MS, hubSportsRefreshDelayMs(listOf(ev("post", now - hour)), now, 90_000L))
-        assertEquals(SPORTS_IDLE_REFRESH_MS, hubSportsRefreshDelayMs(emptyList(), now, 90_000L))
-    }
-
-    @Test
-    fun `a far kick-off never sleeps past the idle cap`() {
-        assertEquals(SPORTS_IDLE_REFRESH_MS, hubSportsRefreshDelayMs(listOf(ev("pre", now + 30 * hour)), now, 90_000L))
+    fun `result letter reads plain scores and skips cricket innings`() {
+        fun snap(ours: String, theirs: String, state: String = "post") =
+            SportsSnapshot(true, "A", "A", ours, "B", "B", theirs, state, "")
+        assertEquals("W", resultLetter(snap("3", "1")))
+        assertEquals("L", resultLetter(snap("0", "2")))
+        assertEquals("D", resultLetter(snap("1", "1")))
+        assertNull(resultLetter(snap("247/4", "250/9")))
+        assertNull(resultLetter(snap("3", "1", state = "in")))
     }
 }

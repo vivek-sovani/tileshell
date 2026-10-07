@@ -3,7 +3,6 @@ package com.tileshell.feature.livetiles
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -26,7 +25,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,7 +33,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
@@ -44,44 +41,38 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.CRICKET_LEAGUE_SLUG
 import com.tileshell.core.data.CRICKET_TEAMS
-import com.tileshell.core.data.FixtureTab
+import com.tileshell.core.data.DetailTable
 import com.tileshell.core.data.HubMatch
+import com.tileshell.core.data.HubScope
 import com.tileshell.core.data.IPL_TEAMS
+import com.tileshell.core.data.MatchDetailData
+import com.tileshell.core.data.ResultsRange
 import com.tileshell.core.data.SPORTS_LEAGUES
 import com.tileshell.core.data.SPORTS_LEAGUE_CATEGORY_ORDER
 import com.tileshell.core.data.SportsFavorites
 import com.tileshell.core.data.SportsLeague
-import com.tileshell.core.data.SportsMatchEvent
 import com.tileshell.core.data.SportsTeam
 import com.tileshell.core.data.SportsTile
-import com.tileshell.core.data.fetchCricketHistory
-import com.tileshell.core.data.fetchCricketMatchDetail
 import com.tileshell.core.data.fetchCricketMatches
-import com.tileshell.core.data.fetchMatchDetail
-import com.tileshell.core.data.fetchRecentCricketMatchesForTeam
-import com.tileshell.core.data.fetchSportsSchedule
+import com.tileshell.core.data.fetchMatchDetailData
 import com.tileshell.core.data.fetchSportsScoreboard
-import com.tileshell.core.data.fetchSportsScoreboardOn
 import com.tileshell.core.data.fetchSportsTeams
-import com.tileshell.core.data.hubFavoriteMatches
-import com.tileshell.core.data.hubFixtures
-import com.tileshell.core.data.hubLiveMatches
-import com.tileshell.core.data.hubSportsRefreshDelayMs
+import com.tileshell.core.data.hubResults
+import com.tileshell.core.data.hubTodayMatches
+import com.tileshell.core.data.inScope
 import com.tileshell.core.data.involves
-import com.tileshell.core.data.pickRelevantMatch
-import com.tileshell.core.data.recentSportResults
+import com.tileshell.core.data.kickoffLabel
+import com.tileshell.core.data.loadHubResults
 import com.tileshell.core.data.resultLetter
-import com.tileshell.core.data.settings.LiveRefreshRate
-import com.tileshell.core.data.settings.resolveMs
 import com.tileshell.core.data.snapshotFor
 import com.tileshell.core.data.splitInningsScore
 import com.tileshell.core.data.sportsLeagueFor
-import com.tileshell.core.data.teamHistory
 import com.tileshell.core.design.ColorTokens
 import com.tileshell.core.design.HubAppBar
 import com.tileshell.core.design.HubAppBarAction
@@ -93,50 +84,48 @@ import com.tileshell.core.design.colorTokens
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import java.time.ZoneId
 
-private val SPORTS_PIVOTS = listOf("live", "fixtures", "my teams")
+private val SPORTS_PIVOTS = listOf("live", "results")
 
 private val ResultWin = Color(0xFF35C759)
 private val ResultLoss = Color(0xFFFF453A)
 
-/** The sports tile's own default rate; the user's "live data refresh" setting overrides it. */
-private const val HUB_SPORTS_REFRESH_MS = 90_000L
+private val boardGate = Semaphore(4)
 
-private val sportsGate = Semaphore(4)
+/** Today's matches in the sports being read, as of [nowMillis]. */
+private data class LiveState(val matches: List<HubMatch> = emptyList(), val nowMillis: Long = 0L, val loaded: Boolean = false)
 
-/** Everything the hub shows, fetched together so the three pages agree. */
-private data class SportsHubData(
-    val board: List<HubMatch> = emptyList(),
-    val byTeam: Map<SportsTile.Selection, List<HubMatch>> = emptyMap(),
-    val nowMillis: Long = 0L,
-    val loaded: Boolean = false,
-)
+/** Finished matches read so far for the current scope and range; [loading] while more days are still being read. */
+private data class ResultsState(val matches: List<HubMatch> = emptyList(), val nowMillis: Long = 0L, val loading: Boolean = false, val started: Boolean = false)
+
+private sealed interface DetailState {
+    data object Loading : DetailState
+    data object Failed : DetailState
+    data class Loaded(val data: MatchDetailData) : DetailState
+}
 
 /**
- * The sports hub (user-approved mockup, reworked around favourites). The user
- * marks any number of sports and teams in "my teams" (the "+" in the app
- * bar). "live": the matches of those sports in play or starting or finishing
- * within the day (everything, until a sport is marked, or with "all sports"),
- * games of favourite teams first. "fixtures": today, the week ahead and
- * results for the favourite teams. "my teams": each team's latest game with
- * its history on tap, a tile for it, and recent results across the favourite
- * sports. Data is ESPN's public scoreboard, the same source as the sports tile.
+ * The sports hub, fully on demand: nothing refreshes by itself. It reads when
+ * opened, when a different scope or window is chosen, and when the refresh
+ * button in the app bar is pressed; the live tile on Start is what refreshes
+ * on its own schedule.
  *
- * Refresh follows the sports tile's rules: nothing is fetched unless the hub
- * is open, and then only while Start is the live screen (resumed, no battery
- * saver, animations on; opening it under those conditions loads once), at the
- * user's "live data refresh" rate for sports while a match is live or about
- * to start and rarely otherwise ([hubSportsRefreshDelayMs]).
+ * "live": today's matches — in play, still to come (with the kick-off time) and
+ * finished. "results": finished matches from the last week or month. Both
+ * show either only the games of the favourite teams ("my teams") or every
+ * game of the favourite sports ("my sports"). Tap a match for its status and
+ * scorecard (batters at the crease and bowling figures in cricket, events and
+ * stats in football, a box score in basketball and the rest), with a link to
+ * ESPN's own page for commentary. The + in the app bar picks the favourites.
  */
 @Composable
 fun SportsHubScreen(
     visible: Boolean,
     dark: Boolean,
     accentId: String,
-    refreshRate: LiveRefreshRate,
     onDismiss: () -> Unit,
     onPinHub: () -> Unit,
     onPinTeamTile: (SportsTile.Selection) -> Unit,
@@ -154,20 +143,21 @@ fun SportsHubScreen(
     val accent = TileAccents.forId(accentId)
     val context = LocalContext.current
     val fav by SportsFavoritesStore.flow(context).collectAsState()
-    var refreshTick by remember { mutableIntStateOf(0) }
-    var showAll by remember { mutableStateOf(false) }
+    val pagerState = rememberPagerState(pageCount = { SPORTS_PIVOTS.size })
+
+    var chosenScope by remember { mutableStateOf<HubScope?>(null) }
+    val scope = chosenScope ?: if (fav.teams.isNotEmpty()) HubScope.MY_TEAMS else HubScope.MY_SPORTS
+    var range by remember { mutableStateOf(ResultsRange.WEEK) }
     var picking by remember { mutableStateOf(false) }
     var pickerLeague by remember { mutableStateOf<String?>(null) }
-    val pagerState = rememberPagerState(pageCount = { SPORTS_PIVOTS.size })
-    val scope = rememberCoroutineScope()
+    var selected by remember { mutableStateOf<HubMatch?>(null) }
+    var liveTick by remember { mutableIntStateOf(0) }
+    var resultsTick by remember { mutableIntStateOf(0) }
+    var detailTick by remember { mutableIntStateOf(0) }
 
-    fun openPicker() {
-        picking = true
-        pickerLeague = null
-        scope.launch { pagerState.animateScrollToPage(2) }
-    }
     fun back() {
         when {
+            selected != null -> selected = null
             pickerLeague != null -> pickerLeague = null
             picking -> picking = false
             else -> onDismiss()
@@ -175,21 +165,27 @@ fun SportsHubScreen(
     }
     BackHandler(enabled = visible) { back() }
 
-    val active = rememberLiveTilesActive(suspended = !visible)
-    // Which leagues' boards to read: just the favourites unless "all sports" is on.
-    val leagues = remember(fav.sports, showAll) {
-        if (showAll || fav.sports.isEmpty()) SPORTS_LEAGUES.map { it.slug } else fav.sports
+    val zoneOffset = remember { java.util.TimeZone.getDefault().getOffset(System.currentTimeMillis()).toLong() }
+    val onResultsPage = pagerState.currentPage == 1
+
+    // One read per open, per choice and per press of refresh; no loop.
+    val liveLeagues = remember(fav.sports) { fav.sports.ifEmpty { SPORTS_LEAGUES.map { it.slug } } }
+    val live by produceState(LiveState(), visible, liveLeagues, liveTick) {
+        if (visible) value = loadToday(liveLeagues)
     }
-    val data by produceState(SportsHubData(), visible, active, leagues, fav.teams, refreshTick) {
-        if (!visible) return@produceState
-        while (true) {
-            val loaded = loadSportsHub(leagues, fav.teams)
-            value = loaded
-            // Under battery saver or while backgrounded: the one load on opening, no polling.
-            if (!active) break
-            val events = loaded.board.map { it.event } + loaded.byTeam.values.flatten().map { it.event }
-            delayUntilNextRefresh(hubSportsRefreshDelayMs(events, loaded.nowMillis, refreshRate.resolveMs(HUB_SPORTS_REFRESH_MS)))
+    val results by produceState(ResultsState(), visible, onResultsPage, scope, range, fav.sports, fav.teams, resultsTick) {
+        if (!visible || !onResultsPage) return@produceState
+        val nothingToRead = if (scope == HubScope.MY_TEAMS) fav.teams.isEmpty() else fav.sports.isEmpty()
+        val now = System.currentTimeMillis()
+        if (nothingToRead) {
+            value = ResultsState(nowMillis = now, started = true)
+            return@produceState
         }
+        value = ResultsState(nowMillis = now, loading = true, started = true)
+        loadHubResults(scope, range, fav, now, zoneOffset) { partial ->
+            value = ResultsState(partial, now, loading = true, started = true)
+        }
+        value = value.copy(loading = false)
     }
 
     SheetStage(rightHalf = rightHalf, modifier = modifier) {
@@ -206,32 +202,54 @@ fun SportsHubScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-            HubPanorama(
-                title = "sports",
-                sections = SPORTS_PIVOTS,
-                pagerState = pagerState,
-                tokens = tokens,
-                modifier = Modifier.weight(1f),
-            ) { page ->
-                when (page) {
-                    0 -> LivePage(data, fav, showAll, { showAll = it }, tokens, accent, onPick = ::openPicker)
-                    1 -> FixturesPage(data, fav, tokens, accent)
-                    else -> MyTeamsPage(
-                        data, fav, pagerState, active, refreshTick, picking, pickerLeague,
-                        onOpenPicker = ::openPicker,
-                        onPickLeague = { pickerLeague = it },
-                        onPinTeamTile = onPinTeamTile,
-                        tokens = tokens,
-                        accent = accent,
-                    )
+            val open = selected
+            when {
+                open != null -> MatchDetailScreen(
+                    match = open,
+                    tick = detailTick,
+                    nowMillis = live.nowMillis.takeIf { it > 0 } ?: System.currentTimeMillis(),
+                    tokens = tokens,
+                    accent = accent,
+                    modifier = Modifier.weight(1f),
+                )
+                picking -> SubScreen("my sports and teams", tokens, Modifier.weight(1f)) {
+                    if (pickerLeague == null) {
+                        SportPicker(fav, onOpenLeague = { pickerLeague = it }, onPinTeamTile = onPinTeamTile, tokens = tokens, accent = accent)
+                    } else {
+                        TeamPicker(pickerLeague!!, fav, onPinTeamTile, tokens, accent)
+                    }
+                }
+                else -> HubPanorama(
+                    title = "sports",
+                    sections = SPORTS_PIVOTS,
+                    pagerState = pagerState,
+                    tokens = tokens,
+                    modifier = Modifier.weight(1f),
+                ) { page ->
+                    if (page == 0) {
+                        LivePage(live, fav, scope, { chosenScope = it }, zoneOffset, tokens, accent, onOpen = { selected = it }, onPick = { picking = true })
+                    } else {
+                        ResultsPage(results, fav, scope, { chosenScope = it }, range, { range = it }, tokens, accent, onOpen = { selected = it }, onPick = { picking = true })
+                    }
                 }
             }
             HubAppBar(
                 tokens = tokens,
                 actions = listOf(
                     HubAppBarAction("back", "back") { back() },
-                    HubAppBarAction("plus", "add sports and teams", "add") { openPicker() },
-                    HubAppBarAction("refresh", "refresh scores", "refresh") { refreshTick++ },
+                    HubAppBarAction("plus", "choose sports and teams", "choose") {
+                        selected = null
+                        picking = true
+                        pickerLeague = null
+                    },
+                    HubAppBarAction("refresh", "refresh scores", "refresh") {
+                        when {
+                            selected != null -> detailTick++
+                            picking -> Unit
+                            onResultsPage -> resultsTick++
+                            else -> liveTick++
+                        }
+                    },
                     HubAppBarAction("pin", "pin sports to start", "pin to start", onPinHub),
                 ),
             )
@@ -239,281 +257,159 @@ fun SportsHubScreen(
     }
 }
 
-private suspend fun loadSportsHub(leagues: List<String>, teams: List<SportsTile.Selection>): SportsHubData = coroutineScope {
+/** Today's boards for [leagues], read once. */
+private suspend fun loadToday(leagues: List<String>): LiveState = coroutineScope {
     val now = System.currentTimeMillis()
     val boards = leagues.map { slug ->
         async {
-            sportsGate.withPermit {
+            boardGate.withPermit {
                 val name = sportsLeagueFor(slug)?.displayName ?: slug
                 val events = if (slug == CRICKET_LEAGUE_SLUG) fetchCricketMatches() else fetchSportsScoreboard(slug)
                 events.map { HubMatch(it, slug, name) }
             }
         }
     }
-    val byTeam = teams.map { team ->
-        async {
-            sportsGate.withPermit {
-                val events = if (team.leagueSlug == CRICKET_LEAGUE_SLUG) {
-                    fetchRecentCricketMatchesForTeam(team.teamId, now)
-                } else {
-                    fetchSportsSchedule(team.leagueSlug, team.teamId)
-                }
-                val name = sportsLeagueFor(team.leagueSlug)?.displayName ?: team.leagueSlug
-                team to events.map { HubMatch(it, team.leagueSlug, name) }
-            }
+    LiveState(boards.awaitAll().flatten(), now, loaded = true)
+}
+
+// --- pages ----------------------------------------------------------------------
+
+@Composable
+private fun ScopeRow(scope: HubScope, onScope: (HubScope) -> Unit, tokens: ColorTokens, accent: Color) {
+    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+        HubScope.entries.forEach { s -> HubFilter(s.label, scope == s, tokens, accent) { onScope(s) } }
+    }
+}
+
+@Composable
+private fun EmptyHint(text: String, tokens: ColorTokens, action: String? = null, accent: Color = Color.Unspecified, onAction: () -> Unit = {}) {
+    Column(modifier = Modifier.padding(vertical = 12.dp)) {
+        Text(text, color = tokens.fgDim, fontSize = 15.sp)
+        if (action != null) {
+            Text(action, color = accent, fontSize = 15.sp, modifier = Modifier.padding(top = 8.dp).clickable(onClick = onAction))
         }
     }
-    SportsHubData(
-        board = boards.awaitAll().flatten(),
-        byTeam = byTeam.awaitAll().toMap(),
-        nowMillis = now,
-        loaded = true,
-    )
 }
 
 @Composable
 private fun LivePage(
-    data: SportsHubData,
+    live: LiveState,
     fav: SportsFavorites,
-    showAll: Boolean,
-    onShowAll: (Boolean) -> Unit,
+    scope: HubScope,
+    onScope: (HubScope) -> Unit,
+    zoneOffset: Long,
     tokens: ColorTokens,
     accent: Color,
+    onOpen: (HubMatch) -> Unit,
     onPick: () -> Unit,
 ) {
-    val shown = remember(data, fav, showAll) {
-        if (showAll || fav.sports.isEmpty()) hubLiveMatches(data.board, data.nowMillis) else hubFavoriteMatches(data.board, fav, data.nowMillis)
-    }
+    val shown = remember(live, fav, scope) { hubTodayMatches(live.matches.filter { inScope(it, scope, fav) }, live.nowMillis, zoneOffset) }
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
-        if (fav.sports.isEmpty()) {
-            item(key = "pick") {
-                Text(
-                    "showing every sport. choose yours to see just those ›",
-                    color = accent,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(vertical = 8.dp).clickable(onClick = onPick),
-                )
+        item(key = "scope") { ScopeRow(scope, onScope, tokens, accent) }
+        when {
+            scope == HubScope.MY_TEAMS && fav.teams.isEmpty() -> item(key = "hint") {
+                EmptyHint("follow a team to see its games here", tokens, "choose teams ›", accent, onPick)
             }
-        } else {
-            item(key = "scope") {
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                    HubFilter("my sports", !showAll, tokens, accent) { onShowAll(false) }
-                    HubFilter("all sports", showAll, tokens, accent) { onShowAll(true) }
-                }
+            scope == HubScope.MY_SPORTS && fav.sports.isEmpty() -> item(key = "hint") {
+                EmptyHint("showing every sport", tokens, "choose yours ›", accent, onPick)
             }
         }
-        if (shown.isEmpty()) {
-            item {
-                Text(
-                    if (data.loaded) "no matches on right now" else "loading scores…",
-                    color = tokens.fgDim,
-                    fontSize = 15.sp,
-                    modifier = Modifier.padding(vertical = 12.dp),
-                )
-            }
+        if (shown.isEmpty() && !(scope == HubScope.MY_TEAMS && fav.teams.isEmpty())) {
+            item(key = "empty") { EmptyHint(if (live.loaded) "no matches today" else "loading scores…", tokens) }
         }
-        items(shown, key = { it.key }) { MatchCard(it, data.nowMillis, fav, tokens, accent) }
+        items(shown, key = { it.key }) { MatchCard(it, live.nowMillis, fav, null, tokens, accent) { onOpen(it) } }
     }
 }
 
 @Composable
-private fun FixturesPage(data: SportsHubData, fav: SportsFavorites, tokens: ColorTokens, accent: Color) {
-    var tab by remember { mutableStateOf(FixtureTab.TODAY) }
-    // Today comes from the favourite sports' boards; the week ahead and the
-    // results from the favourite teams' own schedules.
-    val source = remember(data, fav) {
-        val board = if (fav.sports.isEmpty()) data.board else data.board.filter { it.leagueSlug in fav.sports }
-        (board + data.byTeam.values.flatten()).distinctBy { it.key }
-    }
-    val zoneOffset = remember { java.util.TimeZone.getDefault().getOffset(System.currentTimeMillis()).toLong() }
-    val shown = remember(source, tab, data.nowMillis) { hubFixtures(source, tab, data.nowMillis, zoneOffset) }
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
-        item(key = "tabs") {
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                FixtureTab.entries.forEach { t -> HubFilter(t.label, tab == t, tokens, accent) { tab = t } }
-            }
-        }
-        if (fav.teams.isEmpty() && tab != FixtureTab.TODAY) {
-            item(key = "hint") {
-                Text(
-                    "the week ahead and results come from your favourite teams. add one in my teams.",
-                    color = tokens.fgDim,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(vertical = 12.dp),
-                )
-            }
-        } else if (shown.isEmpty()) {
-            item(key = "empty") {
-                Text(
-                    if (data.loaded) "nothing here" else "loading fixtures…",
-                    color = tokens.fgDim,
-                    fontSize = 15.sp,
-                    modifier = Modifier.padding(vertical = 12.dp),
-                )
-            }
-        }
-        items(shown, key = { it.key }) { MatchCard(it, data.nowMillis, fav, tokens, accent) }
-    }
-}
-
-@Composable
-private fun MyTeamsPage(
-    data: SportsHubData,
+private fun ResultsPage(
+    results: ResultsState,
     fav: SportsFavorites,
-    pagerState: PagerState,
-    active: Boolean,
-    tick: Int,
-    picking: Boolean,
-    pickerLeague: String?,
-    onOpenPicker: () -> Unit,
-    onPickLeague: (String) -> Unit,
-    onPinTeamTile: (SportsTile.Selection) -> Unit,
+    scope: HubScope,
+    onScope: (HubScope) -> Unit,
+    range: ResultsRange,
+    onRange: (ResultsRange) -> Unit,
     tokens: ColorTokens,
     accent: Color,
+    onOpen: (HubMatch) -> Unit,
+    onPick: () -> Unit,
 ) {
-    if (picking) {
-        if (pickerLeague == null) SportPicker(fav, onPickLeague, tokens, accent) else TeamPicker(pickerLeague, fav, tokens, accent)
-        return
+    val shown = remember(results, fav, scope, range) {
+        hubResults(results.matches.filter { inScope(it, scope, fav) }, range, results.nowMillis)
     }
-    val context = LocalContext.current
-    var expanded by remember { mutableStateOf(setOf<String>()) }
-    // Recent results across the favourite sports: only read while this page is the one showing.
-    val onThisPage = pagerState.currentPage == 2
-    val results by produceState(emptyList<HubMatch>(), fav.sports, onThisPage, tick) {
-        value = if (onThisPage && fav.sports.isNotEmpty()) loadRecentSportResults(fav.sports) else emptyList()
-    }
+    val needsTeams = scope == HubScope.MY_TEAMS && fav.teams.isEmpty()
+    val needsSports = scope == HubScope.MY_SPORTS && fav.sports.isEmpty()
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
-        item(key = "sports-h") {
-            Text("my sports", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 2.dp))
-        }
-        if (fav.sports.isEmpty()) {
-            item(key = "sports-empty") {
-                Text(
-                    "choose the sports you follow. the live page then shows just those.",
-                    color = tokens.fg,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Light,
-                    modifier = Modifier.padding(vertical = 6.dp),
-                )
+        item(key = "scope") { ScopeRow(scope, onScope, tokens, accent) }
+        item(key = "range") {
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                ResultsRange.entries.forEach { r -> HubFilter(r.label, range == r, tokens, accent) { onRange(r) } }
             }
         }
-        items(fav.sports, key = { "s-$it" }) { slug ->
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                Text(
-                    sportsLeagueFor(slug)?.displayName ?: slug,
-                    color = tokens.fg, fontSize = 17.sp, fontWeight = FontWeight.Light, modifier = Modifier.weight(1f),
-                )
-                Text(
-                    "✕", color = tokens.fgDim, fontSize = 18.sp,
-                    modifier = Modifier.clickable { SportsFavoritesStore.toggleSport(context, slug) }.padding(start = 14.dp, top = 4.dp, bottom = 4.dp),
-                )
-            }
+        when {
+            needsTeams -> item(key = "hint") { EmptyHint("follow a team to see its results here", tokens, "choose teams ›", accent, onPick) }
+            needsSports -> item(key = "hint") { EmptyHint("choose your sports to see their results", tokens, "choose sports ›", accent, onPick) }
+            results.loading -> item(key = "loading") { EmptyHint("reading results…", tokens) }
+            results.started && shown.isEmpty() -> item(key = "empty") { EmptyHint("no results in this time", tokens) }
         }
-        item(key = "add") {
-            Text("add sports and teams ›", color = accent, fontSize = 15.sp, modifier = Modifier.padding(vertical = 8.dp).clickable(onClick = onOpenPicker))
-        }
-        if (fav.teams.isNotEmpty()) {
-            item(key = "teams-h") {
-                Text("my teams", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp, bottom = 2.dp))
-            }
-        }
-        items(fav.teams, key = { "t-" + it.leagueSlug + "/" + it.teamId }) { team ->
-            val id = team.leagueSlug + "/" + team.teamId
-            TeamBlock(
-                team = team,
-                matches = data.byTeam[team].orEmpty(),
-                nowMillis = data.nowMillis,
-                loaded = data.loaded,
-                open = id in expanded,
-                onToggle = { expanded = if (id in expanded) expanded - id else expanded + id },
-                onPinTile = { onPinTeamTile(team) },
-                onRemove = { SportsFavoritesStore.toggleTeam(context, team) },
-                tokens = tokens,
-                accent = accent,
-            )
-        }
-        if (results.isNotEmpty()) {
-            item(key = "results-h") {
-                Text("recent results in my sports", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 14.dp, bottom = 2.dp))
-            }
-            items(results, key = { "r-" + it.key }) { MatchCard(it, data.nowMillis, fav, tokens, accent) }
+        items(shown, key = { it.key }) { m ->
+            val team = if (scope == HubScope.MY_TEAMS) fav.teams.firstOrNull { involves(m, it) } else null
+            MatchCard(m, results.nowMillis, fav, team, tokens, accent) { onOpen(m) }
         }
     }
 }
 
-/** One favourite team: its latest game, and on tap its history, a tile for it and a way to drop it. */
+// --- match card -------------------------------------------------------------------
+
+/** One match as two score lines with its status under (the kick-off time when it hasn't started); [team] adds a W/L for it. */
 @Composable
-private fun TeamBlock(
-    team: SportsTile.Selection,
-    matches: List<HubMatch>,
+private fun MatchCard(
+    match: HubMatch,
     nowMillis: Long,
-    loaded: Boolean,
-    open: Boolean,
-    onToggle: () -> Unit,
-    onPinTile: () -> Unit,
-    onRemove: () -> Unit,
+    fav: SportsFavorites,
+    team: SportsTile.Selection?,
     tokens: ColorTokens,
     accent: Color,
+    onClick: () -> Unit,
 ) {
-    val latest = pickRelevantMatch(matches.map { it.event }, nowMillis)
-    val snapshot = latest?.let { snapshotFor(it, team.teamId) }
-    val letter = snapshot?.let(::resultLetter)
-    // Cricket has no per-team schedule: its history is read from past days' feeds, only once opened.
-    val cricketHistory by produceState(emptyList<HubMatch>(), team, open) {
-        value = if (open && team.leagueSlug == CRICKET_LEAGUE_SLUG) {
-            fetchCricketHistory(team.teamId, nowMillis).map { HubMatch(it, team.leagueSlug, "Cricket") }
-        } else {
-            emptyList()
-        }
-    }
-    val history = remember(matches, cricketHistory, nowMillis) { teamHistory(matches + cricketHistory, team.teamId, nowMillis) }
-
-    Column(modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(vertical = 9.dp)) {
+    val e = match.event
+    val live = e.state == "in"
+    val favourite = fav.teams.any { involves(match, it) }
+    val status = matchStatus(match, nowMillis)
+    val letter = team?.let { resultLetter(snapshotFor(e, it.teamId)) }
+    Column(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 9.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(team.teamLabel, color = tokens.fg, fontSize = 17.sp, fontWeight = FontWeight.Light, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(sportsLeagueFor(team.leagueSlug)?.displayName.orEmpty(), color = tokens.fgDim, fontSize = 12.sp)
-            }
-            when {
-                snapshot?.state == "in" -> Text("live", color = accent, fontSize = 15.sp)
-                letter != null -> ResultLetter(letter, tokens)
-            }
-            Text(if (open) "▴" else "▾", color = tokens.fgDim, fontSize = 14.sp, modifier = Modifier.padding(start = 12.dp))
-        }
-        if (snapshot != null) {
             Text(
-                scoreLine(snapshot.teamAbbr, snapshot.teamScore, snapshot.opponentAbbr, snapshot.opponentScore),
-                color = tokens.fg, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 4.dp),
+                (if (favourite) "★ " else "") + (if (live) "● live · " else "") + match.leagueName,
+                color = if (live || favourite) accent else tokens.fgDim,
+                fontSize = 12.sp,
+                modifier = Modifier.weight(1f),
             )
-            Text(sportsStatusLine(snapshot, nowMillis), color = tokens.fgDim, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        } else if (loaded) {
-            Text("no games found", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+            if (letter != null) ResultLetter(letter, tokens)
         }
-        if (open) {
-            Text("history", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp, bottom = 2.dp))
-            if (history.isEmpty()) {
-                Text(if (loaded) "no finished games yet" else "loading…", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(vertical = 4.dp))
-            }
-            history.forEach { m ->
-                val s = snapshotFor(m.event, team.teamId)
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            scoreLine(s.teamAbbr, s.teamScore, s.opponentAbbr, s.opponentScore),
-                            color = tokens.fg, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(sportsStatusLine(s, nowMillis), color = tokens.fgDim, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    resultLetter(s)?.let { ResultLetter(it, tokens) }
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.padding(top = 10.dp)) {
-                Text("pin a tile", color = accent, fontSize = 14.sp, modifier = Modifier.clickable(onClick = onPinTile))
-                Text("remove", color = tokens.fgDim, fontSize = 14.sp, modifier = Modifier.clickable(onClick = onRemove))
-            }
-        }
+        ScoreLine(e.homeName, e.homeScore, e.state, tokens, 17.sp)
+        ScoreLine(e.awayName, e.awayScore, e.state, tokens, 17.sp)
+        Text(status, color = tokens.fgDim, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
         Box(modifier = Modifier.fillMaxWidth().padding(top = 9.dp).height(0.5.dp).background(tokens.sheetLine))
+    }
+}
+
+private fun matchStatus(match: HubMatch, nowMillis: Long): String {
+    val e = match.event
+    if (e.state == "pre") {
+        return listOfNotNull(kickoffLabel(e.epochMillis, nowMillis, ZoneId.systemDefault()), e.matchLabel).joinToString(" · ")
+    }
+    return sportsStatusLine(snapshotFor(e, e.homeId), nowMillis)
+}
+
+@Composable
+private fun ScoreLine(name: String, score: String, state: String, tokens: ColorTokens, size: androidx.compose.ui.unit.TextUnit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 2.dp)) {
+        Text(name, color = tokens.fg, fontSize = size, fontWeight = FontWeight.Light, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Spacer(Modifier.width(10.dp))
+        if (state != "pre") {
+            Text(splitInningsScore(score).lastOrNull() ?: score, color = tokens.fg, fontSize = size, fontWeight = FontWeight.Light, maxLines = 1)
+        }
     }
 }
 
@@ -531,56 +427,159 @@ private fun ResultLetter(letter: String, tokens: ColorTokens) {
     )
 }
 
-/** `BKN 124  v  CHA 90`, with a cricket side's score trimmed to its latest innings. */
-private fun scoreLine(abbr: String, score: String, opponentAbbr: String, opponentScore: String): String {
-    val ours = splitInningsScore(score).lastOrNull() ?: score
-    val theirs = splitInningsScore(opponentScore).lastOrNull() ?: opponentScore
-    return "$abbr $ours  v  $opponentAbbr $theirs"
-}
+// --- sub screens ---------------------------------------------------------------------
 
-/** Finished games in the favourite sports over the last few days; yesterday's and the day before's boards are read here. */
-private suspend fun loadRecentSportResults(sports: List<String>): List<HubMatch> = coroutineScope {
-    val now = System.currentTimeMillis()
-    val dates = (0..2).map { back ->
-        val c = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, -back) }
-        String.format(java.util.Locale.US, "%04d%02d%02d", c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH) + 1, c.get(java.util.Calendar.DAY_OF_MONTH))
+/** A page of its own inside the hub, Lumia-style: the app name in small capitals over a large light title. */
+@Composable
+private fun SubScreen(title: String, tokens: ColorTokens, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            "SPORTS",
+            color = tokens.fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp,
+            modifier = Modifier.padding(start = 18.dp, top = 18.dp),
+        )
+        Text(
+            title,
+            color = tokens.fg, fontSize = 34.sp, fontWeight = FontWeight.Light, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+        )
+        Box(modifier = Modifier.weight(1f)) { content() }
     }
-    val all = sports.flatMap { slug -> dates.map { slug to it } }.map { (slug, date) ->
-        async {
-            sportsGate.withPermit {
-                val name = sportsLeagueFor(slug)?.displayName ?: slug
-                val events: List<SportsMatchEvent> =
-                    if (slug == CRICKET_LEAGUE_SLUG) fetchCricketMatches(date) else fetchSportsScoreboardOn(slug, date)
-                events.map { HubMatch(it, slug, name) }
-            }
-        }
-    }.awaitAll().flatten()
-    recentSportResults(all, sports, now)
 }
 
 @Composable
-private fun SportPicker(fav: SportsFavorites, onOpen: (String) -> Unit, tokens: ColorTokens, accent: Color) {
+private fun MatchDetailScreen(match: HubMatch, tick: Int, nowMillis: Long, tokens: ColorTokens, accent: Color, modifier: Modifier = Modifier) {
+    val e = match.event
+    val state by produceState<DetailState>(DetailState.Loading, match.key, tick) {
+        value = DetailState.Loading
+        value = fetchMatchDetailData(match)?.let { DetailState.Loaded(it) } ?: DetailState.Failed
+    }
+    val context = LocalContext.current
+    SubScreen("${e.homeName} v ${e.awayName}", tokens, modifier) {
+        val loaded = (state as? DetailState.Loaded)?.data
+        LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
+            item(key = "score") {
+                Column(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
+                    Text(match.leagueName + (e.matchLabel?.let { " · $it" } ?: ""), color = accent, fontSize = 13.sp)
+                    ScoreLine(e.homeName, e.homeScore, e.state, tokens, 24.sp)
+                    ScoreLine(e.awayName, e.awayScore, e.state, tokens, 24.sp)
+                    Text(
+                        if (e.state == "pre") matchStatus(match, nowMillis) else loaded?.statusLine?.takeIf { it.isNotEmpty() } ?: matchStatus(match, nowMillis),
+                        color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+            }
+            when (val s = state) {
+                DetailState.Loading -> item(key = "loading") { EmptyHint("loading the scorecard…", tokens) }
+                DetailState.Failed -> item(key = "failed") { EmptyHint("couldn't load details for this match. try refresh.", tokens) }
+                is DetailState.Loaded -> {
+                    val d = s.data
+                    if (d.now.isNotEmpty()) {
+                        item(key = "now-h") { Text("right now", color = accent, fontSize = 15.sp, modifier = Modifier.padding(top = 10.dp, bottom = 2.dp)) }
+                        items(d.now.size, key = { "now-$it" }) { i ->
+                            Text(d.now[i], color = tokens.fg, fontSize = 15.sp, fontWeight = FontWeight.Light, modifier = Modifier.padding(vertical = 3.dp))
+                        }
+                    }
+                    items(d.tables.size, key = { "t-$it" }) { i -> DetailTableView(d.tables[i], tokens) }
+                    d.note?.let { note ->
+                        item(key = "note") { Text(note, color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp)) }
+                    }
+                    d.webUrl?.let { url ->
+                        item(key = "web") {
+                            Text(
+                                if (e.state == "in") "live commentary and more on espn ›" else "full match page on espn ›",
+                                color = accent, fontSize = 15.sp,
+                                modifier = Modifier.padding(vertical = 16.dp).clickable { openUrl(context, url) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailTableView(table: DetailTable, tokens: ColorTokens) {
+    val columns = table.header.size
+    val weights = table.widths?.takeIf { it.size == columns } ?: List(columns) { if (it == 0) 2.4f else 1f }
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) {
+        Text(table.title, color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(bottom = 4.dp))
+        if (table.header.any { it.isNotEmpty() }) {
+            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp)) {
+                table.header.forEachIndexed { i, h ->
+                    Text(h, color = tokens.fgDim, fontSize = 11.sp, maxLines = 1, textAlign = if (i == 0) TextAlign.Start else TextAlign.End, modifier = Modifier.weight(weights[i]))
+                }
+            }
+        }
+        table.rows.forEach { row ->
+            Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                for (i in 0 until columns) {
+                    val cell = row.getOrElse(i) { "" }
+                    val lines = cell.split('\n')
+                    Column(modifier = Modifier.weight(weights[i]), horizontalAlignment = if (i == 0) Alignment.Start else Alignment.End) {
+                        Text(
+                            lines.first(),
+                            color = tokens.fg, fontSize = 13.sp, maxLines = if (i == 0) 2 else 1, overflow = TextOverflow.Ellipsis,
+                            textAlign = if (i == 0) TextAlign.Start else TextAlign.End,
+                        )
+                        lines.drop(1).forEach { extra ->
+                            Text(extra, color = tokens.fgDim, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+            }
+            Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(tokens.sheetLine))
+        }
+    }
+}
+
+private fun openUrl(context: Context, url: String) {
+    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+}
+
+// --- picker ----------------------------------------------------------------------------
+
+@Composable
+private fun SportPicker(
+    fav: SportsFavorites,
+    onOpenLeague: (String) -> Unit,
+    onPinTeamTile: (SportsTile.Selection) -> Unit,
+    tokens: ColorTokens,
+    accent: Color,
+) {
     val context = LocalContext.current
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
+        if (fav.teams.isNotEmpty()) {
+            item(key = "my-teams-h") { Text("my teams", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)) }
+            items(fav.teams, key = { "mt-" + it.leagueSlug + "/" + it.teamId }) { team ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(team.teamLabel, color = tokens.fg, fontSize = 17.sp, fontWeight = FontWeight.Light, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(sportsLeagueFor(team.leagueSlug)?.displayName.orEmpty(), color = tokens.fgDim, fontSize = 12.sp)
+                    }
+                    Text("tile", color = accent, fontSize = 14.sp, modifier = Modifier.clickable { onPinTeamTile(team) }.padding(horizontal = 12.dp, vertical = 6.dp))
+                    Text("✕", color = tokens.fgDim, fontSize = 18.sp, modifier = Modifier.clickable { SportsFavoritesStore.toggleTeam(context, team) }.padding(start = 6.dp, top = 4.dp, bottom = 4.dp))
+                }
+            }
+        }
         item(key = "h") {
             Text(
                 "tap ☆ to follow a sport. tap its name to pick teams.",
-                color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(vertical = 6.dp),
+                color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp, bottom = 6.dp),
             )
         }
         SPORTS_LEAGUE_CATEGORY_ORDER.forEach { category ->
             val leagues: List<SportsLeague> = SPORTS_LEAGUES.filter { it.category == category }
             if (leagues.isEmpty()) return@forEach
-            item(key = "c-$category") {
-                Text(category, color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp, bottom = 2.dp))
-            }
+            item(key = "c-$category") { Text(category, color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp, bottom = 2.dp)) }
             items(leagues, key = { it.slug }) { league ->
                 val on = league.slug in fav.sports
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Text(
                         league.displayName,
                         color = if (on) accent else tokens.fg, fontSize = 18.sp, fontWeight = FontWeight.Light,
-                        modifier = Modifier.weight(1f).clickable { onOpen(league.slug) }.padding(vertical = 10.dp),
+                        modifier = Modifier.weight(1f).clickable { onOpenLeague(league.slug) }.padding(vertical = 10.dp),
                     )
                     Text(
                         if (on) "★" else "☆",
@@ -594,7 +593,7 @@ private fun SportPicker(fav: SportsFavorites, onOpen: (String) -> Unit, tokens: 
 }
 
 @Composable
-private fun TeamPicker(leagueSlug: String, fav: SportsFavorites, tokens: ColorTokens, accent: Color) {
+private fun TeamPicker(leagueSlug: String, fav: SportsFavorites, onPinTeamTile: (SportsTile.Selection) -> Unit, tokens: ColorTokens, accent: Color) {
     val context = LocalContext.current
     val league = sportsLeagueFor(leagueSlug)
     val teams by produceState<List<SportsTeam>?>(null, leagueSlug) {
@@ -610,9 +609,9 @@ private fun TeamPicker(leagueSlug: String, fav: SportsFavorites, tokens: ColorTo
         }
         val list = teams
         if (list == null) {
-            item { Text("loading teams…", color = tokens.fgDim, fontSize = 15.sp, modifier = Modifier.padding(vertical = 12.dp)) }
+            item { EmptyHint("loading teams…", tokens) }
         } else if (list.isEmpty()) {
-            item { Text("couldn't load teams. check your connection.", color = tokens.fgDim, fontSize = 15.sp, modifier = Modifier.padding(vertical = 12.dp)) }
+            item { EmptyHint("couldn't load teams. check your connection.", tokens) }
         }
         items(list.orEmpty(), key = { "tp-" + it.id }) { team ->
             val on = fav.isTeamFavorite(leagueSlug, team.id)
@@ -627,69 +626,11 @@ private fun TeamPicker(leagueSlug: String, fav: SportsFavorites, tokens: ColorTo
                         Text(if (team.id in internationalIds) "international" else "ipl", color = tokens.fgDim, fontSize = 12.sp)
                     }
                 }
-                Spacer(Modifier.width(12.dp))
+                if (on) {
+                    Text("tile", color = accent, fontSize = 14.sp, modifier = Modifier.clickable { onPinTeamTile(sel) }.padding(horizontal = 12.dp, vertical = 6.dp))
+                }
                 Text(if (on) "★" else "☆", color = if (on) accent else tokens.fgDim, fontSize = 22.sp)
             }
         }
-    }
-}
-
-/** One match as two score lines with its status under; tap opens ESPN's page for it. */
-@Composable
-private fun MatchCard(match: HubMatch, nowMillis: Long, fav: SportsFavorites, tokens: ColorTokens, accent: Color) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val e = match.event
-    val live = e.state == "in"
-    val favourite = fav.teams.any { involves(match, it) }
-    val status = sportsStatusLine(snapshotFor(e, e.homeId), nowMillis)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { scope.launch { openMatchPage(context, match) } }
-            .padding(vertical = 9.dp),
-    ) {
-        Text(
-            (if (favourite) "★ " else "") + (if (live) "● live · " else "") + match.leagueName,
-            color = if (live || favourite) accent else tokens.fgDim,
-            fontSize = 12.sp,
-        )
-        ScoreLine(e.homeName, e.homeScore, e.state, tokens)
-        ScoreLine(e.awayName, e.awayScore, e.state, tokens)
-        Text(status, color = tokens.fgDim, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
-        Box(modifier = Modifier.fillMaxWidth().padding(top = 9.dp).height(0.5.dp).background(tokens.sheetLine))
-    }
-}
-
-@Composable
-private fun ScoreLine(name: String, score: String, state: String, tokens: ColorTokens) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 2.dp)) {
-        Text(name, color = tokens.fg, fontSize = 17.sp, fontWeight = FontWeight.Light, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Spacer(Modifier.width(10.dp))
-        if (state != "pre") {
-            Text(
-                splitInningsScore(score).lastOrNull() ?: score,
-                color = tokens.fg,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Light,
-                maxLines = 1,
-            )
-        }
-    }
-}
-
-private suspend fun openMatchPage(context: Context, match: HubMatch) {
-    val detail = if (match.leagueSlug == CRICKET_LEAGUE_SLUG) {
-        match.event.leagueId?.let { fetchCricketMatchDetail(it, match.event.id) }
-    } else {
-        fetchMatchDetail(match.leagueSlug, match.event.id)
-    }
-    val url = detail?.webUrl
-    if (url == null) {
-        Toast.makeText(context, "no match page available", Toast.LENGTH_SHORT).show()
-        return
-    }
-    runCatching {
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 }

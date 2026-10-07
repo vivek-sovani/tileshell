@@ -5,41 +5,68 @@ data class HubMatch(val event: SportsMatchEvent, val leagueSlug: String, val lea
     val key: String get() = "$leagueSlug/${event.id}"
 }
 
-/** The sports hub's "fixtures" filters. */
-enum class FixtureTab(val label: String) { TODAY("today"), WEEK("week"), RESULTS("results") }
-
 private const val DAY_MS = 24L * 60 * 60 * 1000
-private const val WEEK_MS = 7 * DAY_MS
+
+/** Which matches a sports hub page lists: only those of the favourite teams, or all of the favourite sports. */
+enum class HubScope(val label: String) { MY_TEAMS("my teams"), MY_SPORTS("my sports") }
+
+/** How far back the results page looks. */
+enum class ResultsRange(val label: String, val days: Int) { WEEK("last week", 7), MONTH("last month", 30) }
 
 /**
- * What the "live" page shows: matches in play first (newest start first),
- * then those about to start, then those that finished recently — each group
- * within [SAME_DAY_MS] of now, the same window the tile uses. Pure.
+ * Whether [match] belongs under [scope]: a favourite team plays in it, or it is
+ * in a favourite sport. With no sport marked, "my sports" is every sport.
  */
-fun hubLiveMatches(matches: List<HubMatch>, nowMillis: Long): List<HubMatch> {
-    val live = matches.filter { it.event.state == "in" }.sortedByDescending { it.event.epochMillis }
-    val upcoming = matches.filter {
-        it.event.state != "in" && it.event.state != "post" &&
-            it.event.epochMillis > nowMillis && it.event.epochMillis - nowMillis <= SAME_DAY_MS
-    }.sortedBy { it.event.epochMillis }
-    val finished = matches.filter {
-        it.event.state == "post" && it.event.epochMillis <= nowMillis && nowMillis - it.event.epochMillis <= SAME_DAY_MS
-    }.sortedByDescending { it.event.epochMillis }
-    return (live + upcoming + finished).distinctBy { it.key }
+fun inScope(match: HubMatch, scope: HubScope, fav: SportsFavorites): Boolean = when (scope) {
+    HubScope.MY_TEAMS -> fav.teams.any { involves(match, it) }
+    HubScope.MY_SPORTS -> fav.sports.isEmpty() || match.leagueSlug in fav.sports
 }
 
-/** The "fixtures" page for [tab]: today's and the week's games soonest first, results newest first. */
-fun hubFixtures(matches: List<HubMatch>, tab: FixtureTab, nowMillis: Long, zoneOffsetMillis: Long = 0L): List<HubMatch> {
-    val notPlayed = matches.filter { it.event.state != "post" && it.event.state != "in" }
-    val picked = when (tab) {
-        FixtureTab.TODAY -> matches.filter { sameDay(it.event.epochMillis, nowMillis, zoneOffsetMillis) }
-            .sortedBy { it.event.epochMillis }
-        FixtureTab.WEEK -> notPlayed.filter { it.event.epochMillis > nowMillis && it.event.epochMillis - nowMillis <= WEEK_MS }
-            .sortedBy { it.event.epochMillis }
-        FixtureTab.RESULTS -> matches.filter { it.event.state == "post" && it.event.epochMillis <= nowMillis }
-            .sortedByDescending { it.event.epochMillis }.take(10)
+/**
+ * The "live" page: today's matches, live ones first (newest start first),
+ * then those still to be played (soonest first, so the kick-off time reads in
+ * order), then those already finished (newest first). A match in play stays
+ * even if it began on an earlier day (a multi-day cricket match). "Today" is
+ * the calendar day of [nowMillis] in the zone [zoneOffsetMillis] from UTC. Pure.
+ */
+fun hubTodayMatches(matches: List<HubMatch>, nowMillis: Long, zoneOffsetMillis: Long = 0L): List<HubMatch> {
+    val live = matches.filter { it.event.state == SPORTS_STATE_LIVE }.sortedByDescending { it.event.epochMillis }
+    val today = matches.filter { it.event.state != SPORTS_STATE_LIVE && sameDay(it.event.epochMillis, nowMillis, zoneOffsetMillis) }
+    val scheduled = today.filter { it.event.state != SPORTS_STATE_FINAL }.sortedBy { it.event.epochMillis }
+    val finished = today.filter { it.event.state == SPORTS_STATE_FINAL }.sortedByDescending { it.event.epochMillis }
+    return (live + scheduled + finished).distinctBy { it.key }
+}
+
+/** The "results" page: finished matches from the last [range] days, newest first. */
+fun hubResults(matches: List<HubMatch>, range: ResultsRange, nowMillis: Long): List<HubMatch> =
+    matches.filter {
+        it.event.state == SPORTS_STATE_FINAL && it.event.epochMillis <= nowMillis &&
+            nowMillis - it.event.epochMillis <= range.days * DAY_MS
+    }.distinctBy { it.key }.sortedByDescending { it.event.epochMillis }
+
+/**
+ * The calendar days (`yyyyMMdd`, newest first, starting with today) a results
+ * lookup walks: [days] of them, in the zone [zoneOffsetMillis] from UTC. Pure.
+ */
+fun resultDays(nowMillis: Long, days: Int, zoneOffsetMillis: Long = 0L): List<String> =
+    (0 until days).map { back ->
+        val epochDay = Math.floorDiv(nowMillis + zoneOffsetMillis, DAY_MS) - back
+        java.time.LocalDate.ofEpochDay(epochDay).let { String.format(java.util.Locale.US, "%04d%02d%02d", it.year, it.monthValue, it.dayOfMonth) }
     }
-    return picked.distinctBy { it.key }
+
+/** A match that has not started: "today 7:30 pm" / "tomorrow 1:30 am" / "12 oct 7:30 pm", in [zone]. */
+fun kickoffLabel(epochMillis: Long, nowMillis: Long, zone: java.time.ZoneId): String {
+    val at = java.time.Instant.ofEpochMilli(epochMillis).atZone(zone)
+    val today = java.time.Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDate()
+    val day = when (at.toLocalDate()) {
+        today -> "today"
+        today.plusDays(1) -> "tomorrow"
+        today.minusDays(1) -> "yesterday"
+        else -> "${at.dayOfMonth} ${at.month.name.take(3).lowercase()}"
+    }
+    val hour12 = (at.hour % 12).let { if (it == 0) 12 else it }
+    val minutes = if (at.minute == 0) "" else ":%02d".format(at.minute)
+    return "$day $hour12$minutes ${if (at.hour < 12) "am" else "pm"}"
 }
 
 private fun sameDay(a: Long, b: Long, offsetMillis: Long) = Math.floorDiv(a + offsetMillis, DAY_MS) == Math.floorDiv(b + offsetMillis, DAY_MS)
@@ -96,46 +123,5 @@ fun encodeFavoriteTeams(teams: List<SportsTile.Selection>): String =
 fun decodeFavoriteTeams(raw: String?): List<SportsTile.Selection> =
     raw.orEmpty().split("\n").mapNotNull { SportsTile.decode(it) }.distinctBy { it.leagueSlug to it.teamId }
 
-/**
- * The "live" page for favourites: only matches from the favourite sports
- * (everything, when none is marked), in [hubLiveMatches] order but with
- * games a favourite team plays in kept ahead of the rest.
- */
-fun hubFavoriteMatches(matches: List<HubMatch>, fav: SportsFavorites, nowMillis: Long): List<HubMatch> {
-    val inSports = if (fav.sports.isEmpty()) matches else matches.filter { it.leagueSlug in fav.sports }
-    val ordered = hubLiveMatches(inSports, nowMillis)
-    return ordered.sortedByDescending { match -> fav.teams.any { involves(match, it) } }
-}
-
 fun involves(match: HubMatch, team: SportsTile.Selection): Boolean =
     match.leagueSlug == team.leagueSlug && (match.event.homeId == team.teamId || match.event.awayId == team.teamId)
-
-/** A team's finished games, newest first, at most [limit]: its history. */
-fun teamHistory(matches: List<HubMatch>, teamId: String, nowMillis: Long, limit: Int = 5): List<HubMatch> =
-    matches.filter {
-        it.event.state == SPORTS_STATE_FINAL && it.event.epochMillis <= nowMillis &&
-            (it.event.homeId == teamId || it.event.awayId == teamId)
-    }.distinctBy { it.key }.sortedByDescending { it.event.epochMillis }.take(limit)
-
-/** Finished games across the favourite sports from the last [days] days, newest first. */
-fun recentSportResults(matches: List<HubMatch>, sports: List<String>, nowMillis: Long, days: Int = 3, limit: Int = 15): List<HubMatch> =
-    matches.filter {
-        it.leagueSlug in sports && it.event.state == SPORTS_STATE_FINAL &&
-            it.event.epochMillis <= nowMillis && nowMillis - it.event.epochMillis <= days * DAY_MS
-    }.distinctBy { it.key }.sortedByDescending { it.event.epochMillis }.take(limit)
-
-/**
- * How long the sports hub waits before refreshing while it is on screen:
- * [configuredMs] (the user's "live data refresh" rate for sports) whenever a
- * match is live or about to start, otherwise sleeping until the run-up to the
- * next kick-off, never longer than [SPORTS_IDLE_REFRESH_MS] — the same reasoning
- * as [shouldFetchSports]: a match that isn't in progress has nothing to poll
- * for. Pure.
- */
-fun hubSportsRefreshDelayMs(events: List<SportsMatchEvent>, nowMillis: Long, configuredMs: Long): Long {
-    if (events.any { it.state == SPORTS_STATE_LIVE }) return configuredMs
-    val nextKickoff = events.filter { it.state != SPORTS_STATE_FINAL && it.epochMillis > nowMillis }.minOfOrNull { it.epochMillis }
-        ?: return maxOf(configuredMs, SPORTS_IDLE_REFRESH_MS)
-    val untilWake = nextKickoff - SPORTS_PREGAME_WAKE_MS - nowMillis
-    return if (untilWake <= 0) configuredMs else untilWake.coerceIn(configuredMs, maxOf(configuredMs, SPORTS_IDLE_REFRESH_MS))
-}

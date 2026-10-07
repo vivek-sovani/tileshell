@@ -3,9 +3,6 @@ package com.tileshell.core.data
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.sync.withPermit
 
 /**
  * Sentinel league slug for cricket in [SPORTS_LEAGUES] — deliberately not a
@@ -153,51 +150,6 @@ suspend fun fetchRecentCricketMatchesForTeam(teamId: String, nowMillis: Long, ma
     val today = fetchCricketMatches().filter { it.homeId == teamId || it.awayId == teamId }
     relevantMatches(today, nowMillis).takeIf { it.isNotEmpty() }?.let { return it }
     return listOfNotNull(lookBackForCricketMatch(teamId, nowMillis, maxDaysBack))
-}
-
-private class CricketHistory(val matches: List<SportsMatchEvent>, val resolvedAtMillis: Long)
-
-private val historyCache = ConcurrentHashMap<String, CricketHistory>()
-
-private const val CRICKET_HISTORY_TTL_MS = 3L * 60 * 60 * 1000
-
-/**
- * A cricket side's last few finished matches, newest first, for the sports
- * hub's team history. ESPN has no per-team cricket schedule, so this reads the
- * cross-tournament feed one past day at a time, [daysBack] days, a few days'
- * requests at once, and keeps the team's finished matches. Cached per team
- * ([CRICKET_HISTORY_TTL_MS]) because the answer only changes when the team
- * plays; only asked for when the user opens a team's history.
- */
-suspend fun fetchCricketHistory(teamId: String, nowMillis: Long, daysBack: Int = 21, limit: Int = 5): List<SportsMatchEvent> {
-    historyCache[teamId]
-        ?.takeIf { nowMillis - it.resolvedAtMillis in 0 until CRICKET_HISTORY_TTL_MS }
-        ?.let { return it.matches }
-    val gate = kotlinx.coroutines.sync.Semaphore(4)
-    val days = (0 until daysBack).map { back ->
-        val calendar = java.util.Calendar.getInstance().apply {
-            timeInMillis = nowMillis
-            add(java.util.Calendar.DAY_OF_YEAR, -back)
-        }
-        String.format(
-            java.util.Locale.US, "%04d%02d%02d",
-            calendar.get(java.util.Calendar.YEAR),
-            calendar.get(java.util.Calendar.MONTH) + 1,
-            calendar.get(java.util.Calendar.DAY_OF_MONTH),
-        )
-    }
-    val found = kotlinx.coroutines.coroutineScope {
-        days.map { day ->
-            async { gate.withPermit { fetchCricketMatches(day) } }
-        }.awaitAll().flatten()
-    }
-    val matches = found
-        .filter { (it.homeId == teamId || it.awayId == teamId) && it.state == SPORTS_STATE_FINAL && it.epochMillis <= nowMillis }
-        .distinctBy { it.id }
-        .sortedByDescending { it.epochMillis }
-        .take(limit)
-    historyCache[teamId] = CricketHistory(matches, nowMillis)
-    return matches
 }
 
 private suspend fun lookBackForCricketMatch(teamId: String, nowMillis: Long, maxDaysBack: Int): SportsMatchEvent? {

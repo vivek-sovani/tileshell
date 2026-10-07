@@ -9024,7 +9024,6 @@ private fun HubScreensLayer(
         visible = sportsHubOpen,
         dark = dark,
         accentId = accentId,
-        refreshRate = hubSettings.sportsRefreshRate,
         onDismiss = viewModel::closeSportsHub,
         onPinHub = viewModel::pinSportsHub,
         onPinTeamTile = viewModel::pinSportsTeamTile,
